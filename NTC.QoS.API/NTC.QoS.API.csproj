@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Application\NTCQoS.Application.csproj" />
+    <ProjectReference Include="..\Application\NTCQoSApplication.csproj" />
   </ItemGroup>
 
 </Project>
