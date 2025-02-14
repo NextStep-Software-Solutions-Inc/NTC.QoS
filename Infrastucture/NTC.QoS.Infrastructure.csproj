@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Domain\NTCQoSDomain.csproj" />
+    <ProjectReference Include="..\Domain\NTC.QoS.Domain.csproj" />
   </ItemGroup>
 
 </Project>

@@ -5,11 +5,11 @@ VisualStudioVersion = 17.12.35707.178 d17.12
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.API", "NTC.QoS.API\NTC.QoS.API.csproj", "{70E942CA-59E7-4F1B-A92B-2FA03B7D81A7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTCQoSDomain", "Domain\NTCQoSDomain.csproj", "{23E30F32-1A91-40AD-B99E-EF070C794293}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Domain", "Domain\NTC.QoS.Domain.csproj", "{23E30F32-1A91-40AD-B99E-EF070C794293}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTCQoSInfrastructure", "Infrastucture\NTCQoSInfrastructure.csproj", "{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Infrastructure", "Infrastucture\NTC.QoS.Infrastructure.csproj", "{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTCQoSApplication", "Application\NTCQoSApplication.csproj", "{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS,Application", "Application\NTC.QoS,Application.csproj", "{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
