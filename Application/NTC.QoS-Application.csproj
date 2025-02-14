@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Infrastucture\NTC.QoS-Infrastructure.csproj" />
+    <ProjectReference Include="..\NTC.QoS.Domain\NTC.QoS.Domain.csproj" />
   </ItemGroup>
 
 </Project>
