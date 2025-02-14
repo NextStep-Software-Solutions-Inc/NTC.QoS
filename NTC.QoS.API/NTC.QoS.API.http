@@ -1,0 +1,6 @@
+@NTC.QoS.API_HostAddress = http://localhost:5113
+
+GET {{NTC.QoS.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
