@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Domain", "Domain\NT
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Infrastructure", "Infrastucture\NTC.QoS.Infrastructure.csproj", "{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Application", "Application\NTC.QoS.Application.csproj", "{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Application1", "Application\NTC.QoS.Application1.csproj", "{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
