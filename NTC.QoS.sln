@@ -5,11 +5,11 @@ VisualStudioVersion = 17.12.35707.178
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.API", "NTC.QoS.API\NTC.QoS.API.csproj", "{70E942CA-59E7-4F1B-A92B-2FA03B7D81A7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS-Infrastructure", "Infrastucture\NTC.QoS-Infrastructure.csproj", "{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS-Application", "Application\NTC.QoS-Application.csproj", "{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Domain", "NTC.QoS.Domain\NTC.QoS.Domain.csproj", "{227B2A2C-3A4D-4D2C-B0BE-7A0096FF35A2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Application", "NTC.QoS.Application\NTC.QoS.Application.csproj", "{7C4AFC82-3DFD-44DE-B4BD-2E518C176D36}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTC.QoS.Infrastructure", "NTC.QoS.Infrastructure\NTC.QoS.Infrastructure.csproj", "{7D2248EF-623A-47A6-A6C0-A38C7723E4AA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,18 +21,18 @@ Global
 		{70E942CA-59E7-4F1B-A92B-2FA03B7D81A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{70E942CA-59E7-4F1B-A92B-2FA03B7D81A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{70E942CA-59E7-4F1B-A92B-2FA03B7D81A7}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4B60134B-4272-4BDA-AE7D-5993B1CCB44F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B5E7D8FD-EA62-4813-9DA6-2075B2C15CD7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{227B2A2C-3A4D-4D2C-B0BE-7A0096FF35A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{227B2A2C-3A4D-4D2C-B0BE-7A0096FF35A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{227B2A2C-3A4D-4D2C-B0BE-7A0096FF35A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{227B2A2C-3A4D-4D2C-B0BE-7A0096FF35A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C4AFC82-3DFD-44DE-B4BD-2E518C176D36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C4AFC82-3DFD-44DE-B4BD-2E518C176D36}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C4AFC82-3DFD-44DE-B4BD-2E518C176D36}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C4AFC82-3DFD-44DE-B4BD-2E518C176D36}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D2248EF-623A-47A6-A6C0-A38C7723E4AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D2248EF-623A-47A6-A6C0-A38C7723E4AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D2248EF-623A-47A6-A6C0-A38C7723E4AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D2248EF-623A-47A6-A6C0-A38C7723E4AA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

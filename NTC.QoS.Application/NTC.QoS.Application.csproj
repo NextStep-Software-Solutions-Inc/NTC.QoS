@@ -9,13 +9,13 @@
   <ItemGroup>
     <Folder Include="Behaviors\" />
     <Folder Include="Exceptions\" />
-    <Folder Include="Mappers\" />
     <Folder Include="Interfaces\" />
+    <Folder Include="Mappers\" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NTC.QoS.Domain.csproj" />
-    <ProjectReference Include="..\NTC.QoS.Infrastructure.csproj" />
+    <ProjectReference Include="..\NTC.QoS.Domain\NTC.QoS.Domain.csproj" />
+    <ProjectReference Include="..\NTC.QoS.Infrastructure\NTC.QoS.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Writers;
 using NTC.QoS.Application;
-using NTC.QoS.Infrastructure.Persistence;
 
 namespace NTC.QoS.API;
 

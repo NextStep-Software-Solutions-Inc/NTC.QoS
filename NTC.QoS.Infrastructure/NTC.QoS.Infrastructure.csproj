@@ -7,14 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Behaviors\" />
-    <Folder Include="Exceptions\" />
-    <Folder Include="Mappers\" />
-    <Folder Include="Interfaces\" />
+    <Folder Include="Caching\" />
+    <Folder Include="Logging\" />
+    <Folder Include="Services\" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Infrastucture\NTC.QoS-Infrastructure.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.2" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\NTC.QoS.Domain\NTC.QoS.Domain.csproj" />
   </ItemGroup>
 
