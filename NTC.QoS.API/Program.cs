@@ -26,9 +26,6 @@ public class Program
                 s.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
                 s.ConfigObject.AdditionalItems.Add("persistAuthorization", "true");
             });
-
-            
-            
         }
 
         
