@@ -10,7 +10,7 @@ on:
 env:
   IMAGE_NAME: "${{ secrets.DOCKERHUB_USERNAME }}/ntc.qos-be" # Replace with your info
   DOTNET_VERSION: "6.0"
-  CONTAINER_PORT: 80
+  CONTAINER_PORT: 8080
   CONTAINER_NAME: "ntc.qos-be"
   BUILD_CONFIGURATION: "Release"
   ASPNETCORE_ENVIRONMENT: "Development"
@@ -74,4 +74,4 @@ jobs:
             docker rm ${{ env.CONTAINER_NAME}} || true
             docker image rm ${{ env.IMAGE_NAME }}:dev || true
             docker pull ${{ env.IMAGE_NAME }}:dev
-            docker run -d -p 82:${{ env.CONTAINER_PORT }} --name ${{ env.CONTAINER_NAME}} ${{ env.IMAGE_NAME }}:dev
+            docker run -d -p 82:${{ env.CONTAINER_PORT }}  --name ${{ env.CONTAINER_NAME}} ${{ env.IMAGE_NAME }}:dev
