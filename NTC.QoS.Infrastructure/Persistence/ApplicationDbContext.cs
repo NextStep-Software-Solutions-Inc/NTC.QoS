@@ -1,5 +1,4 @@
-﻿// MyWebApi.Infrastructure/Persistence/ApplicationDbContext.cs
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using NTC.QoS.Domain.Entities;
 
