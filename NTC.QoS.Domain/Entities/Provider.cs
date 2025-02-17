@@ -1,12 +1,13 @@
-﻿namespace NTC.QoS.Domain.Entities
-{
-    public class Provider : BaseEntity
-    {
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public string? LicenseNumber { get; set; }
-    }
+﻿using NTC.QoS.Domain.Aggregates;
 
+namespace NTC.QoS.Domain.Entities;
+
+public class Provider : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? LicenseNumber { get; set; }
+    public virtual List<ServiceProvider> ServiceProviders { get; set; } = new();
 }
 
 
