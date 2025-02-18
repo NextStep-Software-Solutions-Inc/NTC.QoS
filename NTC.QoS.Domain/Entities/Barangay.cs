@@ -8,9 +8,9 @@ public class Barangay : BaseEntity
     public virtual Municipality? Municipality { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public virtual ICollection<Speedtest>? Speedtests { get; set; }
-    public virtual ICollection<Cellular>? Cellulars { get; set; }
-    public virtual ICollection<Zone>? Zones { get; set; }
+    public virtual List<Speedtest> Speedtests { get; set; } = new();
+    public virtual List<Cellular> Cellulars { get; set; } = new();
+    public virtual List<Zone> Zones { get; set; } = new();
 
 }
 

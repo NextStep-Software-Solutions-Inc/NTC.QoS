@@ -14,7 +14,7 @@ public class Link : BaseEntity
     public decimal LowerFrequency { get; set; }
     public decimal UpperFrequency { get; set; }
     public decimal RxThreshold { get; set; }
-    public virtual ICollection<Network>? UpLinks { get; set; }
-    public virtual ICollection<Network>? DownLinks { get; set; }
+    public virtual List<Network> UpLinks { get; set; } = new();
+    public virtual List<Network> DownLinks { get; set; } = new();
 
 }

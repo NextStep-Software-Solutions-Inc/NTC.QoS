@@ -13,6 +13,6 @@ public class Network : BaseEntity
     public virtual Link? UpLink { get; set; }
     public Guid DownLinkId { get; set; }
     public virtual Link? DownLink { get; set; }
-    public virtual ICollection<StudyNetwork>? StudyNetworks { get; set; }
-    public virtual ICollection<Sector>? Sectors { get; set; }
+    public virtual List<StudyNetwork> StudyNetworks { get; set; } = new();
+    public virtual List<Sector> Sectors { get; set; } = new();
 }

@@ -14,8 +14,8 @@ public class File : BaseEntity
     public FileStatusEnum Status { get; set; } = FileStatusEnum.Pending;
     public virtual List<Speedtest> Speedtests { get; set; } = new();
     public virtual List<Cellular> Cellulars { get; set; } = new();
-    public virtual ICollection<Cell>? Cells { get; set; }
-    public virtual ICollection<NAP>? NAPs { get; set; }
+    public virtual List<Cell> Cells { get; set; } = new();
+    public virtual List<NAP> NAPs { get; set; } = new();
 
 }
 

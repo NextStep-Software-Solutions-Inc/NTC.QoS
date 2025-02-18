@@ -8,6 +8,6 @@ public class Study : BaseEntity
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public decimal StudyRadius { get; set; }
-    public virtual ICollection<StudyNetwork>? StudyNetworks { get; set; }
-    public virtual ICollection<StudyMunicipality>? StudyMunicipalities { get; set; }
+    public virtual List<StudyNetwork> StudyNetworks { get; set; } = new();
+    public virtual List<StudyMunicipality> StudyMunicipalities { get; set; } = new();
 }
