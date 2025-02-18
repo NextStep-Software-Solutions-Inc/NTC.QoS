@@ -4,6 +4,8 @@ public class Region : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public virtual ICollection<Province>? Provinces { get; set; }
+
 }
 
 

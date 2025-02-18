@@ -80,5 +80,218 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Generation>()
             .HasMany(g => g.Technologies);
+
+        modelBuilder.Entity<Generation>()
+            .HasMany(g => g.GenerationBands);
+
+        modelBuilder.Entity<Band>()
+            .HasIndex(b => b.Name)
+            .IsUnique();
+
+        modelBuilder.Entity<Band>()
+            .HasMany(b => b.Links);
+
+        modelBuilder.Entity<Band>()
+            .HasMany(g => g.GenerationBands);
+
+        modelBuilder.Entity<GenerationBand>()
+            .HasOne(gb => gb.Band)
+            .WithMany(b => b.GenerationBands)
+            .HasForeignKey(gb => gb.BandId);
+
+        modelBuilder.Entity<GenerationBand>()
+            .HasOne(gb => gb.Generation)
+            .WithMany(g => g.GenerationBands)
+            .HasForeignKey(gb => gb.BandId);
+
+        modelBuilder.Entity<Link>()
+            .HasOne(l => l.ServiceProvider)
+            .WithMany(sp => sp.Links)
+            .HasForeignKey(l => l.ServiceProviderId);
+
+        modelBuilder.Entity<Link>()
+            .HasOne(l => l.Band)
+            .WithMany(b => b.Links)
+            .HasForeignKey(l => l.BandId);
+
+        modelBuilder.Entity<Network>()
+            .HasOne(n => n.NetworkTemplate)
+            .WithMany(nt => nt.Networks)
+            .HasForeignKey(n => n.NetworkTemplateId);
+
+        modelBuilder.Entity<Network>()
+            .HasOne(n => n.UpLink)
+            .WithMany(l => l.UpLinks)
+            .HasForeignKey(n => n.UpLinkId);
+
+        modelBuilder.Entity<Network>()
+            .HasOne(n => n.DownLink)
+            .WithMany(l => l.DownLinks)
+            .HasForeignKey(n => n.DownLinkId);
+
+        modelBuilder.Entity<AreaStudy>()
+            .HasIndex(p => p.Name)
+            .IsUnique();
+
+        modelBuilder.Entity<AreaStudy>()
+            .HasMany(a => a.Studies)
+            .WithOne(s => s.AreaStudy)
+            .HasForeignKey(s => s.AreaStudyId);
+
+        modelBuilder.Entity<Study>()
+            .HasMany(s => s.StudyMunicipalities)
+            .WithOne(sm => sm.Study)
+            .HasForeignKey(sm => sm.StudyId);
+
+        modelBuilder.Entity<StudyNetwork>()
+            .HasOne(sn => sn.Study)
+            .WithMany(s => s.StudyNetworks)
+            .HasForeignKey(sn => sn.StudyId);
+
+        modelBuilder.Entity<StudyNetwork>()
+            .HasOne(sn => sn.Network)
+            .WithMany(n => n.StudyNetworks)
+            .HasForeignKey(sn => sn.NetworkId);
+
+        modelBuilder.Entity<StudyMunicipality>()
+            .HasOne(sm => sm.Study)
+            .WithMany(s => s.StudyMunicipalities)
+            .HasForeignKey(sm => sm.StudyId);
+
+        modelBuilder.Entity<Cell>()
+            .HasIndex(c => c.Name)
+            .IsUnique();
+
+        modelBuilder.Entity<Cell>()
+            .HasOne(c => c.File)
+            .WithMany(f => f.Cells)
+            .HasForeignKey(c => c.FileId);
+
+        modelBuilder.Entity<Cell>()
+            .HasOne(c => c.Zone)
+            .WithMany(z => z.Cells)
+            .HasForeignKey(c => c.ZoneId);
+
+        modelBuilder.Entity<Cell>()
+            .HasOne(c => c.ServiceProvider)
+            .WithMany(sp => sp.Cells)
+            .HasForeignKey(c => c.ServiceProviderId);
+
+        modelBuilder.Entity<Sector>()
+            .HasOne(s => s.MIMO)
+            .WithOne(m => m.Sector)
+            .HasForeignKey<Sector>(s => s.MIMOId);
+
+        modelBuilder.Entity<Sector>()
+            .HasOne(s => s.Network)
+            .WithMany(n => n.Sectors)
+            .HasForeignKey(s => s.NetworkId);
+
+        modelBuilder.Entity<Sector>()
+            .HasOne(s => s.Cell)
+            .WithMany(c => c.Sectors)
+            .HasForeignKey(s => s.CellId);
+
+        modelBuilder.Entity<Sector>()
+            .HasOne(s => s.TxAntennaPattern)
+            .WithMany(a => a.TxSectors)
+            .HasForeignKey(s => s.TxAntennaPatternId);
+
+        modelBuilder.Entity<Sector>()
+            .HasOne(s => s.RxAntennaPattern)
+            .WithMany(a => a.RxSectors)
+            .HasForeignKey(s => s.RxAntennaPatternId);
+
+        modelBuilder.Entity<NAP>()
+            .HasOne(n => n.ServiceProvider)
+            .WithMany(sp => sp.NAPs)
+            .HasForeignKey(n => n.ServiceProviderId);
+
+        modelBuilder.Entity<NAP>()
+            .HasOne(n => n.Zone)
+            .WithMany(z => z.NAPs)
+            .HasForeignKey(n => n.ZoneId);
+
+        modelBuilder.Entity<NAP>()
+            .HasOne(n => n.File)
+            .WithMany(f => f.NAPs)
+            .HasForeignKey(n => n.FileId);
+
+        modelBuilder.Entity<Zone>()
+            .HasMany(z => z.NAPs);
+
+        modelBuilder.Entity<Speedtest>()
+            .HasOne(s => s.ServiceProvider)
+            .WithMany(p => p.Speedtests)
+            .HasForeignKey(s => s.ServiceProviderId);
+
+        modelBuilder.Entity<Speedtest>()
+            .HasOne(s => s.File)
+            .WithMany(f => f.Speedtests)
+            .HasForeignKey(s => s.FileId);
+
+        modelBuilder.Entity<Speedtest>()
+            .HasOne(s => s.Cell)
+            .WithMany(c => c.Speedtests)
+            .HasForeignKey(s => s.CellId);
+
+        modelBuilder.Entity<Speedtest>()
+            .HasOne(s => s.Generation)
+            .WithMany(g => g.Speedtests)
+            .HasForeignKey(s => s.GenerationId);
+
+        modelBuilder.Entity<Speedtest>()
+            .HasOne(s => s.Barangay)
+            .WithMany(b => b.Speedtests)
+            .HasForeignKey(s => s.GenerationId);
+
+        modelBuilder.Entity<Cellular>()
+            .HasOne(c => c.Barangay)
+            .WithMany(b => b.Cellulars)
+            .HasForeignKey(c => c.BarangayId);
+
+        modelBuilder.Entity<Cellular>()
+            .HasOne(c => c.Cell)
+            .WithMany(cl => cl.Cellulars)
+            .HasForeignKey(c => c.CellId);
+
+        modelBuilder.Entity<Cellular>()
+            .HasOne(c => c.ServiceProvider)
+            .WithMany(sp => sp.Cellulars)
+            .HasForeignKey(c => c.ServiceProviderId);
+
+        modelBuilder.Entity<Cellular>()
+            .HasOne(c => c.GenerationBand)
+            .WithMany(gb => gb.Cellulars)
+            .HasForeignKey(c => c.GenerationBandId);
+
+        modelBuilder.Entity<Cellular>()
+            .HasOne(c => c.File)
+            .WithMany(f => f.Cellulars)
+            .HasForeignKey(c => c.FileId);
+
+        modelBuilder.Entity<Province>()
+            .HasOne(p => p.Region)
+            .WithMany(r => r.Provinces)
+            .HasForeignKey(p => p.RegionId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Region>()
+            .HasMany(r => r.Provinces);
+
+        modelBuilder.Entity<Municipality>()
+            .HasMany(m => m.Barangays)
+            .WithOne(b => b.Municipality)
+            .HasForeignKey(b => b.MunicipalityId);
+
+        modelBuilder.Entity<Barangay>()
+            .HasMany(b => b.Zones)
+            .WithOne(z => z.Barangay)
+            .HasForeignKey(z => z.BarangayId);
+
+        modelBuilder.Entity<User>()
+            .HasOne(u => u.UserType)
+            .WithMany(ut => ut.Users)
+            .HasForeignKey(u => u.UserTypeId);
     }
 }

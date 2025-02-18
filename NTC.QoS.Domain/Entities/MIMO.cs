@@ -1,4 +1,6 @@
-﻿namespace NTC.QoS.Domain.Entities;
+﻿using NTC.QoS.Domain.Aggregates;
+
+namespace NTC.QoS.Domain.Entities;
 
 public class MIMO : BaseEntity
 {
@@ -9,5 +11,6 @@ public class MIMO : BaseEntity
     public decimal ULThroughput { get; set; }
     public decimal DLInterferenceReduction { get; set; }
     public decimal ULInterferenceReduction { get; set; }
+    public virtual Sector? Sector { get; set; }
 
 }

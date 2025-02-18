@@ -10,11 +10,11 @@ public class Link : BaseEntity
     public LinkTypeEnum Type { get; set; } = LinkTypeEnum.Unknown;
     public Guid BandId { get; set; }
     public virtual Band? Band { get; set; }
-    public decimal CenterFrequencey { get; set; }
-    public decimal LowerFrequencey { get; set; }
-    public decimal UpperFrequencey { get; set; }
+    public decimal CenterFrequency { get; set; }
+    public decimal LowerFrequency { get; set; }
+    public decimal UpperFrequency { get; set; }
     public decimal RxThreshold { get; set; }
-
-
+    public virtual ICollection<Network>? UpLinks { get; set; }
+    public virtual ICollection<Network>? DownLinks { get; set; }
 
 }

@@ -26,7 +26,8 @@ public class Cell : BaseEntity
     public CellStatusEnum Status { get; set; } = CellStatusEnum.Unknown;
 
     public virtual List<Sector> Sectors { get; set; } = new();
-    public virtual List<Speedtest> S { get; set; } = new();
+    public virtual List<Speedtest> Speedtests { get; set; } = new();
+    public virtual List<Cellular> Cellulars { get; set; } = new();
 
 
 }

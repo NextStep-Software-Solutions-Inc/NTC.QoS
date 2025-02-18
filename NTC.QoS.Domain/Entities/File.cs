@@ -1,4 +1,5 @@
-﻿using NTC.QoS.Domain.Enums;
+﻿using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Enums;
 
 namespace NTC.QoS.Domain.Entities;
 
@@ -13,4 +14,8 @@ public class File : BaseEntity
     public FileStatusEnum Status { get; set; } = FileStatusEnum.Pending;
     public virtual List<Speedtest> Speedtests { get; set; } = new();
     public virtual List<Cellular> Cellulars { get; set; } = new();
+    public virtual ICollection<Cell>? Cells { get; set; }
+    public virtual ICollection<NAP>? NAPs { get; set; }
+
 }
+
