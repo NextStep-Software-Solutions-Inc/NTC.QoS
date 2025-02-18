@@ -1,0 +1,21 @@
+﻿using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Enums;
+
+namespace NTC.QoS.Domain.Entities;
+
+
+public class File : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public string UploadedBy { get; set; } = string.Empty;
+    public DateTime UploadDate { get; set; }
+    public FileTypeEnum Type { get; set; } = FileTypeEnum.Unknown;
+    public FileStatusEnum Status { get; set; } = FileStatusEnum.Pending;
+    public virtual List<Speedtest> Speedtests { get; set; } = new();
+    public virtual List<Cellular> Cellulars { get; set; } = new();
+    public virtual List<Cell> Cells { get; set; } = new();
+    public virtual List<NAP> NAPs { get; set; } = new();
+
+}
+
