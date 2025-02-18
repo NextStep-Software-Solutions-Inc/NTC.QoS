@@ -60,6 +60,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(s => s.ServiceProviders);
 
         modelBuilder.Entity<ServiceProvider>()
+            .HasIndex(sp => new { sp.ServiceId, sp.ProviderId })
+            .IsUnique();
+
+        modelBuilder.Entity<ServiceProvider>()
             .HasOne(sp => sp.Service)
             .WithMany(s => s.ServiceProviders)
             .HasForeignKey(sp => sp.ServiceId);
