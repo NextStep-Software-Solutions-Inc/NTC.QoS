@@ -1,4 +1,5 @@
 using NTC.QoS.Application;
+using NTC.QoS.Infrastructure;
 
 namespace NTC.QoS.API;
 
@@ -9,11 +10,12 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
-
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
-        builder.Services.AddApplication(builder.Configuration);
+        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+        builder.Services.AddApplication(builder.Configuration); // Call the Application registration
 
         var app = builder.Build();
         

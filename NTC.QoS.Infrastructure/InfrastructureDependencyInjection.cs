@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
+using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure;
 public static class InfrastructureDependencyInjection
@@ -13,10 +14,15 @@ public static class InfrastructureDependencyInjection
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
 
         // Register DbContext
-        services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<ApplicationDbContext>(options =>
+        {
+            var userContextService = services.BuildServiceProvider().GetRequiredService<IUserContextService>();
+            options.UseNpgsql(connectionString).AddInterceptors(new TimestampInterceptor(userContextService));
+        });
 
         // Register repositories
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        services.AddScoped<IUserContextService, UserContextService>();
 
         return services;
     }
