@@ -2,10 +2,9 @@
 using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
-public class GetAllProvidersHandler : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<ProviderDto>>
+public class GetAllProvidersHandler : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<Domain.Entities.Provider>>
 {
     private readonly IRepository<Domain.Entities.Provider> _repository;
 
@@ -13,19 +12,11 @@ public class GetAllProvidersHandler : IRequestHandler<GetAllProvidersRequest, Pa
     {
         _repository = repository;
     }
-
-    public async Task<PaginatedResponse<ProviderDto>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
+    public async Task<PaginatedResponse<Domain.Entities.Provider>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
     {
-        // Assuming the repository has built-in pagination support
-        var paginatedProviders = await _repository.AddAsync(
-            pageNumber: request.PageNumber,
-            pageSize: request.PageSize,
-            cancellationToken: cancellationToken
-        );
-
-        // The repository should automatically handle the mapping and pagination.
-        // The result is already in the form of PaginatedResponse<ProviderDto>
-        return paginatedProviders;
+        var allProviders = await _repository.GetAll(cancellationToken);
+        return new PaginatedResponse<Domain.Entities.Provider>(allProviders, request.PageNumber, request.PageSize);
     }
+
 }
 

@@ -40,9 +40,11 @@ public class ProvidersController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Post(CreateProviderDto providerDto)
     {
-        var provider = await _mediator.Send(new CreateProviderRequest(
+        var provider = await _mediator.Send(new CreateProviderRequest
+        {
             Provider = providerDto
-        ));
+        });
+
         return provider.Succeeded ? Ok(provider) : BadRequest(provider);
     }
 }

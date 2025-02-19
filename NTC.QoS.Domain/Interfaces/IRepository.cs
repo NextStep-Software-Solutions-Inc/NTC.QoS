@@ -5,7 +5,7 @@ namespace NTC.QoS.Domain.Interfaces
     public interface IRepository<TEntity> where TEntity : class
     {
         TEntity? GetById(int id);
-        IEnumerable<TEntity> GetAll();
+        Task<List<TEntity>> GetAll(CancellationToken cancellationToken);
         Task<TEntity> AddAsync(TEntity entity);
         IQueryable<TEntity> Find(Expression<Func<TEntity, bool>> predicate);
         Task<TEntity> UpdateAsync(TEntity entity);

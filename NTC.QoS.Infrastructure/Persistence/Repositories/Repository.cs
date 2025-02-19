@@ -20,8 +20,11 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories
         {
             return DbSet.Find(id);
         }
+        public async Task<List<TEntity>> GetAll(CancellationToken cancellationToken)
+        {
+            return await DbSet.ToListAsync(cancellationToken);
+        }
 
-        public IEnumerable<TEntity> GetAll() => DbSet.ToList();
 
         public async Task<TEntity> AddAsync(TEntity entity)
         {

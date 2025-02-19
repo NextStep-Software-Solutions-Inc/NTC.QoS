@@ -3,7 +3,7 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 namespace NTC.QoS.Application.Features.Provider.Requests;
 
-public class GetAllProvidersRequest : IRequest<PaginatedResponse<ProviderDto>>
+public class GetAllProvidersRequest : IRequest<PaginatedResponse<Domain.Entities.Provider>>
 {
     public GetAllProvidersRequest(int pageSize, int pageNumber)
     {
