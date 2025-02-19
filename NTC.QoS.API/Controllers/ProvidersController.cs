@@ -19,7 +19,7 @@ public class ProvidersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 1, int pageNumber = 10  )
+    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1  )
     {
         var request = new GetAllProvidersRequest()
         {

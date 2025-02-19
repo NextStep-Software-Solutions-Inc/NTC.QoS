@@ -1,17 +1,18 @@
 ﻿using System.Linq.Expressions;
 
-namespace NTC.QoS.Domain.Interfaces
+namespace NTC.QoS.Domain.Interfaces;
+
+/// <summary>
+/// Defines a generic interface for a repository pattern.
+/// </summary>
+/// <typeparam name="TEntity">The type of the entity.</typeparam>
+public interface IRepository<TEntity> where TEntity : class
 {
-    public interface IRepository<TEntity> where TEntity : class
-    {
-        TEntity? GetById(int id);
-        Task<List<TEntity>> GetAll(CancellationToken cancellationToken);
-        Task<TEntity> AddAsync(TEntity entity);
-        IQueryable<TEntity> Find(Expression<Func<TEntity, bool>> predicate);
-        Task<TEntity> UpdateAsync(TEntity entity);
-        Task<bool> AnyAsync(Expression<Func<TEntity, bool>> predicate);
-        Task<List<TEntity>> UpdateRangeAsync(List<TEntity> entities);
-        Task AddRangeAsync(IEnumerable<TEntity> entities);
-        Task SaveChangesAsync(CancellationToken cancellationToken);
-    }
+    Task<TEntity?> FindAsync(Expression<Func<TEntity, bool>> predicate, ISpecification<TEntity>? spec = null, CancellationToken cancellationToken = default);
+    Task<TEntity> GetByIdAsync(Guid id, ISpecification<TEntity>? spec = null, CancellationToken cancellationToken = default);
+    Task<List<TEntity>> ListAsync(ISpecification<TEntity>? spec = null, CancellationToken cancellationToken = default);
+    Task<TEntity> AddAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task DeleteAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task SaveChangesAsync();
 }
