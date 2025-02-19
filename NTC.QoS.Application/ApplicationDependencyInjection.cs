@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using NTC.QoS.Application.Features.Provider.Handler;
+using NTC.QoS.Application.Features.Provider.Handlers.Queries;
 using NTC.QoS.Infrastructure;
 
 namespace NTC.QoS.Application;
