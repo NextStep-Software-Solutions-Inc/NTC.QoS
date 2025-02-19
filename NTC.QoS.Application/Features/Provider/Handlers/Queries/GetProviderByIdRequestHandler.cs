@@ -3,7 +3,6 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Specifications;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
 
@@ -13,8 +12,7 @@ public class GetProviderByIdRequestHandler(IRepository<Domain.Entities.Provider>
 
     public async Task<ApiResponse<ProviderDto>> Handle(GetProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var specs = new BaseSpecification<Domain.Entities.Provider>(p => !p.IsDeleted) {};
-        var provider = await _repository.GetByIdAsync(request.Id, specs, cancellationToken);
+        var provider = await _repository.GetByIdAsync(request.Id, cancellationToken);
 
         if (provider == null)
         {

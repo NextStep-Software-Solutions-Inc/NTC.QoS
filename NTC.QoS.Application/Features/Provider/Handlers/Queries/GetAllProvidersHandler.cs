@@ -11,7 +11,7 @@ public class GetAllProvidersHandler(IRepository<Domain.Entities.Provider> reposi
     public async Task<PaginatedResponse<Domain.Entities.Provider>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
     {
 
-        var allProviders = await _repository.ListAsync(null, cancellationToken);
+        var allProviders = await _repository.ListAsync(p => !p.IsDeleted, cancellationToken);
 
         return new PaginatedResponse<Domain.Entities.Provider>(allProviders, request.PageNumber, request.PageSize);
     }

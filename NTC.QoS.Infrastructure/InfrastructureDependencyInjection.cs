@@ -21,7 +21,9 @@ public static class InfrastructureDependencyInjection
         });
 
         // Register repositories
+
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        services.AddScoped<IProviderRepository, ProviderRepository>();
         services.AddScoped<IUserContextService, UserContextService>();
 
         return services;

@@ -12,7 +12,7 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
 
         public async Task<ApiResponse<CreateProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
         {
-            var provider =  await _repository.FindAsync(p => p.Name == request.Provider.Name && !p.IsDeleted, null, cancellationToken);
+            var provider =  await _repository.FindAsync(p => p.Name == request.Provider.Name && !p.IsDeleted, cancellationToken);
 
             if (provider != null)
             {
@@ -30,8 +30,8 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
                 LicenseNumber = request.Provider.LicenseNumber
             };
 
-            await _repository.AddAsync(newProvider);
-            await _repository.SaveChangesAsync();
+            _repository.Add(newProvider);
+            await _repository.SaveChangesAsync(cancellationToken);
 
             return new ApiResponse<CreateProviderDto>
             {
