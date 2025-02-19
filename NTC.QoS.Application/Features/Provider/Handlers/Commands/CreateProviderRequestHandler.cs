@@ -1,5 +1,4 @@
 ﻿using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -17,7 +16,7 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
         public async Task<ApiResponse<CreateProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
         {
             var provider = await _repository.Find(p => p.Name == request.Provider.Name && p.IsDeleted == false)
-     .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
             if (provider != null)
             {
                 return new ApiResponse<CreateProviderDto>
