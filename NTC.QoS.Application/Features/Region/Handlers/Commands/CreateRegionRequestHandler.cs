@@ -18,7 +18,7 @@ namespace NTC.QoS.Application.Features.Region.Handlers.Commands
             {
                 return new ApiResponse<CreateRegionDto>
                 {
-                    Message = "Region already exists",
+                    Message = "Region already exists.",
                     Succeeded = false
                 };
             }
