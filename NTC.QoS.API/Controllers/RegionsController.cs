@@ -29,7 +29,7 @@ public class RegionsController : ControllerBase
         var regions = await _mediator.Send(request);
         return Ok(regions);
     }
-    [HttpGet("id")]
+    [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<RegionDto>>> GetRegionById(Guid id)
     {
         Guid regionId = id;
@@ -43,6 +43,26 @@ public class RegionsController : ControllerBase
         var region = await _mediator.Send(new CreateRegionRequest
         {
             Region = regionDto
+        });
+
+        return region.Succeeded ? Ok(region) : BadRequest(region);
+    }
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    {
+        var request = new DeleteRegionRequest(id);
+        var response = await _mediator.Send(request);
+
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> Put(Guid id, UpdateRegionDto updateRegionDto)
+    {
+        var region = await _mediator.Send(new UpdateRegionRequest
+        {
+            Id = id,
+            Region = updateRegionDto
         });
 
         return region.Succeeded ? Ok(region) : BadRequest(region);
