@@ -1,19 +1,15 @@
-﻿using NTC.QoS.Domain.Models.DTOs;
+﻿using NTC.QoS.Domain.Entities;
 using System.Linq.Expressions;
 
-namespace NTC.QoS.Domain.Interfaces
-{
-    public interface IRepository<TEntity> where TEntity : class
-    {
-        Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
-        Task<PaginatedResponse<TEntity>> GetAll(int pageNumber, int pageSize, CancellationToken cancellationToken);
+namespace NTC.QoS.Domain.Interfaces;
 
-        Task<TEntity> AddAsync(TEntity entity);
-        IQueryable<TEntity> Find(Expression<Func<TEntity, bool>> predicate);
-        Task<TEntity> UpdateAsync(TEntity entity);
-        Task<bool> AnyAsync(Expression<Func<TEntity, bool>> predicate);
-        Task<List<TEntity>> UpdateRangeAsync(List<TEntity> entities);
-        Task AddRangeAsync(IEnumerable<TEntity> entities);
-        Task SaveChangesAsync(CancellationToken cancellationToken);
-    }
+public interface IRepository<TEntity> where TEntity : BaseEntity
+{
+    Task<TEntity?> FindAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default);
+    Task<TEntity> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default);
+    void Add(TEntity entity);
+    void Update(TEntity entity);
+    void Delete(TEntity entity);
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

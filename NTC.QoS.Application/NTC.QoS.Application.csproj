@@ -11,15 +11,16 @@
     <Folder Include="Exceptions\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Mappers\" />
+    <Folder Include="Services\" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NTC.QoS.Domain\NTC.QoS.Domain.csproj" />
-    <ProjectReference Include="..\NTC.QoS.Infrastructure\NTC.QoS.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

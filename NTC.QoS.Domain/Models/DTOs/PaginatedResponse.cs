@@ -1,4 +1,5 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs;
+﻿
+namespace NTC.QoS.Domain.Models.DTOs;
 
 public class PaginatedResponse<T> : ApiResponse<List<T>>
 {
@@ -7,13 +8,11 @@ public class PaginatedResponse<T> : ApiResponse<List<T>>
     public int TotalPageNumber { get; private set; }
     public bool LoadMore { get; private set; }
     public int TotalRows { get; private set; }
-    public List<T>? AllProviders { get; set; } = new();
 
 
     public PaginatedResponse(List<T> paginatedData, int pageNumber, int pageSize, int totalRows)
         : base(paginatedData, true, "")
     {
-        AllProviders = paginatedData;
         TotalRows = totalRows;
         PageSize = pageSize;
         PageNumber = pageNumber;
@@ -26,5 +25,11 @@ public class PaginatedResponse<T> : ApiResponse<List<T>>
         PageNumber = pageNumber;
         PageSize = pageSize;
         TotalRows = totalRows;
+    }
+
+    public PaginatedResponse(List<Entities.Provider> allProviders, int pageNumber, int pageSize)
+    {
+        PageNumber = pageNumber;
+        PageSize = pageSize;
     }
 }
