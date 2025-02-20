@@ -21,13 +21,13 @@ public class ProvidersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1  )
     {
-        var request = new GetAllProvidersRequest()
+        var result = await _mediator.Send(new GetAllProvidersRequest
         {
             PageNumber = pageNumber,
             PageSize = pageSize
-        };
-        var providers = await _mediator.Send(request);
-        return Ok(providers);
+        });
+
+        return Ok(result);
     }
     [HttpGet("id")]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(Guid id)
@@ -37,6 +37,27 @@ public class ProvidersController : ControllerBase
         var providers = await _mediator.Send(request);
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Provider>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
+    {
+        var provider = await _mediator.Send(new UpdateProviderByIdRequest(id, new UpdateProviderDto
+        {
+            Name = updateProvider.Name,
+            Description = updateProvider.Description,
+            LicenseNumber = updateProvider.LicenseNumber
+        }));
+
+        return provider.Succeeded ? Ok(provider) : BadRequest(provider);
+    }
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Provider>>> DeleteProviderById(Guid id)
+    {
+        var provider = await _mediator.Send(new DeleteProviderByIdRequest(id));
+
+        return provider.Succeeded ? Ok(provider) : BadRequest(provider);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Post(CreateProviderDto providerDto)
     {
