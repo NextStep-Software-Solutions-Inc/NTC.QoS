@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
 
-public class GetProviderByIdRequestHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<GetProviderByIdRequest, ApiResponse<ProviderDto>>
+public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<GetProviderByIdRequest, ApiResponse<ProviderDto>>
 {
     private readonly IRepository<Domain.Entities.Provider> _repository = repository;
 

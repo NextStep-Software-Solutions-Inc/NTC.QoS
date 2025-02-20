@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
 {
-    public class DeleteProviderByIdRequestHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<DeleteProviderByIdRequest, ApiResponse<bool>>
+    public class DeleteProviderByIdHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<DeleteProviderByIdRequest, ApiResponse<bool>>
     {
         private readonly IRepository<Domain.Entities.Provider> _repository = repository;
         public async Task<ApiResponse<bool>> Handle(DeleteProviderByIdRequest request,

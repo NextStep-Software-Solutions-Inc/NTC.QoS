@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
 {
-    public class UpdateProviderByIdRequestHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<UpdateProviderByIdRequest, ApiResponse<Domain.Entities.Provider>>
+    public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<UpdateProviderByIdRequest, ApiResponse<Domain.Entities.Provider>>
     {
         private readonly IRepository<Domain.Entities.Provider> _repository = repository;
         public async Task<ApiResponse<Domain.Entities.Provider>> Handle(UpdateProviderByIdRequest request,
