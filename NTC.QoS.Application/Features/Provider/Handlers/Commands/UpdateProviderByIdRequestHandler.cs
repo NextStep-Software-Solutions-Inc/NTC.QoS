@@ -44,7 +44,7 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
             return new ApiResponse<Domain.Entities.Provider>
             {
                 Succeeded = true,
-                Error = null,
+                Error = new[] {""},
                 Data = provider,
                 Message = "Request successful! Your changes have been saved.."
             };
