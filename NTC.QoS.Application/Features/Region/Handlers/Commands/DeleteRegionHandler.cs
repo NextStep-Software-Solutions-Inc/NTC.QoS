@@ -6,11 +6,11 @@ using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands
 {
-    public class DeleteRegionRequestHandler : IRequestHandler<DeleteRegionRequest, ApiResponse<bool>>
+    public class DeleteRegionHandler : IRequestHandler<DeleteRegionRequest, ApiResponse<bool>>
     {
         private readonly IRepository<Domain.Entities.Region> _repository;
 
-        public DeleteRegionRequestHandler(IRepository<Domain.Entities.Region> repository)
+        public DeleteRegionHandler(IRepository<Domain.Entities.Region> repository)
         {
             _repository = repository;
         }
@@ -30,9 +30,7 @@ namespace NTC.QoS.Application.Features.Region.Handlers.Commands
                 };
             }
 
-            region.IsDeleted = true;
-
-            _repository.Update(region);
+            _repository.Delete(region);
             await _repository.SaveChangesAsync(cancellationToken);
 
             return new ApiResponse<bool>

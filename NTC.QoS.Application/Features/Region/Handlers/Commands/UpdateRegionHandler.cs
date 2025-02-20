@@ -6,11 +6,11 @@ using NTC.QoS.Application.Features.Region.Requests;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands
 {
-    public class UpdateRegionRequestHandler : IRequestHandler<UpdateRegionRequest, ApiResponse<UpdateRegionDto>>
+    public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiResponse<UpdateRegionDto>>
     {
         private readonly IRepository<Domain.Entities.Region> _repository;
 
-        public UpdateRegionRequestHandler(IRepository<Domain.Entities.Region> repository)
+        public UpdateRegionHandler(IRepository<Domain.Entities.Region> repository)
         {
             _repository = repository;
         }

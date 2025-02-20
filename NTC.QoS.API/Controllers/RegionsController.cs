@@ -29,13 +29,12 @@ public class RegionsController : ControllerBase
         var regions = await _mediator.Send(request);
         return Ok(regions);
     }
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<RegionDto>>> GetRegionById(Guid id)
+    [HttpGet("id")]
+    public async Task<ActionResult<ApiResponse<RegionDto>>> GetRegionById(Guid regionId)
     {
-        Guid regionId = id;
         var request = new GetRegionByIdRequest(regionId);
-        var regions = await _mediator.Send(request);
-        return regions.Succeeded ? Ok(regions) : BadRequest(regions);
+        var region = await _mediator.Send(request);
+        return region.Succeeded ? Ok(region) : BadRequest(region);
     }
     [HttpPost]
     public async Task<ActionResult<ApiResponse<CreateRegionDto>>> Post(CreateRegionDto regionDto)
@@ -47,21 +46,21 @@ public class RegionsController : ControllerBase
 
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    [HttpDelete("id")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid regionId)
     {
-        var request = new DeleteRegionRequest(id);
-        var response = await _mediator.Send(request);
+        var request = new DeleteRegionRequest(regionId);
+        var region = await _mediator.Send(request);
 
-        return response.Succeeded ? Ok(response) : BadRequest(response);
+        return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> Put(Guid id, UpdateRegionDto updateRegionDto)
+    [HttpPut("id")]
+    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> Put(Guid regionId, UpdateRegionDto updateRegionDto)
     {
         var region = await _mediator.Send(new UpdateRegionRequest
         {
-            Id = id,
+            Id = regionId,
             Region = updateRegionDto
         });
 

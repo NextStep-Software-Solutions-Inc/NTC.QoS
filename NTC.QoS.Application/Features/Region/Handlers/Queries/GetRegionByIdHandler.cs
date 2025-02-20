@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Queries;
 
-public class GetRegionByIdRequestHandler(IRepository<Domain.Entities.Region> repository) : IRequestHandler<GetRegionByIdRequest, ApiResponse<RegionDto>>
+public class GetRegionByIdHandler(IRepository<Domain.Entities.Region> repository) : IRequestHandler<GetRegionByIdRequest, ApiResponse<RegionDto>>
 {
     private readonly IRepository<Domain.Entities.Region> _repository = repository;
 

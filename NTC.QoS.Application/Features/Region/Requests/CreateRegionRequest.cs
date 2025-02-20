@@ -6,5 +6,5 @@ namespace NTC.QoS.Application.Features.Region.Requests;
 
 public class CreateRegionRequest : IRequest<ApiResponse<CreateRegionDto>>
 {
-    public CreateRegionDto Region { get; set; } = new();
+    public required CreateRegionDto Region { get; set; }
 }

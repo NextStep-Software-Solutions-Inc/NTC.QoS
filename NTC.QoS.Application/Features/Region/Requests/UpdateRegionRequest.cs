@@ -8,5 +8,4 @@ public class UpdateRegionRequest : IRequest<ApiResponse<UpdateRegionDto>>
 {
     public Guid Id { get; set; }
     public UpdateRegionDto Region { get; set; } = null!;
-    public string? UserId { get; set; }
 }
