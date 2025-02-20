@@ -19,10 +19,10 @@ public class GetProviderByIdRequestHandler(IRepository<Domain.Entities.Provider>
             return new ApiResponse<ProviderDto>
             {
                 Succeeded = false,
-                Message = "Provider not found"
+                Message = "Provider not found.",
+                Error = new[] { "Invalid provider does not exist." }
             };
         }
-
         return new ApiResponse<ProviderDto>
         {
             Succeeded = true,

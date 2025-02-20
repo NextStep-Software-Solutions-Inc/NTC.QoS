@@ -37,6 +37,27 @@ public class ProvidersController : ControllerBase
         var providers = await _mediator.Send(request);
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Provider>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
+    {
+        var provider = await _mediator.Send(new UpdateProviderByIdRequest(id, new UpdateProviderDto
+        {
+            Name = updateProvider.Name,
+            Description = updateProvider.Description,
+            LicenseNumber = updateProvider.LicenseNumber
+        }));
+
+        return provider.Succeeded ? Ok(provider) : BadRequest(provider);
+    }
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Provider>>> DeleteProviderById(Guid id)
+    {
+        var provider = await _mediator.Send(new DeleteProviderByIdRequest(id));
+
+        return provider.Succeeded ? Ok(provider) : BadRequest(provider);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Post(CreateProviderDto providerDto)
     {

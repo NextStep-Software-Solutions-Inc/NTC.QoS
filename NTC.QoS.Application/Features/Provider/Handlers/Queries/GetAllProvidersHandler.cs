@@ -11,19 +11,15 @@ public class GetAllProvidersHandler(IRepository<Domain.Entities.Provider> reposi
 
     public async Task<PaginatedResponse<ProviderDto>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
     {
-        // Fetch all non-deleted providers
-        var allProviders = await _repository.ListAsync(p => !p.IsDeleted, cancellationToken);
+        var allProviders = await _repository.ListAsync(p => p.IsDeleted != true, cancellationToken);
 
-        // Get total records count before pagination
         var totalRows = allProviders.Count;
 
-        // Manually apply pagination
         var paginatedProviders = allProviders
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToList();
 
-        // Convert to DTO
         var providerDtos = paginatedProviders.Select(p => new ProviderDto
         {
             Id = p.Id,
@@ -33,11 +29,10 @@ public class GetAllProvidersHandler(IRepository<Domain.Entities.Provider> reposi
             CreatedBy = p.CreatedBy,
             CreatedDate = p.CreatedAt,
             ModifiedBy = p.UpdatedBy,
-            ModifiedDate = p.UpdatedAt
-
+            ModifiedDate = p.UpdatedAt,
+            IsDeleted   = p.IsDeleted
         }).ToList();
 
-        // Return Paginated Response
         return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize, totalRows);
     }
 }

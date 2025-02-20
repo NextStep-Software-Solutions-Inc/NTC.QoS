@@ -15,21 +15,26 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         return await _context.Set<TEntity>().FirstOrDefaultAsync(expression, cancellationToken);
     }
 
-    public async Task<TEntity> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<TEntity>().AsQueryable();
+        var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted")); 
 
-        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken) ?? throw new InvalidOperationException("Entity not found");
+        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
-
 
     public async Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<TEntity>().AsQueryable();
+        var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted"));
+
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
 
         return await query.ToListAsync(cancellationToken);
     }
-   
+
+
     public void Add(TEntity entity)
     {
          _context.Add(entity);
