@@ -41,16 +41,6 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
 
              _repository.Update(provider);
             await _repository.SaveChangesAsync(cancellationToken);
-            provider = new Domain.Entities.Provider
-            {
-                Id = provider.Id,
-                Name = provider.Name,
-                Description = provider.Description,
-                LicenseNumber = provider.LicenseNumber,
-                UpdatedAt = provider.UpdatedAt,
-                UpdatedBy = provider.UpdatedBy
-            };
-
             return new ApiResponse<Domain.Entities.Provider>
             {
                 Succeeded = true,

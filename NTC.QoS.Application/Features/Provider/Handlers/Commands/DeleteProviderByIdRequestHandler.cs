@@ -30,7 +30,7 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands
             { 
                 Data = true,
                 Succeeded = true,
-                Error = Array.Empty<string>(),
+                Error = new[] {""},
                 Message = $"Provider '{provider.Name}' has been successfully deleted."
             };
         }
