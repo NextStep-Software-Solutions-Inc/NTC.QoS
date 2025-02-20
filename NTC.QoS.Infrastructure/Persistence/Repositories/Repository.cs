@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories
@@ -15,14 +16,25 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories
             _context = context;
             DbSet = ((DbSet<TEntity>?)context.Set<TEntity>()) ?? throw new InvalidOperationException();
         }
-
-        public TEntity? GetById(int id)
+        public IQueryable<TEntity> Find(Expression<Func<TEntity, bool>> predicate)
         {
-            return DbSet.Find(id);
+            return DbSet.Where(predicate);
         }
-        public async Task<List<TEntity>> GetAll(CancellationToken cancellationToken)
+
+        public async Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
         {
-            return await DbSet.ToListAsync(cancellationToken);
+            return await DbSet.FindAsync(new object?[] { id }, cancellationToken);
+        }
+        public async Task<PaginatedResponse<TEntity>> GetAll(int pageNumber, int pageSize, CancellationToken cancellationToken)
+        {
+            var totalRows = await DbSet.CountAsync(cancellationToken);
+
+            var paginatedData = await DbSet
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return new PaginatedResponse<TEntity>(paginatedData, pageNumber, pageSize, totalRows);
         }
 
 
@@ -43,11 +55,6 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories
             DbSet.Update(entity);
             await _context.SaveChangesAsync();
             return entity;
-        }
-
-        public IQueryable<TEntity> Find(Expression<Func<TEntity, bool>> predicate)
-        {
-            return _context.Set<TEntity>().Where(predicate);
         }
         public async Task<bool> AnyAsync(Expression<Func<TEntity, bool>> predicate)
         {

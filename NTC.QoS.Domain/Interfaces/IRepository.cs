@@ -1,11 +1,13 @@
-﻿using System.Linq.Expressions;
+﻿using NTC.QoS.Domain.Models.DTOs;
+using System.Linq.Expressions;
 
 namespace NTC.QoS.Domain.Interfaces
 {
     public interface IRepository<TEntity> where TEntity : class
     {
-        TEntity? GetById(int id);
-        Task<List<TEntity>> GetAll(CancellationToken cancellationToken);
+        Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+        Task<PaginatedResponse<TEntity>> GetAll(int pageNumber, int pageSize, CancellationToken cancellationToken);
+
         Task<TEntity> AddAsync(TEntity entity);
         IQueryable<TEntity> Find(Expression<Func<TEntity, bool>> predicate);
         Task<TEntity> UpdateAsync(TEntity entity);

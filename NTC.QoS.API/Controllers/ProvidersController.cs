@@ -19,15 +19,15 @@ public class ProvidersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 1, int pageNumber = 10  )
+    public async Task<IActionResult> GetAllProviders(int pageNumber = 1, int pageSize = 10)
     {
-        var request = new GetAllProvidersRequest()
+        var result = await _mediator.Send(new GetAllProvidersRequest
         {
             PageNumber = pageNumber,
             PageSize = pageSize
-        };
-        var providers = await _mediator.Send(request);
-        return Ok(providers);
+        });
+
+        return Ok(result);
     }
     [HttpGet("id")]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(Guid id)

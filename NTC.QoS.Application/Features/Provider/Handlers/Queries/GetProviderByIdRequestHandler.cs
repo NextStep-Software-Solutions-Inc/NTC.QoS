@@ -7,20 +7,30 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
 
-public class GetProviderByIdRequestHandler(IRepository<ProviderDto> repository) : IRequestHandler<GetProviderByIdRequest, ApiResponse<ProviderDto>>
+public class GetProviderByIdRequestHandler(IRepository<Domain.Entities.Provider> repository)
+    : IRequestHandler<GetProviderByIdRequest, ApiResponse<ProviderDto>>
 {
-    private readonly IRepository<ProviderDto> _repository = repository;
+    private readonly IRepository<Domain.Entities.Provider> _repository = repository;
 
     public async Task<ApiResponse<ProviderDto>> Handle(GetProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var provider = await _repository.Find(p => p.Id == request.Id && p.IsDeleted != true).FirstOrDefaultAsync(cancellationToken);
+        var provider = await _repository
+            .Find(p => p.Id == request.Id && !p.IsDeleted)
+            .Select(p => new ProviderDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                LicenseNumber = p.LicenseNumber,
+                CreatedBy = p.CreatedBy,
+                CreatedDate = p.CreatedAt
+            }).FirstOrDefaultAsync(cancellationToken);
 
-        return new ApiResponse<ProviderDto>
+        if (provider == null)
         {
-            Succeeded = true,
-            Message = "Provider retrieved successfully",
-            Data = provider
-        };
+            return new ApiResponse<ProviderDto>("No provider found.");
+        }
+
+        return new ApiResponse<ProviderDto>(provider, true, "Retrieved successfully.");
     }
 }
 
