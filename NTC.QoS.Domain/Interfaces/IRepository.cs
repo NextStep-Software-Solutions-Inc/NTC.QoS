@@ -6,7 +6,7 @@ namespace NTC.QoS.Domain.Interfaces;
 public interface IRepository<TEntity> where TEntity : BaseEntity
 {
     Task<TEntity?> FindAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default);
-    Task<TEntity> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default);
     void Add(TEntity entity);
     void Update(TEntity entity);

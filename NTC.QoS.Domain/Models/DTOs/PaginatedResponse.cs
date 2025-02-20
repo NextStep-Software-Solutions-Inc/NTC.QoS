@@ -10,26 +10,13 @@ public class PaginatedResponse<T> : ApiResponse<List<T>>
     public int TotalRows { get; private set; }
 
 
-    public PaginatedResponse(List<T> paginatedData, int pageNumber, int pageSize, int totalRows)
-        : base(paginatedData, true, "")
+    public PaginatedResponse(List<T> allData, int pageNumber, int pageSize)
+        : base(allData.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList(), true, "")
     {
-        TotalRows = totalRows;
+        TotalRows = allData.Count;
         PageSize = pageSize;
         PageNumber = pageNumber;
         TotalPageNumber = (int)Math.Ceiling((double)TotalRows / PageSize);
         LoadMore = PageNumber < TotalPageNumber;
-    }
-
-    public PaginatedResponse(int pageNumber, int pageSize, int totalRows)
-    {
-        PageNumber = pageNumber;
-        PageSize = pageSize;
-        TotalRows = totalRows;
-    }
-
-    public PaginatedResponse(List<Entities.Provider> allProviders, int pageNumber, int pageSize)
-    {
-        PageNumber = pageNumber;
-        PageSize = pageSize;
     }
 }
