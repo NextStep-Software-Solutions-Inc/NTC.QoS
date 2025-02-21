@@ -1,4 +1,4 @@
-﻿namespace NTC.QoS.Domain.Enums;
+﻿namespace NTC.QoS.Domain.Helper;
 
 public static class EnumHelper<T> where T : struct, Enum
 {

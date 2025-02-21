@@ -313,7 +313,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ProviderId");
 
-                    b.HasIndex("ServiceId", "ProviderId")
+                    b.HasIndex("ServiceId", "ProviderId", "MNC")
                         .IsUnique();
 
                     b.ToTable("ServiceProviders");
