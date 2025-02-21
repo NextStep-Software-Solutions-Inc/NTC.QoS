@@ -25,6 +25,7 @@ namespace NTC.QoS.Application.Features.Province.Handlers.Commands
 
             var newProvince = new Domain.Entities.Province
             {
+                RegionId = request.Province.RegionId,
                 Name = request.Province.Name,
                 Description = request.Province.Description,
             };

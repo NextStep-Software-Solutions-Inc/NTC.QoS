@@ -2,19 +2,40 @@
 using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
-namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
-public class GetAllProvincesHandler(IRepository<Domain.Entities.Province> repository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<Domain.Entities.Province>>
+namespace NTC.QoS.Application.Features.Province.Handlers.Queries
 {
-    private readonly IRepository<Domain.Entities.Province> _repository = repository;
-
-    public async Task<PaginatedResponse<Domain.Entities.Province>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
+    public class GetAllProvincesHandler : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
     {
+        private readonly IProvinceRepository _provinceRepository;
 
-        var allProvinces = await _repository.ListAsync(p => !p.IsDeleted, cancellationToken);
+        public GetAllProvincesHandler(IProvinceRepository provinceRepository)
+        {
+            _provinceRepository = provinceRepository;
+        }
 
-        return new PaginatedResponse<Domain.Entities.Province>(allProvinces, request.PageNumber, request.PageSize);
+        public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
+        {
+            var allProvinces = await _provinceRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
+
+            var provinceDtos = allProvinces.Select(p => new ProvinceDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                RegionId = p.RegionId,
+                Region = new RegionDto
+                {
+                    Id = p.RegionId,
+                    Name = p.Region?.Name ?? ""
+                }
+            }).ToList();
+
+
+            return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize);
+        }
     }
-
 }
-
