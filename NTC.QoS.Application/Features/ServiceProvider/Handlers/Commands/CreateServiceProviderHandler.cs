@@ -11,7 +11,7 @@ public class CreateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
     public async Task<ApiResponse<Domain.Aggregates.ServiceProvider>> Handle(CreateServiceProviderRequest request, CancellationToken cancellationToken)
     {
         var serviceProviderExists = await _repository.FindAsync(
-    s => s.ServiceId == request.ServiceProvider.ServiceID
+    s => s.ServiceId == request.ServiceProvider.ServiceId
     && s.ProviderId == request.ServiceProvider.ProviderId
     && s.MNC == request.ServiceProvider.MNC,
     cancellationToken);
@@ -43,7 +43,7 @@ public class CreateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
 
         var serviceProvider = new Domain.Aggregates.ServiceProvider
         {
-            ServiceId = request.ServiceProvider.ServiceID,
+            ServiceId = request.ServiceProvider.ServiceId,
             ProviderId = request.ServiceProvider.ProviderId,
             MNC = request.ServiceProvider.MNC,
             MCC = request.ServiceProvider.MCC
