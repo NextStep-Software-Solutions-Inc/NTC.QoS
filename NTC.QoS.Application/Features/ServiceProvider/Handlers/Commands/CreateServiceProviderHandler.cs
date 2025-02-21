@@ -10,27 +10,35 @@ public class CreateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _repository = repository;
     public async Task<ApiResponse<Domain.Aggregates.ServiceProvider>> Handle(CreateServiceProviderRequest request, CancellationToken cancellationToken)
     {
-        var serviceProviderExists = await _repository.FindAsync(s => s.ServiceId == request.ServiceProvider.ServiceID && s.ProviderId == request.ServiceProvider.ProviderId, cancellationToken);
+        var serviceProviderExists = await _repository.FindAsync(
+    s => s.ServiceId == request.ServiceProvider.ServiceID
+    && s.ProviderId == request.ServiceProvider.ProviderId
+    && s.MNC == request.ServiceProvider.MNC,
+    cancellationToken);
+
         if (serviceProviderExists != null)
         {
-            return new ApiResponse<Domain.Aggregates.ServiceProvider>
+            if (!serviceProviderExists.IsDeleted)
             {
-                Succeeded = false,
-                Message = "Service Provider already exists"
-            };
-        }
-        var serviceProviderDeleted = await _repository.FindAsync(s => s.ServiceId == request.ServiceProvider.ServiceID && s.ProviderId == request.ServiceProvider.ProviderId && s.IsDeleted == true, cancellationToken);
-        if (serviceProviderDeleted != null)
-        {
-            serviceProviderDeleted.IsDeleted = false;
-            _repository.Update(serviceProviderDeleted);
-            await _repository.SaveChangesAsync(cancellationToken);
-            return new ApiResponse<Domain.Aggregates.ServiceProvider>
+                return new ApiResponse<Domain.Aggregates.ServiceProvider>
+                {
+                    Succeeded = false,
+                    Message = "Service Provider already exists."
+                };
+            }
+            else
             {
-                Succeeded = true,
-                Message = "Service Provider retrieved successfully",
-                Data = serviceProviderDeleted
-            };
+                serviceProviderExists.IsDeleted = false;
+                _repository.Update(serviceProviderExists);
+                await _repository.SaveChangesAsync(cancellationToken);
+
+                return new ApiResponse<Domain.Aggregates.ServiceProvider>
+                {
+                    Succeeded = true,
+                    Message = "Service Provider reactivated successfully.",
+                    Data = serviceProviderExists
+                };
+            }
         }
 
         var serviceProvider = new Domain.Aggregates.ServiceProvider

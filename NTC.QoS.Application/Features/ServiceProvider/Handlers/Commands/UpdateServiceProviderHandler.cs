@@ -23,6 +23,7 @@ public class UpdateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
         }
         serviceProvider.MNC = request.ServiceProvider.MNC;
         serviceProvider.MCC = request.ServiceProvider.MCC;
+
         _repository.Update(serviceProvider);
         await _repository.SaveChangesAsync(cancellationToken);
         return new ApiResponse<Domain.Aggregates.ServiceProvider>

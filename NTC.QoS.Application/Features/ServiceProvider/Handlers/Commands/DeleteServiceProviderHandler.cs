@@ -20,8 +20,7 @@ public class DeleteServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
                 Message = "Service Provider not found"
             };
         }
-        serviceProvider.IsDeleted = true;
-        _repository.Update(serviceProvider);
+        _repository.Delete(serviceProvider);
         await _repository.SaveChangesAsync(cancellationToken);
         return new ApiResponse<bool>
         {
