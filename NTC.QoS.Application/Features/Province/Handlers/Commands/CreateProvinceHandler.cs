@@ -12,9 +12,9 @@ namespace NTC.QoS.Application.Features.Province.Handlers.Commands
 
         public async Task<ApiResponse<CreateProvinceDto>> Handle(CreateProvinceRequest request, CancellationToken cancellationToken)
         {
-            var region = await _repository.FindAsync(p => p.Name == request.Province.Name && !p.IsDeleted, cancellationToken);
+            var province = await _repository.FindAsync(p => p.Name == request.Province.Name && !p.IsDeleted, cancellationToken);
 
-            if (region != null)
+            if (province != null)
             {
                 return new ApiResponse<CreateProvinceDto>
                 {
@@ -36,6 +36,7 @@ namespace NTC.QoS.Application.Features.Province.Handlers.Commands
             {
                 Data = new CreateProvinceDto
                 {
+                    RegionId = newProvince.RegionId,
                     Name = newProvince.Name,
                     Description = newProvince.Description,
                 },
