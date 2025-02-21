@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 namespace NTC.QoS.API.Controllers;
@@ -15,7 +16,7 @@ public class CellsController : ControllerBase
         _mediator = mediator;
     }
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<Cell>>> GetAllCells(int pageSize = 10, int pageNumber = 1)
     {
         var result = await _mediator.Send(new GetAllCellsRequest
         {
@@ -47,15 +48,15 @@ public class CellsController : ControllerBase
             CID = updateCell.CID,
             TowerType = updateCell.TowerType,
             Elevation = updateCell.Elevation,
-            Latitude = updateCell.Latitude,
-            Longitude = updateCell.Longitude,
+            CoorLatitude = updateCell.CoorLatitude,
+            CoorLongitude = updateCell.CoorLongitude,
             LAC = updateCell.LAC,
             TAC = updateCell.TAC
         }));
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Aggregates.Cell>>> DeleteCellById(Guid id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById(Guid id)
     {
         var cell = await _mediator.Send(new DeleteCellByIdRequest(id));
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);

@@ -15,8 +15,8 @@ public class CellDto
     public string SiteId { get; set; } = string.Empty;
     public string TowerName { get; set; } = string.Empty;
     public float Elevation { get; set; }
-    public float Latitude { get; set; }
-    public float Longitude { get; set; }
+    public float CoorLatitude { get; set; }
+    public float CoorLongitude { get; set; }
     public bool IsVerified { get; set; }
     public string Status { get; set; } = string.Empty;
 }
