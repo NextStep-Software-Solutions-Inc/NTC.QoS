@@ -1295,7 +1295,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("Name", "Type")
                         .IsUnique();
 
                     b.ToTable("Services");

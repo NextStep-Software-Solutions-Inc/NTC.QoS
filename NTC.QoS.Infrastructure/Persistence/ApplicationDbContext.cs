@@ -53,7 +53,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(p => p.ServiceProviders);
 
         modelBuilder.Entity<Service>()
-            .HasIndex(s => s.Name)
+            .HasIndex(s => new { s.Name, s.Type })
             .IsUnique();
 
         modelBuilder.Entity<Service>()

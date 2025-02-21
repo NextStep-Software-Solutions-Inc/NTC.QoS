@@ -19,8 +19,7 @@ public class DeleteServiceHandler(IRepository<Domain.Entities.Service> repositor
                 Succeeded = false
             };
         }
-        service.IsDeleted = true;
-        _repository.Update(service);
+        _repository.Delete(service);
         await _repository.SaveChangesAsync(cancellationToken);
         return new ApiResponse<bool>
         {

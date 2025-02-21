@@ -13,29 +13,28 @@ public class CreateServiceHandler(IRepository<Domain.Entities.Service> repositor
     public async Task<ApiResponse<CreateServiceDto>> Handle(CreateServiceRequest request, CancellationToken cancellationToken)
     {
 
-        var service = await _repository.FindAsync(s => s.Name == request.Service.Name, cancellationToken);
+        var service = await _repository.FindAsync(s => s.Name == request.Service.Name && s.Type == EnumHelper<ServiceTypeEnum>.GetValue(request.Service.Type), cancellationToken);
       if (service != null)
         {
-            return new ApiResponse<CreateServiceDto>
+            if (!service.IsDeleted)
             {
-                Message = "Service already exists",
-                Succeeded = false
-            };
-        }
-      var serviceIsDeleted = await _repository.FindAsync(s => s.Name == request.Service.Name && s.IsDeleted, cancellationToken);
-        if (serviceIsDeleted != null)
-        {
-            serviceIsDeleted.IsDeleted = false;
-            _repository.Update(serviceIsDeleted);
+                return new ApiResponse<CreateServiceDto>
+                {
+                    Message = "Service already exists",
+                    Succeeded = false
+                };
+            }
+            _repository.Update(service);
             await _repository.SaveChangesAsync(cancellationToken);
+
             return new ApiResponse<CreateServiceDto>
             {
                 Data = new CreateServiceDto
                 {
-                    Name = serviceIsDeleted.Name,
-                    Type = EnumHelper<ServiceTypeEnum>.GetName(serviceIsDeleted.Type)
+                    Name = service.Name,
+                    Type = EnumHelper<ServiceTypeEnum>.GetName(service.Type)
                 },
-                Message = "Service retrieved successfully",
+                Message = "Service reactivated successfully",
                 Succeeded = true
             };
         }
@@ -44,7 +43,7 @@ public class CreateServiceHandler(IRepository<Domain.Entities.Service> repositor
             Name = request.Service.Name,
             Type = EnumHelper<ServiceTypeEnum>.GetValue( request.Service.Type),
         };
-        _repository.Add(newService);
+        _repository.Update(newService);
         await _repository.SaveChangesAsync(cancellationToken);
         return new ApiResponse<CreateServiceDto>
         {
