@@ -5,16 +5,18 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
-namespace NTC.QoS.Application.Features.Service.Handlers.Commands
-{
-    public class CreateServiceHandler(IRepository<Domain.Entities.Service> repository) : IRequestHandler<CreateServiceRequest, ApiResponse<CreateServiceDto>>
-    {
-        private readonly IRepository<Domain.Entities.Service> _repository = repository;
-        public async Task<ApiResponse<CreateServiceDto>> Handle(CreateServiceRequest request, CancellationToken cancellationToken)
-        {
+namespace NTC.QoS.Application.Features.Service.Handlers.Commands;
 
-            var service = await _repository.FindAsync(s => s.Name == request.Service.Name && !s.IsDeleted, cancellationToken);
-          if (service != null)
+public class CreateServiceHandler(IRepository<Domain.Entities.Service> repository) : IRequestHandler<CreateServiceRequest, ApiResponse<CreateServiceDto>>
+{
+    private readonly IRepository<Domain.Entities.Service> _repository = repository;
+    public async Task<ApiResponse<CreateServiceDto>> Handle(CreateServiceRequest request, CancellationToken cancellationToken)
+    {
+
+        var service = await _repository.FindAsync(s => s.Name == request.Service.Name && s.Type == EnumHelper<ServiceTypeEnum>.GetValue(request.Service.Type), cancellationToken);
+      if (service != null)
+        {
+            if (!service.IsDeleted)
             {
                 return new ApiResponse<CreateServiceDto>
                 {
@@ -22,23 +24,36 @@ namespace NTC.QoS.Application.Features.Service.Handlers.Commands
                     Succeeded = false
                 };
             }
-            var newService = new Domain.Entities.Service
-            {
-                Name = request.Service.Name,
-                Type = EnumHelper<ServiceTypeEnum>.GetValue( request.Service.Type),
-            };
-            _repository.Add(newService);
+            _repository.Update(service);
             await _repository.SaveChangesAsync(cancellationToken);
+
             return new ApiResponse<CreateServiceDto>
             {
                 Data = new CreateServiceDto
                 {
-                    Name = newService.Name,
-                    Type = EnumHelper<ServiceTypeEnum>.GetName( newService.Type)
+                    Name = service.Name,
+                    Type = EnumHelper<ServiceTypeEnum>.GetName(service.Type)
                 },
-                Message = "Service created successfully",
+                Message = "Service reactivated successfully",
                 Succeeded = true
             };
         }
+        var newService = new Domain.Entities.Service
+        {
+            Name = request.Service.Name,
+            Type = EnumHelper<ServiceTypeEnum>.GetValue( request.Service.Type),
+        };
+        _repository.Update(newService);
+        await _repository.SaveChangesAsync(cancellationToken);
+        return new ApiResponse<CreateServiceDto>
+        {
+            Data = new CreateServiceDto
+            {
+                Name = newService.Name,
+                Type = EnumHelper<ServiceTypeEnum>.GetName( newService.Type)
+            },
+            Message = "Service created successfully",
+            Succeeded = true
+        };
     }
 }

@@ -19,11 +19,10 @@ namespace NTC.QoS.Application.Features.Service.Handlers.Queries
                 Id = service.Id,
                 Name = service.Name,
                 Type = EnumHelper<ServiceTypeEnum>.GetName(service.Type),
-                CreatedDate = service.CreatedAt,
                 CreatedBy = service.CreatedBy,
-                ModifiedDate = service.UpdatedAt,
+                CreatedDate = service.CreatedAt,
                 ModifiedBy = service.UpdatedBy,
-                IsDeleted = service.IsDeleted
+                ModifiedDate = service.UpdatedAt
             }).ToList();
             return new PaginatedResponse<ServiceDto>(services, request.PageNumber, request.PageSize);
         }

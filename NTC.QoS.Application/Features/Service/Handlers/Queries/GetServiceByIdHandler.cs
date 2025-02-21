@@ -30,11 +30,10 @@ public class GetServiceByIdHandler(IRepository<Domain.Entities.Service> reposito
                 Id = service.Id,
                 Name = service.Name,
                 Type = EnumHelper<ServiceTypeEnum>.GetName( service.Type),
-                CreatedDate = service.CreatedAt,
                 CreatedBy = service.CreatedBy,
-                ModifiedDate = service.UpdatedAt,
+                CreatedDate = service.CreatedAt,
                 ModifiedBy = service.UpdatedBy,
-                IsDeleted = service.IsDeleted
+                ModifiedDate = service.UpdatedAt
             }
         };
     }
