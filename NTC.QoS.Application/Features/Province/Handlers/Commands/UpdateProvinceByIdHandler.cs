@@ -12,7 +12,7 @@ public class UpdateProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
     public async Task<ApiResponse<UpdateProvinceDto>> Handle(UpdateProvinceRequest request,
             CancellationToken cancellationToken)
     {
-        var provider = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
+        var province = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
 
 
         if (string.IsNullOrEmpty(request.Province.Name))
@@ -25,20 +25,20 @@ public class UpdateProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
                 Message = request.Province.Name + " already exists in our system. Please try a different one."
             };
         }
-        if (provider == null)
+        if (province == null)
         {
             return new ApiResponse<UpdateProvinceDto>
             {
                 Data = null,
                 Succeeded = false,
                 Error = new[] { "Province not found." },
-                Message = "The provider you are trying to edit does not exist."
+                Message = "The province you are trying to edit does not exist."
             };
         }
-        provider.Name = request.Province.Name;
-        provider.Description = request.Province.Description;
+        province.Name = request.Province.Name;
+        province.Description = request.Province.Description;
 
-         _repository.Update(provider);
+         _repository.Update(province);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<UpdateProvinceDto>
