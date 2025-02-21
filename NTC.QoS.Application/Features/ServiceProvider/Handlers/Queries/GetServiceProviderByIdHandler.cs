@@ -6,21 +6,26 @@ using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
 
-public class GetServiceProviderByIdHandler(IRepository<Domain.Aggregates.ServiceProvider> repository) : IRequestHandler<GetServiceProviderByIdRequest, ApiResponse<ServiceProviderDto>>
+public class GetServiceProviderByIdHandler(IServiceProviderRepository serviceProviderRepository) : IRequestHandler<GetServiceProviderByIdRequest, ApiResponse<ServiceProviderDto>>
 {
-    private readonly IRepository<Domain.Aggregates.ServiceProvider> _repository = repository;
+    private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     public async Task<ApiResponse<ServiceProviderDto>> Handle(GetServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceProvider = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Id, cancellationToken);
         if (serviceProvider == null)
         {
-            return new ApiResponse<ServiceProviderDto>(data: new ServiceProviderDto(), succeeded: false, message: "Service Provider not found");
+            return new ApiResponse<ServiceProviderDto>(
+            data: null!,
+            succeeded: false,
+            message: "Service Provider not found");
         }
         var serviceProviderDto = new ServiceProviderDto
         {
             Id = serviceProvider.Id,
             ProviderId = serviceProvider.ProviderId,
+            Provider = new() { Name = serviceProvider.Provider?.Name },
             ServiceId = serviceProvider.ServiceId,
+            Service = new() { Name = serviceProvider.Service?.Name },
             MCC = serviceProvider.MCC,
             MNC = serviceProvider.MNC
         };

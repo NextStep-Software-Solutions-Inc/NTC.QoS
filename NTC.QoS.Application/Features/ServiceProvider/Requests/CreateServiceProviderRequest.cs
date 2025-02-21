@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Requests;
 
-public class CreateServiceProviderRequest : IRequest<ApiResponse<CreateServiceProviderDto>>
+public class CreateServiceProviderRequest : IRequest<ApiResponse<Domain.Aggregates.ServiceProvider>>
 {
     public CreateServiceProviderRequest(CreateServiceProviderDto serviceProvider)
     {
