@@ -18,8 +18,7 @@ public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> 
         if (existingGeneration != null)
         {
             return new ApiResponse<CreateGenerationDto>(
-                "Generation already exists.",
-                (int)HttpStatusCode.Conflict
+                "Generation already exists."
             );
         }
 
@@ -29,29 +28,18 @@ public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> 
             Description = request.Generation.Description,
         };
 
-        try
-        {
-            await _repository.AddAsync(newGeneration, cancellationToken);
-            await _repository.SaveChangesAsync(cancellationToken);
+        _repository.Add(newGeneration);
+        await _repository.SaveChangesAsync(cancellationToken);
 
-            return new ApiResponse<CreateGenerationDto>
-            {
-                Data = new CreateGenerationDto
-                {
-                    Name = newGeneration.Name,
-                    Description = newGeneration.Description,
-                },
-                Succeeded = true,
-                Message = "Generation created successfully.",
-                StatusCode = (int)HttpStatusCode.Created
-            };
-        }
-        catch (Exception ex)
+        return new ApiResponse<CreateGenerationDto>
         {
-            return new ApiResponse<CreateGenerationDto>(
-                [ex.Message],
-                (int)HttpStatusCode.InternalServerError
-            );
-        }
+            Data = new CreateGenerationDto
+            {
+                Name = newGeneration.Name,
+                Description = newGeneration.Description,
+            },
+            Succeeded = true,
+            Message = "Generation created successfully.",
+        };
     }
 }

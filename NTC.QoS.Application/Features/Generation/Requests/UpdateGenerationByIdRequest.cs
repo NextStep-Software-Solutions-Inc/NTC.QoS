@@ -8,5 +8,5 @@ public class UpdateGenerationByIdRequest : IRequest<ApiResponse<UpdateGeneration
 {
     public Guid Id { get; set; }
 
-    public UpdateGenerationDto Generation { get; set; } = null!;
+    public UpdateGenerationDto Generation { get; set; }
 }
