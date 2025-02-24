@@ -11,9 +11,9 @@ public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> 
 
     public async Task<ApiResponse<CreateGenerationDto>> Handle(CreateGenerationRequest request, CancellationToken cancellationToken)
     {
-        var existingGeneration = await _repository.FindAsync(p => p.Name == request.Generation.Name && !p.IsDeleted, cancellationToken);
+        var generation = await _repository.FindAsync(g => g.Name == request.Generation.Name && !g.IsDeleted, cancellationToken);
 
-        if (existingGeneration != null)
+        if (generation != null)
         {
             return new ApiResponse<CreateGenerationDto>(
                 "Generation already exists."
