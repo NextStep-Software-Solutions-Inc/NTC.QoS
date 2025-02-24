@@ -1,8 +1,11 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Generation.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Generation;
+using NTC.QoS.Domain.Models.DTOs.Provider;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.API.Controllers
 {
@@ -41,19 +44,22 @@ namespace NTC.QoS.API.Controllers
         [HttpPost]
         public async Task<IActionResult> Post(CreateGenerationDto generationDto)
         {
-            var generation = await _mediator.Send(new CreateGenerationRequest(generationDto));
+            var generation = await _mediator.Send(new CreateGenerationRequest
+            {
+                Generation = generationDto
+            });
 
             return generation.Succeeded ? Ok(generation) : BadRequest(generation);
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult<ApiResponse<Domain.Aggregates.Generation>>> UpdateGenerationById(Guid id, UpdateGenerationDto updateGeneration)
+        public async Task<ActionResult<ApiResponse<UpdateGenerationDto>>> UpdateGenerationById(Guid id, UpdateGenerationDto updateGeneration)
         {
-            var generation = await _mediator.Send(new UpdateGenerationByIdRequest(id, new UpdateGenerationDto
+            var generation = await _mediator.Send(new UpdateGenerationByIdRequest
             {
-                Name = updateGeneration.Name,
-                Description = updateGeneration.Description,
-            }));
+                Id = id,
+                Generation = updateGeneration
+            });
 
             return generation.Succeeded ? Ok(generation) : BadRequest(generation);
         }

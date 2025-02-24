@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Generation.Requests;
 using NTC.QoS.Domain.Models.DTOs.Generation;
 using System.Net;
+using NTC.QoS.Domain.Entities;
 
 namespace NTC.QoS.Application.Features.Generation.Handlers.Queries;
 
@@ -28,18 +29,21 @@ public class GetGenerationByIdHandler(IRepository<Domain.Aggregates.Generation> 
                 };
             }
 
-            var generationDto = new GenerationDto
-            {
-                Id = generation.Id,
-                Name = generation.Name,
-                Description = generation.Description,
-            };
-
             return new ApiResponse<GenerationDto>
             {
                 Succeeded = true,
                 Message = "Generation retrieved successfully",
-                Data = generationDto,
+                Data = new GenerationDto
+                {
+                    Id = generation.Id,
+                    Name = generation.Name,
+                    Description = generation.Description,
+                    CreatedDate = generation.CreatedAt,
+                    CreatedBy = generation.CreatedBy,
+                    ModifiedDate = generation.UpdatedAt,
+                    ModifiedBy = generation.UpdatedBy,
+                    IsDeleted = generation.IsDeleted
+                },
                 StatusCode = (int)HttpStatusCode.OK
             };
         }

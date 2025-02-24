@@ -4,11 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Application.Features.Generation.Requests;
 
-public class CreateGenerationRequest : IRequest<ApiResponse<Domain.Aggregates.Generation>>
+public class CreateGenerationRequest : IRequest<ApiResponse<CreateGenerationDto>>
 {
-    public CreateGenerationRequest(CreateGenerationDto generation)
-    {
-        Generation = generation;
-    }
-    public CreateGenerationDto Generation { get; set; }
+    public CreateGenerationDto Generation { get; set; } = new();
 }
