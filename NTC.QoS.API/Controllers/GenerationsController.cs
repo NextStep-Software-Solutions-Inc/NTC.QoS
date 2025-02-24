@@ -1,8 +1,10 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Generation.Requests;
+using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Generation;
+using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.API.Controllers
 {
@@ -15,6 +17,18 @@ namespace NTC.QoS.API.Controllers
         public GenerationsController(IMediator mediator)
         {
             _mediator = mediator;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<PaginatedResponse<GenerationDto>>> GetAllGenerations(int pageSize = 10, int pageNumber = 1)
+        {
+            var result = await _mediator.Send(new GetAllGenerationsRequest
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            });
+
+            return Ok(result);
         }
 
         [HttpGet("id")]
