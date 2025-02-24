@@ -1,8 +1,10 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.AntennaPattern.Requests;
+using NTC.QoS.Application.Features.Generation.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
+using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.API.Controllers
 {
@@ -27,6 +29,17 @@ namespace NTC.QoS.API.Controllers
             });
 
             return Ok(result);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateAntennaPattern(CreateAntennaPatternDto antennaPatternDto)
+        {
+            var antennaPattern = await _mediator.Send(new CreateAntennaPatternRequest
+            {
+                AntennaPattern = antennaPatternDto
+            });
+
+            return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
         }
     }
 }
