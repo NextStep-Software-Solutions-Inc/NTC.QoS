@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Generation.Requests;
 using NTC.QoS.Domain.Models.DTOs.Generation;
 
@@ -37,7 +36,6 @@ public class GetGenerationByIdHandler(IRepository<Domain.Aggregates.Generation> 
                 CreatedBy = generation.CreatedBy,
                 ModifiedDate = generation.UpdatedAt,
                 ModifiedBy = generation.UpdatedBy,
-                IsDeleted = generation.IsDeleted
             },
         };
     }
