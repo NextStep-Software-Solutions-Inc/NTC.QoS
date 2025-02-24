@@ -16,6 +16,11 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
     {
         var allMunicipalities = await _municipalityRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
 
+        if (request.ProvinceId.HasValue)
+        {
+            allMunicipalities = allMunicipalities.Where(m => m.ProvinceId == request.ProvinceId.Value).ToList();
+        }
+
         var municipalityDtos = allMunicipalities.Select(p => new MunicipalityDto
         {
             Id = p.Id,

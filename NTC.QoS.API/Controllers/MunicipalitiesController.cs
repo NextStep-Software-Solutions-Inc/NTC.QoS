@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Municipality.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 
@@ -19,12 +20,13 @@ public class MunicipalitiesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(int pageSize = 10, int pageNumber = 1, Guid? provinceId = null)
     {
         var request = new GetAllMunicipalitiesRequest()
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize,
+            ProvinceId = provinceId,
         };
         var municipalities = await _mediator.Send(request);
         return Ok(municipalities);

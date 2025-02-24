@@ -14,4 +14,5 @@ public class GetAllMunicipalitiesRequest : IRequest<PaginatedResponse<Municipali
     public GetAllMunicipalitiesRequest() { }
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
+    public Guid? ProvinceId { get; set; }
 }

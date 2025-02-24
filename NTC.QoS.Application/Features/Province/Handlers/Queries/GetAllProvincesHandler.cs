@@ -21,6 +21,11 @@ public class GetAllProvincesHandler : IRequestHandler<GetAllProvincesRequest, Pa
     {
         var allProvinces = await _provinceRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
 
+        if (request.RegionId.HasValue)
+        {
+            allProvinces = allProvinces.Where(m => m.RegionId == request.RegionId.Value).ToList();
+        }
+
         var provinceDtos = allProvinces.Select(p => new ProvinceDto
         {
             Id = p.Id,
