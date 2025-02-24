@@ -20,8 +20,8 @@ public class Cell : BaseEntity
     public float Elevation { get; set; }
     public string TAC { get; set; } = string.Empty;
     public string? LAC { get; set; }
-    public float CoorLatitude { get; set; }
-    public float CoorLongitude { get; set; }
+    public string CoorLatitude { get; set; } = string.Empty;
+    public string CoorLongitude { get; set; } = string.Empty;
     public bool IsVerified { get; set; }
     public CellStatusEnum Status { get; set; } = CellStatusEnum.Unknown;
 

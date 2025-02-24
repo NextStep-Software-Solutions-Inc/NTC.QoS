@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 namespace NTC.QoS.API.Controllers;
@@ -16,14 +18,11 @@ public class CellsController : ControllerBase
         _mediator = mediator;
     }
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<Cell>>> GetAllCells(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<CellDto>>>> GetAllCells([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null)
     {
-        var result = await _mediator.Send(new GetAllCellsRequest
-        {
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        });
-        return Ok(result);
+        var request = new GetAllCellsRequest(pageNumber, pageSize, search);
+        var cells = await _mediator.Send(request);
+        return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<CellDto>>> GetCellById(Guid id)
@@ -33,6 +32,16 @@ public class CellsController : ControllerBase
         var cells = await _mediator.Send(request);
         return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }
+    [HttpPut("update-status/{id}")]
+    public async Task<ActionResult<ApiResponse<CellDto>>> UpdateStatusById(Guid id, UpdateCellStatusDto updateCellStatusDto)
+    {
+        var cell = await _mediator.Send(new UpdateCellStatusByIdRequest(id, new UpdateCellStatusDto
+        {
+            Status = updateCellStatusDto.Status
+        }));
+        return cell.Succeeded ? Ok(cell) : BadRequest(cell);
+    }
+
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<Domain.Aggregates.Cell>>> UpdateCellById(Guid id, UpdateCellDto updateCell)
     {

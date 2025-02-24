@@ -26,13 +26,9 @@ public class FilesController : ControllerBase
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<Domain.Entities.File>>> GetAllFiles(int pageSize = 10, int pageNumber = 1, string? search = null)
     {
-        var result = await _mediator.Send(new GetAllFilesRequest
-        {
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        });
+        var result = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search));
         return Ok(result);
     }
     [HttpGet("{id}")]
