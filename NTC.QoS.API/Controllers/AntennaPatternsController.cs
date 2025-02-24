@@ -31,6 +31,14 @@ namespace NTC.QoS.API.Controllers
             return Ok(result);
         }
 
+        [HttpGet("id")]
+        public async Task<ActionResult<ApiResponse<AntennaPatternDto>>> GetAntennaPatternById(Guid id)
+        {
+            var request = new GetAntennaPatternByIdRequest(id);
+            var antennaPattern = await _mediator.Send(request);
+            return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateAntennaPattern(CreateAntennaPatternDto antennaPatternDto)
         {
