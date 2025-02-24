@@ -47,5 +47,13 @@ namespace NTC.QoS.API.Controllers
 
             return generation.Succeeded ? Ok(generation) : BadRequest(generation);
         }
+
+        [HttpDelete("{id}")]
+        public async Task<ActionResult<ApiResponse<Domain.Aggregates.Generation>>> DeleteGenerationById(Guid id)
+        {
+            var generation = await _mediator.Send(new DeleteGenerationByIdRequest(id));
+
+            return generation.Succeeded ? Ok(generation) : BadRequest(generation);
+        }
     }
 }
