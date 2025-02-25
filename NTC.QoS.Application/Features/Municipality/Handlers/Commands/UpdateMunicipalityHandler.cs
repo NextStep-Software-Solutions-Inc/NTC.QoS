@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Municipality.Requests;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;

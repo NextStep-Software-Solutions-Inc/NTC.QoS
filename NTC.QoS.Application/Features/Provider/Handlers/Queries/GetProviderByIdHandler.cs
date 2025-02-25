@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Provider.Requests;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;

@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.Application.Features.Service.Requests;

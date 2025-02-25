@@ -3,6 +3,7 @@ using NTC.QoS.Application.Features.Service.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.Application.Features.Service.Handlers.Commands;
