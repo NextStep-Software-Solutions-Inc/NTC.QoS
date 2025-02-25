@@ -11,9 +11,9 @@ public class GetAllAntennaPatternsHandler (IRepository<Domain.Entities.AntennaPa
     private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
     public async Task<PaginatedResponse<AntennaPatternDto>> Handle(GetAllAntennaPatternsRequest request, CancellationToken cancellationToken)
     {
-        var antennaPatterns = await _repository.ListAsync(ap => !ap.IsDeleted, cancellationToken);
+        var allAntennaPatterns = await _repository.ListAsync(ap => !ap.IsDeleted, cancellationToken);
 
-        var AntennaPatternDto = antennaPatterns.Select(ap => new AntennaPatternDto
+        var antennaPatternDtos = allAntennaPatterns.Select(ap => new AntennaPatternDto
         {
             Id = ap.Id,
             Name = ap.Name,
@@ -24,6 +24,6 @@ public class GetAllAntennaPatternsHandler (IRepository<Domain.Entities.AntennaPa
             ModifiedDate = ap.UpdatedAt
         }).ToList();
 
-        return new PaginatedResponse<AntennaPatternDto>(AntennaPatternDto, request.PageNumber, request.PageSize);
+        return new PaginatedResponse<AntennaPatternDto>(antennaPatternDtos, request.PageNumber, request.PageSize);
     }
 }
