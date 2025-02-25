@@ -10,7 +10,7 @@ public class DeleteMunicipalityHandler(IRepository<Domain.Entities.Municipality>
     private readonly IRepository<Domain.Entities.Municipality> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipality = await _repository.FindAsync(sp => sp.Id == request.Id && !sp.IsDeleted, cancellationToken);
+        var municipality = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
         if (municipality == null)
         {
             return new ApiResponse<bool>

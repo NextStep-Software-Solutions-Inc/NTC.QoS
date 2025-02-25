@@ -14,24 +14,24 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
 
     public async Task<PaginatedResponse<MunicipalityDto>> Handle(GetAllMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
-        var allMunicipalities = await _municipalityRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
+        var allMunicipalities = await _municipalityRepository.ListAsync(m => !m.IsDeleted, cancellationToken);
 
         if (request.ProvinceId.HasValue)
         {
             allMunicipalities = allMunicipalities.Where(m => m.ProvinceId == request.ProvinceId.Value).ToList();
         }
 
-        var municipalityDtos = allMunicipalities.Select(p => new MunicipalityDto
+        var municipalityDtos = allMunicipalities.Select(m => new MunicipalityDto
         {
-            Id = p.Id,
-            Name = p.Name,
-            Description = p.Description,
-            ProvinceId = p.ProvinceId,
-            IsCity = p.IsCity,
+            Id = m.Id,
+            Name = m.Name,
+            Description = m.Description,
+            ProvinceId = m.ProvinceId,
+            IsCity = m.IsCity,
             Province = new ProvinceDto
             {
-                Id = p.ProvinceId,
-                Name = p.Province?.Name ?? ""
+                Id = m.ProvinceId,
+                Name = m.Province?.Name ?? ""
             }
         }).ToList();
 
