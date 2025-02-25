@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;

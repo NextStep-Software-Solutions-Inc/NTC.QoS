@@ -1,4 +1,6 @@
-﻿public class ApiResponse<T>
+﻿namespace NTC.QoS.Domain.Models.DTOs;
+
+public class ApiResponse<T>
 {
     public T? Data { get; set; }
     public bool Succeeded { get; set; }

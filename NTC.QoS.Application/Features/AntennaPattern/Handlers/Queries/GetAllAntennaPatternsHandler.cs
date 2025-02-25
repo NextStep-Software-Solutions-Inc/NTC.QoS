@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.AntennaPattern.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AntennaPattern;

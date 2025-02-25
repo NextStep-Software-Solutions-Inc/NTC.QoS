@@ -1,8 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Region.Requests;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands
 {
