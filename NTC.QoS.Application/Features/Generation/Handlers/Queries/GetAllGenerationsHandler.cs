@@ -17,7 +17,10 @@ public class GetAllGenerationsHandler (IRepository<Domain.Aggregates.Generation>
         {
             Id = g.Id,
             Name = g.Name,
-            Description = g.Description
+            Description = g.Description,
+            CreatedBy = g.CreatedBy,
+            CreatedDate = g.CreatedAt,
+            ModifiedBy = g.UpdatedBy,
         }).ToList();
 
         return new PaginatedResponse<GenerationDto>(generationDtos, request.PageNumber, request.PageSize);

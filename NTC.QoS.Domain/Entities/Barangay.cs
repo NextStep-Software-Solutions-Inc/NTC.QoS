@@ -1,6 +1,4 @@
-﻿using NTC.QoS.Domain.Aggregates;
-
-namespace NTC.QoS.Domain.Entities;
+﻿namespace NTC.QoS.Domain.Entities;
 
 public class Barangay : BaseEntity
 {
