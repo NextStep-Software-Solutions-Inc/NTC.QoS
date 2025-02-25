@@ -2,7 +2,6 @@
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
@@ -39,6 +38,11 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     public void Add(TEntity entity)
     {
          _context.Add(entity);
+    }
+
+    public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)
+    {
+        await _context.AddAsync(entity, cancellationToken);
     }
 
     public void Update(TEntity entity)

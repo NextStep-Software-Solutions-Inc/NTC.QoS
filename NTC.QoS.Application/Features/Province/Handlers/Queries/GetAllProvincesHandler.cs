@@ -2,7 +2,6 @@
 using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
 
@@ -20,6 +19,11 @@ public class GetAllProvincesHandler : IRequestHandler<GetAllProvincesRequest, Pa
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
         var allProvinces = await _provinceRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
+
+        if (request.RegionId.HasValue)
+        {
+            allProvinces = allProvinces.Where(m => m.RegionId == request.RegionId.Value).ToList();
+        }
 
         var provinceDtos = allProvinces.Select(p => new ProvinceDto
         {

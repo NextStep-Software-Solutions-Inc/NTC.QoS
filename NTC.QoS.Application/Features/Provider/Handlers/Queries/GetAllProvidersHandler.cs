@@ -2,7 +2,6 @@
 using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
 public class GetAllProvidersHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<Domain.Entities.Provider>>
