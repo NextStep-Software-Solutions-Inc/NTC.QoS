@@ -1,0 +1,56 @@
+﻿using MediatR;
+using NTC.QoS.Application.Features.AntennaPattern.Requests;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
+
+namespace NTC.QoS.Application.Features.AntennaPattern.Handlers.Commands;
+
+public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.AntennaPattern> repository) : IRequestHandler<UpdateAntennaPatternByIdRequest, ApiResponse<UpdateAntennaPatternDto>>
+{
+    private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
+    public async Task<ApiResponse<UpdateAntennaPatternDto>> Handle(UpdateAntennaPatternByIdRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.AntennaPattern == null)
+        {
+            return new ApiResponse<UpdateAntennaPatternDto>
+            {
+                Data = null,
+                Succeeded = false,
+                Error = new[] { "Antenna pattern data is missing." },
+                Message = "The request does not contain antenna pattern update data.",
+            };
+        }
+
+        var antennaPattern = await _repository.FindAsync(g => g.Id == request.Id && !g.IsDeleted, cancellationToken);
+
+        if (antennaPattern == null)
+        {
+            return new ApiResponse<UpdateAntennaPatternDto>
+            {
+                Data = null,
+                Succeeded = false,
+                Error = new[] { "Antenna pattern not found." },
+                Message = "The antenna pattern you are trying to edit does not exist.",
+            };
+        }
+
+        antennaPattern.Name = request.AntennaPattern.Name;
+        antennaPattern.URL = request.AntennaPattern.URL;
+
+        _repository.Update(antennaPattern);
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        return new ApiResponse<UpdateAntennaPatternDto>
+        {
+            Succeeded = true,
+            Error = Array.Empty<string>(),
+            Data = new UpdateAntennaPatternDto
+            {
+                Name = request.AntennaPattern.Name,
+                URL = request.AntennaPattern.URL
+            },
+            Message = "Request successful! Your changes have been saved.",
+        };
+    }
+}

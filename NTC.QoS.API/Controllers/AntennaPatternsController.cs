@@ -1,10 +1,8 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.AntennaPattern.Requests;
-using NTC.QoS.Application.Features.Generation.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
-using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.API.Controllers
 {
@@ -46,6 +44,26 @@ namespace NTC.QoS.API.Controllers
             {
                 AntennaPattern = antennaPatternDto
             });
+
+            return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<ActionResult<ApiResponse<UpdateAntennaPatternDto>>> UpdateAntennaPatternById(Guid id, UpdateAntennaPatternDto updateAntennaPattern)
+        {
+            var antennaPattern = await _mediator.Send(new UpdateAntennaPatternByIdRequest
+            {
+                Id = id,
+                AntennaPattern = updateAntennaPattern
+            });
+
+            return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<ActionResult<ApiResponse<Domain.Entities.AntennaPattern>>> DeleteAntennaPatternById(Guid id)
+        {
+            var antennaPattern = await _mediator.Send(new DeleteAntennaPatternByIdRequest(id));
 
             return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
         }
