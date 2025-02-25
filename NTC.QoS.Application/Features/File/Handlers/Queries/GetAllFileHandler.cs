@@ -11,7 +11,7 @@ public class GetAllFileHandler(IRepository<Domain.Entities.File> repository) : I
     private readonly IRepository<Domain.Entities.File> _repository = repository;
     public async Task<PaginatedResponse<FileDto>> Handle(GetAllFilesRequest request, CancellationToken cancellationToken)
     {
-        var allFiles = await _repository.ListAsync(p => p.IsDeleted != true, cancellationToken);
+        var allFiles = await _repository.ListAsync(f => f.IsDeleted != true, cancellationToken);
         var result = allFiles.Select(file => new FileDto
         {
             Id = file.Id,

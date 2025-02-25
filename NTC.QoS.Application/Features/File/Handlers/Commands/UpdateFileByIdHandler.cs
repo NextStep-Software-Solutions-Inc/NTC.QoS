@@ -11,7 +11,7 @@ public class UpdateFileByIdHandler(IRepository<Domain.Entities.File> repository)
     private readonly IRepository<Domain.Entities.File> _repository = repository;
     public async Task<ApiResponse<FileDto>> Handle(UpdateFileByIdRequest request, CancellationToken cancellationToken)
     {
-        var fileExist = await _repository.FindAsync(p => p.Id == request.Id && !p.IsDeleted, cancellationToken);
+        var fileExist = await _repository.FindAsync(f => f.Id == request.Id && !f.IsDeleted, cancellationToken);
         if (fileExist == null)
         {
             return new ApiResponse<FileDto>
