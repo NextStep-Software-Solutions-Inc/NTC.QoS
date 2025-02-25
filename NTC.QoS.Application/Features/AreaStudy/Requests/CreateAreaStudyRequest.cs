@@ -6,5 +6,5 @@ namespace NTC.QoS.Application.Features.AreaStudy.Requests;
 
 public class CreateAreaStudyRequest : IRequest<ApiResponse<Domain.Entities.AreaStudy>>
 {
-    public AreaStudyDto AreaStudy { get; set; } = null!;
+    public AreaStudyDto AreaStudy { get; set; }
 }
