@@ -14,7 +14,7 @@ public class GetAllCellsHandler(IRepository<Domain.Aggregates.Cell> repository) 
     private readonly IRepository<Domain.Aggregates.Cell> _repository = repository;
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        var allCells = await _repository.ListAsync(p => !p.IsDeleted, cancellationToken);
+        var allCells = await _repository.ListAsync(c => !c.IsDeleted, cancellationToken);
 
         var cells = allCells.Select(cell => new CellDto
         {
