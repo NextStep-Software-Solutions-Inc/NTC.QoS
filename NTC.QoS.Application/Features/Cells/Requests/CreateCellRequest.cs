@@ -7,6 +7,6 @@ namespace NTC.QoS.Application.Features.Cells.Requests;
 
 public class CreateCellRequest : IRequest<ApiResponse<CellDto>>
 {
-    public CreateCellDto CreateCell { get; set; } = new();
+    public CreateCellDto CreateCell { get; set; } = null!;
 
 }

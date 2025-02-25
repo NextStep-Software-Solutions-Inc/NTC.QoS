@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -54,6 +55,5 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         await _context.SaveChangesAsync(cancellationToken);
     }
-
 
 }

@@ -32,7 +32,7 @@ public class CellsController : ControllerBase
         var cells = await _mediator.Send(request);
         return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }
-    [HttpPut("update-status/{id}")]
+    [HttpPut("{id}/status")]
     public async Task<ActionResult<ApiResponse<CellDto>>> UpdateStatusById(Guid id, UpdateCellStatusDto updateCellStatusDto)
     {
         var cell = await _mediator.Send(new UpdateCellStatusByIdRequest(id, new UpdateCellStatusDto
