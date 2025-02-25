@@ -40,6 +40,11 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
          _context.Add(entity);
     }
 
+    public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)
+    {
+        await _context.AddAsync(entity, cancellationToken);
+    }
+
     public void Update(TEntity entity)
     {
         _context.Update(entity);
