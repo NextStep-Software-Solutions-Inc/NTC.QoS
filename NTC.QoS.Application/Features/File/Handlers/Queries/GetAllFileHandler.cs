@@ -18,6 +18,11 @@ public class GetAllFileHandler(IRepository<Domain.Entities.File> repository) : I
             Name = file.Name,
             Path = file.Path
         }).ToList();
+
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            result = result.Where(f => f.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
         return new PaginatedResponse<FileDto>(result, request.PageNumber, request.PageSize);
     }
 }
