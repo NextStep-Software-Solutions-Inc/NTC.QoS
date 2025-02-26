@@ -27,6 +27,8 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IUserContextService, UserContextService>();
         services.AddScoped<IProvinceRepository, ProvinceRepository>();
         services.AddScoped<IServiceProviderRepository, ServiceProviderRepository>();
+        services.AddScoped<ICellRepository, CellRepository>();
+        services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
 
         return services;
