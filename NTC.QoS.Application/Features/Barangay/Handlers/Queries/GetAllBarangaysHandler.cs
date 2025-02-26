@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Barangay.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
@@ -26,11 +27,13 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository) : IR
             Name = b.Name,
             Description = b.Description,
             MunicipalityId = b.MunicipalityId,
-            Municipality = new MunicipalityDto
+            Municipality = b.Municipality != null ? new MunicipalityDto
             {
-                Id = b.MunicipalityId,
-                Name = b.Municipality?.Name ?? ""
-            }
+                Id = b.Municipality.Id,
+                IsCity = b.Municipality.IsCity,
+                ProvinceId = b.Municipality.ProvinceId,
+                Name = b.Municipality.Name
+            } : null
         }).ToList();
 
         return new PaginatedResponse<BarangayDto>(barangayDtos, request.PageNumber, request.PageSize);

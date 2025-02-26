@@ -34,10 +34,13 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
                 Name = barangay.Name,
                 Description = barangay.Description,
                 MunicipalityId = barangay.MunicipalityId,
-                Municipality = new MunicipalityDto
+                Municipality = barangay.Municipality != null ? new MunicipalityDto
                 {
-                    Name = barangay.Municipality?.Name ?? "Unknown"
-                }
+                    Id = barangay.Municipality.Id,
+                    IsCity = barangay.Municipality.IsCity,
+                    ProvinceId = barangay.Municipality.ProvinceId,
+                    Name = barangay.Municipality.Name
+                } : null
             }
         };
     }
