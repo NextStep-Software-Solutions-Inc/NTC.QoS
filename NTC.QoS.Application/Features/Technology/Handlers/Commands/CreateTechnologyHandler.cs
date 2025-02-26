@@ -12,8 +12,6 @@ public class CreateTechnologyHandler (IRepository<Domain.Entities.Technology> re
 
     public async Task<ApiResponse<CreateTechnologyDto>> Handle(CreateTechnologyRequest request, CancellationToken cancellationToken)
     {
-        var generationExists = await _dbContext.Generations.AnyAsync(g => g.Id == request.GenerationId, cancellationToken);
-
         var technology = await _repository.FindAsync(t => t.Standard == request.Technology.Standard && !t.IsDeleted, cancellationToken);
 
         if (technology != null)

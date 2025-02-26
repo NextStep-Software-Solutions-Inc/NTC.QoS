@@ -17,6 +17,14 @@ public class TechnologiesController: ControllerBase
         _mediator = mediator;
     }
 
+    [HttpGet("id")]
+    public async Task<ActionResult<ApiResponse<TechnologyDto>>> GetTechnologyById(Guid technologyId)
+    {
+        var request = new GetTechnologyByIdRequest(technologyId);
+        var technology = await _mediator.Send(request);
+        return technology.Succeeded ? Ok(technology) : BadRequest(technology);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateTechnology(CreateTechnologyDto technologyDto)
     {
