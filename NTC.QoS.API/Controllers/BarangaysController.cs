@@ -30,10 +30,10 @@ public class BarangaysController : ControllerBase
         var barangays = await _mediator.Send(request);
         return Ok(barangays);
     }
-    [HttpGet("id")]
-    public async Task<ActionResult<ApiResponse<BarangayDto>>> GetBarangayById(Guid barangayId)
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<BarangayDto>>> GetBarangayById(Guid id)
     {
-        var request = new GetBarangayByIdRequest(barangayId);
+        var request = new GetBarangayByIdRequest(id);
         var barangay = await _mediator.Send(request);
         return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
     }
@@ -47,19 +47,19 @@ public class BarangaysController : ControllerBase
 
         return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
     }
-    [HttpDelete("id")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid barangayId)
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
-        var request = new DeleteBarangayByIdRequest(barangayId);
+        var request = new DeleteBarangayByIdRequest(id);
         var barangay = await _mediator.Send(request);
 
         return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
     }
 
-    [HttpPut("id")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Barangay>>> UpdateBarangayById(Guid barangayId, UpdateBarangayDto updateBarangay)
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Barangay>>> UpdateBarangayById(Guid id, UpdateBarangayDto updateBarangay)
     {
-        var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(barangayId, new UpdateBarangayDto
+        var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(id, new UpdateBarangayDto
         {
             Name = updateBarangay.Name,
             Description = updateBarangay.Description,

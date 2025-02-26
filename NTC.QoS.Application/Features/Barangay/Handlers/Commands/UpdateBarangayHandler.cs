@@ -17,7 +17,7 @@ public class UpdateBarangayByIdHandler(IRepository<Domain.Entities.Barangay> rep
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Barangay Not found." },
+                Error = new[] { "Barangay not found." },
                 Message = "The barangay you are trying to edit does not exist."
             };
         }

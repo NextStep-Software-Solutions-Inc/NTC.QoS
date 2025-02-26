@@ -37,7 +37,6 @@ public class CreateBarangayHandler(IRepository<Domain.Entities.Barangay> reposit
         {
             Data = new CreateBarangayDto
             {
-                Id = newBarangay.Id,
                 MunicipalityId = newBarangay.MunicipalityId,
                 Name = newBarangay.Name,
                 Description = newBarangay.Description,
