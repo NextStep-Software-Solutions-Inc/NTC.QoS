@@ -30,7 +30,11 @@ public class GetAllTechnologiesHandler(ITechnologyRepository technologyRepositor
             {
                 Id = t.GenerationId,
                 Name = t.Generation?.Name ?? ""
-            }
+            },
+            CreatedBy = t.CreatedBy,
+            CreatedDate = t.CreatedAt,
+            ModifiedBy = t.UpdatedBy,
+            ModifiedDate = t.UpdatedAt 
         }).ToList();
 
 

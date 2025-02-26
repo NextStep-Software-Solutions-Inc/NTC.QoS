@@ -61,4 +61,13 @@ public class TechnologiesController: ControllerBase
 
         return technology.Succeeded ? Ok(technology) : BadRequest(technology);
     }
+
+    [HttpDelete("id")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid technologyId)
+    {
+        var request = new DeleteTechnologyByIdRequest(technologyId);
+        var technology = await _mediator.Send(request);
+
+        return technology.Succeeded ? Ok(technology) : BadRequest(technology);
+    }
 }

@@ -37,7 +37,11 @@ public class GetTechnologyByIdHandler(ITechnologyRepository technologyRepository
                 Generation = new GenerationDto
                 {
                     Name = technology.Generation?.Name ?? "Unknown"
-                }
+                },
+                CreatedBy = technology.CreatedBy,
+                CreatedDate = technology.CreatedAt,
+                ModifiedBy = technology.UpdatedBy,
+                ModifiedDate = technology.UpdatedAt
             }
         };
     }
