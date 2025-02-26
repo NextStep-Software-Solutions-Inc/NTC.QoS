@@ -1,6 +1,7 @@
 ﻿using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Domain.Models.DTOs.Technology;
+
 public class TechnologyDto
 {
     public Guid Id { get; set; }
@@ -13,4 +14,3 @@ public class TechnologyDto
     public DateTime? ModifiedDate { get; set; }
     public string ModifiedBy { get; set; } = string.Empty;
 }
-
