@@ -57,9 +57,9 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPut("id")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Barangay>>> UpdateBarangayById(Guid id, UpdateBarangayDto updateBarangay)
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Barangay>>> UpdateBarangayById(Guid barangayId, UpdateBarangayDto updateBarangay)
     {
-        var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(id, new UpdateBarangayDto
+        var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(barangayId, new UpdateBarangayDto
         {
             Name = updateBarangay.Name,
             Description = updateBarangay.Description,
