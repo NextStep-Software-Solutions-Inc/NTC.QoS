@@ -27,7 +27,7 @@ public class ServicesController : ControllerBase
         });
         return Ok(result);
     }
-    [HttpGet("id")]
+    [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ServiceDto>>> GetServiceById(Guid id)
     {
         Guid serviceId = id;
