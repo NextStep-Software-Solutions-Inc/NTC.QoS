@@ -1,5 +1,4 @@
-﻿using NTC.QoS.Domain.Models.DTOs.Municipality;
-namespace NTC.QoS.Domain.Models.DTOs.Municipality;
+﻿namespace NTC.QoS.Domain.Models.DTOs.Municipality;
 
 public class CreateMunicipalityDto
 {
