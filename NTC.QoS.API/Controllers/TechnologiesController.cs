@@ -49,4 +49,16 @@ public class TechnologiesController: ControllerBase
 
         return technology.Succeeded ? Ok(technology) : BadRequest(technology);
     }
+
+    [HttpPut("id")]
+    public async Task<ActionResult<ApiResponse<UpdateTechnologyDto>>> Put(Guid technologyId, UpdateTechnologyDto updateTechnologyDto)
+    {
+        var technology = await _mediator.Send(new UpdateTechnologyRequest
+        {
+            Id = technologyId,
+            Technology = updateTechnologyDto
+        });
+
+        return technology.Succeeded ? Ok(technology) : BadRequest(technology);
+    }
 }
