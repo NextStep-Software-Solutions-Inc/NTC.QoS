@@ -1,0 +1,30 @@
+﻿using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.Application.Features.Technology.Requests;
+using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Technology;
+
+namespace NTC.QoS.API.Controllers;
+
+[ApiController]
+[Route("technologies", Name = "technologies")]
+public class TechnologiesController: ControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public TechnologiesController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CreateTechnology(CreateTechnologyDto technologyDto)
+    {
+        var technology = await _mediator.Send(new CreateTechnologyRequest
+        {
+            Technology = technologyDto
+        });
+
+        return technology.Succeeded ? Ok(technology) : BadRequest(technology);
+    }
+}
