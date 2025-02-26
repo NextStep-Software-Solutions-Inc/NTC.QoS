@@ -10,18 +10,18 @@ internal sealed class StudyRepository(ApplicationDbContext context)
 {
     public new async Task<Study?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<Study>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(sp => sp.AreaStudy);
+        var query = _context.Set<Study>().Where(s => !EF.Property<bool>(s, "IsDeleted"))
+            .Include(s => s.AreaStudy);
 
-        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
+        return await query.FirstOrDefaultAsync(s => EF.Property<Guid>(s, "Id") == id, cancellationToken);
     }
     public new async Task<List<Study>> ListAsync(
         Expression<Func<Study, bool>>? expression = null, 
         CancellationToken cancellationToken = default)
     {
         IQueryable<Study> query = _context.Set<Study>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(sp => sp.AreaStudy);
+            .Where(s => !EF.Property<bool>(s, "IsDeleted"))
+            .Include(s => s.AreaStudy);
 
         if (expression != null)
         {
