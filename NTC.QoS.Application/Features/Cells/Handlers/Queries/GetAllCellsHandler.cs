@@ -14,17 +14,35 @@ public class GetAllCellsHandler(IRepository<Domain.Aggregates.Cell> repository) 
     private readonly IRepository<Domain.Aggregates.Cell> _repository = repository;
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        var allCells = await _repository.ListAsync(c => !c.IsDeleted, cancellationToken);
+        var allCells = await _repository.ListAsync(c => !c.IsDeleted);
 
-        var cells = allCells.Select(cell => new CellDto
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allCells = allCells.Where(cell => cell.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        var cell = allCells.Select(cell => new CellDto
         {
             Id = cell.Id,
             Name = cell.Name,
             Group = cell.Group,
             Description = cell.Description ?? "",
             FileId = cell.FileId,
+            File = new()
+            {
+                Name = cell.File.Name,
+                Path = cell.File.Path
+            },
             ServiceProviderId = cell.ServiceProviderId,
+            ServiceProvider = new()
+            {
+                Id = cell.ServiceProvider.Id
+            },
             ZoneId = cell.ZoneId,
+            Zone = new()
+            {
+                Id = cell.Zone.Id,
+                Name = cell.Zone.Name
+            },
             CID = cell.CID,
             LAC = cell.LAC,
             TAC = cell.TAC,
@@ -37,10 +55,7 @@ public class GetAllCellsHandler(IRepository<Domain.Aggregates.Cell> repository) 
             Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
         }).ToList();
 
-        if (!string.IsNullOrEmpty(request.Search))
-        {
-            cells = cells.Where(cell => cell.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)).ToList();
-        }
-        return new PaginatedResponse<CellDto>(cells, pageNumber: request.PageNumber, pageSize: request.PageSize);
+        return new PaginatedResponse<CellDto>(cell, request.PageNumber, request.PageSize);
     }
+
 }

@@ -17,7 +17,12 @@ public class GetCellByIdHandler(IRepository<Cell> cellRepository) : IRequestHand
         var cellExists = await _cellRepository.GetByIdAsync(request.Id, cancellationToken);
         if (cellExists == null)
         {
-            return new ApiResponse<CellDto>("Cell not found");
+            return new ApiResponse<CellDto>
+            { 
+                Data = null,
+                Message = "Cell not found",
+                Succeeded = false
+            };
         }
         var cell = new CellDto
         {

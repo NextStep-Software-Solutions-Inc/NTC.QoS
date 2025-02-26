@@ -45,23 +45,7 @@ public class CellsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<Domain.Aggregates.Cell>>> UpdateCellById(Guid id, UpdateCellDto updateCell)
     {
-        var cell = await _mediator.Send(new UpdateCellByIdRequest(id, new UpdateCellDto
-        {
-            Name = updateCell.Name,
-            Description = updateCell.Description,
-            SiteId = updateCell.SiteId,
-            Group = updateCell.Group,
-            FileId = updateCell.FileId,
-            ZoneId = updateCell.ZoneId,
-            ServiceProviderId = updateCell.ServiceProviderId,
-            CID = updateCell.CID,
-            TowerType = updateCell.TowerType,
-            Elevation = updateCell.Elevation,
-            CoorLatitude = updateCell.CoorLatitude,
-            CoorLongitude = updateCell.CoorLongitude,
-            LAC = updateCell.LAC,
-            TAC = updateCell.TAC
-        }));
+        var cell = await _mediator.Send(new UpdateCellByIdRequest(id, updateCell));
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
     [HttpDelete("{id}")]

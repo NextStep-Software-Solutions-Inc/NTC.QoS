@@ -1,5 +1,4 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 

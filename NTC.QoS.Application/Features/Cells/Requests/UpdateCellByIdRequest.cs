@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Requests;
 
-public class UpdateCellByIdRequest : IRequest<ApiResponse<Domain.Aggregates.Cell>>
+public class UpdateCellByIdRequest : IRequest<ApiResponse<CellDto>>
 {
     public Guid Id { get; set; }
     public UpdateCellDto UpdateCell { get; set; }
