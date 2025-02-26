@@ -1,9 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Application.Features.Technology.Requests;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Technology;
 
 namespace NTC.QoS.API.Controllers;
