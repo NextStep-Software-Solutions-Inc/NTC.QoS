@@ -6,10 +6,10 @@ namespace NTC.QoS.Application.Features.Zone.Requests;
 
 public class UpdateZoneByIdRequest : IRequest<ApiResponse<Domain.Entities.Zone>>
 {
-    public UpdateZoneByIdRequest(Guid id, UpdateZoneDto barangay)
+    public UpdateZoneByIdRequest(Guid id, UpdateZoneDto zone)
     {
         Id = id;
-        Zone = barangay;
+        Zone = zone;
     }
     public Guid Id { get; set; }
     public UpdateZoneDto Zone { get; set; }
