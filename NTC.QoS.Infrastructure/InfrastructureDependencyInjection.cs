@@ -28,8 +28,10 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IProvinceRepository, ProvinceRepository>();
         services.AddScoped<IServiceProviderRepository, ServiceProviderRepository>();
         services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
+        services.AddScoped<IBarangayRepository, BarangayRepository>();
+        services.AddScoped<IZoneRepository, ZoneRepository>();
+        services.AddScoped<IStudyRepository, StudyRepository>();
         services.AddScoped<ITechnologyRepository, TechnologyRepository>();
-
 
         return services;
     }
