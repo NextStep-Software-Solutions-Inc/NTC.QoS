@@ -11,8 +11,8 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
     {
         var query = _context.Set<Cell>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(c => c.Zone)
-            .Include(c => c.ServiceProvider).ThenInclude(sp => sp.Service)
-            .Include(c => c.ServiceProvider).ThenInclude(sp => sp.Provider)
+            .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
+            .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(c => c.File);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
@@ -21,8 +21,8 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
     {
         var query = _context.Set<Cell>().Where(expression)
             .Include(c => c.Zone)
-            .Include(c => c.ServiceProvider).ThenInclude(sp => sp.Service)
-            .Include(c => c.ServiceProvider).ThenInclude(sp => sp.Provider)
+            .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
+            .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(c => c.File);
 
         return await query.FirstOrDefaultAsync(cancellationToken);
@@ -35,8 +35,8 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
         IQueryable<Cell> query = _context.Set<Cell>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(c => c.Zone)
-            .Include(c => c.ServiceProvider).ThenInclude(sp => sp.Service)
-            .Include(c => c.ServiceProvider).ThenInclude(sp => sp.Provider)
+            .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
+            .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(c => c.File);
 
         if (expression != null)
