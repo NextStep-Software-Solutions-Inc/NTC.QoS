@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
+
 internal sealed class ProvinceRepository(ApplicationDbContext context) : Repository<Province>(context), IProvinceRepository
 {
     public new async Task<Province?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
