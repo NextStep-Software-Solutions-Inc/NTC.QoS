@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cells.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;

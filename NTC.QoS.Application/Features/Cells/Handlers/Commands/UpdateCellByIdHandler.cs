@@ -38,7 +38,7 @@ public class UpdateCellByIdHandler(IRepository<Cell> repository) : IRequestHandl
             Id = cellExists.Id,
             Name = cellExists.Name,
             Group = cellExists.Group,
-            Description = cellExists.Description,
+            Description = cellExists.Description ?? "",
             FileId = cellExists.FileId,
             ServiceProviderId = cellExists.ServiceProviderId,
             ZoneId = cellExists.ZoneId,

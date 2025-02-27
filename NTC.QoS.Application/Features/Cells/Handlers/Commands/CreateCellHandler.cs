@@ -54,7 +54,7 @@ public class CreateCellHandler(IRepository<Cell> cellRepository ) : IRequestHand
                 FileId = newCell.FileId,
                 File = new FileDto
                 {
-                    Id = newCell.File.Id,
+                    Id = newCell.File!.Id,
                     Name = newCell.File.Name,
                     Path = newCell.File.Path
                 },
@@ -62,18 +62,18 @@ public class CreateCellHandler(IRepository<Cell> cellRepository ) : IRequestHand
                 ZoneId = newCell.ZoneId,
                 Zone = new ZoneDto
                 {
-                    Name = newCell.Zone.Name
+                    Name = newCell.Zone!.Name
                 },
                 ServiceProviderId = newCell.ServiceProviderId,
                 ServiceProvider = new ServiceProviderDto
                 {
                     Service = new Domain.Models.DTOs.Service.ServiceDto()
                     {
-                        Name = newCell.ServiceProvider.Service.Name
+                        Name = newCell.ServiceProvider!.Service!.Name
                     },
                     Provider = new Domain.Models.DTOs.Provider.ProviderDto()
                     {
-                        Name = newCell.ServiceProvider.Provider.Name
+                        Name = newCell.ServiceProvider!.Provider!.Name
                     }
                 },
                 CID = newCell.CID,
