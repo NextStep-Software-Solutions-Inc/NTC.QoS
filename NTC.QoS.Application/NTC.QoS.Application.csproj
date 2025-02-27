@@ -9,8 +9,6 @@
   <ItemGroup>
     <Folder Include="Behaviors\" />
     <Folder Include="Exceptions\" />
-    <Folder Include="Features\Band\Handlers\Commands\" />
-    <Folder Include="Features\Band\Handlers\Queries\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Mappers\" />
     <Folder Include="Services\" />
