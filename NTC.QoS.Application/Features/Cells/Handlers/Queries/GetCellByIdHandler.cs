@@ -39,7 +39,7 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
                     Name = cellExists.File.Name ?? string.Empty,
                     Path = cellExists.File.Path ?? string.Empty
                 }
-                : null,
+                : null!,
             ServiceProviderId = cellExists.ServiceProviderId,
             ServiceProvider = cellExists.ServiceProvider != null
                 ? new ServiceProviderDto
@@ -47,7 +47,7 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
                     Service = cellExists.ServiceProvider.Service != null ? new() { Name = cellExists.ServiceProvider.Service.Name ?? string.Empty } : null,
                     Provider = cellExists.ServiceProvider.Provider != null ? new() { Name = cellExists.ServiceProvider.Provider.Name ?? string.Empty } : null,
                 }
-                : null,
+                : null!,
             ZoneId = cellExists.ZoneId,
             Zone = cellExists.Zone != null
                 ? new ZoneDto
@@ -55,7 +55,7 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
                     Id = cellExists.Zone.Id,
                     Name = cellExists.Zone.Name ?? string.Empty
                 }
-                : null,
+                : null!,
             CID = cellExists.CID,
             LAC = cellExists.LAC,
             TAC = cellExists.TAC,

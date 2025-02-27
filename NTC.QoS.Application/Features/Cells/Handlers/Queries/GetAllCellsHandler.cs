@@ -22,7 +22,6 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
         {
             allCells = allCells.Where(cell => cell.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)).ToList();
         }
-        var test = allCells;
         var cells = allCells.Select(static cell => new CellDto
         {
             Id = cell.Id,
@@ -36,7 +35,7 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                     Name = cell.File.Name ?? string.Empty,
                     Path = cell.File.Path ?? string.Empty
                 }
-                : null,
+                : null!,
             ServiceProviderId = cell.ServiceProviderId,
             ServiceProvider = cell.ServiceProvider != null
                 ? new ServiceProviderDto
@@ -44,15 +43,14 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                     Service = cell.ServiceProvider.Service != null ? new() { Name = cell.ServiceProvider.Service.Name ?? string.Empty } : null,
                     Provider = cell.ServiceProvider.Provider != null ? new() { Name = cell.ServiceProvider.Provider.Name ?? string.Empty } : null,
                 }
-                : null,
+                : null!,
             ZoneId = cell.ZoneId,
             Zone = cell.Zone != null
                 ? new ZoneDto
                 {
                     Id = cell.Zone.Id,
                     Name = cell.Zone.Name ?? string.Empty
-                }
-                : null,
+                }: null!,
             CID = cell.CID,
             LAC = cell.LAC,
             TAC = cell.TAC,
