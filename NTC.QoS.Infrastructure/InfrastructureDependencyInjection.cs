@@ -30,8 +30,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
         services.AddScoped<IBarangayRepository, BarangayRepository>();
         services.AddScoped<IZoneRepository, ZoneRepository>();
-
-
+        services.AddScoped<IStudyRepository, StudyRepository>();
 
         return services;
     }
