@@ -11,16 +11,6 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository) :
     private readonly IRepository<Domain.Entities.Study> _repository = repository;
     public async Task<ApiResponse<StudyDto>> Handle(CreateStudyRequest request, CancellationToken cancellationToken)
     {
-        //var areaStudy = await _areaStudyRepository.FindAsync(a => a.Id == request.Study.AreaStudyId, cancellationToken);
-
-        //if (areaStudy == null)
-        //{
-        //    return new ApiResponse<StudyDto>
-        //    {
-        //        Message = "AreaStudy not found",
-        //        Succeeded = false
-        //    };
-        //}
         var studyExist = await _repository.FindAsync(s => s.Name == request.Study.Name && !s.IsDeleted, cancellationToken);
         if (studyExist != null)
         {

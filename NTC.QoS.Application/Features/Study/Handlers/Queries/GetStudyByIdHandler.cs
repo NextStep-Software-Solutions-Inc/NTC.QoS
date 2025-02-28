@@ -22,12 +22,12 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
             Name = studyExist.Name,
             Description = studyExist.Description,
             AreaStudyId = studyExist.AreaStudyId,
-            AreaStudy = new()
+            AreaStudy = studyExist != null ? new()
                 {
-                    Name = studyExist.AreaStudy.Name,
-                    Description = studyExist.AreaStudy.Description
-                },
-            StudyRadius = studyExist.StudyRadius
+                    Name = studyExist.AreaStudy!.Name,
+                    Description = studyExist.AreaStudy.Description ?? ""
+                }:null!,
+            StudyRadius = studyExist!.StudyRadius
         };
         return new ApiResponse<StudyDto>(studyDto, true, "Study found.");
     }
