@@ -38,18 +38,6 @@ public class SpeedtestsController : ControllerBase
         return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Speedtest>>> UpdateSpeedtestById(Guid id, UpdateSpeedtestDto updateSpeedtest)
-    {
-        var speedtest = await _mediator.Send(new UpdateSpeedtestByIdRequest(id, new UpdateSpeedtestDto
-        {
-            Name = updateSpeedtest.Name,
-            Description = updateSpeedtest.Description,
-            LicenseNumber = updateSpeedtest.LicenseNumber
-        }));
-
-        return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
-    }
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<Domain.Entities.Speedtest>>> DeleteSpeedtestById(Guid id)
     {
@@ -57,15 +45,12 @@ public class SpeedtestsController : ControllerBase
 
         return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
     }
-
     [HttpPost]
-    public async Task<IActionResult> Post(CreateSpeedtestDto speedtestDto)
+    public async Task<ActionResult<ApiResponse<SpeedtestDto>>> Post(CreateSpeedtestDto speedtestDto)
     {
-        var speedtest = await _mediator.Send(new CreateSpeedtestRequest
-        {
-            Speedtest = speedtestDto
-        });
+        var speedtest = await _mediator.Send(new CreateSpeedtestRequest(speedtestDto));
 
         return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
     }
+
 }
