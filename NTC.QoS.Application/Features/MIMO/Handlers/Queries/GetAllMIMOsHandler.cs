@@ -13,7 +13,7 @@ public class GetAllMIMOsHandler(IRepository<Domain.Entities.MIMO> repository) : 
     {
         var allMIMOs = await _repository.ListAsync(m => m.IsDeleted != true, cancellationToken);
 
-        var mimo = allMIMOs.Select(m => new MIMODto
+        var mimoDtos = allMIMOs.Select(m => new MIMODto
         {
             Id = m.Id,
             Type = m.Type,
@@ -24,6 +24,6 @@ public class GetAllMIMOsHandler(IRepository<Domain.Entities.MIMO> repository) : 
             ULInterferenceReduction = m.ULInterferenceReduction,
             ULThroughput = m.ULThroughput,
         }).ToList();
-        return new PaginatedResponse<MIMODto>(mimo, request.PageNumber, request.PageSize);
+        return new PaginatedResponse<MIMODto>(mimoDtos, request.PageNumber, request.PageSize);
     }
 }

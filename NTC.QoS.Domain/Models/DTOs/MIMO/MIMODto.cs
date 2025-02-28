@@ -1,4 +1,5 @@
 ﻿namespace NTC.QoS.Domain.Models.DTOs.MIMO;
+
 public class MIMODto
 {
     public Guid Id { get; set; }

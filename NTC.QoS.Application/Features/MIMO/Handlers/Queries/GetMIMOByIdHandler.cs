@@ -1,12 +1,11 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.MIMO.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.MIMO;
 
 namespace NTC.QoS.Application.Features.MIMO.Handlers.Queries;
+
 public class GetMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository) : IRequestHandler<GetMIMOByIdRequest, ApiResponse<MIMODto>>
 {
     private readonly IRepository<Domain.Entities.MIMO> _repository = repository;

@@ -1,4 +1,5 @@
 ﻿namespace NTC.QoS.Domain.Models.DTOs.MIMO;
+
 public class UpdateMIMODto
 {
     public string Type { get; set; } = string.Empty;

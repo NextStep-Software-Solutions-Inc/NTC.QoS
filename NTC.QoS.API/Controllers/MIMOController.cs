@@ -6,7 +6,6 @@ using NTC.QoS.Domain.Models.DTOs.MIMO;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("mimos", Name = "mimos")]
 public class MIMOsController : ControllerBase

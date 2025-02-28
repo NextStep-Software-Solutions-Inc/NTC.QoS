@@ -20,7 +20,7 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Name is required." },
+                Error = new[] { "Type is required." },
                 Message = request.MIMO.Type + " already exists in our system. Please try a different one."
             };
         }
@@ -31,7 +31,7 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
                 Data = null,
                 Succeeded = false,
                 Error = new[] { "MIMO not found." },
-                Message = "The mimo you are trying to edit does not exist."
+                Message = "The MIMO you are trying to edit does not exist."
             };
         }
         mimo.Type = request.MIMO.Type;
