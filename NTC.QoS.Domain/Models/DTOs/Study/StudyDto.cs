@@ -1,4 +1,6 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.Study;
+﻿using NTC.QoS.Domain.Models.DTOs.AreaStudy;
+
+namespace NTC.QoS.Domain.Models.DTOs.Study;
 
 public class StudyDto
 {

@@ -7,6 +7,7 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
+using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 

@@ -1,6 +1,7 @@
 ﻿using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
+using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Domain.Models.DTOs.Cell;
 
@@ -25,15 +26,5 @@ public class CellDto
     public string CoorLatitude { get; set; } = string.Empty;
     public string CoorLongitude { get; set; } = string.Empty;
     public bool IsVerified { get; set; }
-    public string Status { get; set; } = string.Empty;
-}
-
-public class ZoneDto
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string Code { get; set; } = string.Empty;
-    public string Color { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
 }
