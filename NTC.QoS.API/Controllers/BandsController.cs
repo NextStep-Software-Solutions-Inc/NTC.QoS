@@ -29,10 +29,10 @@ public class BandsController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("id")]
-    public async Task<ActionResult<ApiResponse<BandDto>>> GetBandById(Guid bandId)
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<BandDto>>> GetBandById(Guid id)
     {
-        var request = new GetBandByIdRequest(bandId);
+        var request = new GetBandByIdRequest(id);
         var band = await _mediator.Send(request);
         return band.Succeeded ? Ok(band) : BadRequest(band);
     }
