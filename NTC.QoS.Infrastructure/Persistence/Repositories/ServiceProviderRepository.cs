@@ -8,7 +8,7 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 internal sealed class ServiceProviderRepository(ApplicationDbContext context) 
     : Repository<ServiceProvider>(context), IServiceProviderRepository
 {
-    public new async Task<ServiceProvider?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public override async Task<ServiceProvider?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<ServiceProvider>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(sp => sp.Service)
@@ -16,7 +16,7 @@ internal sealed class ServiceProviderRepository(ApplicationDbContext context)
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
-    public new async Task<List<ServiceProvider>> ListAsync(
+    public override async Task<List<ServiceProvider>> ListAsync(
         Expression<Func<ServiceProvider, bool>>? expression = null, 
         CancellationToken cancellationToken = default)
     {

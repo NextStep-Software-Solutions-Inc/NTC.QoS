@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using System.Linq.Expressions;
@@ -14,14 +15,14 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         return await _context.Set<TEntity>().FirstOrDefaultAsync(expression, cancellationToken);
     }
 
-    public async Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public virtual async Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted")); 
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
 
-    public async Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default)
+    public virtual async Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted"));
 
@@ -58,6 +59,5 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         await _context.SaveChangesAsync(cancellationToken);
     }
-
 
 }
