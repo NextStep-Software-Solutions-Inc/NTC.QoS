@@ -9,8 +9,3 @@ public class StudyDto
     public virtual AreaStudyDto AreaStudy { get; set; } = new();
     public decimal StudyRadius { get; set; }
 }
-public class AreaStudyDto
-{
-    public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-}
