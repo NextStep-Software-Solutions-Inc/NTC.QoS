@@ -29,17 +29,16 @@ public class GenerationsController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("id")]
+    [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<GenerationDto>>> GetGenerationById(Guid id)
     {
-        Guid generationId = id;
-        var request = new GetGenerationByIdRequest(generationId);
-        var generations = await _mediator.Send(request);
-        return generations.Succeeded ? Ok(generations) : BadRequest(generations);
+        var request = new GetGenerationByIdRequest(id);
+        var generation = await _mediator.Send(request);
+        return generation.Succeeded ? Ok(generation) : BadRequest(generation);
     }
 
     [HttpPost]
-    public async Task<IActionResult> Post(CreateGenerationDto generationDto)
+    public async Task<IActionResult> CreateGeneration(CreateGenerationDto generationDto)
     {
         var generation = await _mediator.Send(new CreateGenerationRequest
         {

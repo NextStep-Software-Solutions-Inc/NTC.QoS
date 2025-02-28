@@ -29,7 +29,7 @@ public class AntennaPatternsController: ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("id")]
+    [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<AntennaPatternDto>>> GetAntennaPatternById(Guid id)
     {
         var request = new GetAntennaPatternByIdRequest(id);
