@@ -12,6 +12,10 @@ public class GetAllNetworkTemplatesHandler(IRepository<Domain.Entities.NetworkTe
     public async Task<PaginatedResponse<NetworkTemplateDto>> Handle(GetAllNetworkTemplatesRequest request, CancellationToken cancellationToken)
     {
         var allNetworkTemplates = await _repository.ListAsync(nt => !nt.IsDeleted, cancellationToken);
+        if (request.Search != null)
+        {
+            allNetworkTemplates = allNetworkTemplates.Where(nt => nt.Name.Contains(request.Search)).ToList();
+        }
         var networkTemplates = allNetworkTemplates.Select(static allNetworkTemplate => new NetworkTemplateDto
         {
             Id = allNetworkTemplate.Id,

@@ -16,12 +16,13 @@ public class NetworkTemplatesController : ControllerBase
         _mediator = mediator;
     }
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<NetworkTemplateDto>>> GetAllNetworkTemplates(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<NetworkTemplateDto>>> GetAllNetworkTemplates(string? search, int pageSize = 10, int pageNumber = 1)
     {
         var result = await _mediator.Send(new GetAllNetworkTemplatesRequest
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize, 
+            Search = search
         });
         return Ok(result);
     }

@@ -35,7 +35,6 @@ public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTem
         {
             Succeeded = true,
             Message = "Network Template successfully created.",
-            Error = null,
             Data = new NetworkTemplateDto
             {
                 Id = newNetworkTemplate.Id,

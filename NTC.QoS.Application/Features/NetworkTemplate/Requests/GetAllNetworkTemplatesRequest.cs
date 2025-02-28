@@ -6,12 +6,14 @@ namespace NTC.QoS.Application.Features.NetworkTemplate.Requests;
 
 public class GetAllNetworkTemplatesRequest : IRequest<PaginatedResponse<NetworkTemplateDto>>
 {
-    public GetAllNetworkTemplatesRequest( int pageSize, int pageNumber)
+    public GetAllNetworkTemplatesRequest( int pageSize, int pageNumber, string search)
     {
         PageSize = pageSize;
         PageNumber = pageNumber;
+        Search = search;
     }
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
+    public string? Search { get; set; }
     public GetAllNetworkTemplatesRequest() { }
 }
