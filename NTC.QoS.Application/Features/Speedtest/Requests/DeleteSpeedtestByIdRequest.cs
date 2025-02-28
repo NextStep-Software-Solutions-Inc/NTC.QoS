@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Domain.Models.DTOs;
+
 namespace NTC.QoS.Application.Features.Speedtest.Requests;
 
 public class DeleteSpeedtestByIdRequest : IRequest<ApiResponse<bool>>

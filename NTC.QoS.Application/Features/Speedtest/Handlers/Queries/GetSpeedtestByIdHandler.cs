@@ -31,15 +31,15 @@ public class GetSpeedtestByIdHandler : IRequestHandler<GetSpeedtestByIdRequest, 
             return new ApiResponse<SpeedtestDto>
             {
                 Succeeded = false,
-                Message = "Speedtest not found.",
-                Error = new[] { "The requested Speedtest does not exist." }
+                Message = "Speedtest could not be found.",
+                Error = new[] { "The Speedtest you are looking for does not exist." }
             };
         }
 
         return new ApiResponse<SpeedtestDto>
         {
             Succeeded = true,
-            Message = "Speedtest retrieved successfully",
+            Message = "Speedtest retrieved successfully.",
             Data = new SpeedtestDto()
             {
                 Id = speedtest.Id,

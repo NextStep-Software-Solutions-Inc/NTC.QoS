@@ -11,7 +11,7 @@ public class DeleteSpeedtestByIdHandler(IRepository<Domain.Entities.Speedtest> r
     public async Task<ApiResponse<bool>> Handle(DeleteSpeedtestByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var speedtest = await _repository.FindAsync(p => p.Id == request.Id && !p.IsDeleted, cancellationToken);
+        var speedtest = await _repository.FindAsync(s => s.Id == request.Id && !s.IsDeleted, cancellationToken);
 
         if (speedtest == null)
         {

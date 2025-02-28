@@ -35,7 +35,7 @@ public class GetAllSpeedtestsHandler : IRequestHandler<GetAllSpeedtestsRequest, 
 
         if (request.GenerationId.HasValue)
         {
-            allSpeedtests = allSpeedtests.Where(m => m.GenerationId == request.GenerationId.Value).ToList();
+            allSpeedtests = allSpeedtests.Where(s => s.GenerationId == request.GenerationId.Value).ToList();
         }
 
         if (request.CellId.HasValue)
@@ -48,7 +48,7 @@ public class GetAllSpeedtestsHandler : IRequestHandler<GetAllSpeedtestsRequest, 
             allSpeedtests = allSpeedtests.Where(s => s.SignalQuality == request.SignalQuality.Value).ToList();
         }
 
-        var speedtestDtos = allSpeedtests.Select(p => new SpeedtestDto
+        var speedtestDtos = allSpeedtests.Select(s => new SpeedtestDto
         {
             Id = p.Id,
             BarangayId = p.BarangayId,

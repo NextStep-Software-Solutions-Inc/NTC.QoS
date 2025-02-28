@@ -6,7 +6,6 @@ using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("speedtests", Name = "speedtests")]
 public class SpeedtestsController : ControllerBase
