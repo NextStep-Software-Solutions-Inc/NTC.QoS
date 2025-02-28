@@ -50,44 +50,44 @@ public class GetAllSpeedtestsHandler : IRequestHandler<GetAllSpeedtestsRequest, 
 
         var speedtestDtos = allSpeedtests.Select(s => new SpeedtestDto
         {
-            Id = p.Id,
-            BarangayId = p.BarangayId,
+            Id = s.Id,
+            BarangayId = s.BarangayId,
             Barangay = new BarangayDto
             {
-                Id = p.BarangayId,
-                Name = p.Barangay?.Name ?? "Unknown"
+                Id = s.BarangayId,
+                Name = s.Barangay?.Name ?? "Unknown"
             },
-            ServiceProviderId = p.ServiceProviderId,
+            ServiceProviderId = s.ServiceProviderId,
             ServiceProvider = new ServiceProviderDto
             {
-                Id = p.ServiceProviderId,
+                Id = s.ServiceProviderId,
             },
-            GenerationId = p.GenerationId,
+            GenerationId = s.GenerationId,
             Generation = new GenerationDto
             {
-                Id = p.GenerationId,
-                Name = p.Generation?.Name ?? "Unknown"
+                Id = s.GenerationId,
+                Name = s.Generation?.Name ?? "Unknown"
             },
-            CellId = p.CellId,
+            CellId = s.CellId,
             Cell = new CellDto
             {
-                Id = p.CellId,
-                Name = p.Cell?.Name ?? "Unknown"
+                Id = s.CellId,
+                Name = s.Cell?.Name ?? "Unknown"
             },
-            FileId = p.FileId,
-            DateTime = p.DateTime,
-            Ping = p.Ping,
-            Jitter = p.Jitter,
-            RSSI = p.RSSI,
-            UploadSpeed = p.UploadSpeed,
-            DownloadSpeed = p.DownloadSpeed,
-            CoorLatitude = p.CoorLatitude,
-            CoorLongitude = p.CoorLongitude,
-            PhoneModel = p.PhoneModel,
-            MCC = p.MCC,
-            MNC = p.MNC,
-            TAC = p.TAC,
-            SignalQuality = p.SignalQuality
+            FileId = s.FileId,
+            DateTime = s.DateTime,
+            Ping = s.Ping,
+            Jitter = s.Jitter,
+            RSSI = s.RSSI,
+            UploadSpeed = s.UploadSpeed,
+            DownloadSpeed = s.DownloadSpeed,
+            CoorLatitude = s.CoorLatitude,
+            CoorLongitude = s.CoorLongitude,
+            PhoneModel = s.PhoneModel,
+            MCC = s.MCC,
+            MNC = s.MNC,
+            TAC = s.TAC,
+            SignalQuality = s.SignalQuality
         }).ToList();
 
         return new PaginatedResponse<SpeedtestDto>(speedtestDtos, request.PageNumber, request.PageSize);

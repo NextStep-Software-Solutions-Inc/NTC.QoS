@@ -21,7 +21,7 @@ public class DeleteSpeedtestByIdHandler(IRepository<Domain.Entities.Speedtest> r
                 Error = new[] { "Speedtest not found." },
                 Message = "The speedtest you are trying to delete does not exist."
             };
-        }
+        }  
 
         _repository.Delete(speedtest);
         await _repository.SaveChangesAsync(cancellationToken);
