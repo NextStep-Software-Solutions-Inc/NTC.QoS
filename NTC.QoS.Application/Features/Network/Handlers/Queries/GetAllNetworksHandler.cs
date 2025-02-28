@@ -1,5 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Network.Requests;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
@@ -14,17 +16,34 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
         var allNetworks = await _networkRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
         if(request.Search != null)
         {
-
+            allNetworks.Where(network => network.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)).ToList();
         }
-        var allNetwork = allNetworks.Select(n => new NetworkDto
+        var allNetwork = allNetworks.Select(static n => new NetworkDto
         {
             Id = n.Id,
             Name = n.Name,
             NetworkTemplateId = n.NetworkTemplateId,
-            SystemType = n.Type,
+            NetworkTemplate = n.NetworkTemplate != null ? new NetworkTemplateDto
+            {
+                Name = n.NetworkTemplate.Name
+            } : null!,
+
+            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName(n.Type),
+
             UplinkId = n.UpLinkId,
-            DownLinkId = n.DownLinkId
+            Uplink = n.UpLink != null && n.UpLink.Band != null ? new LinkDto
+            {
+                Name = n.UpLink.Band.Name
+            } : null!,
+
+            DownLinkId = n.DownLinkId,
+            DownLink = n.DownLink != null && n.DownLink.Band != null ? new LinkDto
+            {
+                Name = n.DownLink.Band.Name
+            } : null!
+
         }).ToList();
+
         return new PaginatedResponse<NetworkDto>(allNetwork, request.PageNumber, request.PageSize);
     }
 

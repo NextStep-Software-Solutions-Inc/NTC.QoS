@@ -9,21 +9,17 @@ public class NetworkDto
     public string Name { get; set; } = string.Empty;
     public Guid NetworkTemplateId { get; set; }
     public virtual NetworkTemplateDto NetworkTemplate { get; set; } = new();
-    public Enum SystemType { get; set; } = NetworkSystemTypeEnum.Unknown;
-    public virtual UplinkDto UpLink { get; set; } = new(); 
+    public string SystemType { get; set; } = string.Empty;
     public Guid UplinkId { get; set; }
-    public virtual DownLinkDto DownLink { get; set; } = new();
+    public virtual LinkDto Uplink { get; set; } = new();
     public Guid DownLinkId { get; set; }
+    public virtual LinkDto DownLink { get; set; } = new();
 }
 public class NetworkTemplateDto
 {
     public string Name { get; set; } = string.Empty;
 }
-public class DownLinkDto
-{
-    public string Name { get; set; } = string.Empty;
-}
-public class UplinkDto
+public class LinkDto
 {
     public string Name { get; set; } = string.Empty;
 }

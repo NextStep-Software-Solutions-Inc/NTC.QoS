@@ -11,7 +11,6 @@
     <Folder Include="Exceptions\" />
     <Folder Include="Features\Province\Handlers\Commands\" />
     <Folder Include="Features\Province\Handlers\Queries\" />
-    <Folder Include="Features\Network\Handlers\Commands\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Mappers\" />
     <Folder Include="Services\" />
