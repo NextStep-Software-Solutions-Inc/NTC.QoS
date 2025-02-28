@@ -21,6 +21,7 @@ public class GetAllGenerationsHandler (IRepository<Domain.Aggregates.Generation>
             CreatedBy = g.CreatedBy,
             CreatedDate = g.CreatedAt,
             ModifiedBy = g.UpdatedBy,
+            ModifiedDate = g.UpdatedAt
         }).ToList();
 
         return new PaginatedResponse<GenerationDto>(generationDtos, request.PageNumber, request.PageSize);

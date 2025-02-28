@@ -29,7 +29,7 @@ public class ProvidersController : ControllerBase
 
         return Ok(result);
     }
-    [HttpGet("id")]
+    [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(Guid id)
     {
         Guid providerId = id;

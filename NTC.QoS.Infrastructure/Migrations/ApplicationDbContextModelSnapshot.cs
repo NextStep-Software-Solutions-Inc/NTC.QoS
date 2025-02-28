@@ -119,7 +119,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ZoneId");
 
-                    b.ToTable("Cells");
+                    b.ToTable("Cells", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Generation", b =>
@@ -161,7 +161,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Generations");
+                    b.ToTable("Generations", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
@@ -204,7 +204,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
-                    b.ToTable("GenerationBands");
+                    b.ToTable("GenerationBands", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.NAP", b =>
@@ -262,7 +262,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ZoneId");
 
-                    b.ToTable("NAPs");
+                    b.ToTable("NAPs", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.ServiceProvider", b =>
@@ -316,7 +316,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("ServiceId", "ProviderId", "MNC")
                         .IsUnique();
 
-                    b.ToTable("ServiceProviders");
+                    b.ToTable("ServiceProviders", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyMunicipality", b =>
@@ -361,7 +361,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyMunicipalities");
+                    b.ToTable("StudyMunicipalities", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyNetwork", b =>
@@ -406,7 +406,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyNetworks");
+                    b.ToTable("StudyNetworks", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>
@@ -449,7 +449,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AntennaPatterns");
+                    b.ToTable("AntennaPatterns", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AreaStudy", b =>
@@ -494,7 +494,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("AreaStudies");
+                    b.ToTable("AreaStudies", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Band", b =>
@@ -539,7 +539,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Bands");
+                    b.ToTable("Bands", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
@@ -586,7 +586,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("MunicipalityId");
 
-                    b.ToTable("Barangays");
+                    b.ToTable("Barangays", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
@@ -649,7 +649,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("Cellulars");
+                    b.ToTable("Cellulars", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
@@ -705,7 +705,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Files");
+                    b.ToTable("Files", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Link", b =>
@@ -765,7 +765,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("Links");
+                    b.ToTable("Links", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.MIMO", b =>
@@ -822,7 +822,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MIMOs");
+                    b.ToTable("MIMOs", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
@@ -872,7 +872,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ProvinceId");
 
-                    b.ToTable("Municipalities");
+                    b.ToTable("Municipalities", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Network", b =>
@@ -929,7 +929,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("UpLinkId");
 
-                    b.ToTable("Networks");
+                    b.ToTable("Networks", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.NetworkTemplate", b =>
@@ -975,7 +975,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("NetworkTemplates");
+                    b.ToTable("NetworkTemplates", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Provider", b =>
@@ -1023,7 +1023,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Providers");
+                    b.ToTable("Providers", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Province", b =>
@@ -1070,7 +1070,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("RegionId");
 
-                    b.ToTable("Provinces");
+                    b.ToTable("Provinces", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Region", b =>
@@ -1112,7 +1112,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Regions");
+                    b.ToTable("Regions", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Sector", b =>
@@ -1253,7 +1253,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("TxAntennaPatternId");
 
-                    b.ToTable("Sectors");
+                    b.ToTable("Sectors", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Service", b =>
@@ -1298,7 +1298,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name", "Type")
                         .IsUnique();
 
-                    b.ToTable("Services");
+                    b.ToTable("Services", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Speedtest", b =>
@@ -1401,7 +1401,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("Speedtests");
+                    b.ToTable("Speedtests", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Study", b =>
@@ -1451,7 +1451,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("AreaStudyId");
 
-                    b.ToTable("Studies");
+                    b.ToTable("Studies", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Technology", b =>
@@ -1501,7 +1501,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Standard")
                         .IsUnique();
 
-                    b.ToTable("Technologies");
+                    b.ToTable("Technologies", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>
@@ -1564,7 +1564,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("UserTypeId");
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.UserType", b =>
@@ -1606,7 +1606,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("UserTypes");
+                    b.ToTable("UserTypes", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
@@ -1650,7 +1650,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BarangayId");
 
-                    b.ToTable("Zone");
+                    b.ToTable("Zone", (string)null);
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>

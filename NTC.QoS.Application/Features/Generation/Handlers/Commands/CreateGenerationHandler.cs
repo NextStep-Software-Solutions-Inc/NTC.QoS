@@ -16,11 +16,13 @@ public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> 
 
         if (generation != null)
         {
-            return new ApiResponse<CreateGenerationDto>(
-                "Generation already exists."
-            );
+            return new ApiResponse<CreateGenerationDto>
+            {
+                Succeeded = false,
+                Message = "Generation already exists."
+            };
         }
-
+                
         var newGeneration = new Domain.Aggregates.Generation
         {
             Name = request.Generation.Name,

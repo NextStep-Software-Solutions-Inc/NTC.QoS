@@ -16,9 +16,11 @@ public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPat
 
         if (antennaPattern != null)
         {
-            return new ApiResponse<CreateAntennaPatternDto>(
-                "Antenna pattern already exists."
-            );
+            return new ApiResponse<CreateAntennaPatternDto>
+            {
+                Message = "Antenna pattern already exists.",
+                Succeeded = false
+            };
         }
 
         var newAntennaPattern = new Domain.Entities.AntennaPattern
