@@ -21,7 +21,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
 
-    public async Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default)
+    public virtual async Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted"));
 

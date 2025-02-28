@@ -1,9 +1,11 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Network.Requests;
+using NTC.QoS.Application.Features.ServiceProvider.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
+using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -46,6 +48,18 @@ public class NetworksController : ControllerBase
             UplinkId = updateNetwork.UplinkId,
             DownLinkId = updateNetwork.DownLinkId
         }));
+        return network.Succeeded ? Ok(network) : BadRequest(network);
+    }
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteNetworkById(Guid id)
+    {
+        var network = await _mediator.Send(new DeleteNetworkByIdRequest(id));
+        return network.Succeeded ? Ok(network) : BadRequest(network);
+    }
+    [HttpPost]
+    public async Task<IActionResult> Post(CreateNetworkDto createNetwork)
+    {
+        var network = await _mediator.Send(new CreateNetworkRequest(createNetwork));
         return network.Succeeded ? Ok(network) : BadRequest(network);
     }
 
