@@ -2,6 +2,7 @@
 using NTC.QoS.Application.Features.Study.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.Study.Handlers.Queries;
@@ -22,7 +23,7 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
             Name = studyExist.Name,
             Description = studyExist.Description,
             AreaStudyId = studyExist.AreaStudyId,
-            AreaStudy = studyExist != null ? new()
+            AreaStudy = studyExist != null ? new AreaStudyDto
                 {
                     Name = studyExist.AreaStudy!.Name,
                     Description = studyExist.AreaStudy.Description ?? ""
