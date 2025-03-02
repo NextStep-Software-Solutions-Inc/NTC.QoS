@@ -10,7 +10,7 @@ on:
 env:
   IMAGE_NAME: "${{ secrets.DOCKERHUB_USERNAME }}/ntc.qos-be" # Replace with your info
   DOTNET_VERSION: "8.0.x"
-  CONTAINER_PORT: 80
+  CONTAINER_PORT: 8080
   CONTAINER_NAME: "ntc.qos-be"
   BUILD_CONFIGURATION: "Release"
   ASPNETCORE_ENVIRONMENT: "Development"
