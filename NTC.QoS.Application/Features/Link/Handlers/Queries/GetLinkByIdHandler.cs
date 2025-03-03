@@ -3,10 +3,8 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Link.Requests;
 using NTC.QoS.Domain.Models.DTOs.Link;
-using NTC.QoS.Domain.Models.DTOs.Band;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
-using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Models.DTOs.Service;
+using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Enums;
 
 namespace NTC.QoS.Application.Features.Link.Handlers.Queries;
 
@@ -34,24 +32,20 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
             Data = new LinkDto()
             {
                 Id = link.Id,
-                Type = link.Type,
-                ServiceProvider = new ServiceProviderDto
-                {
-                    Id = link.ServiceProviderId,
-                    Provider = new ProviderDto
+                Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),
+                ServiceProvider = link.ServiceProvider is not null && link.ServiceProvider.Provider is not null && link.ServiceProvider.Service is not null ?
+                    new ServiceProviderLinkDto
                     {
-                        Name = link.ServiceProvider?.Provider?.Name ?? "Unknown"
-                    },
-                    Service = new ServiceDto
-                    {
-                        Name = link.ServiceProvider?.Service?.Name ?? "Unknown",
-                        Type = link.ServiceProvider?.Service?.Type.ToString() ?? "Unknown"
-                    }
-                },
-                Band = new BandDto
+                        Id = link.ServiceProvider.Id,
+                        ProviderId = link.ServiceProvider.Provider.Id,
+                        ProviderName = link.ServiceProvider.Provider.Name,
+                        ServiceId = link.ServiceProvider.Service.Id,
+                        ServiceType = link.ServiceProvider.Service.Type.ToString()
+                    } : null,
+                Band = new BandLinkDto
                 {
                     Id = link.BandId,
-                    Name = link.Band?.Name ?? "Unknown"
+                    Name = link.Band?.Name ?? "Unknown Band"
                 },
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,

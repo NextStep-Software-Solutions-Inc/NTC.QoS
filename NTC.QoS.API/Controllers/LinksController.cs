@@ -1,9 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using NTC.QoS.Application.Features.Band.Requests;
 using NTC.QoS.Application.Features.Link.Requests;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Band;
 using NTC.QoS.Domain.Models.DTOs.Link;
 
 namespace NTC.QoS.API.Controllers;
@@ -27,6 +25,17 @@ public class LinksController : ControllerBase
             Link = linkDto
         });
         return link.Succeeded ? Ok(link) : BadRequest(link);
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<PaginatedResponse<LinkDto>>> GetAllLinks(int pageSize = 10, int pageNumber = 1)
+    {
+        var result = await _mediator.Send(new GetAllLinksRequest
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        });
+        return Ok(result);
     }
 
     [HttpGet("{id}")]

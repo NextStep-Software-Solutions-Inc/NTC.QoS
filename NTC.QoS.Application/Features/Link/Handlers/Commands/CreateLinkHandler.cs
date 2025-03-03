@@ -1,5 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Link.Requests;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Link;
@@ -21,7 +23,7 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
     {
         var newLink = new Domain.Aggregates.Link
         {
-            Type = request.Link.Type,
+            Type = EnumHelper<LinkTypeEnum>.GetValue(request.Link.Type),
             CenterFrequency = request.Link.CenterFrequency,
             LowerFrequency = request.Link.LowerFrequency,
             UpperFrequency = request.Link.UpperFrequency,
@@ -34,7 +36,7 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
 
         // Fetch Band information
         var band = await _bandRepository.GetByIdAsync(request.Link.BandId, cancellationToken);
-        if (band == null)
+        if (band is null)
         {
             return new ApiResponse<CreateLinkDto>
             {
@@ -46,7 +48,7 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
 
         // Fetch Service Provider information
         var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Link.ServiceProviderId, cancellationToken);
-        if (serviceProvider == null)
+        if (serviceProvider is null)
         {
             return new ApiResponse<CreateLinkDto>
             {
@@ -58,8 +60,8 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
 
         var linkDto = new CreateLinkDto
         {
-            ServiceProviderId = serviceProvider.Id, 
-            Type = newLink.Type,
+            Type = EnumHelper<LinkTypeEnum>.GetDescription(newLink.Type),
+            ServiceProviderId = serviceProvider.Id,
             BandId = band.Id,
             CenterFrequency = newLink.CenterFrequency,
             LowerFrequency = newLink.LowerFrequency,
