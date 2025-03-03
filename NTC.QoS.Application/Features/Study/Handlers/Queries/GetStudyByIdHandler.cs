@@ -17,7 +17,7 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
         {
             return new ApiResponse<StudyDto>("Study not found");
         }
-        var studyDto = new StudyDto
+        StudyDto studyDto = new ()
         {
             Id = studyExist.Id,
             Name = studyExist.Name,
