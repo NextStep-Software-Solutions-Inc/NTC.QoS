@@ -8,10 +8,10 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("studies", Name = "studies")]
-public class StudyController : ControllerBase
+public class StudiesController : ControllerBase
 {
     private readonly IMediator _mediator;
-    public StudyController(IMediator mediator)
+    public StudiesController(IMediator mediator)
     {
         _mediator = mediator;
     }

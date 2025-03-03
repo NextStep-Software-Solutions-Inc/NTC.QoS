@@ -27,8 +27,7 @@ public class GetAllStudiesHandler(IStudyRepository studyRepository) : IRequestHa
                     Description = study.AreaStudy.Description ?? ""
                 }
                 : null!, 
-            StudyRadius = study.StudyRadius,
-            IsDeleted = study.IsDeleted
+            StudyRadius = study.StudyRadius
         }).ToList();
 
         return new PaginatedResponse<StudyDto>(allStudies, request.PageNumber, request.PageSize);
