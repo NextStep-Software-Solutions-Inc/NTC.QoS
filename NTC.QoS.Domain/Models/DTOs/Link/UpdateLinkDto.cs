@@ -1,12 +1,14 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.Link;
+﻿using NTC.QoS.Domain.Enums;
+
+namespace NTC.QoS.Domain.Models.DTOs.Link;
 
 public class UpdateLinkDto
 {
-    public float? CenterFrequency { get; set; }
-    public float? LowerFrequency { get; set; }
-    public float? UpperFrequency { get; set; }
-    public float? RxThreshold { get; set; }
+    public LinkTypeEnum Type { get; set; }
+    public decimal CenterFrequency { get; set; }
+    public decimal LowerFrequency { get; set; }
+    public decimal UpperFrequency { get; set; }
+    public decimal RxThreshold { get; set; }
     public Guid BandId { get; set; }
-    public DateTime? CreatedDate { get; set; }
-    public DateTime? ModifiedDate { get; set; }
+    public Guid ServiceProviderId { get; set; }
 }
