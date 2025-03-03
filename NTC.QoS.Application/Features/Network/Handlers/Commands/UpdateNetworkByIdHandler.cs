@@ -26,7 +26,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         }
         var networkType = EnumHelper<NetworkSystemTypeEnum>.GetValue(request.Network.SystemType);
         network.Name = request.Network.Name;
-        network.Type = networkType;
+        network.SystemType = networkType;
         network.UpLinkId = request.Network.UplinkId;
         network.DownLinkId = request.Network.DownLinkId;
         network.NetworkTemplateId = request.Network.NetworkTemplateId;
@@ -45,7 +45,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                 Name = network.NetworkTemplate.Name
             } : null!,
 
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName(network.Type),
+            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName(network.SystemType),
 
             UplinkId = network.UpLinkId,
             Uplink = network.UpLink != null && network.UpLink.Band != null ? new LinkDto

@@ -27,7 +27,7 @@ public class CreateNetworkHandler(IRepository<Domain.Entities.Network> repositor
         {
             Name = request.CreateNetwork.Name,
             NetworkTemplateId = request.CreateNetwork.NetworkTemplateId,
-            Type = systemType,
+            SystemType = systemType,
             UpLinkId = request.CreateNetwork.UplinkId,
             DownLinkId = request.CreateNetwork.DownLinkId
         };
@@ -44,7 +44,7 @@ public class CreateNetworkHandler(IRepository<Domain.Entities.Network> repositor
                 {
                     Name = newNetwork.NetworkTemplate!.Name
                 } : null!,
-                SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName( newNetwork.Type),
+                SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName( newNetwork.SystemType),
                 UplinkId = newNetwork.UpLinkId,
                 DownLinkId = newNetwork.DownLinkId
             }, 
