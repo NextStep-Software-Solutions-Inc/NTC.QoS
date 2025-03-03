@@ -16,7 +16,7 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
         {
             return new ApiResponse<StudyDto>("Study not found");
         }
-        var studyDto = new StudyDto
+        StudyDto studyDto = new ()
         {
             Id = studyExist.Id,
             Name = studyExist.Name,
@@ -24,8 +24,8 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
             AreaStudyId = studyExist.AreaStudyId,
             AreaStudy = new()
                 {
-                    Name = studyExist.AreaStudy.Name,
-                    Description = studyExist.AreaStudy.Description
+                    Name = studyExist.AreaStudy?.Name ?? "",
+                    Description = studyExist.AreaStudy?.Description
                 },
             StudyRadius = studyExist.StudyRadius
         };
