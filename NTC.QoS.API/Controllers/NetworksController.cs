@@ -44,9 +44,7 @@ public class NetworksController : ControllerBase
         var network = await _mediator.Send(new UpdateNetworkByIdRequest(id, new UpdateNetworkDto
         {
             Name = updateNetwork.Name,
-            SystemType = updateNetwork.SystemType,
-            UplinkId = updateNetwork.UplinkId,
-            DownLinkId = updateNetwork.DownLinkId
+            SystemType = updateNetwork.SystemType
         }));
         return network.Succeeded ? Ok(network) : BadRequest(network);
     }

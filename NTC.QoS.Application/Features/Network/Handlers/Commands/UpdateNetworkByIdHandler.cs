@@ -27,9 +27,6 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         var networkType = EnumHelper<NetworkSystemTypeEnum>.GetValue(request.Network.SystemType);
         network.Name = request.Network.Name;
         network.SystemType = networkType;
-        network.UpLinkId = request.Network.UplinkId;
-        network.DownLinkId = request.Network.DownLinkId;
-        network.NetworkTemplateId = request.Network.NetworkTemplateId;
 
         _networkRepository.Update(network);
         await _networkRepository.SaveChangesAsync(cancellationToken);
