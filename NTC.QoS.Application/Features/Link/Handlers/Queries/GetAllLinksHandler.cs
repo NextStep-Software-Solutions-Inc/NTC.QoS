@@ -42,12 +42,12 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
             Band = new BandLinkDto
             {
                 Id = l.BandId,
-                Name = l.Band?.Name ?? "Unknown Band"
+                Name = l.Band?.Name ?? "Unknown"
             },
             CenterFrequency = l.CenterFrequency,
             LowerFrequency = l.LowerFrequency,
             UpperFrequency = l.UpperFrequency,
-            RxThreshold = l.RxThreshold 
+            RxThreshold = l.RxThreshold
         }).ToList();
 
         return new PaginatedResponse<LinkDto>(linkDtos, request.PageNumber, request.PageSize);

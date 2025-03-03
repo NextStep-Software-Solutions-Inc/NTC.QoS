@@ -1,5 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Link.Requests;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Link;
@@ -25,7 +27,7 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
                 Message = "The link you are trying to edit does not exist."
             };
         }
-        link.Type = request.Link.Type;
+        link.Type = EnumHelper<LinkTypeEnum>.GetValue(request.Link.Type);
         link.ServiceProviderId = request.Link.ServiceProviderId;
         link.BandId = request.Link.BandId;
         link.CenterFrequency = request.Link.CenterFrequency;
@@ -42,7 +44,7 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
             Error = new[] {""},
             Data = new UpdateLinkDto()
             {
-                Type = link.Type,
+                Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),
                 ServiceProviderId = link.ServiceProviderId,
                 BandId = link.BandId,
                 CenterFrequency = link.CenterFrequency,

@@ -4,7 +4,7 @@ namespace NTC.QoS.Domain.Enums;
 
 public enum LinkTypeEnum
 {
-    [Description("Unknown Link Type")]
+    [Description("Unknown")]
     Unknown = 0,
 
     [Description("Uplink")]

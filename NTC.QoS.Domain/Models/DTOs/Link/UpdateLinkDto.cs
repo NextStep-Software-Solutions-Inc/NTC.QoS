@@ -1,10 +1,8 @@
-﻿using NTC.QoS.Domain.Enums;
-
-namespace NTC.QoS.Domain.Models.DTOs.Link;
+﻿namespace NTC.QoS.Domain.Models.DTOs.Link;
 
 public class UpdateLinkDto
 {
-    public LinkTypeEnum Type { get; set; }
+    public required string Type { get; set; }
     public decimal CenterFrequency { get; set; }
     public decimal LowerFrequency { get; set; }
     public decimal UpperFrequency { get; set; }

@@ -57,4 +57,11 @@ public class LinksController : ControllerBase
 
         return link.Succeeded ? Ok(link) : BadRequest(link);
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<LinkDto>>> DeleteLinkById(Guid id)
+    {
+        var link = await _mediator.Send(new DeleteLinkByIdRequest(id));
+        return link.Succeeded ? Ok(link) : BadRequest(link);
+    }
 }
