@@ -1,6 +1,4 @@
-﻿using NTC.QoS.Domain.Aggregates;
-using NTC.QoS.Domain.Enums;
-
+﻿using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Entities;
 
 namespace NTC.QoS.Domain.Aggregates;
