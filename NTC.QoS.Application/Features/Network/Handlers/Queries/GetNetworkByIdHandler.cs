@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
 
-namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
+namespace NTC.QoS.Application.Features.Network.Handlers.Queries;
 
 public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<GetNetworkByIdRequest, ApiResponse<NetworkDto>>
 {

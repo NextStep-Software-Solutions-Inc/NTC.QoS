@@ -12,8 +12,8 @@ internal sealed class NetworkRepository(ApplicationDbContext context)
     {
         var query = _context.Set<Network>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(n => n.NetworkTemplate)
-            .Include(n => n.UpLink).ThenInclude(u => u.Band)
-            .Include(n => n.DownLink).ThenInclude(d => d.Band);
+            .Include(n => n.UpLink).ThenInclude(u => u!.Band)
+            .Include(n => n.DownLink).ThenInclude(d => d!.Band);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -24,8 +24,8 @@ internal sealed class NetworkRepository(ApplicationDbContext context)
         IQueryable<Network> query = _context.Set<Network>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted")) 
             .Include(n => n.NetworkTemplate)
-            .Include(n => n.UpLink).ThenInclude(u => u.Band)
-            .Include(n => n.DownLink).ThenInclude(d => d.Band);
+            .Include(n => n.UpLink).ThenInclude(u => u!.Band)
+            .Include(n => n.DownLink).ThenInclude(d => d!.Band);
 
         if (expression != null)
         {
