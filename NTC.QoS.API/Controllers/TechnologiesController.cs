@@ -29,10 +29,10 @@ public class TechnologiesController: ControllerBase
         return Ok(technologies);
     }
 
-    [HttpGet("id")]
-    public async Task<ActionResult<ApiResponse<TechnologyDto>>> GetTechnologyById(Guid technologyId)
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<TechnologyDto>>> GetTechnologyById(Guid id)
     {
-        var request = new GetTechnologyByIdRequest(technologyId);
+        var request = new GetTechnologyByIdRequest(id);
         var technology = await _mediator.Send(request);
         return technology.Succeeded ? Ok(technology) : BadRequest(technology);
     }
@@ -48,22 +48,22 @@ public class TechnologiesController: ControllerBase
         return technology.Succeeded ? Ok(technology) : BadRequest(technology);
     }
 
-    [HttpPut("id")]
-    public async Task<ActionResult<ApiResponse<UpdateTechnologyDto>>> Put(Guid technologyId, UpdateTechnologyDto updateTechnologyDto)
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<UpdateTechnologyDto>>> UpdateTechnologyById(Guid id, UpdateTechnologyDto updateTechnologyDto)
     {
         var technology = await _mediator.Send(new UpdateTechnologyRequest
         {
-            Id = technologyId,
+            Id = id,
             Technology = updateTechnologyDto
         });
 
         return technology.Succeeded ? Ok(technology) : BadRequest(technology);
     }
 
-    [HttpDelete("id")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid technologyId)
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteTechnologyById(Guid id)
     {
-        var request = new DeleteTechnologyByIdRequest(technologyId);
+        var request = new DeleteTechnologyByIdRequest(id);
         var technology = await _mediator.Send(request);
 
         return technology.Succeeded ? Ok(technology) : BadRequest(technology);
