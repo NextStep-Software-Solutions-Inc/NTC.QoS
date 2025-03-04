@@ -9,7 +9,6 @@ using NTC.QoS.Domain.Models.DTOs.Link;
 namespace NTC.QoS.Application.Features.Link.Handlers.Commands;
 
 public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repository) : IRequestHandler<UpdateLinkByIdRequest, ApiResponse<UpdateLinkDto>>
-
 {
     private readonly IRepository<Domain.Aggregates.Link> _repository = repository;
     public async Task<ApiResponse<UpdateLinkDto>> Handle(UpdateLinkByIdRequest request,
@@ -52,7 +51,7 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
                 UpperFrequency = link.UpperFrequency,
                 RxThreshold = link.RxThreshold
             },
-            Message = "Request successful! Your changes have been saved.."
+            Message = "Request successful! Your changes have been saved."
         };
     }
 }

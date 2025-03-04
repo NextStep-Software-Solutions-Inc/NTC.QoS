@@ -33,19 +33,24 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
             {
                 Id = link.Id,
                 Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),
-                ServiceProvider = link.ServiceProvider is not null && link.ServiceProvider.Provider is not null && link.ServiceProvider.Service is not null ?
-                    new ServiceProviderLinkDto
+                ServiceProvider = new ServiceProviderLinkDto
                     {
-                        Id = link.ServiceProvider.Id,
-                        ProviderId = link.ServiceProvider.Provider.Id,
-                        ProviderName = link.ServiceProvider.Provider.Name,
-                        ServiceId = link.ServiceProvider.Service.Id,
-                        ServiceType = link.ServiceProvider.Service.Type.ToString()
-                    } : null,
+                        Id = link.ServiceProviderId,
+                        Provider = new ProviderLinkDto
+                        {
+                            Id = link.ServiceProvider?.ProviderId ?? Guid.Empty,
+                            Name = link.ServiceProvider?.Provider?.Name ?? "Unknown"
+                        },
+                        Service = new ServiceLinkDto
+                        {
+                            Id = link.ServiceProvider?.ServiceId ?? Guid.Empty,
+                            Name = link.ServiceProvider?.Service?.Name ?? "Unknown"
+                        }
+                },
                 Band = new BandLinkDto
                 {
                     Id = link.BandId,
-                    Name = link.Band?.Name ?? "Unknown Band"
+                    Name = link.Band?.Name ?? "Unknown"
                 },
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,

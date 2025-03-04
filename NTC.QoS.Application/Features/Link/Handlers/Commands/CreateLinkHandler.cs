@@ -13,6 +13,7 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
     private readonly IRepository<Domain.Aggregates.Link> _linkRepository;
     private readonly IBandRepository _bandRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository;
+
     public CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepository, IBandRepository bandRepository, IServiceProviderRepository serviceProviderRepository)
     {
         _linkRepository = linkRepository;
@@ -34,7 +35,6 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
         _linkRepository.Add(newLink);
         await _linkRepository.SaveChangesAsync(cancellationToken);
 
-        // Fetch Band information
         var band = await _bandRepository.GetByIdAsync(request.Link.BandId, cancellationToken);
         if (band is null)
         {
@@ -46,7 +46,6 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
             };
         }
 
-        // Fetch Service Provider information
         var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Link.ServiceProviderId, cancellationToken);
         if (serviceProvider is null)
         {
@@ -58,22 +57,20 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
             };
         }
 
-        var linkDto = new CreateLinkDto
-        {
-            Type = EnumHelper<LinkTypeEnum>.GetDescription(newLink.Type),
-            ServiceProviderId = serviceProvider.Id,
-            BandId = band.Id,
-            CenterFrequency = newLink.CenterFrequency,
-            LowerFrequency = newLink.LowerFrequency,
-            UpperFrequency = newLink.UpperFrequency,
-            RxThreshold = newLink.RxThreshold
-        };
-
         return new ApiResponse<CreateLinkDto>
         {
             Succeeded = true,
             Message = "Link created successfully.",
-            Data = linkDto,
+            Data = new CreateLinkDto
+            {
+                Type = EnumHelper<LinkTypeEnum>.GetDescription(newLink.Type),
+                ServiceProviderId = serviceProvider.Id,
+                BandId = band.Id,
+                CenterFrequency = newLink.CenterFrequency,
+                LowerFrequency = newLink.LowerFrequency,
+                UpperFrequency = newLink.UpperFrequency,
+                RxThreshold = newLink.RxThreshold
+            }
         };
     }
 }

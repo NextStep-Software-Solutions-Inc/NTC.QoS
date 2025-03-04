@@ -26,28 +26,36 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
             allLinks = [.. allLinks.Where(l => l.BandId == request.BandId.Value)];
         }
 
-        var linkDtos = allLinks.Select(l => new LinkDto
+        var linkDtos = allLinks.Select(l =>
         {
-            Id = l.Id,
-            Type = EnumHelper<LinkTypeEnum>.GetDescription(l.Type),
-            ServiceProvider = l.ServiceProvider is not null && l.ServiceProvider.Provider is not null && l.ServiceProvider.Service is not null ?
-                new ServiceProviderLinkDto
-                {
-                    Id = l.ServiceProvider.Id,
-                    ProviderId = l.ServiceProvider.Provider.Id,
-                    ProviderName = l.ServiceProvider.Provider.Name,
-                    ServiceId = l.ServiceProvider.Service.Id,
-                    ServiceType = l.ServiceProvider.Service.Type.ToString()
-                } : null,
-            Band = new BandLinkDto
+            return new LinkDto
             {
-                Id = l.BandId,
-                Name = l.Band?.Name ?? "Unknown"
-            },
-            CenterFrequency = l.CenterFrequency,
-            LowerFrequency = l.LowerFrequency,
-            UpperFrequency = l.UpperFrequency,
-            RxThreshold = l.RxThreshold
+                Id = l.Id,
+                Type = EnumHelper<LinkTypeEnum>.GetDescription(l.Type),
+                ServiceProvider = new ServiceProviderLinkDto
+                {
+                    Id = l.ServiceProviderId,
+                    Provider = new ProviderLinkDto
+                    {
+                        Id = l.ServiceProvider?.ProviderId ?? Guid.Empty,
+                        Name = l.ServiceProvider?.Provider?.Name ?? "Unknown"
+                    },
+                    Service = new ServiceLinkDto
+                    {
+                        Id = l.ServiceProvider?.ServiceId ?? Guid.Empty,
+                        Name = l.ServiceProvider?.Service?.Name ?? "Unknown"
+                    }
+                },
+                Band = new BandLinkDto
+                {
+                    Id = l.BandId,
+                    Name = l.Band?.Name ?? "Unknown"
+                },
+                CenterFrequency = l.CenterFrequency,
+                LowerFrequency = l.LowerFrequency,
+                UpperFrequency = l.UpperFrequency,
+                RxThreshold = l.RxThreshold
+            };
         }).ToList();
 
         return new PaginatedResponse<LinkDto>(linkDtos, request.PageNumber, request.PageSize);
