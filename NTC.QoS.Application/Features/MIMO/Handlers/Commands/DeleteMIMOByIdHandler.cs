@@ -13,7 +13,7 @@ public class DeleteMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
     {
         var mimo = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
 
-        if (mimo == null)
+        if (mimo is null)
         {
             return new ApiResponse<bool>
             {
