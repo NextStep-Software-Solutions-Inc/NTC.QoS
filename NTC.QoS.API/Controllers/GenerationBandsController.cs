@@ -26,4 +26,15 @@ public class GenerationBandsController : ControllerBase
         });
         return generationBand.Succeeded ? Ok(generationBand) : BadRequest(generationBand);
     }
+
+    [HttpGet]
+    public async Task<ActionResult<PaginatedResponse<GetGenerationBandDto>>> GetAllGenerationBands(int pageSize = 10, int pageNumber = 1)
+    {
+        var result = await _mediator.Send(new GetAllGenerationBandsRequest
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        });
+        return Ok(result);
+    }
 }

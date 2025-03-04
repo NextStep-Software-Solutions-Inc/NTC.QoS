@@ -2,7 +2,8 @@
 
 public class GenerationBandDto
 {
+    //Generation or band details
     public Guid Id { get; set; }
-    public required Guid GenerationId { get; set; }
-    public required Guid BandId { get; set; }
+    public string? Name { get; set; }
+    public string? Description { get; set; }
 }
