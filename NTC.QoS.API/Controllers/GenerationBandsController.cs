@@ -37,4 +37,20 @@ public class GenerationBandsController : ControllerBase
         });
         return Ok(result);
     }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<GetGenerationBandDto>>> GetGenerationBandById(Guid id)
+    {
+        var request = new GetGenerationBandByIdRequest(id);
+        var generationBand = await _mediator.Send(request);
+        return generationBand.Succeeded ? Ok(generationBand) : BadRequest(generationBand);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteGenerationBandById(Guid id)
+    {
+        var request = new DeleteGenerationBandByIdRequest(id);
+        var generationBand = await _mediator.Send(request);
+        return generationBand.Succeeded ? Ok(generationBand) : BadRequest(generationBand);
+    }
 }
