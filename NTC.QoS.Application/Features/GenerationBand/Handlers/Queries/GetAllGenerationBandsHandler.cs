@@ -2,30 +2,31 @@
 using NTC.QoS.Application.Features.GenerationBand.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Band;
-using NTC.QoS.Domain.Models.DTOs.Generation;
 using NTC.QoS.Domain.Models.DTOs.GenerationBand;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NTC.QoS.Application.Features.GenerationBand.Handlers.Queries;
 
-public class GetAllGenerationBandsHandler (IRepository<Domain.Aggregates.GenerationBand> repository) : IRequestHandler<GetAllGenerationBandsRequest, PaginatedResponse<GetGenerationBandDto>>
+public class GetAllGenerationBandsHandler(IGenerationBandRepository repository) : IRequestHandler<GetAllGenerationBandsRequest, PaginatedResponse<GetGenerationBandDto>>
 {
-    private readonly IRepository<Domain.Aggregates.GenerationBand> _repository = repository;
+    private readonly IGenerationBandRepository _repository = repository;
     public async Task<PaginatedResponse<GetGenerationBandDto>> Handle(GetAllGenerationBandsRequest request, CancellationToken cancellationToken)
     {
         var allGenerationBands = await _repository.ListAsync(gb => !gb.IsDeleted, cancellationToken);
 
         if (request.GenerationId.HasValue)
         {
-            allGenerationBands = [.. allGenerationBands.Where(gb => gb.GenerationId == request.GenerationId.Value)];
+            allGenerationBands = allGenerationBands.Where(gb => gb.GenerationId == request.GenerationId.Value).ToList();
         }
 
         if (request.BandId.HasValue)
         {
-            allGenerationBands = [.. allGenerationBands.Where(gb => gb.BandId == request.BandId.Value)];
+            allGenerationBands = allGenerationBands.Where(gb => gb.BandId == request.BandId.Value).ToList();
         }
 
-        var generationBands = allGenerationBands.Select(gb => new GetGenerationBandDto
+        var generationBandDtos = allGenerationBands.Select(gb => new GetGenerationBandDto
         {
             Id = gb.Id,
             Generation = new GenerationBandDto
@@ -42,6 +43,6 @@ public class GetAllGenerationBandsHandler (IRepository<Domain.Aggregates.Generat
             }
         }).ToList();
 
-        return new PaginatedResponse<GetGenerationBandDto>(generationBands, request.PageNumber, request.PageSize);
+        return new PaginatedResponse<GetGenerationBandDto>(generationBandDtos.ToList(), request.PageNumber, request.PageSize);
     }
 }
