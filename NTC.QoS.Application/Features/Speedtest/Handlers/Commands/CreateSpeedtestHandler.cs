@@ -19,7 +19,7 @@ public class CreateSpeedtestHandler(IRepository<Domain.Entities.Speedtest> repos
                  !s.IsDeleted,
             cancellationToken);
 
-        if (existingSpeedtest != null)
+        if (existingSpeedtest is not null)
         {
             return new ApiResponse<CreateSpeedtestDto>
             {

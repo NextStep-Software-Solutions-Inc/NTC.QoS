@@ -26,7 +26,7 @@ public class GetSpeedtestByIdHandler : IRequestHandler<GetSpeedtestByIdRequest, 
     {
         var speedtest = await _speedtestRepository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (speedtest == null)
+        if (speedtest is null)
         {
             return new ApiResponse<SpeedtestDto>
             {

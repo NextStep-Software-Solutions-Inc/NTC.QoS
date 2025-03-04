@@ -13,7 +13,7 @@ public class DeleteSpeedtestByIdHandler(IRepository<Domain.Entities.Speedtest> r
     {
         var speedtest = await _repository.FindAsync(s => s.Id == request.Id && !s.IsDeleted, cancellationToken);
 
-        if (speedtest == null)
+        if (speedtest is null)
         {
             return new ApiResponse<bool>
             {
