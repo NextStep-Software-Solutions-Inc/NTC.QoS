@@ -33,4 +33,12 @@ public class CellularsController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<GetCellularDto>>> GetCellularById(Guid id)
+    {
+        var request = new GetCellularByIdRequest(id);
+        var cellular = await _mediator.Send(request);
+        return cellular.Succeeded ? Ok(cellular) : BadRequest(cellular);
+    }
+
 }
