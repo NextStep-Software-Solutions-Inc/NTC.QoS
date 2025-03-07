@@ -26,7 +26,7 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
                 Succeeded = false
             };
         }
-
+        
         var barangay = await _barangayRepository.GetByIdAsync(request.Cellular.BarangayId, cancellationToken);
         if (barangay is null)
         {
