@@ -13,6 +13,6 @@ public class NAPDto
     public virtual FileDto? File { get; set; }
     public Guid? ZoneId { get; set; }
     public virtual ZoneDto? Zone { get; set; }
-    public string CoorLatitude { get; set; } = string.Empty;
-    public string CoorLongitude { get; set; } = string.Empty;
+    public required string CoorLatitude { get; set; }
+    public required string CoorLongitude { get; set; }
 }

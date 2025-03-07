@@ -7,6 +7,6 @@ public class CreateNAPDto
     public Guid ServiceProviderId { get; set; }
     public Guid? FileId { get; set; }
     public Guid? ZoneId { get; set; }
-    public string CoorLatitude { get; set; } = string.Empty;
-    public string CoorLongitude { get; set; } = string.Empty;
+    public required string CoorLatitude { get; set; }
+    public required string CoorLongitude { get; set; }
 }
