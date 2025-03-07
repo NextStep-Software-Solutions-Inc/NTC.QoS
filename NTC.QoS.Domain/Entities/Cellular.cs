@@ -16,5 +16,3 @@ public class Cellular : BaseEntity
     public virtual NTC.QoS.Domain.Entities.File? File { get; set; }
     public int RowNumber { get; set; }
 }
-
-

@@ -38,6 +38,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IGenerationRepository, GenerationRepository>();
         services.AddScoped<IGenerationBandRepository, GenerationBandRepository>();
         services.AddScoped<ISpeedtestRepository, SpeedtestRepository>();
+        services.AddScoped<IFileRepository, FileRepository>();
 
         return services;
     }
