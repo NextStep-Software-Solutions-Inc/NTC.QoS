@@ -1,0 +1,18 @@
+﻿using NTC.QoS.Domain.Models.DTOs.File;
+using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
+using NTC.QoS.Domain.Models.DTOs.Zone;
+
+namespace NTC.QoS.Domain.Models.DTOs.NAP;
+
+public class NAPDto
+{
+    public Guid Id { get; set; }
+    public Guid ServiceProviderId { get; set; }
+    public virtual ServiceProviderDto? ServiceProvider { get; set; }
+    public Guid? FileId { get; set; }
+    public virtual FileDto? File { get; set; }
+    public Guid? ZoneId { get; set; }
+    public virtual ZoneDto? Zone { get; set; }
+    public string CoorLatitude { get; set; } = string.Empty;
+    public string CoorLongitude { get; set; } = string.Empty;
+}

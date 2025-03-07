@@ -35,6 +35,8 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IStudyRepository, StudyRepository>();
         services.AddScoped<ITechnologyRepository, TechnologyRepository>();
         services.AddScoped<ISpeedtestRepository, SpeedtestRepository>();
+        services.AddScoped<INAPRepository, NAPRepository>();
+
 
         return services;
     }
