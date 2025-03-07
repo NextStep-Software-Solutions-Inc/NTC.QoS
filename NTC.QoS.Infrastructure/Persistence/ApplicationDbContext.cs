@@ -106,7 +106,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<GenerationBand>()
             .HasOne(gb => gb.Generation)
             .WithMany(g => g.GenerationBands)
-            .HasForeignKey(gb => gb.BandId);
+            .HasForeignKey(gb => gb.GenerationId);
 
         modelBuilder.Entity<Link>()
             .HasOne(l => l.ServiceProvider)

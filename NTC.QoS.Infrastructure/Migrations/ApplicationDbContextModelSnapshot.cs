@@ -204,6 +204,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
+                    b.HasIndex("GenerationId");
+
                     b.ToTable("GenerationBands");
                 });
 
@@ -1680,15 +1682,15 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
                         .WithMany("GenerationBands")
                         .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
                         .WithMany("GenerationBands")
-                        .HasForeignKey("BandId")
+                        .HasForeignKey("GenerationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
