@@ -27,7 +27,6 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
             };
         }
         link.Type = EnumHelper<LinkTypeEnum>.GetValue(request.Link.Type);
-        link.ServiceProviderId = request.Link.ServiceProviderId;
         link.BandId = request.Link.BandId;
         link.CenterFrequency = request.Link.CenterFrequency;
         link.LowerFrequency = request.Link.LowerFrequency;
@@ -44,7 +43,6 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
             Data = new UpdateLinkDto()
             {
                 Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),
-                ServiceProviderId = link.ServiceProviderId,
                 BandId = link.BandId,
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,

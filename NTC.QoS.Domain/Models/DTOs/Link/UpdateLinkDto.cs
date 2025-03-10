@@ -8,5 +8,4 @@ public class UpdateLinkDto
     public decimal UpperFrequency { get; set; }
     public decimal RxThreshold { get; set; }
     public Guid BandId { get; set; }
-    public Guid ServiceProviderId { get; set; }
 }
