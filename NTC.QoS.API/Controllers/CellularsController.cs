@@ -1,6 +1,8 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
 
@@ -23,12 +25,23 @@ public class CellularsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<GetCellularDto>>> GetAllCellulars(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<GetCellularDto>>> GetAllCellulars(int pageSize = 10,
+                                                                                       int pageNumber = 1,
+                                                                                       Guid? barangayId = null,
+                                                                                       Guid? cellId = null,
+                                                                                       Guid? serviceProviderId = null,
+                                                                                       Guid? generationBandId = null,
+                                                                                       Guid? fileId = null)
     {
         var result = await _mediator.Send(new GetAllCellularsRequest
         {
             PageSize = pageSize,
-            PageNumber = pageNumber
+            PageNumber = pageNumber,
+            BarangayId = barangayId,
+            CellId = cellId,
+            ServiceProviderId = serviceProviderId,
+            GenerationBandId = generationBandId,
+            FileId = fileId
         });
         return Ok(result);
     }
