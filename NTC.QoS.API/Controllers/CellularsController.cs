@@ -41,4 +41,10 @@ public class CellularsController(IMediator mediator) : ControllerBase
         return cellular.Succeeded ? Ok(cellular) : BadRequest(cellular);
     }
 
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Cellular>>> DeleteCellularById(Guid id)
+    {
+        var cellular = await _mediator.Send(new DeleteCellularByIdRequest(id));
+        return cellular.Succeeded ? Ok(cellular) : BadRequest(cellular);
+    }
 }
