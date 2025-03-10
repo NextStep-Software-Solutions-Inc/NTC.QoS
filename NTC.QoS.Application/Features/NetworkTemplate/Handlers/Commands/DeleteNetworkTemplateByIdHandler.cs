@@ -11,7 +11,7 @@ public class DeleteNetworkTemplateByIdHandler(IRepository<Domain.Entities.Networ
     public async Task<ApiResponse<bool>> Handle(DeleteNetworkTemplateByIdRequest request, CancellationToken cancellationToken)
     {
         var networkTemplateExist = await _repository.FindAsync(nt => nt.Id == request.Id && !nt.IsDeleted, cancellationToken);
-        if (networkTemplateExist == null)
+        if (networkTemplateExist is null)
         {
             return new ApiResponse<bool>
             {
@@ -28,8 +28,7 @@ public class DeleteNetworkTemplateByIdHandler(IRepository<Domain.Entities.Networ
         {
             Data = true,
             Succeeded = true,
-            Message = $"Network Template deleted successfully."
+            Message = $"Network template deleted successfully."
         };
-
     }
 }

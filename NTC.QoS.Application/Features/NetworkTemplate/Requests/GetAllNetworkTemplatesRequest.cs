@@ -9,5 +9,4 @@ public class GetAllNetworkTemplatesRequest : IRequest<PaginatedResponse<NetworkT
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
     public string? Search { get; set; }
-    public GetAllNetworkTemplatesRequest() { }
 }
