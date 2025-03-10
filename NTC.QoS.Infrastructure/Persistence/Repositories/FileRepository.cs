@@ -27,7 +27,7 @@ internal sealed class FileRepository(ApplicationDbContext context) : Repository<
             .Include(f => f.Cells)
             .Include(f => f.NAPs);
 
-        if (expression != null)
+        if (expression is not null)
         {
             query = query.Where(expression);
         }

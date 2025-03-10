@@ -46,7 +46,7 @@ internal sealed class CellularRepository(ApplicationDbContext context) : Reposit
             .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Band)
             .Include(c => c.File);
 
-        if (expression != null)
+        if (expression is not null)
         {
             query = query.Where(expression);
         }
