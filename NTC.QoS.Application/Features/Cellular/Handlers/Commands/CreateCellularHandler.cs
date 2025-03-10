@@ -18,7 +18,7 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
     public async Task<ApiResponse<CreateCellularDto>> Handle(CreateCellularRequest request, CancellationToken cancellationToken)
     {
         var existingCellular = await _cellularRepository.FindAsync(c => c.BarangayId == request.Cellular.BarangayId && c.CellId == request.Cellular.CellId && c.ServiceProviderId == request.Cellular.ServiceProviderId && c.GenerationBandId == request.Cellular.GenerationBandId && c.FileId == request.Cellular.FileId && c.RowNumber == request.Cellular.RowNumber && !c.IsDeleted, cancellationToken);
-        if (existingCellular != null)
+        if (existingCellular is null)
         {
             return new ApiResponse<CreateCellularDto>
             {
