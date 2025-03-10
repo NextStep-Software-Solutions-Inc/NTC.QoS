@@ -2,6 +2,6 @@
 
 public class UpdateAntennaPatternDto
 {
-    public string Name { get; set; } = string.Empty;
-    public string URL { get; set; } = string.Empty;
+    public required string Name { get; set; }
+    public required string URL { get; set; }
 }

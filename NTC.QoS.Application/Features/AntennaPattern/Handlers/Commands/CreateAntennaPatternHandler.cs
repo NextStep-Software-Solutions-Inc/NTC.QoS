@@ -14,7 +14,7 @@ public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPat
     {
         var antennaPattern = await _repository.FindAsync(ap => ap.Name == request.AntennaPattern.Name && !ap.IsDeleted, cancellationToken);
 
-        if (antennaPattern != null)
+        if (antennaPattern is not null)
         {
             return new ApiResponse<CreateAntennaPatternDto>
             {
