@@ -12,20 +12,9 @@ public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
     public async Task<ApiResponse<UpdateAntennaPatternDto>> Handle(UpdateAntennaPatternByIdRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.AntennaPattern == null)
-        {
-            return new ApiResponse<UpdateAntennaPatternDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Error = new[] { "Antenna pattern data is missing." },
-                Message = "The request does not contain antenna pattern update data.",
-            };
-        }
+        var antennaPattern = await _repository.FindAsync(ap => ap.Id == request.Id && !ap.IsDeleted, cancellationToken);
 
-        var antennaPattern = await _repository.FindAsync(g => g.Id == request.Id && !g.IsDeleted, cancellationToken);
-
-        if (antennaPattern == null)
+        if (antennaPattern is null)
         {
             return new ApiResponse<UpdateAntennaPatternDto>
             {
@@ -51,7 +40,7 @@ public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
                 Name = request.AntennaPattern.Name,
                 URL = request.AntennaPattern.URL
             },
-            Message = "Request successful! Your changes have been saved.",
+            Message = "Antenna Pattern updated successfully.",
         };
     }
 }

@@ -13,7 +13,7 @@ public class DeleteAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
     {
         var antennaPattern = await _repository.FindAsync(ap => ap.Id == request.Id && !ap.IsDeleted, cancellationToken);
 
-        if (antennaPattern == null)
+        if (antennaPattern is null)
         {
             return new ApiResponse<bool>
             {
@@ -31,7 +31,7 @@ public class DeleteAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
             Data = true,
             Succeeded = true,
             Error = Array.Empty<string>(),
-            Message = $"Antenna pattern '{antennaPattern.Name}' has been successfully deleted."
+            Message = $"Antenna Pattern deleted successfully."
         };
     }
 }
