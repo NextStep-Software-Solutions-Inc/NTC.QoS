@@ -12,7 +12,7 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(UpdateNetworkTemplateRequest request, CancellationToken cancellationToken)
     {
         var networkTemplateExist = await _repository.FindAsync(nt => nt.Id == request.Id && !nt.IsDeleted, cancellationToken);
-        if (networkTemplateExist == null)
+        if (networkTemplateExist is null)
         {
             return new ApiResponse<NetworkTemplateDto>
             {
@@ -37,7 +37,7 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
                 Description = networkTemplateExist.Description,
                 URL = networkTemplateExist.URL
             },
-            Message = "Network Template retrieved successfully.",
+            Message = "Network template retrieved successfully.",
             Succeeded = true
         };
     }

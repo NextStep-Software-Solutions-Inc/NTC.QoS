@@ -13,28 +13,32 @@ public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTem
     {
         var networkTemplate = await _repository.FindAsync(
             nt => nt.Name == request.CreateNetworkTemplate.Name && !nt.IsDeleted, cancellationToken);
-        if (networkTemplate != null)
+
+        if (networkTemplate is not null)
         {
             return new ApiResponse<NetworkTemplateDto>
             {
                 Data = null,
-                Message = "Network Template already exist.",
+                Message = "Network template already exist.",
                 Succeeded = false,
                 Error = new[] { "A network template with the same name already exists." }
             };
         }
+
         var newNetworkTemplate = new Domain.Entities.NetworkTemplate
         {
             Name = request.CreateNetworkTemplate.Name,
             Description = request.CreateNetworkTemplate.Description,
             URL = request.CreateNetworkTemplate.URL
         };
+
         _repository.Add(newNetworkTemplate);
         await _repository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<NetworkTemplateDto>
         {
             Succeeded = true,
-            Message = "Network Template successfully created.",
+            Message = "Network template created successfully.",
             Data = new NetworkTemplateDto
             {
                 Id = newNetworkTemplate.Id,

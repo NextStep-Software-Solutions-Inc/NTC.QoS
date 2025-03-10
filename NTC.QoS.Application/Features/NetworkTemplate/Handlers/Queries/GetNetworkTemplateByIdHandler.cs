@@ -12,7 +12,7 @@ public class GetNetworkTemplateByIdHandler(IRepository<Domain.Entities.NetworkTe
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(GetNetworkTemplateByIdRequest request, CancellationToken cancellationToken)
     {
         var networkTemplateExist = await _repository.FindAsync(nt => nt.Id == request.Id && !nt.IsDeleted, cancellationToken);
-        if (networkTemplateExist == null)
+        if (networkTemplateExist is null)
         {
             return new ApiResponse<NetworkTemplateDto>
             {
@@ -21,6 +21,7 @@ public class GetNetworkTemplateByIdHandler(IRepository<Domain.Entities.NetworkTe
                 Error = new[] { $"No Network Template found with Id [{request.Id}]. It may not exist or has been deleted." }
             };
         }
+
         var networkTemplate = new NetworkTemplateDto
         {
             Id = networkTemplateExist.Id,
@@ -28,10 +29,11 @@ public class GetNetworkTemplateByIdHandler(IRepository<Domain.Entities.NetworkTe
             URL = networkTemplateExist.URL,
             Description = networkTemplateExist.Description
         };
+
         return new ApiResponse<NetworkTemplateDto>
         {
             Data = networkTemplate,
-            Message = "Retrieved successfully.",
+            Message = "Network template retrieved successfully.",
             Succeeded = true
         };
     }
