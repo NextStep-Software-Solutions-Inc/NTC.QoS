@@ -44,13 +44,15 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
                         Service = new ServiceLinkDto
                         {
                             Id = link.ServiceProvider?.ServiceId ?? Guid.Empty,
-                            Name = link.ServiceProvider?.Service?.Name ?? "Unknown"
+                            Name = link.ServiceProvider?.Service?.Name ?? "Unknown",
+                            Type = link.ServiceProvider?.Service?.Type.ToString() ?? "Unknown"
                         }
                 },
                 Band = new BandLinkDto
                 {
                     Id = link.BandId,
-                    Name = link.Band?.Name ?? "Unknown"
+                    Name = link.Band?.Name ?? "Unknown",
+                    Description = link.Band?.Description ?? string.Empty
                 },
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,
