@@ -7,12 +7,12 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class BandRepository(ApplicationDbContext context) : Repository<Band>(context), IBandRepository
 {
-    public new async Task<Band?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public override async Task<Band?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Band>().Where(e => !EF.Property<bool>(e, "IsDeleted"));
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
-    public new async Task<List<Band>> ListAsync(
+    public override async Task<List<Band>> ListAsync(
         Expression<Func<Band, bool>>? expression = null,
         CancellationToken cancellationToken = default)
     {
