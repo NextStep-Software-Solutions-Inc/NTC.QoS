@@ -20,11 +20,11 @@ public class CreateSpeedtestDto
     public decimal RSSI { get; set; }
     public decimal UploadSpeed { get; set; }
     public decimal DownloadSpeed { get; set; }
-    public string CoorLatitude { get; set; } = string.Empty;
-    public string CoorLongitude { get; set; } = string.Empty;
-    public string PhoneModel { get; set; } = string.Empty;
-    public string MCC { get; set; } = string.Empty;
-    public string MNC { get; set; } = string.Empty;
-    public string TAC { get; set; } = string.Empty;
+    public required string CoorLatitude { get; set; }
+    public required string CoorLongitude { get; set; } 
+    public required string PhoneModel { get; set; } 
+    public required string MCC { get; set; } 
+    public required string MNC { get; set; } 
+    public required string TAC { get; set; }
     public SignalQualityEnum SignalQuality { get; set; } = SignalQualityEnum.Unknown;
 }

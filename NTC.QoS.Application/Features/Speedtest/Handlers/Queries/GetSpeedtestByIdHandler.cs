@@ -7,9 +7,6 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 using NTC.QoS.Domain.Models.DTOs.Generation;
 using NTC.QoS.Domain.Models.DTOs.Cell;
-using NTC.QoS.Domain.Aggregates;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 

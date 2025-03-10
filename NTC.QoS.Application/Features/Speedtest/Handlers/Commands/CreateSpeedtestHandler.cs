@@ -6,24 +6,76 @@ using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Commands;
 
-public class CreateSpeedtestHandler(IRepository<Domain.Entities.Speedtest> repository) : IRequestHandler<CreateSpeedtestRequest, ApiResponse<CreateSpeedtestDto>>
+public class CreateSpeedtestHandler(IRepository<Domain.Entities.Speedtest> speedtestRepository,
+                                    IRepository<Domain.Entities.File> fileRepository,
+                                    IBarangayRepository barangayRepository,
+                                    IServiceProviderRepository serviceProviderRepository,
+                                    IGenerationRepository generationRepository,
+                                    ICellRepository cellRepository) : IRequestHandler<CreateSpeedtestRequest, ApiResponse<CreateSpeedtestDto>>
 {
-    private readonly IRepository<Domain.Entities.Speedtest> _repository = repository;
+    private readonly IRepository<Domain.Entities.Speedtest> _speedtestRepository = speedtestRepository;
+    private readonly IRepository<Domain.Entities.File> _fileRepository = fileRepository;
+    private readonly IBarangayRepository _barangayRepository = barangayRepository;
+    private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
+    private readonly IGenerationRepository _generationRepository = generationRepository;
+    private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<CreateSpeedtestDto>> Handle(CreateSpeedtestRequest request, CancellationToken cancellationToken)
     {
-        var existingSpeedtest = await _repository.FindAsync(
+        var barangay = await _barangayRepository.GetByIdAsync(request.Speedtest.BarangayId, cancellationToken);
+        if (barangay is null)
+        {
+            return new ApiResponse<CreateSpeedtestDto>
+            {
+                Message = "Barangay does not exist.",
+                Succeeded = false,
+            };
+        }
+
+        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Speedtest.ServiceProviderId, cancellationToken);
+        if (serviceProvider is null)
+        {
+            return new ApiResponse<CreateSpeedtestDto>
+            {
+                Message = "Service provider does not exist.",
+                Succeeded = false
+            };
+        }
+
+        var generation = await _generationRepository.GetByIdAsync(request.Speedtest.GenerationId, cancellationToken);
+        if (generation is null)
+        {
+            return new ApiResponse<CreateSpeedtestDto>
+            {
+                Message = "Generation does not exist.",
+                Succeeded = false
+            };
+        }
+
+        var cell = await _cellRepository.GetByIdAsync(request.Speedtest.CellId, cancellationToken);
+        if (cell is null)
+        {
+            return new ApiResponse<CreateSpeedtestDto>
+            {
+                Message = "Cell does not exist.",
+                Succeeded = false
+            };
+        }
+
+        var existingSpeedtest = await _speedtestRepository.FindAsync(
             s => s.BarangayId == request.Speedtest.BarangayId &&
                  s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
+                 s.CellId == request.Speedtest.CellId &&
+                 s.GenerationId == request.Speedtest.GenerationId &&
+                 s.FileId == request.Speedtest.FileId &&
                  s.DateTime == request.Speedtest.DateTime &&
-                 !s.IsDeleted,
-            cancellationToken);
+                 !s.IsDeleted, cancellationToken);
 
         if (existingSpeedtest is not null)
         {
             return new ApiResponse<CreateSpeedtestDto>
             {
-                Message = "Speedtest already exists",
+                Message = "A Speedtest entry with the same DateTime already exists for this combination.",
                 Succeeded = false
             };
         }
@@ -50,8 +102,8 @@ public class CreateSpeedtestHandler(IRepository<Domain.Entities.Speedtest> repos
             SignalQuality = request.Speedtest.SignalQuality
         };
 
-        _repository.Add(newSpeedtest);
-        await _repository.SaveChangesAsync(cancellationToken);
+        _speedtestRepository.Add(newSpeedtest);
+        await _speedtestRepository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<CreateSpeedtestDto>
         {

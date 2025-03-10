@@ -19,7 +19,7 @@ public class DeleteSpeedtestByIdHandler(IRepository<Domain.Entities.Speedtest> r
             {
                 Succeeded = false,
                 Error = new[] { "Speedtest not found." },
-                Message = "The speedtest you are trying to delete does not exist."
+                Message = "The speedtest record you're trying to remove does not exist."
             };
         }  
 
