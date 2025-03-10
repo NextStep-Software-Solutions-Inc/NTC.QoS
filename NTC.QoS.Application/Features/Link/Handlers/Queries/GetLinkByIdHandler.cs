@@ -39,7 +39,8 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
                         Provider = new ProviderLinkDto
                         {
                             Id = link.ServiceProvider?.ProviderId ?? Guid.Empty,
-                            Name = link.ServiceProvider?.Provider?.Name ?? "Unknown"
+                            Name = link.ServiceProvider?.Provider?.Name ?? "Unknown",
+                            Description = link.ServiceProvider?.Provider?.Description ?? string.Empty
                         },
                         Service = new ServiceLinkDto
                         {
