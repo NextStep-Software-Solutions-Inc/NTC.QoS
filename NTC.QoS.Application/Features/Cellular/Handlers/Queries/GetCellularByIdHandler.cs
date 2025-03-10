@@ -27,7 +27,7 @@ public class GetCellularByIdHandler(ICellularRepository repository) : IRequestHa
         return new ApiResponse<GetCellularDto>
         {
             Succeeded = true,
-            Message = "Cellular record retrieved successfully",
+            Message = "Cellular record retrieved successfully.",
             Data = new GetCellularDto
             {
                 Id = cellular.Id,

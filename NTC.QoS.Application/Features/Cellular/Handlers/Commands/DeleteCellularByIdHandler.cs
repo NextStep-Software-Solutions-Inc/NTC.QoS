@@ -31,7 +31,7 @@ public class DeleteCellularByIdHandler(IRepository<Domain.Entities.Cellular> rep
             Data = true,
             Succeeded = true,
             Error = Array.Empty<string>(),
-            Message = $"Cellular record has been successfully deleted."
+            Message = $"Cellular record deleted successfully."
         };
     }
 }
