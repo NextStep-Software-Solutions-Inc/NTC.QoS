@@ -46,9 +46,10 @@ public class GetAllCellularHandler(ICellularRepository repository) : IRequestHan
                 Barangay = new CommonCellularDto
                 {
                     Id = c.BarangayId,
-                    Name = c.Barangay?.Name ?? string.Empty
+                    Name = c.Barangay?.Name ?? string.Empty,
+                    Description = c.Barangay?.Description ?? string.Empty
                 },
-                Cell = new CommonCellularDto
+                Cell = new CellCellularDto
                 {
                     Id = c.CellId,
                     Name = c.Cell?.Name ?? string.Empty
@@ -59,7 +60,8 @@ public class GetAllCellularHandler(ICellularRepository repository) : IRequestHan
                     Provider = new CommonCellularDto
                     {
                         Id = c.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = c.ServiceProvider?.Provider?.Name ?? string.Empty
+                        Name = c.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        Description = c.ServiceProvider?.Provider?.Description ?? string.Empty
                     },
                     Service = new ServiceCellularDto
                     {
@@ -74,12 +76,15 @@ public class GetAllCellularHandler(ICellularRepository repository) : IRequestHan
                     Generation = new CommonCellularDto
                     {
                         Id = c.GenerationBand?.GenerationId ?? Guid.Empty,
-                        Name = c.GenerationBand?.Generation?.Name ?? string.Empty
+                        Name = c.GenerationBand?.Generation?.Name ?? string.Empty,
+                        Description = c.GenerationBand?.Generation?.Description ?? string.Empty
                     },
                     Band = new CommonCellularDto
                     {
                         Id = c.GenerationBand?.BandId ?? Guid.Empty,
-                        Name = c.GenerationBand?.Band?.Name ?? string.Empty
+                        Name = c.GenerationBand?.Band?.Name ?? string.Empty,
+                        Description = c.GenerationBand?.Band?.Description ?? string.Empty
+
                     }
                 },
                 File = new FileCellularDto

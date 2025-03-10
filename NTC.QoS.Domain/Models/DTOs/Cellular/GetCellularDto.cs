@@ -4,7 +4,7 @@ public class GetCellularDto
 {
     public Guid Id { get; set; }
     public CommonCellularDto? Barangay { get; set; }
-    public CommonCellularDto? Cell { get; set; }
+    public CellCellularDto? Cell { get; set; }
     public ServiceProviderCellularDto? ServiceProvider { get; set; }
     public GenerationBandCellularDto? GenerationBand { get; set; }
     public FileCellularDto? File { get; set; }
