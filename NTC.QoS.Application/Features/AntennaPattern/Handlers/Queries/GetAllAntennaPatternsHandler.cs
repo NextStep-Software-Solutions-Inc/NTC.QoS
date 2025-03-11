@@ -17,11 +17,7 @@ public class GetAllAntennaPatternsHandler (IRepository<Domain.Entities.AntennaPa
         {
             Id = ap.Id,
             Name = ap.Name,
-            URL = ap.URL,
-            CreatedBy = ap.CreatedBy,
-            CreatedDate = ap.CreatedAt,
-            ModifiedBy = ap.UpdatedBy,
-            ModifiedDate = ap.UpdatedAt
+            URL = ap.URL
         }).ToList();
 
         return new PaginatedResponse<AntennaPatternDto>(antennaPatternDtos, request.PageNumber, request.PageSize);

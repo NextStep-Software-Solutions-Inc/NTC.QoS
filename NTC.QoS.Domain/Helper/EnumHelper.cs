@@ -1,4 +1,6 @@
-﻿namespace NTC.QoS.Domain.Helper;
+﻿using System.ComponentModel;
+
+namespace NTC.QoS.Domain.Helper;
 
 public static class EnumHelper<T> where T : struct, Enum
 {
@@ -20,6 +22,20 @@ public static class EnumHelper<T> where T : struct, Enum
         else
         {
             throw new ArgumentException($"Invalid value for enum {typeof(T).Name}: {status}");
+        }
+    }
+
+    public static string GetDescription(T value)
+    {
+        var field = typeof(T).GetField(value.ToString());
+        if (field is not null)
+        {
+            var attribute = Attribute.GetCustomAttribute(field, typeof(DescriptionAttribute)) as DescriptionAttribute;
+            return attribute?.Description ?? value.ToString();
+        }
+        else
+        {
+            return value.ToString();
         }
     }
 }
