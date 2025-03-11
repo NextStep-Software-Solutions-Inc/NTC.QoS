@@ -1,7 +1,7 @@
-﻿using NTC.QoS.Domain.Aggregates;
+﻿using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 
-namespace NTC.QoS.Domain.Entities;
+namespace NTC.QoS.Domain.Aggregates;
 
 public class Network : BaseEntity
 {

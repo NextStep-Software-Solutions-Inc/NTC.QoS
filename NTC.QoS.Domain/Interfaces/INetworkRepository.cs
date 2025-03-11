@@ -1,4 +1,4 @@
-﻿using NTC.QoS.Domain.Entities;
+﻿using NTC.QoS.Domain.Aggregates;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Domain.Interfaces;

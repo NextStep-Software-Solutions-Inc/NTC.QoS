@@ -8,13 +8,13 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 
-public class CreateNetworkHandler(IRepository<Domain.Entities.Network> repository) : IRequestHandler<CreateNetworkRequest, ApiResponse<NetworkDto>>
+public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> repository) : IRequestHandler<CreateNetworkRequest, ApiResponse<NetworkDto>>
 {
-    private readonly IRepository<Domain.Entities.Network> _repository = repository;
+    private readonly IRepository<Domain.Aggregates.Network> _repository = repository;
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
         var network = await _repository.FindAsync(n => n.Name == request.CreateNetwork.Name && !n.IsDeleted, cancellationToken);
-        if (network != null)
+        if (network is not null)
         {
             return new ApiResponse<NetworkDto>
             {
@@ -23,7 +23,7 @@ public class CreateNetworkHandler(IRepository<Domain.Entities.Network> repositor
             };
         }
         var systemType = EnumHelper<NetworkSystemTypeEnum>.GetValue(request.CreateNetwork.SystemType);
-        var newNetwork = new Domain.Entities.Network
+        var newNetwork = new Domain.Aggregates.Network
         {
             Name = request.CreateNetwork.Name,
             NetworkTemplateId = request.CreateNetwork.NetworkTemplateId,
@@ -49,7 +49,7 @@ public class CreateNetworkHandler(IRepository<Domain.Entities.Network> repositor
                 DownLinkId = newNetwork.DownLinkId
             }, 
             Succeeded = true,
-            Message = "Retrieved successfully."
+            Message = "Network retrieved successfully."
         };
 
     }
