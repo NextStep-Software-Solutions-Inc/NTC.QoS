@@ -23,7 +23,8 @@ public class CreateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
                 return new ApiResponse<Domain.Aggregates.ServiceProvider>
                 {
                     Succeeded = false,
-                    Message = "Service Provider already exists."
+                    Message = "Service Provider already exists.",
+                    Error = new[] { "A Service Provider with the same name already exists." }
                 };
             }
             else
