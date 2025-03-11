@@ -109,6 +109,7 @@ public class CreateSpeedtestHandler(IRepository<Domain.Entities.Speedtest> speed
         {
             Data = new CreateSpeedtestDto
             {
+                Id = newSpeedtest.Id,
                 BarangayId = newSpeedtest.BarangayId,
                 ServiceProviderId = newSpeedtest.ServiceProviderId,
                 GenerationId = newSpeedtest.GenerationId,

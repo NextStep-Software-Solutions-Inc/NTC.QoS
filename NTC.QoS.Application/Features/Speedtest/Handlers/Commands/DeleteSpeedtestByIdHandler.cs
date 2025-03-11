@@ -31,7 +31,7 @@ public class DeleteSpeedtestByIdHandler(IRepository<Domain.Entities.Speedtest> r
             Data = true,
             Succeeded = true,
             Error = new[] { "" },
-            Message = $"Speedtest has been successfully deleted."
+            Message = $"Speedtest record deleted successfully."
         };
     }
 }
