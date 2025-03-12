@@ -677,7 +677,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("FileId")
+                    b.Property<Guid>("FileId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("GenerationBandId")
@@ -1831,7 +1831,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.File", "File")
                         .WithMany("Cellulars")
-                        .HasForeignKey("FileId");
+                        .HasForeignKey("FileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.GenerationBand", "GenerationBand")
                         .WithMany("Cellulars")

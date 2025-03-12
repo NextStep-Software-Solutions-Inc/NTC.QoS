@@ -8,18 +8,12 @@ using NTC.QoS.Domain.Models.DTOs.Link;
 
 namespace NTC.QoS.Application.Features.Link.Handlers.Commands;
 
-public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<CreateLinkDto>>
+public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepository, IBandRepository bandRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateLinkRequest, ApiResponse<CreateLinkDto>>
 {
-    private readonly IRepository<Domain.Aggregates.Link> _linkRepository;
-    private readonly IBandRepository _bandRepository;
-    private readonly IServiceProviderRepository _serviceProviderRepository;
+    private readonly IRepository<Domain.Aggregates.Link> _linkRepository = linkRepository;
+    private readonly IBandRepository _bandRepository = bandRepository;
+    private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
 
-    public CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepository, IBandRepository bandRepository, IServiceProviderRepository serviceProviderRepository)
-    {
-        _linkRepository = linkRepository;
-        _bandRepository = bandRepository;
-        _serviceProviderRepository = serviceProviderRepository;
-    }
     public async Task<ApiResponse<CreateLinkDto>> Handle(CreateLinkRequest request, CancellationToken cancellationToken)
     {
         var newLink = new Domain.Aggregates.Link
