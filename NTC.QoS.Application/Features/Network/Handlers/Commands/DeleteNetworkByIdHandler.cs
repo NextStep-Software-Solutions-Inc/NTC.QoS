@@ -13,7 +13,7 @@ public class DeleteNetworkByIdHandler(INetworkRepository networkRepository) : IR
     {
 
         var network = await _networkRepository.FindAsync(n => n.Id == request.Id && !n.IsDeleted, cancellationToken);
-        if (network == null)
+        if (network is null)
         {
             return new ApiResponse<bool>
             {
