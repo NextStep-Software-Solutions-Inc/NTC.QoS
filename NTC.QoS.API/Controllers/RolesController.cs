@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Role.Requests;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Role;
 
 namespace NTC.QoS.API.Controllers;
@@ -19,5 +20,12 @@ public class RolesController(IMediator mediator) : ControllerBase
             Role = roleDto
         });
         return role.Succeeded ? Ok(role) : BadRequest(role);
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<PaginatedResponse<GetRoleDto>>> GetAllRoles(int pageSize = 10, int pageNumber = 1)
+    {
+        var result = await _mediator.Send(new GetAllRolesRequest(pageSize, pageNumber));
+        return Ok(result);
     }
 }
