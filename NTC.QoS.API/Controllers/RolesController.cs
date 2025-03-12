@@ -28,4 +28,12 @@ public class RolesController(IMediator mediator) : ControllerBase
         var result = await _mediator.Send(new GetAllRolesRequest(pageSize, pageNumber));
         return Ok(result);
     }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<GetRoleDto>>> GetRoleById(Guid id)
+    {
+        var request = new GetRoleByIdRequest(id);
+        var role = await _mediator.Send(request);
+        return role.Succeeded ? Ok(role) : BadRequest(role);
+    }
 }
