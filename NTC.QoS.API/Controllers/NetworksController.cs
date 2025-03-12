@@ -1,66 +1,51 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Network.Requests;
-using NTC.QoS.Application.Features.ServiceProvider.Requests;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("networks", Name= "networks")]
-public class NetworksController : ControllerBase
+public class NetworksController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
-    public NetworksController(IMediator mediator)
+    private readonly IMediator _mediator = mediator;
+
+    [HttpPost]
+    public async Task<IActionResult> CreateNetwork(CreateNetworkDto networkDto)
     {
-        _mediator = mediator;
+        var network = await _mediator.Send(new CreateNetworkRequest(networkDto));
+        return network.Succeeded ? Ok(network) : BadRequest(network);
     }
+
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<NetworkDto>>> GetAllNetworks(string? search, int pageNumber = 1, int pageSize = 10)
+    public async Task<ActionResult<PaginatedResponse<GetNetworkDto>>> GetAllNetworks(int pageNumber = 1, int pageSize = 10, string? search = null)
     {
-        var request = new GetAllNetworksRequest()
-        {
-            Search = search,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+        var request = new GetAllNetworksRequest(pageNumber, pageSize, search);
         var networks = await _mediator.Send(request);
         return Ok(networks);
     }
+
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<NetworkDto>>> GetNetworkById(Guid id)
+    public async Task<ActionResult<ApiResponse<GetNetworkDto>>> GetNetworkById(Guid id)
     {
-        Guid Id = id;
-        var request = new GetNetworkByIdRequest(Id);
+        var request = new GetNetworkByIdRequest(id);
         var network = await _mediator.Send(request);
         return network.Succeeded ? Ok(network) : BadRequest(network);
     }
+
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<NetworkDto>>> UpdateNetworkById(Guid id, UpdateNetworkDto updateNetwork)
+    public async Task<ActionResult<ApiResponse<UpdateNetworkDto>>> UpdateNetworkById(Guid id, UpdateNetworkDto networkDto)
     {
-        var network = await _mediator.Send(new UpdateNetworkByIdRequest(id, new UpdateNetworkDto
-        {
-            Name = updateNetwork.Name,
-            SystemType = updateNetwork.SystemType
-        }));
+        var network = await _mediator.Send(new UpdateNetworkByIdRequest(id, networkDto));
         return network.Succeeded ? Ok(network) : BadRequest(network);
     }
+
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteNetworkById(Guid id)
     {
         var network = await _mediator.Send(new DeleteNetworkByIdRequest(id));
         return network.Succeeded ? Ok(network) : BadRequest(network);
     }
-    [HttpPost]
-    public async Task<IActionResult> Post(CreateNetworkDto createNetwork)
-    {
-        var network = await _mediator.Send(new CreateNetworkRequest(createNetwork));
-        return network.Succeeded ? Ok(network) : BadRequest(network);
-    }
-
-
-
 }
