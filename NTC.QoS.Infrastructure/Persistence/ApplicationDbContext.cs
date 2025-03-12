@@ -247,7 +247,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Speedtest>()
             .HasOne(s => s.Barangay)
             .WithMany(b => b.Speedtests)
-            .HasForeignKey(s => s.GenerationId);
+            .HasForeignKey(s => s.BarangayId);
 
         modelBuilder.Entity<Cellular>()
             .HasOne(c => c.Barangay)
