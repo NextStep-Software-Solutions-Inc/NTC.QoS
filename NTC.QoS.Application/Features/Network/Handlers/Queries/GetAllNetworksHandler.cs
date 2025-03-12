@@ -15,10 +15,17 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
     public async Task<PaginatedResponse<GetNetworkDto>> Handle(GetAllNetworksRequest request, CancellationToken cancellationToken)
     {
         var allNetworks = await _networkRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
+        
         if(request.Search is not null)
         {
             allNetworks = [.. allNetworks.Where(network => network.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase))];
         }
+
+        if (request.NetworkTemplateId.HasValue)
+        {
+            allNetworks = [.. allNetworks.Where(network => network.NetworkTemplateId == request.NetworkTemplateId)];
+        }
+
         var allNetwork = allNetworks.Select(static n => new GetNetworkDto
         {
             Id = n.Id,
