@@ -4,11 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 
 namespace NTC.QoS.Application.Features.Network.Requests;
 
-public class GetNetworkByIdRequest : IRequest<ApiResponse<NetworkDto>>
+public class GetNetworkByIdRequest(Guid id) : IRequest<ApiResponse<GetNetworkDto>>
 {
-    public Guid Id { get; set; }
-    public GetNetworkByIdRequest(Guid id)
-    {
-        Id = id;
-    }
+    public Guid Id { get; set; } = id;
 }
