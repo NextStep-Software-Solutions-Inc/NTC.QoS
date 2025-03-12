@@ -24,7 +24,7 @@ public class CreateLinkHandler : IRequestHandler<CreateLinkRequest, ApiResponse<
     {
         var newLink = new Domain.Aggregates.Link
         {
-            Type = EnumHelper<LinkTypeEnum>.GetValue(request.Link.Type),
+            Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type),
             CenterFrequency = request.Link.CenterFrequency,
             LowerFrequency = request.Link.LowerFrequency,
             UpperFrequency = request.Link.UpperFrequency,
