@@ -36,4 +36,15 @@ public class RolesController(IMediator mediator) : ControllerBase
         var role = await _mediator.Send(request);
         return role.Succeeded ? Ok(role) : BadRequest(role);
     }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<UpdateRoleDto>>> UpdateRoleById(Guid id, UpdateRoleDto updateRole)
+    {
+        var role = await _mediator.Send(new UpdateRoleByIdRequest
+        {
+            Id = id,
+            Role = updateRole
+        });
+        return role.Succeeded ? Ok(role) : BadRequest(role);
+    }
 }
