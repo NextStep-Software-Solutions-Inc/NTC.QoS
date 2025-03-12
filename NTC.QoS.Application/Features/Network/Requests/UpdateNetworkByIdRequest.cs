@@ -4,14 +4,8 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 
 namespace NTC.QoS.Application.Features.Network.Requests;
 
-public class UpdateNetworkByIdRequest : IRequest<ApiResponse<NetworkDto>>
+public class UpdateNetworkByIdRequest(Guid id, UpdateNetworkDto network) : IRequest<ApiResponse<UpdateNetworkDto>>
 {
-    public UpdateNetworkByIdRequest(Guid id, UpdateNetworkDto network)
-    {
-        Id = id;
-        Network = network;
-    }
-
-    public UpdateNetworkDto Network { get; set; }
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = id;
+    public UpdateNetworkDto Network { get; set; } = network;
 }

@@ -8,15 +8,15 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 
-public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<UpdateNetworkByIdRequest, ApiResponse<NetworkDto>>
+public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<UpdateNetworkByIdRequest, ApiResponse<UpdateNetworkDto>>
 {
     private readonly INetworkRepository _networkRepository = networkRepository;
-    public async Task<ApiResponse<NetworkDto>> Handle(UpdateNetworkByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<UpdateNetworkDto>> Handle(UpdateNetworkByIdRequest request, CancellationToken cancellationToken)
     {
         var network = await _networkRepository.GetByIdAsync(request.Id, cancellationToken);
-        if (network == null)
+        if (network is null)
         {
-            return new ApiResponse<NetworkDto>
+            return new ApiResponse<UpdateNetworkDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -24,7 +24,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                 Message = $"Network with ID [{request.Id}] does not exist."
             };
         }
-        var networkType = EnumHelper<NetworkSystemTypeEnum>.GetValue(request.Network.SystemType);
+        var networkType = EnumHelper<NetworkSystemTypeEnum>.ParseUserInput(request.Network.SystemType);
         network.Name = request.Network.Name;
         network.SystemType = networkType;
 
@@ -32,31 +32,12 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         await _networkRepository.SaveChangesAsync(cancellationToken);
 
 
-        var result = new NetworkDto
+        var result = new UpdateNetworkDto
         {
-            Id = network.Id,
             Name = network.Name,
-            NetworkTemplateId = network.NetworkTemplateId,
-            NetworkTemplate = network.NetworkTemplate != null ? new NetworkTemplateDto
-            {
-                Name = network.NetworkTemplate.Name
-            } : null!,
-
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName(network.SystemType),
-
-            UplinkId = network.UpLinkId,
-            Uplink = network.UpLink != null && network.UpLink.Band != null ? new LinkDto
-            {
-                Name = network.UpLink.Band.Name
-            } : null!,
-
-            DownLinkId = network.DownLinkId,
-            DownLink = network.DownLink != null && network.DownLink.Band != null ? new LinkDto
-            {
-                Name = network.DownLink.Band.Name
-            } : null!
+            SystemType = network.SystemType.ToString()
         };
-        return new ApiResponse<NetworkDto>
+        return new ApiResponse<UpdateNetworkDto>
         {
             Data = result,
             Message = "Network updated successfully.",
