@@ -47,4 +47,11 @@ public class RolesController(IMediator mediator) : ControllerBase
         });
         return role.Succeeded ? Ok(role) : BadRequest(role);
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteRoleById(Guid id)
+    {
+        var role = await _mediator.Send(new DeleteRoleByIdRequest(id));
+        return role.Succeeded ? Ok(role) : BadRequest(role);
+    }
 }
