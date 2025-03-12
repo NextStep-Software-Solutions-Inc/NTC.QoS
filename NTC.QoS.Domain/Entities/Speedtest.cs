@@ -13,7 +13,7 @@ public class Speedtest : BaseEntity
     public virtual Generation? Generation { get; set; }
     public Guid CellId { get; set; }
     public virtual Cell? Cell { get; set; }
-    public Guid? FileId { get; set; }
+    public Guid FileId { get; set; }
     public virtual NTC.QoS.Domain.Entities.File? File { get; set; }
     public DateTime DateTime { get; set; }
     public decimal Ping { get; set; }
