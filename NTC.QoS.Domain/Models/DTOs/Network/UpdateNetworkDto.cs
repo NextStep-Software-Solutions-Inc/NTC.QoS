@@ -2,6 +2,6 @@
 
 public class UpdateNetworkDto
 {
-    public string Name { get; set; } = string.Empty;
-    public string SystemType { get; set; } = null!;
+    public required string Name { get; set; }
+    public required string SystemType { get; set; }
 }

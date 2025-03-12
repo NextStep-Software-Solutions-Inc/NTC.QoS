@@ -2,9 +2,9 @@
 
 public class CreateNetworkDto
 {
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; set; }
     public Guid NetworkTemplateId { get; set; }
-    public string SystemType { get; set; } = null!;
+    public required string SystemType { get; set; }
     public Guid UplinkId { get; set; }
     public Guid DownLinkId { get; set; }
 }
