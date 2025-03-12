@@ -20,9 +20,9 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<GetNetworkDto>>> GetAllNetworks(int pageNumber = 1, int pageSize = 10, string? search = null)
+    public async Task<ActionResult<PaginatedResponse<GetNetworkDto>>> GetAllNetworks(int pageNumber = 1, int pageSize = 10, string? search = null, Guid? networkTemplateId = null)
     {
-        var request = new GetAllNetworksRequest(pageNumber, pageSize, search);
+        var request = new GetAllNetworksRequest(pageNumber, pageSize, search, networkTemplateId);
         var networks = await _mediator.Send(request);
         return Ok(networks);
     }
