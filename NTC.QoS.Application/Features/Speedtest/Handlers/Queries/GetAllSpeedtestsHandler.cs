@@ -7,6 +7,7 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 using NTC.QoS.Domain.Models.DTOs.Generation;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
@@ -51,30 +52,43 @@ public class GetAllSpeedtestsHandler : IRequestHandler<GetAllSpeedtestsRequest, 
         var speedtestDtos = allSpeedtests.Select(s => new SpeedtestDto
         {
             Id = s.Id,
-            BarangayId = s.BarangayId,
-            Barangay = new BarangayDto
+            Barangay = new BarangaySpeedtestDto
             {
                 Id = s.BarangayId,
                 Name = s.Barangay?.Name ?? "Unknown"
             },
-            ServiceProviderId = s.ServiceProviderId,
-            ServiceProvider = new ServiceProviderDto
+            ServiceProvider = new ServiceProviderSpeedtestDto
             {
                 Id = s.ServiceProviderId,
+                Provider = new ProviderSpeedtestDto
+                {
+                    Id = s.ServiceProvider?.ProviderId ?? Guid.Empty,
+                    Name = s.ServiceProvider?.Provider?.Name ?? "Unknown",
+                },
+                Service = new ServiceSpeedtestDto
+                {
+                    Id = s.ServiceProvider?.ServiceId ?? Guid.Empty,
+                    Name = s.ServiceProvider?.Service?.Name ?? "Unknown",
+                }
             },
-            GenerationId = s.GenerationId,
-            Generation = new GenerationDto
+            Generation = new GenerationSpeedtestDto
             {
                 Id = s.GenerationId,
-                Name = s.Generation?.Name ?? "Unknown"
+                Name = s.Generation?.Name ?? "Unknown",
+                Description = s.Generation?.Description ?? "Unknown"
             },
-            CellId = s.CellId,
-            Cell = new CellDto
+            Cell = new CellSpeedtestDto
             {
                 Id = s.CellId,
-                Name = s.Cell?.Name ?? "Unknown"
+                Name = s.Cell?.Name ?? "Unknown",
+                Group = s.Cell?.Group ?? "Unknown"
             },
-            FileId = s.FileId,
+            File = new FileDto
+            {
+                Id = s.FileId,
+                Name= s.File?.Name ?? "Unknown",
+                Path = s.File?.Path ?? "Unknown",   
+            },
             DateTime = s.DateTime,
             Ping = s.Ping,
             Jitter = s.Jitter,

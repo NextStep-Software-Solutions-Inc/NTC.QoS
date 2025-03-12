@@ -11,9 +11,10 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
     public override async Task<Speedtest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Speedtest>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(s => s.ServiceProvider)
+            .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Provider)
+            .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(s => s.Barangay)
-            .Include(s => s.Generation)
+            .Include(s => s.Generation).ThenInclude(g =>g!.Technologies)
             .Include(s => s.Cell)
             .Include(s => s.File);
 
@@ -25,9 +26,10 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
     {
         IQueryable<Speedtest> query = _context.Set<Speedtest>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(s => s.ServiceProvider)
+            .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Provider)
+            .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(s => s.Barangay)
-            .Include(s => s.Generation)
+            .Include(s => s.Generation).ThenInclude(g => g!.Technologies)
             .Include(s => s.Cell)
             .Include(s => s.File);
 
