@@ -18,12 +18,20 @@ public class NAPsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
+        int pageSize = 10,
+        int pageNumber = 1,
+        Guid? serviceProviderId = null, 
+        Guid? zoneId = null,
+        Guid? fileId = null)
     {
         var result = await _mediator.Send(new GetAllNAPsRequest
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize,
+            ServiceProviderId = serviceProviderId,
+            ZoneId = zoneId,
+            FileId = fileId
         });
 
         return Ok(result);
