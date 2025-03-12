@@ -47,5 +47,4 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
 
         return new PaginatedResponse<GetNetworkDto>(allNetwork, request.PageNumber, request.PageSize);
     }
-
 }

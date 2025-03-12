@@ -44,6 +44,7 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
                 Succeeded = false,
             };
         }
+
         var newNetwork = new Domain.Aggregates.Network
         {
             Name = request.Network.Name,

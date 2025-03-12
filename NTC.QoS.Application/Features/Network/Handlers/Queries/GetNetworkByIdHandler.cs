@@ -15,7 +15,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
     public async Task<ApiResponse<GetNetworkDto>> Handle(GetNetworkByIdRequest request, CancellationToken cancellationToken)
     {
         var network = await _networkRepository.GetByIdAsync(request.Id, cancellationToken);
-        if (network == null)
+        if (network is null)
         {
             return new ApiResponse<GetNetworkDto>
             {
@@ -54,7 +54,6 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
             Data = result,
             Message = "Network retrieved successfully.",
             Succeeded = true
-
         };
     }
 }

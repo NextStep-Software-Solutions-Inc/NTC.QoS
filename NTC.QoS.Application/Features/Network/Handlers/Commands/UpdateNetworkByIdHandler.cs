@@ -31,7 +31,6 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         _networkRepository.Update(network);
         await _networkRepository.SaveChangesAsync(cancellationToken);
 
-
         var result = new UpdateNetworkDto
         {
             Name = network.Name,
@@ -42,7 +41,6 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
             Data = result,
             Message = "Network updated successfully.",
             Succeeded = true
-
         };
     }
 }
