@@ -7,5 +7,3 @@ public class DeleteRoleByIdRequest(Guid id) : IRequest<ApiResponse<bool>>
 {
     public Guid Id { get; set; } = id;
 }
-
-
