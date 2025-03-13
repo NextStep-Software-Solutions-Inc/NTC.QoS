@@ -1,6 +1,7 @@
 ﻿using NTC.QoS.Domain.Aggregates;
 
 namespace NTC.QoS.Domain.Entities;
+
 public class Role : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
