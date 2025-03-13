@@ -1,0 +1,46 @@
+﻿using MediatR;
+using NTC.QoS.Application.Features.Organization.Requests;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Organization;
+
+namespace NTC.QoS.Application.Features.Organization.Handlers.Commands;
+
+public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization> repository): IRequestHandler<CreateOrganizationRequest, ApiResponse<CreateOrganizationDto>>
+{
+    private readonly IRepository<Domain.Entities.Organization> _repository = repository;
+
+    public async Task<ApiResponse<CreateOrganizationDto>> Handle(CreateOrganizationRequest request, CancellationToken cancellationToken)
+    {
+        var organization = await _repository.FindAsync(o => o.Name == request.Organization.Name && !o.IsDeleted, cancellationToken);
+
+        if (organization is not null)
+        {
+            return new ApiResponse<CreateOrganizationDto>
+            {
+                Succeeded = false,
+                Message = "Organization already exists."
+            };
+        }
+                
+        var newOrganization = new Domain.Entities.Organization
+        {
+            Name = request.Organization.Name,
+            Description = request.Organization.Description,
+        };
+
+        _repository.Add(newOrganization);
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        return new ApiResponse<CreateOrganizationDto>
+        {
+            Data = new CreateOrganizationDto
+            {
+                Name = newOrganization.Name,
+                Description = newOrganization.Description,
+            },
+            Succeeded = true,
+            Message = "Organization created successfully.",
+        };
+    }
+}
