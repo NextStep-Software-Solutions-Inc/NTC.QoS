@@ -26,7 +26,7 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
                 Message = "The link you are trying to edit does not exist."
             };
         }
-        link.Type = EnumHelper<LinkTypeEnum>.GetValue(request.Link.Type);
+        link.Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type);
         link.BandId = request.Link.BandId;
         link.CenterFrequency = request.Link.CenterFrequency;
         link.LowerFrequency = request.Link.LowerFrequency;

@@ -18,12 +18,24 @@ public class SpeedtestsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(
+        int pageSize = 10,
+        int pageNumber = 1,
+        Guid? barangayId = null, 
+        Guid? serviceProviderId = null,
+        Guid? generationId = null,
+        Guid? cellId = null,
+        Guid? fileId = null)
     {
         var result = await _mediator.Send(new GetAllSpeedtestsRequest
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize,
+            BarangayId = barangayId,
+            ServiceProviderId = serviceProviderId,
+            GenerationId = generationId,
+            CellId = cellId,
+            FileId = fileId
         });
 
         return Ok(result);

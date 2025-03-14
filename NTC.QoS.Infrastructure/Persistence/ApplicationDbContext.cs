@@ -36,6 +36,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Technology> Technologies { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<UserType> UserTypes { get; set; }
+    public DbSet<Organization> Organizations { get; set; }
+    public DbSet<Role> Roles { get; set; }
+    public DbSet<Permission> Permissions { get; set; }
+    public DbSet<RolePermission> RolePermissions { get; set; }
+
 
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -60,7 +65,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(s => s.ServiceProviders);
 
         modelBuilder.Entity<ServiceProvider>()
-            .HasIndex(sp => new { sp.ServiceId, sp.ProviderId, sp.MNC})
+            .HasIndex(sp => new { sp.ServiceId, sp.ProviderId, sp.MNC })
             .IsUnique();
 
         modelBuilder.Entity<ServiceProvider>()
@@ -247,7 +252,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Speedtest>()
             .HasOne(s => s.Barangay)
             .WithMany(b => b.Speedtests)
-            .HasForeignKey(s => s.GenerationId);
+            .HasForeignKey(s => s.BarangayId);
 
         modelBuilder.Entity<Cellular>()
             .HasOne(c => c.Barangay)
@@ -294,8 +299,29 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(z => z.BarangayId);
 
         modelBuilder.Entity<User>()
-            .HasOne(u => u.UserType)
-            .WithMany(ut => ut.Users)
-            .HasForeignKey(u => u.UserTypeId);
+            .HasOne(u => u.Role)
+            .WithMany(r => r.Users)
+            .HasForeignKey(u => u.RoleId);
+
+        modelBuilder.Entity<User>()
+            .HasOne(u => u.Organization)
+            .WithMany(o => o.Users)
+            .HasForeignKey(u => u.OrganizationId);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.Users);
+
+        modelBuilder.Entity<Role>()
+            .HasMany(r => r.Users);
+
+        modelBuilder.Entity<Role>()
+            .HasMany(r => r.RolePermissions);
+
+        modelBuilder.Entity<Permission>()
+            .HasMany(p => p.RolePermissions);
+
+        modelBuilder.Entity<RolePermission>()
+            .HasIndex(rp => new { rp.PermissionId, rp.RoleId })
+            .IsUnique();
     }
 }

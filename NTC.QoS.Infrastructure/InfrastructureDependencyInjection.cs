@@ -29,6 +29,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IServiceProviderRepository, ServiceProviderRepository>();
         services.AddScoped<ICellRepository, CellRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
+        services.AddScoped<INetworkRepository, NetworkRepository>();
         services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
         services.AddScoped<IBarangayRepository, BarangayRepository>();
         services.AddScoped<IZoneRepository, ZoneRepository>();
@@ -40,7 +41,8 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IGenerationBandRepository, GenerationBandRepository>();
         services.AddScoped<ISpeedtestRepository, SpeedtestRepository>();
         services.AddScoped<INAPRepository, NAPRepository>();
-
+        services.AddScoped<IFileRepository, FileRepository>();
+        services.AddScoped<ICellularRepository, CellularRepository>();
 
         return services;
     }
