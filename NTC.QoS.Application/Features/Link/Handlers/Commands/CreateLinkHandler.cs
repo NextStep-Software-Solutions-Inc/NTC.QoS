@@ -18,7 +18,7 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
     {
         var newLink = new Domain.Aggregates.Link
         {
-            Type = EnumHelper<LinkTypeEnum>.GetValue(request.Link.Type),
+            Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type),
             CenterFrequency = request.Link.CenterFrequency,
             LowerFrequency = request.Link.LowerFrequency,
             UpperFrequency = request.Link.UpperFrequency,

@@ -38,4 +38,40 @@ public static class EnumHelper<T> where T : struct, Enum
             return value.ToString();
         }
     }
+
+    public static T ParseUserInput(string userInput)
+    {
+        // 1. Attempt parsing directly (case-insensitive)
+        if (Enum.TryParse(userInput, true, out T result))
+        {
+            return result;
+        }
+
+        // 2. Attempt parsing by description (case-insensitive)
+        foreach (T enumValue in Enum.GetValues(typeof(T)))
+        {
+            if (GetDescription(enumValue).Equals(userInput, StringComparison.OrdinalIgnoreCase))
+            {
+                return enumValue;
+            }
+        }
+
+        // 3. Attempt parsing by description after removing spaces.
+        foreach (T enumValue in Enum.GetValues(typeof(T)))
+        {
+            if (GetDescription(enumValue).Replace(" ", "").Equals(userInput.Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
+            {
+                return enumValue;
+            }
+        }
+
+        // 4. Attempt parsing by removing spaces from the input then compare to enum names.
+        if (Enum.TryParse(userInput.Replace(" ", ""), true, out T _))
+        {
+            return result;
+        }
+
+        // If all parsing attempts fail, throw an exception
+        throw new ArgumentException($"Invalid value for enum {typeof(T).Name}: '{userInput}'. Please use a valid name or description.");
+    }
 }
