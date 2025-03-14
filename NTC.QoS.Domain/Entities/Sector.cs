@@ -41,5 +41,3 @@ public class Sector : BaseEntity
     public decimal RxBeamTilt { get; set; }
     public decimal RxEIRP { get; set; }
 }
-
-
