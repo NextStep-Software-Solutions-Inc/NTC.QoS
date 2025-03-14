@@ -23,7 +23,7 @@ public class GetSectorDto
     public required decimal TxAntennaAzimuth { get; set; }
     public required decimal TxAntennaTilt { get; set; }
     public required AntennaPatternSectorDto TxAntennaPattern { get; set; }
-    public required string TxEIRP { get; set; }
+    public required decimal TxEIRP { get; set; }
     public required string RxAntennaModel { get; set; }
     public required string RxCableType { get; set; }
     public required decimal RxCableLength { get; set; }
@@ -34,5 +34,5 @@ public class GetSectorDto
     public required decimal RxAntennaAzimuth { get; set; }
     public required decimal RxAntennaTilt { get; set; }
     public required AntennaPatternSectorDto RxAntennaPattern { get; set; }
-    public required string RxEIRP { get; set; }
+    public required decimal RxEIRP { get; set; }
 }

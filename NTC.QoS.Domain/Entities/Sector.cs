@@ -13,7 +13,7 @@ public class Sector : BaseEntity
     public virtual Cell? Cell { get; set; }
     public Guid TxAntennaPatternId { get; set; }
     public virtual AntennaPattern? TxAntennaPattern { get; set; }
-    public Guid? RxAntennaPatternId { get; set; }
+    public Guid RxAntennaPatternId { get; set; }
     public virtual AntennaPattern? RxAntennaPattern { get; set; }
     public AntennaTypeEnum AntennaType { get; set; } = AntennaTypeEnum.Unknown;
     public int Number { get; set; }
