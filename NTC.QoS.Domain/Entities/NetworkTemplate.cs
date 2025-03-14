@@ -1,4 +1,6 @@
-﻿namespace NTC.QoS.Domain.Entities;
+﻿using NTC.QoS.Domain.Aggregates;
+
+namespace NTC.QoS.Domain.Entities;
 public class NetworkTemplate : BaseEntity
 {
     public string Name { get; set; } = string.Empty;

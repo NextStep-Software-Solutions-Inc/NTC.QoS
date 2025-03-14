@@ -956,7 +956,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("NetworkTemplateId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Type")
+                    b.Property<int>("SystemType")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("UpLinkId")
