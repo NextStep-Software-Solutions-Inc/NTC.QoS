@@ -19,7 +19,7 @@ public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepos
     {
         var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
 
-        var sector = await _sectorRepository.FindAsync(s => s.NetworkId == request.Sector.NetworkId && s.CellId == request.Sector.CellId && s.AntennaType == antennaType && !s.IsDeleted, cancellationToken);
+        var sector = await _sectorRepository.FindAsync(s => s.NetworkId == request.Sector.NetworkId && s.CellId == request.Sector.CellId && s.AntennaType == antennaType && s.Number == request.Sector.Number && !s.IsDeleted, cancellationToken);
         if (sector is not null)
         {
             return new ApiResponse<CreateSectorDto>
@@ -94,18 +94,37 @@ public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepos
             TxBeamTilt = request.Sector.TxBeamTilt,
             TxAntennaPatternId = txAntennaPattern.Id,
             TxEIRP = request.Sector.TxEIRP,
-            RxAntennaModel = request.Sector.RxAntennaModel,
-            RxCableType = request.Sector.RxCableType,
-            RxCableLength = request.Sector.RxCableLength,
-            RxCableLoss = request.Sector.RxCableLoss,
-            RxAdditionalLoss = request.Sector.RxAdditionalLoss,
-            RxAntennaHeight = request.Sector.RxAntennaHeight,
-            RxAntennaGain = request.Sector.RxAntennaGain,
-            RxAzimuth = request.Sector.RxAzimuth,
-            RxBeamTilt = request.Sector.RxBeamTilt,
-            RxAntennaPatternId = rxAntennaPattern.Id,
-            RxEIRP = request.Sector.RxEIRP
         };
+
+        if (request.Sector.IsRxEqualTx)
+        {
+            newSector.RxAntennaModel = newSector.TxAntennaModel;
+            newSector.RxCableType = newSector.TxCableType;
+            newSector.RxCableLength = newSector.TxCableLength;
+            newSector.RxCableLoss = newSector.TxCableLoss;
+            newSector.RxAdditionalLoss = newSector.TxAdditionalLoss;
+            newSector.RxAntennaHeight = newSector.TxAntennaHeight;
+            newSector.RxAntennaGain = newSector.TxAntennaGain;
+            newSector.RxAzimuth = newSector.TxAzimuth;
+            newSector.RxBeamTilt = newSector.TxBeamTilt;
+            newSector.RxAntennaPatternId = txAntennaPattern.Id;
+            newSector.RxEIRP = newSector.TxEIRP;
+        }
+        else
+        {
+            newSector.RxAntennaModel = request.Sector.RxAntennaModel;
+            newSector.RxCableType = request.Sector.RxCableType;
+            newSector.RxCableLength = request.Sector.RxCableLength;
+            newSector.RxCableLoss = request.Sector.RxCableLoss;
+            newSector.RxAdditionalLoss = request.Sector.RxAdditionalLoss;
+            newSector.RxAntennaHeight = request.Sector.RxAntennaHeight;
+            newSector.RxAntennaGain = request.Sector.RxAntennaGain;
+            newSector.RxAzimuth = request.Sector.RxAzimuth;
+            newSector.RxBeamTilt = request.Sector.RxBeamTilt;
+            newSector.RxAntennaPatternId = rxAntennaPattern.Id;
+            newSector.RxEIRP = request.Sector.RxEIRP;
+        }
+
         _sectorRepository.Add(newSector);
         await _sectorRepository.SaveChangesAsync(cancellationToken);
         return new ApiResponse<CreateSectorDto>
