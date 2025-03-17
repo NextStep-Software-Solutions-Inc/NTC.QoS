@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace NTC.QoS.Domain.Models.DTOs.NAP;
 
-namespace NTC.QoS.Domain.Models.DTOs.NAP
+public class ServiceProviderNAPDto
 {
-    internal class ServiceProviderNAPDto
-    {
-    }
+    public Guid Id { get; set; }
+    public ProviderNAPDto? Provider { get; set; }
+    public ServiceNAPDto? Service { get; set; }
 }

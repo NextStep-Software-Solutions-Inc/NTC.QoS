@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.NAP.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.NAP;
@@ -42,30 +43,26 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Queries
             {
                 Id = n.Id,
                 FileId = n.FileId,
-                ServiceProviderId = n.ServiceProviderId,
-                ServiceProvider = n.ServiceProvider != null
-                    ? new ServiceProviderDto
+                ServiceProvider = new ServiceProviderNAPDto
+                {
+                    Id = n.ServiceProviderId,
+                    Service = new ServiceNAPDto
                     {
-                        ProviderId = n.ServiceProvider.ProviderId,
-                        ServiceId = n.ServiceProvider.ServiceId,
-                        Provider = new ProviderDto
-                        {
-                            Name = n.ServiceProvider.Provider?.Name ?? string.Empty
-                        },
-                        Service = new ServiceDto
-                        {
-                            Name = n.ServiceProvider.Service?.Name ?? string.Empty
-                        }
-                    }
-                    : null,
-                ZoneId = n.ZoneId,
-                Zone = n.Zone != null
-                    ? new ZoneDto
+                        Id = n.ServiceProvider?.ServiceId ?? Guid.Empty,
+                        Name = n.ServiceProvider?.Service?.Name ?? "Unknown",
+                        Type = n.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
+                    },
+                    Provider = new ProviderNAPDto
                     {
-                        Id = n.Zone.Id,
-                        Name = n.Zone.Name ?? string.Empty
+                        Id = n.ServiceProvider?.ProviderId ?? Guid.Empty,
+                        Name = n.ServiceProvider?.Provider?.Name ?? "Unknown",
                     }
-                    : null,
+                },
+                Zone = new ZoneNAPDto
+                {
+                    Id = n.ZoneId,
+                    Name = n.Zone?.Name ?? "Unknown",
+                },
                 CoorLatitude = n.CoorLatitude,
                 CoorLongitude = n.CoorLongitude,
             }).ToList();

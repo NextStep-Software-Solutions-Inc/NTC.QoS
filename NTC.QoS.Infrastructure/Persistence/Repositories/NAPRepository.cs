@@ -10,6 +10,10 @@ internal sealed class NAPRepository(ApplicationDbContext context) : Repository<N
     {
         var query = _context.Set<NAP>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(n => n.Zone)
+                .ThenInclude(z => z!.Barangay)
+                    .ThenInclude(b => b!.Municipality)
+                        .ThenInclude(m => m!.Province)
+                            .ThenInclude(p => p!.Region)
             .Include(n => n.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(n => n.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(n => n.File);
@@ -20,6 +24,10 @@ internal sealed class NAPRepository(ApplicationDbContext context) : Repository<N
     {
         var query = _context.Set<NAP>().Where(expression)
             .Include(n => n.Zone)
+                .ThenInclude(z => z!.Barangay)
+                    .ThenInclude(b => b!.Municipality)
+                        .ThenInclude(m => m!.Province)
+                            .ThenInclude(p => p!.Region)
             .Include(n => n.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(n => n.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(n => n.File);
@@ -34,6 +42,10 @@ internal sealed class NAPRepository(ApplicationDbContext context) : Repository<N
         IQueryable<NAP> query = _context.Set<NAP>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(n => n.Zone)
+                .ThenInclude(z => z!.Barangay)
+                    .ThenInclude(b => b!.Municipality)
+                        .ThenInclude(m => m!.Province)
+                            .ThenInclude(p => p!.Region)
             .Include(n => n.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(n => n.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(n => n.File);
