@@ -38,4 +38,11 @@ public class RolePermissionsController(IMediator mediator) : ControllerBase
         var rolePermission = await _mediator.Send(new GetRolePermissionByIdRequest(id));
         return rolePermission.Succeeded ? Ok(rolePermission) : BadRequest(rolePermission);
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteRolePermission(Guid id)
+    {
+        var rolePermission = await _mediator.Send(new DeleteRolePermissionByIdRequest(id));
+        return rolePermission.Succeeded ? Ok(rolePermission) : BadRequest(rolePermission);
+    }
 }

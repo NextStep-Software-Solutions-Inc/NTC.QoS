@@ -1,0 +1,35 @@
+﻿using MediatR;
+using NTC.QoS.Application.Features.Network.Requests;
+using NTC.QoS.Application.Features.RolePermission.Requests;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
+
+namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
+
+public class DeleteRolePermissionByIdHandler(IRolePermissionRepository rolePermissionRepository) : IRequestHandler<DeleteRolePermissionByIdRequest, ApiResponse<bool>>
+{
+    private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
+    public async Task<ApiResponse<bool>> Handle(DeleteRolePermissionByIdRequest request, CancellationToken cancellationToken)
+    {
+        var rolePermission = await _rolePermissionRepository.FindAsync(rp => rp.Id == request.Id && !rp.IsDeleted, cancellationToken);
+        if (rolePermission is null)
+        {
+            return new ApiResponse<bool>
+            {
+                Data = false,
+                Succeeded = false,
+                Error = new[] { $"Role permission with ID [{request.Id}] not found." },
+                Message = $"Role permission does not exist."
+            };
+        }
+        _rolePermissionRepository.Delete(rolePermission);
+        await _rolePermissionRepository.SaveChangesAsync(cancellationToken);
+
+        return new ApiResponse<bool>
+        {
+            Data = true,
+            Message = "Role permission deleted successfully.",
+            Succeeded = true
+        };
+    }
+}
