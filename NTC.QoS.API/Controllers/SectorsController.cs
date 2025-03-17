@@ -47,9 +47,16 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateSector(Guid id, UpdateSectorDto sectorDto)
+    public async Task<ActionResult<ApiResponse<UpdateSectorDto>>> UpdateSector(Guid id, UpdateSectorDto sectorDto)
     {
         var sector = await _mediator.Send(new UpdateSectorByIdRequest(id, sectorDto));
+        return sector.Succeeded ? Ok(sector) : BadRequest(sector);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteSector(Guid id)
+    {
+        var sector = await _mediator.Send(new DeleteSectorByIdRequest(id));
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);
     }
 }
