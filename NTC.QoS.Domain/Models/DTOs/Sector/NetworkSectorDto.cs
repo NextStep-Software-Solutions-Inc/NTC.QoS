@@ -6,5 +6,5 @@ public class NetworkSectorDto
 {
     public Guid Id { get; set; }
     public required string Name { get; set; }
-    public required NetworkSystemTypeEnum SystemType { get; set; }
+    public required string SystemType { get; set; }
 }

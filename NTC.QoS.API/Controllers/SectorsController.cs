@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Sector.Requests;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.API.Controllers;
@@ -16,5 +17,25 @@ public class SectorsController(IMediator mediator) : ControllerBase
     {
         var sector = await _mediator.Send(new CreateSectorRequest(sectorDto));
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<PaginatedResponse<GetSectorDto>>> GetAllSectors(int pageSize = 10,
+                                                int pageNumber = 1,
+                                                Guid? networkId = null,
+                                                Guid? mimoId = null,
+                                                Guid? cellId = null,
+                                                Guid? txAntennaPatternId = null,
+                                                Guid? rxAntennaPatternId = null)
+    {
+        var sectors = await _mediator.Send(new GetAllSectorsRequest(pageSize,
+                                                                    pageNumber,
+                                                                    networkId,
+                                                                    mimoId,
+                                                                    cellId,
+                                                                    txAntennaPatternId,
+                                                                    rxAntennaPatternId));
+       
+        return sectors.Succeeded ? Ok(sectors) : BadRequest(sectors);
     }
 }

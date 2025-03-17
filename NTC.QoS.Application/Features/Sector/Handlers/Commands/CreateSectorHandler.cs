@@ -115,7 +115,7 @@ public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepos
                 NetworkId = newSector.NetworkId,
                 MIMOId = newSector.MIMOId,
                 CellId = newSector.CellId,
-                AntennaType = newSector.AntennaType.ToString(),
+                AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.AntennaType),
                 Number = newSector.Number,
                 RadioEquipment = newSector.RadioEquipment,
                 IsRxEqualTx = newSector.IsRxEqualTx,
