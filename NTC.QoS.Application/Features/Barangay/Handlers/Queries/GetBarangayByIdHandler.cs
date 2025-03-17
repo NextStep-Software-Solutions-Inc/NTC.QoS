@@ -4,6 +4,8 @@ using NTC.QoS.Application.Features.Barangay.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 
@@ -33,14 +35,25 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
                 Id = barangay.Id,
                 Name = barangay.Name,
                 Description = barangay.Description,
-                MunicipalityId = barangay.MunicipalityId,
-                Municipality = barangay.Municipality != null ? new MunicipalityDto
+                Municipality = new MunicipalityDto
                 {
-                    Id = barangay.Municipality.Id,
-                    IsCity = barangay.Municipality.IsCity,
-                    ProvinceId = barangay.Municipality.ProvinceId,
-                    Name = barangay.Municipality.Name
-                } : null
+                    Id = barangay.MunicipalityId,
+                    Name = barangay.Municipality?.Name ?? "Unknown",
+                    IsCity = barangay.Municipality?.IsCity ?? false,
+                    Description = barangay.Municipality?.Description,
+                    Province = new ProvinceDto
+                    {
+                        Id = barangay.Municipality?.ProvinceId ?? Guid.Empty,
+                        Name = barangay.Municipality?.Province?.Name ?? "Unknown",
+                        Description = barangay.Municipality?.Province?.Description,
+                        Region = new RegionDto
+                        {
+                            Id = barangay.Municipality?.Province?.Region?.Id ?? Guid.Empty,
+                            Name = barangay.Municipality?.Province?.Region?.Name ?? "Unknown",
+                            Description = barangay.Municipality?.Province?.Region?.Description,
+                        }
+                    }
+                }
             }
         };
     }
