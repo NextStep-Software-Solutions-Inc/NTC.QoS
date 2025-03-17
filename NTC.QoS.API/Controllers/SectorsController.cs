@@ -38,4 +38,11 @@ public class SectorsController(IMediator mediator) : ControllerBase
        
         return sectors.Succeeded ? Ok(sectors) : BadRequest(sectors);
     }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<GetSectorDto>>> GetSectorById(Guid id)
+    {
+        var sector = await _mediator.Send(new GetSectorByIdRequest(id));
+        return sector.Succeeded ? Ok(sector) : BadRequest(sector);
+    }
 }
