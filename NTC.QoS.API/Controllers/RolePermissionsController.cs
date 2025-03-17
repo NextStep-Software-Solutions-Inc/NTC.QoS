@@ -21,4 +21,14 @@ public class RolePermissionsController(IMediator mediator) : ControllerBase
         });
         return rolePermission.Succeeded ? Ok(rolePermission) : BadRequest(rolePermission);
     }
+
+    [HttpGet]
+    public async Task<ActionResult<PaginatedResponse<GetRolePermissionDto>>> GetAllRolePermissions(int pageSize = 10,
+                                                                                                   int pageNumber = 1,
+                                                                                                   Guid? roleId = null,
+                                                                                                   Guid? permissionId = null)
+    {
+        var rolePermissions = await _mediator.Send(new GetAllRolePermissionsRequest(pageNumber, pageSize, roleId, permissionId));
+        return rolePermissions.Succeeded ? Ok(rolePermissions) : BadRequest(rolePermissions);
+    }
 }
