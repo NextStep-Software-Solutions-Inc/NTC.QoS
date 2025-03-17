@@ -45,4 +45,11 @@ public class UsersController(IMediator mediator) : ControllerBase
         var user = await _mediator.Send(new UpdateUserByIdRequest(id, updateUserDto));
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteUser(Guid id)
+    {
+        var user = await _mediator.Send(new DeleteUserByIdRequest(id));
+        return user.Succeeded ? Ok(user) : BadRequest(user);
+    }
 }
