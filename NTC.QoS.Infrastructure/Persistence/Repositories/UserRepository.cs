@@ -31,4 +31,9 @@ internal sealed class UserRepository(ApplicationDbContext context) : Repository<
         }
         return await query.ToListAsync(cancellationToken);
     }
+
+    public async Task<List<User>> GetAllUsersAsync(CancellationToken cancellationToken = default)
+    {
+        return await ListAsync(null, cancellationToken);
+    }
 }

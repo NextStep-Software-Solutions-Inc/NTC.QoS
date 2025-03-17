@@ -38,4 +38,11 @@ public class UsersController(IMediator mediator) : ControllerBase
         var user = await _mediator.Send(new GetUserByIdRequest(id));
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<UpdateUserDto>>> UpdateUser(Guid id, UpdateUserDto updateUserDto)
+    {
+        var user = await _mediator.Send(new UpdateUserByIdRequest(id, updateUserDto));
+        return user.Succeeded ? Ok(user) : BadRequest(user);
+    }
 }
