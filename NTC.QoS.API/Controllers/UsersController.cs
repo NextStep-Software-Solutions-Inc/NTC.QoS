@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using NTC.QoS.Application.Features.GenerationBand.Requests;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -23,4 +22,20 @@ public class UsersController(IMediator mediator) : ControllerBase
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
 
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<GetUserDto>>> GetAllUsers(int pageSize = 10,
+                                                                         int pageNumber = 1,
+                                                                         Guid? roleId = null,
+                                                                         Guid? organizationId = null)
+    {
+        var users = await _mediator.Send(new GetAllUsersRequest(pageSize, pageNumber, roleId, organizationId));
+        return users.Succeeded ? Ok(users) : BadRequest(users);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<GetUserDto>>> GetUserById(Guid id)
+    {
+        var user = await _mediator.Send(new GetUserByIdRequest(id));
+        return user.Succeeded ? Ok(user) : BadRequest(user);
+    }
 }
