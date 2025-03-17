@@ -40,4 +40,16 @@ internal sealed class SectorRepository(ApplicationDbContext context)
 
         return await query.ToListAsync(cancellationToken);
     }
+
+    // Example of how to get all sectors
+    public async Task<List<Sector>> GetAllSectorsAsync(CancellationToken cancellationToken = default)
+    {
+        return await ListAsync(null, cancellationToken);
+    }
+
+    // Example of how to find sectors based on a condition
+    public async Task<List<Sector>> FindSectorsAsync(Expression<Func<Sector, bool>> expression, CancellationToken cancellationToken = default)
+    {
+        return await ListAsync(expression, cancellationToken);
+    }
 }

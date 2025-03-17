@@ -45,4 +45,11 @@ public class SectorsController(IMediator mediator) : ControllerBase
         var sector = await _mediator.Send(new GetSectorByIdRequest(id));
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);
     }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateSector(Guid id, UpdateSectorDto sectorDto)
+    {
+        var sector = await _mediator.Send(new UpdateSectorByIdRequest(id, sectorDto));
+        return sector.Succeeded ? Ok(sector) : BadRequest(sector);
+    }
 }

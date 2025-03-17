@@ -5,7 +5,7 @@ public class UpdateSectorDto
     public required Guid NetworkId { get; set; }
     public required string AntennaType { get; set; }
     public required int Number { get; set; }
-    public required Guid MIMOId { get; set; }
+    public Guid? MIMOId { get; set; }
     public required Guid CellId { get; set; }
     public required string RadioEquipment { get; set; }
     public required bool IsRxEqualTx { get; set; }
@@ -20,7 +20,7 @@ public class UpdateSectorDto
     public required decimal TxAzimuth { get; set; }
     public required decimal TxBeamTilt { get; set; }
     public required Guid TxAntennaPatternId { get; set; }
-    public required string TxEIRP { get; set; }
+    public required decimal TxEIRP { get; set; }
     public required string RxAntennaModel { get; set; }
     public required string RxCableType { get; set; }
     public required decimal RxCableLength { get; set; }
@@ -31,5 +31,5 @@ public class UpdateSectorDto
     public required decimal RxAzimuth { get; set; }
     public required decimal RxBeamTilt { get; set; }
     public required Guid RxAntennaPatternId { get; set; }
-    public required string RxEIRP { get; set; }
+    public required decimal RxEIRP { get; set; }
 }
