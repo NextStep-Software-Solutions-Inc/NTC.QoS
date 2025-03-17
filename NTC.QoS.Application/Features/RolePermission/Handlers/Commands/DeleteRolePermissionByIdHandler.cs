@@ -1,10 +1,9 @@
 ﻿using MediatR;
-using NTC.QoS.Application.Features.Network.Requests;
 using NTC.QoS.Application.Features.RolePermission.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 
-namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
+namespace NTC.QoS.Application.Features.RolePermission.Handlers.Commands;
 
 public class DeleteRolePermissionByIdHandler(IRolePermissionRepository rolePermissionRepository) : IRequestHandler<DeleteRolePermissionByIdRequest, ApiResponse<bool>>
 {
