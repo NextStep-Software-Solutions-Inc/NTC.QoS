@@ -4,7 +4,9 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Queries;
 
@@ -25,13 +27,31 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
         {
             Id = z.Id,
             Name = z.Name,
-            BarangayId = z.BarangayId,
-            Barangay = z.Barangay != null ? new BarangayDto
+            Barangay = new BarangayDto
             {
-                Id = z.Barangay.Id,
-                MunicipalityId = z.Barangay.MunicipalityId,
-                Name = z.Barangay.Name
-            } : null
+                Id = z.BarangayId,
+                Name = z.Barangay?.Name ?? "Unknown",
+                Description = z.Barangay?.Description ?? "Unknown",
+                Municipality = new MunicipalityDto
+                {
+                    Id = z.Barangay?.MunicipalityId ?? Guid.Empty,
+                    Name = z.Barangay?.Municipality?.Name ?? "Unknown",
+                    IsCity = z.Barangay?.Municipality?.IsCity ?? false,
+                    Description = z.Barangay?.Municipality?.Description,
+                    Province = new ProvinceDto
+                    {
+                        Id = z.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                        Name = z.Barangay?.Municipality?.Province?.Name ?? "Unknown",
+                        Description = z.Barangay?.Municipality?.Province?.Description,
+                        Region = new RegionDto
+                        {
+                            Id = z.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
+                            Name = z.Barangay?.Municipality?.Province?.Region?.Name ?? "Unknown",
+                            Description = z.Barangay?.Municipality?.Province?.Region?.Description,
+                        }
+                    }
+                }
+            }
         }).ToList();
 
         return new PaginatedResponse<ZoneDto>(zoneDtos, request.PageNumber, request.PageSize);

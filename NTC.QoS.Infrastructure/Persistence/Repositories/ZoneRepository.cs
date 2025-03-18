@@ -10,7 +10,10 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
     public override async Task<Zone?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Zone>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(z => z.Barangay);
+            .Include(z => z.Barangay)
+                .ThenInclude(b => b!.Municipality)
+                    .ThenInclude(m => m!.Province)
+                        .ThenInclude(p => p!.Region);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -20,7 +23,10 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
     {
         IQueryable<Zone> query = _context.Set<Zone>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(z => z.Barangay);
+            .Include(z => z.Barangay)
+                .ThenInclude(b => b!.Municipality)
+                    .ThenInclude(m => m!.Province)
+                        .ThenInclude(p => p!.Region);
 
         if (expression != null)
         {
