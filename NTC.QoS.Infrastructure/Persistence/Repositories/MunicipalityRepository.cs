@@ -10,7 +10,8 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
     public new async Task<Municipality?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Municipality>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(m => m.Province);
+            .Include(m => m.Province)
+                .ThenInclude(p => p!.Region);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -20,7 +21,8 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
     {
         IQueryable<Municipality> query = _context.Set<Municipality>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(m => m.Province);
+            .Include(m => m.Province)
+                .ThenInclude(p => p!.Region);
 
         if (expression != null)
         {
