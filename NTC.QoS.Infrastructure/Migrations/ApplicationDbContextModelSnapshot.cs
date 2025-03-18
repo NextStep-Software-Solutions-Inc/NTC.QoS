@@ -119,7 +119,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ZoneId");
 
-                    b.ToTable("Cells", (string)null);
+                    b.ToTable("Cells");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Generation", b =>
@@ -161,7 +161,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Generations", (string)null);
+                    b.ToTable("Generations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
@@ -204,7 +204,69 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
-                    b.ToTable("GenerationBands", (string)null);
+                    b.HasIndex("GenerationId");
+
+                    b.ToTable("GenerationBands");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Link", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("CenterFrequency")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("LowerFrequency")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("RxThreshold")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("ServiceProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("UpperFrequency")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("ServiceProviderId");
+
+                    b.ToTable("Links");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.NAP", b =>
@@ -262,7 +324,53 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ZoneId");
 
-                    b.ToTable("NAPs", (string)null);
+                    b.ToTable("NAPs");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoleId");
+
+                    b.HasIndex("PermissionId", "RoleId")
+                        .IsUnique();
+
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.ServiceProvider", b =>
@@ -316,7 +424,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("ServiceId", "ProviderId", "MNC")
                         .IsUnique();
 
-                    b.ToTable("ServiceProviders", (string)null);
+                    b.ToTable("ServiceProviders");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyMunicipality", b =>
@@ -361,7 +469,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyMunicipalities", (string)null);
+                    b.ToTable("StudyMunicipalities");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyNetwork", b =>
@@ -406,7 +514,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyNetworks", (string)null);
+                    b.ToTable("StudyNetworks");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>
@@ -449,7 +557,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AntennaPatterns", (string)null);
+                    b.ToTable("AntennaPatterns");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AreaStudy", b =>
@@ -494,7 +602,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("AreaStudies", (string)null);
+                    b.ToTable("AreaStudies");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Band", b =>
@@ -539,7 +647,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Bands", (string)null);
+                    b.ToTable("Bands");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
@@ -586,7 +694,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("MunicipalityId");
 
-                    b.ToTable("Barangays", (string)null);
+                    b.ToTable("Barangays");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
@@ -615,7 +723,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("FileId")
+                    b.Property<Guid>("FileId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("GenerationBandId")
@@ -649,7 +757,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("Cellulars", (string)null);
+                    b.ToTable("Cellulars");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
@@ -705,67 +813,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Files", (string)null);
-                });
-
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Link", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BandId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("CenterFrequency")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("LowerFrequency")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("RxThreshold")
-                        .HasColumnType("numeric");
-
-                    b.Property<Guid>("ServiceProviderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("UpperFrequency")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BandId");
-
-                    b.HasIndex("ServiceProviderId");
-
-                    b.ToTable("Links", (string)null);
+                    b.ToTable("Files");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.MIMO", b =>
@@ -822,7 +870,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MIMOs", (string)null);
+                    b.ToTable("MIMOs");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
@@ -872,7 +920,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ProvinceId");
 
-                    b.ToTable("Municipalities", (string)null);
+                    b.ToTable("Municipalities");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Network", b =>
@@ -908,7 +956,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("NetworkTemplateId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Type")
+                    b.Property<int>("SystemType")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("UpLinkId")
@@ -929,7 +977,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("UpLinkId");
 
-                    b.ToTable("Networks", (string)null);
+                    b.ToTable("Networks");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.NetworkTemplate", b =>
@@ -975,7 +1023,95 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("NetworkTemplates", (string)null);
+                    b.ToTable("NetworkTemplates");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Organization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Organizations");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Permission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Permissions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Provider", b =>
@@ -1023,7 +1159,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Providers", (string)null);
+                    b.ToTable("Providers");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Province", b =>
@@ -1070,7 +1206,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("RegionId");
 
-                    b.ToTable("Provinces", (string)null);
+                    b.ToTable("Provinces");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Region", b =>
@@ -1112,7 +1248,53 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Regions", (string)null);
+                    b.ToTable("Regions");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Role", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Sector", b =>
@@ -1253,7 +1435,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("TxAntennaPatternId");
 
-                    b.ToTable("Sectors", (string)null);
+                    b.ToTable("Sectors");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Service", b =>
@@ -1298,7 +1480,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Name", "Type")
                         .IsUnique();
 
-                    b.ToTable("Services", (string)null);
+                    b.ToTable("Services");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Speedtest", b =>
@@ -1341,7 +1523,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<decimal>("DownloadSpeed")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid?>("FileId")
+                    b.Property<Guid>("FileId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("GenerationId")
@@ -1393,6 +1575,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BarangayId");
+
                     b.HasIndex("CellId");
 
                     b.HasIndex("FileId");
@@ -1401,7 +1585,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("Speedtests", (string)null);
+                    b.ToTable("Speedtests");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Study", b =>
@@ -1451,7 +1635,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("AreaStudyId");
 
-                    b.ToTable("Studies", (string)null);
+                    b.ToTable("Studies");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Technology", b =>
@@ -1501,7 +1685,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Standard")
                         .IsUnique();
 
-                    b.ToTable("Technologies", (string)null);
+                    b.ToTable("Technologies");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>
@@ -1509,10 +1693,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<string>("ApprovedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<string>("AuthUserId")
                         .IsRequired()
@@ -1532,23 +1712,14 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
 
-                    b.Property<string>("MiddleName")
-                        .HasColumnType("text");
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1557,14 +1728,18 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("UserTypeId")
+                    b.Property<Guid?>("UserTypeId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("RoleId");
+
                     b.HasIndex("UserTypeId");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.UserType", b =>
@@ -1606,7 +1781,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("UserTypes", (string)null);
+                    b.ToTable("UserTypes");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
@@ -1650,7 +1825,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BarangayId");
 
-                    b.ToTable("Zone", (string)null);
+                    b.ToTable("Zone");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
@@ -1680,21 +1855,40 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
-                        .WithMany("GenerationBands")
-                        .HasForeignKey("BandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
                         .WithMany("GenerationBands")
                         .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
+                        .WithMany("GenerationBands")
+                        .HasForeignKey("GenerationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Band");
 
                     b.Navigation("Generation");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Link", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany("Links")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
+                        .WithMany("Links")
+                        .HasForeignKey("ServiceProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("ServiceProvider");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.NAP", b =>
@@ -1724,6 +1918,25 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Zone");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.RolePermission", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Permission", "Permission")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Role", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.ServiceProvider", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Provider", "Provider")
@@ -1746,7 +1959,7 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyMunicipality", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Municipality", "Municipality")
-                        .WithMany()
+                        .WithMany("StudyMunicipalities")
                         .HasForeignKey("MunicipalityId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1808,7 +2021,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.File", "File")
                         .WithMany("Cellulars")
-                        .HasForeignKey("FileId");
+                        .HasForeignKey("FileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.GenerationBand", "GenerationBand")
                         .WithMany("Cellulars")
@@ -1833,25 +2048,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("ServiceProvider");
                 });
 
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Link", b =>
-                {
-                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
-                        .WithMany("Links")
-                        .HasForeignKey("BandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
-                        .WithMany("Links")
-                        .HasForeignKey("ServiceProviderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Band");
-
-                    b.Navigation("ServiceProvider");
-                });
-
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Province", "Province")
@@ -1865,7 +2061,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Network", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Link", "DownLink")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "DownLink")
                         .WithMany("DownLinks")
                         .HasForeignKey("DownLinkId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1877,7 +2073,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Link", "UpLink")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "UpLink")
                         .WithMany("UpLinks")
                         .HasForeignKey("UpLinkId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1942,6 +2138,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Speedtest", b =>
                 {
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
+                        .WithMany("Speedtests")
+                        .HasForeignKey("BarangayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("NTC.QoS.Domain.Aggregates.Cell", "Cell")
                         .WithMany("Speedtests")
                         .HasForeignKey("CellId")
@@ -1950,15 +2152,11 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.File", "File")
                         .WithMany("Speedtests")
-                        .HasForeignKey("FileId");
-
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
-                        .WithMany("Speedtests")
-                        .HasForeignKey("GenerationId")
+                        .HasForeignKey("FileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
                         .WithMany("Speedtests")
                         .HasForeignKey("GenerationId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2005,13 +2203,25 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.UserType", "UserType")
+                    b.HasOne("NTC.QoS.Domain.Entities.Organization", "Organization")
                         .WithMany("Users")
-                        .HasForeignKey("UserTypeId")
+                        .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("UserType");
+                    b.HasOne("NTC.QoS.Domain.Entities.Role", "Role")
+                        .WithMany("Users")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.UserType", null)
+                        .WithMany("Users")
+                        .HasForeignKey("UserTypeId");
+
+                    b.Navigation("Organization");
+
+                    b.Navigation("Role");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
@@ -2046,6 +2256,13 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
                 {
                     b.Navigation("Cellulars");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Link", b =>
+                {
+                    b.Navigation("DownLinks");
+
+                    b.Navigation("UpLinks");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.ServiceProvider", b =>
@@ -2100,13 +2317,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Speedtests");
                 });
 
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Link", b =>
-                {
-                    b.Navigation("DownLinks");
-
-                    b.Navigation("UpLinks");
-                });
-
             modelBuilder.Entity("NTC.QoS.Domain.Entities.MIMO", b =>
                 {
                     b.Navigation("Sector");
@@ -2115,6 +2325,8 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.Navigation("Barangays");
+
+                    b.Navigation("StudyMunicipalities");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Network", b =>
@@ -2129,6 +2341,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Networks");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Organization", b =>
+                {
+                    b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Permission", b =>
+                {
+                    b.Navigation("RolePermissions");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Provider", b =>
                 {
                     b.Navigation("ServiceProviders");
@@ -2137,6 +2359,13 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Region", b =>
                 {
                     b.Navigation("Provinces");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Role", b =>
+                {
+                    b.Navigation("RolePermissions");
+
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Service", b =>

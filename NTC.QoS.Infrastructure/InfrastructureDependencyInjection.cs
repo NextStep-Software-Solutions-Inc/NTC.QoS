@@ -29,11 +29,19 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IServiceProviderRepository, ServiceProviderRepository>();
         services.AddScoped<ICellRepository, CellRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
+        services.AddScoped<INetworkRepository, NetworkRepository>();
         services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
         services.AddScoped<IBarangayRepository, BarangayRepository>();
         services.AddScoped<IZoneRepository, ZoneRepository>();
         services.AddScoped<IStudyRepository, StudyRepository>();
         services.AddScoped<ITechnologyRepository, TechnologyRepository>();
+        services.AddScoped<IBandRepository, BandRepository>();
+        services.AddScoped<ILinkRepository, LinkRepository>();
+        services.AddScoped<IGenerationRepository, GenerationRepository>();
+        services.AddScoped<IGenerationBandRepository, GenerationBandRepository>();
+        services.AddScoped<ISpeedtestRepository, SpeedtestRepository>();
+        services.AddScoped<IFileRepository, FileRepository>();
+        services.AddScoped<ICellularRepository, CellularRepository>();
 
         return services;
     }

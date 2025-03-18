@@ -14,7 +14,7 @@ public class GetAntennaPatternByIdHandler(IRepository<Domain.Entities.AntennaPat
     {
         var antennaPattern = await _repository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (antennaPattern == null)
+        if (antennaPattern is null)
         {
             return new ApiResponse<AntennaPatternDto>
             {
@@ -32,11 +32,7 @@ public class GetAntennaPatternByIdHandler(IRepository<Domain.Entities.AntennaPat
             {
                 Id = antennaPattern.Id,
                 Name = antennaPattern.Name,
-                URL = antennaPattern.URL,
-                CreatedDate = antennaPattern.CreatedAt,
-                CreatedBy = antennaPattern.CreatedBy,
-                ModifiedDate = antennaPattern.UpdatedAt,
-                ModifiedBy = antennaPattern.UpdatedBy,
+                URL = antennaPattern.URL
             },
         };
     }
