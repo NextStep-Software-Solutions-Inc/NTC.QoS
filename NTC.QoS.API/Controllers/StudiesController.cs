@@ -34,7 +34,7 @@ public class StudiesController : ControllerBase
         return study.Succeeded ? Ok(study) : BadRequest(study);
     }
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateStudyDto>>> Post(CreateStudyDto studyDto)
+    public async Task<ActionResult<ApiResponse<CreateStudyDto>>> CreateStudy(CreateStudyDto studyDto)
     {
         var study = await _mediator.Send(new CreateStudyRequest(studyDto));
 
