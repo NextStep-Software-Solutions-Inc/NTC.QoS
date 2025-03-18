@@ -17,7 +17,7 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
     {
         var barangay = await _barangayRepository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (barangay == null)
+        if (barangay is null)
         {
             return new ApiResponse<BarangayDto>
             {
