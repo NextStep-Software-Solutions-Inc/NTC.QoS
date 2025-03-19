@@ -2,9 +2,8 @@
 
 public class CreateStudyDto
 {
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; set; }
     public string? Description { get; set; }
-    public Guid AreaStudyId { get; set; }
-    public decimal StudyRadius { get; set; }
-
+    public required Guid AreaStudyId { get; set; }
+    public required decimal StudyRadius { get; set; }
 }

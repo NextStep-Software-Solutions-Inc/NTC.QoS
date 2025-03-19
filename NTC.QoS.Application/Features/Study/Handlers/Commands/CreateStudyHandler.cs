@@ -18,7 +18,7 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
         {
             return new ApiResponse<StudyDto>
             {
-                Message = "Study already exists",
+                Message = "Study already exists.",
                 Succeeded = false
             };
         }
@@ -29,6 +29,7 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
             return new ApiResponse<StudyDto>
             {
                 Message = "Area study not found.",
+                Error = [$"Area study with ID [{request.Study.AreaStudyId}] not found."],
                 Succeeded = false
             };
         }
@@ -38,7 +39,7 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
             Name = request.Study.Name,
             Description = request.Study.Description,
             AreaStudyId = areaStudy.Id,
-            StudyRadius = request.Study.StudyRadius
+            StudyRadius = request.Study.StudyRadius,
         };
 
         _repository.Add(study);
@@ -51,10 +52,15 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
                 Id = study.Id,
                 Name = study.Name,
                 Description = study.Description,
-                AreaStudyId = study.AreaStudyId,
+                AreaStudy = new AreaStudyStudyDto
+                {
+                    Id = study.AreaStudyId,
+                    Name = study.AreaStudy?.Name ?? string.Empty,
+                    Description = study.AreaStudy?.Description
+                },
                 StudyRadius = study.StudyRadius
             },
-            Message = "Study created successfully",
+            Message = "Study created successfully.",
             Succeeded = true
         };
     }
