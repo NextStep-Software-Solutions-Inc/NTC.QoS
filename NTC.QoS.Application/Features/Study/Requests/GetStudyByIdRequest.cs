@@ -4,11 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.Study.Requests;
 
-public class GetStudyByIdRequest : IRequest<ApiResponse<StudyDto>>
+public class GetStudyByIdRequest(Guid id) : IRequest<ApiResponse<StudyDto>>
 {
-    public GetStudyByIdRequest(Guid id)
-    {
-        Id = id;
-    }
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = id;
 }
