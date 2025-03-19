@@ -6,10 +6,10 @@ using NTC.QoS.Domain.Models.DTOs.User;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Queries;
 
-public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<GetAllUsersRequest, PaginatedResponse<GetUserDto>>
+public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<GetAllUsersRequest, PaginatedResponse<UserDto>>
 {
     private readonly IUserRepository _repository = repository;
-    public async Task<PaginatedResponse<GetUserDto>> Handle(GetAllUsersRequest request, CancellationToken cancellationToken)
+    public async Task<PaginatedResponse<UserDto>> Handle(GetAllUsersRequest request, CancellationToken cancellationToken)
     {
         var allUsers = await _repository.ListAsync(u => !u.IsDeleted, cancellationToken);
 
@@ -23,7 +23,7 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             allUsers = [.. allUsers.Where(u => u.OrganizationId == request.OrganizationId.Value)];
         }
 
-        var userDtos = allUsers.Select(u => new GetUserDto
+        var userDtos = allUsers.Select(u => new UserDto
         {
             Id = u.Id,
             Role = new RoleUserDto
@@ -42,7 +42,17 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             AuthUserId = u.AuthUserId
         }).ToList();
 
-        return new PaginatedResponse<GetUserDto>(userDtos, request.PageNumber, request.PageSize)
+        if (userDtos.Count is 0)
+        {
+            return new PaginatedResponse<UserDto>(userDtos, request.PageNumber, request.PageSize)
+            {
+                Data = userDtos,
+                Message = "No records found.",
+                Succeeded = true
+            };
+        }
+
+        return new PaginatedResponse<UserDto>(userDtos, request.PageNumber, request.PageSize)
         {
             Data = userDtos,
             Message = "Users retrieved successfully.",

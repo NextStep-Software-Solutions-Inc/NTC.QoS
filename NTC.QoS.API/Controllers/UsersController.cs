@@ -13,7 +13,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateUserDto>>> CreateUser(CreateUserDto userDto)
+    public async Task<ActionResult<ApiResponse<UserDto>>> CreateUser(CreateUserDto userDto)
     {
         var user = await _mediator.Send(new CreateUserRequest
         {
@@ -23,7 +23,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<GetUserDto>>> GetAllUsers(int pageSize = 10,
+    public async Task<ActionResult<ApiResponse<UserDto>>> GetAllUsers(int pageSize = 10,
                                                                          int pageNumber = 1,
                                                                          Guid? roleId = null,
                                                                          Guid? organizationId = null)
@@ -33,16 +33,16 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<GetUserDto>>> GetUserById(Guid id)
+    public async Task<ActionResult<ApiResponse<UserDto>>> GetUserById(Guid id)
     {
         var user = await _mediator.Send(new GetUserByIdRequest(id));
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateUserDto>>> UpdateUser(Guid id, UpdateUserDto updateUserDto)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<UserDto>>> UpdateUser(Guid id, UpdateUserDto userDto)
     {
-        var user = await _mediator.Send(new UpdateUserByIdRequest(id, updateUserDto));
+        var user = await _mediator.Send(new UpdateUserByIdRequest(id, userDto));
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
 

@@ -6,79 +6,98 @@ using NTC.QoS.Domain.Models.DTOs.User;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
-public class UpdateUserByIdHandler(IUserRepository repository,
+public class UpdateUserByIdHandler(IUserRepository userRepository,
                                    IRepository<Domain.Entities.Role> roleRepository,
-                                   IRepository<Domain.Entities.Organization> organizationRepository) : IRequestHandler<UpdateUserByIdRequest, ApiResponse<UpdateUserDto>>
+                                   IRepository<Domain.Entities.Organization> organizationRepository) : IRequestHandler<UpdateUserByIdRequest, ApiResponse<UserDto>>
 {
-    private readonly IUserRepository _repository = repository;
+    private readonly IUserRepository _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Organization> _organizationRepository = organizationRepository;
-    public async Task<ApiResponse<UpdateUserDto>> Handle(UpdateUserByIdRequest request, CancellationToken cancellationToken)
+
+    public async Task<ApiResponse<UserDto>> Handle(UpdateUserByIdRequest request, CancellationToken cancellationToken)
     {
-        var user = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken);
         if (user is null)
         {
-            return new ApiResponse<UpdateUserDto>
+            return new ApiResponse<UserDto>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { $"User with ID [{request.Id}] not found." },
-                Message = $"User does not exist."
+                Error = [$"User with ID [{request.Id}] not found."],
+                Message = "User does not exist."
             };
         }
 
-        var existingUser = await _repository.GetAllUsersAsync(cancellationToken);
-        if (existingUser.Any(u => u.Id != request.Id &&
-                                 u.RoleId == request.User.RoleId &&
-                                 u.OrganizationId == request.User.OrganizationId &&
-                                 u.AuthUserId == request.User.AuthUserId))
+        if (request.User.RoleId.HasValue)
         {
-            return new ApiResponse<UpdateUserDto>
+            var role = await _roleRepository.GetByIdAsync(request.User.RoleId.Value, cancellationToken);
+            if (role is null)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Message = "Role not found.",
+                    Succeeded = false,
+                    Error = [$"Role with Id [{request.User.RoleId}] does not exist."]
+                };
+            }
+            user.RoleId = role.Id;
+        }
+
+        if (request.User.OrganizationId.HasValue)
+        {
+            var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId.Value, cancellationToken);
+            if (organization is null)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Message = "Organization not found.",
+                    Succeeded = false,
+                    Error = [$"Organization with Id [{request.User.OrganizationId}] does not exist."]
+                };
+            }
+            user.OrganizationId = organization.Id;
+        }
+
+        user.AuthUserId = request.User.AuthUserId ?? string.Empty;
+
+        var existingUser = await _userRepository.GetAllUsersAsync(cancellationToken);
+        if (existingUser.Any(u => u.Id != request.Id &&
+                                 u.RoleId == user.RoleId &&
+                                 u.OrganizationId == user.OrganizationId &&
+                                 u.AuthUserId == user.AuthUserId))
+        {
+            return new ApiResponse<UserDto>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "User with the same Role, Organization, and AuthUserId already exists." },
+                Error = ["User with the same Role, Organization, and AuthUserId already exists."],
                 Message = "Duplicate user data."
             };
         }
 
-        var role = await _roleRepository.GetByIdAsync(request.User.RoleId, cancellationToken);
-        if (role is null)
+        _userRepository.Update(user);
+        await _userRepository.SaveChangesAsync(cancellationToken);
+
+        var result = new UserDto
         {
-            return new ApiResponse<UpdateUserDto>
+            Id = user.Id,
+            Role = new RoleUserDto
             {
-                Message = "Role not found.",
-                Succeeded = false,
-                Error = new[] { "Role with the specified Id does not exist." }
-            };
-        }
-
-        var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId, cancellationToken);
-        if (organization is null)
-        {
-            return new ApiResponse<UpdateUserDto>
+                Id = user.RoleId,
+                Name = user.Role?.Name ?? string.Empty,
+                Key = user.Role?.Key ?? string.Empty,
+                Description = user.Role?.Description ?? string.Empty
+            },
+            Organization = new OrganizationUserDto
             {
-                Message = "Organization not found.",
-                Succeeded = false,
-                Error = new[] { "Organization with the specified Id does not exist." }
-            };
-        }
-
-        user.RoleId = role.Id;
-        user.OrganizationId = organization.Id;
-        user.AuthUserId = request.User.AuthUserId;
-
-        _repository.Update(user);
-        await _repository.SaveChangesAsync(cancellationToken);
-
-        var result = new UpdateUserDto
-        {
-            RoleId = user.RoleId,
-            OrganizationId = user.OrganizationId,
+                Id = user.OrganizationId,
+                Name = user.Organization?.Name ?? string.Empty,
+                Description = user.Organization?.Description ?? string.Empty
+            },
             AuthUserId = user.AuthUserId
         };
 
-        return new ApiResponse<UpdateUserDto>
+        return new ApiResponse<UserDto>
         {
             Data = result,
             Message = "User updated successfully.",

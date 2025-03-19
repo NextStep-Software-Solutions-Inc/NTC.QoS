@@ -1,6 +1,6 @@
 ﻿namespace NTC.QoS.Domain.Models.DTOs.User;
 
-public class GetUserDto
+public class UserDto
 {
     public Guid Id { get; set; }
     public RoleUserDto? Role { get; set; }

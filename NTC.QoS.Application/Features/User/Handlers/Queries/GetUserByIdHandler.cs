@@ -6,29 +6,29 @@ using NTC.QoS.Domain.Models.DTOs.User;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Queries;
 
-public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<GetUserByIdRequest, ApiResponse<GetUserDto>>
+public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<GetUserByIdRequest, ApiResponse<UserDto>>
 {
     private readonly IUserRepository _repository = repository;
 
-    public async Task<ApiResponse<GetUserDto>> Handle(GetUserByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<UserDto>> Handle(GetUserByIdRequest request, CancellationToken cancellationToken)
     {
         var user = await _repository.GetByIdAsync(request.Id, cancellationToken);
 
         if (user is null)
         {
-            return new ApiResponse<GetUserDto>
+            return new ApiResponse<UserDto>
             {
                 Succeeded = false,
                 Message = "User not found.",
-                Error = new[] { "User with the specified ID does not exist." },
+                Error = [$"User with ID [{request.Id}] does not exist."],
             };
         }
 
-        return new ApiResponse<GetUserDto>
+        return new ApiResponse<UserDto>
         {
             Succeeded = true,
             Message = "User retrieved successfully.",
-            Data = new GetUserDto
+            Data = new UserDto
             {
                 Id = user.Id,
                 Role = new RoleUserDto

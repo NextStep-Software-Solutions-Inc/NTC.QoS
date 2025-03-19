@@ -17,8 +17,8 @@ public class DeleteUserByIdHandler(IUserRepository repository) : IRequestHandler
             {
                 Data = false,
                 Succeeded = false,
-                Error = new[] { $"User with ID [{request.Id}] not found." },
-                Message = $"User does not exist."
+                Error = [$"User with ID [{request.Id}] not found."],
+                Message = "User does not exist."
             };
         }
         _repository.Delete(user);

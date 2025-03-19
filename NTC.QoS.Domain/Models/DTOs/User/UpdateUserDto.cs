@@ -2,7 +2,7 @@
 
 public class UpdateUserDto
 {
-    public required Guid RoleId { get; set; }
-    public required Guid OrganizationId { get; set; }
-    public required string AuthUserId { get; set; }
+    public Guid? RoleId { get; set; }
+    public Guid? OrganizationId { get; set; }
+    public string? AuthUserId { get; set; }
 }

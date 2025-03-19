@@ -6,50 +6,49 @@ using NTC.QoS.Domain.Models.DTOs.User;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
-public class CreateUserHandler(IRepository<Domain.Entities.User> repository,
+public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
                                    IRepository<Domain.Entities.Role> roleRepository,
-                                   IRepository<Domain.Entities.Organization> organizationRepository) : IRequestHandler<CreateUserRequest, ApiResponse<CreateUserDto>>
+                                   IRepository<Domain.Entities.Organization> organizationRepository) : IRequestHandler<CreateUserRequest, ApiResponse<UserDto>>
 {
-    private readonly IRepository<Domain.Entities.User> _repository = repository;
+    private readonly IRepository<Domain.Entities.User> _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Organization> _organizationRepository = organizationRepository;
 
-    public async Task<ApiResponse<CreateUserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var existingUser= await _repository.FindAsync(u => u.RoleId == request.User.RoleId
+        var existingUser = await _userRepository.FindAsync(u => u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId
                                                            && u.AuthUserId == request.User.AuthUserId, cancellationToken);
 
         if (existingUser is not null)
         {
-            return new ApiResponse<CreateUserDto>
+            return new ApiResponse<UserDto>
             {
                 Message = "User already exists.",
                 Succeeded = false,
-                Error = new[] { "User with the same RoleId and OrganizationId already exists." }
+                Error = ["User with the same Role, Organization, and AuthUserId already exists."]
             };
         }
-
         
         var role = await _roleRepository.GetByIdAsync(request.User.RoleId, cancellationToken);
         if (role is null)
         {
-            return new ApiResponse<CreateUserDto>
+            return new ApiResponse<UserDto>
             {
                 Message = "Role not found.",
                 Succeeded = false,
-                Error = new[] { "Role with the specified Id does not exist." }
+                Error = [$"Role with Id [{request.User.RoleId}] does not exist."]
             };
         }
         
         var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId, cancellationToken);
         if (organization is null)
         {
-            return new ApiResponse<CreateUserDto>
+            return new ApiResponse<UserDto>
             {
                 Message = "Organization not found.",
                 Succeeded = false,
-                Error = new[] { "Organization with the specified Id does not exist." }
+                Error = [$"Organization with Id [{request.User.OrganizationId}] does not exist."]
             };
         }
 
@@ -60,15 +59,27 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> repository,
             AuthUserId = request.User.AuthUserId
         };
 
-        _repository.Add(newUser);
-        await _repository.SaveChangesAsync(cancellationToken);
+        _userRepository.Add(newUser);
+        await _userRepository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateUserDto>
+        return new ApiResponse<UserDto>
         {
-            Data = new CreateUserDto
+            Data = new UserDto
             {
-                RoleId = newUser.RoleId,
-                OrganizationId = newUser.OrganizationId,
+                Id = newUser.Id,
+                Role = new RoleUserDto
+                {
+                    Id = newUser.RoleId,
+                    Name = newUser.Role?.Name ?? string.Empty,
+                    Key = newUser.Role?.Key ?? string.Empty,
+                    Description = newUser.Role?.Description ?? string.Empty
+                },
+                Organization = new OrganizationUserDto
+                {
+                    Id = newUser.OrganizationId,
+                    Name = newUser.Organization?.Name ?? string.Empty,
+                    Description = newUser.Organization?.Description ?? string.Empty
+                },
                 AuthUserId = newUser.AuthUserId
             },
             Message = "User created successfully.",
