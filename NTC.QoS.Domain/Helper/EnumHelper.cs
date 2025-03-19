@@ -65,9 +65,9 @@ public static class EnumHelper<T> where T : struct, Enum
     /// <summary>
     /// Parses a user input string into an enum value of type T.
     /// </summary>
-    /// <param name="userInput">The user input string to parse.</param>
+    /// <param name = "userInput" > The user input string to parse.</param>
     /// <returns>The parsed enum value.</returns>
-    /// <exception cref="ArgumentException">Thrown when the input string cannot be parsed into a valid enum value.</exception>
+    /// <exception cref = "ArgumentException" > Thrown when the input string cannot be parsed into a valid enum value.</exception>
     /// <remarks>
     /// This method attempts to parse the input string in the following order:
     /// 1. Directly, using case-insensitive Enum.TryParse().
