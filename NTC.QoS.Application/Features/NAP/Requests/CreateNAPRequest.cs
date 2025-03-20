@@ -1,10 +1,15 @@
 ﻿using MediatR;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.NAP;
+using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.NAP.Requests;
 
-public class CreateNAPRequest : IRequest<ApiResponse<CreateNAPDto>>
+public class CreateNAPRequest : IRequest<ApiResponse<NAPDto>>
 {
-    public required CreateNAPDto CreateNAP { get; set; }
+    public CreateNAPDto NAP { get; set; }
+    public CreateNAPRequest(CreateNAPDto createNAPDto)
+    {
+        NAP = createNAPDto;
+    }
 }
