@@ -1,10 +1,11 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Barangay.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 
@@ -26,14 +27,25 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository) : IR
             Id = b.Id,
             Name = b.Name,
             Description = b.Description,
-            MunicipalityId = b.MunicipalityId,
-            Municipality = b.Municipality != null ? new MunicipalityDto
+            Municipality = new MunicipalityDto
             {
-                Id = b.Municipality.Id,
-                IsCity = b.Municipality.IsCity,
-                ProvinceId = b.Municipality.ProvinceId,
-                Name = b.Municipality.Name
-            } : null
+                Id = b.MunicipalityId,
+                Name = b.Municipality?.Name ?? "Unknown",
+                IsCity = b.Municipality?.IsCity ?? false,
+                Description = b.Municipality?.Description,
+                Province = new ProvinceDto
+                {
+                    Id = b.Municipality?.ProvinceId ?? Guid.Empty,
+                    Name = b.Municipality?.Province?.Name ?? "Unknown",
+                    Description = b.Municipality?.Province?.Description,
+                    Region = new RegionDto
+                    {
+                        Id = b.Municipality?.Province?.Region?.Id ?? Guid.Empty,
+                        Name = b.Municipality?.Province?.Region?.Name ?? "Unknown",
+                        Description = b.Municipality?.Province?.Region?.Description,
+                    }
+                }
+            }
         }).ToList();
 
         return new PaginatedResponse<BarangayDto>(barangayDtos, request.PageNumber, request.PageSize);
