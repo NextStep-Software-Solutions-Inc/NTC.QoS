@@ -11,9 +11,14 @@ public class DeleteStudyHandler(IRepository<Domain.Entities.Study> repository) :
     public async Task<ApiResponse<bool>> Handle(DeleteStudyByIdRequest request, CancellationToken cancellationToken)
     {
         var study = await _repository.GetByIdAsync(request.Id, cancellationToken);
-        if (study == null)
+        if (study is null)
         {
-            return new ApiResponse<bool>("Study not found");
+            return new ApiResponse<bool>
+            {
+                Message = "Study not found.",
+                Error = [$"Study with ID [{request.Id}] does not exist."],
+                Succeeded = false,
+            };
         }
         study.IsDeleted = true;
         _repository.Update(study);
