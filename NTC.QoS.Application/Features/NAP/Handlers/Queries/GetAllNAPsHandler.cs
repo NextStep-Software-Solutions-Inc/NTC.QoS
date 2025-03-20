@@ -3,11 +3,8 @@ using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.DTOs.NAP;
-using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Models.DTOs.Service;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
-using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.NAP.Handlers.Queries
 {
@@ -26,42 +23,47 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Queries
 
             if (request.ServiceProviderId.HasValue)
             {
-                allNAPs = allNAPs.Where(n => n.ServiceProviderId == request.ServiceProviderId.Value).ToList();
+                allNAPs = [.. allNAPs.Where(n => n.ServiceProviderId == request.ServiceProviderId.Value)];
             }
 
             if (request.ZoneId.HasValue)
             {
-                allNAPs = allNAPs.Where(n => n.ZoneId == request.ZoneId.Value).ToList();
+                allNAPs = [.. allNAPs.Where(n => n.ZoneId == request.ZoneId.Value)];
             }
 
             if (request.FileId.HasValue)
             {
-                allNAPs = allNAPs.Where(n => n.FileId == request.FileId.Value).ToList();
+                allNAPs = [.. allNAPs.Where(n => n.FileId == request.FileId.Value)];
             }
 
             var NAPs = allNAPs.Select(n => new NAPDto
             {
                 Id = n.Id,
-                FileId = n.FileId,
                 ServiceProvider = new ServiceProviderNAPDto
                 {
                     Id = n.ServiceProviderId,
                     Service = new ServiceNAPDto
                     {
                         Id = n.ServiceProvider?.ServiceId ?? Guid.Empty,
-                        Name = n.ServiceProvider?.Service?.Name ?? "Unknown",
+                        Name = n.ServiceProvider?.Service?.Name ?? string.Empty,
                         Type = n.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
                     },
                     Provider = new ProviderNAPDto
                     {
                         Id = n.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = n.ServiceProvider?.Provider?.Name ?? "Unknown",
+                        Name = n.ServiceProvider?.Provider?.Name ?? string.Empty,
                     }
                 },
                 Zone = new ZoneNAPDto
                 {
                     Id = n.ZoneId,
-                    Name = n.Zone?.Name ?? "Unknown",
+                    Name = n.Zone?.Name ?? string.Empty,
+                },
+                File = new FileDto
+                {
+                    Id = n.FileId ?? Guid.Empty,
+                    Name = n.File?.Name ?? string.Empty,
+                    Path = n.File?.Path ?? string.Empty,
                 },
                 CoorLatitude = n.CoorLatitude,
                 CoorLongitude = n.CoorLongitude,

@@ -1,40 +1,42 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.NAP.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.DTOs.NAP;
 
 namespace NTC.QoS.Application.Features.NAP.Handlers.Commands
 {
     public class CreateNAPHandler(
-        IRepository<Domain.Aggregates.NAP> repository,
+        INAPRepository repository,
         IServiceProviderRepository serviceProviderRepository,
-        IRepository<Domain.Entities.File> fileRepository,
-        IZoneRepository zoneRepository) : IRequestHandler<CreateNAPRequest, ApiResponse<CreateNAPDto>>
+        IFileRepository fileRepository,
+        IZoneRepository zoneRepository) : IRequestHandler<CreateNAPRequest, ApiResponse<NAPDto>>
     {
-        private readonly IRepository<Domain.Aggregates.NAP> _repository = repository;
+        private readonly INAPRepository _repository = repository;
         private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
-        private readonly IRepository<Domain.Entities.File> _fileRepository = fileRepository;
+        private readonly IFileRepository _fileRepository = fileRepository;
         private readonly IZoneRepository _zoneRepository = zoneRepository;
 
-        public async Task<ApiResponse<CreateNAPDto>> Handle(CreateNAPRequest request, CancellationToken cancellationToken)
+        public async Task<ApiResponse<NAPDto>> Handle(CreateNAPRequest request, CancellationToken cancellationToken)
         {
-            var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.CreateNAP.ServiceProviderId, cancellationToken);
+            var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.NAP.ServiceProviderId, cancellationToken);
             if (serviceProvider is null)
             {
-                return new ApiResponse<CreateNAPDto>
+                return new ApiResponse<NAPDto>
                 {
                     Message = "Service Provider does not exist.",
                     Succeeded = false
                 };
             }
 
-            if (request.CreateNAP.FileId.HasValue)
+            if (request.NAP.FileId.HasValue)
             {
-                var file = await _fileRepository.FindAsync(f => f.Id == request.CreateNAP.FileId.Value, cancellationToken);
+                var file = await _fileRepository.GetByIdAsync(request.NAP.FileId.Value, cancellationToken);
                 if (file is null)
                 {
-                    return new ApiResponse<CreateNAPDto>
+                    return new ApiResponse<NAPDto>
                     {
                         Message = "FileId does not exist.",
                         Succeeded = false
@@ -42,12 +44,12 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Commands
                 }
             }
 
-            if (request.CreateNAP.ZoneId.HasValue)
+            if (request.NAP.ZoneId.HasValue)
             {
-                var zone = await _zoneRepository.FindAsync(z => z.Id == request.CreateNAP.ZoneId.Value, cancellationToken);
+                var zone = await _zoneRepository.GetByIdAsync(request.NAP.ZoneId.Value, cancellationToken);
                 if (zone is null)
                 {
-                    return new ApiResponse<CreateNAPDto>
+                    return new ApiResponse<NAPDto>
                     {
                         Message = "ZoneId does not exist.",
                         Succeeded = false
@@ -55,42 +57,66 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Commands
                 }
             }
 
-            var existingNAP = await _repository.FindAsync(n => n.ServiceProviderId == request.CreateNAP.ServiceProviderId
-                                                               && n.ZoneId == request.CreateNAP.ZoneId
-                                                               && n.CoorLatitude == request.CreateNAP.CoorLatitude
-                                                               && n.CoorLongitude == request.CreateNAP.CoorLongitude
+            var existingNAP = await _repository.FindAsync(n => n.ServiceProviderId == request.NAP.ServiceProviderId
+                                                               && n.ZoneId == request.NAP.ZoneId
+                                                               && n.CoorLatitude == request.NAP.CoorLatitude
+                                                               && n.CoorLongitude == request.NAP.CoorLongitude
                                                                && !n.IsDeleted, cancellationToken);
 
             if (existingNAP is not null)
             {
-                return new ApiResponse<CreateNAPDto>
+                return new ApiResponse<NAPDto>
                 {
                     Message = "NAP already exists.",
                     Succeeded = false
                 };
             }
 
-            var newNAP = new Domain.Aggregates.NAP
+            var NAP = new Domain.Aggregates.NAP
             {
                 ServiceProviderId = serviceProvider.Id,
-                ZoneId = request.CreateNAP.ZoneId,
-                FileId = request.CreateNAP.FileId,
-                CoorLatitude = request.CreateNAP.CoorLatitude,
-                CoorLongitude = request.CreateNAP.CoorLongitude
+                ZoneId = request.NAP.ZoneId,
+                FileId = request.NAP.FileId,
+                CoorLatitude = request.NAP.CoorLatitude,
+                CoorLongitude = request.NAP.CoorLongitude
             };
 
-            _repository.Add(newNAP);
+            _repository.Add(NAP);
             await _repository.SaveChangesAsync(cancellationToken);
 
-            return new ApiResponse<CreateNAPDto>
+            return new ApiResponse<NAPDto>
             {
-                Data = new CreateNAPDto
+                Data = new NAPDto
                 {
-                    ServiceProviderId = newNAP.ServiceProviderId,
-                    ZoneId = newNAP.ZoneId,
-                    FileId = newNAP.FileId,
-                    CoorLatitude = newNAP.CoorLatitude,
-                    CoorLongitude = newNAP.CoorLongitude,
+                    Id = NAP.Id,
+                    ServiceProvider = new ServiceProviderNAPDto
+                    {
+                        Id = NAP.ServiceProviderId,
+                        Service = new ServiceNAPDto
+                        {
+                            Id = NAP.ServiceProvider?.ServiceId ?? Guid.Empty,
+                            Name = NAP.ServiceProvider?.Service?.Name ?? string.Empty,
+                            Type = NAP.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
+                        },
+                        Provider = new ProviderNAPDto
+                        {
+                            Id = NAP.ServiceProvider?.ProviderId ?? Guid.Empty,
+                            Name = NAP.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        }
+                    },
+                    Zone = new ZoneNAPDto
+                    {
+                        Id = NAP.ZoneId,
+                        Name = NAP.Zone?.Name ?? string.Empty,
+                    },
+                    File = new FileDto
+                    {
+                        Id = NAP.FileId ?? Guid.Empty,
+                        Name = NAP.File?.Name ?? string.Empty,
+                        Path = NAP.File?.Path ?? string.Empty,
+                    },
+                    CoorLatitude = NAP.CoorLatitude,
+                    CoorLongitude = NAP.CoorLongitude,
                 },
                 Message = "NAP created successfully.",
                 Succeeded = true
