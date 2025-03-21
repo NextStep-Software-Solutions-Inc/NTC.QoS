@@ -19,38 +19,13 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         var existingUser = await _userRepository.FindAsync(u => u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId
                                                            && u.AuthUserId == request.User.AuthUserId, cancellationToken);
-
-        if (existingUser is not null)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Message = "User already exists.",
-                Succeeded = false,
-                Error = ["User with the same Role, Organization, and AuthUserId already exists."]
-            };
-        }
+        if (existingUser is not null) return new ApiResponse<UserDto>("User with the same Role, Organization, and AuthUserId already exists.");
         
         var role = await _roleRepository.GetByIdAsync(request.User.RoleId, cancellationToken);
-        if (role is null)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Message = "Role not found.",
-                Succeeded = false,
-                Error = [$"Role with Id [{request.User.RoleId}] does not exist."]
-            };
-        }
-        
+        if (role is null) return new ApiResponse<UserDto>("Role not found.");
+
         var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId, cancellationToken);
-        if (organization is null)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Message = "Organization not found.",
-                Succeeded = false,
-                Error = [$"Organization with Id [{request.User.OrganizationId}] does not exist."]
-            };
-        }
+        if (organization is null) return new ApiResponse<UserDto>("Organization not found.");
 
         var newUser = new Domain.Entities.User
         {

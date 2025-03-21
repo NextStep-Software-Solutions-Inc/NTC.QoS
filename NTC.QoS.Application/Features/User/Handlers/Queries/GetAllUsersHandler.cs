@@ -13,15 +13,9 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
     {
         var allUsers = await _repository.ListAsync(u => !u.IsDeleted, cancellationToken);
 
-        if (request.RoleId.HasValue)
-        {
-            allUsers = [.. allUsers.Where(u => u.RoleId == request.RoleId.Value)];
-        }
-
-        if (request.OrganizationId.HasValue)
-        {
-            allUsers = [.. allUsers.Where(u => u.OrganizationId == request.OrganizationId.Value)];
-        }
+        allUsers = [.. allUsers
+            .Where(u => !request.RoleId.HasValue || u.RoleId == request.RoleId)
+            .Where(u => !request.OrganizationId.HasValue || u.OrganizationId == request.OrganizationId.Value)];
 
         var userDtos = allUsers.Select(u => new UserDto
         {

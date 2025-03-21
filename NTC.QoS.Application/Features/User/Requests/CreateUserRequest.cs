@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.User;
 
 namespace NTC.QoS.Application.Features.User.Requests;
 
-public class CreateUserRequest : IRequest<ApiResponse<UserDto>>
+public class CreateUserRequest(CreateUserDto user) : IRequest<ApiResponse<UserDto>>
 {
-    public required CreateUserDto User { get; set; }
+    public CreateUserDto User { get; set; } = user;
 }

@@ -13,16 +13,7 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
     public async Task<ApiResponse<UserDto>> Handle(GetUserByIdRequest request, CancellationToken cancellationToken)
     {
         var user = await _repository.GetByIdAsync(request.Id, cancellationToken);
-
-        if (user is null)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "User not found.",
-                Error = [$"User with ID [{request.Id}] does not exist."],
-            };
-        }
+        if (user is null) return new ApiResponse<UserDto>("User not found.");
 
         return new ApiResponse<UserDto>
         {

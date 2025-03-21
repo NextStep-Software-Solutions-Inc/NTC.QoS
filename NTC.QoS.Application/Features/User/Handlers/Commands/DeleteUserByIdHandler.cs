@@ -11,22 +11,13 @@ public class DeleteUserByIdHandler(IUserRepository repository) : IRequestHandler
     public async Task<ApiResponse<bool>> Handle(DeleteUserByIdRequest request, CancellationToken cancellationToken)
     {
         var user = await _repository.FindAsync(u => u.Id == request.Id && !u.IsDeleted, cancellationToken);
-        if (user is null)
-        {
-            return new ApiResponse<bool>
-            {
-                Data = false,
-                Succeeded = false,
-                Error = [$"User with ID [{request.Id}] not found."],
-                Message = "User does not exist."
-            };
-        }
+        if (user is null) return new ApiResponse<bool>("User does not exist.");
+
         _repository.Delete(user);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>
         {
-            Data = true,
             Message = "User deleted successfully.",
             Succeeded = true
         };

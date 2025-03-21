@@ -15,10 +15,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<UserDto>>> CreateUser(CreateUserDto userDto)
     {
-        var user = await _mediator.Send(new CreateUserRequest
-        {
-            User = userDto
-        });
+        var user = await _mediator.Send(new CreateUserRequest(userDto));
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
 
