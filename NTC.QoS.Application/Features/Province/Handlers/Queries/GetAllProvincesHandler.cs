@@ -30,11 +30,11 @@ public class GetAllProvincesHandler : IRequestHandler<GetAllProvincesRequest, Pa
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
-            RegionId = p.RegionId,
             Region = new RegionDto
             {
                 Id = p.RegionId,
-                Name = p.Region?.Name ?? ""
+                Name = p.Region?.Name ?? "",
+                Description = p.Region?.Description,
             }
         }).ToList();
 

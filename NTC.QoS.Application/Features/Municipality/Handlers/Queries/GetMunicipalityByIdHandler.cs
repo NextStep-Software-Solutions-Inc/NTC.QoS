@@ -4,6 +4,7 @@ using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Queries;
 
@@ -15,7 +16,7 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
     {
         var municipality = await _municipalityRepository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (municipality == null)
+        if (municipality is null)
         {
             return new ApiResponse<MunicipalityDto>
             {
@@ -34,10 +35,17 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
                 Name = municipality.Name,
                 Description = municipality.Description,
                 IsCity = municipality.IsCity,
-                ProvinceId = municipality.ProvinceId,
                 Province = new ProvinceDto
                 {
-                    Name = municipality.Province?.Name ?? "Unknown"
+                    Id = municipality.ProvinceId,
+                    Name = municipality.Province?.Name ?? "Unknown",
+                    Description = municipality.Province?.Description,
+                    Region = new RegionDto
+                    {
+                        Id = municipality.Province?.Region?.Id ?? Guid.Empty, 
+                        Name = municipality.Province?.Region?.Name ?? "Unknown",
+                        Description = municipality.Province?.Region?.Description
+                    }
                 }
             }
         };
