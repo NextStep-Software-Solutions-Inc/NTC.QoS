@@ -18,7 +18,10 @@ public class UpdateBandByIdHandler(IRepository<Domain.Entities.Band> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Band data is missing." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Band", ["Band data is required."] }
+                },
                 Message = "The request does not contain band update data.",
             };
         }
@@ -31,7 +34,10 @@ public class UpdateBandByIdHandler(IRepository<Domain.Entities.Band> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Band not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Band not found."] }
+                },
                 Message = "The band you are trying to edit does not exist.",
             };
         }

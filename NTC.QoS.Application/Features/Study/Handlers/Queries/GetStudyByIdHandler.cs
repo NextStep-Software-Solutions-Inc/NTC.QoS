@@ -17,7 +17,10 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
             return new ApiResponse<StudyDto>
             { 
                 Message = "Study not found.",
-                Error = [$"Study with ID [{request.Id}] does not exist."],
+                Errors =  new Dictionary<string, string[]>
+                {
+                    { "Id",[$"Study with ID [{request.Id}] does not exist."] }
+                },
                 Succeeded = false
             };
         }

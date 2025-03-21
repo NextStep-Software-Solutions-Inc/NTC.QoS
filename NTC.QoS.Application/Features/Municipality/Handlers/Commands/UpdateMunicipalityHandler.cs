@@ -17,7 +17,10 @@ public class UpdateMunicipalityByIdHandler(IRepository<Domain.Entities.Municipal
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Municipality Not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Municipality not found."] }
+                },
                 Message = "The municipality you are trying to edit does not exist."
             };
         }

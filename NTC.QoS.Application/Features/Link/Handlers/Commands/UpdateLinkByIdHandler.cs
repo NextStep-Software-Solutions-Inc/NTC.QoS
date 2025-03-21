@@ -22,7 +22,10 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Link not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Link not found."] }
+                },
                 Message = "The link you are trying to edit does not exist."
             };
         }
@@ -39,7 +42,10 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
         return new ApiResponse<UpdateLinkDto>
         {
             Succeeded = true,
-            Error = new[] {""},
+            Errors = new Dictionary<string, string[]>
+            {
+                { "Link", ["Link data is required."]   }
+            },
             Data = new UpdateLinkDto()
             {
                 Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),

@@ -20,7 +20,10 @@ public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Antenna pattern not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Antenna Pattern not found."] }
+                },
                 Message = "The antenna pattern you are trying to edit does not exist.",
             };
         }

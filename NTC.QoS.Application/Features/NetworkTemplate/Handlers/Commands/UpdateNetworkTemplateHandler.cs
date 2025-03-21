@@ -18,7 +18,10 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
             {
                 Data = null,
                 Message = $"Network Template Id [{request.Id}] not found.",
-                Error = new[] { $"No Network Template found with Id [{request.Id}]. It may not exist or has been deleted." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", [$"No Network Template found with Id [{request.Id}]. It may not exist or has been deleted."] }
+                },  
                 Succeeded = false
             };
         }

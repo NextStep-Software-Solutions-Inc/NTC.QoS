@@ -20,7 +20,10 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
             {
                 Succeeded = false,
                 Message = "Role not found.",
-                Error = new[] { "Role with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Role with the specified ID does not exist."] }
+                }
             };
         }
 

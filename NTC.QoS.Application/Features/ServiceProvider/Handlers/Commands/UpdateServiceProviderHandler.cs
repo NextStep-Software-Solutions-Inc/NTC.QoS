@@ -17,7 +17,10 @@ public class UpdateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Service provider Not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Service Provider not found."]  }
+                },
                 Message = "The service provider you are trying to edit does not exist."
             };
         }

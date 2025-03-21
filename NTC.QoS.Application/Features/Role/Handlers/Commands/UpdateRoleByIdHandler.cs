@@ -19,7 +19,10 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Role data is missing." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Role", ["Role data is required."] }
+                },
                 Message = "The request does not contain role update data.",
             };
         }
@@ -32,7 +35,10 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Role not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Role not found."] }
+                },
                 Message = "The role you are trying to edit does not exist.",
             };
         }
@@ -51,7 +57,10 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Role name already exists." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Name", ["Role name already exists."] }
+                },
                 Message = "A role with the specified name already exists.",
             };
         }
@@ -62,7 +71,10 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Role key already exists." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Key", ["Role key already exists."] }
+                },
                 Message = "A role with the specified key already exists.",
             };
         }
