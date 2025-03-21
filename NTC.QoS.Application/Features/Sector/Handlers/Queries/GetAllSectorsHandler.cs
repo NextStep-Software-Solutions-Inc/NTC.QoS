@@ -8,43 +8,26 @@ using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Queries;
 
-public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequestHandler<GetAllSectorsRequest, PaginatedResponse<GetSectorDto>>
+public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequestHandler<GetAllSectorsRequest, PaginatedResponse<SectorDto>>
 {
     private readonly ISectorRepository _sectorRepository = sectorRepository;
-    public async Task<PaginatedResponse<GetSectorDto>> Handle(GetAllSectorsRequest request, CancellationToken cancellationToken)
+    public async Task<PaginatedResponse<SectorDto>> Handle(GetAllSectorsRequest request, CancellationToken cancellationToken)
     {
         var allSectors = await _sectorRepository.ListAsync(s => !s.IsDeleted, cancellationToken);
 
-        if (request.NetworkId.HasValue)
-        {
-            allSectors = [.. allSectors.Where(s => s.NetworkId == request.NetworkId)];
-        }
+        allSectors = [.. allSectors
+            .Where(s => !request.NetworkId.HasValue || s.NetworkId == request.NetworkId)
+            .Where(s => !request.MIMOId.HasValue || s.MIMOId == request.MIMOId)
+            .Where(s => !request.CellId.HasValue || s.CellId == request.CellId)
+            .Where(s => !request.TxAntennaPatternId.HasValue || s.TxAntennaPatternId == request.TxAntennaPatternId)
+            .Where(s => !request.RxAntennaPatternId.HasValue || s.RxAntennaPatternId == request.RxAntennaPatternId)];
 
-        if (request.MIMOId.HasValue)
-        {
-            allSectors = [.. allSectors.Where(s => s.MIMOId == request.MIMOId)];
-        }
-
-        if (request.CellId.HasValue)
-        {
-            allSectors = [.. allSectors.Where(s => s.CellId == request.CellId)];
-        }
-
-        if (request.TxAntennaPatternId.HasValue)
-        {
-            allSectors = [.. allSectors.Where(s => s.TxAntennaPatternId == request.TxAntennaPatternId)];
-        }
-
-        if (request.RxAntennaPatternId.HasValue)
-        {
-            allSectors = [.. allSectors.Where(s => s.RxAntennaPatternId == request.RxAntennaPatternId)];
-        }
-
-        var allSectorDtos = allSectors.Select(s => new GetSectorDto
+        var allSectorDtos = allSectors.Select(s => new SectorDto
         {
             Id = s.Id,
             Network = new NetworkSectorDto 
             { 
+                Id = s.NetworkId,
                 Name = s.Network?.Name ?? string.Empty,
                 SystemType = s.Network?.SystemType.ToString() ?? string.Empty,
             },
@@ -116,10 +99,20 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
             RxEIRP = s.RxEIRP
         }).ToList();
 
-        return new PaginatedResponse<GetSectorDto>(allSectorDtos, request.PageNumber, request.PageSize)
+        if (allSectorDtos.Count is 0)
+        {
+            return new PaginatedResponse<SectorDto>(allSectorDtos, request.PageNumber, request.PageSize)
+            {
+                Data = allSectorDtos,
+                Message = "No records found.",
+                Succeeded = true
+            };
+        }
+
+        return new PaginatedResponse<SectorDto>(allSectorDtos, request.PageNumber, request.PageSize)
         {
             Data = allSectorDtos,
-            Message = "Sectors retrieved successfully!",
+            Message = "Sectors retrieved successfully.",
             Succeeded = true
         };
     }

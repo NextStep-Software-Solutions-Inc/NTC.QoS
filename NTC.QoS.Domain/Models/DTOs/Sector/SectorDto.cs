@@ -1,10 +1,8 @@
-﻿using NTC.QoS.Domain.Enums;
+﻿namespace NTC.QoS.Domain.Models.DTOs.Sector;
 
-namespace NTC.QoS.Domain.Models.DTOs.Sector;
-
-public class GetSectorDto
+public class SectorDto
 {
-    public Guid Id { get; set; }
+    public required Guid Id { get; set; }
     public required NetworkSectorDto Network { get; set; }
     public required string AntennaType { get; set; }
     public required int Number { get; set; }

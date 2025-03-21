@@ -8,16 +8,16 @@ using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Queries;
 
-public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequestHandler<GetSectorByIdRequest, ApiResponse<GetSectorDto>>
+public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequestHandler<GetSectorByIdRequest, ApiResponse<SectorDto>>
 {
     private readonly ISectorRepository _sectorRepository = sectorRepository;
-    public async Task<ApiResponse<GetSectorDto>> Handle(GetSectorByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<SectorDto>> Handle(GetSectorByIdRequest request, CancellationToken cancellationToken)
     {
         var sector = await _sectorRepository.GetByIdAsync(request.Id, cancellationToken);
 
         if (sector is null)
         {
-            return new ApiResponse<GetSectorDto>
+            return new ApiResponse<SectorDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -25,7 +25,7 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 Message = $"Sector does not exist."
             };
         }
-        var result = new GetSectorDto
+        var result = new SectorDto
         {
             Id = sector.Id,
             Network = new NetworkSectorDto
@@ -101,7 +101,7 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
             RxEIRP = sector.RxEIRP
         };
 
-        return new ApiResponse<GetSectorDto>
+        return new ApiResponse<SectorDto>
         {
             Data = result,
             Message = "Sector retrieved successfully.",

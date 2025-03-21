@@ -1,6 +1,4 @@
-﻿using NTC.QoS.Domain.Enums;
-
-namespace NTC.QoS.Domain.Models.DTOs.Sector;
+﻿namespace NTC.QoS.Domain.Models.DTOs.Sector;
 
 public class NetworkSectorDto
 {

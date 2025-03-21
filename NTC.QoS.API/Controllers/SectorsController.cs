@@ -13,14 +13,14 @@ public class SectorsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<IActionResult> CreateSector(CreateSectorDto sectorDto)
+    public async Task<ActionResult<PaginatedResponse<SectorDto>>> CreateSector(CreateSectorDto sectorDto)
     {
         var sector = await _mediator.Send(new CreateSectorRequest(sectorDto));
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<GetSectorDto>>> GetAllSectors(int pageSize = 10,
+    public async Task<ActionResult<PaginatedResponse<SectorDto>>> GetAllSectors(int pageSize = 10,
                                                 int pageNumber = 1,
                                                 Guid? networkId = null,
                                                 Guid? mimoId = null,
@@ -40,14 +40,14 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<GetSectorDto>>> GetSectorById(Guid id)
+    public async Task<ActionResult<ApiResponse<SectorDto>>> GetSectorById(Guid id)
     {
         var sector = await _mediator.Send(new GetSectorByIdRequest(id));
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateSectorDto>>> UpdateSector(Guid id, UpdateSectorDto sectorDto)
+    public async Task<ActionResult<ApiResponse<SectorDto>>> UpdateSector(Guid id, UpdateSectorDto sectorDto)
     {
         var sector = await _mediator.Send(new UpdateSectorByIdRequest(id, sectorDto));
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);
