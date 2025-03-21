@@ -18,7 +18,7 @@ public class NAPsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<NAPDto>>> Post(CreateNAPDto createNAPDto)
+    public async Task<ActionResult<ApiResponse<NAPDto>>> CreateNAP(CreateNAPDto createNAPDto)
     {
         var NAP = await _mediator.Send(new CreateNAPRequest(createNAPDto));
 
@@ -33,7 +33,7 @@ public class NAPsController : ControllerBase
         Guid? zoneId = null,
         Guid? fileId = null)
     {
-        var result = await _mediator.Send(new GetAllNAPsRequest
+        var NAP = await _mediator.Send(new GetAllNAPsRequest
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
@@ -41,8 +41,7 @@ public class NAPsController : ControllerBase
             ZoneId = zoneId,
             FileId = fileId
         });
-
-        return Ok(result);
+        return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
     }
 
     [HttpGet("{id}")]

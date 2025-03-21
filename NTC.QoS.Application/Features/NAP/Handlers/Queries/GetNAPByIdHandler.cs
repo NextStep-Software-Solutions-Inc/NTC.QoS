@@ -43,39 +43,39 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
                     Service = new ServiceNAPDto
                     {
                         Id = NAP.ServiceProvider?.ServiceId ?? Guid.Empty,
-                        Name = NAP.ServiceProvider?.Service?.Name ?? "Unknown",
+                        Name = NAP.ServiceProvider?.Service?.Name ?? string.Empty,
                         Type = NAP.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
                     },
                     Provider = new ProviderNAPDto
                     {
                         Id = NAP.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = NAP.ServiceProvider?.Provider?.Name ?? "Unknown",
+                        Name = NAP.ServiceProvider?.Provider?.Name ?? string.Empty,
                     }
                 },
                 Zone = new ZoneDto
                 {
                     Id = NAP.ZoneId ?? Guid.Empty,
-                    Name = NAP.Zone?.Name ?? "Unknown",
+                    Name = NAP.Zone?.Name ?? string.Empty,
                     Barangay = new BarangayDto
                     {
                         Id = NAP.Zone?.BarangayId ?? Guid.Empty,
-                        Name = NAP.Zone?.Barangay?.Name ?? "Unknown",
+                        Name = NAP.Zone?.Barangay?.Name ?? string.Empty,
                         Description = NAP.Zone?.Barangay?.Description,
                         Municipality = new MunicipalityDto
                         {
                             Id = NAP.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                            Name = NAP.Zone?.Barangay?.Municipality?.Name ?? "Unknown",
+                            Name = NAP.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
                             Description = NAP.Zone?.Barangay?.Description,
                             IsCity = NAP.Zone?.Barangay?.Municipality?.IsCity ?? false,
                             Province = new ProvinceDto
                             {
                                 Id = NAP.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                                Name = NAP.Zone?.Barangay?.Municipality?.Province?.Name ?? "Unknown",
+                                Name = NAP.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                                 Description = NAP.Zone?.Barangay?.Municipality?.Province?.Description,
                                 Region = new RegionDto
                                 {
                                     Id = NAP.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                    Name = NAP.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? "Unknown",
+                                    Name = NAP.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
                                     Description = NAP.Zone?.Barangay?.Municipality?.Province?.Region?.Description
                                 }
                             }
@@ -83,8 +83,8 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
                         }
                     },
                 },
-                CoorLatitude = NAP.CoorLatitude ?? "Unknown",
-                CoorLongitude = NAP.CoorLongitude ?? "Unknown",
+                CoorLatitude = NAP.CoorLatitude ?? string.Empty,
+                CoorLongitude = NAP.CoorLongitude ?? string.Empty,
             }
         };
     }

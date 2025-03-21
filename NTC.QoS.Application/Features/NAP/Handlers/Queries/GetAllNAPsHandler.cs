@@ -5,6 +5,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.DTOs.NAP;
+using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.NAP.Handlers.Queries
 {
@@ -69,7 +70,23 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Queries
                 CoorLongitude = n.CoorLongitude,
             }).ToList();
 
-            return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize);
+            if (NAPs.Count is 0)
+            {
+                return new PaginatedResponse<NAPDto>(new List<NAPDto>(), request.PageNumber, request.PageSize)
+                {
+                    Data = NAPs,
+                    Message = "No records found.",
+                    Succeeded = true
+                };
+            }
+
+            return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize)
+            {
+
+                Data = NAPs,
+                Message = "Studies retrieved successfully.",
+                Succeeded = true
+            };
         }
     }
 }
