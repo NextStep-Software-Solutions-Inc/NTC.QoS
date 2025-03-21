@@ -11,25 +11,15 @@ public class DeletePermissionByIdHandler(IRepository<Domain.Entities.Permission>
     public async Task<ApiResponse<bool>> Handle(DeletePermissionByIdRequest request, CancellationToken cancellationToken)
     {
         var permission = await _repository.FindAsync(p => p.Id == request.Id && !p.IsDeleted, cancellationToken);
-
-        if (permission is null)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Error = new[] { "Permission not found." },
-                Message = "The permission you are trying to delete does not exist."
-            };
-        }
+        if (permission is null) return new ApiResponse<bool>("Permission not found.");
 
         _repository.Delete(permission);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>
         {
-            Data = true,
             Succeeded = true,
-            Message = $"Permission deleted successfully."
+            Message = "Permission deleted successfully."
         };
     }
 }
