@@ -11,25 +11,15 @@ public class DeleteRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
     public async Task<ApiResponse<bool>> Handle(DeleteRoleByIdRequest request, CancellationToken cancellationToken)
     {
         var role = await _repository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
-
-        if (role is null)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Error = new[] { "Role not found." },
-                Message = "The role you are trying to delete does not exist."
-            };
-        }
+        if (role is null) return new ApiResponse<bool>("Role not found.");
 
         _repository.Delete(role);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>
         {
-            Data = true,
             Succeeded = true,
-            Message = $"Role deleted successfully."
+            Message = "Role deleted successfully."
         };
     }
 }

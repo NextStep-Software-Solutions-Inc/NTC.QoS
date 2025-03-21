@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Role;
 
 namespace NTC.QoS.Application.Features.Role.Requests;
 
-public class CreateRoleRequest : IRequest<ApiResponse<CreateRoleDto>>
+public class CreateRoleRequest(CreateRoleDto role) : IRequest<ApiResponse<RoleDto>>
 {
-    public required CreateRoleDto Role { get; set; }
+    public CreateRoleDto Role { get; set; } = role;
 }

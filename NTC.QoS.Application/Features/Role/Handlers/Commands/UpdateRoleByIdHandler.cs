@@ -6,82 +6,48 @@ using NTC.QoS.Domain.Models.DTOs.Role;
 
 namespace NTC.QoS.Application.Features.Role.Handlers.Commands;
 
-public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : IRequestHandler<UpdateRoleByIdRequest, ApiResponse<UpdateRoleDto>>
+public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : IRequestHandler<UpdateRoleByIdRequest, ApiResponse<RoleDto>>
 {
     private readonly IRepository<Domain.Entities.Role> _repository = repository;
 
-    public async Task<ApiResponse<UpdateRoleDto>> Handle(UpdateRoleByIdRequest request,
+    public async Task<ApiResponse<RoleDto>> Handle(UpdateRoleByIdRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.Role is null)
-        {
-            return new ApiResponse<UpdateRoleDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Error = new[] { "Role data is missing." },
-                Message = "The request does not contain role update data.",
-            };
-        }
-
         var role = await _repository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
+        if (role is null) return new ApiResponse<RoleDto>("Role not found.");
 
-        if (role is null)
+        if (!string.IsNullOrEmpty(request.Role.Name))
         {
-            return new ApiResponse<UpdateRoleDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Error = new[] { "Role not found." },
-                Message = "The role you are trying to edit does not exist.",
-            };
-        }
-
-        var existingRoleWithName = await _repository.FindAsync(
+            var existingRoleWithName = await _repository.FindAsync(
             r => r.Name == request.Role.Name && r.Id != request.Id && !r.IsDeleted,
             cancellationToken);
+            if (existingRoleWithName is not null) return new ApiResponse<RoleDto>("Role name already exists.");
+            role.Name = request.Role.Name;
+        }
 
-        var existingRoleWithKey = await _repository.FindAsync(
+        if (!string.IsNullOrEmpty(request.Role.Key))
+        {
+            var existingRoleWithKey = await _repository.FindAsync(
             r => r.Key == request.Role.Key && r.Id != request.Id && !r.IsDeleted,
             cancellationToken);
-
-        if (existingRoleWithName is not null)
-        {
-            return new ApiResponse<UpdateRoleDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Error = new[] { "Role name already exists." },
-                Message = "A role with the specified name already exists.",
-            };
+            if (existingRoleWithKey is not null) return new ApiResponse<RoleDto>("Role key already exists.");
+            role.Key = request.Role.Key;
         }
 
-        if (existingRoleWithKey is not null)
-        {
-            return new ApiResponse<UpdateRoleDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Error = new[] { "Role key already exists." },
-                Message = "A role with the specified key already exists.",
-            };
-        }
-
-        role.Name = request.Role.Name;
-        role.Key = request.Role.Key;
-        role.Description = request.Role.Description;
-
+        if (!string.IsNullOrEmpty(request.Role.Key)) role.Description = request.Role.Description;
+        
         _repository.Update(role);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdateRoleDto>
+        return new ApiResponse<RoleDto>
         {
             Succeeded = true,
-            Data = new UpdateRoleDto
+            Data = new RoleDto
             {
-                Name = request.Role.Name,
-                Key = request.Role.Key,
-                Description = request.Role.Description
+                Id = role.Id,
+                Name = role.Name,
+                Key = role.Key,
+                Description = role.Description ?? string.Empty
             },
             Message = "Role updated successfully.",
         };
