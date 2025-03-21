@@ -2,34 +2,34 @@
 
 public class UpdateSectorDto
 {
-    public required Guid NetworkId { get; set; }
-    public required string AntennaType { get; set; }
-    public required int Number { get; set; }
+    public Guid? NetworkId { get; set; }
+    public string? AntennaType { get; set; }
+    public int? Number { get; set; }
     public Guid? MIMOId { get; set; }
-    public required Guid CellId { get; set; }
-    public required string RadioEquipment { get; set; }
-    public required bool IsRxEqualTx { get; set; }
-    public required decimal TxPower { get; set; }
-    public required string TxAntennaModel { get; set; }
-    public required string TxCableType { get; set; }
-    public required decimal TxCableLength { get; set; }
-    public required decimal TxCableLoss { get; set; }
-    public required decimal TxAdditionalLoss { get; set; }
-    public required decimal TxAntennaHeight { get; set; }
-    public required decimal TxAntennaGain { get; set; }
-    public required decimal TxAzimuth { get; set; }
-    public required decimal TxBeamTilt { get; set; }
-    public required Guid TxAntennaPatternId { get; set; }
-    public required decimal TxEIRP { get; set; }
-    public required string RxAntennaModel { get; set; }
-    public required string RxCableType { get; set; }
-    public required decimal RxCableLength { get; set; }
-    public required decimal RxCableLoss { get; set; }
-    public required decimal RxAdditionalLoss { get; set; }
-    public required decimal RxAntennaHeight { get; set; }
-    public required decimal RxAntennaGain { get; set; }
-    public required decimal RxAzimuth { get; set; }
-    public required decimal RxBeamTilt { get; set; }
-    public required Guid RxAntennaPatternId { get; set; }
-    public required decimal RxEIRP { get; set; }
+    public Guid? CellId { get; set; }
+    public string? RadioEquipment { get; set; }
+    public  bool? IsRxEqualTx { get; set; }
+    public decimal? TxPower { get; set; }
+    public string? TxAntennaModel { get; set; }
+    public string? TxCableType { get; set; }
+    public decimal? TxCableLength { get; set; }
+    public decimal? TxCableLoss { get; set; }
+    public decimal? TxAdditionalLoss { get; set; }
+    public decimal? TxAntennaHeight { get; set; }
+    public decimal? TxAntennaGain { get; set; }
+    public decimal? TxAzimuth { get; set; }
+    public decimal? TxBeamTilt { get; set; }
+    public Guid? TxAntennaPatternId { get; set; }
+    public decimal? TxEIRP { get; set; }
+    public string? RxAntennaModel { get; set; }
+    public string? RxCableType { get; set; }
+    public decimal? RxCableLength { get; set; }
+    public decimal? RxCableLoss { get; set; }
+    public decimal? RxAdditionalLoss { get; set; }
+    public decimal? RxAntennaHeight { get; set; }
+    public decimal? RxAntennaGain { get; set; }
+    public decimal? RxAzimuth { get; set; }
+    public decimal? RxBeamTilt { get; set; }
+    public Guid? RxAntennaPatternId { get; set; }
+    public decimal? RxEIRP { get; set; }
 }

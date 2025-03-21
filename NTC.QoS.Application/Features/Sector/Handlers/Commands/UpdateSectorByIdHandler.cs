@@ -13,8 +13,6 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository) : IRequ
     private readonly ISectorRepository _sectorRepository = sectorRepository;
     public async Task<ApiResponse<SectorDto>> Handle(UpdateSectorByIdRequest request, CancellationToken cancellationToken)
     {
-        var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
-
         var sector = await _sectorRepository.GetByIdAsync(request.Id, cancellationToken);
         if (sector is null)
         {
@@ -26,42 +24,27 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository) : IRequ
             };
         }
 
-        var existingSectors = await _sectorRepository.GetAllSectorsAsync(cancellationToken);
-        if (existingSectors.Any(s => s.Id != request.Id &&
-                                    s.NetworkId == request.Sector.NetworkId &&
-                                    s.Number == request.Sector.Number &&
-                                    s.CellId == request.Sector.CellId &&
-                                    s.AntennaType == antennaType))
-        {
-            return new ApiResponse<SectorDto>
-            {
-                Succeeded = false,
-                Error = new[] { "A sector with the same NetworkId, Number, CellId, and AntennaType already exists." },
-                Message = "Duplicate sector data."
-            };
-        }
+        if (request.Sector.NetworkId.HasValue) sector.NetworkId = request.Sector.NetworkId.Value;
+        if (request.Sector.AntennaType is not null) sector.AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
+        if (request.Sector.Number.HasValue) sector.Number = request.Sector.Number.Value;
+        if (request.Sector.MIMOId.HasValue) sector.MIMOId = request.Sector.MIMOId;
+        if (request.Sector.CellId.HasValue) sector.CellId = request.Sector.CellId.Value;
+        if (!string.IsNullOrEmpty(request.Sector.RadioEquipment)) sector.RadioEquipment = request.Sector.RadioEquipment;
+        if (request.Sector.IsRxEqualTx.HasValue) sector.IsRxEqualTx = request.Sector.IsRxEqualTx.Value;
+        if (request.Sector.TxPower.HasValue) sector.TxPower = request.Sector.TxPower.Value;
+        if (!string.IsNullOrEmpty(request.Sector.TxAntennaModel)) sector.TxAntennaModel = request.Sector.TxAntennaModel;
+        if (!string.IsNullOrEmpty(request.Sector.TxCableType)) sector.TxCableType = request.Sector.TxCableType;
+        if (request.Sector.TxCableLength.HasValue) sector.TxCableLength = request.Sector.TxCableLength.Value;
+        if (request.Sector.TxCableLoss.HasValue) sector.TxCableLoss = request.Sector.TxCableLoss.Value;
+        if (request.Sector.TxAdditionalLoss.HasValue) sector.TxAdditionalLoss = request.Sector.TxAdditionalLoss.Value;
+        if (request.Sector.TxAntennaHeight.HasValue) sector.TxAntennaHeight = request.Sector.TxAntennaHeight.Value;
+        if (request.Sector.TxAntennaGain.HasValue) sector.TxAntennaGain = request.Sector.TxAntennaGain.Value;
+        if (request.Sector.TxAzimuth.HasValue) sector.TxAzimuth = request.Sector.TxAzimuth.Value;
+        if (request.Sector.TxBeamTilt.HasValue) sector.TxBeamTilt = request.Sector.TxBeamTilt.Value;
+        if (request.Sector.TxAntennaPatternId.HasValue) sector.TxAntennaPatternId = request.Sector.TxAntennaPatternId.Value;
+        if (request.Sector.TxEIRP.HasValue) sector.TxEIRP = request.Sector.TxEIRP.Value;
 
-        sector.NetworkId = request.Sector.NetworkId;
-        sector.AntennaType = antennaType;
-        sector.Number = request.Sector.Number;
-        sector.MIMOId = request.Sector.MIMOId;
-        sector.CellId = request.Sector.CellId;
-        sector.RadioEquipment = request.Sector.RadioEquipment;
-        sector.IsRxEqualTx = request.Sector.IsRxEqualTx;
-        sector.TxPower = request.Sector.TxPower;
-        sector.TxAntennaModel = request.Sector.TxAntennaModel;
-        sector.TxCableType = request.Sector.TxCableType;
-        sector.TxCableLength = request.Sector.TxCableLength;
-        sector.TxCableLoss = request.Sector.TxCableLoss;
-        sector.TxAdditionalLoss = request.Sector.TxAdditionalLoss;
-        sector.TxAntennaHeight = request.Sector.TxAntennaHeight;
-        sector.TxAntennaGain = request.Sector.TxAntennaGain;
-        sector.TxAzimuth = request.Sector.TxAzimuth;
-        sector.TxBeamTilt = request.Sector.TxBeamTilt;
-        sector.TxAntennaPatternId = request.Sector.TxAntennaPatternId;
-        sector.TxEIRP = request.Sector.TxEIRP;
-
-        if (request.Sector.IsRxEqualTx)
+        if (request.Sector.IsRxEqualTx.HasValue && request.Sector.IsRxEqualTx.Value)
         {
             sector.RxAntennaModel = sector.TxAntennaModel;
             sector.RxCableType = sector.TxCableType;
@@ -77,17 +60,33 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository) : IRequ
         }
         else
         {
-            sector.RxAntennaModel = request.Sector.RxAntennaModel;
-            sector.RxCableType = request.Sector.RxCableType;
-            sector.RxCableLength = request.Sector.RxCableLength;
-            sector.RxCableLoss = request.Sector.RxCableLoss;
-            sector.RxAdditionalLoss = request.Sector.RxAdditionalLoss;
-            sector.RxAntennaHeight = request.Sector.RxAntennaHeight;
-            sector.RxAntennaGain = request.Sector.RxAntennaGain;
-            sector.RxAzimuth = request.Sector.RxAzimuth;
-            sector.RxBeamTilt = request.Sector.RxBeamTilt;
-            sector.RxAntennaPatternId = request.Sector.RxAntennaPatternId;
-            sector.RxEIRP = request.Sector.RxEIRP;
+            if (!string.IsNullOrEmpty(request.Sector.RxAntennaModel)) sector.RxAntennaModel = request.Sector.RxAntennaModel;
+            if (!string.IsNullOrEmpty(request.Sector.RxCableType)) sector.RxCableType = request.Sector.RxCableType;
+            if (request.Sector.RxCableLength.HasValue) sector.RxCableLength = request.Sector.RxCableLength.Value;
+            if (request.Sector.RxCableLoss.HasValue) sector.RxCableLoss = request.Sector.RxCableLoss.Value;
+            if (request.Sector.RxAdditionalLoss.HasValue) sector.RxAdditionalLoss = request.Sector.RxAdditionalLoss.Value;
+            if (request.Sector.RxAntennaHeight.HasValue) sector.RxAntennaHeight = request.Sector.RxAntennaHeight.Value;
+            if (request.Sector.RxAntennaGain.HasValue) sector.RxAntennaGain = request.Sector.RxAntennaGain.Value;
+            if (request.Sector.RxAzimuth.HasValue) sector.RxAzimuth = request.Sector.RxAzimuth.Value;
+            if (request.Sector.RxBeamTilt.HasValue) sector.RxBeamTilt = request.Sector.RxBeamTilt.Value;
+            if (request.Sector.RxAntennaPatternId.HasValue) sector.RxAntennaPatternId = request.Sector.RxAntennaPatternId.Value;
+            if (request.Sector.RxEIRP.HasValue) sector.RxEIRP = request.Sector.RxEIRP.Value;
+        }
+
+
+        var existingSectors = await _sectorRepository.GetAllSectorsAsync(cancellationToken);
+        if (existingSectors.Any(s => s.Id != sector.Id &&
+                                    s.NetworkId == sector.NetworkId &&
+                                    s.Number == sector.Number &&
+                                    s.CellId == sector.CellId &&
+                                    s.AntennaType == sector.AntennaType))
+        {
+            return new ApiResponse<SectorDto>
+            {
+                Succeeded = false,
+                Error = new[] { "A sector with the same NetworkId, Number, CellId, and AntennaType already exists." },
+                Message = "Duplicate sector data."
+            };
         }
 
         _sectorRepository.Update(sector);

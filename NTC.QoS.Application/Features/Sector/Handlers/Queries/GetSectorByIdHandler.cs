@@ -14,17 +14,8 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
     public async Task<ApiResponse<SectorDto>> Handle(GetSectorByIdRequest request, CancellationToken cancellationToken)
     {
         var sector = await _sectorRepository.GetByIdAsync(request.Id, cancellationToken);
+        if (sector is null) return new ApiResponse<SectorDto>("Sector does not exist.");
 
-        if (sector is null)
-        {
-            return new ApiResponse<SectorDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Error = new[] { $"Sector with ID [{request.Id}] not found." },
-                Message = $"Sector does not exist."
-            };
-        }
         var result = new SectorDto
         {
             Id = sector.Id,

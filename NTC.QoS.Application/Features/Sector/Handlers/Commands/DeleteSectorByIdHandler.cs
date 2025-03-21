@@ -11,22 +11,13 @@ public class DeleteSectorByIdHandler(IRepository<Domain.Entities.Sector> reposit
     public async Task<ApiResponse<bool>> Handle(DeleteSectorByIdRequest request, CancellationToken cancellationToken)
     {
         var sector = await _repository.FindAsync(s => s.Id == request.Id && !s.IsDeleted, cancellationToken);
-        if (sector is null)
-        {
-            return new ApiResponse<bool>
-            {
-                Data = false,
-                Succeeded = false,
-                Error = new[] { $"Sector with ID [{request.Id}] not found." },
-                Message = $"Sector does not exist."
-            };
-        }
+        if (sector is null) return new ApiResponse<bool>("Sector does not exist.");
+
         _repository.Delete(sector);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>
         {
-            Data = true,
             Message = "Sector deleted successfully.",
             Succeeded = true
         };

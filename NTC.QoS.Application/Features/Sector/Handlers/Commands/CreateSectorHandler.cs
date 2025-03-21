@@ -21,68 +21,36 @@ public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepos
     private readonly IRepository<Domain.Entities.AntennaPattern> _antennaPatternRepository = antennaPatternRepository;
     public async Task<ApiResponse<SectorDto>> Handle(CreateSectorRequest request, CancellationToken cancellationToken)
     {
-        var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
-
-        var sector = await _sectorRepository.FindAsync(s => s.NetworkId == request.Sector.NetworkId && s.CellId == request.Sector.CellId && s.AntennaType == antennaType && s.Number == request.Sector.Number && !s.IsDeleted, cancellationToken);
-        if (sector is not null)
-        {
-            return new ApiResponse<SectorDto>
-            {
-                Message = "Sector already exist.",
-                Succeeded = false,
-            };
-        }
+        var sector = await _sectorRepository.FindAsync(s => s.NetworkId == request.Sector.NetworkId
+                                                            && s.CellId == request.Sector.CellId
+                                                            && s.AntennaType == EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType)
+                                                            && s.Number == request.Sector.Number
+                                                            && !s.IsDeleted, cancellationToken);
+        if (sector is not null) return new ApiResponse<SectorDto>("Sector already exist.");
+           
 
         var network = await _networkRepository.GetByIdAsync(request.Sector.NetworkId, cancellationToken);
-        if (network is null)
-        {
-            return new ApiResponse<SectorDto>
-            {
-                Message = "Network not found.",
-                Succeeded = false
-            };
-        }
+        if (network is null) return new ApiResponse<SectorDto>("Network not found.");
 
         if (request.Sector.MIMOId.HasValue)
         {
             var mimo = await _mimoRepository.GetByIdAsync(request.Sector.MIMOId.Value, cancellationToken);
-            if (mimo is null)
-            {
-                return new ApiResponse<SectorDto>
-                {
-                    Message = "MIMO not found.",
-                    Succeeded = false
-                };
-            }
+            if (mimo is null) return new ApiResponse<SectorDto>("MIMO not found.");
         }
 
         var cell = await _cellRepository.GetByIdAsync(request.Sector.CellId, cancellationToken);
-        if (cell is null) 
-        {
-            return new ApiResponse<SectorDto>
-            {
-                Message = "Cell not found.",
-                Succeeded = false
-            };
-        }
+        if (cell is null) return new ApiResponse<SectorDto>("Cell not found.");
 
         var txAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.TxAntennaPatternId, cancellationToken);
         var rxAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.RxAntennaPatternId, cancellationToken);
-        if (txAntennaPattern is null || rxAntennaPattern is null)
-        {
-            return new ApiResponse<SectorDto>
-            {
-                Message = "Antenna pattern not found.",
-                Succeeded = false
-            };
-        }
+        if (txAntennaPattern is null || rxAntennaPattern is null) return new ApiResponse<SectorDto>("Antenna pattern not found.");
 
         var newSector = new Domain.Entities.Sector  
         {
             NetworkId = network.Id,
             MIMOId = request.Sector.MIMOId,
             CellId = cell.Id,
-            AntennaType = antennaType,
+            AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType),
             Number = request.Sector.Number,
             RadioEquipment = request.Sector.RadioEquipment,
             IsRxEqualTx = request.Sector.IsRxEqualTx,
@@ -131,6 +99,7 @@ public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepos
 
         _sectorRepository.Add(newSector);
         await _sectorRepository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<SectorDto>
         {
             Data = new SectorDto

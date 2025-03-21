@@ -46,7 +46,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);
     }
 
-    [HttpPut("{id}")]
+    [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<SectorDto>>> UpdateSector(Guid id, UpdateSectorDto sectorDto)
     {
         var sector = await _mediator.Send(new UpdateSectorByIdRequest(id, sectorDto));
