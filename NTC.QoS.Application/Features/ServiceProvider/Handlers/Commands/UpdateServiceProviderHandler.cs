@@ -29,7 +29,6 @@ public class UpdateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
         return new ApiResponse<Domain.Aggregates.ServiceProvider>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = serviceProvider,
             Message = "Request successful! Your changes have been saved."
         };

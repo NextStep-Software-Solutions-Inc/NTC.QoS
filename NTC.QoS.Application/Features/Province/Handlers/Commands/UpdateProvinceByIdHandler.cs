@@ -44,7 +44,6 @@ public class UpdateProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
         return new ApiResponse<UpdateProvinceDto>
         {
             Succeeded = true,
-            Error = new[] {""},
             Data = new UpdateProvinceDto()
             {
                 Name = request.Province.Name,

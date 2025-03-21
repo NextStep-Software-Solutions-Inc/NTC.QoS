@@ -47,7 +47,6 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
         return new ApiResponse<Domain.Entities.MIMO>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = mimo,
             Message = "Request successful! Your changes have been saved.."
         };

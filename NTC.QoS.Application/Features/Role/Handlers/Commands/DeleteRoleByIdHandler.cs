@@ -17,7 +17,10 @@ public class DeleteRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Role not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error", ["Role not found."] }
+                },
                 Message = "The role you are trying to delete does not exist."
             };
         }

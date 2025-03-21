@@ -28,7 +28,6 @@ public class UpdateZoneByIdHandler(IRepository<Domain.Entities.Zone> repository)
         return new ApiResponse<Domain.Entities.Zone>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = zone,
             Message = "Request successful! Your changes have been saved."
         };

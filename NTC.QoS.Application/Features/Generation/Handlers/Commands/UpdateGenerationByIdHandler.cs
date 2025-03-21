@@ -45,7 +45,6 @@ public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
         return new ApiResponse<UpdateGenerationDto>
         {
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Data = new UpdateGenerationDto
             {
                 Name = request.Generation.Name,

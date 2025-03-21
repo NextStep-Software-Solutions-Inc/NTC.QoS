@@ -45,7 +45,6 @@ public class UpdateBandByIdHandler(IRepository<Domain.Entities.Band> repository)
         return new ApiResponse<UpdateBandDto>
         {
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Data = new UpdateBandDto
             {
                 Name = request.Band.Name,

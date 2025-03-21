@@ -30,7 +30,6 @@ public class UpdateMunicipalityByIdHandler(IRepository<Domain.Entities.Municipal
         return new ApiResponse<Domain.Entities.Municipality>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = municipality,
             Message = "Request successful! Your changes have been saved."
         };

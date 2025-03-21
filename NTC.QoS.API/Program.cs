@@ -1,3 +1,4 @@
+using NTC.QoS.API.Extentions;
 using NTC.QoS.Application;
 using NTC.QoS.Infrastructure;
 
@@ -13,10 +14,14 @@ public class Program
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+        builder.Services.AddSwaggerGen(option =>
+        {
+            option.OperationFilter<SwaggerOperationIdFilter>();
+        });
         builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
-
+        
+        
         var app = builder.Build();
         
         // Configure the HTTP request pipeline.
@@ -30,7 +35,7 @@ public class Program
             });
         }
 
-        
+
         app.UseHttpsRedirection();
 
         app.UseAuthorization();
@@ -41,3 +46,4 @@ public class Program
         app.Run();
     }
 }
+

@@ -18,7 +18,10 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Province not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                      {"Error", [ "Province not found."] }
+                },
                 Message = "The province you are trying to delete does not exist."
             };
         }
@@ -30,7 +33,6 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
         {
             Data = true,
             Succeeded = true,
-            Error = new[] { "" },
             Message = $"Province '{province.Name}' has been successfully deleted."
         };
     }

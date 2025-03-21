@@ -18,7 +18,10 @@ public class DeleteGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Generation not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Generation",  ["Generation  not found."] }
+                },
                 Message = "The generation you are trying to delete does not exist.",
             };
         }
@@ -30,7 +33,6 @@ public class DeleteGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
         {
             Data = true,
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Message = $"Generation '{generation.Name}' has been successfully deleted."
         };
     }

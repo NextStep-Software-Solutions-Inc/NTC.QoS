@@ -20,7 +20,10 @@ public class GetBandByIdHandler(IRepository<Domain.Entities.Band> repository) : 
             {
                 Succeeded = false,
                 Message = "Band not found.",
-                Error = new[] { "Band with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Band", [ "Band with the specified ID does not exist."] }
+                },
             };
         }
 

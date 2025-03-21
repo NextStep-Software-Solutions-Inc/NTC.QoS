@@ -34,7 +34,6 @@ public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
         return new ApiResponse<UpdateAntennaPatternDto>
         {
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Data = new UpdateAntennaPatternDto
             {
                 Name = request.AntennaPattern.Name,
