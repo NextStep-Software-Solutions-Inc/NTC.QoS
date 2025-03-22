@@ -16,6 +16,13 @@ public class ApiResponse<T>
         Succeeded = succeeded;
         Message = message;
     }
+    public ApiResponse(bool success, T data, string message, Dictionary<string, string[]> errors)
+    {
+        Succeeded = success;
+        Data = data;
+        Message = message;
+        Errors = errors;
+    }
 
     public ApiResponse(Dictionary<string, string[]> errors)
     {

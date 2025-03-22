@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using MediatR;
+﻿using MediatR;
 using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -7,22 +6,10 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Commands;
 
-public class CreateProviderHandler(IRepository<Domain.Entities.Provider> repository, IValidator<CreateProviderRequest> validator) : IRequestHandler<CreateProviderRequest, ApiResponse<CreateProviderDto>>
+public class CreateProviderHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<CreateProviderRequest, ApiResponse<CreateProviderDto>>
 {
     public async Task<ApiResponse<CreateProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
     {
-        var validationResult = await validator.ValidateAsync(request, cancellationToken);
-
-        if (validationResult.IsValid.Equals(false))
-        {
-            return new ApiResponse<CreateProviderDto>
-            {
-                Message = "Validation failed",
-                Succeeded = false,
-                Errors = validationResult.Errors.ToDictionary(e => e.PropertyName, e => new[] { e.ErrorMessage })
-            };
-        }
-
         var provider =  await repository.FindAsync(p => p.Name == request.Provider.Name, cancellationToken);
 
         if (provider is not null && provider.IsDeleted.Equals(true)) 
@@ -52,7 +39,7 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Error", ["Provider with the same name already exists."] }
+                    {"duplicate", ["Provider with the same name already exists."] }
                 }
             };
         }

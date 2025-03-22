@@ -18,10 +18,9 @@ public class Program
         {
             option.OperationFilter<SwaggerOperationIdFilter>();
         });
-        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
-        
-        
+        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+
         var app = builder.Build();
         
         // Configure the HTTP request pipeline.
