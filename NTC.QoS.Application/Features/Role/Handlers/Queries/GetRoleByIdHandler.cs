@@ -17,7 +17,7 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
 
         if (role is null)
         {
-            return new ApiResponse<GetRoleDto>
+            return new ApiResponse<RoleDto>
             {
                 Succeeded = false,
                 Message = "Role not found.",
@@ -28,7 +28,7 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
             };
         }
 
-        return new ApiResponse<GetRoleDto>
+        return new ApiResponse<RoleDto>
         {
             Succeeded = true,
             Message = "Role retrieved successfully.",
