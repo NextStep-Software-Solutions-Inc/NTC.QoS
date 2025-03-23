@@ -13,38 +13,30 @@ public class RolesController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<IActionResult> CreateRole(CreateRoleDto roleDto)
+    public async Task<ActionResult<ApiResponse<RoleDto>>> CreateRole(CreateRoleDto createRoleDto)
     {
-        var role = await _mediator.Send(new CreateRoleRequest
-        {
-            Role = roleDto
-        });
+        var role = await _mediator.Send(new CreateRoleRequest(createRoleDto));
         return role.Succeeded ? Ok(role) : BadRequest(role);
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<GetRoleDto>>> GetAllRoles(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<RoleDto>>> GetAllRoles(int pageSize = 10, int pageNumber = 1)
     {
         var result = await _mediator.Send(new GetAllRolesRequest(pageSize, pageNumber));
         return Ok(result);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<GetRoleDto>>> GetRoleById(Guid id)
+    public async Task<ActionResult<ApiResponse<RoleDto>>> GetRoleById(Guid id)
     {
-        var request = new GetRoleByIdRequest(id);
-        var role = await _mediator.Send(request);
+        var role = await _mediator.Send(new GetRoleByIdRequest(id));
         return role.Succeeded ? Ok(role) : BadRequest(role);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateRoleDto>>> UpdateRoleById(Guid id, UpdateRoleDto updateRole)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<RoleDto>>> UpdateRoleById(Guid id, UpdateRoleDto updateRoleDto)
     {
-        var role = await _mediator.Send(new UpdateRoleByIdRequest
-        {
-            Id = id,
-            Role = updateRole
-        });
+        var role = await _mediator.Send(new UpdateRoleByIdRequest(id, updateRoleDto));
         return role.Succeeded ? Ok(role) : BadRequest(role);
     }
 

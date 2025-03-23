@@ -6,22 +6,14 @@ using NTC.QoS.Domain.Models.DTOs.Role;
 
 namespace NTC.QoS.Application.Features.Role.Handlers.Commands;
 
-public class CreateRoleHandler (IRepository<Domain.Entities.Role> repository): IRequestHandler<CreateRoleRequest, ApiResponse<CreateRoleDto>>
+public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository): IRequestHandler<CreateRoleRequest, ApiResponse<RoleDto>>
 {
-    private readonly IRepository<Domain.Entities.Role> _repository = repository;
+    private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
 
-    public async Task<ApiResponse<CreateRoleDto>> Handle(CreateRoleRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<RoleDto>> Handle(CreateRoleRequest request, CancellationToken cancellationToken)
     {
-        var role = await _repository.FindAsync(r => r.Name == request.Role.Name && !r.IsDeleted, cancellationToken);
-
-        if (role is not null)
-        {
-            return new ApiResponse<CreateRoleDto>
-            {
-                Succeeded = false,
-                Message = "Role already exists."
-            };
-        }
+        var role = await _roleRepository.FindAsync(r => r.Name == request.Role.Name && !r.IsDeleted, cancellationToken);
+        if (role is not null) return new ApiResponse<RoleDto>("Role already exists.");
                 
         var newRole = new Domain.Entities.Role
         {
@@ -30,16 +22,17 @@ public class CreateRoleHandler (IRepository<Domain.Entities.Role> repository): I
             Description = request.Role.Description,
         };
 
-        _repository.Add(newRole);
-        await _repository.SaveChangesAsync(cancellationToken);
+        _roleRepository.Add(newRole);
+        await _roleRepository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateRoleDto>
+        return new ApiResponse<RoleDto>
         {
-            Data = new CreateRoleDto
+            Data = new RoleDto
             {
+                Id = newRole.Id,
                 Name = newRole.Name,
                 Key = newRole.Key,
-                Description = newRole.Description,
+                Description = newRole.Description ?? string.Empty,
             },
             Succeeded = true,
             Message = "Role created successfully.",

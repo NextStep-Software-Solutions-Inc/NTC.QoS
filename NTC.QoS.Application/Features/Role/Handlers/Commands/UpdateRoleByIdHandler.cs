@@ -6,14 +6,14 @@ using NTC.QoS.Domain.Models.DTOs.Role;
 
 namespace NTC.QoS.Application.Features.Role.Handlers.Commands;
 
-public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : IRequestHandler<UpdateRoleByIdRequest, ApiResponse<UpdateRoleDto>>
+public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : IRequestHandler<UpdateRoleByIdRequest, ApiResponse<RoleDto>>
 {
     private readonly IRepository<Domain.Entities.Role> _repository = repository;
 
-    public async Task<ApiResponse<UpdateRoleDto>> Handle(UpdateRoleByIdRequest request,
+    public async Task<ApiResponse<RoleDto>> Handle(UpdateRoleByIdRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.Role is null)
+        if (request.Role is null) // replace with fluent validation
         {
             return new ApiResponse<UpdateRoleDto>
             {
@@ -28,8 +28,9 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
         }
 
         var role = await _repository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
+        if (role is null) return new ApiResponse<RoleDto>("Role not found.");
 
-        if (role is null)
+        if (!string.IsNullOrEmpty(request.Role.Name))
         {
             return new ApiResponse<UpdateRoleDto>
             {
@@ -46,8 +47,13 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
         var existingRoleWithName = await _repository.FindAsync(
             r => r.Name == request.Role.Name && r.Id != request.Id && !r.IsDeleted,
             cancellationToken);
+            if (existingRoleWithName is not null) return new ApiResponse<RoleDto>("Role name already exists.");
+            role.Name = request.Role.Name;
+        }
 
-        var existingRoleWithKey = await _repository.FindAsync(
+        if (!string.IsNullOrEmpty(request.Role.Key))
+        {
+            var existingRoleWithKey = await _repository.FindAsync(
             r => r.Key == request.Role.Key && r.Id != request.Id && !r.IsDeleted,
             cancellationToken);
 
@@ -79,21 +85,20 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
             };
         }
 
-        role.Name = request.Role.Name;
-        role.Key = request.Role.Key;
-        role.Description = request.Role.Description;
-
+        if (!string.IsNullOrEmpty(request.Role.Key)) role.Description = request.Role.Description;
+        
         _repository.Update(role);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdateRoleDto>
+        return new ApiResponse<RoleDto>
         {
             Succeeded = true,
-            Data = new UpdateRoleDto
+            Data = new RoleDto
             {
-                Name = request.Role.Name,
-                Key = request.Role.Key,
-                Description = request.Role.Description
+                Id = role.Id,
+                Name = role.Name,
+                Key = role.Key,
+                Description = role.Description ?? string.Empty
             },
             Message = "Role updated successfully.",
         };

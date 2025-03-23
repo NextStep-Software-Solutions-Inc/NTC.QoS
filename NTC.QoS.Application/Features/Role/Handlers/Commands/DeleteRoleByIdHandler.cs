@@ -30,9 +30,8 @@ public class DeleteRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
 
         return new ApiResponse<bool>
         {
-            Data = true,
             Succeeded = true,
-            Message = $"Role deleted successfully."
+            Message = "Role deleted successfully."
         };
     }
 }

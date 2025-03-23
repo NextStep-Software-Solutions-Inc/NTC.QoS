@@ -6,13 +6,14 @@ using NTC.QoS.Domain.Models.DTOs.Role;
 
 namespace NTC.QoS.Application.Features.Role.Handlers.Queries;
 
-public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : IRequestHandler<GetRoleByIdRequest, ApiResponse<GetRoleDto>>
+public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : IRequestHandler<GetRoleByIdRequest, ApiResponse<RoleDto>>
 {
     private readonly IRepository<Domain.Entities.Role> _repository = repository;
 
-    public async Task<ApiResponse<GetRoleDto>> Handle(GetRoleByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<RoleDto>> Handle(GetRoleByIdRequest request, CancellationToken cancellationToken)
     {
         var role = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        if (role is null)  return new ApiResponse<RoleDto>("Role not found.");
 
         if (role is null)
         {
@@ -30,13 +31,13 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
         return new ApiResponse<GetRoleDto>
         {
             Succeeded = true,
-            Message = "Role retrieved successfully",
-            Data = new GetRoleDto
+            Message = "Role retrieved successfully.",
+            Data = new RoleDto
             {
                 Id = role.Id,
                 Name = role.Name,
                 Key = role.Key,
-                Description = role.Description
+                Description = role.Description ?? string.Empty
             },
         };
     }
