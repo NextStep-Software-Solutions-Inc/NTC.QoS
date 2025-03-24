@@ -22,10 +22,32 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         if (existingUser is not null) return new ApiResponse<UserDto>("User with the same Role, Organization, and AuthUserId already exists.");
         
         var role = await _roleRepository.GetByIdAsync(request.User.RoleId, cancellationToken);
-        if (role is null) return new ApiResponse<UserDto>("Role not found.");
+        if (role is null)
+        {
+            return new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Role not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "RoleId", ["Role with the specified Id does not exist"] }
+                }
+            };
+        }
 
         var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId, cancellationToken);
-        if (organization is null) return new ApiResponse<UserDto>("Organization not found.");
+        if (organization is null)
+        {
+            return new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Organization not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "OrganizationId", ["Organization with the specified Id does not exist."] }
+                }
+            };
+        }
 
         var newUser = new Domain.Entities.User
         {
