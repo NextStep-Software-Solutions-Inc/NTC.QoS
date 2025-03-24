@@ -35,7 +35,10 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
             return new ApiResponse<CreateLinkDto>
             {
                 Succeeded = false,
-                Error = new[] { "Band not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error",  ["Band not found."] }
+                },
                 Message = "Band not found.",
             };
         }
@@ -46,7 +49,10 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
             return new ApiResponse<CreateLinkDto>
             {
                 Succeeded = false,
-                Error = new[] { "Service Provider not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error",  ["Service Provider not found."] }
+                },
                 Message = "Service Provider not found.",
             };
         }

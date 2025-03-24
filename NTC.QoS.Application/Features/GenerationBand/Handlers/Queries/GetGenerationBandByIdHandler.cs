@@ -20,7 +20,10 @@ public class GetGenerationBandByIdHandler(IGenerationBandRepository repository) 
             {
                 Succeeded = false,
                 Message = "Generation band not found.",
-                Error = new[] { "Generation band with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", [ "Generation band with the specified ID does not exist." ]  }
+                },
             };
         }
 

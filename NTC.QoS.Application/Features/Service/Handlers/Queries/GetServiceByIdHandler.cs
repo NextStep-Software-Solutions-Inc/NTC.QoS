@@ -19,7 +19,10 @@ public class GetServiceByIdHandler(IRepository<Domain.Entities.Service> reposito
             {
                 Succeeded = false,
                 Message = "Service not found.",
-                Error = new[] { "Invalid service does not exist." }
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Invalid service does not exist."] }
+                }
             };
         }
         return new ApiResponse<ServiceDto>

@@ -20,7 +20,10 @@ public class GetOrganizationByIdHandler(IRepository<Domain.Entities.Organization
             {
                 Succeeded = false,
                 Message = "Organization not found.",
-                Error = new[] { "Organization with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Organization with the specified ID does not exist."] },
+                },
             };
         }
 

@@ -43,6 +43,9 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IFileRepository, FileRepository>();
         services.AddScoped<ICellularRepository, CellularRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IMIMORepository, MIMORepository>();
+        services.AddScoped<ISectorRepository, SectorRepository>();
+
 
         return services;
     }
