@@ -4,6 +4,9 @@ using NTC.QoS.Application.Features.Zone.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Queries;
 
@@ -32,13 +35,31 @@ public class GetZoneByIdHandler(IZoneRepository zoneRepository) : IRequestHandle
             {
                 Id = zone.Id,
                 Name = zone.Name,
-                BarangayId = zone.BarangayId,
-                Barangay = zone.Barangay != null ? new BarangayDto
+                Barangay = new BarangayDto
                 {
-                    Id = zone.Barangay.Id,
-                    MunicipalityId = zone.Barangay.MunicipalityId,
-                    Name = zone.Barangay.Name
-                } : null
+                    Id = zone.BarangayId,
+                    Name = zone.Barangay?.Name ?? "Unknown",
+                    Description = zone.Barangay?.Description ?? "Unknown",
+                    Municipality = new MunicipalityDto
+                    {
+                        Id = zone.Barangay?.MunicipalityId ?? Guid.Empty,
+                        Name =zone.Barangay?.Municipality?.Name ?? "Unknown",
+                        IsCity = zone.Barangay?.Municipality?.IsCity ?? false,
+                        Description = zone.Barangay?.Municipality?.Description,
+                        Province = new ProvinceDto
+                        {
+                            Id = zone.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                            Name = zone.Barangay?.Municipality?.Province?.Name ?? "Unknown",
+                            Description = zone.Barangay?.Municipality?.Province?.Description,
+                            Region = new RegionDto
+                            {
+                                Id = zone.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
+                                Name = zone.Barangay?.Municipality?.Province?.Region?.Name ?? "Unknown",
+                                Description = zone.Barangay?.Municipality?.Province?.Region?.Description,
+                            }
+                        }
+                    }
+                }
             }
         };
     }

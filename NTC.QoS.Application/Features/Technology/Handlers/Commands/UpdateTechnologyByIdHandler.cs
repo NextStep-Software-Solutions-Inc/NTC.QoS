@@ -22,7 +22,10 @@ public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Standard is required." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Standard", ["Standard is required."]}
+                },
                 Message = request.Technology.Standard + " already exists in our system. Please try a different one."
             };
         }
@@ -32,7 +35,10 @@ public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Technology not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Technology not found."] }
+                },
                 Message = "The technology you are trying to edit does not exist."
             };
         }
@@ -45,7 +51,6 @@ public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
         return new ApiResponse<UpdateTechnologyDto>
         {
             Succeeded = true,
-            Error = new[] {""},
             Data = new UpdateTechnologyDto()
             {
                 Standard = request.Technology.Standard,

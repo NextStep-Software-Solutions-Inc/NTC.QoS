@@ -33,10 +33,11 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
                 Id = province.Id,
                 Name = province.Name,
                 Description = province.Description,
-                RegionId = province.RegionId,
                 Region = new RegionDto
                 {
-                    Name = province.Region?.Name ?? "Unknown"
+                    Id = province.RegionId,
+                    Name = province.Region?.Name ?? "Unknown",
+                    Description = province.Region?.Description
                 }
             }
         };

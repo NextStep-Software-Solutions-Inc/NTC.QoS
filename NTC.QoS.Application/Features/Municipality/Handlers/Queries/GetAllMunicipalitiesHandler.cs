@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Queries;
 
@@ -25,12 +26,18 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
             Id = m.Id,
             Name = m.Name,
             Description = m.Description,
-            ProvinceId = m.ProvinceId,
             IsCity = m.IsCity,
             Province = new ProvinceDto
             {
                 Id = m.ProvinceId,
-                Name = m.Province?.Name ?? ""
+                Name = m.Province?.Name ?? "Unknown",
+                Description = m.Province?.Description,
+                Region = new RegionDto
+                {
+                    Id = m.Province?.Region?.Id ?? Guid.Empty,
+                    Name = m.Province?.Region?.Name ?? "Unknown",
+                    Description = m.Province?.Region?.Description,
+                }
             }
         }).ToList();
 

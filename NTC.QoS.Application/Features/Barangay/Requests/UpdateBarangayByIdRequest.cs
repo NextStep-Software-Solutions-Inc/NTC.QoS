@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 
 namespace NTC.QoS.Application.Features.Barangay.Requests;
 
-public class UpdateBarangayByIdRequest : IRequest<ApiResponse<Domain.Entities.Barangay>>
+public class UpdateBarangayByIdRequest : IRequest<ApiResponse<BarangayDto>>
 {
     public UpdateBarangayByIdRequest(Guid id, UpdateBarangayDto barangay)
     {

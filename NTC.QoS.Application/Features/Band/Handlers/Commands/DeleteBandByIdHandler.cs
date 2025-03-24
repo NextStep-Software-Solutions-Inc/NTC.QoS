@@ -18,7 +18,10 @@ public class DeleteBandByIdHandler(IRepository<Domain.Entities.Band> repository)
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Band not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Band", new[] { "Band not found." } }
+                },
                 Message = "The band you are trying to delete does not exist.",
             };
         }
@@ -30,7 +33,6 @@ public class DeleteBandByIdHandler(IRepository<Domain.Entities.Band> repository)
         {
             Data = true,
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Message = $"Band '{band.Name}' has been successfully deleted."
         };
     }

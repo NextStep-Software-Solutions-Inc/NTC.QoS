@@ -21,7 +21,10 @@ public class UpdateProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Name is required." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Name", new[] { "Province name is required." }}
+                },
                 Message = request.Province.Name + " already exists in our system. Please try a different one."
             };
         }
@@ -31,7 +34,10 @@ public class UpdateProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Province not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", new[] { "Province not found." }}
+                },
                 Message = "The province you are trying to edit does not exist."
             };
         }
@@ -44,7 +50,6 @@ public class UpdateProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
         return new ApiResponse<UpdateProvinceDto>
         {
             Succeeded = true,
-            Error = new[] {""},
             Data = new UpdateProvinceDto()
             {
                 Name = request.Province.Name,

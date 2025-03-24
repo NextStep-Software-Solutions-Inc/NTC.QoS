@@ -18,7 +18,10 @@ public class GetMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository) : 
             {
                 Succeeded = false,
                 Message = "MIMO not found.",
-                Error = new[] { "Invalid MIMO does not exist." }
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Invalid MIMO does not exist."] }
+                }
             };
         }
         return new ApiResponse<MIMODto>
