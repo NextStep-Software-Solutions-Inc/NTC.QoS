@@ -18,7 +18,10 @@ public class DeleteTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Technology not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error", ["Technology not found."] }
+                },
                 Message = "The technology you are trying to delete does not exist."
             };
         }
@@ -30,7 +33,6 @@ public class DeleteTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
         {
             Data = true,
             Succeeded = true,
-            Error = new[] { "" },
             Message = $"Technology '{technology.Standard}' has been successfully deleted."
         };
     }

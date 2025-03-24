@@ -30,22 +30,19 @@ public class ProvidersController : ControllerBase
         return Ok(result);
     }
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(Guid id)
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(Guid providerId)
     {
-        Guid providerId = id;
         var request = new GetProviderByIdRequest(providerId);
         var providers = await _mediator.Send(request);
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Provider>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
     {
         var provider = await _mediator.Send(new UpdateProviderByIdRequest(id, new UpdateProviderDto
         {
-            Name = updateProvider.Name,
             Description = updateProvider.Description,
-            LicenseNumber = updateProvider.LicenseNumber
         }));
 
         return provider.Succeeded ? Ok(provider) : BadRequest(provider);
@@ -59,7 +56,7 @@ public class ProvidersController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Post(CreateProviderDto providerDto)
+    public async Task<IActionResult> Post([FromBody] CreateProviderDto providerDto)
     {
         var provider = await _mediator.Send(new CreateProviderRequest
         {

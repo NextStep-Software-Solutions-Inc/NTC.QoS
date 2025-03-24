@@ -15,6 +15,19 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
         var role = await _repository.GetByIdAsync(request.Id, cancellationToken);
         if (role is null)  return new ApiResponse<RoleDto>("Role not found.");
 
+        if (role is null)
+        {
+            return new ApiResponse<RoleDto>
+            {
+                Succeeded = false,
+                Message = "Role not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Role with the specified ID does not exist."] }
+                }
+            };
+        }
+
         return new ApiResponse<RoleDto>
         {
             Succeeded = true,

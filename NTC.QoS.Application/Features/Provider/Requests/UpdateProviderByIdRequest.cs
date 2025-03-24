@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Requests;
 
-public class UpdateProviderByIdRequest : IRequest<ApiResponse<Domain.Entities.Provider>>
+public class UpdateProviderByIdRequest : IRequest<ApiResponse<ProviderDto>>
 {
     public Guid Id { get; set; }
     public UpdateProviderDto Provider { get; set; } = null!;

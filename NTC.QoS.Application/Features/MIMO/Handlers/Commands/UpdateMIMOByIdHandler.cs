@@ -20,7 +20,10 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Type is required." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Type", new[] { "MIMO type is required." } }
+                },
                 Message = request.MIMO.Type + " already exists in our system. Please try a different one."
             };
         }
@@ -30,7 +33,10 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "MIMO not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                     { "Id", new[] { "MIMO not found." } }
+                },
                 Message = "The MIMO you are trying to edit does not exist."
             };
         }
@@ -47,7 +53,6 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
         return new ApiResponse<Domain.Entities.MIMO>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = mimo,
             Message = "Request successful! Your changes have been saved.."
         };

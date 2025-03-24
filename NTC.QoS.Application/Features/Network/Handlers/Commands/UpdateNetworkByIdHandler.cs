@@ -20,13 +20,16 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { $"Network with ID [{request.Id}] not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", [$"Network with ID [{request.Id}] does not exist."] }
+                },
                 Message = $"Network with ID [{request.Id}] does not exist."
             };
         }
-        var networkType = EnumHelper<NetworkSystemTypeEnum>.ParseUserInput(request.Network.SystemType);
+        var systemType = EnumHelper<NetworkSystemTypeEnum>.ParseUserInput(request.Network.SystemType);
         network.Name = request.Network.Name;
-        network.SystemType = networkType;
+        network.SystemType = systemType;
 
         _networkRepository.Update(network);
         await _networkRepository.SaveChangesAsync(cancellationToken);

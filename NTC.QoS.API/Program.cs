@@ -1,3 +1,4 @@
+using NTC.QoS.API.Extentions;
 using NTC.QoS.Application;
 using NTC.QoS.Infrastructure;
 
@@ -13,9 +14,12 @@ public class Program
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
-        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+        builder.Services.AddSwaggerGen(option =>
+        {
+            option.OperationFilter<SwaggerOperationIdFilter>();
+        });
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
+        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
 
         var app = builder.Build();
         
@@ -30,7 +34,7 @@ public class Program
             });
         }
 
-        
+
         app.UseHttpsRedirection();
 
         app.UseAuthorization();
@@ -41,3 +45,4 @@ public class Program
         app.Run();
     }
 }
+

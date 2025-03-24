@@ -18,7 +18,10 @@ public class DeleteCellularByIdHandler(IRepository<Domain.Entities.Cellular> rep
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Cellular record not found." },
+                Errors = new Dictionary<string, string[]> 
+                {
+                    { "Error", [ "Cellular record not found." ] }
+                },
                 Message = "The cellular record you are trying to delete does not exist.",
             };
         }
@@ -30,8 +33,7 @@ public class DeleteCellularByIdHandler(IRepository<Domain.Entities.Cellular> rep
         {
             Data = true,
             Succeeded = true,
-            Error = Array.Empty<string>(),
-            Message = $"Cellular record deleted successfully."
+            Message = "Cellular record deleted successfully."
         };
     }
 }

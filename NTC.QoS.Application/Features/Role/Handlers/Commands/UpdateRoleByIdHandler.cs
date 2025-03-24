@@ -13,30 +13,17 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
     public async Task<ApiResponse<RoleDto>> Handle(UpdateRoleByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var role = await _repository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
-        if (role is null) return new ApiResponse<RoleDto>("Role not found.");
 
-        if (!string.IsNullOrEmpty(request.Role.Name))
-        {
-            var existingRoleWithName = await _repository.FindAsync(
-            r => r.Name == request.Role.Name && r.Id != request.Id && !r.IsDeleted,
-            cancellationToken);
-            if (existingRoleWithName is not null) return new ApiResponse<RoleDto>("Role name already exists.");
-            role.Name = request.Role.Name;
-        }
+        var existingRoleWithName = await _repository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
+        if (existingRoleWithName is null) return new ApiResponse<RoleDto>("Role not found.");
 
-        if (!string.IsNullOrEmpty(request.Role.Key))
-        {
-            var existingRoleWithKey = await _repository.FindAsync(
-            r => r.Key == request.Role.Key && r.Id != request.Id && !r.IsDeleted,
-            cancellationToken);
-            if (existingRoleWithKey is not null) return new ApiResponse<RoleDto>("Role key already exists.");
-            role.Key = request.Role.Key;
-        }
+        // palyload validation will be implemented in the validator class
 
-        if (!string.IsNullOrEmpty(request.Role.Key)) role.Description = request.Role.Description;
-        
-        _repository.Update(role);
+        existingRoleWithName.Name = request.Role.Name ?? existingRoleWithName.Name;
+        existingRoleWithName.Key = request.Role.Key ?? existingRoleWithName.Key;
+        existingRoleWithName.Description = request.Role.Description ?? existingRoleWithName.Description;
+
+        _repository.Update(existingRoleWithName);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<RoleDto>
@@ -44,10 +31,10 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
             Succeeded = true,
             Data = new RoleDto
             {
-                Id = role.Id,
-                Name = role.Name,
-                Key = role.Key,
-                Description = role.Description ?? string.Empty
+                Id = existingRoleWithName.Id,
+                Name = existingRoleWithName.Name,
+                Key = existingRoleWithName.Key,
+                Description = existingRoleWithName.Description
             },
             Message = "Role updated successfully.",
         };
