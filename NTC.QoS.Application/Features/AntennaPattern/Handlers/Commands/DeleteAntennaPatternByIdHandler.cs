@@ -18,7 +18,10 @@ public class DeleteAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Antenna pattern not found." },
+                Errors = new Dictionary<string, string[]>()
+                {
+                    {"Error",  ["The antenna pattern you are trying to delete does not exist."] }
+                },
                 Message = "The antenna pattern you are trying to delete does not exist.",
             };
         }
@@ -30,7 +33,6 @@ public class DeleteAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
         {
             Data = true,
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Message = $"Antenna Pattern deleted successfully."
         };
     }

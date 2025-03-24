@@ -17,7 +17,10 @@ public class UpdateMunicipalityByIdHandler(IRepository<Domain.Entities.Municipal
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Municipality Not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Municipality not found."] }
+                },
                 Message = "The municipality you are trying to edit does not exist."
             };
         }
@@ -30,7 +33,6 @@ public class UpdateMunicipalityByIdHandler(IRepository<Domain.Entities.Municipal
         return new ApiResponse<Domain.Entities.Municipality>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = municipality,
             Message = "Request successful! Your changes have been saved."
         };
