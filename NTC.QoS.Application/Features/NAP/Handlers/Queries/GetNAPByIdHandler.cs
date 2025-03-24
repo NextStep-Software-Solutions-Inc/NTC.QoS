@@ -9,34 +9,40 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
+using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.NAP.Handlers.Queries;
 
-public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<GetNAPByIdRequest, ApiResponse<NAPByIdDto>>
+public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<GetNAPByIdRequest, ApiResponse<NAPDto>>
 {
     private readonly INAPRepository _NAPRepository = NAPRepository;
 
-    public async Task<ApiResponse<NAPByIdDto>> Handle(GetNAPByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<NAPDto>> Handle(GetNAPByIdRequest request, CancellationToken cancellationToken)
     {
         var NAP = await _NAPRepository.GetByIdAsync(request.Id, cancellationToken);
 
         if (NAP is null)
         {
-            return new ApiResponse<NAPByIdDto>
+            return new ApiResponse<NAPDto>
             {
                 Succeeded = false,
                 Message = "NAP not found."
             };
         }
 
-        return new ApiResponse<NAPByIdDto>
+        return new ApiResponse<NAPDto>
         {
             Succeeded = true,
             Message = "NAP details retrieved successfully.",
-            Data = new NAPByIdDto()
+            Data = new NAPDto()
             {
                 Id = NAP.Id,
-                FileId = NAP.FileId,
+                File = new FileDto
+                {
+                    Id = NAP.FileId ?? Guid.Empty,
+                    Name = NAP.File?.Name ?? string.Empty,
+                    Path = NAP.File?.Path ?? string.Empty,
+                },
                 ServiceProvider = new ServiceProviderNAPDto
                 {
                     Id = NAP.ServiceProviderId,

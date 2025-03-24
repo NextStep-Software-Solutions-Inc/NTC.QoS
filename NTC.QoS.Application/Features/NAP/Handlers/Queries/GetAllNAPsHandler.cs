@@ -3,90 +3,113 @@ using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.File;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.NAP;
-using NTC.QoS.Domain.Models.DTOs.Study;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
+using NTC.QoS.Domain.Models.DTOs.Zone;
 
-namespace NTC.QoS.Application.Features.NAP.Handlers.Queries
+namespace NTC.QoS.Application.Features.NAP.Handlers.Queries;
+
+public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<GetAllNAPsRequest, PaginatedResponse<NAPDto>>
 {
-    public class GetAllNAPsHandler : IRequestHandler<GetAllNAPsRequest, PaginatedResponse<NAPDto>>
-    {
-        private readonly INAPRepository _NAPRepository;
+    private readonly INAPRepository _NAPRepository = NAPRepository;
 
-        public GetAllNAPsHandler(INAPRepository NAPRepository)
+    public async Task<PaginatedResponse<NAPDto>> Handle(GetAllNAPsRequest request, CancellationToken cancellationToken)
+    {
+        var allNAPs = await _NAPRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
+
+        if (request.ServiceProviderId.HasValue)
         {
-            _NAPRepository = NAPRepository;
+            allNAPs = [.. allNAPs.Where(n => n.ServiceProviderId == request.ServiceProviderId.Value)];
         }
 
-        public async Task<PaginatedResponse<NAPDto>> Handle(GetAllNAPsRequest request, CancellationToken cancellationToken)
+        if (request.ZoneId.HasValue)
         {
-            var allNAPs = await _NAPRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
+            allNAPs = [.. allNAPs.Where(n => n.ZoneId == request.ZoneId.Value)];
+        }
 
-            if (request.ServiceProviderId.HasValue)
-            {
-                allNAPs = [.. allNAPs.Where(n => n.ServiceProviderId == request.ServiceProviderId.Value)];
-            }
+        if (request.FileId.HasValue)
+        {
+            allNAPs = [.. allNAPs.Where(n => n.FileId == request.FileId.Value)];
+        }
 
-            if (request.ZoneId.HasValue)
+        var NAPs = allNAPs.Select(n => new NAPDto
+        {
+            Id = n.Id,
+            ServiceProvider = new ServiceProviderNAPDto
             {
-                allNAPs = [.. allNAPs.Where(n => n.ZoneId == request.ZoneId.Value)];
-            }
-
-            if (request.FileId.HasValue)
-            {
-                allNAPs = [.. allNAPs.Where(n => n.FileId == request.FileId.Value)];
-            }
-
-            var NAPs = allNAPs.Select(n => new NAPDto
-            {
-                Id = n.Id,
-                ServiceProvider = new ServiceProviderNAPDto
+                Id = n.ServiceProviderId,
+                Service = new ServiceNAPDto
                 {
-                    Id = n.ServiceProviderId,
-                    Service = new ServiceNAPDto
+                    Id = n.ServiceProvider?.ServiceId ?? Guid.Empty,
+                    Name = n.ServiceProvider?.Service?.Name ?? string.Empty,
+                    Type = n.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
+                },
+                Provider = new ProviderNAPDto
+                {
+                    Id = n.ServiceProvider?.ProviderId ?? Guid.Empty,
+                    Name = n.ServiceProvider?.Provider?.Name ?? string.Empty,
+                }
+            },
+            Zone = new ZoneDto
+            {
+                Id = n.ZoneId ?? Guid.Empty,
+                Name = n.Zone?.Name ?? string.Empty,
+                Barangay = new BarangayDto
+                {
+                    Id = n.Zone?.BarangayId ?? Guid.Empty,
+                    Name = n.Zone?.Barangay?.Name ?? string.Empty,
+                    Description = n.Zone?.Barangay?.Description,
+                    Municipality = new MunicipalityDto
                     {
-                        Id = n.ServiceProvider?.ServiceId ?? Guid.Empty,
-                        Name = n.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = n.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
-                    },
-                    Provider = new ProviderNAPDto
-                    {
-                        Id = n.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = n.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        Id = n.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
+                        Name = n.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
+                        Description = n.Zone?.Barangay?.Description,
+                        IsCity = n.Zone?.Barangay?.Municipality?.IsCity ?? false,
+                        Province = new ProvinceDto
+                        {
+                            Id = n.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                            Name = n.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
+                            Description = n.Zone?.Barangay?.Municipality?.Province?.Description,
+                            Region = new RegionDto
+                            {
+                                Id = n.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
+                                Name = n.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
+                                Description = n.Zone?.Barangay?.Municipality?.Province?.Region?.Description
+                            }
+                        }
                     }
-                },
-                Zone = new ZoneNAPDto
-                {
-                    Id = n.ZoneId,
-                    Name = n.Zone?.Name ?? string.Empty,
-                },
-                File = new FileDto
-                {
-                    Id = n.FileId ?? Guid.Empty,
-                    Name = n.File?.Name ?? string.Empty,
-                    Path = n.File?.Path ?? string.Empty,
-                },
-                CoorLatitude = n.CoorLatitude,
-                CoorLongitude = n.CoorLongitude,
-            }).ToList();
-
-            if (NAPs.Count is 0)
+                }
+            },
+            File = new FileDto
             {
-                return new PaginatedResponse<NAPDto>(new List<NAPDto>(), request.PageNumber, request.PageSize)
-                {
-                    Data = NAPs,
-                    Message = "No records found.",
-                    Succeeded = true
-                };
-            }
+                Id = n.FileId ?? Guid.Empty,
+                Name = n.File?.Name ?? string.Empty,
+                Path = n.File?.Path ?? string.Empty,
+            },
+            CoorLatitude = n.CoorLatitude,
+            CoorLongitude = n.CoorLongitude,
+        }).ToList();
 
-            return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize)
+        if (NAPs.Count is 0)
+        {
+            return new PaginatedResponse<NAPDto>(new List<NAPDto>(), request.PageNumber, request.PageSize)
             {
-
                 Data = NAPs,
-                Message = "Studies retrieved successfully.",
+                Message = "No records found.",
                 Succeeded = true
             };
         }
+
+        return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize)
+        {
+
+            Data = NAPs,
+            Message = "Studies retrieved successfully.",
+            Succeeded = true
+        };
     }
 }
