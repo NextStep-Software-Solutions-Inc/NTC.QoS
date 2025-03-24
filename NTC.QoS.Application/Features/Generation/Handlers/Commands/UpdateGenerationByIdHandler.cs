@@ -18,7 +18,10 @@ public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Generation data is missing." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Generation", ["Generation data is required."] }
+                },
                 Message = "The request does not contain generation update data.",
             };
         }
@@ -31,7 +34,10 @@ public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Generation not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Generation not found."] }
+                },
                 Message = "The generation you are trying to edit does not exist.",
             };
         }
@@ -45,7 +51,6 @@ public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
         return new ApiResponse<UpdateGenerationDto>
         {
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Data = new UpdateGenerationDto
             {
                 Name = request.Generation.Name,

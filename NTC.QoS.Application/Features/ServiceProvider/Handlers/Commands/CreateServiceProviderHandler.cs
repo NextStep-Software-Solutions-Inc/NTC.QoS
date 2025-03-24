@@ -24,7 +24,10 @@ public class CreateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
                 {
                     Succeeded = false,
                     Message = "Service Provider already exists.",
-                    Error = new[] { "A Service Provider with the same name already exists." }
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "ServiceId", ["A Service Provider with the same name already exists."] }
+                    }
                 };
             }
             else

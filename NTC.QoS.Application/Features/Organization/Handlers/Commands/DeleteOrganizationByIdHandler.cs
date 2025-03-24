@@ -17,7 +17,10 @@ public class DeleteOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Organization not found." },
+                Errors = new Dictionary<string, string[]> 
+                { 
+                    { "Error", ["Organization not found."] }
+                },
                 Message = "The organization you are trying to delete does not exist."
             };
         }

@@ -17,7 +17,10 @@ public class UpdateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Service provider Not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Service Provider not found."]  }
+                },
                 Message = "The service provider you are trying to edit does not exist."
             };
         }
@@ -29,7 +32,6 @@ public class UpdateServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
         return new ApiResponse<Domain.Aggregates.ServiceProvider>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = serviceProvider,
             Message = "Request successful! Your changes have been saved."
         };

@@ -21,7 +21,10 @@ public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTem
                 Data = null,
                 Message = "Network template already exist.",
                 Succeeded = false,
-                Error = new[] { "A network template with the same name already exists." }
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Name", ["Network template with the same name already exists."]   }
+                }
             };
         }
 

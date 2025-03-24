@@ -30,7 +30,9 @@ public class GetSpeedtestByIdHandler : IRequestHandler<GetSpeedtestByIdRequest, 
             {
                 Succeeded = false,
                 Message = "Speedtest could not be found.",
-                Error = new[] { "The Speedtest you are looking for does not exist." }
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", new[] { $"Speedtest with ID [{request.Id}] does not exist." } } }
             };
         }
 

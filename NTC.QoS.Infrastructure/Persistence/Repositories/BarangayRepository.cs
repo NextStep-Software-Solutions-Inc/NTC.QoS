@@ -10,7 +10,9 @@ internal sealed class BarangayRepository(ApplicationDbContext context) : Reposit
     public override async Task<Barangay?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Barangay>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(b => b.Municipality);
+            .Include(b => b.Municipality)
+                .ThenInclude(m => m!.Province)
+                    .ThenInclude(p => p!.Region);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -20,7 +22,9 @@ internal sealed class BarangayRepository(ApplicationDbContext context) : Reposit
     {
         IQueryable<Barangay> query = _context.Set<Barangay>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(b => b.Municipality);
+            .Include(b => b.Municipality)
+                .ThenInclude(m => m!.Province)
+                    .ThenInclude(p => p!.Region);
 
         if (expression != null)
         {

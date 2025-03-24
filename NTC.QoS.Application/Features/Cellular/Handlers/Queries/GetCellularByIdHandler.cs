@@ -20,7 +20,10 @@ public class GetCellularByIdHandler(ICellularRepository repository) : IRequestHa
             {
                 Succeeded = false,
                 Message = "Cellular record not found.",
-                Error = new[] { "Cellular record with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Cellular record with the specified ID does not exist."] }
+                }
             };
         }
 

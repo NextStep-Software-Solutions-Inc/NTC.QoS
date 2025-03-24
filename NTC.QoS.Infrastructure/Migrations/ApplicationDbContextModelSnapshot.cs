@@ -327,6 +327,63 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("NAPs");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("DownLinkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("NetworkTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SystemType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UpLinkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DownLinkId");
+
+                    b.HasIndex("NetworkTemplateId");
+
+                    b.HasIndex("UpLinkId");
+
+                    b.ToTable("Networks");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.RolePermission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -923,63 +980,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("Municipalities");
                 });
 
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Network", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("DownLinkId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("NetworkTemplateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SystemType")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("UpLinkId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DownLinkId");
-
-                    b.HasIndex("NetworkTemplateId");
-
-                    b.HasIndex("UpLinkId");
-
-                    b.ToTable("Networks");
-                });
-
             modelBuilder.Entity("NTC.QoS.Domain.Entities.NetworkTemplate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1355,7 +1355,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("RxAntennaPatternId")
+                    b.Property<Guid>("RxAntennaPatternId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("RxAzimuth")
@@ -1918,6 +1918,33 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Zone");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "DownLink")
+                        .WithMany("DownLinks")
+                        .HasForeignKey("DownLinkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.NetworkTemplate", "NetworkTemplate")
+                        .WithMany("Networks")
+                        .HasForeignKey("NetworkTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "UpLink")
+                        .WithMany("UpLinks")
+                        .HasForeignKey("UpLinkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DownLink");
+
+                    b.Navigation("NetworkTemplate");
+
+                    b.Navigation("UpLink");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.RolePermission", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Permission", "Permission")
@@ -1977,7 +2004,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyNetwork", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Network", "Network")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
                         .WithMany("StudyNetworks")
                         .HasForeignKey("NetworkId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2059,33 +2086,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Province");
                 });
 
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Network", b =>
-                {
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "DownLink")
-                        .WithMany("DownLinks")
-                        .HasForeignKey("DownLinkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Entities.NetworkTemplate", "NetworkTemplate")
-                        .WithMany("Networks")
-                        .HasForeignKey("NetworkTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "UpLink")
-                        .WithMany("UpLinks")
-                        .HasForeignKey("UpLinkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DownLink");
-
-                    b.Navigation("NetworkTemplate");
-
-                    b.Navigation("UpLink");
-                });
-
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Province", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
@@ -2109,7 +2109,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .WithOne("Sector")
                         .HasForeignKey("NTC.QoS.Domain.Entities.Sector", "MIMOId");
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Network", "Network")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
                         .WithMany("Sectors")
                         .HasForeignKey("NetworkId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2117,7 +2117,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "RxAntennaPattern")
                         .WithMany("RxSectors")
-                        .HasForeignKey("RxAntennaPatternId");
+                        .HasForeignKey("RxAntennaPatternId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "TxAntennaPattern")
                         .WithMany("TxSectors")
@@ -2265,6 +2267,13 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("UpLinks");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
+                {
+                    b.Navigation("Sectors");
+
+                    b.Navigation("StudyNetworks");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.ServiceProvider", b =>
                 {
                     b.Navigation("Cells");
@@ -2327,13 +2336,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Barangays");
 
                     b.Navigation("StudyMunicipalities");
-                });
-
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Network", b =>
-                {
-                    b.Navigation("Sectors");
-
-                    b.Navigation("StudyNetworks");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.NetworkTemplate", b =>

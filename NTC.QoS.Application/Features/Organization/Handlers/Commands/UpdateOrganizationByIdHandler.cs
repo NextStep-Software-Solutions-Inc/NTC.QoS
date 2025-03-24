@@ -19,7 +19,10 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Organization data is missing." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Organization", ["Organization data is required."] }
+                },
                 Message = "The request does not contain organization update data.",
             };
         }
@@ -32,7 +35,10 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Organization not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", new[] { "Organization not found." } }
+                },
                 Message = "The organization you are trying to edit does not exist.",
             };
         }
@@ -47,7 +53,10 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Organization name already exists." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Name", new[] { "An organization with the specified name already exists." } }
+                },
                 Message = "An organization with the specified name already exists.",
             };
         }

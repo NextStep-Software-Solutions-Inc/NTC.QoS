@@ -19,7 +19,10 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Permission data is missing." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Permission", ["Permission data is required."] }
+                },
                 Message = "The request does not contain permission update data.",
             };
         }
@@ -32,7 +35,10 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Permission not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["Permission not found."] }
+                },
                 Message = "The permission you are trying to edit does not exist.",
             };
         }
@@ -51,7 +57,10 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Permission name already exists." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Name", ["Permission name already exists."] }
+                },
                 Message = "A permission with the specified name already exists.",
             };
         }
@@ -62,7 +71,10 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Permission key already exists." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Key", ["Permission key already exists."] }
+                },
                 Message = "A permission with the specified key already exists.",
             };
         }

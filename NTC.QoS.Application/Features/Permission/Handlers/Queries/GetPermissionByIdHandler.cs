@@ -20,7 +20,10 @@ public class GetPermissionByIdHandler(IRepository<Domain.Entities.Permission> re
             {
                 Succeeded = false,
                 Message = "Permission not found.",
-                Error = new[] { "Permission with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Permission with the specified ID does not exist."] }
+                },
             };
         }
 

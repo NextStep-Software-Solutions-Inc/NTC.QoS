@@ -6,5 +6,5 @@ namespace NTC.QoS.Application.Features.Provider.Requests;
 
 public class CreateProviderRequest : IRequest<ApiResponse<CreateProviderDto>>
 {
-    public CreateProviderDto Provider{ get; set; } = new();
+    public CreateProviderDto Provider { get; set; } = new CreateProviderDto { Name = string.Empty };
 }

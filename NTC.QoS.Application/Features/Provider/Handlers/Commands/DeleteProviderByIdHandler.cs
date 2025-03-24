@@ -18,7 +18,10 @@ public class DeleteProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Provider not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                     {"Error", [ "Provider not found."] }
+                },
                 Message = "The provider you are trying to delete does not exist."
             };
         }
@@ -30,7 +33,6 @@ public class DeleteProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
         { 
             Data = true,
             Succeeded = true,
-            Error = new[] {""},
             Message = $"Provider '{provider.Name}' has been successfully deleted."
         };
     }
