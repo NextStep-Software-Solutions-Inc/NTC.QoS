@@ -18,7 +18,10 @@ public class DeleteGenerationBandByIdHandler(IRepository<Domain.Aggregates.Gener
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Generation band not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "GenerationBand",  ["Generation band not found."] }
+                },
                 Message = "The generation band you are trying to delete does not exist.",
             };
         }
@@ -30,7 +33,6 @@ public class DeleteGenerationBandByIdHandler(IRepository<Domain.Aggregates.Gener
         {
             Data = true,
             Succeeded = true,
-            Error = Array.Empty<string>(),
             Message = $"Generation band has been successfully deleted."
         };
     }

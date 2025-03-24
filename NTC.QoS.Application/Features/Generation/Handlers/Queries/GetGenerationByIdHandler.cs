@@ -20,7 +20,10 @@ public class GetGenerationByIdHandler(IRepository<Domain.Aggregates.Generation> 
             {
                 Succeeded = false,
                 Message = "Generation not found.",
-                Error = new[] { "Generation with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Generation with the specified ID does not exist."] }
+                }
             };
         }
 

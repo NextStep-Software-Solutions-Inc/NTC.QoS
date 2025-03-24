@@ -18,7 +18,10 @@ public class DeleteMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "MIMO not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Mimo",  ["Mimo not found."] }
+                },
                 Message = "The mimo you are trying to delete does not exist."
             };
         }
@@ -30,7 +33,6 @@ public class DeleteMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
         {
             Data = true,
             Succeeded = true,
-            Error = new[] { "" },
             Message = $"MIMO '{mimo.Type}' has been successfully deleted."
         };
     }

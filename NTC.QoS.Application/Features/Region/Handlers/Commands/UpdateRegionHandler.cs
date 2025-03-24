@@ -24,7 +24,10 @@ public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiRespo
             return new ApiResponse<UpdateRegionDto>
             {
                 Succeeded = false,
-                Error = new[] { "Name is required." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Name", ["Region name is required."] }
+                },
                 Message = "Region name cannot be empty."
             };
         }
@@ -34,7 +37,10 @@ public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiRespo
             return new ApiResponse<UpdateRegionDto>
             {
                 Succeeded = false,
-                Error = new[] { "Region not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Region not found."]}
+                },
                 Message = "The region you are trying to update does not exist."
             };
         }

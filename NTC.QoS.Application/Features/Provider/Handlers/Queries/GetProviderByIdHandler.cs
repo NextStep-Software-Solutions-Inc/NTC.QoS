@@ -20,7 +20,10 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
             {
                 Succeeded = false,
                 Message = "Provider not found.",
-                Error = new[] { "Invalid provider does not exist." }
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Invalid provider does not exist."] }
+                }
             };
         }
         return new ApiResponse<ProviderDto>
@@ -37,7 +40,6 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
                 CreatedBy = provider.CreatedBy,
                 ModifiedDate = provider.UpdatedAt,
                 ModifiedBy = provider.UpdatedBy,
-                IsDeleted = provider.IsDeleted
             }
         };
     }

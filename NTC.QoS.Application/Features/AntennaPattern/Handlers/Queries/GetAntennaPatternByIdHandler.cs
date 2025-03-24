@@ -20,7 +20,10 @@ public class GetAntennaPatternByIdHandler(IRepository<Domain.Entities.AntennaPat
             {
                 Succeeded = false,
                 Message = "Antenna pattern not found.",
-                Error = new[] { "Antenna pattern with the specified ID does not exist." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "AntennaPattern", ["Antenna pattern with the specified ID does not exist."]}
+                },
             };
         }
 

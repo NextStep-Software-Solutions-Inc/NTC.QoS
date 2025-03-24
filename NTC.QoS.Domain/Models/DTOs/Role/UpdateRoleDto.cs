@@ -3,6 +3,6 @@
 public class UpdateRoleDto
 {
     public required string Name { get; set; }
-    public required string Key { get; set; }
+    public string? Key { get; set; }
     public string? Description { get; set; } 
 }

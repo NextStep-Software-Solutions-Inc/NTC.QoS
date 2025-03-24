@@ -22,4 +22,8 @@
     <ProjectReference Include="..\NTC.QoS.Infrastructure\NTC.QoS.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Middlewares\" />
+  </ItemGroup>
+
 </Project>
