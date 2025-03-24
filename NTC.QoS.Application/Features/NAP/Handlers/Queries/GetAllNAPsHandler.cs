@@ -108,7 +108,7 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
         {
 
             Data = NAPs,
-            Message = "Studies retrieved successfully.",
+            Message = "NAPs retrieved successfully.",
             Succeeded = true
         };
     }
