@@ -17,19 +17,52 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
     public async Task<ApiResponse<UserDto>> Handle(UpdateUserByIdRequest request, CancellationToken cancellationToken)
     {
         var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken);
-        if (user is null) return new ApiResponse<UserDto>("User does not exist.");
+        if (user is null)
+        {
+            return new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Id", ["User with the specified ID does not exist."] }
+                },
+                Message = "User not found"
+            };
+        }
 
         if (request.User.RoleId.HasValue)
         {
             var role = await _roleRepository.GetByIdAsync(request.User.RoleId.Value, cancellationToken);
-            if (role is null) return new ApiResponse<UserDto>("Role not found.");
+            if (role is null)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "Role not found.",
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "RoleId", ["Role with the specified ID does not exist."] }
+                    }
+                };
+            }
             user.RoleId = role.Id;
         }
 
         if (request.User.OrganizationId.HasValue)
         {
             var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId.Value, cancellationToken);
-            if (organization is null) return new ApiResponse<UserDto>("Organization not found.");
+            if (organization is null)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "Organization not found.",
+                    Errors = new Dictionary<string, string[]>
+                    {           
+                        { "OrganizationId", ["Organization with the specified ID does not exist."] }
+                    }
+                };
+            }
             user.OrganizationId = organization.Id;
         }
 
