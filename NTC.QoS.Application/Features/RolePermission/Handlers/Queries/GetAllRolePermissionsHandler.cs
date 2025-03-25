@@ -34,12 +34,12 @@ public class GetAllRolePermissionsHandler(IRolePermissionRepository rolePermissi
 
         if (request.RoleId.HasValue)
         {
-            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.RoleId == request.RoleId)];
+            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.Role.Id == request.RoleId)];
         }
 
         if (request.PermissionId.HasValue)
         {
-            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.PermissionId == request.PermissionId)];
+            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.Permission.Id == request.PermissionId)];
         }
 
         return new PaginatedResponse<GetRolePermissionDto>(rolePermissionDtos, request.PageNumber, request.PageSize)
