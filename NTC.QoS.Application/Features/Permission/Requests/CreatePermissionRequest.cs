@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Permission;
 
 namespace NTC.QoS.Application.Features.Permission.Requests;
 
-public class CreatePermissionRequest : IRequest<ApiResponse<CreatePermissionDto>>
+public class CreatePermissionRequest(CreatePermissionDto permission) : IRequest<ApiResponse<PermissionDto>>
 {
-    public required CreatePermissionDto Permission { get; set; }
+    public CreatePermissionDto Permission { get; set; } = permission;
 }
