@@ -6,16 +6,16 @@ using NTC.QoS.Domain.Models.DTOs.Permission;
 
 namespace NTC.QoS.Application.Features.Permission.Handlers.Commands;
 
-public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission> repository) : IRequestHandler<UpdatePermissionByIdRequest, ApiResponse<UpdatePermissionDto>>
+public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission> repository) : IRequestHandler<UpdatePermissionByIdRequest, ApiResponse<PermissionDto>>
 {
     private readonly IRepository<Domain.Entities.Permission> _repository = repository;
 
-    public async Task<ApiResponse<UpdatePermissionDto>> Handle(UpdatePermissionByIdRequest request,
+    public async Task<ApiResponse<PermissionDto>> Handle(UpdatePermissionByIdRequest request,
         CancellationToken cancellationToken)
     {
         if (request.Permission is null)
         {
-            return new ApiResponse<UpdatePermissionDto>
+            return new ApiResponse<PermissionDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -28,10 +28,9 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
         }
 
         var permission = await _repository.FindAsync(p => p.Id == request.Id && !p.IsDeleted, cancellationToken);
-
         if (permission is null)
         {
-            return new ApiResponse<UpdatePermissionDto>
+            return new ApiResponse<PermissionDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -43,57 +42,67 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
             };
         }
 
-        var existingPermissionWithName = await _repository.FindAsync(
-            p => p.Name == request.Permission.Name && p.Id != request.Id && !p.IsDeleted,
-            cancellationToken);
+        if (!string.IsNullOrEmpty(request.Permission.Name))
+        {
+            var existingPermissionWithName = await _repository.FindAsync(
+                p => p.Name == request.Permission.Name && p.Id != request.Id && !p.IsDeleted,
+                cancellationToken);
 
-        var existingPermissionWithKey = await _repository.FindAsync(
+            if (existingPermissionWithName is not null)
+            {
+                return new ApiResponse<PermissionDto>
+                {
+                    Data = null,
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "duplicate", ["Permission name already exists."] }
+                    },
+                    Message = "The permission with the specified name already exists."
+                };
+            }
+            permission.Name = request.Permission.Name;
+        }
+
+        if (!string.IsNullOrEmpty(request.Permission.Key))
+        {
+            var existingPermissionWithKey = await _repository.FindAsync(
             p => p.Key == request.Permission.Key && p.Id != request.Id && !p.IsDeleted,
             cancellationToken);
 
-        if (existingPermissionWithName is not null)
-        {
-            return new ApiResponse<UpdatePermissionDto>
+            if (existingPermissionWithKey is not null)
             {
-                Data = null,
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
+                return new ApiResponse<PermissionDto>
                 {
-                    { "Name", ["Permission name already exists."] }
-                },
-                Message = "A permission with the specified name already exists.",
-            };
+                    Data = null,
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "Key", ["Permission key already exists."] }
+                    },
+                    Message = "A permission with the specified key already exists.",
+                };
+            }
+            permission.Key = request.Permission.Key;
         }
 
-        if (existingPermissionWithKey is not null)
+        if (!string.IsNullOrEmpty(request.Permission.Description))
         {
-            return new ApiResponse<UpdatePermissionDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "Key", ["Permission key already exists."] }
-                },
-                Message = "A permission with the specified key already exists.",
-            };
+            permission.Description = request.Permission.Description;
         }
-
-        permission.Name = request.Permission.Name;
-        permission.Key = request.Permission.Key;
-        permission.Description = request.Permission.Description;
 
         _repository.Update(permission);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdatePermissionDto>
+        return new ApiResponse<PermissionDto>
         {
             Succeeded = true,
-            Data = new UpdatePermissionDto
+            Data = new PermissionDto
             {
-                Name = request.Permission.Name,
-                Key = request.Permission.Key,
-                Description = request.Permission.Description
+                Id = permission.Id,
+                Name = permission.Name,
+                Key = permission.Key,
+                Description = permission.Description
             },
             Message = "Permission updated successfully.",
         };
