@@ -3,7 +3,7 @@
 public class UserDto
 {
     public Guid Id { get; set; }
-    public RoleUserDto? Role { get; set; }
-    public OrganizationUserDto? Organization { get; set; }
+    public required RoleUserDto Role { get; set; }
+    public required OrganizationUserDto Organization { get; set; }
     public required string AuthUserId { get; set; }
 }
