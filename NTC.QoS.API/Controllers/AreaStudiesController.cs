@@ -7,52 +7,44 @@ using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 namespace NTC.QoS.API.Controllers;
 [ApiController]
 [Route("area-studies", Name = "area-studies")]
-public class AreaStudiesController : ControllerBase
+public class AreaStudiesController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
-    public AreaStudiesController(IMediator mediator)
+    private readonly IMediator _mediator = mediator;
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<AreaStudyDto>>> CreateAreaStudy(CreateAreaStudyDto areaStudyDto)
     {
-        _mediator = mediator;
+        var areaStudy = await _mediator.Send(new CreateAreaStudyRequest(areaStudyDto));
+        return areaStudy.Succeeded ? Ok(areaStudy) : BadRequest(areaStudy);
     }
+    
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<AreaStudyDto>>> GetAllAreaStudies([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null)
+    public async Task<ActionResult<PaginatedResponse<AreaStudyDto>>> GetAllAreaStudies([FromQuery] int pageNumber = 1,
+                                                                                       [FromQuery] int pageSize = 10,
+                                                                                       [FromQuery] string? search = null)
     {
-        var request = new GetAllAreaStudiesRequest(pageNumber, pageSize, search);
-        var areaStudies = await _mediator.Send(request);
+        var areaStudies = await _mediator.Send(new GetAllAreaStudiesRequest(pageNumber, pageSize, search));
         return areaStudies.Succeeded ? Ok(areaStudies) : BadRequest(areaStudies);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<AreaStudyDto>>> GetAreaStudyById(Guid id)
     {
-        Guid areaStudyId = id;
-        var request = new GetAreaStudyByIdRequest(areaStudyId);
-        var areaStudies = await _mediator.Send(request);
+        var areaStudies = await _mediator.Send(new GetAreaStudyByIdRequest(id));
         return areaStudies.Succeeded ? Ok(areaStudies) : BadRequest(areaStudies);
     }
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.AreaStudy>>> UpdateAreaStudyById(Guid id, AreaStudyDto updateAreaStudy)
+
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<AreaStudyDto>>> UpdateAreaStudyById(Guid id, UpdateAreaStudyDto updateAreaStudy)
     {
-        var areaStudy = await _mediator.Send(new UpdateAreaStudyByIdRequest(id, new AreaStudyDto
-        {
-            Name = updateAreaStudy.Name,
-            Description = updateAreaStudy.Description
-        }));
+        var areaStudy = await _mediator.Send(new UpdateAreaStudyByIdRequest(id, updateAreaStudy));
         return areaStudy.Succeeded ? Ok(areaStudy) : BadRequest(areaStudy);
     }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.AreaStudy>>> Post(AreaStudyDto areaStudyDto)
-    {
-        var areaStudy = await _mediator.Send(new CreateAreaStudyRequest
-        {
-            AreaStudy = areaStudyDto
-        });
-        return areaStudy.Succeeded ? Ok(areaStudy) : BadRequest(areaStudy);
-    }
+
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteAreaStudyById(Guid id)
     {
-        var request = new DeleteAreaStudyByIdRequest(id);
-        var areaStudy = await _mediator.Send(request);
+        var areaStudy = await _mediator.Send(new DeleteAreaStudyByIdRequest(id));
         return areaStudy.Succeeded ? Ok(areaStudy) : BadRequest(areaStudy);
     }
 }

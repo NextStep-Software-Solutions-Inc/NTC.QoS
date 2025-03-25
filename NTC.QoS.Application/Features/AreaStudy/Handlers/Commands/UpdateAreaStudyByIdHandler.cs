@@ -2,23 +2,61 @@
 using NTC.QoS.Application.Features.AreaStudy.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 
 namespace NTC.QoS.Application.Features.AreaStudy.Handlers.Commands;
 
-public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> repository) : IRequestHandler<UpdateAreaStudyByIdRequest, ApiResponse<Domain.Entities.AreaStudy>>
+public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> repository) : IRequestHandler<UpdateAreaStudyByIdRequest, ApiResponse<AreaStudyDto>>
 {
     private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
-    public async Task<ApiResponse<Domain.Entities.AreaStudy>> Handle(UpdateAreaStudyByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<AreaStudyDto>> Handle(UpdateAreaStudyByIdRequest request, CancellationToken cancellationToken)
     {
         var areaStudy = await _repository.GetByIdAsync(request.Id, cancellationToken);
-        if (areaStudy == null)
+        if (areaStudy is null)
         {
-            return new ApiResponse<Domain.Entities.AreaStudy>("Area Study not found");
+            return new ApiResponse<AreaStudyDto> 
+            {
+                Succeeded = false,
+                Message = "Area study not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["Area study with the specified Id does not exist."]
+                    }
+                }
+            };
         }
-        areaStudy.Name = request.UpdateAreaStudyDto.Name;
-        areaStudy.Description = request.UpdateAreaStudyDto.Description;
+
+        if (!String.IsNullOrEmpty(request.AreaStudy.Name)) areaStudy.Name = request.AreaStudy.Name;
+        if (!String.IsNullOrEmpty(request.AreaStudy.Description)) areaStudy.Description = request.AreaStudy.Description;
+
+        var existingAreaStudy = await _repository.FindAsync(a => a.Name == areaStudy.Name, cancellationToken);
+        if (existingAreaStudy is not null)
+        {
+            return new ApiResponse<AreaStudyDto>
+            {
+                Succeeded = false,
+                Message = "Duplicate area study found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Area study with the same name found."]
+                    }
+                }
+            };
+        }
+
          _repository.Update(areaStudy);
         await _repository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<Domain.Entities.AreaStudy>(areaStudy);
+
+        return new ApiResponse<AreaStudyDto>
+        {
+            Data = new AreaStudyDto 
+            { 
+                Id = areaStudy.Id,
+                Name = areaStudy.Name,
+                Description = areaStudy.Description
+            },
+        };
     }
 }

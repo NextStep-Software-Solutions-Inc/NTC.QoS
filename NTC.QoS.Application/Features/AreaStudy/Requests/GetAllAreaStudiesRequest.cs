@@ -4,15 +4,9 @@ using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 
 namespace NTC.QoS.Application.Features.AreaStudy.Requests;
 
-public class GetAllAreaStudiesRequest : IRequest<PaginatedResponse<Domain.Entities.AreaStudy>>
+public class GetAllAreaStudiesRequest(int pageNumber, int pageSize, string? search) : IRequest<PaginatedResponse<AreaStudyDto>>
 {
-    public int PageNumber { get; set; }
-    public int PageSize { get; set; }
-    public string? Search { get; set; }
-    public GetAllAreaStudiesRequest(int pageNumber, int pageSize, string? search)
-    {
-        PageNumber = pageNumber;
-        PageSize = pageSize;
-        Search = search;
-    }
+    public int PageNumber { get; set; } = pageNumber;
+    public int PageSize { get; set; } = pageSize;
+    public string? Search { get; set; } = search;
 }
