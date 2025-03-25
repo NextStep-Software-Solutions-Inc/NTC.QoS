@@ -30,6 +30,7 @@ public class DeletePermissionByIdHandler(IRepository<Domain.Entities.Permission>
 
         return new ApiResponse<bool>
         {
+            Data = true,
             Succeeded = true,
             Message = "Permission deleted successfully."
         };
