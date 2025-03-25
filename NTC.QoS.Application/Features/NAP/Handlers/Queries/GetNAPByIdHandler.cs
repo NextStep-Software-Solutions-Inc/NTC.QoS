@@ -56,7 +56,7 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
                     {
                         Id = NAP.ServiceProvider?.ServiceId ?? Guid.Empty,
                         Name = NAP.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = NAP.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
+                        Type = NAP.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                     },
                     Provider = new ProviderNAPDto
                     {

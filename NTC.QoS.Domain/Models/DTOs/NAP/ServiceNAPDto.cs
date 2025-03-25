@@ -5,5 +5,5 @@ public class ServiceNAPDto
 {
     public Guid Id { get; set; }
     public required string Name { get; set; }
-    public required ServiceTypeEnum Type { get; set; } = ServiceTypeEnum.Unknown;
+    public required string Type { get; set; }
 }

@@ -31,7 +31,7 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
                 {
                     Id = n.ServiceProvider?.ServiceId ?? Guid.Empty,
                     Name = n.ServiceProvider?.Service?.Name ?? string.Empty,
-                    Type = n.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
+                    Type = n.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
                 },
                 Provider = new ProviderNAPDto
                 {
@@ -96,7 +96,6 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
 
         return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize)
         {
-
             Data = NAPs,
             Message = "NAPs retrieved successfully.",
             Succeeded = true

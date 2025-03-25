@@ -35,7 +35,9 @@ public class CreateNAPHandler(
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "ServiceProviderId", ["Service provider with the specified Id does not exist."] }
+                    { 
+                        "ServiceProviderId", ["Service provider with the specified Id does not exist."] 
+                    }
                 }
 
             };
@@ -124,7 +126,7 @@ public class CreateNAPHandler(
                     {
                         Id = NAP.ServiceProvider?.ServiceId ?? Guid.Empty,
                         Name = NAP.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = NAP.ServiceProvider?.Service?.Type ?? ServiceTypeEnum.Unknown
+                        Type = NAP.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
                     },
                     Provider = new ProviderNAPDto
                     {
