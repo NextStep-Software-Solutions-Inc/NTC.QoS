@@ -5,27 +5,26 @@ using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands;
 
-public class DeleteRegionHandler : IRequestHandler<DeleteRegionRequest, ApiResponse<bool>>
+public class DeleteRegionHandler(IRegionRepository repository) : IRequestHandler<DeleteRegionRequest, ApiResponse<bool>>
 {
-    private readonly IRepository<Domain.Entities.Region> _repository;
-
-    public DeleteRegionHandler(IRepository<Domain.Entities.Region> repository)
-    {
-        _repository = repository;
-    }
+    private readonly IRegionRepository _repository = repository;
 
     public async Task<ApiResponse<bool>> Handle(DeleteRegionRequest request, CancellationToken cancellationToken)
     {
-        var region = await _repository
-            .FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
+        var region = await _repository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (region == null)
+        if (region is null)
         {
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Message = $"Region #{request.Id} not found.",
-                Data = false
+                Message = "Region not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Error", ["The Region you are trying to delete does not exist."]
+                    }
+                }
             };
         }
 

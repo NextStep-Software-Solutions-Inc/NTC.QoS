@@ -46,6 +46,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
         services.AddScoped<IMIMORepository, MIMORepository>();
         services.AddScoped<ISectorRepository, SectorRepository>();
+        services.AddScoped<IRegionRepository, RegionRepository>();
 
         return services;
     }

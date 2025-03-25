@@ -6,20 +6,26 @@ using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Queries;
 
-public class GetRegionByIdHandler(IRepository<Domain.Entities.Region> repository) : IRequestHandler<GetRegionByIdRequest, ApiResponse<RegionDto>>
+public class GetRegionByIdHandler(IRegionRepository repository) : IRequestHandler<GetRegionByIdRequest, ApiResponse<RegionDto>>
 {
-    private readonly IRepository<Domain.Entities.Region> _repository = repository;
+    private readonly IRegionRepository _repository = repository;
 
     public async Task<ApiResponse<RegionDto>> Handle(GetRegionByIdRequest request, CancellationToken cancellationToken)
     {
         var region = await _repository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (region == null)
+        if (region is null)
         {
             return new ApiResponse<RegionDto>
             {
                 Succeeded = false,
-                Message = "Region not found."
+                Message = "Region not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["Region with the specified Id does not exist."]
+                    }
+                }
             };
         }
 
@@ -27,7 +33,7 @@ public class GetRegionByIdHandler(IRepository<Domain.Entities.Region> repository
         {
             Succeeded = true,
             Message = "Region retrieved successfully",
-            Data = new RegionDto()
+            Data = new RegionDto
             {
                 Id = region.Id,
                 Name = region.Name,

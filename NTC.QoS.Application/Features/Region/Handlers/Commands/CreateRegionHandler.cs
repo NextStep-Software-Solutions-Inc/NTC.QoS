@@ -6,36 +6,58 @@ using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands;
 
-public class CreateRegionRequestHandler(IRepository<Domain.Entities.Region> repository) : IRequestHandler<CreateRegionRequest, ApiResponse<CreateRegionDto>>
+public class CreateRegionRequestHandler(IRegionRepository repository) : IRequestHandler<CreateRegionRequest, ApiResponse<RegionDto>>
 {
-    private readonly IRepository<Domain.Entities.Region> _repository = repository;
+    private readonly IRegionRepository _repository = repository;
 
-    public async Task<ApiResponse<CreateRegionDto>> Handle(CreateRegionRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<RegionDto>> Handle(CreateRegionRequest request, CancellationToken cancellationToken)
     {
-        var region = await _repository.FindAsync(p => p.Name == request.Region.Name && !p.IsDeleted, cancellationToken);
-
-        if (region != null)
+        if (string.IsNullOrWhiteSpace(request.Region.Name))
         {
-            return new ApiResponse<CreateRegionDto>
+            return new ApiResponse<RegionDto>
+            {
+                Message = "Region name is required.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { 
+                        "Name", ["Region name cannot be empty."] 
+                    }
+                }
+            };
+        }
+
+        var existingRegion = await _repository.FindAsync(p => p.Name == request.Region.Name && !p.IsDeleted, cancellationToken);
+
+        if (existingRegion is not null)
+        {
+            return new ApiResponse<RegionDto>
             {
                 Message = "Region already exists.",
-                Succeeded = false
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Name", ["A region with the specified name already exists."]
+                    }
+                }
             };
         }
 
         var newRegion = new Domain.Entities.Region
         {
-            Name = request.Region.Name,
+            Name = request.Region.Name.Trim(),
             Description = request.Region.Description,
         };
 
         _repository.Add(newRegion);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateRegionDto>
+        return new ApiResponse<RegionDto>
         {
-            Data = new CreateRegionDto
+            Data = new RegionDto
             {
+                Id = newRegion.Id,
                 Name = newRegion.Name,
                 Description = newRegion.Description,
             },
