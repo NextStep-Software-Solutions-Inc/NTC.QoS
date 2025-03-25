@@ -27,7 +27,7 @@ public static class ExceptionMiddlewareExtensions
                         Errors = new Dictionary<string, string[]>
                         {
                             {
-                                "Exception", [ contextFeature.Error.Message ]
+                                "exception", [ contextFeature.Error.Message ]
                             }
                         }
                     };
