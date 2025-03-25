@@ -1,6 +1,8 @@
-using NTC.QoS.API.Extentions;
 using NTC.QoS.Application;
 using NTC.QoS.Infrastructure;
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using NTC.QoS.API.Extensions;
 
 namespace NTC.QoS.API;
 
@@ -12,7 +14,12 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddHttpContextAccessor();
-        builder.Services.AddControllers();
+        builder.Services.AddControllers()
+            .AddJsonOptions(options => 
+            {
+                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; // Set to camelCase
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(option =>
         {
@@ -39,7 +46,7 @@ public class Program
 
         app.UseAuthorization();
 
-
+        app.ConfigureExceptionHandler(app.Logger); //Important line.
         app.MapControllers();
 
         app.Run();
