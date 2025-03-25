@@ -33,11 +33,9 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
         }).ToList();
 
         userDtos = [.. userDtos
-            .Where(u => !request.RoleId.HasValue || u.Role.Id == request.RoleId)
-            .Where(u => !request.OrganizationId.HasValue || u.Organization.Id == request.OrganizationId.Value)
+            .Where(u => !request.RoleId.HasValue || u.Role?.Id == request.RoleId)
+            .Where(u => !request.OrganizationId.HasValue || u.Organization?.Id == request.OrganizationId.Value)
         ];
-
-        
 
         if (userDtos.Count is 0)
         {

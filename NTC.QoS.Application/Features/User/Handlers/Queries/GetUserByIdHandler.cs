@@ -24,7 +24,7 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
                         "Id", ["User with the specified ID does not exist."] 
                     }
                 },
-                Message = "User not found"
+                Message = "User not found."
             };
         }
 

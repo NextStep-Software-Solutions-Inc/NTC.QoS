@@ -24,9 +24,11 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Id", ["User with the specified ID does not exist."] }
+                    { 
+                        "Id", ["User with the specified ID does not exist."] 
+                    }
                 },
-                Message = "User not found"
+                Message = "User not found."
             };
         }
 
@@ -41,7 +43,9 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                     Message = "Role not found.",
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "RoleId", ["Role with the specified ID does not exist."] }
+                        { 
+                            "RoleId", ["Role with the specified ID does not exist."] 
+                        }
                     }
                 };
             }
@@ -59,7 +63,9 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                     Message = "Organization not found.",
                     Errors = new Dictionary<string, string[]>
                     {           
-                        { "OrganizationId", ["Organization with the specified ID does not exist."] }
+                        { 
+                            "OrganizationId", ["Organization with the specified ID does not exist."] 
+                        }
                     }
                 };
             }
@@ -72,8 +78,20 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         if (existingUser.Any(u => u.Id != request.Id &&
                                  u.RoleId == user.RoleId &&
                                  u.OrganizationId == user.OrganizationId &&
-                                 u.AuthUserId == user.AuthUserId)) 
-        return new ApiResponse<UserDto>("User with the same Role, Organization, and AuthUserId already exists.");
+                                 u.AuthUserId == user.AuthUserId))
+        {
+            return new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Duplicate user found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["User with the same Role, Organization, and AuthUserId already exists."]
+                    }
+                }
+            };
+        }
 
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);

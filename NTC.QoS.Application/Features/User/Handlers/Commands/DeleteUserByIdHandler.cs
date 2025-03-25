@@ -18,7 +18,9 @@ public class DeleteUserByIdHandler(IUserRepository repository) : IRequestHandler
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Error", ["User not found."] }
+                    { 
+                        "Error", ["User not found."] 
+                    }
                 },
                 Message = "The user you are trying to delete does not exist."
             };
