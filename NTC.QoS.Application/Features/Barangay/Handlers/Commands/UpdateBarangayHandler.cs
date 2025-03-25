@@ -19,7 +19,7 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Barangay not found." },
+                Errors = new Dictionary<string, string[]> { { "Error", new[] { "Barangay not found." } } },
                 Message = "The barangay you are trying to edit does not exist."
             };
         }
@@ -32,7 +32,6 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
         return new ApiResponse<BarangayDto>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Message = "Request successful! Your changes have been saved.",
             Data = new BarangayDto()
             {

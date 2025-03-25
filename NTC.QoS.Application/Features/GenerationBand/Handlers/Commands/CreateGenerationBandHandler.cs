@@ -20,7 +20,10 @@ public class CreateGenerationBandHandler(IRepository<Domain.Aggregates.Generatio
             {
                 Message = "Generation band already exists.",
                 Succeeded = false,
-                Error = new[] { "Generation band with the same GenerationId and BandId already exists." }
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error", ["Generation band with the same GenerationId and BandId already exists."] }
+                },
             };
         }
 

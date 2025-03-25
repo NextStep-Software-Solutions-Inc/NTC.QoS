@@ -17,7 +17,10 @@ public class UpdateZoneByIdHandler(IRepository<Domain.Entities.Zone> repository)
             {
                 Data = null,
                 Succeeded = false,
-                Error = new[] { "Zone not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Id", ["Zone not found."] }
+                },
                 Message = "The zone you are trying to edit does not exist."
             };
         }
@@ -28,7 +31,6 @@ public class UpdateZoneByIdHandler(IRepository<Domain.Entities.Zone> repository)
         return new ApiResponse<Domain.Entities.Zone>
         {
             Succeeded = true,
-            Error = new[] { "" },
             Data = zone,
             Message = "Request successful! Your changes have been saved."
         };

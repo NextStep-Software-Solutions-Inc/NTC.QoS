@@ -16,13 +16,16 @@ public class DeleteStudyHandler(IRepository<Domain.Entities.Study> repository) :
             return new ApiResponse<bool>
             {
                 Message = "Study not found.",
-                Error = [$"Study with ID [{request.Id}] does not exist."],
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error", [$"Study with ID [{request.Id}] does not exist."] }
+                },
                 Succeeded = false,
             };
         }
-        study.IsDeleted = true;
-        _repository.Update(study);
+        _repository.Delete(study);
         await _repository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<bool>(true, true, "Study deleted successfully.");
     }
 }

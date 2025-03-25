@@ -8,18 +8,39 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands;
 
 public class CreateProviderHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<CreateProviderRequest, ApiResponse<CreateProviderDto>>
 {
-    private readonly IRepository<Domain.Entities.Provider> _repository = repository;
-
     public async Task<ApiResponse<CreateProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
     {
-        var provider =  await _repository.FindAsync(p => p.Name == request.Provider.Name && !p.IsDeleted, cancellationToken);
+        var provider =  await repository.FindAsync(p => p.Name == request.Provider.Name, cancellationToken);
 
-        if (provider != null)
+        if (provider is not null && provider.IsDeleted.Equals(true)) 
+        {
+            provider.IsDeleted = false;
+            repository.Update(provider);
+            await repository.SaveChangesAsync(cancellationToken);
+
+            return new ApiResponse<CreateProviderDto>
+            {
+                Data = new CreateProviderDto
+                {
+                    Name = provider.Name,
+                    Description = provider.Description,
+                    LicenseNumber = provider.LicenseNumber
+                },
+                Message = "Provider restored successfully",
+                Succeeded = true
+            };
+        }
+
+        if (provider is not null && provider.IsDeleted.Equals(false))
         {
             return new ApiResponse<CreateProviderDto>
             {
                 Message = "Provider already exists",
-                Succeeded = false
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"duplicate", ["Provider with the same name already exists."] }
+                }
             };
         }
 
@@ -30,8 +51,8 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
             LicenseNumber = request.Provider.LicenseNumber
         };
 
-        _repository.Add(newProvider);
-        await _repository.SaveChangesAsync(cancellationToken);
+        repository.Add(newProvider);
+        await repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<CreateProviderDto>
         {

@@ -18,7 +18,10 @@ public class DeleteSpeedtestByIdHandler(IRepository<Domain.Entities.Speedtest> r
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Speedtest not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error", ["Speedtest record not found."] }
+                },
                 Message = "The speedtest record you're trying to remove does not exist."
             };
         }  
@@ -30,7 +33,6 @@ public class DeleteSpeedtestByIdHandler(IRepository<Domain.Entities.Speedtest> r
         {
             Data = true,
             Succeeded = true,
-            Error = new[] { "" },
             Message = $"Speedtest record deleted successfully."
         };
     }

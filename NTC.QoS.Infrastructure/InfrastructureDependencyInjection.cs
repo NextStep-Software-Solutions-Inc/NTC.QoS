@@ -42,6 +42,9 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ISpeedtestRepository, SpeedtestRepository>();
         services.AddScoped<IFileRepository, FileRepository>();
         services.AddScoped<ICellularRepository, CellularRepository>();
+        services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
+        services.AddScoped<IMIMORepository, MIMORepository>();
+        services.AddScoped<ISectorRepository, SectorRepository>();
 
         return services;
     }

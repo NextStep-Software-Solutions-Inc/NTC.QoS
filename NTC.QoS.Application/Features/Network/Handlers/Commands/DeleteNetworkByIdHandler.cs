@@ -17,7 +17,10 @@ public class DeleteNetworkByIdHandler(INetworkRepository networkRepository) : IR
             {
                 Data = false,
                 Succeeded = false,
-                Error = new[] { $"Network with ID [{request.Id}] not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "$", [$"Network with ID [{request.Id}] not found."] }
+                },
                 Message = $"Network with ID [{request.Id}] does not exist."
             };
         }

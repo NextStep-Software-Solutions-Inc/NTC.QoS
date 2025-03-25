@@ -24,7 +24,12 @@ public static class ExceptionMiddlewareExtensions
                         Data = null,
                         Message = "Internal Server Error. Please contact support.",
                         Succeeded = false,
-                        Error = [ contextFeature.Error.Message ]
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            {
+                                "Exception", [ contextFeature.Error.Message ]
+                            }
+                        }
                     };
 
                     var jsonOptions = new JsonSerializerOptions
