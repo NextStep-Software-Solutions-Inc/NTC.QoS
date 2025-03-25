@@ -19,7 +19,9 @@ public class DeleteNAPByIdHandler(IRepository<Domain.Aggregates.NAP> repository)
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Error", ["NAP not found."] }
+                    {
+                        "Error", ["NAP not found."] 
+                    }
                 },
                 Message = "The NAP you are trying to delete does not exist."
             };

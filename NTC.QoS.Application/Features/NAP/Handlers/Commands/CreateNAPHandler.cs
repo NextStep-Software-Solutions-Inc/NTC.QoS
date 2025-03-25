@@ -31,8 +31,13 @@ public class CreateNAPHandler(
         {
             return new ApiResponse<NAPDto>
             {
-                Message = "Service Provider does not exist.",
-                Succeeded = false
+                Message = "Service Provider not found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "ServiceProviderId", ["Service provider with the specified Id does not exist."] }
+                }
+
             };
         }
 
@@ -43,8 +48,14 @@ public class CreateNAPHandler(
             {
                 return new ApiResponse<NAPDto>
                 {
-                    Message = "FileId does not exist.",
-                    Succeeded = false
+                    Message = "FileId not found.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        {
+                            "FileId", ["File with the specified Id does not exist."] 
+                        }
+                    }
                 };
             }
         }
@@ -56,8 +67,14 @@ public class CreateNAPHandler(
             {
                 return new ApiResponse<NAPDto>
                 {
-                    Message = "ZoneId does not exist.",
-                    Succeeded = false
+                    Message = "ZoneId not found.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { 
+                            "ZoneId", ["Zone with the specified Id does not exist."] 
+                        }
+                    }
                 };
             }
         }
@@ -73,7 +90,13 @@ public class CreateNAPHandler(
             return new ApiResponse<NAPDto>
             {
                 Message = "NAP already exists.",
-                Succeeded = false
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["A NAP with the same Service Provider, Zone, and Coordinates already exists."] 
+                    }
+                }
             };
         }
 

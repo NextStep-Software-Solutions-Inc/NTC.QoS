@@ -21,21 +21,6 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
     {
         var allNAPs = await _NAPRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
 
-        if (request.ServiceProviderId.HasValue)
-        {
-            allNAPs = [.. allNAPs.Where(n => n.ServiceProviderId == request.ServiceProviderId.Value)];
-        }
-
-        if (request.ZoneId.HasValue)
-        {
-            allNAPs = [.. allNAPs.Where(n => n.ZoneId == request.ZoneId.Value)];
-        }
-
-        if (request.FileId.HasValue)
-        {
-            allNAPs = [.. allNAPs.Where(n => n.FileId == request.FileId.Value)];
-        }
-
         var NAPs = allNAPs.Select(n => new NAPDto
         {
             Id = n.Id,
@@ -94,9 +79,14 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
             CoorLongitude = n.CoorLongitude,
         }).ToList();
 
+        NAPs = [.. NAPs
+            .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProvider?.Id == request.ServiceProviderId)
+            .Where(n => !request.ZoneId.HasValue || n.Zone?.Id == request.ZoneId)
+            .Where(n => !request.FileId.HasValue || n.File?.Id == request.FileId)];
+
         if (NAPs.Count is 0)
         {
-            return new PaginatedResponse<NAPDto>(new List<NAPDto>(), request.PageNumber, request.PageSize)
+            return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize)
             {
                 Data = NAPs,
                 Message = "No records found.",
