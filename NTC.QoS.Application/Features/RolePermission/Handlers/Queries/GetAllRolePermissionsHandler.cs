@@ -13,16 +13,6 @@ public class GetAllRolePermissionsHandler(IRolePermissionRepository rolePermissi
     {
         var allRolePermissions = await _rolePermissionRepository.ListAsync(rp => !rp.IsDeleted, cancellationToken);
         
-        if (request.RoleId.HasValue)
-        {
-            allRolePermissions = [.. allRolePermissions.Where(rp => rp.RoleId == request.RoleId)];
-        }
-
-        if (request.PermissionId.HasValue)
-        {
-            allRolePermissions = [.. allRolePermissions.Where(rp => rp.PermissionId == request.PermissionId)];
-        }
-
         var rolePermissionDtos = allRolePermissions.Select(static rp => new GetRolePermissionDto
         {
             Id = rp.Id,
@@ -41,6 +31,16 @@ public class GetAllRolePermissionsHandler(IRolePermissionRepository rolePermissi
                 Description = rp.Permission?.Description ?? string.Empty
             }
         }).ToList();
+
+        if (request.RoleId.HasValue)
+        {
+            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.RoleId == request.RoleId)];
+        }
+
+        if (request.PermissionId.HasValue)
+        {
+            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.PermissionId == request.PermissionId)];
+        }
 
         return new PaginatedResponse<GetRolePermissionDto>(rolePermissionDtos, request.PageNumber, request.PageSize)
         {

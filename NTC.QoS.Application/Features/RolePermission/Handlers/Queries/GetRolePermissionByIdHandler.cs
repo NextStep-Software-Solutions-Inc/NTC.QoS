@@ -20,7 +20,9 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Id", [$"Role permission with ID [{request.Id}] not found."] }
+                    { 
+                        "Id", [$"Role permission with ID [{request.Id}] not found."]
+                    }
                 },
                 Message = $"Role permission does not exist."
             };

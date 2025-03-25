@@ -26,7 +26,8 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "duplicate", ["Role permission with the same RoleId and PermissionId already exists."]
+                    { 
+                        "Duplicate", ["Role permission with the same RoleId and PermissionId already exists."]
                     }
                 }
             };
@@ -43,7 +44,8 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "RoleId", ["Role with the specified RoleId does not exist."]
+                        { 
+                            "RoleId", ["Role with the specified RoleId does not exist."]
                         }
                     }
                 };
@@ -61,7 +63,8 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "PermissionId", ["Permission with the specified PermissionId does not exist."]
+                        { 
+                            "PermissionId", ["Permission with the specified PermissionId does not exist."]
                         }
                     }
                 };
