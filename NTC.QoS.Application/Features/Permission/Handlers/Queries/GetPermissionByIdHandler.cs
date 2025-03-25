@@ -6,17 +6,17 @@ using NTC.QoS.Domain.Models.DTOs.Permission;
 
 namespace NTC.QoS.Application.Features.Permission.Handlers.Queries;
 
-public class GetPermissionByIdHandler(IRepository<Domain.Entities.Permission> repository) : IRequestHandler<GetPermissionByIdRequest, ApiResponse<GetPermissionDto>>
+public class GetPermissionByIdHandler(IRepository<Domain.Entities.Permission> repository) : IRequestHandler<GetPermissionByIdRequest, ApiResponse<PermissionDto>>
 {
     private readonly IRepository<Domain.Entities.Permission> _repository = repository;
 
-    public async Task<ApiResponse<GetPermissionDto>> Handle(GetPermissionByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<PermissionDto>> Handle(GetPermissionByIdRequest request, CancellationToken cancellationToken)
     {
         var permission = await _repository.GetByIdAsync(request.Id, cancellationToken);
-
+        
         if (permission is null)
         {
-            return new ApiResponse<GetPermissionDto>
+            return new ApiResponse<PermissionDto>
             {
                 Succeeded = false,
                 Message = "Permission not found.",
@@ -27,11 +27,11 @@ public class GetPermissionByIdHandler(IRepository<Domain.Entities.Permission> re
             };
         }
 
-        return new ApiResponse<GetPermissionDto>
+        return new ApiResponse<PermissionDto>
         {
             Succeeded = true,
-            Message = "Permission retrieved successfully",
-            Data = new GetPermissionDto
+            Message = "Permission retrieved successfully.",
+            Data = new PermissionDto
             {
                 Id = permission.Id,
                 Name = permission.Name,

@@ -32,7 +32,7 @@ public class DeletePermissionByIdHandler(IRepository<Domain.Entities.Permission>
         {
             Data = true,
             Succeeded = true,
-            Message = $"Permission deleted successfully."
+            Message = "Permission deleted successfully."
         };
     }
 }

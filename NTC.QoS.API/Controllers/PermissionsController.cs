@@ -13,37 +13,30 @@ public class PermissionsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<IActionResult> CreatePermission(CreatePermissionDto permissionDto)
+    public async Task<ActionResult<ApiResponse<PermissionDto>>> CreatePermission(CreatePermissionDto createPermissionDto)
     {
-        var permission = await _mediator.Send(new CreatePermissionRequest
-        {
-            Permission = permissionDto
-        });
+        var permission = await _mediator.Send(new CreatePermissionRequest(createPermissionDto));
         return permission.Succeeded ? Ok(permission) : BadRequest(permission);
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<GetPermissionDto>>> GetAllPermissions(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<PermissionDto>>> GetAllPermissions(int pageSize = 10, int pageNumber = 1)
     {
         var result = await _mediator.Send(new GetAllPermissionsRequest(pageSize, pageNumber));
         return Ok(result);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<GetPermissionDto>>> GetPermissionById(Guid id)
+    public async Task<ActionResult<ApiResponse<PermissionDto>>> GetPermissionById(Guid id)
     {
         var permission = await _mediator.Send(new GetPermissionByIdRequest(id));
         return permission.Succeeded ? Ok(permission) : BadRequest(permission);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdatePermissionDto>>> UpdatePermissionById(Guid id, UpdatePermissionDto updatePermission)
+    public async Task<ActionResult<ApiResponse<PermissionDto>>> UpdatePermissionById(Guid id, UpdatePermissionDto updatePermissionDto)
     {
-        var permission = await _mediator.Send(new UpdatePermissionByIdRequest
-        {
-            Id = id,
-            Permission = updatePermission
-        });
+        var permission = await _mediator.Send(new UpdatePermissionByIdRequest(id, updatePermissionDto));
         return permission.Succeeded ? Ok(permission) : BadRequest(permission);
     }
 
