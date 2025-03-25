@@ -30,20 +30,20 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
         var result = new GetRolePermissionDto
         {
             Id = rolePermission.Id,
-            Role = rolePermission.Role is not null ? new RolePermissionDto
+            Role =  new RolePermissionDto
             {
-                Id = rolePermission.Role.Id,
-                Name = rolePermission.Role.Name,
-                Key = rolePermission.Role.Key,
-                Description = rolePermission.Role.Description
-            } : null,
-            Permission = rolePermission.Permission is not null ? new RolePermissionDto
+                Id = rolePermission.RoleId,
+                Name = rolePermission.Role?.Name ?? string.Empty,
+                Key = rolePermission.Role?.Key ?? string.Empty,
+                Description = rolePermission.Role?.Description
+            },
+            Permission = new RolePermissionDto
             {
-                Id = rolePermission.Permission.Id,
-                Name = rolePermission.Permission.Name,
-                Key = rolePermission.Permission.Key,
-                Description = rolePermission.Permission.Description
-            } : null
+                Id = rolePermission.PermissionId,
+                Name = rolePermission.Permission?.Name ?? string.Empty,
+                Key = rolePermission.Permission?.Key ?? string.Empty,
+                Description = rolePermission.Permission?.Description
+            }
         };
 
         return new ApiResponse<GetRolePermissionDto>
