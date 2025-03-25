@@ -21,7 +21,6 @@ public static class InfrastructureDependencyInjection
         });
 
         // Register repositories
-
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IProviderRepository, ProviderRepository>();
         services.AddScoped<IUserContextService, UserContextService>();
@@ -42,6 +41,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ISpeedtestRepository, SpeedtestRepository>();
         services.AddScoped<IFileRepository, FileRepository>();
         services.AddScoped<ICellularRepository, CellularRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
         services.AddScoped<IMIMORepository, MIMORepository>();
         services.AddScoped<ISectorRepository, SectorRepository>();

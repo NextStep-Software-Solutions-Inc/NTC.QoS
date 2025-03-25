@@ -8,42 +8,17 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class LinkRepository(ApplicationDbContext context) : Repository<Link>(context), ILinkRepository
 {
-    public async Task<bool> ValidateLinkTypesAsync(Guid? uplinkId, Guid? downlinkId, CancellationToken cancellationToken = default)
+    public async Task<bool> ValidateLinkTypesAsync(Guid linkId, LinkTypeEnum expectedType, CancellationToken cancellationToken = default)
     {
-        if (uplinkId.HasValue)
-        {
-            var uplink = await _context.Set<Link>()
-                .AsNoTracking()
-                .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == uplinkId.Value && l.Type == LinkTypeEnum.Uplink, cancellationToken);
+        
 
-            if (uplink is null)
-            {
-                return false;
-            }
-            if (uplink.IsDeleted)
-            {
-                return false;
-            }
-        }
+        var link = await _context.Set<Link>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == linkId && l.Type == expectedType && !l.IsDeleted, cancellationToken);
 
-        if (downlinkId.HasValue)
-        {
-            var downlink = await _context.Set<Link>()
-                .AsNoTracking()
-                .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == downlinkId.Value && l.Type == LinkTypeEnum.Downlink, cancellationToken);
-
-            if (downlink is null)
-            {
-                return false;
-            }
-            if (downlink.IsDeleted)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return link is not null;
     }
+
     public override async Task<Link?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Link>()
@@ -53,6 +28,7 @@ internal sealed class LinkRepository(ApplicationDbContext context) : Repository<
             .Include(l => l.Band);
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
+
     public override async Task<List<Link>> ListAsync(
         Expression<Func<Link, bool>>? expression = null,
         CancellationToken cancellationToken = default)
