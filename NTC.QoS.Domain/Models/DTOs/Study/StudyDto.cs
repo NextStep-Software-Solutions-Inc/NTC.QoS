@@ -1,10 +1,12 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.Study;
+﻿using NTC.QoS.Domain.Models.DTOs.AreaStudy;
+
+namespace NTC.QoS.Domain.Models.DTOs.Study;
 
 public class StudyDto
 {
-    public Guid Id { get; set; }
+    public required Guid Id { get; set; }
     public required string Name { get; set; } 
-    public string? Description { get; set; }
-    public required AreaStudyStudyDto AreaStudy { get; set; }
-    public decimal StudyRadius { get; set; }
+    public required string? Description { get; set; }
+    public required AreaStudyDto AreaStudy { get; set; }
+    public required decimal StudyRadius { get; set; }
 }
