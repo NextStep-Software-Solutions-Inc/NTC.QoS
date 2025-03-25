@@ -26,7 +26,7 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                 {
                     { "Id", ["User with the specified ID does not exist."] }
                 },
-                Message = "User not found."
+                Message = "User not found"
             };
         }
 
@@ -72,18 +72,8 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         if (existingUser.Any(u => u.Id != request.Id &&
                                  u.RoleId == user.RoleId &&
                                  u.OrganizationId == user.OrganizationId &&
-                                 u.AuthUserId == user.AuthUserId))
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "Duplicate user found.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "Duplicate", ["User with the same Role, Organization, and AuthUserId already exists."] }
-                }
-            };
-        }
+                                 u.AuthUserId == user.AuthUserId)) 
+        return new ApiResponse<UserDto>("User with the same Role, Organization, and AuthUserId already exists.");
 
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);

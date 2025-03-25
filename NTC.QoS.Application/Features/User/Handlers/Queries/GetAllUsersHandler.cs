@@ -13,6 +13,10 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
     {
         var allUsers = await _repository.ListAsync(u => !u.IsDeleted, cancellationToken);
 
+        allUsers = [.. allUsers
+            .Where(u => !request.RoleId.HasValue || u.RoleId == request.RoleId)
+            .Where(u => !request.OrganizationId.HasValue || u.OrganizationId == request.OrganizationId.Value)];
+
         var userDtos = allUsers.Select(u => new UserDto
         {
             Id = u.Id,
@@ -31,10 +35,6 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             },
             AuthUserId = u.AuthUserId
         }).ToList();
-
-        userDtos = [.. userDtos
-            .Where(u => !request.RoleId.HasValue || u.Role?.Id == request.RoleId)
-            .Where(u => !request.OrganizationId.HasValue || u.Organization?.Id == request.OrganizationId.Value)];
 
         if (userDtos.Count is 0)
         {

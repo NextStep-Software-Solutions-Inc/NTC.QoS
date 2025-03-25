@@ -19,19 +19,8 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         var existingUser = await _userRepository.FindAsync(u => u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId
                                                            && u.AuthUserId == request.User.AuthUserId, cancellationToken);
-        if (existingUser is not null)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "Duplicate user found.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "Duplicate", ["User with the same Role, Organization, and AuthUserId already exists."] }
-                }
-            };
-        }
-
+        if (existingUser is not null) return new ApiResponse<UserDto>("User with the same Role, Organization, and AuthUserId already exists.");
+        
         var role = await _roleRepository.GetByIdAsync(request.User.RoleId, cancellationToken);
         if (role is null)
         {
