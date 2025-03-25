@@ -20,7 +20,9 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Id", ["User with the specified ID does not exist."] }
+                    { 
+                        "Id", ["User with the specified ID does not exist."] 
+                    }
                 },
                 Message = "User not found"
             };

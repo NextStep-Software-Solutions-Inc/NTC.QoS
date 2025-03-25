@@ -30,7 +30,9 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
                 Message = "Role not found.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "RoleId", ["Role with the specified Id does not exist"] }
+                    { 
+                        "RoleId", ["Role with the specified Id does not exist"] 
+                    }
                 }
             };
         }
@@ -44,7 +46,9 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
                 Message = "Organization not found.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "OrganizationId", ["Organization with the specified Id does not exist."] }
+                    {
+                        "OrganizationId", ["Organization with the specified Id does not exist."] 
+                    }
                 }
             };
         }

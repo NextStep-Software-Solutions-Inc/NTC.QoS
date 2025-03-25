@@ -8,18 +8,15 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class LinkRepository(ApplicationDbContext context) : Repository<Link>(context), ILinkRepository
 {
-    public async Task<bool> ValidateLinkTypesAsync(Guid? linkId, LinkTypeEnum expectedType, CancellationToken cancellationToken = default)
+    public async Task<bool> ValidateLinkTypesAsync(Guid linkId, LinkTypeEnum expectedType, CancellationToken cancellationToken = default)
     {
-        if (!linkId.HasValue)
-        {
-            return true; 
-        }
+        
 
         var link = await _context.Set<Link>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == linkId.Value && l.Type == expectedType, cancellationToken);
+            .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == linkId && l.Type == expectedType && !l.IsDeleted, cancellationToken);
 
-        return link != null && !link.IsDeleted;
+        return link is not null;
     }
 
     public override async Task<Link?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
