@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 
 namespace NTC.QoS.Application.Features.Network.Requests;
 
-public class CreateNetworkRequest(CreateNetworkDto network) : IRequest<ApiResponse<CreateNetworkDto>>
+public class CreateNetworkRequest(CreateNetworkDto network) : IRequest<ApiResponse<NetworkDto>>
 {
     public CreateNetworkDto Network { get; set; } = network;
 }

@@ -2,7 +2,7 @@
 
 namespace NTC.QoS.Domain.Models.DTOs.Network;
 
-public class GetNetworkDto
+public class NetworkDto
 {
     public Guid Id { get; set; }
     public required string Name { get; set; }

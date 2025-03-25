@@ -9,24 +9,14 @@ using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Queries;
 
-public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequestHandler<GetAllNetworksRequest, PaginatedResponse<GetNetworkDto>>
+public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequestHandler<GetAllNetworksRequest, PaginatedResponse<NetworkDto>>
 {
     private readonly INetworkRepository _networkRepository = networkRepository;
-    public async Task<PaginatedResponse<GetNetworkDto>> Handle(GetAllNetworksRequest request, CancellationToken cancellationToken)
+    public async Task<PaginatedResponse<NetworkDto>> Handle(GetAllNetworksRequest request, CancellationToken cancellationToken)
     {
         var allNetworks = await _networkRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
         
-        if(request.Search is not null)
-        {
-            allNetworks = [.. allNetworks.Where(network => network.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase))];
-        }
-
-        if (request.NetworkTemplateId.HasValue)
-        {
-            allNetworks = [.. allNetworks.Where(network => network.NetworkTemplateId == request.NetworkTemplateId)];
-        }
-
-        var allNetwork = allNetworks.Select(static n => new GetNetworkDto
+        var networkDtos = allNetworks.Select(n => new NetworkDto
         {
             Id = n.Id,
             Name = n.Name,
@@ -37,7 +27,7 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
                 Description = n.NetworkTemplate?.Description ?? string.Empty,
                 URL = n.NetworkTemplate?.URL ?? string.Empty
             },
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName(n.SystemType),
+            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(n.SystemType),
             Uplink = new LinkNetworkDto
             {
                 Id = n.UpLinkId,
@@ -52,6 +42,25 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
             }
         }).ToList();
 
-        return new PaginatedResponse<GetNetworkDto>(allNetwork, request.PageNumber, request.PageSize);
+        networkDtos = [.. networkDtos
+            .Where(n => string.IsNullOrEmpty(request.Search) || (n.Name is not null && n.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)))
+            .Where(n => !request.NetworkTemplateId.HasValue || n.NetworkTemplate?.Id == request.NetworkTemplateId)];
+
+        if (networkDtos.Count is 0)
+        {
+            return new PaginatedResponse<NetworkDto>(networkDtos, request.PageNumber, request.PageSize)
+            {
+                Data = networkDtos,
+                Message = "No records found.",
+                Succeeded = true
+            };
+        }
+
+        return new PaginatedResponse<NetworkDto>(networkDtos, request.PageNumber, request.PageSize)
+        {
+            Data = networkDtos,
+            Succeeded = true,
+            Message = "Networks retrieved successfully."
+        };
     }
 }

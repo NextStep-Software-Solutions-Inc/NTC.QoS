@@ -9,50 +9,54 @@ using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Queries;
 
-public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<GetNetworkByIdRequest, ApiResponse<GetNetworkDto>>
+public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<GetNetworkByIdRequest, ApiResponse<NetworkDto>>
 {
     private readonly INetworkRepository _networkRepository = networkRepository;
-    public async Task<ApiResponse<GetNetworkDto>> Handle(GetNetworkByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<NetworkDto>> Handle(GetNetworkByIdRequest request, CancellationToken cancellationToken)
     {
         var network = await _networkRepository.GetByIdAsync(request.Id, cancellationToken);
         if (network is null)
         {
-            return new ApiResponse<GetNetworkDto>
+            return new ApiResponse<NetworkDto>
             {
-                Data = null,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Id", [$"Network with ID [{request.Id}] not found."] },
+                    { 
+                        "Id", [$"Network with ID [{request.Id}] not found."] 
+                    },
                 },
-                Message = $"Network with ID [{request.Id}] does not exist."
+                Message = $"Network not found."
             };
         }
-        var result = new GetNetworkDto
+
+        var result = new NetworkDto
         {
             Id = network.Id,
             Name = network.Name,
-            NetworkTemplate = network.NetworkTemplate is not null ? new NetworkTemplateDto
+            NetworkTemplate = new NetworkTemplateDto
             {
-                Id = network.NetworkTemplate.Id,
-                Name = network.NetworkTemplate.Name
-            } : null,
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName(network.SystemType),
-
-            Uplink = network.UpLink is not null ? new LinkNetworkDto
+                Id = network.NetworkTemplateId,
+                Name = network.NetworkTemplate?.Name ?? string.Empty,
+                Description = network.NetworkTemplate?.Description ?? string.Empty,
+                URL = network.NetworkTemplate?.URL ?? string.Empty
+            },
+            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(network.SystemType),
+            Uplink = new LinkNetworkDto
             {
-                Id = network.UpLink.Id,
-                Type = EnumHelper<LinkTypeEnum>.GetName(network.UpLink.Type),
-                CenterFrequency = network.UpLink.CenterFrequency
-            } : null!,
-            DownLink = network.DownLink is not null ? new LinkNetworkDto
+                Id = network.UpLinkId,
+                Type = network.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.UpLink.Type) : string.Empty,
+                CenterFrequency = network.UpLink?.CenterFrequency ?? 0,
+            },
+            DownLink = new LinkNetworkDto
             {
-                Id = network.DownLink.Id,
-                Type = EnumHelper<LinkTypeEnum>.GetName(network.DownLink.Type),
-                CenterFrequency = network.DownLink.CenterFrequency
-            } : null!
+                Id = network.DownLinkId,
+                Type = network.DownLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.DownLink.Type) : string.Empty,
+                CenterFrequency = network.DownLink?.CenterFrequency ?? 0,
+            }
         };
-        return new ApiResponse<GetNetworkDto>
+
+        return new ApiResponse<NetworkDto>
         {
             Data = result,
             Message = "Network retrieved successfully.",

@@ -19,7 +19,7 @@ public class DeleteStudyHandler(IRepository<Domain.Entities.Study> repository) :
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", [$"Study with ID [{request.Id}] does not exist."]
+                        "Id", [$"Study with ID [{request.Id}] does not exist."]
                     }
                 },
                 Succeeded = false,

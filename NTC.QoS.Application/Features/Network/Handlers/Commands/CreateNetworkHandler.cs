@@ -5,23 +5,30 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
+using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 
-public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> networkRepository, ILinkRepository linkRepository) : IRequestHandler<CreateNetworkRequest, ApiResponse<CreateNetworkDto>>
+public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> networkRepository, ILinkRepository linkRepository) : IRequestHandler<CreateNetworkRequest, ApiResponse<NetworkDto>>
 {
     private readonly IRepository<Domain.Aggregates.Network> _networkRepository = networkRepository;
     private readonly ILinkRepository _linkRepository = linkRepository;
-    public async Task<ApiResponse<CreateNetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
         var systemType = EnumHelper<NetworkSystemTypeEnum>.ParseUserInput(request.Network.SystemType);
 
         var network = await _networkRepository.FindAsync(n => n.Name == request.Network.Name && n.SystemType == systemType && !n.IsDeleted, cancellationToken);
         if (network is not null)
         {
-            return new ApiResponse<CreateNetworkDto>
+            return new ApiResponse<NetworkDto>
             {
                 Message = "Network already exist.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Network with the same name and system type already exists."]
+                    }
+                },
                 Succeeded = false,
             };
         }
@@ -50,9 +57,15 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
 
         if (!uplinkValid || !downlinkValid)
         {
-            return new ApiResponse<CreateNetworkDto>
+            return new ApiResponse<NetworkDto>
             {
                 Message = string.Join(" ", errorMessages),
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid", errorMessages.ToArray()
+                    }
+                },
                 Succeeded = false,
             };
         }
@@ -65,17 +78,36 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
             UpLinkId = request.Network.UplinkId,
             DownLinkId = request.Network.DownLinkId
         };
+
         _networkRepository.Add(newNetwork);
         await _networkRepository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<CreateNetworkDto>
+
+        return new ApiResponse<NetworkDto>
         {
-            Data = new CreateNetworkDto
+            Data = new NetworkDto
             {
+                Id = newNetwork.Id,
                 Name = newNetwork.Name,
-                NetworkTemplateId = newNetwork.NetworkTemplateId,
-                SystemType = EnumHelper<NetworkSystemTypeEnum>.GetName(newNetwork.SystemType),
-                UplinkId = newNetwork.UpLinkId,
-                DownLinkId = newNetwork.DownLinkId
+                NetworkTemplate = new NetworkTemplateDto
+                {
+                    Id = newNetwork.NetworkTemplateId,
+                    Name = newNetwork.NetworkTemplate?.Name ?? string.Empty,
+                    Description = newNetwork.NetworkTemplate?.Description ?? string.Empty,
+                    URL = newNetwork.NetworkTemplate?.URL ?? string.Empty
+                },
+                SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(newNetwork.SystemType),
+                Uplink = new LinkNetworkDto
+                {
+                    Id = newNetwork.UpLinkId,
+                    Type = newNetwork.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(newNetwork.UpLink.Type) : string.Empty,
+                    CenterFrequency = newNetwork.UpLink?.CenterFrequency ?? 0,
+                },
+                DownLink = new LinkNetworkDto
+                {
+                    Id = newNetwork.DownLinkId,
+                    Type = newNetwork.DownLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(newNetwork.DownLink.Type) : string.Empty,
+                    CenterFrequency = newNetwork.DownLink?.CenterFrequency ?? 0,
+                }
             },
             Succeeded = true,
             Message = "Network created successfully."
