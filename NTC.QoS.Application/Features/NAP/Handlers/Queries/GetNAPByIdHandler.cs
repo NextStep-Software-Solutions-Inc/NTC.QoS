@@ -26,7 +26,13 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
             return new ApiResponse<NAPDto>
             {
                 Succeeded = false,
-                Message = "NAP not found."
+                Message = "NAP not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["NAP with the specified Id does not exist."]
+                    }
+                }
             };
         }
 
