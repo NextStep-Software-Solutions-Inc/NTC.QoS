@@ -14,7 +14,7 @@ internal sealed class LinkRepository(ApplicationDbContext context) : Repository<
 
         var link = await _context.Set<Link>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == linkId && l.Type == expectedType && !link.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == linkId && l.Type == expectedType && !l.IsDeleted, cancellationToken);
 
         return link is not null;
     }

@@ -3,6 +3,6 @@
 public class GetRolePermissionDto
 {
     public Guid Id { get; set; }
-    public RolePermissionDto? Role { get; set; }
-    public RolePermissionDto? Permission { get; set; }
+    public required RolePermissionDto Role { get; set; }
+    public required RolePermissionDto Permission { get; set; }
 }
