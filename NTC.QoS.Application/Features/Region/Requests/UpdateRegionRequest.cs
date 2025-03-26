@@ -7,5 +7,5 @@ namespace NTC.QoS.Application.Features.Region.Requests;
 public class UpdateRegionRequest : IRequest<ApiResponse<RegionDto>>
 {
     public Guid Id { get; set; }
-    public UpdateRegionDto Region { get; set; } = null!;
+    public UpdateRegionDto? Region { get; set; }
 }
