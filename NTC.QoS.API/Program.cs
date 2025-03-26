@@ -3,7 +3,6 @@ using NTC.QoS.Infrastructure;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using NTC.QoS.API.Extensions;
-using NTC.QoS.Domain.Entities;
 
 namespace NTC.QoS.API;
 
