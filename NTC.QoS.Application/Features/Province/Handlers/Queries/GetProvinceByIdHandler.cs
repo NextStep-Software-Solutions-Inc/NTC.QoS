@@ -15,11 +15,17 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
     {
         var province = await _provinceRepository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (province == null)
+        if (province is null)
         {
             return new ApiResponse<ProvinceDto>
             {
                 Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["Province with the specified ID does not exist."] 
+                    }
+                },
                 Message = "Province not found."
             };
         }
@@ -27,8 +33,8 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
         return new ApiResponse<ProvinceDto>
         {
             Succeeded = true,
-            Message = "Province retrieved successfully",
-            Data = new ProvinceDto()
+            Message = "Province retrieved successfully.",
+            Data = new ProvinceDto
             {
                 Id = province.Id,
                 Name = province.Name,
@@ -36,7 +42,7 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
                 Region = new RegionDto
                 {
                     Id = province.RegionId,
-                    Name = province.Region?.Name ?? "Unknown",
+                    Name = province.Region?.Name ?? string.Empty,
                     Description = province.Region?.Description
                 }
             }

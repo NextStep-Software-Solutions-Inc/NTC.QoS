@@ -7,23 +7,13 @@ using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
 
-public class GetAllProvincesHandler : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
+public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
 {
-    private readonly IProvinceRepository _provinceRepository;
-
-    public GetAllProvincesHandler(IProvinceRepository provinceRepository)
-    {
-        _provinceRepository = provinceRepository;
-    }
+    private readonly IProvinceRepository _provinceRepository = provinceRepository;
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
         var allProvinces = await _provinceRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
-
-        if (request.RegionId.HasValue)
-        {
-            allProvinces = allProvinces.Where(m => m.RegionId == request.RegionId.Value).ToList();
-        }
 
         var provinceDtos = allProvinces.Select(p => new ProvinceDto
         {
@@ -33,12 +23,28 @@ public class GetAllProvincesHandler : IRequestHandler<GetAllProvincesRequest, Pa
             Region = new RegionDto
             {
                 Id = p.RegionId,
-                Name = p.Region?.Name ?? "",
+                Name = p.Region?.Name ?? string.Empty,
                 Description = p.Region?.Description,
             }
         }).ToList();
 
+        provinceDtos = [.. provinceDtos.Where(p => !request.RegionId.HasValue || p.Region?.Id == request.RegionId.Value)];
 
-        return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize);
+        if (provinceDtos.Count is 0)
+        {
+            return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize)
+            {
+                Data = provinceDtos,
+                Message = "No records found.",
+                Succeeded = true
+            };
+        }
+
+        return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize)
+        {
+            Data = provinceDtos,
+            Message = "Provinces retrieved successfully.",
+            Succeeded = true
+        };
     }
 }
