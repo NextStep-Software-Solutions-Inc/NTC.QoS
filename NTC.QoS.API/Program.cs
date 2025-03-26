@@ -3,6 +3,7 @@ using NTC.QoS.Infrastructure;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using NTC.QoS.API.Extensions;
+using NTC.QoS.Domain.Entities;
 
 namespace NTC.QoS.API;
 
@@ -14,6 +15,15 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(builder =>
+            {
+                builder.AllowAnyOrigin()
+                       .AllowAnyMethod()
+                       .AllowAnyHeader();
+            });
+        });
         builder.Services.AddControllers()
             .AddJsonOptions(options => 
             {
