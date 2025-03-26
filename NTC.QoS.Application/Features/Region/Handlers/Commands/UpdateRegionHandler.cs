@@ -44,25 +44,28 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
             };
         }
 
-        region.Name = request.Region.Name.Trim();
+        var existingRegion = await _regionRepository.FindAsync(
+                r => r.Name == request.Region.Name
+                     && r.Id != request.Id
+                     && !r.IsDeleted,
+                cancellationToken);
 
-        var existingRegion = await _regionRepository.GetAllRegionsAsync(cancellationToken);
-        if (existingRegion.Any(r => r.Id != region.Id &&
-                                    r.Name != region.Name &&
-                                    r.Description != region.Description))
+        if (existingRegion is not null)
         {
             return new ApiResponse<RegionDto>
             {
                 Succeeded = false,
-                Message = "Duplicate region found.",
+                Message = "A region with the same name already exists.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Duplicate", ["Region with the same Name and Description already exists."]
+                        "Duplicate", ["Region with the same name already exists."] 
                     }
                 }
             };
         }
+        region.Name = request.Region.Name.Trim();
+        region.Description = request.Region.Description;
 
         _regionRepository.Update(region);
         await _regionRepository.SaveChangesAsync(cancellationToken);
