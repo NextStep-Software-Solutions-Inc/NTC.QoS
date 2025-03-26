@@ -14,6 +14,15 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(builder =>
+            {
+                builder.AllowAnyOrigin()
+                       .AllowAnyMethod()
+                       .AllowAnyHeader();
+            });
+        });
         builder.Services.AddControllers()
             .AddJsonOptions(options => 
             {
