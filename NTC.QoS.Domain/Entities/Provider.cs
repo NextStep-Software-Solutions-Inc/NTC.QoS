@@ -9,5 +9,3 @@ public class Provider : BaseEntity
     public string? LicenseNumber { get; set; }
     public virtual List<ServiceProvider> ServiceProviders { get; set; } = new();
 }
-
-
