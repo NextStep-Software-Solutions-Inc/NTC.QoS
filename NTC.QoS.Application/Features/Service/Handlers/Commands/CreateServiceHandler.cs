@@ -58,7 +58,7 @@ public class CreateServiceHandler(IRepository<Domain.Entities.Service> repositor
             Type = EnumHelper<ServiceTypeEnum>.ParseUserInput(request.Service.Type),
         };
 
-        _repository.Update(newService);
+        _repository.Add(newService);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<ServiceDto>
