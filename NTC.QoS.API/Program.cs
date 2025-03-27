@@ -14,6 +14,15 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(builder =>
+            {
+                builder.AllowAnyOrigin()
+                       .AllowAnyMethod()
+                       .AllowAnyHeader();
+            });
+        });
         builder.Services.AddControllers()
             .AddJsonOptions(options => 
             {
@@ -33,6 +42,7 @@ public class Program
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
+            app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI(s =>
             {
