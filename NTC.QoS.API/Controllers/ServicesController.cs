@@ -1,5 +1,4 @@
-﻿
-using MediatR;
+﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Service.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -7,54 +6,44 @@ using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("services", Name = "services")]
-public class ServicesController : ControllerBase
+public class ServicesController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
-    public ServicesController(IMediator mediator)
+    private readonly IMediator _mediator = mediator;
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<ServiceDto>>> CreateService([FromBody] CreateServiceDto createService)
     {
-        _mediator = mediator;
+        var service = await _mediator.Send(new CreateServiceRequest(createService));
+        return service.Succeeded ? Ok(service) : BadRequest(service);
     }
+
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? providerIds = null)
     {
-        var result = await _mediator.Send(new GetAllServicesRequest
-        {
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        });
-        return Ok(result);
+        var services = await _mediator.Send(new GetAllServicesRequest(pageSize, pageNumber, providerIds));
+        return services.Succeeded ? Ok(services) : BadRequest(services);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ServiceDto>>> GetServiceById(Guid id)
     {
-        Guid serviceId = id;
-        var request = new GetServiceByIdRequest(serviceId);
-        var services = await _mediator.Send(request);
-        return services.Succeeded ? Ok(services) : BadRequest(services);
-    }
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Service>>> UpdateServiceById(Guid id, UpdateServiceDto updateService)
-    {
-        var service = await _mediator.Send(new UpdateServiceByIdRequest(id, new UpdateServiceDto
-        {
-            Name = updateService.Name,
-            Type = updateService.Type,
-        }));
+        var service = await _mediator.Send(new GetServiceByIdRequest(id));
         return service.Succeeded ? Ok(service) : BadRequest(service);
     }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<ServiceDto>>> UpdateServiceById(Guid id, UpdateServiceDto updateService)
+    {
+        var service = await _mediator.Send(new UpdateServiceByIdRequest(id, updateService));
+        return service.Succeeded ? Ok(service) : BadRequest(service);
+    }
+
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteServiceById(Guid id)
     {
         var service = await _mediator.Send(new DeleteServiceByIdRequest(id));
-        return service.Succeeded ? Ok(service) : BadRequest(service);
-    }
-    [HttpPost]
-    public async Task<IActionResult> Post(CreateServiceDto serviceDto)
-    {
-        var service = await _mediator.Send(new CreateServiceRequest(serviceDto));
         return service.Succeeded ? Ok(service) : BadRequest(service);
     }
 }
