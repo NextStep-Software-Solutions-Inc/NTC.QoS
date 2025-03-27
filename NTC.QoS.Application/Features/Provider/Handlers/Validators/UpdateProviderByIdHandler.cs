@@ -8,7 +8,7 @@ public class UpdateProviderByIdHandler : AbstractValidator<UpdateProviderByIdReq
     public UpdateProviderByIdHandler()
     {
         RuleFor(x => x.Provider.Description)
-            .MaximumLength(500).WithMessage("Description must not exceed 500 characters");
+            .MaximumLength(500).WithMessage("Description must not exceed 500 characters.");
         
     }
 }

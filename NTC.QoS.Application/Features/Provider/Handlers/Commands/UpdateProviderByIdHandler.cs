@@ -10,11 +10,10 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Commands;
 public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> repository, IValidator<UpdateProviderByIdRequest> validator) : IRequestHandler<UpdateProviderByIdRequest, ApiResponse<ProviderDto>>
 {
     private readonly IRepository<Domain.Entities.Provider> _repository = repository;
-    public async Task<ApiResponse<ProviderDto>> Handle(UpdateProviderByIdRequest request,
-            CancellationToken cancellationToken)
+
+    public async Task<ApiResponse<ProviderDto>> Handle(UpdateProviderByIdRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await validator.ValidateAsync(request, cancellationToken);
-
         if (validationResult.IsValid.Equals(false))
         {
             return new ApiResponse<ProviderDto>
@@ -24,8 +23,8 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                 Errors = validationResult.Errors.ToDictionary(e => e.PropertyName, e => new[] { e.ErrorMessage })
             };
         }
-        var provider = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
 
+        var provider = await _repository.GetByIdAsync(request.Id, cancellationToken);
         if (provider is null)
         {
             return new ApiResponse<ProviderDto>
@@ -33,15 +32,19 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Provider", [ "The provider you are trying to edit does not exist."] }
+                    {
+                        "NullProvider", [ "Provider not found."]
+                    }
                 },
-                Message = "The provider you are trying to edit does not exist."
-            }; ;
+                Message = "The provider you are trying to delete does not exist."
+            };
         }
+
         provider.Description = request.Provider.Description;
 
-         _repository.Update(provider);
+        _repository.Update(provider);
         await _repository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<ProviderDto>
         {
             Succeeded = true,
@@ -51,7 +54,7 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                 Description = provider.Description,
                 Name = provider.Name
             },
-            Message = "Request successful! Your changes have been saved.."
+            Message = "Provider updated successfully."
         };
     }
 }
