@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Municipality.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 
@@ -18,6 +19,17 @@ public class MunicipalitiesController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> Post(CreateMunicipalityDto municipalityDto)
+    {
+        var municipality = await _mediator.Send(new CreateMunicipalityRequest
+        {
+            Municipality = municipalityDto
+        });
+
+        return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(int pageSize = 10, int pageNumber = 1, Guid? provinceId = null)
     {
@@ -28,7 +40,7 @@ public class MunicipalitiesController : ControllerBase
             ProvinceId = provinceId,
         };
         var municipalities = await _mediator.Send(request);
-        return Ok(municipalities);
+        return municipalities.Succeeded ? Ok(municipalities) : BadRequest(municipalities);
     }
     [HttpGet("id")]
     public async Task<ActionResult<ApiResponse<MunicipalityDto>>> GetMunicipalityById(Guid municipalityId)
@@ -37,27 +49,9 @@ public class MunicipalitiesController : ControllerBase
         var municipality = await _mediator.Send(request);
         return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
     }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateMunicipalityDto>>> Post(CreateMunicipalityDto municipalityDto)
-    {
-        var municipality = await _mediator.Send(new CreateMunicipalityRequest
-        {
-            Municipality = municipalityDto
-        });
-
-        return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
-    }
-    [HttpDelete("id")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid municipalityId)
-    {
-        var request = new DeleteMunicipalityByIdRequest(municipalityId);
-        var municipality = await _mediator.Send(request);
-
-        return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
-    }
 
     [HttpPut("id")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Municipality>>> UpdateMunicipalityById(Guid id, UpdateMunicipalityDto updateMunicipality)
+    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> UpdateMunicipalityById(Guid id, UpdateMunicipalityDto updateMunicipality)
     {
         var municipality = await _mediator.Send(new UpdateMunicipalityByIdRequest(id, new UpdateMunicipalityDto
         {
@@ -65,6 +59,15 @@ public class MunicipalitiesController : ControllerBase
             Description = updateMunicipality.Description,
             IsCity = updateMunicipality.IsCity,
         }));
+        return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
+    }
+
+    [HttpDelete("id")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid municipalityId)
+    {
+        var request = new DeleteMunicipalityByIdRequest(municipalityId);
+        var municipality = await _mediator.Send(request);
+
         return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
     }
 }
