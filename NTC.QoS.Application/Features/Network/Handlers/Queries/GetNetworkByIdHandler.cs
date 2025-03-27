@@ -12,6 +12,7 @@ namespace NTC.QoS.Application.Features.Network.Handlers.Queries;
 public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<GetNetworkByIdRequest, ApiResponse<NetworkDto>>
 {
     private readonly INetworkRepository _networkRepository = networkRepository;
+
     public async Task<ApiResponse<NetworkDto>> Handle(GetNetworkByIdRequest request, CancellationToken cancellationToken)
     {
         var network = await _networkRepository.GetByIdAsync(request.Id, cancellationToken);

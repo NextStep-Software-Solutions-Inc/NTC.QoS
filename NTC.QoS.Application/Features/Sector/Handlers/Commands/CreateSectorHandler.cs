@@ -8,105 +8,206 @@ using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Commands;
 
-public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepository,
-                                 INetworkRepository networkRepository,
-                                 IMIMORepository mimoRepository,
-                                 ICellRepository cellRepository,
-                                 IRepository<Domain.Entities.AntennaPattern> antennaPatternRepository) : IRequestHandler<CreateSectorRequest, ApiResponse<SectorDto>>
+public class CreateSectorHandler(
+    IRepository<Domain.Entities.Sector> sectorRepository,
+    INetworkRepository networkRepository,
+    IMIMORepository mimoRepository,
+    ICellRepository cellRepository,
+    IRepository<Domain.Entities.AntennaPattern> antennaPatternRepository) : IRequestHandler<CreateSectorRequest, ApiResponse<SectorDto>>
 {
     private readonly IRepository<Domain.Entities.Sector> _sectorRepository = sectorRepository;
     private readonly INetworkRepository _networkRepository = networkRepository;
     private readonly IMIMORepository _mimoRepository = mimoRepository;
     private readonly ICellRepository _cellRepository = cellRepository;
     private readonly IRepository<Domain.Entities.AntennaPattern> _antennaPatternRepository = antennaPatternRepository;
+
     public async Task<ApiResponse<SectorDto>> Handle(CreateSectorRequest request, CancellationToken cancellationToken)
     {
+        var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
         var sector = await _sectorRepository.FindAsync(s => s.NetworkId == request.Sector.NetworkId
                                                             && s.CellId == request.Sector.CellId
-                                                            && s.AntennaType == EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType)
+                                                            && s.AntennaType == antennaType
                                                             && s.Number == request.Sector.Number
+                                                            && s.MIMOId == request.Sector.MIMOId
+                                                            && s.IsRxEqualTx == request.Sector.IsRxEqualTx
                                                             && !s.IsDeleted, cancellationToken);
-        if (sector is not null) return new ApiResponse<SectorDto>("Sector already exist.");
-           
+        if (sector is not null)
+        {
+            return new ApiResponse<SectorDto>
+            {
+                Message = "Sector already exists.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Sector already exists."] 
+                    }
+                },
+            };
+        }
 
         var network = await _networkRepository.GetByIdAsync(request.Sector.NetworkId, cancellationToken);
-        if (network is null) return new ApiResponse<SectorDto>("Network not found.");
+        if (network is null)
+        {
+            return new ApiResponse<SectorDto>
+            {
+                Message = "Network not found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid Id", ["Network does not exists."]
+                    }
+                },
+            };
+        }
 
         if (request.Sector.MIMOId.HasValue)
         {
             var mimo = await _mimoRepository.GetByIdAsync(request.Sector.MIMOId.Value, cancellationToken);
-            if (mimo is null) return new ApiResponse<SectorDto>("MIMO not found.");
+            if (mimo is null)
+            {
+                return new ApiResponse<SectorDto>
+                {
+                    Message = "MIMO not found.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid Id", ["MIMO does not exists."]
+                    }
+                },
+                };
+            }
         }
 
         var cell = await _cellRepository.GetByIdAsync(request.Sector.CellId, cancellationToken);
-        if (cell is null) return new ApiResponse<SectorDto>("Cell not found.");
+        if (cell is null)
+        {
+            return new ApiResponse<SectorDto>
+            {
+                Message = "Cell not found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid Id", ["Cell does not exists."]
+                    }
+                },
+            };
+        }
 
         var txAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.TxAntennaPatternId, cancellationToken);
-        var rxAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.RxAntennaPatternId, cancellationToken);
-        if (txAntennaPattern is null || rxAntennaPattern is null) return new ApiResponse<SectorDto>("Antenna pattern not found.");
-
-        var newSector = new Domain.Entities.Sector  
+        if (txAntennaPattern is null)
         {
-            NetworkId = network.Id,
-            MIMOId = request.Sector.MIMOId,
-            CellId = cell.Id,
-            AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType),
-            Number = request.Sector.Number,
-            RadioEquipment = request.Sector.RadioEquipment,
-            IsRxEqualTx = request.Sector.IsRxEqualTx,
-            TxPower = request.Sector.TxPower,
-            TxAntennaModel = request.Sector.TxAntennaModel,
-            TxCableType = request.Sector.TxCableType,
-            TxCableLength = request.Sector.TxCableLength,
-            TxCableLoss = request.Sector.TxCableLoss,
-            TxAdditionalLoss = request.Sector.TxAdditionalLoss,
-            TxAntennaHeight = request.Sector.TxAntennaHeight,
-            TxAntennaGain = request.Sector.TxAntennaGain,
-            TxAzimuth = request.Sector.TxAzimuth,
-            TxBeamTilt = request.Sector.TxBeamTilt,
-            TxAntennaPatternId = txAntennaPattern.Id,
-            TxEIRP = request.Sector.TxEIRP,
-        };
+            return new ApiResponse<SectorDto>
+            {
+                Message = "Tx antenna pattern not found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid Id", ["Tx antenna pattern does not exists."]
+                    }
+                },
+            };
+        }
+
+        var newSector = CreateSectorEntity(request.Sector, network.Id, cell.Id, txAntennaPattern.Id);
 
         if (request.Sector.IsRxEqualTx)
         {
-            newSector.RxAntennaModel = newSector.TxAntennaModel;
-            newSector.RxCableType = newSector.TxCableType;
-            newSector.RxCableLength = newSector.TxCableLength;
-            newSector.RxCableLoss = newSector.TxCableLoss;
-            newSector.RxAdditionalLoss = newSector.TxAdditionalLoss;
-            newSector.RxAntennaHeight = newSector.TxAntennaHeight;
-            newSector.RxAntennaGain = newSector.TxAntennaGain;
-            newSector.RxAzimuth = newSector.TxAzimuth;
-            newSector.RxBeamTilt = newSector.TxBeamTilt;
-            newSector.RxAntennaPatternId = txAntennaPattern.Id;
-            newSector.RxEIRP = newSector.TxEIRP;
+            CopyTxToRx(newSector, txAntennaPattern.Id);
         }
         else
         {
-            newSector.RxAntennaModel = request.Sector.RxAntennaModel;
-            newSector.RxCableType = request.Sector.RxCableType;
-            newSector.RxCableLength = request.Sector.RxCableLength;
-            newSector.RxCableLoss = request.Sector.RxCableLoss;
-            newSector.RxAdditionalLoss = request.Sector.RxAdditionalLoss;
-            newSector.RxAntennaHeight = request.Sector.RxAntennaHeight;
-            newSector.RxAntennaGain = request.Sector.RxAntennaGain;
-            newSector.RxAzimuth = request.Sector.RxAzimuth;
-            newSector.RxBeamTilt = request.Sector.RxBeamTilt;
-            newSector.RxAntennaPatternId = rxAntennaPattern.Id;
-            newSector.RxEIRP = request.Sector.RxEIRP;
+            var rxAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.RxAntennaPatternId, cancellationToken);
+            if (rxAntennaPattern is null)
+            {
+                return new ApiResponse<SectorDto>
+                {
+                    Message = "Rx antenna pattern not found.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid Id", ["Rx antenna pattern does not exists."]
+                    }
+                },
+                };
+            }
+            AssignRxProperties(newSector, request.Sector, rxAntennaPattern.Id);
         }
 
         _sectorRepository.Add(newSector);
         await _sectorRepository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<SectorDto>
+        return CreateSectorApiResponse(newSector);
+    }
+
+    private static Domain.Entities.Sector CreateSectorEntity(CreateSectorDto dto, Guid networkId, Guid cellId, Guid txAntennaPatternId) => new()
+    {
+        NetworkId = networkId,
+        MIMOId = dto.MIMOId,
+        CellId = cellId,
+        AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(dto.AntennaType),
+        Number = dto.Number,
+        RadioEquipment = dto.RadioEquipment,
+        IsRxEqualTx = dto.IsRxEqualTx,
+        TxPower = dto.TxPower,
+        TxAntennaModel = dto.TxAntennaModel,
+        TxCableType = dto.TxCableType,
+        TxCableLength = dto.TxCableLength,
+        TxCableLoss = dto.TxCableLoss,
+        TxAdditionalLoss = dto.TxAdditionalLoss,
+        TxAntennaHeight = dto.TxAntennaHeight,
+        TxAntennaGain = dto.TxAntennaGain,
+        TxAzimuth = dto.TxAzimuth,
+        TxBeamTilt = dto.TxBeamTilt,
+        TxAntennaPatternId = txAntennaPatternId,
+        TxEIRP = dto.TxEIRP,
+    };
+
+    private static void CopyTxToRx(Domain.Entities.Sector sector, Guid txAntennaPatternId)
+    {
+        sector.RxAntennaModel = sector.TxAntennaModel;
+        sector.RxCableType = sector.TxCableType;
+        sector.RxCableLength = sector.TxCableLength;
+        sector.RxCableLoss = sector.TxCableLoss;
+        sector.RxAdditionalLoss = sector.TxAdditionalLoss;
+        sector.RxAntennaHeight = sector.TxAntennaHeight;
+        sector.RxAntennaGain = sector.TxAntennaGain;
+        sector.RxAzimuth = sector.TxAzimuth;
+        sector.RxBeamTilt = sector.TxBeamTilt;
+        sector.RxAntennaPatternId = txAntennaPatternId;
+        sector.RxEIRP = sector.TxEIRP;
+    }
+
+    private static void AssignRxProperties(Domain.Entities.Sector sector, CreateSectorDto dto, Guid rxAntennaPatternId)
+    {
+        sector.RxAntennaModel = dto.RxAntennaModel ?? string.Empty;
+        sector.RxCableType = dto.RxCableType ?? string.Empty;
+        sector.RxCableLength = dto.RxCableLength;
+        sector.RxCableLoss = dto.RxCableLoss;
+        sector.RxAdditionalLoss = dto.RxAdditionalLoss;
+        sector.RxAntennaHeight = dto.RxAntennaHeight;
+        sector.RxAntennaGain = dto.RxAntennaGain;
+        sector.RxAzimuth = dto.RxAzimuth;
+        sector.RxBeamTilt = dto.RxBeamTilt;
+        sector.RxAntennaPatternId = rxAntennaPatternId;
+        sector.RxEIRP = dto.RxEIRP;
+    }
+
+    private static ApiResponse<SectorDto> CreateSectorApiResponse(Domain.Entities.Sector newSector)
+    {
+        return new()
         {
             Data = new SectorDto
             {
                 Id = newSector.Id,
                 Network = new NetworkSectorDto
                 {
+                    Id = newSector.NetworkId,
                     Name = newSector.Network?.Name ?? string.Empty,
                     SystemType = newSector.Network?.SystemType.ToString() ?? string.Empty,
                 },
@@ -155,13 +256,13 @@ public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepos
                 TxBeamTilt = newSector.TxBeamTilt,
                 TxAntennaPattern = new AntennaPatternSectorDto
                 {
-                    Id = newSector.TxAntennaPatternId,
+                    Id = newSector.TxAntennaPattern?.Id ?? Guid.Empty,
                     Name = newSector.TxAntennaPattern?.Name ?? string.Empty,
                     URL = newSector.TxAntennaPattern?.URL ?? string.Empty,
                 },
                 TxEIRP = newSector.TxEIRP,
-                RxAntennaModel = newSector.RxAntennaModel,
-                RxCableType = newSector.RxCableType,
+                RxAntennaModel = newSector.RxAntennaModel ?? string.Empty,
+                RxCableType = newSector.RxCableType ?? string.Empty,
                 RxCableLength = newSector.RxCableLength,
                 RxCableLoss = newSector.RxCableLoss,
                 RxAdditionalLoss = newSector.RxAdditionalLoss,
@@ -171,11 +272,11 @@ public class CreateSectorHandler(IRepository<Domain.Entities.Sector> sectorRepos
                 RxBeamTilt = newSector.RxBeamTilt,
                 RxAntennaPattern = new AntennaPatternSectorDto
                 {
-                    Id = newSector.RxAntennaPatternId,
+                    Id = newSector.RxAntennaPattern?.Id ?? Guid.Empty,
                     Name = newSector.RxAntennaPattern?.Name ?? string.Empty,
                     URL = newSector.RxAntennaPattern?.URL ?? string.Empty,
                 },
-                RxEIRP = newSector.RxEIRP
+                RxEIRP = newSector.RxEIRP,
             },
             Succeeded = true,
             Message = "Sector created successfully."
