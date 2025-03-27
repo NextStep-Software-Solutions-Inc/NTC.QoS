@@ -2,29 +2,46 @@
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Queries;
 
-public class GetByIdFileHandler(IRepository<Domain.Entities.File> repository) : IRequestHandler<GetFileByIdRequest, ApiResponse<Domain.Entities.File>>
+public class GetByIdFileHandler(IFileRepository repository) : IRequestHandler<GetFileByIdRequest, ApiResponse<FileDto>>
 {
-    private readonly IRepository<Domain.Entities.File> _repository = repository;
-    public async Task<ApiResponse<Domain.Entities.File>> Handle(GetFileByIdRequest request, CancellationToken cancellationToken)
+    private readonly IFileRepository _repository = repository;
+    public async Task<ApiResponse<FileDto>> Handle(GetFileByIdRequest request, CancellationToken cancellationToken)
     {
-        var fileExist = await _repository.FindAsync(f => f.Id == request.Id && !f.IsDeleted, cancellationToken);
-        if (fileExist == null)
+        var file = await _repository.GetByIdAsync(request.Id, cancellationToken);
+
+        if (file is null)
         {
-            return new ApiResponse<Domain.Entities.File>
+            return new ApiResponse<FileDto>
             {
                 Data = null,
                 Message = "File not found",
-                Succeeded = false
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["File with the specified ID does not exist."]
+                    }
+                }
             };
         }
-        return new ApiResponse<Domain.Entities.File>
+        return new ApiResponse<FileDto>
         {
-            Data = fileExist,
-            Message = "File found",
-            Succeeded = true
+            Message = "File data retrieved successfully.",
+            Succeeded = true,
+            Data = new FileDto
+            {
+                Id = file.Id,
+                Name = file.Name,
+                Path = file.Path,
+                UploadedBy = file.UploadedBy,
+                UploadDate = file.UploadDate,
+                Type = file.Type.ToString() ?? string.Empty,
+                Status = file.Status.ToString() ?? string.Empty
+            }
         };
     }
 }

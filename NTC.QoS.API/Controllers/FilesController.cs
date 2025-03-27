@@ -1,8 +1,10 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
+using NTC.QoS.Domain.Models.DTOs.NAP;
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
@@ -17,19 +19,15 @@ public class FilesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<FileDto>>> CreateFile(CreateFileDto createFile)
     {
-        var result = await _mediator.Send(new CreateFileRequest
-        {
-            Name = createFile.Name,
-            Path = createFile.Path,
-            Type = createFile.Type
-        });
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        var file = await _mediator.Send(new CreateFileRequest(createFile));
+
+        return file.Succeeded ? Ok(file) : BadRequest(file);
     }
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<Domain.Entities.File>>> GetAllFiles(int pageSize = 10, int pageNumber = 1, string? search = null)
+    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, int pageNumber = 1, string? search = null)
     {
-        var result = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search));
-        return Ok(result);
+        var file = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search));
+        return file.Succeeded ? Ok(file) : BadRequest(file);
     }
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<FileDto>>> GetFileById(Guid id)
@@ -40,7 +38,7 @@ public class FilesController : ControllerBase
         return files.Succeeded ? Ok(files) : BadRequest(files);
     }
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.File>>>
+    public async Task<ActionResult<ApiResponse<FileDto>>>
         UpdateFileById(Guid id, UpdateFileDto updateFile)
     {
         var file = await _mediator.Send(new UpdateFileByIdRequest(id, new UpdateFileDto

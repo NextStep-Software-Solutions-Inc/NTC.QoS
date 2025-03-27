@@ -8,36 +8,47 @@ using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 
-public class CreateFileHandler(IRepository<Domain.Entities.File> repository) : IRequestHandler<CreateFileRequest, ApiResponse<CreateFileDto>>
+public class CreateFileHandler(IFileRepository repository) : IRequestHandler<CreateFileRequest, ApiResponse<FileDto>>
 {
-    private readonly IRepository<Domain.Entities.File> _repository = repository;
-    public async Task<ApiResponse<CreateFileDto>> Handle(CreateFileRequest request, CancellationToken cancellationToken)
+    private readonly IFileRepository _repository = repository;
+    public async Task<ApiResponse<FileDto>> Handle(CreateFileRequest request, CancellationToken cancellationToken)
     {
-        var file = await _repository.FindAsync(f => f.Name == request.Name && !f.IsDeleted, cancellationToken);
-        if (file != null)
+        var file = await _repository.FindAsync(f => f.Name == request.File.Name, cancellationToken);
+
+        if (file is not null)
         {
-            return new ApiResponse<CreateFileDto>
+            return new ApiResponse<FileDto>
             {
-                Message = "File already exists",
-                Succeeded = false
+                Message = "File name already exists.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Name", ["File with the same name already exists."]
+                    }
+                }
             };
         }
         var newFile = new Domain.Entities.File
         {
-            Name = request.Name,
-            Path = $"files/{request.Name}",
-            Type = EnumHelper<FileTypeEnum>.GetValue(request.Type)
+            Name = request.File.Name,
+            Path = $"files/{request.File.Name}",
+            Type = EnumHelper<FileTypeEnum>.GetValue(request.File.Type)
 
         };
         _repository.Add(newFile);
         await _repository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<CreateFileDto>
+        return new ApiResponse<FileDto>
         {
-            Data = new CreateFileDto
+            Data = new FileDto
             {
+                Id = newFile.Id,
                 Name = newFile.Name,
                 Path = newFile.Path,
-                Type = EnumHelper<FileTypeEnum>.GetName(newFile.Type)
+                UploadedBy = newFile.UploadedBy,
+                UploadDate = newFile.UploadDate,
+                Type = newFile.Type.ToString() ?? string.Empty,
+                Status = newFile.Status.ToString() ?? string.Empty
             },
             Message = "File created successfully",
             Succeeded = true

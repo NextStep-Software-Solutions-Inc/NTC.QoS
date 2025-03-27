@@ -4,9 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.File.Requests;
 
-public class CreateFileRequest : IRequest<ApiResponse<CreateFileDto>>
+public class CreateFileRequest(CreateFileDto file) : IRequest<ApiResponse<FileDto>>
 {
-    public string Name { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
-    public string Path { get; set; } = string.Empty;
+    public CreateFileDto File { get; set; } = file;
 }
