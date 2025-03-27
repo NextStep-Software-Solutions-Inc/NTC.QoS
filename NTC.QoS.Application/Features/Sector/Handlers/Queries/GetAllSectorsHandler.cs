@@ -105,7 +105,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
             {
                 Data = allSectorDtos,
                 Message = "No records found.",
-                Succeeded = true
+                Succeeded = false
             };
         }
 

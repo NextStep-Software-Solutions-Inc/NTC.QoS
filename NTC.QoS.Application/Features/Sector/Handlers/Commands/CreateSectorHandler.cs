@@ -51,12 +51,12 @@ public class CreateSectorHandler(
         {
             return new ApiResponse<SectorDto>
             {
-                Message = "Network not found.",
+                Message = "Network does not exists.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Network does not exists."]
+                        "Invalid Id", ["Network not found."]
                     }
                 },
             };
@@ -69,12 +69,12 @@ public class CreateSectorHandler(
             {
                 return new ApiResponse<SectorDto>
                 {
-                    Message = "MIMO not found.",
+                    Message = "MIMO does not exists.",
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["MIMO does not exists."]
+                        "Invalid Id", ["MIMO not found."]
                     }
                 },
                 };
@@ -86,12 +86,12 @@ public class CreateSectorHandler(
         {
             return new ApiResponse<SectorDto>
             {
-                Message = "Cell not found.",
+                Message = "Cell does not exists.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Cell does not exists."]
+                        "Invalid Id", ["Cell not found."]
                     }
                 },
             };
@@ -102,12 +102,12 @@ public class CreateSectorHandler(
         {
             return new ApiResponse<SectorDto>
             {
-                Message = "Tx antenna pattern not found.",
+                Message = "Tx antenna pattern does not exists.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Tx antenna pattern does not exists."]
+                        "Invalid Id", ["Tx antenna pattern not found."]
                     }
                 },
             };
@@ -126,12 +126,12 @@ public class CreateSectorHandler(
             {
                 return new ApiResponse<SectorDto>
                 {
-                    Message = "Rx antenna pattern not found.",
+                    Message = "Rx antenna pattern does not exists.",
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Rx antenna pattern does not exists."]
+                        "Invalid Id", ["Rx antenna pattern not found."]
                     }
                 },
                 };
