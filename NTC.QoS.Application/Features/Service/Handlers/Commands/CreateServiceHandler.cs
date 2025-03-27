@@ -1,9 +1,11 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Service.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Provider;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.Application.Features.Service.Handlers.Commands;
@@ -28,17 +30,32 @@ public class CreateServiceHandler(IRepository<Domain.Entities.Service> repositor
                 {
                     Id = service.Id,
                     Name = service.Name,
-                    Type = EnumHelper<ServiceTypeEnum>.GetDescription(service.Type)
+                    Type = service.Type.ToString()
                 },
                 Message = "Service reactivated successfully.",
                 Succeeded = true
             };
         }
 
+        if (service is not null && service.IsDeleted.Equals(false))
+        {
+            return new ApiResponse<ServiceDto>
+            {
+                Message = "Provider already exists.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Provider with the same name already exists."]
+                    }
+                }
+            };
+        }
+
         var newService = new Domain.Entities.Service
         {
             Name = request.Service.Name,
-            Type = EnumHelper<ServiceTypeEnum>.GetValue(request.Service.Type),
+            Type = EnumHelper<ServiceTypeEnum>.ParseUserInput(request.Service.Type),
         };
 
         _repository.Update(newService);

@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Provider;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.Application.Features.Service.Handlers.Queries;
@@ -28,6 +29,21 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
             Name = service.Name,
             Type =service.Type.ToString()
         }).ToList();
+
+        if (serviceDtos.Count is 0)
+        {
+            return new PaginatedResponse<ServiceDto>(serviceDtos, request.PageNumber, request.PageSize)
+            {
+                Succeeded = false,
+                Message = "No records found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullServices", ["No services found."]
+                    }
+                }
+            };
+        }
 
         return new PaginatedResponse<ServiceDto>(serviceDtos, request.PageNumber, request.PageSize)
         {

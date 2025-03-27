@@ -10,23 +10,30 @@ public class DeleteServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceProvider = await _repository.FindAsync(sp => sp.Id == request.Id && !sp.IsDeleted, cancellationToken);
-        if (serviceProvider == null)
+        var serviceProvider = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        if (serviceProvider is null)
         {
             return new ApiResponse<bool>
             {
-                Data = false,
                 Succeeded = false,
-                Message = "Service Provider not found"
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullServiceProvider", ["Service Provider not found."]
+                    }
+                },
+                Message = "The service provider you are trying to delete does not exist."
             };
         }
+
         _repository.Delete(serviceProvider);
         await _repository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<bool>
         {
             Succeeded = true,
             Data = true,
-            Message = "Service Provider deleted successfully"
+            Message = "Service Provider deleted successfully."
         };
     }
 }
