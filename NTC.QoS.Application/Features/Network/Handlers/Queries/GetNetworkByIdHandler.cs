@@ -24,10 +24,10 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 Errors = new Dictionary<string, string[]>
                 {
                     { 
-                        "Id", [$"Network with ID [{request.Id}] not found."] 
+                        "Id", ["Network not found."] 
                     },
                 },
-                Message = $"Network not found."
+                Message = $"Network with ID [{request.Id}] does not exists."
             };
         }
 

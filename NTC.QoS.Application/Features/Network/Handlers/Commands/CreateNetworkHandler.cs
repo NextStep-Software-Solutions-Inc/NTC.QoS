@@ -22,11 +22,11 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
         {
             return new ApiResponse<NetworkDto>
             {
-                Message = "Network already exist.",
+                Message = "Network with the same name and system type already exists.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Duplicate", ["Network with the same name and system type already exists."]
+                        "Duplicate", ["Network already exists."]
                     }
                 },
                 Succeeded = false,

@@ -52,7 +52,7 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
             {
                 Data = networkDtos,
                 Message = "No records found.",
-                Succeeded = true
+                Succeeded = false
             };
         }
 

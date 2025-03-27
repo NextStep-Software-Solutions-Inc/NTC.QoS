@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Network.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
 
@@ -37,9 +36,9 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<NetworkDto>>> UpdateNetworkById(Guid id, UpdateNetworkDto networkDto)
+    public async Task<ActionResult<ApiResponse<NetworkDto>>> UpdateNetworkById(Guid id, UpdateNetworkDto updateNetwork)
     {
-        var network = await _mediator.Send(new UpdateNetworkByIdRequest(id, networkDto));
+        var network = await _mediator.Send(new UpdateNetworkByIdRequest(id, updateNetwork));
         return network.Succeeded ? Ok(network) : BadRequest(network);
     }
 
