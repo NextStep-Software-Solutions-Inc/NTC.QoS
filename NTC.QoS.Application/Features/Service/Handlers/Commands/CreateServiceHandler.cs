@@ -41,12 +41,12 @@ public class CreateServiceHandler(IRepository<Domain.Entities.Service> repositor
         {
             return new ApiResponse<ServiceDto>
             {
-                Message = "Provider already exists.",
+                Message = "Service already exists.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Duplicate", ["Provider with the same name already exists."]
+                        "Duplicate", ["Service with the same name already exists."]
                     }
                 }
             };
