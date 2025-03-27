@@ -5,28 +5,45 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
-public class GetAllProvidersHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<ProviderDto>>
+public class GetAllProvidersHandler(IProviderRepository repository) : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<ProviderDto>>
 {
-    private readonly IRepository<Domain.Entities.Provider> _repository = repository;
+    private readonly IProviderRepository _repository = repository;
 
     public async Task<PaginatedResponse<ProviderDto>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
     {
-        var allProviders = await _repository.ListAsync(p => p.IsDeleted != true, cancellationToken);
+        var allProviders = await _repository.ListAsync(p => !p.IsDeleted, cancellationToken);
 
-        var allProvidersDto = allProviders.Select(p => new ProviderDto
+        allProviders = [.. allProviders
+            .Where(p => !request.ServiceId.HasValue || p.ServiceProviders.Any(sp => sp.Service is not null && sp.Service.Id == request.ServiceId.Value))];
+
+        var providerDtos = allProviders.Select(p => new ProviderDto
         {
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
-            LicenseNumber = p.LicenseNumber,
-            CreatedDate = p.CreatedAt,
-            CreatedBy = p.CreatedBy,
-            ModifiedDate = p.UpdatedAt,
-            ModifiedBy = p.UpdatedBy,
+            LicenseNumber = p.LicenseNumber
         }).ToList();
 
+        if(providerDtos.Count is 0)
+        {
+            return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize)
+            {
+                Succeeded = false,
+                Message = "No records found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullProviders", ["No providers found."]
+                    }
+                }
+            };
+        }
 
-        return new PaginatedResponse<ProviderDto>(allProvidersDto, request.PageNumber, request.PageSize);
+        return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize)
+        {
+            Data = providerDtos,
+            Succeeded = true,
+            Message = "Providers retrieved successfully."
+        };
     }
 }
-
