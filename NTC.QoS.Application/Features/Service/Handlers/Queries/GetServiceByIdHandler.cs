@@ -10,34 +10,34 @@ namespace NTC.QoS.Application.Features.Service.Handlers.Queries;
 public class GetServiceByIdHandler(IRepository<Domain.Entities.Service> repository) : IRequestHandler<GetServiceByIdRequest, ApiResponse<ServiceDto>>
 {
     private readonly IRepository<Domain.Entities.Service> _repository = repository;
+
     public async Task<ApiResponse<ServiceDto>> Handle(GetServiceByIdRequest request, CancellationToken cancellationToken)
     {
         var service = await _repository.GetByIdAsync(request.Id, cancellationToken);
-        if (service == null)
+        if (service is null)
         {
             return new ApiResponse<ServiceDto>
             {
                 Succeeded = false,
-                Message = "Service not found.",
+                Message = "Invalid service does not exist.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Id", ["Invalid service does not exist."] }
+                    {
+                        "NullService", ["Service not found."] 
+                    }
                 }
             };
         }
+
         return new ApiResponse<ServiceDto>
         {
             Succeeded = true,
-            Message = "Provider retrieved successfully",
+            Message = "Service retrieved successfully.",
             Data = new ServiceDto
             {
                 Id = service.Id,
                 Name = service.Name,
-                Type = EnumHelper<ServiceTypeEnum>.GetName( service.Type),
-                CreatedBy = service.CreatedBy,
-                CreatedDate = service.CreatedAt,
-                ModifiedBy = service.UpdatedBy,
-                ModifiedDate = service.UpdatedAt
+                Type = service.Type.ToString()
             }
         };
     }

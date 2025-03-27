@@ -5,6 +5,7 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
+
 public class GetAllProvidersHandler(IProviderRepository repository) : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<ProviderDto>>
 {
     private readonly IProviderRepository _repository = repository;
@@ -13,8 +14,11 @@ public class GetAllProvidersHandler(IProviderRepository repository) : IRequestHa
     {
         var allProviders = await _repository.ListAsync(p => !p.IsDeleted, cancellationToken);
 
-        allProviders = [.. allProviders
-            .Where(p => !request.ServiceId.HasValue || p.ServiceProviders.Any(sp => sp.Service is not null && sp.Service.Id == request.ServiceId.Value))];
+        if (request.ServiceIds is not null && request.ServiceIds.Count > 0)
+        {
+            allProviders = [.. allProviders
+                        .Where(p => p.ServiceProviders.Any(sp => sp.Service is not null && request.ServiceIds.Contains(sp.Service.Id)))];
+        }
 
         var providerDtos = allProviders.Select(p => new ProviderDto
         {
@@ -24,7 +28,7 @@ public class GetAllProvidersHandler(IProviderRepository repository) : IRequestHa
             LicenseNumber = p.LicenseNumber
         }).ToList();
 
-        if(providerDtos.Count is 0)
+        if (providerDtos.Count is 0)
         {
             return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize)
             {

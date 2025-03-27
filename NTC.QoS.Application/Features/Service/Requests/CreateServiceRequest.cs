@@ -4,11 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.Application.Features.Service.Requests;
 
-public class CreateServiceRequest : IRequest<ApiResponse<CreateServiceDto>>
+public class CreateServiceRequest(CreateServiceDto service) : IRequest<ApiResponse<ServiceDto>>
 {
-    public CreateServiceRequest(CreateServiceDto service)
-    {
-        Service = service;
-    }
-    public CreateServiceDto Service { get; set; }
+    public CreateServiceDto Service { get; set; } = service;
 }
