@@ -19,8 +19,8 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
 
         if (request.ProviderIds is not null && request.ProviderIds.Count > 0)
         {
-            allServices = [.. allServices
-                        .Where(s => s.ServiceProviders.Any(sp => sp.Provider is not null && request.ProviderIds.Contains(sp.Provider.Id)))];
+            allServices = allServices
+                        .Where(s => s.ServiceProviders.Any(sp => sp.Provider is not null && request.ProviderIds.Contains(sp.Provider.Id))).ToList();
         }
 
         var serviceDtos = allServices.Select(service => new ServiceDto

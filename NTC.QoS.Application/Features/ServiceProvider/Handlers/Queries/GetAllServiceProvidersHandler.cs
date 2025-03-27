@@ -17,10 +17,10 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
     {
         var allServiceProviders = await _serviceProviderRepository.ListAsync(s => !s.IsDeleted, cancellationToken);
 
-        allServiceProviders = [.. allServiceProviders
+        allServiceProviders = allServiceProviders
             .Where(s => !request.ProviderId.HasValue || s.ProviderId == request.ProviderId.Value)
-            .Where(s => !request.ServiceId.HasValue || s.ServiceId == request.ServiceId.Value)];
-
+            .Where(s => !request.ServiceId.HasValue || s.ServiceId == request.ServiceId.Value)
+            .ToList();
         var serviceProviderDtos = allServiceProviders.Select(serviceProvider => new ServiceProviderDto
         {
             Id = serviceProvider.Id,
