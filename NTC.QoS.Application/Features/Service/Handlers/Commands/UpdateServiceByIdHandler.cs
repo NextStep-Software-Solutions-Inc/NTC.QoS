@@ -26,7 +26,7 @@ public class UpdateServiceByIdHandler(IRepository<Domain.Entities.Service> repos
                         "NullService", ["Service not found."]
                     }
                 },
-                Message = "The service you are trying to delete does not exist."
+                Message = "The service you are trying to edit does not exist."
             };
         }
         service.Name = request.Service.Name;
