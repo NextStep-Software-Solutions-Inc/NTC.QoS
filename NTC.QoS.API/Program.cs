@@ -42,6 +42,7 @@ public class Program
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
+            app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI(s =>
             {
