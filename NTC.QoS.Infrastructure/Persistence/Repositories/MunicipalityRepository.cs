@@ -16,6 +16,7 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
+
     public override async Task<List<Municipality>> ListAsync(
         Expression<Func<Municipality, bool>>? expression = null,
         CancellationToken cancellationToken = default)
@@ -32,11 +33,11 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
 
         return await query.ToListAsync(cancellationToken);
     }
+
     public override async Task<Municipality?> FindAsync(Expression<Func<Municipality, bool>> expression, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Municipality>().Where(expression)
-            .Include(m => m.Province)
-                .ThenInclude(p => p!.Region);
+            .Include(m => m.Province).ThenInclude(p => p!.Region);
 
         return await query.FirstOrDefaultAsync(cancellationToken);
     }

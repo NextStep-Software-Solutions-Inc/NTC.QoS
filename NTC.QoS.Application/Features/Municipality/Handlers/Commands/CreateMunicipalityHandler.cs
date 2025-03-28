@@ -26,15 +26,14 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Name", ["A municipality with the specified name already exists."]
+                        "Duplicate", ["A municipality with the specified name already exists."]
                     }
                 }
             };
         }
 
-        var exists = await _provinceRepository.FindAsync(p => p.Name == request.Municipality.Name && p.Id == request.Municipality.ProvinceId, cancellationToken);
-
-        if (exists is not null)
+        var province = await _provinceRepository.GetByIdAsync(request.Municipality.ProvinceId, cancellationToken);
+        if (province is null)
         {
             return new ApiResponse<MunicipalityDto>
             {
@@ -42,16 +41,16 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Name", new[] { "A municipality with this name already exists in the selected province." }
+                        "NullProvince",["Province not found."]
                     }
                 },
-                Message = "Municipality name already exists in this province."
+                Message = "Province not found."
             };
         }
 
         var newMunicipality = new Domain.Entities.Municipality
         {
-            ProvinceId = request.Municipality.ProvinceId,
+            ProvinceId = province.Id,
             Name = request.Municipality.Name,
             Description = request.Municipality.Description,
             IsCity = request.Municipality.IsCity,
@@ -81,7 +80,6 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
                     }
                 }
             },
-
             Message = "Municipality created successfully.",
             Succeeded = true
         };
