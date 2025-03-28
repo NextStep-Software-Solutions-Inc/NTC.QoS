@@ -4,6 +4,8 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Provider;
+using NTC.QoS.Domain.Models.DTOs.Service;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
@@ -14,32 +16,44 @@ public class GetServiceProviderByIdHandler(IServiceProviderRepository servicePro
     public async Task<ApiResponse<ServiceProviderDto>> Handle(GetServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
         var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Id, cancellationToken);
-        if (serviceProvider == null)
+        if (serviceProvider is null)
         {
-            return new ApiResponse<ServiceProviderDto>(
-            data: null!,
-            succeeded: false,
-            message: "Service Provider not found");
+            return new ApiResponse<ServiceProviderDto>
+            {
+                Succeeded = false,
+                Message = "Service provider does not exists.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullServiceProvider", ["Service provider not found."]
+                    }
+                }
+            };
         }
-        var serviceProviderDto = new ServiceProviderDto
+
+        return new ApiResponse<ServiceProviderDto>
         {
-            Id = serviceProvider.Id,
-            ProviderId = serviceProvider.ProviderId,
-            Provider = new()
+            Data = new ServiceProviderDto
             {
-                Name = serviceProvider.Provider!.Name,
-                Description = serviceProvider.Provider.Description,
-                LicenseNumber = serviceProvider.Provider.LicenseNumber,
+                Id = serviceProvider.Id,
+                Provider = new ProviderDto
+                {
+                    Id = serviceProvider.ProviderId,
+                    Name = serviceProvider.Provider?.Name ?? string.Empty,
+                    Description = serviceProvider.Provider?.Description ?? string.Empty,
+                    LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty
+                },
+                Service = new ServiceDto
+                {
+                    Id = serviceProvider.ServiceId,
+                    Name = serviceProvider.Service?.Name ?? string.Empty,
+                    Type = serviceProvider.Service?.Type.ToString() ?? string.Empty
+                },
+                MNC = serviceProvider.MNC,
+                MCC = serviceProvider.MCC
             },
-            ServiceId = serviceProvider.ServiceId,
-            Service = new()
-            {
-                Name = serviceProvider.Service!.Name,
-                Type = EnumHelper<ServiceTypeEnum>.GetName(serviceProvider.Service.Type)
-            },
-            MCC = serviceProvider.MCC,
-            MNC = serviceProvider.MNC
+            Succeeded = true,
+            Message = "Service provider retrieved successfully."
         };
-        return new ApiResponse<ServiceProviderDto>(serviceProviderDto, true, "Service Provider found");
     }
 }

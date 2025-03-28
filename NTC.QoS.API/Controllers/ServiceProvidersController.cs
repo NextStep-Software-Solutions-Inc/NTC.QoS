@@ -8,51 +8,46 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("service-providers", Name = "service-providers")]
-public class ServiceProvidersController : ControllerBase
+
+public class ServiceProvidersController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
-    public ServiceProvidersController(IMediator mediator)
+    private readonly IMediator _mediator = mediator;
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> CreateServiceProvider(CreateServiceProviderDto createServiceProvider)
     {
-        _mediator = mediator;
+        var serviceProvider = await _mediator.Send(new CreateServiceProviderRequest(createServiceProvider));
+        return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
     }
+
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ServiceProviderDto>>> GetAllServiceProviders(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<ServiceProviderDto>>> GetAllServiceProviders(int pageSize = 10,
+                                                                                                  int pageNumber = 1,
+                                                                                                  Guid? providerId = null,
+                                                                                                  Guid? serviceId = null)
     {
-        var result = await _mediator.Send(new GetAllServiceProvidersRequest
-        {
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        });
-        return Ok(result);
+        var serviceProviders = await _mediator.Send(new GetAllServiceProvidersRequest(pageSize, pageNumber, providerId, serviceId));
+        return serviceProviders.Succeeded ? Ok(serviceProviders) : BadRequest(serviceProviders);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> GetServiceProviderById(Guid id)
     {
-        Guid serviceProviderId = id;
-        var request = new GetServiceProviderByIdRequest(serviceProviderId);
-        var serviceProviders = await _mediator.Send(request);
-        return serviceProviders.Succeeded ? Ok(serviceProviders) : BadRequest(serviceProviders);
-    }
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Aggregates.ServiceProvider>>> UpdateServiceProviderById(Guid id, UpdateServiceProviderDto updateServiceProvider)
-    {
-        var serviceProvider = await _mediator.Send(new UpdateServiceProviderByIdRequest(id, new UpdateServiceProviderDto
-        {
-            MNC = updateServiceProvider.MNC,
-            MCC= updateServiceProvider.MCC,
-        }));
+        var serviceProvider = await _mediator.Send(new GetServiceProviderByIdRequest(id));
         return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
     }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> UpdateServiceProviderById(Guid id, UpdateServiceProviderDto updateServiceProvider)
+    {
+        var serviceProvider = await _mediator.Send(new UpdateServiceProviderByIdRequest(id, updateServiceProvider));
+        return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
+    }
+
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteServiceProviderById(Guid id)
     {
         var serviceProvider = await _mediator.Send(new DeleteServiceProviderByIdRequest(id));
-        return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
-    }
-    [HttpPost]
-    public async Task<IActionResult> Post(CreateServiceProviderDto serviceProviderDto)
-    {
-        var serviceProvider = await _mediator.Send(new CreateServiceProviderRequest(serviceProviderDto));
         return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
     }
 }
