@@ -9,12 +9,21 @@ internal sealed class ServiceRepository(ApplicationDbContext context) : Reposito
 {
     public override async Task<Service?> FindAsync(Expression<Func<Service, bool>> expression, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<Service>().Where(expression)
+        var query = _context.Set<Service>()
+            .Where(expression)
             .Include(s => s.ServiceProviders)
             .ThenInclude(sp => sp.Provider);
-        
 
         return await query.FirstOrDefaultAsync(cancellationToken);
     }
 
+    public override async Task<List<Service>> ListAsync(Expression<Func<Service, bool>> expression, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Set<Service>()
+            .Where(expression)
+            .Include(s => s.ServiceProviders)
+            .ThenInclude(sp => sp.Provider);
+
+        return await query.ToListAsync(cancellationToken);
+    }
 }

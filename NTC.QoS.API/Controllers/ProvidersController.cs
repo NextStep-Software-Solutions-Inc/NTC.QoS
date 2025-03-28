@@ -20,9 +20,9 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1, Guid? serviceId = null)
+    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? serviceIds = null)
     {
-        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceId));
+        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds));
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 
