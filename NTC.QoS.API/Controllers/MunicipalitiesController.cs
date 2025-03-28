@@ -20,11 +20,11 @@ public class MunicipalitiesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> Post(CreateMunicipalityDto municipalityDto)
+    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> CreateMunicipality(CreateMunicipalityDto createMunicipality)
     {
         var municipality = await _mediator.Send(new CreateMunicipalityRequest
         {
-            Municipality = municipalityDto
+            Municipality = createMunicipality
         });
 
         return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);

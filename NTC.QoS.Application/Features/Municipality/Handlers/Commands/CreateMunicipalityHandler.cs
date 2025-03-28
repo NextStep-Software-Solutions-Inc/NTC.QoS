@@ -15,9 +15,9 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(CreateMunicipalityRequest request, CancellationToken cancellationToken)
     {
-        var existingMunicipality = await _repository.FindAsync(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId && !m.IsDeleted, cancellationToken);
+        var municipality = await _repository.FindAsync(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId && !m.IsDeleted, cancellationToken);
 
-        if (existingMunicipality is not null)
+        if (municipality is not null)
         {
             return new ApiResponse<MunicipalityDto>
             {
