@@ -16,9 +16,9 @@ public class CreateBarangayHandler(IBarangayRepository repository, IMunicipality
 
     public async Task<ApiResponse<BarangayDto>> Handle(CreateBarangayRequest request, CancellationToken cancellationToken)
     {
-        var existingBarangay = await _repository.FindAsync(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId && !b.IsDeleted, cancellationToken);
+        var barangay = await _repository.FindAsync(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId && !b.IsDeleted, cancellationToken);
 
-        if (existingBarangay is not null)
+        if (barangay is not null)
         {
             return new ApiResponse<BarangayDto>
             {
@@ -42,7 +42,7 @@ public class CreateBarangayHandler(IBarangayRepository repository, IMunicipality
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullMunicipality",["Municipality not found."]
+                        "NullMunicipality", ["Municipality not found."]
                     }
                 },
                 Message = "Municipality not found."
