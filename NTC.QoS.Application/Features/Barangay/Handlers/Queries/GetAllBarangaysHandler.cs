@@ -17,11 +17,6 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository) : IR
     {
         var allBarangays = await _barangayRepository.ListAsync(b => !b.IsDeleted, cancellationToken);
 
-        if (request.MunicipalityId.HasValue)
-        {
-            allBarangays = allBarangays.Where(b => b.MunicipalityId == request.MunicipalityId.Value).ToList();
-        }
-
         var barangayDtos = allBarangays.Select(b => new BarangayDto
         {
             Id = b.Id,
@@ -47,6 +42,10 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository) : IR
                 }
             }
         }).ToList();
+
+        barangayDtos = [..barangayDtos
+            .Where(m => !request.MunicipalityId.HasValue || m.Municipality?.Id == request.MunicipalityId)];
+
 
         return new PaginatedResponse<BarangayDto>(barangayDtos, request.PageNumber, request.PageSize);
     }

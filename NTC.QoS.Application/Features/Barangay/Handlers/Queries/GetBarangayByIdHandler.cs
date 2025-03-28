@@ -22,7 +22,13 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
             return new ApiResponse<BarangayDto>
             {
                 Succeeded = false,
-                Message = "Barangay not found."
+                Message = "Barangay not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["Barangay with the specified ID does not exist."]
+                    }
+                }
             };
         }
 

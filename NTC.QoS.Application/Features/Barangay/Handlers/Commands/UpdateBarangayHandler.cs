@@ -4,6 +4,8 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
@@ -13,13 +15,19 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
     public async Task<ApiResponse<BarangayDto>> Handle(UpdateBarangayByIdRequest request, CancellationToken cancellationToken)
     {
         var barangay = await _barangayRepository.FindAsync(b => b.Id == request.Id && !b.IsDeleted, cancellationToken);
+
         if (barangay is null)
         {
             return new ApiResponse<BarangayDto>
             {
                 Data = null,
                 Succeeded = false,
-                Errors = new Dictionary<string, string[]> { { "Error", new[] { "Barangay not found." } } },
+                Errors = new Dictionary<string, string[]> 
+                { 
+                    { 
+                        "Error", new[] { "Barangay not found." } 
+                    } 
+                },
                 Message = "The barangay you are trying to edit does not exist."
             };
         }
@@ -33,7 +41,7 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
         {
             Succeeded = true,
             Message = "Request successful! Your changes have been saved.",
-            Data = new BarangayDto()
+            Data = new BarangayDto
             {
                 Id = barangay.Id,
                 Name = barangay.Name,
@@ -41,9 +49,23 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
                 Municipality = new MunicipalityDto
                 {
                     Id = barangay.MunicipalityId,
-                    Name = barangay.Municipality?.Name ?? "Unknown",
-                }
-            }
+                    Name = barangay.Municipality?.Name ?? string.Empty,
+                    Description = barangay.Municipality?.Description,
+                    IsCity = barangay.Municipality != null && barangay.Municipality.IsCity,
+                    Province = new ProvinceDto
+                    {
+                        Id = barangay.Municipality?.ProvinceId ?? Guid.Empty,
+                        Name = barangay.Municipality?.Province?.Name ?? string.Empty,
+                        Description = barangay.Municipality?.Province?.Description,
+                        Region = new RegionDto
+                        {
+                            Id = barangay.Municipality?.Province?.RegionId ?? Guid.Empty,
+                            Name = barangay.Municipality?.Province?.Region?.Name ?? string.Empty,
+                            Description = barangay.Municipality?.Province?.Region?.Description
+                        }
+                    }
+                },
+            },
         };
     }
 }
