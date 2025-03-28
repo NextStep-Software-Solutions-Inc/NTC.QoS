@@ -17,9 +17,9 @@ public class FilesController : ControllerBase
         _mediator = mediator;
     }
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<FileDto>>> CreateFile(CreateFileDto createFile)
+    public async Task<ActionResult<ApiResponse<FileDto>>> CreateFile( [FromForm] UploadFileDto createFile)
     {
-        var file = await _mediator.Send(new CreateFileRequest(createFile));
+        var file = await _mediator.Send(new UploadFileRequest(createFile));
 
         return file.Succeeded ? Ok(file) : BadRequest(file);
     }
