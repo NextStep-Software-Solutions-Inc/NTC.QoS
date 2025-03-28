@@ -16,12 +16,12 @@ public class DeleteFileByIdHandler(IFileRepository repository) : IRequestHandler
         {
             return new ApiResponse<bool>
             {
-                Message = "The user you are trying to delete does not exist.",
+                Message = "The file you are trying to delete does not exist.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", ["User not found."]
+                        "Error", ["File not found."]
                     }
                 }
             };
