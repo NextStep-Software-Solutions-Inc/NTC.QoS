@@ -33,6 +33,7 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
         }
 
         var province = await _provinceRepository.GetByIdAsync(request.Municipality.ProvinceId, cancellationToken);
+        
         if (province is null)
         {
             return new ApiResponse<MunicipalityDto>

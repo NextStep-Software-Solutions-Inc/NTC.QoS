@@ -21,7 +21,13 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
             return new ApiResponse<MunicipalityDto>
             {
                 Succeeded = false,
-                Message = "Municipality not found."
+                Message = "Municipality not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["Municipality with the specified ID does not exist."]
+                    }
+                }
             };
         }
 
