@@ -24,7 +24,7 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
                         "NullProvider", [ "Provider not found."]
                     }
                 },
-                Message = "The provider you are trying to delete does not exist."
+                Message = "The provider does not exist."
             };
         }
 
@@ -42,4 +42,3 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
         };
     }
 }
-
