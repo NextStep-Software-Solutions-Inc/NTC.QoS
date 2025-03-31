@@ -25,7 +25,8 @@ public class GetAllProvidersHandler(IProviderRepository repository) : IRequestHa
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
-            LicenseNumber = p.LicenseNumber
+            LicenseNumber = p.LicenseNumber,
+            Color = p.Color
         }).ToList();
 
         if (providerDtos.Count is 0)
