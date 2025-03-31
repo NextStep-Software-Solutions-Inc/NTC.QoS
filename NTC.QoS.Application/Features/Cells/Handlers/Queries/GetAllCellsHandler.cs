@@ -18,11 +18,26 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
         var allCells = await _repository.ListAsync(c => !c.IsDeleted, cancellationToken);
+        if (allCells is null)
+        {
+            return new PaginatedResponse<CellDto>([], request.PageNumber, request.PageSize)
+            {
+                Message = "No records found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullCells", [ "No cells found."]
+                    }
+                }
+            };
+        }
 
         if (!string.IsNullOrEmpty(request.Search))
         {
-            allCells = allCells.Where(cell => cell.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)).ToList();
+            allCells = [.. allCells.Where(cell => cell.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase))];
         }
+
         var cells = allCells.Select(static cell => new CellDto
         {
             Id = cell.Id,

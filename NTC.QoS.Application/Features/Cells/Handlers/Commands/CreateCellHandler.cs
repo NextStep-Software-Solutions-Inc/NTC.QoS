@@ -1,50 +1,122 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cells.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.File;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Provider;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
+using NTC.QoS.Domain.Models.DTOs.Service;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class CreateCellHandler(IRepository<Cell> cellRepository ) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
+public class CreateCellHandler(ICellRepository cellRepository, IFileRepository fileRepository, IZoneRepository zoneRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
 {
-    private readonly IRepository<Cell> _cellRepository = cellRepository;
+    private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IFileRepository _fileRepository = fileRepository;
+    private readonly IZoneRepository _zoneRepository = zoneRepository;
+    private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
+
     public async Task<ApiResponse<CellDto>> Handle(CreateCellRequest request, CancellationToken cancellationToken)
     {
-        var cell = await _cellRepository.FindAsync(c => c.Name == request.CreateCell.Name && !c.IsDeleted, cancellationToken);
-        if (cell != null)
+        var cell = await _cellRepository.FindAsync(c => c.Name == request.Cell.Name && !c.IsDeleted, cancellationToken);
+        if (cell is not null)
         {
             return new ApiResponse<CellDto>
             {
-                Message = "Cell already exists",
-                Succeeded = false
+                Message = "Cell already exists.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Cell with the same name already exists."]
+                    }
+                }
             };
         }
-        var newCell = new Cell
+
+        Guid? fileId = null;
+        if (request.Cell.FileId is not null)
         {
-            Name = request.CreateCell.Name,
-            Group = request.CreateCell.Group,
-            FileId = request.CreateCell.FileId,
-            Description = request.CreateCell.Description,
-            ZoneId = request.CreateCell.ZoneId,
-            ServiceProviderId = request.CreateCell.ServiceProviderId,
-            CID = request.CreateCell.CID,
-            SiteId = request.CreateCell.SiteId,
-            TowerType = request.CreateCell.TowerType,
-            Elevation = request.CreateCell.Elevation,
-            TAC = request.CreateCell.TAC,
-            LAC = request.CreateCell.LAC,
-            CoorLatitude = request.CreateCell.CoorLatitude,
-            CoorLongitude = request.CreateCell.CoorLongitude
+            var file = await _fileRepository.GetByIdAsync(request.Cell.FileId.Value, cancellationToken);
+            if (file is null)
+            {
+                return new ApiResponse<CellDto>
+                {
+                    Message = "File not found.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        {
+                            "NullFile", ["File not found."]
+                        }
+                    }
+                };
+            }
+            fileId = file.Id;
+        }
+
+        var zone = await _zoneRepository.GetByIdAsync(request.Cell.ZoneId, cancellationToken);
+        if (zone is null)
+        {
+            return new ApiResponse<CellDto>
+            {
+                Message = "Zone not found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullZone", ["Zone not found."]
+                    }
+                }
+            };
+        }
+
+        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Cell.ServiceProviderId, cancellationToken);
+        if (serviceProvider is null)
+        {
+            return new ApiResponse<CellDto>
+            {
+                Message = "Service Provider not found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullServiceProvider", ["Service Provider not found."]
+                    }
+                }
+            };
+        }
+
+        var newCell = new Domain.Aggregates.Cell
+        {
+            Name = request.Cell.Name,
+            Group = request.Cell.Group,
+            FileId = fileId,
+            Description = request.Cell.Description,
+            ZoneId = zone.Id,
+            ServiceProviderId = serviceProvider.Id,
+            CID = request.Cell.CID,
+            SiteId = request.Cell.SiteId,
+            TowerType = request.Cell.TowerType,
+            Elevation = request.Cell.Elevation,
+            TAC = request.Cell.TAC,
+            LAC = request.Cell.LAC,
+            CoorLatitude = request.Cell.CoorLatitude,
+            CoorLongitude = request.Cell.CoorLongitude,
+            Status = EnumHelper<CellStatusEnum>.GetValue(request.Cell.Status)
         };
+
         _cellRepository.Add(newCell);
-        await _cellRepository.SaveChangesAsync();
+        await _cellRepository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<CellDto>
         {
             Data = new CellDto
@@ -52,7 +124,6 @@ public class CreateCellHandler(IRepository<Cell> cellRepository ) : IRequestHand
                 Id = newCell.Id,
                 Name = newCell.Name,
                 Group = newCell.Group,
-                FileId = newCell.FileId,
                 File = new FileDto
                 {
                     Id = newCell.File!.Id,
@@ -60,21 +131,52 @@ public class CreateCellHandler(IRepository<Cell> cellRepository ) : IRequestHand
                     Path = newCell.File.Path
                 },
                 Description = newCell.Description,
-                ZoneId = newCell.ZoneId,
                 Zone = new ZoneDto
                 {
-                    Name = newCell.Zone!.Name
+                    Id = newCell.ZoneId,
+                    Name = newCell.Zone!.Name,
+                    Barangay = new BarangayDto
+                    {
+                        Id = newCell.Zone.BarangayId,
+                        Name = newCell.Zone.Barangay!.Name,
+                        Description = newCell.Zone.Barangay.Description,
+                        Municipality = new MunicipalityDto
+                        {
+                            Id = newCell.Zone.Barangay.MunicipalityId,
+                            IsCity = newCell.Zone.Barangay.Municipality!.IsCity,
+                            Name = newCell.Zone.Barangay.Municipality!.Name,
+                            Description = newCell.Zone.Barangay.Municipality.Description,
+                            Province = new ProvinceDto
+                            {
+                                Id = newCell.Zone.Barangay.Municipality.ProvinceId,
+                                Name = newCell.Zone.Barangay.Municipality.Province!.Name,
+                                Description = newCell.Zone.Barangay.Municipality.Province.Description,
+                                Region = new RegionDto 
+                                { 
+                                    Id = newCell.Zone.Barangay.Municipality.Province.RegionId,
+                                    Name = newCell.Zone.Barangay.Municipality.Province.Region!.Name,
+                                    Description = newCell.Zone.Barangay.Municipality.Province.Region!.Description
+                                }
+                            }
+                        }
+                    }
                 },
-                ServiceProviderId = newCell.ServiceProviderId,
                 ServiceProvider = new ServiceProviderDto
                 {
-                    Service = new Domain.Models.DTOs.Service.ServiceDto()
+                    Id = newCell.ServiceProviderId,
+                    Service = new ServiceDto()
                     {
-                        Name = newCell.ServiceProvider!.Service!.Name
+                        Id = newCell.ServiceProvider!.Service!.Id,
+                        Name = newCell.ServiceProvider!.Service!.Name,
+                        Type = newCell.ServiceProvider!.Service!.Type.ToString()
                     },
-                    Provider = new Domain.Models.DTOs.Provider.ProviderDto()
+                    Provider = new ProviderDto()
                     {
-                        Name = newCell.ServiceProvider!.Provider!.Name
+                        Id = newCell.ServiceProvider!.Provider!.Id,
+                        Name = newCell.ServiceProvider!.Provider!.Name,
+                        Description = newCell.ServiceProvider!.Provider!.Description,
+                        LicenseNumber = newCell.ServiceProvider!.Provider!.LicenseNumber,
+                        Color = newCell.ServiceProvider!.Provider!.Color
                     }
                 },
                 CID = newCell.CID,
@@ -85,11 +187,10 @@ public class CreateCellHandler(IRepository<Cell> cellRepository ) : IRequestHand
                 LAC = newCell.LAC,
                 CoorLatitude = newCell.CoorLatitude,
                 CoorLongitude = newCell.CoorLongitude,
-                Status = EnumHelper<CellStatusEnum>.GetName( newCell.Status)
+                Status = EnumHelper<CellStatusEnum>.GetName(newCell.Status)
             },
-            Message = "Cell created successfully",
+            Message = "Cell created successfully.",
             Succeeded = true
-
         };
     }
 }

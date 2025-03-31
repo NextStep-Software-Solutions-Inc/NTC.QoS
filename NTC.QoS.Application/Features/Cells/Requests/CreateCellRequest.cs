@@ -5,8 +5,7 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Requests;
 
-public class CreateCellRequest : IRequest<ApiResponse<CellDto>>
+public class CreateCellRequest(CreateCellDto cell) : IRequest<ApiResponse<CellDto>>
 {
-    public required CreateCellDto CreateCell { get; set; }
-
+    public CreateCellDto Cell { get; set; } = cell;
 }
