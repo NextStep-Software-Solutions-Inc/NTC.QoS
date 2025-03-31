@@ -27,7 +27,8 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
         {
             Name = request.Provider.Name,
             Description = request.Provider.Description,
-            LicenseNumber = request.Provider.LicenseNumber
+            LicenseNumber = request.Provider.LicenseNumber,
+            Color = request.Provider.Color
         };
 
         _repository.Add(newProvider);
@@ -39,7 +40,8 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
             {
                 Name = newProvider.Name,
                 Description = newProvider.Description,
-                LicenseNumber = newProvider.LicenseNumber
+                LicenseNumber = newProvider.LicenseNumber,
+                Color = newProvider.Color
             },
             Message = "Provider created successfully",
             Succeeded = true

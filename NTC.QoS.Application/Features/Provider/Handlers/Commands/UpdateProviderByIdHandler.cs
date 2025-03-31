@@ -37,8 +37,9 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
         provider.Name = request.Provider.Name;
         provider.Description = request.Provider.Description;
         provider.LicenseNumber = request.Provider.LicenseNumber;
+        provider.Color = request.Provider.Color;
 
-         _repository.Update(provider);
+        _repository.Update(provider);
         await _repository.SaveChangesAsync(cancellationToken);
         return new ApiResponse<Domain.Entities.Provider>
         {

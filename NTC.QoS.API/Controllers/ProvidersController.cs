@@ -45,7 +45,8 @@ public class ProvidersController : ControllerBase
         {
             Name = updateProvider.Name,
             Description = updateProvider.Description,
-            LicenseNumber = updateProvider.LicenseNumber
+            LicenseNumber = updateProvider.LicenseNumber,
+            Color = updateProvider.Color
         }));
 
         return provider.Succeeded ? Ok(provider) : BadRequest(provider);
