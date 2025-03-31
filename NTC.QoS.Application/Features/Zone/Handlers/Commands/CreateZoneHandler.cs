@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Zone.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
@@ -18,9 +17,9 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
 
     public async Task<ApiResponse<ZoneDto>> Handle(CreateZoneRequest request, CancellationToken cancellationToken)
     {
-        var existingZone = await _repository.FindAsync(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId && !z.IsDeleted, cancellationToken);
+        var zone = await _repository.FindAsync(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId && !z.IsDeleted, cancellationToken);
 
-        if (existingZone is not null)
+        if (zone is not null)
         {
             return new ApiResponse<ZoneDto>
             {
@@ -37,16 +36,15 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
 
         var barangay = await _barangayRepository.GetByIdAsync(request.Zone.BarangayId, cancellationToken);
         
-        if (barangay is not null)
+        if (barangay is null)
         {
             return new ApiResponse<ZoneDto>
             {
-                Succeeded = true,
+                Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullBarangay",
-                        ["Barangay does not exist."]
+                        "NullBarangay", ["Barangay does not exist."]
                     }
                 },
                 Message = "Barangay not found."
@@ -55,7 +53,7 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
 
         var newZone = new Domain.Entities.Zone
         {
-            BarangayId = request.Zone.BarangayId,
+            BarangayId = barangay.Id,
             Name = request.Zone.Name,
         };
 
