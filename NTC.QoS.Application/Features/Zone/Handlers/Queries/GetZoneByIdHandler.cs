@@ -23,11 +23,11 @@ public class GetZoneByIdHandler(IZoneRepository zoneRepository) : IRequestHandle
             return new ApiResponse<ZoneDto>
             {
                 Succeeded = false,
-                Message = "Zone not found.",
+                Message = "Zone with the specified ID does not exist.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Id", ["Zone with the specified ID does not exist."]
+                        "NullZone", ["Zone not found."]
                     }
                 }
             };

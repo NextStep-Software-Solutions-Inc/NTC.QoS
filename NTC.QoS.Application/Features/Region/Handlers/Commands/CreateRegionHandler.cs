@@ -12,21 +12,6 @@ public class CreateRegionRequestHandler(IRegionRepository repository) : IRequest
 
     public async Task<ApiResponse<RegionDto>> Handle(CreateRegionRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Region.Name))
-        {
-            return new ApiResponse<RegionDto>
-            {
-                Message = "Region name is required.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    { 
-                        "Name", ["Region name cannot be empty."] 
-                    }
-                }
-            };
-        }
-
         var existingRegion = await _repository.FindAsync(p => p.Name == request.Region.Name && !p.IsDeleted, cancellationToken);
 
         if (existingRegion is not null)

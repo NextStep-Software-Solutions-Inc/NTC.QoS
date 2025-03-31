@@ -26,7 +26,7 @@ public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", new[] {"Zone not found." }
+                        "NullZone", new[] {"Zone not found." }
                     }
                 },
                 Message = "The zone you are trying to edit does not exist."

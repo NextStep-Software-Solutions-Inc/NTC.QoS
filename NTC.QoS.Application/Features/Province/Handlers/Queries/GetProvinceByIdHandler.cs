@@ -23,10 +23,10 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Id", ["Province with the specified ID does not exist."] 
+                        "NullProvince", ["Province not found."] 
                     }
                 },
-                Message = "Province not found."
+                Message = "Province with the specified ID does not exist."
             };
         }
 

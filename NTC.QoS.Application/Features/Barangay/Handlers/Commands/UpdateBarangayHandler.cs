@@ -25,7 +25,7 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
                 Errors = new Dictionary<string, string[]> 
                 { 
                     { 
-                        "Error", new[] { "Barangay not found." } 
+                        "NullBarangay", ["Barangay not found."]
                     } 
                 },
                 Message = "The barangay you are trying to edit does not exist."

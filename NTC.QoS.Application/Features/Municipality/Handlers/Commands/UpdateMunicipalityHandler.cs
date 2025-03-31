@@ -19,7 +19,6 @@ public class UpdateMunicipalityByIdHandler(IMunicipalityRepository repository) :
         {
             return new ApiResponse<MunicipalityDto>
             {
-                Data = null,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {

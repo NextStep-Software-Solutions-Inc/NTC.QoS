@@ -24,7 +24,7 @@ public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IReques
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Id", new[] { "Province not found." }
+                        "NullProvince", new[] { "Province not found." }
                     }
                 },
                 Message = "The province you are trying to edit does not exist."

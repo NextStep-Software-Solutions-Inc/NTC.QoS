@@ -19,11 +19,11 @@ public class GetRegionByIdHandler(IRegionRepository repository) : IRequestHandle
             return new ApiResponse<RegionDto>
             {
                 Succeeded = false,
-                Message = "Region not found.",
+                Message = "Region with the specified Id does not exist.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Id", ["Region with the specified Id does not exist."]
+                        "NullRegion", ["Region not found."]
                     }
                 }
             };
