@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Zone.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
@@ -35,6 +36,7 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
         }
 
         var barangay = await _barangayRepository.GetByIdAsync(request.Zone.BarangayId, cancellationToken);
+        
         if (barangay is not null)
         {
             return new ApiResponse<ZoneDto>
@@ -62,34 +64,35 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
 
         return new ApiResponse<ZoneDto>
         {
-            Data = new ZoneDto
+            Data = new ZoneDto()
             {
+                Id = newZone.Id,
                 Name = newZone.Name,
                 Barangay = new BarangayDto
                 {
                     Id = newZone.BarangayId,
                     Name = newZone.Barangay?.Name ?? string.Empty,
-                    Description = newZone.Barangay?.Description,
+                    Description = newZone.Barangay?.Description ?? string.Empty,
                     Municipality = new MunicipalityDto
                     {
                         Id = newZone.Barangay?.MunicipalityId ?? Guid.Empty,
                         Name = newZone.Barangay?.Municipality?.Name ?? string.Empty,
+                        IsCity = newZone.Barangay?.Municipality?.IsCity ?? false,
                         Description = newZone.Barangay?.Municipality?.Description,
                         Province = new ProvinceDto
                         {
                             Id = newZone.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                            Name = newZone.Barangay?.Municipality?.Province?.Name ?? "Unknown",
+                            Name = newZone.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                             Description = newZone.Barangay?.Municipality?.Province?.Description,
                             Region = new RegionDto
                             {
                                 Id = newZone.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
-                                Name = newZone.Barangay?.Municipality?.Province?.Region?.Name ?? "Unknown",
+                                Name = newZone.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
                                 Description = newZone.Barangay?.Municipality?.Province?.Region?.Description,
                             }
                         }
-
                     }
-                },
+                }
             },
             Message = "Zone created successfully.",
             Succeeded = true

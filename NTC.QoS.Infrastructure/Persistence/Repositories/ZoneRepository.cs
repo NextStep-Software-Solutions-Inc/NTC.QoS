@@ -35,4 +35,12 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
 
         return await query.ToListAsync(cancellationToken);
     }
+
+    public override async Task<Zone?> FindAsync(Expression<Func<Zone, bool>> expression, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Set<Zone>().Where(expression)
+           .Include(z => z.Barangay).ThenInclude(z => z!.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region);
+
+        return await query.FirstOrDefaultAsync(cancellationToken);
+    }
 }

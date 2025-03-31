@@ -18,12 +18,18 @@ public class GetZoneByIdHandler(IZoneRepository zoneRepository) : IRequestHandle
     {
         var zone = await _zoneRepository.GetByIdAsync(request.Id, cancellationToken);
 
-        if (zone == null)
+        if (zone is null)
         {
             return new ApiResponse<ZoneDto>
             {
                 Succeeded = false,
-                Message = "Zone not found."
+                Message = "Zone not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", ["Zone with the specified ID does not exist."]
+                    }
+                }
             };
         }
 
@@ -38,23 +44,23 @@ public class GetZoneByIdHandler(IZoneRepository zoneRepository) : IRequestHandle
                 Barangay = new BarangayDto
                 {
                     Id = zone.BarangayId,
-                    Name = zone.Barangay?.Name ?? "Unknown",
-                    Description = zone.Barangay?.Description ?? "Unknown",
+                    Name = zone.Barangay?.Name ?? string.Empty,
+                    Description = zone.Barangay?.Description ?? string.Empty,
                     Municipality = new MunicipalityDto
                     {
                         Id = zone.Barangay?.MunicipalityId ?? Guid.Empty,
-                        Name =zone.Barangay?.Municipality?.Name ?? "Unknown",
+                        Name =zone.Barangay?.Municipality?.Name ?? string.Empty,
                         IsCity = zone.Barangay?.Municipality?.IsCity ?? false,
                         Description = zone.Barangay?.Municipality?.Description,
                         Province = new ProvinceDto
                         {
                             Id = zone.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                            Name = zone.Barangay?.Municipality?.Province?.Name ?? "Unknown",
+                            Name = zone.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                             Description = zone.Barangay?.Municipality?.Province?.Description,
                             Region = new RegionDto
                             {
                                 Id = zone.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
-                                Name = zone.Barangay?.Municipality?.Province?.Region?.Name ?? "Unknown",
+                                Name = zone.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
                                 Description = zone.Barangay?.Municipality?.Province?.Region?.Description,
                             }
                         }
