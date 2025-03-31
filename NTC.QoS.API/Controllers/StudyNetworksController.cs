@@ -35,4 +35,11 @@ public class StudyNetworksController(IMediator mediator) : ControllerBase
         var studyNetwork = await _mediator.Send(new GetStudyNetworkByIdRequest(id));
         return studyNetwork.Succeeded ? Ok(studyNetwork) : NotFound(studyNetwork);
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteStudyNetworkById(Guid id)
+    {
+        var studyNetwork = await _mediator.Send(new DeleteStudyNetworkByIdRequest(id));
+        return studyNetwork.Succeeded ? Ok(studyNetwork) : NotFound(studyNetwork);
+    }
 }
