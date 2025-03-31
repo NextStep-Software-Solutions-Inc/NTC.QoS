@@ -12,16 +12,21 @@ internal sealed class StudyNetworkRepository(ApplicationDbContext context) : Rep
         IQueryable<StudyNetwork> query = _context.Set<StudyNetwork>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(sn => sn.Study)
-            .Include(sn => sn.Network);
+            .Include(sn => sn.Network).ThenInclude(n => n!.NetworkTemplate)
+            .Include(sn => sn.Network).ThenInclude(n => n!.UpLink)
+            .Include(sn => sn.Network).ThenInclude(n => n!.DownLink);
 
         return await _context.Set<StudyNetwork>().FirstOrDefaultAsync(expression, cancellationToken);
     }
 
     public override async Task<StudyNetwork?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<StudyNetwork>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
+        var query = _context.Set<StudyNetwork>()
+            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(sn => sn.Study)
-            .Include(sn => sn.Network);
+            .Include(sn => sn.Network).ThenInclude(n => n!.NetworkTemplate)
+            .Include(sn => sn.Network).ThenInclude(n => n!.UpLink)
+            .Include(sn => sn.Network).ThenInclude(n => n!.DownLink);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -33,7 +38,9 @@ internal sealed class StudyNetworkRepository(ApplicationDbContext context) : Rep
         IQueryable<StudyNetwork> query = _context.Set<StudyNetwork>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(sn => sn.Study)
-            .Include(sn => sn.Network);
+            .Include(sn => sn.Network).ThenInclude(n => n!.NetworkTemplate)
+            .Include(sn => sn.Network).ThenInclude(n => n!.UpLink)
+            .Include(sn => sn.Network).ThenInclude(n => n!.DownLink);
 
         if (expression != null)
         {
