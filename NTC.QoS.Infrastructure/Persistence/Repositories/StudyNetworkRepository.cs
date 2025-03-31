@@ -11,7 +11,7 @@ internal sealed class StudyNetworkRepository(ApplicationDbContext context) : Rep
     {
         IQueryable<StudyNetwork> query = _context.Set<StudyNetwork>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(sn => sn.Study)
+            .Include(sn => sn.Study).ThenInclude(s => s!.AreaStudy)
             .Include(sn => sn.Network).ThenInclude(n => n!.NetworkTemplate)
             .Include(sn => sn.Network).ThenInclude(n => n!.UpLink)
             .Include(sn => sn.Network).ThenInclude(n => n!.DownLink);
@@ -23,7 +23,7 @@ internal sealed class StudyNetworkRepository(ApplicationDbContext context) : Rep
     {
         var query = _context.Set<StudyNetwork>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(sn => sn.Study)
+            .Include(sn => sn.Study).ThenInclude(s => s!.AreaStudy)
             .Include(sn => sn.Network).ThenInclude(n => n!.NetworkTemplate)
             .Include(sn => sn.Network).ThenInclude(n => n!.UpLink)
             .Include(sn => sn.Network).ThenInclude(n => n!.DownLink);
@@ -37,7 +37,7 @@ internal sealed class StudyNetworkRepository(ApplicationDbContext context) : Rep
     {
         IQueryable<StudyNetwork> query = _context.Set<StudyNetwork>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(sn => sn.Study)
+            .Include(sn => sn.Study).ThenInclude(s => s!.AreaStudy)
             .Include(sn => sn.Network).ThenInclude(n => n!.NetworkTemplate)
             .Include(sn => sn.Network).ThenInclude(n => n!.UpLink)
             .Include(sn => sn.Network).ThenInclude(n => n!.DownLink);
