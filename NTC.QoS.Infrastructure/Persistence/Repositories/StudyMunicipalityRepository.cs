@@ -12,7 +12,7 @@ internal sealed class StudyMunicipalityRepository(ApplicationDbContext context)
     {
         var query = _context.Set<StudyMunicipality>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(sm => sm.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
-            .Include(sm => sm.Study);
+            .Include(sm => sm.Study).ThenInclude(s => s!.AreaStudy);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -23,7 +23,7 @@ internal sealed class StudyMunicipalityRepository(ApplicationDbContext context)
         IQueryable<StudyMunicipality> query = _context.Set<StudyMunicipality>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(sm => sm.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
-            .Include(sm => sm.Study);
+            .Include(sm => sm.Study).ThenInclude(s => s!.AreaStudy);
 
         if (expression != null)
         {
@@ -34,12 +34,17 @@ internal sealed class StudyMunicipalityRepository(ApplicationDbContext context)
     }
     public override async Task<StudyMunicipality?> FindAsync(Expression<Func<StudyMunicipality, bool>> expression, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<StudyMunicipality>()
+        IQueryable<StudyMunicipality> query = _context.Set<StudyMunicipality>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(sm => sm.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
-            .Include(sm => sm.Study);
+            .Include(sm => sm.Study).ThenInclude(s => s!.AreaStudy);
 
-        return await query.FirstOrDefaultAsync(expression, cancellationToken);
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+
+        return await query.FirstOrDefaultAsync(cancellationToken);
     }
 }
 

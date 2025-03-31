@@ -2,6 +2,7 @@
 using NTC.QoS.Application.Features.StudyMunicipality.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
@@ -43,7 +44,7 @@ public class GetStudyMunicipalityByIdHandler(IStudyMunicipalityRepository studyM
                     Name = studyMunicipality.Study?.Name ?? string.Empty,
                     Description = studyMunicipality.Study?.Description ?? string.Empty,
                     StudyRadius = studyMunicipality.Study?.StudyRadius ?? 0,
-                    AreaStudy = new AreaStudyStudyDto
+                    AreaStudy = new AreaStudyDto
                     {
                         Id = studyMunicipality.Study?.AreaStudyId ?? Guid.Empty,
                         Name = studyMunicipality.Study?.AreaStudy?.Name ?? string.Empty,
