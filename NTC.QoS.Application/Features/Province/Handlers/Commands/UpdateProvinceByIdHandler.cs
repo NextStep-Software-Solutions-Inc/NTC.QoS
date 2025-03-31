@@ -86,7 +86,7 @@ public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IReques
                     Description = province.Region?.Description
                 }
             },
-            Message = "Request successful! Your changes have been saved.."
+            Message = "Province updated successfully."
         };
     }
 }

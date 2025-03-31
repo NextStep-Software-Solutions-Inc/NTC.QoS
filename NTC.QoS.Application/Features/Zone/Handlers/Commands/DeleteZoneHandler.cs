@@ -22,7 +22,7 @@ public class DeleteZoneHandler(IZoneRepository repository) : IRequestHandler<Del
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", ["Zone not found."]
+                        "NullZone", ["Zone not found."]
                     }
                 }
             };

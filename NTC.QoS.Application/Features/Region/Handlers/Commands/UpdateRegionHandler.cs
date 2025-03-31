@@ -14,17 +14,17 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
     {
         var region = await _regionRepository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
 
-        if (string.IsNullOrEmpty(request.Region.Name?.Trim()))
+        if (request.Region is null || string.IsNullOrEmpty(request.Region.Name?.Trim()))
         {
             return new ApiResponse<RegionDto>
             {
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "Name", ["Region name is required."] 
-                    }
-                },
+        {
+            {
+                "Name", ["Region name is required."]
+            }
+        },
                 Message = "Region name cannot be empty."
             };
         }
@@ -44,11 +44,14 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
             };
         }
 
+        region.Name = request.Region.Name.Trim();
+        region.Description = request.Region.Description;
+
         var existingRegion = await _regionRepository.FindAsync(
-                r => r.Name == request.Region.Name
-                     && r.Id != request.Id
-                     && !r.IsDeleted,
-                cancellationToken);
+            r => r.Name == region.Name
+                 && r.Id != request.Id
+                 && !r.IsDeleted,
+            cancellationToken);
 
         if (existingRegion is not null)
         {
@@ -59,13 +62,11 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Duplicate", ["Region with the same name already exists."] 
+                        "Duplicate", ["Region with the same name already exists."]
                     }
                 }
             };
         }
-        region.Name = request.Region.Name.Trim();
-        region.Description = request.Region.Description;
 
         _regionRepository.Update(region);
         await _regionRepository.SaveChangesAsync(cancellationToken);
@@ -80,7 +81,7 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
         return new ApiResponse<RegionDto>
         {
             Succeeded = true,
-            Message = "Request successful! Your changes have been saved.",
+            Message = "Region updated successfully.",
             Data = result
         };
     }

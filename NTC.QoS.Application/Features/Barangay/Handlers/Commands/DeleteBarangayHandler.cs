@@ -22,7 +22,7 @@ public class DeleteBarangayHandler(IBarangayRepository repository) : IRequestHan
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", ["Barangay not found."]
+                        "NullBarangay", ["Barangay not found."]
                     }
                 }
 

@@ -22,7 +22,7 @@ public class DeleteRegionHandler(IRegionRepository repository) : IRequestHandler
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", ["The Region you are trying to delete does not exist."]
+                        "NullRegion", ["The Region you are trying to delete does not exist."]
                     }
                 }
             };

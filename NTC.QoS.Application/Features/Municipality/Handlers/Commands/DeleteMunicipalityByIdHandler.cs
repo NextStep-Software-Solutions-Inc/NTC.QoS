@@ -22,7 +22,7 @@ public class DeleteMunicipalityHandler(IMunicipalityRepository repository) : IRe
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", ["Municipality not found."]
+                        "NullMunicipality", ["Municipality not found."]
                     }
                 }
             };

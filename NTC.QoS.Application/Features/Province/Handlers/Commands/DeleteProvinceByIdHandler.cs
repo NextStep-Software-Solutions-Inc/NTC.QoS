@@ -21,7 +21,7 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
                 Errors = new Dictionary<string, string[]>
                 {
                       {
-                        "Error", [ "Province not found."] 
+                        "NullProvince", [ "Province not found."] 
                     }
                 },
                 Message = "The province you are trying to delete does not exist."

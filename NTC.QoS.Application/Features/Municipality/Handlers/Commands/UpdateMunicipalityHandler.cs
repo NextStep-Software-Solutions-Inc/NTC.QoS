@@ -57,7 +57,7 @@ public class UpdateMunicipalityByIdHandler(IMunicipalityRepository repository) :
                     }
                 }
             },
-            Message = "Request successful! Your changes have been saved."
+            Message = "Municipality updated successfully."
         };
     }
 }

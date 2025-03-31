@@ -40,7 +40,7 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
         return new ApiResponse<BarangayDto>
         {
             Succeeded = true,
-            Message = "Request successful! Your changes have been saved.",
+            Message = "Barangay updated successfully.",
             Data = new BarangayDto
             {
                 Id = barangay.Id,

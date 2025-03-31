@@ -40,7 +40,7 @@ public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler
         return new ApiResponse<ZoneDto>
         {
             Succeeded = true,
-            Message = "Request successful! Your changes have been saved.",
+            Message = "Zone updated successfully.",
             Data = new ZoneDto
             {
                 Id = zone.Id,
