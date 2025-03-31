@@ -24,7 +24,8 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                     Id = provider.Id,
                     Name = provider.Name,
                     Description = provider.Description,
-                    LicenseNumber = provider.LicenseNumber
+                    LicenseNumber = provider.LicenseNumber,
+                    Color = provider.Color
                 },
                 Message = "Provider restored successfully.",
                 Succeeded = true

@@ -38,12 +38,7 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
                 Name = provider.Name,
                 Description = provider.Description,
                 LicenseNumber = provider.LicenseNumber,
-                Color = provider.Color,
-                CreatedDate = provider.CreatedAt,
-                CreatedBy = provider.CreatedBy,
-                ModifiedDate = provider.UpdatedAt,
-                ModifiedBy = provider.UpdatedBy,
-                IsDeleted = provider.IsDeleted
+                Color = provider.Color
             }
         };
     }

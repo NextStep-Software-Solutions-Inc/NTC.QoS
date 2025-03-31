@@ -33,7 +33,7 @@ public class ProvidersController(IMediator mediator) : ControllerBase
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 
-    [HttpPut("{id}")]
+    [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
     {
         var provider = await _mediator.Send(new UpdateProviderByIdRequest(id, new UpdateProviderDto
