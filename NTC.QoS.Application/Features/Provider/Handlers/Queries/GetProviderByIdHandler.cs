@@ -37,7 +37,8 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
                 Id = provider.Id,
                 Name = provider.Name,
                 Description = provider.Description,
-                LicenseNumber = provider.LicenseNumber
+                LicenseNumber = provider.LicenseNumber,
+                Color = provider.Color
             }
         };
     }

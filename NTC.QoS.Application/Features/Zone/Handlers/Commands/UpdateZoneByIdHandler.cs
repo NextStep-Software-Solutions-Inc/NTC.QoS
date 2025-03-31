@@ -2,24 +2,32 @@
 using NTC.QoS.Application.Features.Zone.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Zone;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Commands;
 
-public class UpdateZoneByIdHandler(IRepository<Domain.Entities.Zone> repository) : IRequestHandler<UpdateZoneByIdRequest, ApiResponse<Domain.Entities.Zone>>
+public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler<UpdateZoneByIdRequest, ApiResponse<ZoneDto>>
 {
-    private readonly IRepository<Domain.Entities.Zone> _repository = repository;
-    public async Task<ApiResponse<Domain.Entities.Zone>> Handle(UpdateZoneByIdRequest request, CancellationToken cancellationToken)
+    private readonly IZoneRepository _repository = repository;
+    public async Task<ApiResponse<ZoneDto>> Handle(UpdateZoneByIdRequest request, CancellationToken cancellationToken)
     {
         var zone = await _repository.FindAsync(z => z.Id == request.Id && !z.IsDeleted, cancellationToken);
-        if (zone == null)
+        
+        if (zone is null)
         {
-            return new ApiResponse<Domain.Entities.Zone>
+            return new ApiResponse<ZoneDto>
             {
                 Data = null,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Id", ["Zone not found."] }
+                    {
+                        "NullZone", new[] {"Zone not found." }
+                    }
                 },
                 Message = "The zone you are trying to edit does not exist."
             };
@@ -28,11 +36,41 @@ public class UpdateZoneByIdHandler(IRepository<Domain.Entities.Zone> repository)
 
         _repository.Update(zone);
         await _repository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<Domain.Entities.Zone>
+
+        return new ApiResponse<ZoneDto>
         {
             Succeeded = true,
-            Data = zone,
-            Message = "Request successful! Your changes have been saved."
+            Message = "Zone updated successfully.",
+            Data = new ZoneDto
+            {
+                Id = zone.Id,
+                Name = zone.Name,
+                Barangay = new BarangayDto
+                {
+                    Id = zone.BarangayId,
+                    Name = zone.Barangay?.Name ?? string.Empty,
+                    Description = zone.Barangay?.Description ?? string.Empty,
+                    Municipality = new MunicipalityDto
+                    {
+                        Id = zone.Barangay?.MunicipalityId ?? Guid.Empty,
+                        Name = zone.Barangay?.Municipality?.Name ?? string.Empty,
+                        IsCity = zone.Barangay?.Municipality?.IsCity ?? false,
+                        Description = zone.Barangay?.Municipality?.Description,
+                        Province = new ProvinceDto
+                        {
+                            Id = zone.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                            Name = zone.Barangay?.Municipality?.Province?.Name ?? string.Empty,
+                            Description = zone.Barangay?.Municipality?.Province?.Description,
+                            Region = new RegionDto
+                            {
+                                Id = zone.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
+                                Name = zone.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
+                                Description = zone.Barangay?.Municipality?.Province?.Region?.Description,
+                            }
+                        }
+                    }
+                }
+            }
         };
     }
 }

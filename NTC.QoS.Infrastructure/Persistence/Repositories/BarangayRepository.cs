@@ -33,4 +33,11 @@ internal sealed class BarangayRepository(ApplicationDbContext context) : Reposit
 
         return await query.ToListAsync(cancellationToken);
     }
+    public override async Task<Barangay?> FindAsync(Expression<Func<Barangay, bool>> expression, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Set<Barangay>().Where(expression)
+            .Include(b => b.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region);
+
+        return await query.FirstOrDefaultAsync(cancellationToken);
+    }
 }

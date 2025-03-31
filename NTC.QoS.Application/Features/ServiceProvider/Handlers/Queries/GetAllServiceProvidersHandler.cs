@@ -29,7 +29,8 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
                 Id = serviceProvider.ProviderId,
                 Name = serviceProvider.Provider?.Name ?? string.Empty,
                 Description = serviceProvider.Provider?.Description ?? string.Empty,
-                LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty
+                LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty,
+                Color = serviceProvider.Provider?.Color ?? string.Empty
             },
             Service = new ServiceDto
             {
