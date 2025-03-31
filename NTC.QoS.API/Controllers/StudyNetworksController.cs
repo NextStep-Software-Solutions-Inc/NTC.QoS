@@ -28,4 +28,11 @@ public class StudyNetworksController(IMediator mediator) : ControllerBase
         var studyNetworks = await _mediator.Send(new GetAllStudyNetworksRequest(pageSize, pageNumber, studyIds, networkIds));
         return studyNetworks.Succeeded ? Ok(studyNetworks) : NotFound(studyNetworks);
     }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<StudyNetworkDto>>> GetStudyNetworkById(Guid id)
+    {
+        var studyNetwork = await _mediator.Send(new GetStudyNetworkByIdRequest(id));
+        return studyNetwork.Succeeded ? Ok(studyNetwork) : NotFound(studyNetwork);
+    }
 }
