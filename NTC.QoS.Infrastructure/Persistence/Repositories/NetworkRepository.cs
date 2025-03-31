@@ -17,6 +17,7 @@ internal sealed class NetworkRepository(ApplicationDbContext context)
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
+
     public override async Task<List<Network>> ListAsync(
         Expression<Func<Network, bool>>? expression = null, 
         CancellationToken cancellationToken = default)

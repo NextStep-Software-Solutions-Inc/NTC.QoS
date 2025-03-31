@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 
 namespace NTC.QoS.Application.Features.Network.Requests;
 
-public class GetAllNetworksRequest(int pageNumber, int pageSize, string? search, Guid? networkTemplateId) : IRequest<PaginatedResponse<GetNetworkDto>>
+public class GetAllNetworksRequest(int pageNumber, int pageSize, string? search, Guid? networkTemplateId) : IRequest<PaginatedResponse<NetworkDto>>
 {
     public int PageSize { get; set; } = pageSize;
     public int PageNumber { get; set; } = pageNumber;

@@ -9,6 +9,5 @@ public class MIMO : BaseEntity
     public decimal ULThroughput { get; set; }
     public decimal DLInterferenceReduction { get; set; }
     public decimal ULInterferenceReduction { get; set; }
-    public virtual Sector? Sector { get; set; }
-
+    public virtual List<Sector> Sectors { get; set; } = new();
 }

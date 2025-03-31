@@ -2,6 +2,6 @@
 
 public class UpdateNetworkDto
 {
-    public required string Name { get; set; }
-    public required string SystemType { get; set; }
+    public string? Name { get; set; }
+    public string? SystemType { get; set; }
 }

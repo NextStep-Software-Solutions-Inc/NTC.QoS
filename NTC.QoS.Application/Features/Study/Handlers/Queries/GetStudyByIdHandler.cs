@@ -2,6 +2,7 @@
 using NTC.QoS.Application.Features.Study.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.Study.Handlers.Queries;
@@ -9,6 +10,7 @@ namespace NTC.QoS.Application.Features.Study.Handlers.Queries;
 public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHandler<GetStudyByIdRequest, ApiResponse<StudyDto>>
 {
     private readonly IStudyRepository _studyRepository = studyRepository;
+
     public async Task<ApiResponse<StudyDto>> Handle(GetStudyByIdRequest request, CancellationToken cancellationToken)
     {
         var study = await _studyRepository.GetByIdAsync(request.Id, cancellationToken);
@@ -19,7 +21,9 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
                 Message = "Study not found.",
                 Errors =  new Dictionary<string, string[]>
                 {
-                    { "Id",[$"Study with ID [{request.Id}] does not exist."] }
+                    { 
+                        "Id", [$"Study with ID [{request.Id}] does not exist."] 
+                    }
                 },
                 Succeeded = false
             };
@@ -30,7 +34,7 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
             Id = study.Id,
             Name = study.Name,
             Description = study.Description,
-            AreaStudy = new AreaStudyStudyDto
+            AreaStudy = new AreaStudyDto
             {
                 Id = study.AreaStudyId,
                 Name = study.AreaStudy?.Name ?? string.Empty,

@@ -11,12 +11,22 @@ public class DeleteAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
     public async Task<ApiResponse<bool>> Handle(DeleteAreaStudyByIdRequest request, CancellationToken cancellationToken)
     {
         var areaStudy = await _repository.GetByIdAsync(request.Id, cancellationToken);
-        if (areaStudy == null)
+        if (areaStudy is null)
         {
-            return new ApiResponse<bool>("Area Study not found");
+            return new ApiResponse<bool>
+            {
+                Succeeded = false,
+                Message = "Area Study not found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Id", [$"Area Study with ID [{request.Id}] does not exist."]
+                    }
+                }
+            };
         }
         _repository.Delete(areaStudy);
         await _repository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<bool>(true);
+        return new ApiResponse<bool>(true, true, "Area study deleted successfully.");
     }
 }

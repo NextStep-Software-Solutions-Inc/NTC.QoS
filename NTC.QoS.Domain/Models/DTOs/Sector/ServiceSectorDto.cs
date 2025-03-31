@@ -2,7 +2,7 @@
 
 public class ServiceSectorDto
 {
-    public Guid Id { get; set; }
+    public required Guid Id { get; set; }
     public required string Name { get; set; }
     public required string Type { get; set; }
 }

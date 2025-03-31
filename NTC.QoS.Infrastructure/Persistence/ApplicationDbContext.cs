@@ -188,8 +188,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Sector>()
             .HasOne(s => s.MIMO)
-            .WithOne(m => m.Sector)
-            .HasForeignKey<Sector>(s => s.MIMOId);
+            .WithMany(m => m.Sectors)
+            .HasForeignKey(s => s.MIMOId);
 
         modelBuilder.Entity<Sector>()
             .HasOne(s => s.Network)
@@ -323,5 +323,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<RolePermission>()
             .HasIndex(rp => new { rp.PermissionId, rp.RoleId })
             .IsUnique();
+
+        modelBuilder.Entity<MIMO>()
+            .HasMany(m => m.Sectors);
     }
 }

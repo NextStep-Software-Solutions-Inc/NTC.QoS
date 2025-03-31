@@ -23,12 +23,37 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
     public async Task<ApiResponse<SectorDto>> Handle(UpdateSectorByIdRequest request, CancellationToken cancellationToken)
     {
         var sector = await _sectorRepository.GetByIdAsync(request.Id, cancellationToken);
-        if (sector is null) return new ApiResponse<SectorDto>("Sector does not exist.");
-
+        if (sector is null)
+        {
+            return new ApiResponse<SectorDto>
+            {
+                Message = "Sector does not exists.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid Id", ["Sector not found."]
+                    }
+                },
+            };
+        }
         if (request.Sector.NetworkId.HasValue)
         {
             var network = await _networkRepository.GetByIdAsync(request.Sector.NetworkId.Value, cancellationToken);
-            if (network is null) return new ApiResponse<SectorDto>("Network not found.");
+            if (network is null)
+            {
+                return new ApiResponse<SectorDto>
+                {
+                    Message = "Network does not exists.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Invalid Id", ["Network not found."]
+                    }
+                },
+                };
+            }
             sector.NetworkId = network.Id;
         }
         if (request.Sector.AntennaType is not null) sector.AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
@@ -36,13 +61,39 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         if (request.Sector.MIMOId.HasValue)
         {
             var mimo = await _mimoRepository.GetByIdAsync(request.Sector.MIMOId.Value, cancellationToken);
-            if (mimo is null) return new ApiResponse<SectorDto>("MIMO not found.");
+            if (mimo is null)
+            {
+                return new ApiResponse<SectorDto>
+                {
+                    Message = "MIMO does not exists.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        {
+                            "Invalid Id", ["MIMO not found."]
+                        }
+                    },
+                };
+            }
             sector.MIMOId = mimo.Id;
         }
         if (request.Sector.CellId.HasValue)
         {
             var cell = await _cellRepository.GetByIdAsync(request.Sector.CellId.Value, cancellationToken);
-            if (cell is null) return new ApiResponse<SectorDto>("Cell not found.");
+            if (cell is null)
+            {
+                return new ApiResponse<SectorDto>
+                {
+                    Message = "Cell does not exists.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        {
+                            "Invalid Id", ["Cell not found."]
+                        }
+                    },
+                };
+            }
             sector.CellId = cell.Id;
         }
         if (!string.IsNullOrEmpty(request.Sector.RadioEquipment)) sector.RadioEquipment = request.Sector.RadioEquipment;
@@ -60,11 +111,23 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         if (request.Sector.TxAntennaPatternId.HasValue) 
         {
             var txAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.TxAntennaPatternId.Value, cancellationToken);
-            if (txAntennaPattern is null) return new ApiResponse<SectorDto>("Tx antenna pattern not found.");
+            if (txAntennaPattern is null)
+            {
+                return new ApiResponse<SectorDto>
+                {
+                    Message = "Tx antenna pattern does not exists.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        {
+                            "Invalid Id", ["Tx antenna pattern not found."]
+                        }
+                    },
+                };
+            }
             sector.TxAntennaPatternId = txAntennaPattern.Id;
         }
         if (request.Sector.TxEIRP.HasValue) sector.TxEIRP = request.Sector.TxEIRP.Value;
-
         if (request.Sector.IsRxEqualTx.HasValue && request.Sector.IsRxEqualTx.Value)
         {
             sector.RxAntennaModel = sector.TxAntennaModel;
@@ -93,7 +156,20 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
             if (request.Sector.RxAntennaPatternId.HasValue)
             {
                 var rxAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.RxAntennaPatternId.Value, cancellationToken);
-                if (rxAntennaPattern is null) return new ApiResponse<SectorDto>("Rx antenna pattern not found.");
+                if (rxAntennaPattern is null)
+                {
+                    return new ApiResponse<SectorDto>
+                    {
+                        Message = "Rx antenna pattern does not exists.",
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            {
+                                "Invalid Id", ["Rx antenna pattern not found."]
+                            }
+                        },
+                    };
+                }
                 sector.RxAntennaPatternId = rxAntennaPattern.Id;
             }
             if (request.Sector.RxEIRP.HasValue) sector.RxEIRP = request.Sector.RxEIRP.Value;
@@ -104,8 +180,22 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                                     s.NetworkId == sector.NetworkId &&
                                     s.Number == sector.Number &&
                                     s.CellId == sector.CellId &&
+                                    s.MIMOId == sector.MIMOId &&
+                                    s.IsRxEqualTx == sector.IsRxEqualTx &&
                                     s.AntennaType == sector.AntennaType))
-        return new ApiResponse<SectorDto>("A sector with the same Network, Number, Cell, and Antenna Type already exists.");
+        {
+            return new ApiResponse<SectorDto>
+            {
+                Message = "A sector with the same Network, Number, Cell, and Antenna Type already exists.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Sector already exists."]
+                    }
+                },
+            };
+        }
 
         _sectorRepository.Update(sector);
         await _sectorRepository.SaveChangesAsync(cancellationToken);
