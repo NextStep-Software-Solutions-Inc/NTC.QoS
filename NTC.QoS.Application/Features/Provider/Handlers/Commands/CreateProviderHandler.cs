@@ -24,7 +24,8 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                     Id = provider.Id,
                     Name = provider.Name,
                     Description = provider.Description,
-                    LicenseNumber = provider.LicenseNumber
+                    LicenseNumber = provider.LicenseNumber,
+                    Color = provider.Color
                 },
                 Message = "Provider restored successfully.",
                 Succeeded = true
@@ -50,7 +51,8 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
         {
             Name = request.Provider.Name,
             Description = request.Provider.Description,
-            LicenseNumber = request.Provider.LicenseNumber
+            LicenseNumber = request.Provider.LicenseNumber,
+            Color = request.Provider.Color
         };
 
         repository.Add(newProvider);
@@ -63,7 +65,8 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                 Id = newProvider.Id,
                 Name = newProvider.Name,
                 Description = newProvider.Description,
-                LicenseNumber = newProvider.LicenseNumber
+                LicenseNumber = newProvider.LicenseNumber,
+                Color = newProvider.Color
             },
             Message = "Provider created successfully.",
             Succeeded = true
