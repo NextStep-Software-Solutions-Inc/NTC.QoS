@@ -4,8 +4,8 @@ using NTC.QoS.Domain.Models.DTOs.Province;
 
 namespace NTC.QoS.Application.Features.Province.Requests;
 
-public class UpdateProvinceRequest : IRequest<ApiResponse<UpdateProvinceDto>>
+public class UpdateProvinceRequest : IRequest<ApiResponse<ProvinceDto>>
 {
     public Guid Id { get; set; }
-    public UpdateProvinceDto Province { get; set; } = null!;
+    public required UpdateProvinceDto Province { get; set; }
 }

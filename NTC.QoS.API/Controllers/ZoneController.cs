@@ -18,6 +18,17 @@ public class ZonesController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<ZoneDto>>> Post(CreateZoneDto zoneDto)
+    {
+        var zone = await _mediator.Send(new CreateZoneRequest
+        {
+            Zone = zoneDto
+        });
+
+        return zone.Succeeded ? Ok(zone) : BadRequest(zone);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ZoneDto>>> GetAllZones(int pageSize = 10, int pageNumber = 1, Guid? barangayId = null)
     {
@@ -30,6 +41,7 @@ public class ZonesController : ControllerBase
         var zones = await _mediator.Send(request);
         return Ok(zones);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ZoneDto>>> GetZoneById(Guid id)
     {
@@ -37,32 +49,23 @@ public class ZonesController : ControllerBase
         var zone = await _mediator.Send(request);
         return zone.Succeeded ? Ok(zone) : BadRequest(zone);
     }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateZoneDto>>> Post(CreateZoneDto zoneDto)
-    {
-        var zone = await _mediator.Send(new CreateZoneRequest
-        {
-            Zone = zoneDto
-        });
 
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<ZoneDto>>> UpdateZoneById(Guid id, UpdateZoneDto updateZone)
+    {
+        var zone = await _mediator.Send(new UpdateZoneByIdRequest(id, new UpdateZoneDto
+        {
+            Name = updateZone.Name,
+        }));
         return zone.Succeeded ? Ok(zone) : BadRequest(zone);
     }
+
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
         var request = new DeleteZoneByIdRequest(id);
         var zone = await _mediator.Send(request);
 
-        return zone.Succeeded ? Ok(zone) : BadRequest(zone);
-    }
-
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Zone>>> UpdateZoneById(Guid id, UpdateZoneDto updateZone)
-    {
-        var zone = await _mediator.Send(new UpdateZoneByIdRequest(id, new UpdateZoneDto
-        {
-            Name = updateZone.Name,
-        }));
         return zone.Succeeded ? Ok(zone) : BadRequest(zone);
     }
 }

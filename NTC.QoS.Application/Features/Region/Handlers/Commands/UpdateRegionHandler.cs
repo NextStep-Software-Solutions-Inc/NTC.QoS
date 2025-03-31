@@ -6,62 +6,83 @@ using NTC.QoS.Application.Features.Region.Requests;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands;
 
-public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiResponse<UpdateRegionDto>>
+public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestHandler<UpdateRegionRequest, ApiResponse<RegionDto>>
 {
-    private readonly IRepository<Domain.Entities.Region> _repository;
+    private readonly IRegionRepository _regionRepository = regionRepository;
 
-    public UpdateRegionHandler(IRepository<Domain.Entities.Region> repository)
+    public async Task<ApiResponse<RegionDto>> Handle(UpdateRegionRequest request, CancellationToken cancellationToken)
     {
-        _repository = repository;
-    }
+        var region = await _regionRepository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
 
-    public async Task<ApiResponse<UpdateRegionDto>> Handle(UpdateRegionRequest request, CancellationToken cancellationToken)
-    {
-        var region = await _repository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
-
-        if (string.IsNullOrEmpty(request.Region.Name?.Trim()))
+        if (request.Region is null || string.IsNullOrEmpty(request.Region.Name?.Trim()))
         {
-            return new ApiResponse<UpdateRegionDto>
+            return new ApiResponse<RegionDto>
             {
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
-                {
-                    {"Name", ["Region name is required."] }
-                },
+        {
+            {
+                "Name", ["Region name is required."]
+            }
+        },
                 Message = "Region name cannot be empty."
             };
         }
 
-        if (region == null)
+        if (region is null)
         {
-            return new ApiResponse<UpdateRegionDto>
+            return new ApiResponse<RegionDto>
             {
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Id", ["Region not found."]}
+                    {
+                        "Id", ["The region you are trying to update does not exist."]
+                    }
                 },
-                Message = "The region you are trying to update does not exist."
+                Message = "Region not found."
             };
         }
 
         region.Name = request.Region.Name.Trim();
+        region.Description = request.Region.Description;
 
-        _repository.Update(region);
-        await _repository.SaveChangesAsync(cancellationToken);
+        var existingRegion = await _regionRepository.FindAsync(
+            r => r.Name == region.Name
+                 && r.Id != request.Id
+                 && !r.IsDeleted,
+            cancellationToken);
 
-        var regionDto = new RegionDto
+        if (existingRegion is not null)
+        {
+            return new ApiResponse<RegionDto>
+            {
+                Succeeded = false,
+                Message = "A region with the same name already exists.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Region with the same name already exists."]
+                    }
+                }
+            };
+        }
+
+        _regionRepository.Update(region);
+        await _regionRepository.SaveChangesAsync(cancellationToken);
+
+        var result = new RegionDto
         {
             Id = region.Id,
             Name = region.Name,
             Description = region.Description
         };
 
-        return new ApiResponse<UpdateRegionDto>
+        return new ApiResponse<RegionDto>
         {
             Succeeded = true,
-            Message = "Request successful! Your changes have been saved.",
-            Data = request.Region,
+            Message = "Region updated successfully.",
+            Data = result
         };
     }
 }
