@@ -6,20 +6,43 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Commands;
 
-public class CreateProviderHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<CreateProviderRequest, ApiResponse<CreateProviderDto>>
+public class CreateProviderHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<CreateProviderRequest, ApiResponse<ProviderDto>>
 {
-    private readonly IRepository<Domain.Entities.Provider> _repository = repository;
-
-    public async Task<ApiResponse<CreateProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<ProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
     {
-        var provider =  await _repository.FindAsync(p => p.Name == request.Provider.Name && !p.IsDeleted, cancellationToken);
-
-        if (provider != null)
+        var provider =  await repository.FindAsync(p => p.Name == request.Provider.Name, cancellationToken);
+        if (provider is not null && provider.IsDeleted.Equals(true)) 
         {
-            return new ApiResponse<CreateProviderDto>
+            provider.IsDeleted = false;
+            repository.Update(provider);
+            await repository.SaveChangesAsync(cancellationToken);
+
+            return new ApiResponse<ProviderDto>
             {
-                Message = "Provider already exists",
-                Succeeded = false
+                Data = new ProviderDto
+                {
+                    Id = provider.Id,
+                    Name = provider.Name,
+                    Description = provider.Description,
+                    LicenseNumber = provider.LicenseNumber
+                },
+                Message = "Provider restored successfully.",
+                Succeeded = true
+            };
+        }
+
+        if (provider is not null && provider.IsDeleted.Equals(false))
+        {
+            return new ApiResponse<ProviderDto>
+            {
+                Message = "Provider already exists.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Duplicate", ["Provider with the same name already exists."]
+                    }
+                }
             };
         }
 
@@ -31,19 +54,20 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
             Color = request.Provider.Color
         };
 
-        _repository.Add(newProvider);
-        await _repository.SaveChangesAsync(cancellationToken);
+        repository.Add(newProvider);
+        await repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateProviderDto>
+        return new ApiResponse<ProviderDto>
         {
-            Data = new CreateProviderDto
+            Data = new ProviderDto
             {
+                Id = newProvider.Id,
                 Name = newProvider.Name,
                 Description = newProvider.Description,
                 LicenseNumber = newProvider.LicenseNumber,
                 Color = newProvider.Color
             },
-            Message = "Provider created successfully",
+            Message = "Provider created successfully.",
             Succeeded = true
         };
     }

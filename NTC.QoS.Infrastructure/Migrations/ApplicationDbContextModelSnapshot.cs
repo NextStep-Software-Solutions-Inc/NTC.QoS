@@ -297,7 +297,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("FileId")
+                    b.Property<Guid?>("FileId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("IsDeleted")
@@ -313,7 +313,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("ZoneId")
+                    b.Property<Guid?>("ZoneId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -1359,7 +1359,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("RxAntennaPatternId")
+                    b.Property<Guid>("RxAntennaPatternId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("RxAzimuth")
@@ -1899,9 +1899,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.File", "File")
                         .WithMany("NAPs")
-                        .HasForeignKey("FileId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("FileId");
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
                         .WithMany("NAPs")
@@ -1911,9 +1909,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.Zone", "Zone")
                         .WithMany("NAPs")
-                        .HasForeignKey("ZoneId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("ZoneId");
 
                     b.Navigation("File");
 
@@ -2121,7 +2117,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "RxAntennaPattern")
                         .WithMany("RxSectors")
-                        .HasForeignKey("RxAntennaPatternId");
+                        .HasForeignKey("RxAntennaPatternId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "TxAntennaPattern")
                         .WithMany("TxSectors")

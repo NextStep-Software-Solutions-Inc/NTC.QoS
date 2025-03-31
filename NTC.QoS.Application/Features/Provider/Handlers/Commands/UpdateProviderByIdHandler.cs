@@ -1,52 +1,62 @@
-﻿using MediatR;
+﻿using FluentValidation;
+using MediatR;
 using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Commands;
 
-public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<UpdateProviderByIdRequest, ApiResponse<Domain.Entities.Provider>>
+public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> repository, IValidator<UpdateProviderByIdRequest> validator) : IRequestHandler<UpdateProviderByIdRequest, ApiResponse<ProviderDto>>
 {
     private readonly IRepository<Domain.Entities.Provider> _repository = repository;
-    public async Task<ApiResponse<Domain.Entities.Provider>> Handle(UpdateProviderByIdRequest request,
-            CancellationToken cancellationToken)
+
+    public async Task<ApiResponse<ProviderDto>> Handle(UpdateProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var provider = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
-
-
-        if (string.IsNullOrEmpty(request.Provider.Name))
+        var validationResult = await validator.ValidateAsync(request, cancellationToken);
+        if (validationResult.IsValid.Equals(false))
         {
-            return new ApiResponse<Domain.Entities.Provider>
+            return new ApiResponse<ProviderDto>
             {
-                Data = null,
+                Message = "Validation failed",
                 Succeeded = false,
-                Error = new[] { "Name is required." },
-                Message = request.Provider.Name + " already exists in our system. Please try a different one."
+                Errors = validationResult.Errors.ToDictionary(e => e.PropertyName, e => new[] { e.ErrorMessage })
             };
         }
-        if (provider == null)
+
+        var provider = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        if (provider is null)
         {
-            return new ApiResponse<Domain.Entities.Provider>
+            return new ApiResponse<ProviderDto>
             {
-                Data = null,
                 Succeeded = false,
-                Error = new[] { "Provider not found." },
-                Message = "The provider you are trying to edit does not exist."
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullProvider", [ "Provider not found."]
+                    }
+                },
+                Message = "The provider you are trying to delete does not exist."
             };
         }
-        provider.Name = request.Provider.Name;
+
         provider.Description = request.Provider.Description;
         provider.LicenseNumber = request.Provider.LicenseNumber;
         provider.Color = request.Provider.Color;
 
         _repository.Update(provider);
         await _repository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<Domain.Entities.Provider>
+
+        return new ApiResponse<ProviderDto>
         {
             Succeeded = true,
-            Error = new[] {""},
-            Data = provider,
-            Message = "Request successful! Your changes have been saved.."
+            Data = new ProviderDto ()
+            {
+                Id = provider.Id,
+                Description = provider.Description,
+                Name = provider.Name
+            },
+            Message = "Provider updated successfully."
         };
     }
 }

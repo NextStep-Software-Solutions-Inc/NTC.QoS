@@ -10,5 +10,3 @@ public class Provider : BaseEntity
     public string Color { get; set; } = string.Empty;
     public virtual List<ServiceProvider> ServiceProviders { get; set; } = new();
 }
-
-

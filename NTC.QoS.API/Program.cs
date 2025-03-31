@@ -1,5 +1,8 @@
 using NTC.QoS.Application;
 using NTC.QoS.Infrastructure;
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using NTC.QoS.API.Extensions;
 
 namespace NTC.QoS.API;
 
@@ -11,17 +14,35 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddHttpContextAccessor();
-        builder.Services.AddControllers();
+        builder.Services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(builder =>
+            {
+                builder.AllowAnyOrigin()
+                       .AllowAnyMethod()
+                       .AllowAnyHeader();
+            });
+        });
+        builder.Services.AddControllers()
+            .AddJsonOptions(options => 
+            {
+                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; // Set to camelCase
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
-        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+        builder.Services.AddSwaggerGen(option =>
+        {
+            option.OperationFilter<SwaggerOperationIdFilter>();
+        });
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
+        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
 
         var app = builder.Build();
         
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
+            app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI(s =>
             {
@@ -30,14 +51,15 @@ public class Program
             });
         }
 
-        
+
         app.UseHttpsRedirection();
 
         app.UseAuthorization();
 
-
+        app.ConfigureExceptionHandler(app.Logger); //Important line.
         app.MapControllers();
 
         app.Run();
     }
 }
+

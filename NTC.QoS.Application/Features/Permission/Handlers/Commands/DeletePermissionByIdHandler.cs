@@ -17,7 +17,10 @@ public class DeletePermissionByIdHandler(IRepository<Domain.Entities.Permission>
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Error = new[] { "Permission not found." },
+                Errors = new Dictionary<string, string[]>
+                {
+                      {"Error", [ "Permission not found."] }
+                },
                 Message = "The permission you are trying to delete does not exist."
             };
         }
@@ -29,7 +32,7 @@ public class DeletePermissionByIdHandler(IRepository<Domain.Entities.Permission>
         {
             Data = true,
             Succeeded = true,
-            Message = $"Permission deleted successfully."
+            Message = "Permission deleted successfully."
         };
     }
 }

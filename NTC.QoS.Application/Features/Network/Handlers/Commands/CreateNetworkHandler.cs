@@ -26,21 +26,33 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
             };
         }
 
-        if (!await _linkRepository.ValidateLinkTypesAsync(request.Network.UplinkId, request.Network.DownLinkId, cancellationToken))
-        {
-            string errorMessage = "Invalid link types. ";
-            if (request.Network.UplinkId != Guid.Empty && !await _linkRepository.ValidateLinkTypesAsync(request.Network.UplinkId, null, cancellationToken))
-            {
-                errorMessage += "Invalid Uplink Id. ";
-            }
-            if (request.Network.DownLinkId != Guid.Empty && !await _linkRepository.ValidateLinkTypesAsync(null, request.Network.DownLinkId, cancellationToken))
-            {
-                errorMessage += "Invalid Downlink Id.";
-            }
+        var errorMessages = new List<string>();
+        bool uplinkValid = true;
+        bool downlinkValid = true;
 
+        if (request.Network.UplinkId != Guid.Empty)
+        {
+            uplinkValid = await _linkRepository.ValidateLinkTypesAsync(request.Network.UplinkId, LinkTypeEnum.Uplink, cancellationToken);
+            if (!uplinkValid)
+            {
+                errorMessages.Add("Invalid Uplink Id.");
+            }
+        }
+
+        if (request.Network.DownLinkId != Guid.Empty)
+        {
+            downlinkValid = await _linkRepository.ValidateLinkTypesAsync(request.Network.DownLinkId, LinkTypeEnum.Downlink, cancellationToken);
+            if (!downlinkValid)
+            {
+                errorMessages.Add("Invalid Downlink Id.");
+            }
+        }
+
+        if (!uplinkValid || !downlinkValid)
+        {
             return new ApiResponse<CreateNetworkDto>
             {
-                Message = errorMessage,
+                Message = string.Join(" ", errorMessages),
                 Succeeded = false,
             };
         }

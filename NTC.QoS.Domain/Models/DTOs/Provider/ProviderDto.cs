@@ -1,4 +1,5 @@
 ﻿namespace NTC.QoS.Domain.Models.DTOs.Provider;
+
 public class ProviderDto
 {
     public Guid Id { get; set; }

@@ -4,6 +4,8 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Provider;
+using NTC.QoS.Domain.Models.DTOs.Service;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
@@ -13,26 +15,52 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     public async Task<PaginatedResponse<ServiceProviderDto>> Handle(GetAllServiceProvidersRequest request, CancellationToken cancellationToken)
     {
-        var allServiceProviders = await _serviceProviderRepository.ListAsync(s => s.IsDeleted != true, cancellationToken);
-        var serviceProviders = allServiceProviders.Select(static serviceProvider => new ServiceProviderDto
+        var allServiceProviders = await _serviceProviderRepository.ListAsync(s => !s.IsDeleted, cancellationToken);
+
+        allServiceProviders = allServiceProviders
+            .Where(s => !request.ProviderId.HasValue || s.ProviderId == request.ProviderId.Value)
+            .Where(s => !request.ServiceId.HasValue || s.ServiceId == request.ServiceId.Value)
+            .ToList();
+        var serviceProviderDtos = allServiceProviders.Select(serviceProvider => new ServiceProviderDto
         {
             Id = serviceProvider.Id,
-            ProviderId = serviceProvider.ProviderId,
-            Provider = new() 
+            Provider = new ProviderDto
             {
-                Name = serviceProvider.Provider!.Name,
-                Description = serviceProvider.Provider.Description,
-                LicenseNumber = serviceProvider.Provider.LicenseNumber,
+                Id = serviceProvider.ProviderId,
+                Name = serviceProvider.Provider?.Name ?? string.Empty,
+                Description = serviceProvider.Provider?.Description ?? string.Empty,
+                LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty
             },
-            ServiceId = serviceProvider.ServiceId,
-            Service = new() 
-            { 
-                Name = serviceProvider.Service!.Name,
-                Type = EnumHelper<ServiceTypeEnum>.GetName(serviceProvider.Service.Type)
+            Service = new ServiceDto
+            {
+                Id = serviceProvider.ServiceId,
+                Name = serviceProvider.Service?.Name ?? string.Empty,
+                Type = serviceProvider.Service?.Type.ToString() ?? string.Empty
             },
-            MCC = serviceProvider.MCC,
-            MNC = serviceProvider.MNC
+            MNC = serviceProvider.MNC,
+            MCC = serviceProvider.MCC
         }).ToList();
-        return new PaginatedResponse<ServiceProviderDto>(serviceProviders, request.PageNumber, request.PageSize);
+
+        if (serviceProviderDtos.Count is 0)
+        {
+            return new PaginatedResponse<ServiceProviderDto>(serviceProviderDtos, request.PageNumber, request.PageSize)
+            {
+                Data = serviceProviderDtos,
+                Message = "No records found.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullServiceProviders", ["No service providers found."]
+                    }
+                }
+            };
+        }
+
+        return new PaginatedResponse<ServiceProviderDto>(serviceProviderDtos, request.PageNumber, request.PageSize)
+        {
+            Data = serviceProviderDtos,
+            Succeeded = true,
+            Message = "Service Providers retrieved successfully."
+        };
     }
 }

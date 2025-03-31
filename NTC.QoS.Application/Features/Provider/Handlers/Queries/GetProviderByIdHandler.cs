@@ -13,20 +13,25 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
     public async Task<ApiResponse<ProviderDto>> Handle(GetProviderByIdRequest request, CancellationToken cancellationToken)
     {
         var provider = await _repository.GetByIdAsync(request.Id, cancellationToken);
-
-        if (provider == null)
+        if (provider is null)
         {
             return new ApiResponse<ProviderDto>
             {
                 Succeeded = false,
-                Message = "Provider not found.",
-                Error = new[] { "Invalid provider does not exist." }
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullProvider", [ "Provider not found."]
+                    }
+                },
+                Message = "The provider you are trying to delete does not exist."
             };
         }
+
         return new ApiResponse<ProviderDto>
         {
             Succeeded = true,
-            Message = "Provider retrieved successfully",
+            Message = "Provider retrieved successfully.",
             Data = new ProviderDto()
             {
                 Id = provider.Id,

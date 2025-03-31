@@ -6,40 +6,35 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("providers", Name = "providers")]
-public class ProvidersController : ControllerBase
+public class ProvidersController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator _mediator = mediator;
 
-    public ProvidersController(IMediator mediator)
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> CreateProvider([FromBody] CreateProviderDto createProvider)
     {
-        _mediator = mediator;
+        var provider = await _mediator.Send(new CreateProviderRequest(createProvider));
+        return provider.Succeeded ? Ok(provider) : BadRequest(provider);
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1  )
+    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? serviceIds = null)
     {
-        var result = await _mediator.Send(new GetAllProvidersRequest
-        {
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        });
-
-        return Ok(result);
+        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds));
+        return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(Guid id)
     {
-        Guid providerId = id;
-        var request = new GetProviderByIdRequest(providerId);
-        var providers = await _mediator.Send(request);
+        var providers = await _mediator.Send(new GetProviderByIdRequest(id));
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Provider>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
     {
         var provider = await _mediator.Send(new UpdateProviderByIdRequest(id, new UpdateProviderDto
         {
@@ -48,25 +43,13 @@ public class ProvidersController : ControllerBase
             LicenseNumber = updateProvider.LicenseNumber,
             Color = updateProvider.Color
         }));
-
         return provider.Succeeded ? Ok(provider) : BadRequest(provider);
     }
+
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Provider>>> DeleteProviderById(Guid id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteProviderById(Guid id)
     {
         var provider = await _mediator.Send(new DeleteProviderByIdRequest(id));
-
-        return provider.Succeeded ? Ok(provider) : BadRequest(provider);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Post(CreateProviderDto providerDto)
-    {
-        var provider = await _mediator.Send(new CreateProviderRequest
-        {
-            Provider = providerDto
-        });
-
         return provider.Succeeded ? Ok(provider) : BadRequest(provider);
     }
 }
