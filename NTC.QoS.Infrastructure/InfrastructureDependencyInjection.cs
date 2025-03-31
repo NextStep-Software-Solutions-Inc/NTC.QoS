@@ -47,6 +47,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IMIMORepository, MIMORepository>();
         services.AddScoped<ISectorRepository, SectorRepository>();
         services.AddScoped<IRegionRepository, RegionRepository>();
+        services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
 
         return services;
     }
