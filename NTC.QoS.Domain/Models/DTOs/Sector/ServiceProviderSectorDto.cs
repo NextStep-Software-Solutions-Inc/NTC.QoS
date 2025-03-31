@@ -2,7 +2,7 @@
 
 public class ServiceProviderSectorDto
 {
-    public Guid Id { get; set; }
+    public required Guid Id { get; set; }
     public required ProviderSectorDto Provider { get; set; }
     public required ServiceSectorDto Service { get; set; }
 }

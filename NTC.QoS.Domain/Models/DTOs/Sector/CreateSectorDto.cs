@@ -21,15 +21,15 @@ public class CreateSectorDto
     public required decimal TxBeamTilt { get; set; }
     public required Guid TxAntennaPatternId { get; set; }
     public required decimal TxEIRP { get; set; }
-    public required string RxAntennaModel { get; set; }
-    public required string RxCableType { get; set; }
-    public required decimal RxCableLength { get; set; }
-    public required decimal RxCableLoss { get; set; }
-    public required decimal RxAdditionalLoss { get; set; }
-    public required decimal RxAntennaHeight { get; set; }
-    public required decimal RxAntennaGain { get; set; }
-    public required decimal RxAzimuth { get; set; }
-    public required decimal RxBeamTilt { get; set; }
-    public required Guid RxAntennaPatternId { get; set; }
-    public required decimal RxEIRP { get; set; }
+    public string? RxAntennaModel { get; set; }
+    public string? RxCableType { get; set; }
+    public decimal RxCableLength { get; set; }
+    public decimal RxCableLoss { get; set; }
+    public decimal RxAdditionalLoss { get; set; }
+    public decimal RxAntennaHeight { get; set; }
+    public decimal RxAntennaGain { get; set; }
+    public decimal RxAzimuth { get; set; }
+    public decimal RxBeamTilt { get; set; }
+    public Guid RxAntennaPatternId { get; set; }
+    public decimal RxEIRP { get; set; }
 }
