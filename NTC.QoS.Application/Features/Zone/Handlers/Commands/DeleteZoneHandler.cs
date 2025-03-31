@@ -5,23 +5,31 @@ using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Commands;
 
-public class DeleteZoneHandler(IRepository<Domain.Entities.Zone> repository) : IRequestHandler<DeleteZoneByIdRequest, ApiResponse<bool>>
+public class DeleteZoneHandler(IZoneRepository repository) : IRequestHandler<DeleteZoneByIdRequest, ApiResponse<bool>>
 {
-    private readonly IRepository<Domain.Entities.Zone> _repository = repository;
+    private readonly IZoneRepository _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteZoneByIdRequest request, CancellationToken cancellationToken)
     {
         var zone = await _repository.FindAsync(z => z.Id == request.Id && !z.IsDeleted, cancellationToken);
-        if (zone == null)
+        
+        if (zone is null)
         {
             return new ApiResponse<bool>
             {
                 Data = false,
                 Succeeded = false,
-                Message = "Zone not found."
+                Message = "The Zone you are trying to delete does not exist.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullZone", ["Zone not found."]
+                    }
+                }
             };
         }
         _repository.Delete(zone);
         await _repository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<bool>
         {
             Succeeded = true,

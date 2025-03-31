@@ -18,6 +18,17 @@ public class BarangaysController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<BarangayDto>>> CreateBarangay(CreateBarangayDto barangayDto)
+    {
+        var barangay = await _mediator.Send(new CreateBarangayRequest
+        {
+            Barangay = barangayDto
+        });
+
+        return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10, int pageNumber = 1, Guid? municipalityId = null)
     {
@@ -30,6 +41,7 @@ public class BarangaysController : ControllerBase
         var barangays = await _mediator.Send(request);
         return Ok(barangays);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<BarangayDto>>> GetBarangayById(Guid id)
     {
@@ -37,33 +49,24 @@ public class BarangaysController : ControllerBase
         var barangay = await _mediator.Send(request);
         return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
     }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateBarangayDto>>> Post(CreateBarangayDto barangayDto)
-    {
-        var barangay = await _mediator.Send(new CreateBarangayRequest
-        {
-            Barangay = barangayDto
-        });
-
-        return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
-    }
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
-    {
-        var request = new DeleteBarangayByIdRequest(id);
-        var barangay = await _mediator.Send(request);
-
-        return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
-    }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Barangay>>> UpdateBarangayById(Guid id, UpdateBarangayDto updateBarangay)
+    public async Task<ActionResult<ApiResponse<BarangayDto>>> UpdateBarangayById(Guid id, UpdateBarangayDto updateBarangay)
     {
         var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(id, new UpdateBarangayDto
         {
             Name = updateBarangay.Name,
             Description = updateBarangay.Description,
         }));
+        return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    {
+        var request = new DeleteBarangayByIdRequest(id);
+        var barangay = await _mediator.Send(request);
+
         return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
     }
 }

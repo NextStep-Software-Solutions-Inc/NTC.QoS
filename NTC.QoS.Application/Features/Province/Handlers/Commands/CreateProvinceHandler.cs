@@ -3,23 +3,50 @@ using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Commands;
 
-public class CreateProvinceRequestHandler(IRepository<Domain.Entities.Province> repository) : IRequestHandler<CreateProvinceRequest, ApiResponse<CreateProvinceDto>>
+public class CreateProvinceRequestHandler(IProvinceRepository provinceRepository, IRegionRepository regionRepository)
+    : IRequestHandler<CreateProvinceRequest, ApiResponse<ProvinceDto>>
 {
-    private readonly IRepository<Domain.Entities.Province> _repository = repository;
+    private readonly IProvinceRepository _provinceRepository = provinceRepository;
+    private readonly IRegionRepository _regionRepository = regionRepository;
 
-    public async Task<ApiResponse<CreateProvinceDto>> Handle(CreateProvinceRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<ProvinceDto>> Handle(CreateProvinceRequest request, CancellationToken cancellationToken)
     {
-        var province = await _repository.FindAsync(p => p.Name == request.Province.Name && !p.IsDeleted, cancellationToken);
+        var existingProvince = await _provinceRepository.FindAsync(
+            p => p.Name == request.Province.Name && !p.IsDeleted, cancellationToken);
 
-        if (province != null)
+        if (existingProvince is not null)
         {
-            return new ApiResponse<CreateProvinceDto>
+            return new ApiResponse<ProvinceDto>
             {
                 Message = "Province already exists.",
-                Succeeded = false
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { 
+                        "Name", ["A province with the specified name already exists."] 
+                    }
+                }
+            };
+        }
+
+        var exists = await _provinceRepository.FindAsync(p => p.Name == request.Province.Name && p.RegionId == request.Province.RegionId, cancellationToken);
+
+        if (exists is not null)
+        {
+            return new ApiResponse<ProvinceDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "Name", new[] { "A province with this name already exists in the selected region." }
+                    }
+                },
+                Message = "Province name already exists in this region. Please choose a different name."
             };
         }
 
@@ -27,21 +54,26 @@ public class CreateProvinceRequestHandler(IRepository<Domain.Entities.Province> 
         {
             RegionId = request.Province.RegionId,
             Name = request.Province.Name,
-            Description = request.Province.Description,
+            Description = request.Province.Description
         };
 
-        _repository.Add(newProvince);
-        await _repository.SaveChangesAsync(cancellationToken);
+        _provinceRepository.Add(newProvince);
+        await _provinceRepository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateProvinceDto>
+        return new ApiResponse<ProvinceDto>
         {
-            Data = new CreateProvinceDto
+            Data = new ProvinceDto
             {
-                RegionId = newProvince.RegionId,
+                Id = newProvince.Id,
                 Name = newProvince.Name,
                 Description = newProvince.Description,
+                Region = new RegionDto
+                {
+                    Id = newProvince.RegionId,
+                    Name = newProvince.Region?.Name ?? string.Empty,
+                    Description = newProvince.Region?.Description
+                }
             },
-
             Message = "Province created successfully.",
             Succeeded = true
         };

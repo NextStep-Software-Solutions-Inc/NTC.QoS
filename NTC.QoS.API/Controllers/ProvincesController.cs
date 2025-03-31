@@ -6,7 +6,6 @@ using NTC.QoS.Domain.Models.DTOs.Province;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("provinces", Name = "provinces")]
 public class ProvincesController : ControllerBase
@@ -16,6 +15,17 @@ public class ProvincesController : ControllerBase
     public ProvincesController(IMediator mediator)
     {
         _mediator = mediator;
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<ProvinceDto>>> Post(CreateProvinceDto provinceDto)
+    {
+        var province = await _mediator.Send(new CreateProvinceRequest
+        {
+            Province = provinceDto
+        });
+
+        return province.Succeeded ? Ok(province) : BadRequest(province);
     }
 
     [HttpGet]
@@ -30,40 +40,31 @@ public class ProvincesController : ControllerBase
         var provinces = await _mediator.Send(request);
         return Ok(provinces);
     }
-    [HttpGet("id")]
-    public async Task<ActionResult<ApiResponse<ProvinceDto>>> GetProvinceById(Guid provinceId)
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<ProvinceDto>>> GetProvinceById(Guid id)
     {
-        var request = new GetProvinceByIdRequest(provinceId);
+        var request = new GetProvinceByIdRequest(id);
         var province = await _mediator.Send(request);
         return province.Succeeded ? Ok(province) : BadRequest(province);
     }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateProvinceDto>>> Post(CreateProvinceDto provinceDto)
-    {
-        var province = await _mediator.Send(new CreateProvinceRequest
-        {
-            Province = provinceDto
-        });
 
-        return province.Succeeded ? Ok(province) : BadRequest(province);
-    }
-    [HttpDelete("id")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid provinceId)
-    {
-        var request = new DeleteProvinceByIdRequest(provinceId);
-        var province = await _mediator.Send(request);
-
-        return province.Succeeded ? Ok(province) : BadRequest(province);
-    }
-
-    [HttpPut("id")]
-    public async Task<ActionResult<ApiResponse<UpdateProvinceDto>>> Put(Guid provinceId, UpdateProvinceDto updateProvinceDto)
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<ProvinceDto>>> Put(Guid id, UpdateProvinceDto updateProvinceDto)
     {
         var province = await _mediator.Send(new UpdateProvinceRequest
         {
-            Id = provinceId,
+            Id = id,
             Province = updateProvinceDto
         });
+
+        return province.Succeeded ? Ok(province) : BadRequest(province);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    {
+        var request = new DeleteProvinceByIdRequest(id);
+        var province = await _mediator.Send(request);
 
         return province.Succeeded ? Ok(province) : BadRequest(province);
     }

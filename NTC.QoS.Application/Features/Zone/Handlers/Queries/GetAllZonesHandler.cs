@@ -30,23 +30,23 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
             Barangay = new BarangayDto
             {
                 Id = z.BarangayId,
-                Name = z.Barangay?.Name ?? "Unknown",
-                Description = z.Barangay?.Description ?? "Unknown",
+                Name = z.Barangay?.Name ?? string.Empty,
+                Description = z.Barangay?.Description ?? string.Empty,
                 Municipality = new MunicipalityDto
                 {
                     Id = z.Barangay?.MunicipalityId ?? Guid.Empty,
-                    Name = z.Barangay?.Municipality?.Name ?? "Unknown",
+                    Name = z.Barangay?.Municipality?.Name ?? string.Empty,
                     IsCity = z.Barangay?.Municipality?.IsCity ?? false,
                     Description = z.Barangay?.Municipality?.Description,
                     Province = new ProvinceDto
                     {
                         Id = z.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                        Name = z.Barangay?.Municipality?.Province?.Name ?? "Unknown",
+                        Name = z.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                         Description = z.Barangay?.Municipality?.Province?.Description,
                         Region = new RegionDto
                         {
                             Id = z.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
-                            Name = z.Barangay?.Municipality?.Province?.Region?.Name ?? "Unknown",
+                            Name = z.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
                             Description = z.Barangay?.Municipality?.Province?.Region?.Description,
                         }
                     }

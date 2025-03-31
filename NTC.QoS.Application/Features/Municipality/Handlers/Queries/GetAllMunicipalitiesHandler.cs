@@ -16,11 +16,6 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
     {
         var allMunicipalities = await _municipalityRepository.ListAsync(m => !m.IsDeleted, cancellationToken);
 
-        if (request.ProvinceId.HasValue)
-        {
-            allMunicipalities = allMunicipalities.Where(m => m.ProvinceId == request.ProvinceId.Value).ToList();
-        }
-
         var municipalityDtos = allMunicipalities.Select(m => new MunicipalityDto
         {
             Id = m.Id,
@@ -30,17 +25,35 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
             Province = new ProvinceDto
             {
                 Id = m.ProvinceId,
-                Name = m.Province?.Name ?? "Unknown",
+                Name = m.Province?.Name ?? string.Empty,
                 Description = m.Province?.Description,
                 Region = new RegionDto
                 {
                     Id = m.Province?.Region?.Id ?? Guid.Empty,
-                    Name = m.Province?.Region?.Name ?? "Unknown",
+                    Name = m.Province?.Region?.Name ?? string.Empty,
                     Description = m.Province?.Region?.Description,
                 }
             }
         }).ToList();
 
-        return new PaginatedResponse<MunicipalityDto>(municipalityDtos, request.PageNumber, request.PageSize);
+        municipalityDtos = [..municipalityDtos
+            .Where(m => !request.ProvinceId.HasValue || m.Province?.Id == request.ProvinceId)];
+
+        if (municipalityDtos.Count is 0)
+        {
+            return new PaginatedResponse<MunicipalityDto>(municipalityDtos, request.PageNumber, request.PageSize)
+            {
+                Data = municipalityDtos,
+                Message = "No records found.",
+                Succeeded = true
+            };
+        }
+
+        return new PaginatedResponse<MunicipalityDto>(municipalityDtos, request.PageNumber, request.PageSize)
+        {
+            Data = municipalityDtos,
+            Message = "Users retrieved successfully.",
+            Succeeded = true
+        };
     }
 }
