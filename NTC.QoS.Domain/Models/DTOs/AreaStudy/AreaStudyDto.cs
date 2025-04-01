@@ -2,6 +2,7 @@
 
 public class AreaStudyDto
 {
-    public string Name { get; set; } = string.Empty;
+    public required Guid Id { get; set; }
+    public required string Name { get; set; }
     public string? Description { get; set; }
 }

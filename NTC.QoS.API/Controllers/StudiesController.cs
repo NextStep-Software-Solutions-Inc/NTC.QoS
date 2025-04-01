@@ -13,9 +13,9 @@ public class StudiesController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<StudyDto>>> CreateStudy(CreateStudyDto studyDto)
+    public async Task<ActionResult<ApiResponse<StudyDto>>> CreateStudy(CreateStudyDto createStudy)
     {
-        var study = await _mediator.Send(new CreateStudyRequest(studyDto));
+        var study = await _mediator.Send(new CreateStudyRequest(createStudy));
         return study.Succeeded ? Ok(study) : BadRequest(study);
     }
 
@@ -38,8 +38,8 @@ public class StudiesController(IMediator mediator) : ControllerBase
     [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<StudyDto>>> UpdateStudyById(Guid id, UpdateStudyDto updateStudy)
     {
-        var request = await _mediator.Send(new UpdateStudyRequest(id, updateStudy));
-        return request.Succeeded ? Ok(request) : BadRequest(request);
+        var study = await _mediator.Send(new UpdateStudyRequest(id, updateStudy));
+        return study.Succeeded ? Ok(study) : BadRequest(study);
     }
 
     [HttpDelete("{id}")]

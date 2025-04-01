@@ -6,7 +6,6 @@ using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("regions", Name = "regions")]
 public class RegionsController : ControllerBase
@@ -18,6 +17,17 @@ public class RegionsController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<RegionDto>>> Post(CreateRegionDto regionDto)
+    {
+        var region = await _mediator.Send(new CreateRegionRequest
+        {
+            Region = regionDto
+        });
+
+        return region.Succeeded ? Ok(region) : BadRequest(region);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<RegionDto>>> GetAllRegions(int pageSize = 10, int pageNumber = 1)
     {
@@ -27,42 +37,36 @@ public class RegionsController : ControllerBase
             PageSize = pageSize
         };
         var regions = await _mediator.Send(request);
-        return Ok(regions);
-    }
-    [HttpGet("id")]
-    public async Task<ActionResult<ApiResponse<RegionDto>>> GetRegionById(Guid regionId)
-    {
-        var request = new GetRegionByIdRequest(regionId);
-        var region = await _mediator.Send(request);
-        return region.Succeeded ? Ok(region) : BadRequest(region);
-    }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateRegionDto>>> Post(CreateRegionDto regionDto)
-    {
-        var region = await _mediator.Send(new CreateRegionRequest
-        {
-            Region = regionDto
-        });
 
-        return region.Succeeded ? Ok(region) : BadRequest(region);
+        return regions.Succeeded ? Ok(regions) : BadRequest(regions);
     }
-    [HttpDelete("id")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid regionId)
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<RegionDto>>> GetRegionById(Guid id)
     {
-        var request = new DeleteRegionRequest(regionId);
+        var request = new GetRegionByIdRequest(id);
         var region = await _mediator.Send(request);
 
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 
-    [HttpPut("id")]
-    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> Put(Guid regionId, UpdateRegionDto updateRegionDto)
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> Put(Guid id, UpdateRegionDto updateRegionDto)
     {
         var region = await _mediator.Send(new UpdateRegionRequest
         {
-            Id = regionId,
+            Id = id,
             Region = updateRegionDto
         });
+
+        return region.Succeeded ? Ok(region) : BadRequest(region);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    {
+        var request = new DeleteRegionRequest(id);
+        var region = await _mediator.Send(request);
 
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }

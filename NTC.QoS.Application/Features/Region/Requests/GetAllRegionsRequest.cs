@@ -1,8 +1,9 @@
 ﻿using MediatR;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Region;
 namespace NTC.QoS.Application.Features.Region.Requests;
 
-public class GetAllRegionsRequest : IRequest<PaginatedResponse<Domain.Entities.Region>>
+public class GetAllRegionsRequest : IRequest<PaginatedResponse<RegionDto>>
 {
     public GetAllRegionsRequest(int pageSize, int pageNumber)
     {

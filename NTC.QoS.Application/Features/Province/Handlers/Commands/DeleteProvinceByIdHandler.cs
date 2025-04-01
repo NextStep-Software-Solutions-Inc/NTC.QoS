@@ -13,14 +13,16 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
     {
         var province = await _repository.FindAsync(p => p.Id == request.Id && !p.IsDeleted, cancellationToken);
 
-        if (province == null)
+        if (province is null)
         {
             return new ApiResponse<bool>
             {
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                      {"Error", [ "Province not found."] }
+                      {
+                        "NullProvince", [ "Province not found."] 
+                    }
                 },
                 Message = "The province you are trying to delete does not exist."
             };

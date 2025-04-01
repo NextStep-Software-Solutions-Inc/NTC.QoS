@@ -39,8 +39,10 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                 Message = "The provider you are trying to delete does not exist."
             };
         }
-
-        provider.Description = request.Provider.Description;
+        provider.Name = request.Provider.Name ?? provider.Name;
+        provider.Description = request.Provider.Description ?? provider.Description;
+        provider.LicenseNumber = request.Provider.LicenseNumber ?? provider.LicenseNumber;
+        provider.Color = request.Provider.Color ?? provider.Color;
 
         _repository.Update(provider);
         await _repository.SaveChangesAsync(cancellationToken);
@@ -51,8 +53,10 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
             Data = new ProviderDto ()
             {
                 Id = provider.Id,
+                Name = provider.Name,
                 Description = provider.Description,
-                Name = provider.Name
+                LicenseNumber = provider.LicenseNumber,
+                Color = provider.Color
             },
             Message = "Provider updated successfully."
         };

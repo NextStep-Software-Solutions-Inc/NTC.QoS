@@ -1120,6 +1120,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1426,8 +1430,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("CellId");
 
-                    b.HasIndex("MIMOId")
-                        .IsUnique();
+                    b.HasIndex("MIMOId");
 
                     b.HasIndex("NetworkId");
 
@@ -2102,8 +2105,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Entities.MIMO", "MIMO")
-                        .WithOne("Sector")
-                        .HasForeignKey("NTC.QoS.Domain.Entities.Sector", "MIMOId");
+                        .WithMany("Sectors")
+                        .HasForeignKey("MIMOId");
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
                         .WithMany("Sectors")
@@ -2324,7 +2327,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.MIMO", b =>
                 {
-                    b.Navigation("Sector");
+                    b.Navigation("Sectors");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
