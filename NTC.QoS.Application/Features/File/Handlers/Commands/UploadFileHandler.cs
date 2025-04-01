@@ -11,14 +11,25 @@ namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 public class UploadFileHandler(IFileRepository repository) : IRequestHandler<UploadFileRequest, ApiResponse<FileDto>>
 {
     private readonly IFileRepository _repository = repository;
+
     public async Task<ApiResponse<FileDto>> Handle(UploadFileRequest request, CancellationToken cancellationToken)
     {
         var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-        string fileName = ((request.File.FileName ?? request.File.File.FileName.Split(".").First()) + "_" +timestamp).Replace(" ", "-");
+        string originalFileName = request.File.FileName ?? request.File.File.FileName;
+
+        // Robust file name and extension extraction
+        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName);
+        string fileExtension = Path.GetExtension(originalFileName);
+
+        // Ensure a default file name if extraction fails or is empty.
+        fileNameWithoutExtension = string.IsNullOrEmpty(fileNameWithoutExtension) ? "UnknownFile" : fileNameWithoutExtension;
+
+        // Construct the new file name with timestamp
+        string newFileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}".Replace(" ", "-");
 
         var newFile = new Domain.Entities.File
         {
-            Name = fileName,
+            Name = newFileName,
             Type = EnumHelper<FileTypeEnum>.GetValue(request.File.Type)
         };
 
@@ -37,7 +48,7 @@ public class UploadFileHandler(IFileRepository repository) : IRequestHandler<Upl
                 Type = newFile.Type.ToString() ?? string.Empty,
                 Status = newFile.Status.ToString() ?? string.Empty
             },
-            Message = "File created successfully",
+            Message = "File uploaded successfully.",
             Succeeded = true
         };
     }

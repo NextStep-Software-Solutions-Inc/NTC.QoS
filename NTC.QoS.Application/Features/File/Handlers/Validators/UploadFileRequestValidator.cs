@@ -2,7 +2,7 @@
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Enums;
 
-namespace NTC.QoS.Application.Features.File.Handlers.Commands;
+namespace NTC.QoS.Application.Features.File.Handlers.Validators;
 
 public class UploadFileRequestValidator : AbstractValidator<UploadFileRequest>
 {
@@ -30,7 +30,8 @@ public class UploadFileRequestValidator : AbstractValidator<UploadFileRequest>
                 .NotEmpty()
                 .WithMessage("Document type is required.")
                 .Must(BeValidFileType)
-                .WithMessage($"Document type must be one of: {string.Join(", ", Enum.GetNames(typeof(FileTypeEnum)).Where(n => n != FileTypeEnum.Unknown.ToString()))}.");
+                .WithMessage($"Document type must be one of: {string.Join(", ", Enum.GetNames(typeof(FileTypeEnum))
+                                                                                    .Where(n => n != FileTypeEnum.Unknown.ToString()))}.");
         });
     }
 

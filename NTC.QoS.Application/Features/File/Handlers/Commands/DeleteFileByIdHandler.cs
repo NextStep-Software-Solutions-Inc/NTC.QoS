@@ -10,18 +10,17 @@ public class DeleteFileByIdHandler(IFileRepository repository) : IRequestHandler
     private readonly IFileRepository _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteFileByIdRequest request, CancellationToken cancellationToken)
     {
-        var file = await _repository.FindAsync(f => f.Id == request.Id && !f.IsDeleted, cancellationToken);
-
+        var file = await _repository.GetByIdAsync(request.Id, cancellationToken);
         if (file is null)
         {
             return new ApiResponse<bool>
             {
-                Message = "The file you are trying to delete does not exist.",
+                Message = "The file to delete does not exist.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", ["File not found."]
+                        "NullFile", ["File not found."]
                     }
                 }
             };
