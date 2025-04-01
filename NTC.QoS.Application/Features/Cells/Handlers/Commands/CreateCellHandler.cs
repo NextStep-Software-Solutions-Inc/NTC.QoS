@@ -126,36 +126,36 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
                 Group = newCell.Group,
                 File = new FileDto
                 {
-                    Id = newCell.File!.Id,
-                    Name = newCell.File.Name,
-                    Path = newCell.File.Path
+                    Id = newCell.FileId ?? Guid.Empty,
+                    Name = newCell.File?.Name ?? string.Empty,
+                    Path = newCell.File?.Path ?? string.Empty
                 },
-                Description = newCell.Description,
+                Description = newCell.Description ?? string.Empty,
                 Zone = new ZoneDto
                 {
                     Id = newCell.ZoneId,
-                    Name = newCell.Zone!.Name,
+                    Name = newCell.Zone?.Name ?? string.Empty,
                     Barangay = new BarangayDto
                     {
-                        Id = newCell.Zone.BarangayId,
-                        Name = newCell.Zone.Barangay!.Name,
-                        Description = newCell.Zone.Barangay.Description,
+                        Id = newCell.Zone?.BarangayId ?? Guid.Empty,
+                        Name = newCell.Zone?.Barangay?.Name ?? string.Empty,
+                        Description = newCell.Zone?.Barangay?.Description,
                         Municipality = new MunicipalityDto
                         {
-                            Id = newCell.Zone.Barangay.MunicipalityId,
-                            IsCity = newCell.Zone.Barangay.Municipality!.IsCity,
-                            Name = newCell.Zone.Barangay.Municipality!.Name,
-                            Description = newCell.Zone.Barangay.Municipality.Description,
+                            Id = newCell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
+                            IsCity = newCell.Zone?.Barangay?.Municipality?.IsCity ?? false,
+                            Name = newCell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
+                            Description = newCell.Zone?.Barangay?.Municipality?.Description,
                             Province = new ProvinceDto
                             {
-                                Id = newCell.Zone.Barangay.Municipality.ProvinceId,
-                                Name = newCell.Zone.Barangay.Municipality.Province!.Name,
-                                Description = newCell.Zone.Barangay.Municipality.Province.Description,
-                                Region = new RegionDto 
-                                { 
-                                    Id = newCell.Zone.Barangay.Municipality.Province.RegionId,
-                                    Name = newCell.Zone.Barangay.Municipality.Province.Region!.Name,
-                                    Description = newCell.Zone.Barangay.Municipality.Province.Region!.Description
+                                Id = newCell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                                Name = newCell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
+                                Description = newCell.Zone?.Barangay?.Municipality?.Province?.Description,
+                                Region = new RegionDto
+                                {
+                                    Id = newCell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
+                                    Name = newCell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
+                                    Description = cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
                                 }
                             }
                         }
@@ -166,27 +166,29 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
                     Id = newCell.ServiceProviderId,
                     Service = new ServiceDto()
                     {
-                        Id = newCell.ServiceProvider!.Service!.Id,
-                        Name = newCell.ServiceProvider!.Service!.Name,
-                        Type = newCell.ServiceProvider!.Service!.Type.ToString()
+                        Id = newCell.ServiceProvider?.Service?.Id ?? Guid.Empty,
+                        Name = newCell.ServiceProvider?.Service?.Name ?? string.Empty,
+                        Type = newCell.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                     },
                     Provider = new ProviderDto()
                     {
-                        Id = newCell.ServiceProvider!.Provider!.Id,
-                        Name = newCell.ServiceProvider!.Provider!.Name,
-                        Description = newCell.ServiceProvider!.Provider!.Description,
-                        LicenseNumber = newCell.ServiceProvider!.Provider!.LicenseNumber,
-                        Color = newCell.ServiceProvider!.Provider!.Color
+                        Id = newCell.ServiceProvider?.Provider?.Id ?? Guid.Empty,
+                        Name = newCell.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        Description = newCell.ServiceProvider?.Provider?.Description,
+                        LicenseNumber = newCell.ServiceProvider?.Provider?.LicenseNumber,
+                        Color = newCell.ServiceProvider?.Provider?.Color ?? string.Empty
                     }
+
                 },
                 CID = newCell.CID,
+                LAC = newCell.LAC,
+                TAC = newCell.TAC,
                 SiteId = newCell.SiteId,
                 TowerType = newCell.TowerType,
                 Elevation = newCell.Elevation,
-                TAC = newCell.TAC,
-                LAC = newCell.LAC,
                 CoorLatitude = newCell.CoorLatitude,
                 CoorLongitude = newCell.CoorLongitude,
+                IsVerified = newCell.IsVerified,
                 Status = EnumHelper<CellStatusEnum>.GetName(newCell.Status)
             },
             Message = "Cell created successfully.",
