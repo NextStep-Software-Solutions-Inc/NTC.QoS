@@ -51,12 +51,9 @@ public class CellsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}/status")]
-    public async Task<ActionResult<ApiResponse<CellDto>>> UpdateStatusById(Guid id, UpdateCellStatusDto updateCellStatusDto)
+    public async Task<ActionResult<ApiResponse<CellDto>>> UpdateStatusById(Guid id, [FromBody] string status)
     {
-        var cell = await _mediator.Send(new UpdateCellStatusByIdRequest(id, new UpdateCellStatusDto
-        {
-            Status = updateCellStatusDto.Status
-        }));
+        var cell = await _mediator.Send(new UpdateCellStatusByIdRequest(id, status));
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
     
