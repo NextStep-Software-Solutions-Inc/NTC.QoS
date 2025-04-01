@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 
@@ -16,7 +17,6 @@ public class CellsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<CellDto>>> CreateCell(CreateCellDto createCell)
     {
         var cell = await _mediator.Send(new CreateCellRequest(createCell));
-
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
 
@@ -39,10 +39,8 @@ public class CellsController(IMediator mediator) : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<CellDto>>> GetCellById(Guid id)
     {
-        Guid cellId = id;
-        var request = new GetCellByIdRequest(cellId);
-        var cells = await _mediator.Send(request);
-        return cells.Succeeded ? Ok(cells) : BadRequest(cells);
+        var cell = await _mediator.Send(new GetCellByIdRequest(id));
+        return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
 
     [HttpPut("{id}")]
