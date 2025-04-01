@@ -2,12 +2,13 @@
 
 public class UpdateCellDto
 {
-    public string CID { get; set; } = string.Empty;
+    public string? CID { get; set; }
     public string? LAC { get; set; }
-    public string TAC { get; set; } = string.Empty;
-    public string SiteId { get; set; } = string.Empty;
-    public string TowerType { get; set; } = string.Empty;
+    public string? TAC { get; set; }
+    public string? SiteId { get; set; }
+    public string? TowerType { get; set; }
     public float Elevation { get; set; }
-    public string CoorLatitude { get; set; } = string.Empty;
-    public string CoorLongitude { get; set; } = string.Empty;
+    public bool? IsVerified { get; set; }
+    public string? CoorLatitude { get; set; }
+    public string? CoorLongitude { get; set; }
 }

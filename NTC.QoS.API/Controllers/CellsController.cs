@@ -43,8 +43,8 @@ public class CellsController(IMediator mediator) : ControllerBase
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Aggregates.Cell>>> UpdateCellById(Guid id, UpdateCellDto updateCell)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<CellDto>>> UpdateCellById(Guid id, UpdateCellDto updateCell)
     {
         var cell = await _mediator.Send(new UpdateCellByIdRequest(id, updateCell));
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
