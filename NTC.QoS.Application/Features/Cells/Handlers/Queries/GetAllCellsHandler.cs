@@ -5,68 +5,146 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.File;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.Provider;
+using NTC.QoS.Domain.Models.DTOs.Province;
+using NTC.QoS.Domain.Models.DTOs.Region;
+using NTC.QoS.Domain.Models.DTOs.Service;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 using NTC.QoS.Domain.Models.DTOs.Zone;
+using System.Reflection;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
 public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
     private readonly ICellRepository _repository = repository;
+
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
         var allCells = await _repository.ListAsync(c => !c.IsDeleted, cancellationToken);
-        if (allCells is null)
-        {
-            return new PaginatedResponse<CellDto>([], request.PageNumber, request.PageSize)
-            {
-                Message = "No records found.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullCells", [ "No cells found."]
-                    }
-                }
-            };
-        }
 
         if (!string.IsNullOrEmpty(request.Search))
-        {
-            allCells = [.. allCells.Where(cell => cell.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase))];
-        }
+            {
+                string[] propertiesToSearch = {
+                    "Name",
+                    "Description",
+                    "Group",
+                    "Zone.Name",
+                    "Zone.Description",
+                    "Zone.Barangay.Name",
+                    "Zone.Barangay.Municipality.Name",
+                    "Zone.Barangay.Municipality.Province.Name",
+                    "Zone.Barangay.Municipality.Province.Region.Name"
+                    // Add other properties (including FK properties) here
+                };
 
-        var cells = allCells.Select(static cell => new CellDto
+                allCells = [.. allCells.Where(cell =>
+                    propertiesToSearch.Any(propertyName =>
+                    {
+                        object? propertyValue = cell;
+                        string[] propertyParts = propertyName.Split('.');
+
+                        foreach (string part in propertyParts)
+                        {
+                            if (propertyValue is null)
+                            {
+                                return false;
+                            }
+
+                            PropertyInfo? property = propertyValue.GetType().GetProperty(part);
+                            if (property is null)
+                            {
+                                return false;
+                            }
+
+                            propertyValue = property.GetValue(propertyValue);
+                        }
+
+                        if (propertyValue is string stringValue)
+                        {
+                            return stringValue is not null 
+                                && stringValue.Contains(request.Search, StringComparison.OrdinalIgnoreCase);
+                        }
+
+                        return false;
+                    })
+                )];
+            }
+
+        allCells = [.. allCells
+            .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
+            .Where(c => !request.FileId.HasValue || c.FileId == request.FileId)
+            .Where(c => !request.ZoneId.HasValue || c.ZoneId == request.ZoneId)
+            .Where(c => !request.ServiceProviderId.HasValue || c.ServiceProviderId == request.ServiceProviderId)
+            .Where(cell => request.ServiceId is null || cell.ServiceProvider!.ServiceId == request.ServiceId)
+            .Where(cell => request.ServiceId is null || cell.ServiceProvider!.ServiceId == request.ServiceId)
+        ];
+
+        var cellDtos = allCells.Select(cell => new CellDto
         {
             Id = cell.Id,
             Name = cell.Name,
             Group = cell.Group,
-            Description = cell.Description ?? "",
-            FileId = cell.FileId,
-            File = cell.File != null
-                ? new FileDto
+            File = new FileDto
+            {
+                Id = cell.FileId ?? Guid.Empty,
+                Name = cell.File?.Name ?? string.Empty,
+                Path = cell.File?.Path ?? string.Empty
+            },
+            Description = cell.Description ?? string.Empty,
+            Zone = new ZoneDto
+            {
+                Id = cell.ZoneId,
+                Name = cell.Zone?.Name ?? string.Empty,
+                Barangay = new BarangayDto
                 {
-                    Name = cell.File.Name ?? string.Empty,
-                    Path = cell.File.Path ?? string.Empty
+                    Id = cell.Zone?.BarangayId ?? Guid.Empty,
+                    Name = cell.Zone?.Barangay?.Name ?? string.Empty,
+                    Description = cell.Zone?.Barangay?.Description,
+                    Municipality = new MunicipalityDto
+                    {
+                        Id = cell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
+                        IsCity = cell.Zone?.Barangay?.Municipality?.IsCity ?? false,
+                        Name = cell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
+                        Description = cell.Zone?.Barangay?.Municipality?.Description,
+                        Province = new ProvinceDto
+                        {
+                            Id = cell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                            Name = cell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
+                            Description = cell.Zone?.Barangay?.Municipality?.Province?.Description,
+                            Region = new RegionDto
+                            {
+                                Id = cell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
+                                Name = cell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
+                                Description = cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
+                            }
+                        }
+                    }
                 }
-                : null!,
-            ServiceProviderId = cell.ServiceProviderId,
-            ServiceProvider = cell.ServiceProvider != null
-                ? new ServiceProviderDto
+            },
+            ServiceProvider = new ServiceProviderDto
+            {
+                Id = cell.ServiceProviderId,
+                Service = new ServiceDto()
                 {
-                    Service = cell.ServiceProvider.Service != null ? new() { Name = cell.ServiceProvider.Service.Name ?? string.Empty } : null,
-                    Provider = cell.ServiceProvider.Provider != null ? new() { Name = cell.ServiceProvider.Provider.Name ?? string.Empty } : null,
+                    Id = cell.ServiceProvider?.Service?.Id ?? Guid.Empty,
+                    Name = cell.ServiceProvider?.Service?.Name ?? string.Empty,
+                    Type = cell.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                },
+                Provider = new ProviderDto()
+                {
+                    Id = cell.ServiceProvider?.Provider?.Id ?? Guid.Empty,
+                    Name = cell.ServiceProvider?.Provider?.Name ?? string.Empty,
+                    Description = cell.ServiceProvider?.Provider?.Description,
+                    LicenseNumber = cell.ServiceProvider?.Provider?.LicenseNumber,
+                    Color = cell.ServiceProvider?.Provider?.Color ?? string.Empty
                 }
-                : null!,
-            ZoneId = cell.ZoneId,
-            Zone = cell.Zone != null
-                ? new ZoneDto
-                {
-                    Id = cell.Zone.Id,
-                    Name = cell.Zone.Name ?? string.Empty
-                }: null!,
+
+            },
             CID = cell.CID,
             LAC = cell.LAC,
             TAC = cell.TAC,
@@ -79,8 +157,25 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
         }).ToList();
 
-
-        return new PaginatedResponse<CellDto>(cells, request.PageNumber, request.PageSize);
+        if (cellDtos.Count is 0)
+        {
+            return new PaginatedResponse<CellDto>(new List<CellDto>(), request.PageNumber, request.PageSize)
+            {
+                Message = "No records found.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullCells", ["No cells found."]
+                    }
+                }
+            };
+        }
+        return new PaginatedResponse<CellDto>(cellDtos, request.PageNumber, request.PageSize)
+        {
+            Data = cellDtos,
+            Message = "Cells retrieved successfully.",
+            Succeeded = true
+        };
     }
-
 }

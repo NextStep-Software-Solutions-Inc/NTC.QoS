@@ -23,9 +23,15 @@ public class CellsController(IMediator mediator) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells([FromQuery] int pageNumber = 1,
                                                                             [FromQuery] int pageSize = 10,
-                                                                            [FromQuery] string? search = null)
+                                                                            [FromQuery] string? search = null,
+                                                                            [FromQuery] string? status = null,
+                                                                            [FromQuery] Guid? fileId = null,
+                                                                            [FromQuery] Guid? zoneId = null,
+                                                                            [FromQuery] Guid? serviceProviderId = null,
+                                                                            [FromQuery] Guid? providerId = null,
+                                                                            [FromQuery] Guid? serviceId = null)
     {
-        var request = new GetAllCellsRequest(pageNumber, pageSize, search);
+        var request = new GetAllCellsRequest(pageNumber, pageSize, search, status, fileId, zoneId, serviceProviderId, providerId, serviceId);
         var cells = await _mediator.Send(request);
         return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }
