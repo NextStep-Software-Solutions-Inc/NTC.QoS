@@ -13,7 +13,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<ActionResult<PaginatedResponse<SectorDto>>> CreateSector(CreateSectorDto sectorDto)
+    public async Task<ActionResult<ApiResponse<SectorDto>>> CreateSector(CreateSectorDto sectorDto)
     {
         var sector = await _mediator.Send(new CreateSectorRequest(sectorDto));
         return sector.Succeeded ? Ok(sector) : BadRequest(sector);

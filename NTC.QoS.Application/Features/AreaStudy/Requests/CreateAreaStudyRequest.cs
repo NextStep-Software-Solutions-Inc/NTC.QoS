@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 
 namespace NTC.QoS.Application.Features.AreaStudy.Requests;
 
-public class CreateAreaStudyRequest : IRequest<ApiResponse<Domain.Entities.AreaStudy>>
+public class CreateAreaStudyRequest(CreateAreaStudyDto areaStudy) : IRequest<ApiResponse<AreaStudyDto>>
 {
-    public required AreaStudyDto AreaStudy { get; set; }
+    public CreateAreaStudyDto AreaStudy { get; set; } = areaStudy;
 }
