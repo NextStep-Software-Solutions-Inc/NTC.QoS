@@ -31,7 +31,7 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             Description = cell.Description ?? "",
             FileId = cell.FileId,
             File = cell.File != null
-                ? new FileDto
+                ? new ()
                 {
                     Name = cell.File.Name ?? string.Empty,
                     Path = cell.File.Path ?? string.Empty
@@ -39,10 +39,17 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                 : null!,
             ServiceProviderId = cell.ServiceProviderId,
             ServiceProvider = cell.ServiceProvider != null
-                ? new ServiceProviderDto
+                ? new ()
                 {
-                    Service = cell.ServiceProvider.Service != null ? new() { Name = cell.ServiceProvider.Service.Name ?? string.Empty } : null,
-                    Provider = cell.ServiceProvider.Provider != null ? new() { Name = cell.ServiceProvider.Provider.Name ?? string.Empty } : null,
+                    Service = cell.ServiceProvider.Service != null ? new() 
+                    { 
+                        Name = cell.ServiceProvider.Service.Name ?? string.Empty
+                    } : null,
+                    Provider = cell.ServiceProvider.Provider != null ? new() 
+                    { 
+                        Name = cell.ServiceProvider.Provider.Name ?? string.Empty,
+                        Color = cell.ServiceProvider.Provider.Color ?? string.Empty
+                    } : null,
                 }
                 : null!,
             ZoneId = cell.ZoneId,

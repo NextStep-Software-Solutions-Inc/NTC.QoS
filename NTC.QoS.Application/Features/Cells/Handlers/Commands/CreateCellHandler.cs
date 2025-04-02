@@ -61,20 +61,21 @@ public class CreateCellHandler(IRepository<Cell> cellRepository ) : IRequestHand
                 },
                 Description = newCell.Description,
                 ZoneId = newCell.ZoneId,
-                Zone = new ZoneDto
+                Zone = new ()
                 {
-                    Name = newCell.Zone!.Name
+                    Name = newCell.Zone?.Name ?? string.Empty,
                 },
                 ServiceProviderId = newCell.ServiceProviderId,
-                ServiceProvider = new ServiceProviderDto
+                ServiceProvider = new ()
                 {
-                    Service = new Domain.Models.DTOs.Service.ServiceDto()
+                    Service = new ()
                     {
-                        Name = newCell.ServiceProvider!.Service!.Name
+                        Name = newCell.ServiceProvider?.Service?.Name ?? string.Empty,
                     },
-                    Provider = new Domain.Models.DTOs.Provider.ProviderDto()
+                    Provider = new ()
                     {
-                        Name = newCell.ServiceProvider!.Provider!.Name
+                        Name = newCell.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        Color = newCell.ServiceProvider?.Provider?.Color ?? string.Empty
                     }
                 },
                 CID = newCell.CID,

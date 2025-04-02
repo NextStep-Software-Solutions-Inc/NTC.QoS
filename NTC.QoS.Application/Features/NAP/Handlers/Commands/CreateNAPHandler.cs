@@ -119,42 +119,43 @@ public class CreateNAPHandler(
             Data = new NAPDto
             {
                 Id = NAP.Id,
-                ServiceProvider = new ServiceProviderNAPDto
+                ServiceProvider = new ()
                 {
                     Id = NAP.ServiceProviderId,
-                    Service = new ServiceNAPDto
+                    Service = new ()
                     {
                         Id = NAP.ServiceProvider?.ServiceId ?? Guid.Empty,
                         Name = NAP.ServiceProvider?.Service?.Name ?? string.Empty,
                         Type = NAP.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
                     },
-                    Provider = new ProviderNAPDto
+                    Provider = new ()
                     {
                         Id = NAP.ServiceProvider?.ProviderId ?? Guid.Empty,
                         Name = NAP.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        Color = NAP.ServiceProvider?.Provider?.Color ?? string.Empty,
                     }
                 },
-                Zone = new ZoneDto
+                Zone = new ()
                 {
                     Id = NAP.ZoneId ?? Guid.Empty,
                     Name = NAP.Zone?.Name ?? string.Empty,
-                    Barangay = new BarangayDto
+                    Barangay = new ()
                     {
                         Id = NAP.Zone?.BarangayId ?? Guid.Empty,
                         Name = NAP.Zone?.Barangay?.Name ?? string.Empty,
                         Description = NAP.Zone?.Barangay?.Description,
-                        Municipality = new MunicipalityDto
+                        Municipality = new ()
                         {
                             Id = NAP.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
                             Name = NAP.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
                             Description = NAP.Zone?.Barangay?.Description,
                             IsCity = NAP.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                            Province = new ProvinceDto
+                            Province = new ()
                             {
                                 Id = NAP.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
                                 Name = NAP.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                                 Description = NAP.Zone?.Barangay?.Municipality?.Province?.Description,
-                                Region = new RegionDto
+                                Region = new ()
                                 {
                                     Id = NAP.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
                                     Name = NAP.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
@@ -164,7 +165,7 @@ public class CreateNAPHandler(
                         }
                     }
                 },
-                File = new FileDto
+                File = new ()
                 {
                     Id = NAP.FileId ?? Guid.Empty,
                     Name = NAP.File?.Name ?? string.Empty,

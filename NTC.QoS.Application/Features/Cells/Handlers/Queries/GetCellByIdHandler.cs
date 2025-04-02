@@ -44,8 +44,14 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
             ServiceProvider = cellExists.ServiceProvider != null
                 ? new ServiceProviderDto
                 {
-                    Service = cellExists.ServiceProvider.Service != null ? new() { Name = cellExists.ServiceProvider.Service.Name ?? string.Empty } : null,
-                    Provider = cellExists.ServiceProvider.Provider != null ? new() { Name = cellExists.ServiceProvider.Provider.Name ?? string.Empty } : null,
+                    Service = cellExists.ServiceProvider.Service != null ? new()
+                    { 
+                        Name = cellExists.ServiceProvider.Service.Name ?? string.Empty
+                    } : null,
+                    Provider = cellExists.ServiceProvider.Provider != null ? new() {
+                        Name = cellExists.ServiceProvider.Provider.Name ?? string.Empty,
+                        Color = cellExists.ServiceProvider.Provider.Color ?? string.Empty
+                    } : null,
                 }
                 : null!,
             ZoneId = cellExists.ZoneId,
