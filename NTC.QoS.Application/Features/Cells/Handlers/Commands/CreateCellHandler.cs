@@ -112,41 +112,41 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
         {
             Data = new CellDto
             {
-                Id = cell.Id,
-                Name = cell.Name,
-                Group = cell.Group,
+                Id = newCell.Id,
+                Name = newCell.Name,
+                Group = newCell.Group,
                 File = new()
                 {
-                    Id = cell.FileId ?? Guid.Empty,
-                    Name = cell.File?.Name ?? string.Empty,
-                    Path = cell.File?.Path ?? string.Empty
+                    Id = newCell.FileId ?? Guid.Empty,
+                    Name = newCell.File?.Name ?? string.Empty,
+                    Path = newCell.File?.Path ?? string.Empty
                 },
-                Description = cell.Description ?? string.Empty,
+                Description = newCell.Description ?? string.Empty,
                 Zone = new()
                 {
-                    Id = cell.ZoneId,
-                    Name = cell.Zone?.Name ?? string.Empty,
+                    Id = newCell.ZoneId,
+                    Name = newCell.Zone?.Name ?? string.Empty,
                     Barangay = new()
                     {
-                        Id = cell.Zone?.BarangayId ?? Guid.Empty,
-                        Name = cell.Zone?.Barangay?.Name ?? string.Empty,
-                        Description = cell.Zone?.Barangay?.Description,
+                        Id = newCell.Zone?.BarangayId ?? Guid.Empty,
+                        Name = newCell.Zone?.Barangay?.Name ?? string.Empty,
+                        Description = newCell.Zone?.Barangay?.Description,
                         Municipality = new()
                         {
-                            Id = cell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                            IsCity = cell.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                            Name = cell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                            Description = cell.Zone?.Barangay?.Municipality?.Description,
+                            Id = newCell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
+                            IsCity = newCell.Zone?.Barangay?.Municipality?.IsCity ?? false,
+                            Name = newCell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
+                            Description = newCell.Zone?.Barangay?.Municipality?.Description,
                             Province = new()
                             {
-                                Id = cell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                                Name = cell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                                Description = cell.Zone?.Barangay?.Municipality?.Province?.Description,
+                                Id = newCell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                                Name = newCell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
+                                Description = newCell.Zone?.Barangay?.Municipality?.Province?.Description,
                                 Region = new()
                                 {
-                                    Id = cell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                    Name = cell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                    Description = cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
+                                    Id = newCell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
+                                    Name = newCell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
+                                    Description = newCell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
                                 }
                             }
                         }
@@ -154,32 +154,32 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
                 },
                 ServiceProvider = new()
                 {
-                    Id = cell.ServiceProviderId,
+                    Id = newCell!.ServiceProviderId,
                     Service = new()
                     {
-                        Id = cell.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                        Name = cell.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = cell.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                        Id = newCell.ServiceProvider?.Service?.Id ?? Guid.Empty,
+                        Name = newCell.ServiceProvider?.Service?.Name ?? string.Empty,
+                        Type = newCell.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                     },
                     Provider = new()
                     {
-                        Id = cell.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                        Name = cell.ServiceProvider?.Provider?.Name ?? string.Empty,
-                        Description = cell.ServiceProvider?.Provider?.Description,
-                        LicenseNumber = cell.ServiceProvider?.Provider?.LicenseNumber,
-                        Color = cell.ServiceProvider?.Provider?.Color ?? string.Empty
+                        Id = newCell.ServiceProvider?.Provider?.Id ?? Guid.Empty,
+                        Name = newCell.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        Description = newCell.ServiceProvider?.Provider?.Description,
+                        LicenseNumber = newCell.ServiceProvider?.Provider?.LicenseNumber,
+                        Color = newCell.ServiceProvider?.Provider?.Color ?? string.Empty
                     }
                 },
-                CID = cell.CID,
-                LAC = cell.LAC,
-                TAC = cell.TAC,
-                SiteId = cell.SiteId,
-                TowerType = cell.TowerType,
-                Elevation = cell.Elevation,
-                CoorLatitude = cell.CoorLatitude,
-                CoorLongitude = cell.CoorLongitude,
-                IsVerified = cell.IsVerified,
-                Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
+                CID = newCell.CID,
+                LAC = newCell.LAC,
+                TAC = newCell.TAC,
+                SiteId = newCell.SiteId,
+                TowerType = newCell.TowerType,
+                Elevation = newCell.Elevation,
+                CoorLatitude = newCell.CoorLatitude,
+                CoorLongitude = newCell.CoorLongitude,
+                IsVerified = newCell.IsVerified,
+                Status = EnumHelper<CellStatusEnum>.GetName(newCell.Status)
             },
             Message = "Cell created successfully.",
             Succeeded = true

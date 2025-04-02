@@ -89,7 +89,7 @@ public class UpdateCellByIdHandler(ICellRepository repository) : IRequestHandler
                 },
                 ServiceProvider = new()
                 {
-                    Id = cell.ServiceProviderId,
+                    Id = cell!.ServiceProviderId,
                     Service = new()
                     {
                         Id = cell.ServiceProvider?.Service?.Id ?? Guid.Empty,
