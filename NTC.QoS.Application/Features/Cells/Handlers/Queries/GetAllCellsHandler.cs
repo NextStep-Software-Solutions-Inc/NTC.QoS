@@ -1,20 +1,10 @@
-﻿
-using MediatR;
+﻿using MediatR;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Cell;
-using NTC.QoS.Domain.Models.DTOs.File;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Domain.Models.DTOs.Service;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
-using NTC.QoS.Domain.Models.DTOs.Zone;
 using System.Reflection;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
@@ -28,52 +18,52 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
         var allCells = await _repository.ListAsync(c => !c.IsDeleted, cancellationToken);
 
         if (!string.IsNullOrEmpty(request.Search))
-            {
-                string[] propertiesToSearch = {
-                    "Name",
-                    "Description",
-                    "Group",
-                    "Zone.Name",
-                    "Zone.Description",
-                    "Zone.Barangay.Name",
-                    "Zone.Barangay.Municipality.Name",
-                    "Zone.Barangay.Municipality.Province.Name",
-                    "Zone.Barangay.Municipality.Province.Region.Name"
-                    // Add other properties (including FK properties) here
-                };
+        {
+            string[] propertiesToSearch = {
+                "Name",
+                "Description",
+                "Group",
+                "Zone.Name",
+                "Zone.Description",
+                "Zone.Barangay.Name",
+                "Zone.Barangay.Municipality.Name",
+                "Zone.Barangay.Municipality.Province.Name",
+                "Zone.Barangay.Municipality.Province.Region.Name"
+                // Add other properties (including FK properties) here
+            };
 
-                allCells = [.. allCells.Where(cell =>
-                    propertiesToSearch.Any(propertyName =>
+            allCells = [.. allCells.Where(cell =>
+                propertiesToSearch.Any(propertyName =>
+                {
+                    object? propertyValue = cell;
+                    string[] propertyParts = propertyName.Split('.');
+
+                    foreach (string part in propertyParts)
                     {
-                        object? propertyValue = cell;
-                        string[] propertyParts = propertyName.Split('.');
-
-                        foreach (string part in propertyParts)
+                        if (propertyValue is null)
                         {
-                            if (propertyValue is null)
-                            {
-                                return false;
-                            }
-
-                            PropertyInfo? property = propertyValue.GetType().GetProperty(part);
-                            if (property is null)
-                            {
-                                return false;
-                            }
-
-                            propertyValue = property.GetValue(propertyValue);
+                            return false;
                         }
 
-                        if (propertyValue is string stringValue)
+                        PropertyInfo? property = propertyValue.GetType().GetProperty(part);
+                        if (property is null)
                         {
-                            return stringValue is not null 
-                                && stringValue.Contains(request.Search, StringComparison.OrdinalIgnoreCase);
+                            return false;
                         }
 
-                        return false;
-                    })
-                )];
-            }
+                        propertyValue = property.GetValue(propertyValue);
+                    }
+
+                    if (propertyValue is string stringValue)
+                    {
+                        return stringValue is not null 
+                            && stringValue.Contains(request.Search, StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    return false;
+                })
+            )];
+        }
 
         allCells = [.. allCells
             .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
@@ -89,34 +79,34 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             Id = cell.Id,
             Name = cell.Name,
             Group = cell.Group,
-            File = new FileDto
+            File = new()
             {
                 Id = cell.FileId ?? Guid.Empty,
                 Name = cell.File?.Name ?? string.Empty,
                 Path = cell.File?.Path ?? string.Empty
             },
             Description = cell.Description ?? string.Empty,
-            Zone = new ZoneDto
+            Zone = new()
             {
                 Id = cell.ZoneId,
                 Name = cell.Zone?.Name ?? string.Empty,
-                Barangay = new BarangayDto
+                Barangay = new()
                 {
                     Id = cell.Zone?.BarangayId ?? Guid.Empty,
                     Name = cell.Zone?.Barangay?.Name ?? string.Empty,
                     Description = cell.Zone?.Barangay?.Description,
-                    Municipality = new MunicipalityDto
+                    Municipality = new()
                     {
                         Id = cell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
                         IsCity = cell.Zone?.Barangay?.Municipality?.IsCity ?? false,
                         Name = cell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
                         Description = cell.Zone?.Barangay?.Municipality?.Description,
-                        Province = new ProvinceDto
+                        Province = new()
                         {
                             Id = cell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
                             Name = cell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                             Description = cell.Zone?.Barangay?.Municipality?.Province?.Description,
-                            Region = new RegionDto
+                            Region = new()
                             {
                                 Id = cell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
                                 Name = cell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
@@ -126,16 +116,16 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                     }
                 }
             },
-            ServiceProvider = new ServiceProviderDto
+            ServiceProvider = new()
             {
                 Id = cell.ServiceProviderId,
-                Service = new ServiceDto()
+                Service = new()
                 {
                     Id = cell.ServiceProvider?.Service?.Id ?? Guid.Empty,
                     Name = cell.ServiceProvider?.Service?.Name ?? string.Empty,
                     Type = cell.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                 },
-                Provider = new ProviderDto()
+                Provider = new()
                 {
                     Id = cell.ServiceProvider?.Provider?.Id ?? Guid.Empty,
                     Name = cell.ServiceProvider?.Provider?.Name ?? string.Empty,
@@ -143,7 +133,6 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                     LicenseNumber = cell.ServiceProvider?.Provider?.LicenseNumber,
                     Color = cell.ServiceProvider?.Provider?.Color ?? string.Empty
                 }
-
             },
             CID = cell.CID,
             LAC = cell.LAC,

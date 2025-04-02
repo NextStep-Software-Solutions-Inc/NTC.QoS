@@ -1,15 +1,8 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.NAP.Requests;
-using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.File;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.NAP;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.NAP.Handlers.Queries;
 
@@ -24,42 +17,43 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
         var NAPs = allNAPs.Select(n => new NAPDto
         {
             Id = n.Id,
-            ServiceProvider = new ServiceProviderNAPDto
+            ServiceProvider = new ()
             {
                 Id = n.ServiceProviderId,
-                Service = new ServiceNAPDto
+                Service = new ()
                 {
                     Id = n.ServiceProvider?.ServiceId ?? Guid.Empty,
                     Name = n.ServiceProvider?.Service?.Name ?? string.Empty,
                     Type = n.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
                 },
-                Provider = new ProviderNAPDto
+                Provider = new ()
                 {
                     Id = n.ServiceProvider?.ProviderId ?? Guid.Empty,
                     Name = n.ServiceProvider?.Provider?.Name ?? string.Empty,
+                    Color = n.ServiceProvider?.Provider?.Color ?? string.Empty,
                 }
             },
-            Zone = new ZoneDto
+            Zone = new ()
             {
                 Id = n.ZoneId ?? Guid.Empty,
                 Name = n.Zone?.Name ?? string.Empty,
-                Barangay = new BarangayDto
+                Barangay = new ()
                 {
                     Id = n.Zone?.BarangayId ?? Guid.Empty,
                     Name = n.Zone?.Barangay?.Name ?? string.Empty,
                     Description = n.Zone?.Barangay?.Description,
-                    Municipality = new MunicipalityDto
+                    Municipality = new ()
                     {
                         Id = n.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
                         Name = n.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
                         Description = n.Zone?.Barangay?.Description,
                         IsCity = n.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                        Province = new ProvinceDto
+                        Province = new ()
                         {
                             Id = n.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
                             Name = n.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                             Description = n.Zone?.Barangay?.Municipality?.Province?.Description,
-                            Region = new RegionDto
+                            Region = new ()
                             {
                                 Id = n.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
                                 Name = n.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
@@ -69,7 +63,7 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
                     }
                 }
             },
-            File = new FileDto
+            File = new ()
             {
                 Id = n.FileId ?? Guid.Empty,
                 Name = n.File?.Name ?? string.Empty,
