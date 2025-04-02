@@ -48,6 +48,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ISectorRepository, SectorRepository>();
         services.AddScoped<IStudyNetworkRepository, StudyNetworkRepository>();
         services.AddScoped<IRegionRepository, RegionRepository>();
+        services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
 
         return services;
     }
