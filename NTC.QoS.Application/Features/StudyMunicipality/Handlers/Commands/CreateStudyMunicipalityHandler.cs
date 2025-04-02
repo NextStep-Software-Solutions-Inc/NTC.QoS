@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.Eventing.Reader;
-using MediatR;
+﻿using MediatR;
 using NTC.QoS.Application.Features.StudyMunicipality.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -73,8 +72,8 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
 
         var newStudyMunicipality = new Domain.Aggregates.StudyMunicipality
         {
-            StudyId = request.StudyMunicipality.StudyId,
-            MunicipalityId = request.StudyMunicipality.MunicipalityId,
+            StudyId = study.Id,
+            MunicipalityId = municipality.Id,
         };
 
         _repository.Add(newStudyMunicipality);
@@ -87,33 +86,33 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
                 Id = newStudyMunicipality.Id,
                 Study = new StudyDto
                 {
-                    Id = study.Id,
-                    Name = study.Name,
-                    Description = study.Description,
-                    StudyRadius = study.StudyRadius,
+                    Id = newStudyMunicipality.StudyId,
+                    Name = newStudyMunicipality.Study?.Name ?? string.Empty,
+                    Description = newStudyMunicipality.Study?.Description,
+                    StudyRadius = newStudyMunicipality.Study?.StudyRadius ?? 0,
                     AreaStudy = new AreaStudyDto
                     {
-                        Id = study.AreaStudyId,
-                        Name = study.AreaStudy?.Name ?? string.Empty,
-                        Description = study.Description
+                        Id = newStudyMunicipality.Study?.AreaStudyId ?? Guid.Empty,
+                        Name = newStudyMunicipality.Study?.AreaStudy?.Name ?? string.Empty,
+                        Description = newStudyMunicipality.Study?.Description ?? string.Empty
                     }
                 },
                 Municipality = new MunicipalityDto
                 {
-                    Id = municipality.Id,
-                    Name = municipality.Name,
-                    IsCity = municipality.IsCity,
-                    Description = municipality.Description,
+                    Id = newStudyMunicipality.MunicipalityId,
+                    Name = newStudyMunicipality.Municipality?.Name ?? string.Empty,
+                    IsCity = newStudyMunicipality.Municipality?.IsCity ?? false,
+                    Description = newStudyMunicipality.Municipality?.Description,
                     Province = new ProvinceDto
                     {
-                        Id = municipality.ProvinceId,
-                        Name = municipality.Province?.Name ?? string.Empty,
-                        Description = municipality.Province?.Description,
+                        Id = newStudyMunicipality.Municipality?.ProvinceId ?? Guid.Empty,
+                        Name = newStudyMunicipality.Municipality?.Province?.Name ?? string.Empty,
+                        Description = newStudyMunicipality.Municipality?.Province?.Description,
                         Region = new RegionDto
                         {
-                            Id = municipality.Province?.RegionId ?? Guid.Empty,
-                            Name = municipality.Province?.Region?.Name ?? string.Empty,
-                            Description = municipality.Province?.Region?.Description
+                            Id = newStudyMunicipality.Municipality?.Province?.RegionId ?? Guid.Empty,
+                            Name = newStudyMunicipality.Municipality?.Province?.Region?.Name ?? string.Empty,
+                            Description = newStudyMunicipality.Municipality?.Province?.Region?.Description
                         }
                     }
                 },
