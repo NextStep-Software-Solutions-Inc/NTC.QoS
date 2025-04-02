@@ -1,10 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.ServiceProvider.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Models.DTOs.Service;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Commands;
@@ -31,14 +28,15 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
                 Data = new ServiceProviderDto
                 {
                     Id = serviceProvider.Id,
-                    Provider = new ProviderDto
+                    Provider = new ()
                     {
                         Id = serviceProvider.ProviderId,
                         Name = serviceProvider.Provider?.Name ?? string.Empty,
+                        Color = serviceProvider.Provider?.Color ?? string.Empty,
                         Description = serviceProvider.Provider?.Description ?? string.Empty,
                         LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty
                     },
-                    Service = new ServiceDto
+                    Service = new ()
                     {
                         Id = serviceProvider.ServiceId,
                         Name = serviceProvider.Service?.Name ?? string.Empty,
@@ -83,14 +81,15 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
             Data = new ServiceProviderDto
             {
                 Id = newServiceProvider.Id,
-                Provider = new ProviderDto
+                Provider = new ()
                 {
                     Id = newServiceProvider.ProviderId,
                     Name = newServiceProvider.Provider?.Name ?? string.Empty,
+                    Color = newServiceProvider.Provider?.Color ?? string.Empty,
                     Description = newServiceProvider.Provider?.Description ?? string.Empty,
                     LicenseNumber = newServiceProvider.Provider?.LicenseNumber ?? string.Empty
                 },
-                Service = new ServiceDto
+                Service = new ()
                 {
                     Id = newServiceProvider.ServiceId,
                     Name = newServiceProvider.Service?.Name ?? string.Empty,
