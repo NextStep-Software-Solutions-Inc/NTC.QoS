@@ -15,4 +15,6 @@ public class GetAllFilesRequest : IRequest<PaginatedResponse<FileDto>>
     public int PageNumber { get; set; }
     public int PageSize { get; set; }
     public string? Search { get; set; }
+    public string[]? Types { get; set; }
+    public string[]? Statuses { get; set; }
 }

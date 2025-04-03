@@ -12,9 +12,9 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
     private readonly IFileRepository _repository = repository;
     public async Task<PaginatedResponse<FileDto>> Handle(GetAllFilesRequest request, CancellationToken cancellationToken)
     {
-        var allFiles = await _repository.ListAsync(f => f.IsDeleted != true, cancellationToken);
+        var filesQuery = _repository.Query(f => f.IsDeleted != true);
 
-        var fileDtos = allFiles.Select(file => new FileDto
+        var filesDtoQuery = filesQuery.Select(file => new FileDto
         {
             Id = file.Id,
             Name = file.Name,
@@ -23,26 +23,28 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
             UploadDate = file.UploadDate,
             Type = file.Type.ToString() ?? string.Empty,
             Status = file.Status.ToString() ?? string.Empty
-        }).ToList();
+        });
 
-        if (!string.IsNullOrEmpty(request.Search))
-        {
-            fileDtos = fileDtos.Where(f => f.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)).ToList();
-        }
+        filesDtoQuery = filesDtoQuery
+            .Where(f => string.IsNullOrEmpty(request.Search) || f.Name.Contains(request.Search)) 
+            .Where(f => request.Types == null || request.Types.Length == 0 || request.Types.Contains(f.Type))
+            .Where(f => request.Statuses == null || request.Statuses.Length == 0 || request.Statuses.Contains(f.Status));
 
-        if (fileDtos.Count is 0)
+        var filesDto = await _repository.ToListAsync(filesDtoQuery, cancellationToken);
+
+        if (filesDto.Count is 0)
         {
-            return new PaginatedResponse<FileDto>(fileDtos, request.PageNumber, request.PageSize)
+            return new PaginatedResponse<FileDto>(filesDto, request.PageNumber, request.PageSize)
             {
-                Data = fileDtos,
+                Data = filesDto,
                 Message = "No records found.",
                 Succeeded = true
             };
         }
 
-        return new PaginatedResponse<FileDto>(fileDtos, request.PageNumber, request.PageSize)
+        return new PaginatedResponse<FileDto>(filesDto, request.PageNumber, request.PageSize)
         {
-            Data = fileDtos,
+            Data = filesDto,
             Message = "Files retrieved successfully.",
             Succeeded = true
         };

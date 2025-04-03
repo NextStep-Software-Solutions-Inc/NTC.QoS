@@ -20,9 +20,17 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, int pageNumber = 1, string? search = null)
+    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, 
+                                                                            int pageNumber = 1, 
+                                                                            [FromQuery] string[]? types = default, 
+                                                                            [FromQuery] string[]? statuses = default,
+                                                                            string? search = default)
     {
-        var files = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search));
+        var files = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search)
+        {
+            Types = types,
+            Statuses = statuses
+        });
         return files.Succeeded ? Ok(files) : BadRequest(files);
     }
 
