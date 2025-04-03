@@ -6,11 +6,6 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class FileRepository(ApplicationDbContext context) : Repository<Domain.Entities.File>(context), IFileRepository
 {
-    public new async Task<Domain.Entities.File> AddAsync(Domain.Entities.File entity, CancellationToken cancellationToken = default)
-    {
-        await _context.AddAsync(entity, cancellationToken);
-        return entity;
-    }
     public new async Task<Domain.Entities.File?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Domain.Entities.File>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
