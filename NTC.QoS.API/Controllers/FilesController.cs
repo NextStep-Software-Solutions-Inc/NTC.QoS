@@ -27,7 +27,7 @@ public class FilesController(IMediator mediator) : ControllerBase
                                                                             string? search = default)
     {
         var files = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search)
-        {
+        { 
             Types = types,
             Statuses = statuses
         });
