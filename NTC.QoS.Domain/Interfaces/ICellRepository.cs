@@ -4,4 +4,5 @@ namespace NTC.QoS.Domain.Interfaces;
 
 public interface ICellRepository : IRepository<Cell>
 {
+
 }

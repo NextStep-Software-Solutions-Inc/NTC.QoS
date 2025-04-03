@@ -81,7 +81,7 @@ public class UpdateStatusByIdHandler(ICellRepository repository) : IRequestHandl
                 },
                 ServiceProvider = new()
                 {
-                    Id = cell.ServiceProviderId,
+                    Id = cell!.ServiceProviderId,
                     Service = new()
                     {
                         Id = cell.ServiceProvider?.Service?.Id ?? Guid.Empty,
