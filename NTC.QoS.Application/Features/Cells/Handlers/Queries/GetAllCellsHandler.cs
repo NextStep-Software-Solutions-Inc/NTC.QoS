@@ -76,9 +76,9 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                             Description = cell.Zone.Barangay.Municipality.Province.Description,
                             Region = cell.Zone.Barangay.Municipality.Province.Region != null ? new()
                             {
-                                Id = cell.Zone.Barangay.Municipality.Province.Region.Id,
-                                Name = cell.Zone.Barangay.Municipality.Province.Region.Name,
-                                Description = cell.Zone.Barangay.Municipality.Province.Region.Description
+                                Id = cell.Zone.Barangay.Municipality.Province.Region!.Id,
+                                Name = cell.Zone.Barangay.Municipality.Province.Region!.Name,
+                                Description = cell.Zone.Barangay.Municipality.Province.Region!.Description
                             } : null
                         } : null,
                     } : null,
