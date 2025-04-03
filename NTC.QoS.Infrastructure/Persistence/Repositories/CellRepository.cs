@@ -45,4 +45,5 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
         }
         return await query.ToListAsync(cancellationToken);
     }
+
 }

@@ -34,6 +34,22 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         return await query.ToListAsync(cancellationToken);
     }
 
+    public virtual IQueryable<TEntity> Query(Expression<Func<TEntity, bool>>? expression = null)
+    {
+        var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted"));
+
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+
+        return query;
+    }
+
+    public async Task<List<TResult>> ToListAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default)
+    {
+        return await queryable.ToListAsync(cancellationToken);
+    }
 
     public void Add(TEntity entity)
     {

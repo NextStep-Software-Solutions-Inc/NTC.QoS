@@ -1,11 +1,15 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using System.Reflection;
+using NTC.QoS.Domain.Models.DTOs.Zone;
+using System.Linq;
+using System.Linq.Expressions;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
@@ -15,125 +19,72 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
 
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        var allCells = await _repository.ListAsync(c => !c.IsDeleted, cancellationToken);
+        IQueryable<Cell> cellQuery = _repository.Query(c => !c.IsDeleted);
 
         if (!string.IsNullOrEmpty(request.Search))
         {
-            string[] propertiesToSearch = {
-                "Name",
-                "Description",
-                "Group",
-                "Zone.Name",
-                "Zone.Description",
-                "Zone.Barangay.Name",
-                "Zone.Barangay.Municipality.Name",
-                "Zone.Barangay.Municipality.Province.Name",
-                "Zone.Barangay.Municipality.Province.Region.Name"
-                // Add other properties (including FK properties) here
-            };
+            var searchExpression = BuildNullableKeywordSearchExpression<Cell>(
+               request.Search,
+               c => c.Name,
+               c => c.Description,
+               c => c.Group,
+               c => c.Zone!.Name,
+               c => c.Zone!.Barangay!.Name,
+               c => c.Zone!.Barangay!.Municipality!.Name,
+               c => c.Zone!.Barangay!.Municipality!.Province!.Name,
+               c => c.Zone!.Barangay!.Municipality!.Province!.Region!.Name
+           );
+            cellQuery = cellQuery.Where(searchExpression);
 
-            allCells = [.. allCells.Where(cell =>
-                propertiesToSearch.Any(propertyName =>
-                {
-                    object? propertyValue = cell;
-                    string[] propertyParts = propertyName.Split('.');
-
-                    foreach (string part in propertyParts)
-                    {
-                        if (propertyValue is null)
-                        {
-                            return false;
-                        }
-
-                        PropertyInfo? property = propertyValue.GetType().GetProperty(part);
-                        if (property is null)
-                        {
-                            return false;
-                        }
-
-                        propertyValue = property.GetValue(propertyValue);
-                    }
-
-                    if (propertyValue is string stringValue)
-                    {
-                        return stringValue is not null 
-                            && stringValue.Contains(request.Search, StringComparison.OrdinalIgnoreCase);
-                    }
-
-                    return false;
-                })
-            )];
         }
+        cellQuery = cellQuery
+        .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
+        .Where(c => !request.FileId.HasValue || c.FileId == request.FileId)
+        .Where(c => !request.ZoneId.HasValue || c.ZoneId == request.ZoneId)
+        .Where(c => !request.ServiceProviderId.HasValue || c.ServiceProviderId == request.ServiceProviderId)
+        .Where(cell => request.ProviderId == null || cell.ServiceProvider!.ProviderId == request.ProviderId)
+        .Where(cell => request.ServiceId == null || cell.ServiceProvider!.ServiceId == request.ServiceId);
 
-        allCells = [.. allCells
-            .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
-            .Where(c => !request.FileId.HasValue || c.FileId == request.FileId)
-            .Where(c => !request.ZoneId.HasValue || c.ZoneId == request.ZoneId)
-            .Where(c => !request.ServiceProviderId.HasValue || c.ServiceProviderId == request.ServiceProviderId)
-            .Where(cell => request.ServiceId is null || cell.ServiceProvider!.ServiceId == request.ServiceId)
-            .Where(cell => request.ServiceId is null || cell.ServiceProvider!.ServiceId == request.ServiceId)
-        ];
 
-        var cellDtos = allCells.Select(cell => new CellDto
+        var cellDtoQuery = cellQuery.Select(cell => new CellDto
         {
             Id = cell.Id,
             Name = cell.Name,
             Group = cell.Group,
-            File = new()
-            {
-                Id = cell.FileId ?? Guid.Empty,
-                Name = cell.File?.Name ?? string.Empty,
-                Path = cell.File?.Path ?? string.Empty
-            },
+            //File = cell.File != null ? new()
+            //{
+            //    Id = cell.File.Id,
+            //    Name = cell.File.Name,
+            //    Path = cell.File.Path
+            //} : null,
             Description = cell.Description ?? string.Empty,
-            Zone = new()
+            Zone = cell.Zone != null  ? new ZoneDto
             {
-                Id = cell.ZoneId,
-                Name = cell.Zone?.Name ?? string.Empty,
-                Barangay = new()
+                Id = cell.Zone.Id,
+                Name = cell.Zone.Name ?? string.Empty,
+                Barangay = cell.Zone.Barangay != null ? new ()
                 {
-                    Id = cell.Zone?.BarangayId ?? Guid.Empty,
-                    Name = cell.Zone?.Barangay?.Name ?? string.Empty,
-                    Description = cell.Zone?.Barangay?.Description,
-                    Municipality = new()
-                    {
-                        Id = cell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                        IsCity = cell.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                        Name = cell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                        Description = cell.Zone?.Barangay?.Municipality?.Description,
-                        Province = new()
-                        {
-                            Id = cell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                            Name = cell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                            Description = cell.Zone?.Barangay?.Municipality?.Province?.Description,
-                            Region = new()
-                            {
-                                Id = cell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                Name = cell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                Description = cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
-                            }
-                        }
-                    }
-                }
-            },
-            ServiceProvider = new()
+                       Id = cell.Zone.Barangay.Id,
+                       Name = cell.Zone.Barangay.Name,
+                       Description = cell.Zone.Barangay.Description
+                }: null
+            } : null,
+            ServiceProvider = cell.ServiceProvider != null ? new()
             {
                 Id = cell.ServiceProviderId,
-                Service = new()
+                Service = cell.ServiceProvider.Service != null ? new()
                 {
-                    Id = cell.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                    Name = cell.ServiceProvider?.Service?.Name ?? string.Empty,
-                    Type = cell.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
-                },
-                Provider = new()
+                    Id = cell.ServiceProvider.ServiceId,
+                    Name = cell.ServiceProvider.Service.Name ?? string.Empty
+                } : null,
+                Provider = cell.ServiceProvider.Provider != null ? new()
                 {
-                    Id = cell.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                    Name = cell.ServiceProvider?.Provider?.Name ?? string.Empty,
-                    Description = cell.ServiceProvider?.Provider?.Description,
-                    LicenseNumber = cell.ServiceProvider?.Provider?.LicenseNumber,
-                    Color = cell.ServiceProvider?.Provider?.Color ?? string.Empty
-                }
-            },
+                    Id = cell.ServiceProvider.ProviderId,
+                    Name = cell.ServiceProvider.Provider.Name ?? string.Empty,
+                    Color = cell.ServiceProvider.Provider.Color ?? string.Empty
+                } : null,
+            }
+            : null,
             CID = cell.CID,
             LAC = cell.LAC,
             TAC = cell.TAC,
@@ -144,9 +95,12 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             CoorLongitude = cell.CoorLongitude,
             IsVerified = cell.IsVerified,
             Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
-        }).ToList();
+        });
 
-        if (cellDtos.Count is 0)
+
+        var cells = await _repository.ToListAsync(cellDtoQuery, cancellationToken);
+
+        if (cells.Count is 0)
         {
             return new PaginatedResponse<CellDto>(new List<CellDto>(), request.PageNumber, request.PageSize)
             {
@@ -160,11 +114,53 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                 }
             };
         }
-        return new PaginatedResponse<CellDto>(cellDtos, request.PageNumber, request.PageSize)
+        return new PaginatedResponse<CellDto>(cells, request.PageNumber, request.PageSize)
         {
-            Data = cellDtos,
+            Data = cells,
             Message = "Cells retrieved successfully.",
             Succeeded = true
         };
+
     }
+
+    /// <summary>
+    /// Builds a LINQ expression for searching a keyword across multiple nullable string properties of a given type.
+    /// </summary>
+    /// <typeparam name="T">The type of the entity.</typeparam>
+    /// <param name="keyword">The keyword to search for.</param>
+    /// <param name="propertySelectors">An array of expressions that select the nullable string properties to search in.</param>
+    /// <returns>An expression that can be used in a Where clause.</returns>
+    public static Expression<Func<T, bool>> BuildNullableKeywordSearchExpression<T>(string keyword, params Expression<Func<T, string?>>[] propertySelectors)
+    {
+        if (string.IsNullOrEmpty(keyword) || propertySelectors == null || propertySelectors.Length == 0)
+        {
+            return x => true; // Return a predicate that always evaluates to true (no filter).
+        }
+
+        var parameter = Expression.Parameter(typeof(T), "x");
+        Expression? combinedExpression = null;
+
+        foreach (var propertySelector in propertySelectors)
+        {
+            var property = Expression.Invoke(propertySelector, parameter);
+
+            // Check for null before calling Contains to avoid NullReferenceException
+            var nullCheck = Expression.NotEqual(property, Expression.Constant(null, typeof(string)));
+
+            // Get the Contains method info
+            var containsMethod = typeof(string).GetMethod("Contains", new[] { typeof(string) }) ?? throw new InvalidOperationException("The 'Contains' method was not found on type 'string'.");
+
+            // Create the Contains expression.
+            var containsExpression = Expression.Call(property, containsMethod, Expression.Constant(keyword));
+
+            // Combine null check and contains with AND.
+            var safeContains = Expression.AndAlso(nullCheck, containsExpression);
+
+            // Combine the current property's expression with the overall expression using OR.
+            combinedExpression = combinedExpression == null ? safeContains : Expression.OrElse(combinedExpression, safeContains);
+        }
+
+        return Expression.Lambda<Func<T, bool>>(combinedExpression ?? Expression.Constant(true), parameter);
+    }
+
 }
