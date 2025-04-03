@@ -150,9 +150,13 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             // Get the Contains method info
             var containsMethod = typeof(string).GetMethod("Contains", new[] { typeof(string) }) ?? throw new InvalidOperationException("The 'Contains' method was not found on type 'string'.");
 
-            // Create the Contains expression.
-            var containsExpression = Expression.Call(property, containsMethod, Expression.Constant(keyword));
+            // Convert property value and keyword to lower case for case-insensitive search
+            var toLowerMethod = typeof(string).GetMethod("ToLower", Type.EmptyTypes) ?? throw new InvalidOperationException("The 'ToLower' method was not found on type 'string'.");
+            var lowerProperty = Expression.Call(property, toLowerMethod);
+            var lowerKeyword = keyword.ToLower();
 
+            // Create the Contains expression.
+            var containsExpression = Expression.Call(lowerProperty, containsMethod, Expression.Constant(lowerKeyword));
             // Combine null check and contains with AND.
             var safeContains = Expression.AndAlso(nullCheck, containsExpression);
 
