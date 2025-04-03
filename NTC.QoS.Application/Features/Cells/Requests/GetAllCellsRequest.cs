@@ -4,16 +4,23 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Requests;
 
-public class GetAllCellsRequest : IRequest<PaginatedResponse<CellDto>>
+public class GetAllCellsRequest(int pageNumber,
+                                int pageSize,
+                                string? search,
+                                string? status,
+                                List<Guid?>? fileIds,
+                                List<Guid>? zoneIds,
+                                List<Guid>? serviceProviderIds,
+                                List<Guid>? providerIds,
+                                List<Guid>? serviceIds) : IRequest<PaginatedResponse<CellDto>>
 {
-    public GetAllCellsRequest(int pageNumber, int pageSize, string? search)
-    {
-        PageNumber = pageNumber;
-        PageSize = pageSize;
-        Search = search;
-    }
-
-    public int PageNumber { get; set; }
-    public int PageSize { get; set; }
-    public string? Search { get; set; }
+    public int PageNumber { get; set; } = pageNumber;
+    public int PageSize { get; set; } = pageSize;
+    public string? Search { get; set; } = search;
+    public string? Status { get; set; } = status;
+    public List<Guid?>? FileIds { get; set; } = fileIds;
+    public List<Guid>? ZoneIds { get; set; } = zoneIds;
+    public List<Guid>? ServiceProviderIds { get; set; } = serviceProviderIds;
+    public List<Guid>? ProviderIds { get; set; } = providerIds;
+    public List<Guid>? ServiceIds { get; set; } = serviceIds;
 }

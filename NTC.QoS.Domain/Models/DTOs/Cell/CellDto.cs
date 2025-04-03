@@ -1,5 +1,4 @@
-﻿using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Models.DTOs.File;
+﻿using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
@@ -11,12 +10,9 @@ public class CellDto
     public string Name { get; set; } = string.Empty;
     public string Group { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public Guid? FileId { get; set; }
-    public virtual FileDto File { get; set; } = new();
-    public Guid ServiceProviderId { get; set; }
-    public virtual ServiceProviderDto ServiceProvider { get; set; } = new();
-    public Guid ZoneId { get; set; }
-    public virtual ZoneDto Zone { get; set; } = new();
+    public FileDto? File { get; set; }
+    public ServiceProviderDto? ServiceProvider { get; set; }
+    public ZoneDto? Zone { get; set; }
     public string CID { get; set; } = string.Empty;
     public string? LAC { get; set; }
     public string TAC { get; set; } = string.Empty;

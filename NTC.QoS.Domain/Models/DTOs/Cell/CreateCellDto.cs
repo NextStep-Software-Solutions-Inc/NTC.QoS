@@ -16,4 +16,5 @@ public class CreateCellDto
     public float Elevation { get; set; }
     public string CoorLatitude { get; set; } = string.Empty;
     public string CoorLongitude { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
 }
