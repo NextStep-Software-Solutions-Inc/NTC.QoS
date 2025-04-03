@@ -170,6 +170,10 @@ public class CreateNAPHandler(
                     Id = NAP.FileId ?? Guid.Empty,
                     Name = NAP.File?.Name ?? string.Empty,
                     Path = NAP.File?.Path ?? string.Empty,
+                    UploadedBy = NAP.File?.UploadedBy ?? string.Empty,
+                    UploadDate = NAP.File?.UploadDate ?? DateTime.MinValue,
+                    Type = NAP.File?.Type.ToString() ?? string.Empty,
+                    Status = NAP.File?.Status.ToString() ?? string.Empty
                 },
                 CoorLatitude = NAP.CoorLatitude,
                 CoorLongitude = NAP.CoorLongitude,

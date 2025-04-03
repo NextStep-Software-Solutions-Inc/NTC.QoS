@@ -29,7 +29,7 @@ public class GetAllStudiesHandler(IStudyRepository studyRepository) : IRequestHa
         }).ToList();
 
         allStudies = [.. allStudies
-                .Where(s => !request.AreaStudyId.HasValue || s.AreaStudy.Id == request.AreaStudyId.Value)];
+                .Where(s => !request.AreaStudyId.HasValue || s.AreaStudy!.Id == request.AreaStudyId.Value)];
         
 
         if (allStudies.Count is 0)
