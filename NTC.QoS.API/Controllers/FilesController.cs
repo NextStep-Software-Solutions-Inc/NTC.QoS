@@ -3,45 +3,38 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
+
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("files", Name = "files")]
-public class FilesController : ControllerBase
+public class FilesController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
-    public FilesController(IMediator mediator)
-    {
-        _mediator = mediator;
-    }
+    private readonly IMediator _mediator = mediator;
+
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<FileDto>>> CreateFile(CreateFileDto createFile)
+    public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile( [FromForm] UploadFileDto uploadFile)
     {
-        var result = await _mediator.Send(new CreateFileRequest
-        {
-            Name = createFile.Name,
-            Path = createFile.Path,
-            Type = createFile.Type
-        });
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        var file = await _mediator.Send(new UploadFileRequest(uploadFile));
+        return file.Succeeded ? Ok(file) : BadRequest(file);
     }
+
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<Domain.Entities.File>>> GetAllFiles(int pageSize = 10, int pageNumber = 1, string? search = null)
+    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, int pageNumber = 1, string? search = null)
     {
-        var result = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search));
-        return Ok(result);
+        var files = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search));
+        return files.Succeeded ? Ok(files) : BadRequest(files);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<FileDto>>> GetFileById(Guid id)
     {
-        Guid fileId = id;
-        var request = new GetFileByIdRequest(fileId);
-        var files = await _mediator.Send(request);
-        return files.Succeeded ? Ok(files) : BadRequest(files);
+        var file = await _mediator.Send(new GetFileByIdRequest(id));
+        return file.Succeeded ? Ok(file) : BadRequest(file);
     }
+
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.File>>>
-        UpdateFileById(Guid id, UpdateFileDto updateFile)
+    public async Task<ActionResult<ApiResponse<FileDto>>> UpdateFileById(Guid id, UpdateFileDto updateFile)
     {
         var file = await _mediator.Send(new UpdateFileByIdRequest(id, new UpdateFileDto
         {
@@ -49,11 +42,11 @@ public class FilesController : ControllerBase
         }));
         return file.Succeeded ? Ok(file) : BadRequest(file);
     }
+
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>>
-        DeleteFileById(Guid id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteFileById(Guid id)
     {
-        var result = await _mediator.Send(new DeleteFileByIdRequest(id));
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        var file = await _mediator.Send(new DeleteFileByIdRequest(id));
+        return file.Succeeded ? Ok(file) : BadRequest(file);
     }
 }
