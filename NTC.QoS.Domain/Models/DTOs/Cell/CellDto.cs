@@ -13,8 +13,8 @@ public class CellDto
     public FileDto? File { get; set; }
     public ServiceProviderDto? ServiceProvider { get; set; }
     public ZoneDto? Zone { get; set; }
-    public string CID { get; set; } = string.Empty;
-    public string? LAC { get; set; }
+    public required string CID { get; set; }
+    public required string? LAC { get; set; }
     public string TAC { get; set; } = string.Empty;
     public string SiteId { get; set; } = string.Empty;
     public string TowerType { get; set; } = string.Empty;
