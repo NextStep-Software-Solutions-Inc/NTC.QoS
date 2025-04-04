@@ -7,7 +7,7 @@ namespace NTC.QoS.Domain.Models.DTOs.Cell;
 public class CellDto
 {
     public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; set; }
     public string Group { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public FileDto? File { get; set; }
@@ -19,8 +19,8 @@ public class CellDto
     public string SiteId { get; set; } = string.Empty;
     public string TowerType { get; set; } = string.Empty;
     public float Elevation { get; set; }
-    public string CoorLatitude { get; set; } = string.Empty;
-    public string CoorLongitude { get; set; } = string.Empty;
+    public required string CoorLatitude { get; set; }
+    public required string CoorLongitude { get; set; }
     public bool IsVerified { get; set; }
     public string Status { get; set; } = string.Empty;
 }

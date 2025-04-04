@@ -109,6 +109,7 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             LAC = cell.LAC,
             TAC = cell.TAC,
             CoorLongitude = cell.CoorLongitude,
+            CoorLatitude = cell.CoorLatitude,
             IsVerified = cell.IsVerified,
             Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
         });
