@@ -5,6 +5,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
@@ -13,82 +14,67 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
     private readonly ICellRepository _cellRepository = cellRepository;
     public async Task<ApiResponse<CellDto>> Handle(GetCellByIdRequest request, CancellationToken cancellationToken)
     {
-        var cell = await _cellRepository.GetByIdAsync(request.Id, cancellationToken);
-        if (cell == null)
-        {
-            return new ApiResponse<CellDto>
-            {
-                Data = null,
-                Message = "Cell not found",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullCell", ["Cell not found."]
-                    }
-                }
-            };
-        }
+        var cellQuery = _cellRepository.Query(c => c.Id.Equals(request.Id));
 
-        var cellDto = new CellDto
+        var cellDtoQuery = cellQuery.Select(cell => new CellDto
         {
             Id = cell.Id,
             Name = cell.Name,
             Group = cell.Group,
-            File = new()
+            Description = cell.Description,
+            File = cell.File != null ? new()
             {
-                Id = cell.FileId ?? Guid.Empty,
-                Name = cell.File?.Name ?? string.Empty,
-                Path = cell.File?.Path ?? string.Empty
-            },
-            Description = cell.Description ?? string.Empty,
-            Zone = new()
+                Id = cell.File.Id,
+                Name = cell.File.Name,
+                Path = cell.File.Path
+            } : null,
+            Zone = cell.Zone != null ? new()
             {
-                Id = cell.ZoneId,
-                Name = cell.Zone?.Name ?? string.Empty,
-                Barangay = new()
+                Id = cell.Zone.Id,
+                Name = cell.Zone.Name,
+                Barangay = cell.Zone.Barangay != null ? new()
                 {
-                    Id = cell.Zone?.BarangayId ?? Guid.Empty,
-                    Name = cell.Zone?.Barangay?.Name ?? string.Empty,
-                    Description = cell.Zone?.Barangay?.Description,
-                    Municipality = new()
+                    Id = cell.Zone.Barangay.Id,
+                    Name = cell.Zone.Barangay.Name,
+                    Description = cell.Zone.Barangay.Description,
+                    Municipality = cell.Zone.Barangay.Municipality != null ? new()
                     {
-                        Id = cell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                        IsCity = cell.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                        Name = cell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                        Description = cell.Zone?.Barangay?.Municipality?.Description,
-                        Province = new()
+                        Id = cell.Zone.Barangay.Municipality.Id,
+                        IsCity = cell.Zone.Barangay.Municipality.IsCity,
+                        Name = cell.Zone.Barangay.Municipality.Name,
+                        Description = cell.Zone.Barangay.Municipality.Description,
+                        Province = cell.Zone.Barangay.Municipality.Province != null ? new ()
                         {
-                            Id = cell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                            Name = cell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                            Description = cell.Zone?.Barangay?.Municipality?.Province?.Description,
-                            Region = new()
+                            Id = cell.Zone.Barangay.Municipality.Province.Id,
+                            Name = cell.Zone.Barangay.Municipality.Province.Name,
+                            Description = cell.Zone.Barangay.Municipality.Province.Description,
+                            Region = cell.Zone.Barangay.Municipality.Province.Region != null ? new RegionDto()
                             {
-                                Id = cell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                Name = cell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                Description = cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
-                            }
-                        }
-                    }
-                }
-            },
-            ServiceProvider = cell is not null ? new()
+                                Id = cell.Zone.Barangay.Municipality.Province.Region!.Id,
+                                Name = cell.Zone.Barangay.Municipality.Province.Region!.Name,
+                                Description = cell.Zone.Barangay.Municipality.Province.Region!.Description
+                            } : null
+                        } : null
+                    } : null
+                } : null
+            } : null,
+            ServiceProvider = cell.ServiceProvider != null ? new()
             {
-                Id = cell.ServiceProviderId,
-                Service = new()
+                Id = cell.ServiceProvider.Id,
+                Service = cell.ServiceProvider.Service != null ? new()
                 {
-                    Id = cell.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                    Name = cell.ServiceProvider?.Service?.Name ?? string.Empty,
-                    Type = cell.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
-                },
-                Provider = new()
+                    Id = cell.ServiceProvider.Service.Id,
+                    Name = cell.ServiceProvider.Service.Name,
+                    Type = EnumHelper<ServiceTypeEnum>.GetName(cell.ServiceProvider.Service.Type),
+                } : null,
+                Provider = cell.ServiceProvider.Provider != null ? new()
                 {
-                    Id = cell.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                    Name = cell.ServiceProvider?.Provider?.Name ?? string.Empty,
-                    Description = cell.ServiceProvider?.Provider?.Description,
-                    LicenseNumber = cell.ServiceProvider?.Provider?.LicenseNumber,
-                    Color = cell.ServiceProvider?.Provider?.Color ?? string.Empty
-                }
+                    Id = cell.ServiceProvider.Provider.Id,
+                    Name = cell.ServiceProvider.Provider.Name,
+                    Description = cell.ServiceProvider.Provider.Description,
+                    LicenseNumber = cell.ServiceProvider.Provider.LicenseNumber,
+                    Color = cell.ServiceProvider.Provider.Color
+                } : null
             } : null,
             CID = cell!.CID,
             LAC = cell.LAC,
@@ -100,10 +86,13 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
             CoorLongitude = cell.CoorLongitude,
             IsVerified = cell.IsVerified,
             Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
-        };
+        });
+
+        var cell = await _cellRepository.FirstOrDefaultAsync(cellDtoQuery, cancellationToken);
+
         return new ApiResponse<CellDto>
         {
-            Data = cellDto,
+            Data = cell,
             Succeeded = true,
             Message = "Cell retrieved successfully."
         };

@@ -9,7 +9,7 @@ public class CellDto
     public Guid Id { get; set; }
     public required string Name { get; set; }
     public string Group { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public FileDto? File { get; set; }
     public ServiceProviderDto? ServiceProvider { get; set; }
     public ZoneDto? Zone { get; set; }

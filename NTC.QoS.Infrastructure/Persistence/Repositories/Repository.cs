@@ -84,6 +84,12 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         }
     }
 
+  
 
+    public async Task<TResult?> FirstOrDefaultAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(queryable);
 
+        return await queryable.FirstOrDefaultAsync(cancellationToken);
+    }
 }

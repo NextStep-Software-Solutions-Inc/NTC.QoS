@@ -1,14 +1,10 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.NAP.Requests;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.NAP;
-using NTC.QoS.Domain.Models.DTOs.Zone;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.NAP.Handlers.Queries;
 
@@ -18,86 +14,80 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
 
     public async Task<ApiResponse<NAPDto>> Handle(GetNAPByIdRequest request, CancellationToken cancellationToken)
     {
-        var NAP = await _NAPRepository.GetByIdAsync(request.Id, cancellationToken);
+        var NAPQuery = _NAPRepository.Query(n => n.Id.Equals(request.Id));
 
-        if (NAP is null)
+        var NAPDtoQuery = NAPQuery.Select(NAP => new NAPDto()
         {
-            return new ApiResponse<NAPDto>
+            Id = NAP.Id,
+            File = NAP.File != null ? new()
             {
-                Succeeded = false,
-                Message = "NAP not found.",
-                Errors = new Dictionary<string, string[]>
+                Id = NAP.File.Id,
+                Name = NAP.File.Name,
+                Path = NAP.File.Path,
+            }: null,
+            ServiceProvider = NAP.ServiceProvider != null ? new()
+            {
+                Id = NAP.ServiceProvider.Id,
+                Service = NAP.ServiceProvider.Service != null ? new()
                 {
+                    Id = NAP.ServiceProvider.Service.Id,
+                    Name = NAP.ServiceProvider.Service.Name,
+                    Type = EnumHelper<ServiceTypeEnum>.GetName(NAP.ServiceProvider.Service.Type)
+                }: null,
+                Provider = NAP.ServiceProvider.Provider != null ? new()
+                {
+                    Id = NAP.ServiceProvider.Provider.Id,
+                    Name = NAP.ServiceProvider.Provider.Name,
+                    Color = NAP.ServiceProvider.Provider.Color
+                }: null
+            }: null,
+            Zone = NAP.Zone != null ? new()
+            {
+                Id = NAP.Zone.Id,
+                Name = NAP.Zone.Name,
+                Barangay = NAP.Zone.Barangay != null ? new()
+                {
+                    Id = NAP.Zone.Barangay.Id,
+                    Name = NAP.Zone.Barangay.Name,
+                    Description = NAP.Zone.Barangay.Description,
+                    Municipality = NAP.Zone.Barangay.Municipality != null ? new()
                     {
-                        "Id", ["NAP with the specified Id does not exist."]
-                    }
-                }
-            };
+                        Id = NAP.Zone.Barangay.Municipality.Id,
+                        IsCity = NAP.Zone.Barangay.Municipality.IsCity,
+                        Name = NAP.Zone.Barangay.Municipality.Name,
+                        Description = NAP.Zone.Barangay.Municipality.Description,
+                        Province = NAP.Zone.Barangay.Municipality.Province != null ? new()
+                        {
+                            Id = NAP.Zone.Barangay.Municipality.Province.Id,
+                            Name = NAP.Zone.Barangay.Municipality.Province.Name,
+                            Description = NAP.Zone.Barangay.Municipality.Province.Description,
+                            Region = NAP.Zone.Barangay.Municipality.Province.Region != null ? new ()
+                            {
+                                Id = NAP.Zone.Barangay.Municipality.Province.Region!.Id,
+                                Name = NAP.Zone.Barangay.Municipality.Province.Region!.Name,
+                                Description = NAP.Zone.Barangay.Municipality.Province.Region!.Description
+                            } : null
+                        } : null
+                    } : null
+                } : null
+            } : null,
+            CoorLatitude = NAP.CoorLatitude ?? string.Empty,
+            CoorLongitude = NAP.CoorLongitude ?? string.Empty,
+        });
+
+        var NAP = await _NAPRepository.FirstOrDefaultAsync(NAPDtoQuery, cancellationToken);
+
+        if(NAP is null)
+        {
+            return new ApiResponse<NAPDto>("NAP not found");
         }
 
         return new ApiResponse<NAPDto>
         {
             Succeeded = true,
             Message = "NAP details retrieved successfully.",
-            Data = new ()
-            {
-                Id = NAP.Id,
-                File = new ()
-                {
-                    Id = NAP.FileId ?? Guid.Empty,
-                    Name = NAP.File?.Name ?? string.Empty,
-                    Path = NAP.File?.Path ?? string.Empty,
-                },
-                ServiceProvider = new ()
-                {
-                    Id = NAP.ServiceProviderId,
-                    Service = new ()
-                    {
-                        Id = NAP.ServiceProvider?.ServiceId ?? Guid.Empty,
-                        Name = NAP.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = NAP.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
-                    },
-                    Provider = new ()
-                    {
-                        Id = NAP.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = NAP.ServiceProvider?.Provider?.Name ?? string.Empty,
-                        Color = NAP.ServiceProvider?.Provider?.Color ?? string.Empty
-                    }
-                },
-                Zone = new ()
-                {
-                    Id = NAP.ZoneId ?? Guid.Empty,
-                    Name = NAP.Zone?.Name ?? string.Empty,
-                    Barangay = new ()
-                    {
-                        Id = NAP.Zone?.BarangayId ?? Guid.Empty,
-                        Name = NAP.Zone?.Barangay?.Name ?? string.Empty,
-                        Description = NAP.Zone?.Barangay?.Description,
-                        Municipality = new ()
-                        {
-                            Id = NAP.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                            Name = NAP.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                            Description = NAP.Zone?.Barangay?.Description,
-                            IsCity = NAP.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                            Province = new ()
-                            {
-                                Id = NAP.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                                Name = NAP.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                                Description = NAP.Zone?.Barangay?.Municipality?.Province?.Description,
-                                Region = new ()
-                                {
-                                    Id = NAP.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                    Name = NAP.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                    Description = NAP.Zone?.Barangay?.Municipality?.Province?.Region?.Description
-                                }
-                            }
+            Data = NAP
 
-                        }
-                    },
-                },
-                CoorLatitude = NAP.CoorLatitude ?? string.Empty,
-                CoorLongitude = NAP.CoorLongitude ?? string.Empty,
-            }
         };
     }
 }
