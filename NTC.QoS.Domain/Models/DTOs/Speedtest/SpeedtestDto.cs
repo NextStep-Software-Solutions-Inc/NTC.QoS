@@ -1,5 +1,9 @@
 ﻿using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
+using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.File;
+using NTC.QoS.Domain.Models.DTOs.Generation;
+using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 using System.Text.Json.Serialization;
 
 namespace NTC.QoS.Domain.Models.DTOs.Speedtest;
@@ -7,10 +11,10 @@ namespace NTC.QoS.Domain.Models.DTOs.Speedtest;
 public class SpeedtestDto
 {
     public Guid Id { get; set; }
-    public BarangaySpeedtestDto? Barangay { get; set; }
-    public ServiceProviderSpeedtestDto? ServiceProvider { get; set; }
-    public GenerationSpeedtestDto? Generation { get; set; }
-    public CellSpeedtestDto? Cell { get; set; }
+    public BarangayDto? Barangay { get; set; }
+    public ServiceProviderDto? ServiceProvider { get; set; }
+    public GenerationDto? Generation { get; set; }
+    public CellDto? Cell { get; set; }
     public FileDto? File { get; set; }
     public DateTime DateTime { get; set; }
     public decimal Ping { get; set; }

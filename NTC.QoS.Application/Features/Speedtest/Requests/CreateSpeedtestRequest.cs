@@ -4,11 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 namespace NTC.QoS.Application.Features.Speedtest.Requests;
 
-public class CreateSpeedtestRequest : IRequest<ApiResponse<CreateSpeedtestDto>>
+public class CreateSpeedtestRequest(CreateSpeedtestDto speedtest) : IRequest<ApiResponse<SpeedtestDto>>
 {
-    public CreateSpeedtestRequest(CreateSpeedtestDto speedtest)
-    {
-        Speedtest = speedtest;
-    }
-    public CreateSpeedtestDto Speedtest { get; set; }
+    public CreateSpeedtestDto Speedtest { get; set; } = speedtest;
 }

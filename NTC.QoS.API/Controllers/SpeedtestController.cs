@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
@@ -17,29 +18,33 @@ public class SpeedtestsController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<SpeedtestDto>>> Post(CreateSpeedtestDto speedtestDto)
+    {
+        var speedtest = await _mediator.Send(new CreateSpeedtestRequest(speedtestDto));
+
+        return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(
-        int pageSize = 10,
-        int pageNumber = 1,
-        Guid? barangayId = null, 
-        Guid? serviceProviderId = null,
-        Guid? generationId = null,
-        Guid? cellId = null,
-        Guid? fileId = null)
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] List<Guid>? fileIds = null,
+        [FromQuery] List<Guid>? serviceProviderIds = null,
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? cellIds = null,
+        [FromQuery] List<Guid>? generationIds = null,
+        [FromQuery] List<Guid>? providerIds = null,
+        [FromQuery] List<Guid>? serviceIds = null)
     {
-        var result = await _mediator.Send(new GetAllSpeedtestsRequest
-        {
-            PageNumber = pageNumber,
-            PageSize = pageSize,
-            BarangayId = barangayId,
-            ServiceProviderId = serviceProviderId,
-            GenerationId = generationId,
-            CellId = cellId,
-            FileId = fileId
-        });
-
-        return Ok(result);
+        var request = new GetAllSpeedtestsRequest(pageNumber, pageSize, search, status, fileIds, serviceProviderIds, barangayIds, cellIds, generationIds, providerIds, serviceIds);
+        var speedtests = await _mediator.Send(request);
+        return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
@@ -56,12 +61,4 @@ public class SpeedtestsController : ControllerBase
 
         return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
     }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<SpeedtestDto>>> Post(CreateSpeedtestDto speedtestDto)
-    {
-        var speedtest = await _mediator.Send(new CreateSpeedtestRequest(speedtestDto));
-
-        return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
-    }
-
 }
