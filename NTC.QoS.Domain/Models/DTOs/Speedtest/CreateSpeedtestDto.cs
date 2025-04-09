@@ -4,7 +4,6 @@ namespace NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 public class CreateSpeedtestDto
 {
-    public Guid Id { get; set; }
     public Guid BarangayId { get; set; }
     public Guid ServiceProviderId { get; set; }
     public Guid GenerationId { get; set; }

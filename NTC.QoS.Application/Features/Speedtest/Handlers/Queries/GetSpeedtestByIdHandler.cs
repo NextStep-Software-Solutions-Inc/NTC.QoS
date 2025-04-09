@@ -3,22 +3,12 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
-using NTC.QoS.Domain.Models.DTOs.Generation;
-using NTC.QoS.Domain.Models.DTOs.Cell;
-using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
-public class GetSpeedtestByIdHandler : IRequestHandler<GetSpeedtestByIdRequest, ApiResponse<SpeedtestDto>>
+public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) : IRequestHandler<GetSpeedtestByIdRequest, ApiResponse<SpeedtestDto>>
 {
-    private readonly ISpeedtestRepository _speedtestRepository;
-
-    public GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository)
-    {
-        _speedtestRepository = speedtestRepository;
-    }
+    private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(GetSpeedtestByIdRequest request, CancellationToken cancellationToken)
     {
@@ -43,42 +33,125 @@ public class GetSpeedtestByIdHandler : IRequestHandler<GetSpeedtestByIdRequest, 
             Data = new SpeedtestDto()
             {
                 Id = speedtest.Id,
-                Barangay = new BarangaySpeedtestDto
+                Barangay = new()
                 {
                     Id = speedtest.BarangayId,
-                    Name = speedtest.Barangay?.Name ?? "Unknown"
-                },
-                ServiceProvider = new ServiceProviderSpeedtestDto
-                {
-                    Id = speedtest.ServiceProviderId,
-                    Provider = new ProviderSpeedtestDto
+                    Name = speedtest.Barangay?.Name ?? string.Empty,
+                    Description = speedtest.Barangay?.Description,
+                    Municipality = new()
                     {
-                        Id = speedtest.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = speedtest.ServiceProvider?.Provider?.Name ?? "Unknown",
-                    },
-                    Service = new ServiceSpeedtestDto
-                    {
-                        Id = speedtest.ServiceProvider?.ServiceId ?? Guid.Empty,
-                        Name = speedtest.ServiceProvider?.Service?.Name ?? "Unknown",
+                        Id = speedtest.Barangay?.MunicipalityId ?? Guid.Empty,
+                        Name = speedtest.Barangay?.Municipality?.Name ?? string.Empty,
+                        Description = speedtest.Barangay?.Municipality?.Description,
+                        IsCity = speedtest.Barangay?.Municipality?.IsCity ?? false,
+                        Province = new()
+                        {
+                            Id = speedtest.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                            Name = speedtest.Barangay?.Municipality?.Province?.Name ?? string.Empty,
+                            Description = speedtest.Barangay?.Municipality?.Province?.Description,
+                            Region = new()
+                            {
+                                Id = speedtest.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
+                                Name = speedtest.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
+                                Description = speedtest.Barangay?.Municipality?.Province?.Region?.Description
+                            }
+                        }
                     }
                 },
-                Generation = new GenerationSpeedtestDto
+                ServiceProvider = new()
+                {
+                    Id = speedtest!.ServiceProviderId,
+                    Service = new()
+                    {
+                        Id = speedtest.ServiceProvider?.Service?.Id ?? Guid.Empty,
+                        Name = speedtest.ServiceProvider?.Service?.Name ?? string.Empty,
+                        Type = speedtest.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                    },
+                    Provider = new()
+                    {
+                        Id = speedtest.ServiceProvider?.Provider?.Id ?? Guid.Empty,
+                        Name = speedtest.ServiceProvider?.Provider?.Name ?? string.Empty,
+                        Description = speedtest.ServiceProvider?.Provider?.Description,
+                        LicenseNumber = speedtest.ServiceProvider?.Provider?.LicenseNumber,
+                        Color = speedtest.ServiceProvider?.Provider?.Color ?? string.Empty
+                    }
+                },
+                Generation = new()
                 {
                     Id = speedtest.GenerationId,
-                    Name = speedtest.Generation?.Name ?? "Unknown",
-                    Description = speedtest.Generation?.Description ?? "Unknown"
+                    Name = speedtest.Generation?.Name ?? string.Empty,
+                    Description = speedtest.Generation?.Description,
                 },
-                Cell = new CellSpeedtestDto
+                Cell = new()
                 {
                     Id = speedtest.CellId,
-                    Name = speedtest.Cell?.Name ?? "Unknown",
-                    Group = speedtest.Cell?.Group ?? "Unknown"
-                },
-                File = new FileDto
-                {
-                    Id = speedtest.FileId,
-                    Name = speedtest.File?.Name ?? "Unknown",
-                    Path = speedtest.File?.Path ?? "Unknown",
+                    Name = speedtest.Cell?.Name ?? string.Empty,
+                    Group = speedtest.Cell?.Group ?? string.Empty,
+                    File = new()
+                    {
+                        Id = speedtest.Cell?.FileId ?? Guid.Empty,
+                        Name = speedtest.Cell?.File?.Name ?? string.Empty,
+                        Path = speedtest.Cell?.File?.Path ?? string.Empty
+                    },
+                    Description = speedtest.Cell?.Description ?? string.Empty,
+                    Zone = new()
+                    {
+                        Id = speedtest.Cell?.ZoneId ?? Guid.Empty,
+                        Name = speedtest.Cell?.Zone?.Name ?? string.Empty,
+                        Barangay = new()
+                        {
+                            Id = speedtest.Cell?.Zone?.BarangayId ?? Guid.Empty,
+                            Name = speedtest.Cell?.Zone?.Barangay?.Name ?? string.Empty,
+                            Description = speedtest.Cell?.Zone?.Barangay?.Description,
+                            Municipality = new()
+                            {
+                                Id = speedtest.Cell?.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
+                                IsCity = speedtest.Cell?.Zone?.Barangay?.Municipality?.IsCity ?? false,
+                                Name = speedtest.Cell?.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
+                                Description = speedtest.Cell?.Zone?.Barangay?.Municipality?.Description,
+                                Province = new()
+                                {
+                                    Id = speedtest.Cell?.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
+                                    Name = speedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
+                                    Description = speedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Description,
+                                    Region = new()
+                                    {
+                                        Id = speedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
+                                        Name = speedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
+                                        Description = speedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    ServiceProvider = new()
+                    {
+                        Id = speedtest!.ServiceProviderId,
+                        Service = new()
+                        {
+                            Id = speedtest.ServiceProvider?.Service?.Id ?? Guid.Empty,
+                            Name = speedtest.ServiceProvider?.Service?.Name ?? string.Empty,
+                            Type = speedtest.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                        },
+                        Provider = new()
+                        {
+                            Id = speedtest.ServiceProvider?.Provider?.Id ?? Guid.Empty,
+                            Name = speedtest.ServiceProvider?.Provider?.Name ?? string.Empty,
+                            Description = speedtest.ServiceProvider?.Provider?.Description,
+                            LicenseNumber = speedtest.ServiceProvider?.Provider?.LicenseNumber,
+                            Color = speedtest.ServiceProvider?.Provider?.Color ?? string.Empty
+                        }
+                    },
+                    CID = speedtest.Cell?.CID ?? string.Empty,
+                    LAC = speedtest.Cell?.LAC,
+                    TAC = speedtest.Cell?.TAC ?? string.Empty,
+                    SiteId = speedtest.Cell?.SiteId ?? string.Empty,
+                    TowerType = speedtest.Cell?.TowerType ?? string.Empty,
+                    Elevation = speedtest.Cell?.Elevation ?? 0,
+                    CoorLatitude = speedtest.Cell?.CoorLatitude ?? string.Empty,
+                    CoorLongitude = speedtest.CoorLongitude ?? string.Empty,
+                    IsVerified = speedtest.Cell?.IsVerified ?? false,
+                    Status = speedtest.Cell?.Status.ToString() ?? string.Empty,
                 },
                 DateTime = speedtest.DateTime,
                 Ping = speedtest.Ping,
@@ -87,7 +160,7 @@ public class GetSpeedtestByIdHandler : IRequestHandler<GetSpeedtestByIdRequest, 
                 UploadSpeed = speedtest.UploadSpeed,
                 DownloadSpeed = speedtest.DownloadSpeed,
                 CoorLatitude = speedtest.CoorLatitude,
-                CoorLongitude = speedtest.CoorLongitude,
+                CoorLongitude = speedtest.CoorLongitude ?? string.Empty,
                 PhoneModel = speedtest.PhoneModel,
                 MCC = speedtest.MCC,
                 MNC = speedtest.MNC,
