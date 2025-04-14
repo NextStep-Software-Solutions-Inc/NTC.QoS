@@ -20,9 +20,12 @@ public class ServicesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? providerIds = null)
+    public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10, 
+                                                                                  int pageNumber = 1, 
+                                                                                  [FromQuery] List<Guid>? providerIds = null,
+                                                                                  [FromQuery] string? type = null)
     {
-        var services = await _mediator.Send(new GetAllServicesRequest(pageSize, pageNumber, providerIds));
+        var services = await _mediator.Send(new GetAllServicesRequest(pageSize, pageNumber, providerIds, type));
         return services.Succeeded ? Ok(services) : BadRequest(services);
     }
 
