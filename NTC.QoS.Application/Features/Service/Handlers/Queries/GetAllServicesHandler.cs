@@ -23,8 +23,18 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
                         .Where(s => s.ServiceProviders.Any(sp => sp.Provider is not null && request.ProviderIds.Contains(sp.Provider.Id))).ToList();
         }
 
-        allServices = allServices
-            .Where(s => string.IsNullOrEmpty(request.Type) || s.Type == EnumHelper<ServiceTypeEnum>.ParseUserInput(request.Type)).ToList();
+        if (request.Types is not null && request.Types.Count > 0)
+        {
+            var validTypes = request.Types
+                .Select(type => EnumHelper<ServiceTypeEnum>.ParseUserInput(type))
+                .Where(parsedType => parsedType != ServiceTypeEnum.Unknown)
+                .ToList();
+
+            if (validTypes.Count != 0)
+            {
+                allServices = allServices.Where(s => validTypes.Contains(s.Type)).ToList();
+            }
+        }
 
         var serviceDtos = allServices.Select(service => new ServiceDto
         {
