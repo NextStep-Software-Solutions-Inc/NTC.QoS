@@ -23,6 +23,9 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
                         .Where(s => s.ServiceProviders.Any(sp => sp.Provider is not null && request.ProviderIds.Contains(sp.Provider.Id))).ToList();
         }
 
+        allServices = allServices
+            .Where(s => string.IsNullOrEmpty(request.Type) || s.Type == EnumHelper<ServiceTypeEnum>.ParseUserInput(request.Type)).ToList();
+
         var serviceDtos = allServices.Select(service => new ServiceDto
         {
             Id = service.Id,
