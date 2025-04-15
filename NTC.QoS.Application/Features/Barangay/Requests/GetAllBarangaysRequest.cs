@@ -15,4 +15,7 @@ public class GetAllBarangaysRequest : IRequest<PaginatedResponse<BarangayDto>>
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
     public Guid? MunicipalityId { get; set; }
+    public string? Name { get; set; }
+    public string? Municipality{ get; set; }
+    public string? Province { get; set; }
 }

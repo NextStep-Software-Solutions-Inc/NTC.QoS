@@ -20,6 +20,12 @@ public class GetAllProvidersHandler(IProviderRepository repository) : IRequestHa
                         .Where(p => p.ServiceProviders.Any(sp => sp.Service is not null && request.ServiceIds.Contains(sp.Service.Id)))];
         }
 
+        if (request.Names is not null && request.Names.Count > 0)
+        {
+            var Names = request.Names.Select(n => n.Trim().ToLower()).ToList();
+            allProviders = [.. allProviders.Where(p => Names.Contains(p.Name.Trim().ToLower()))];
+        }
+
         var providerDtos = allProviders.Select(p => new ProviderDto
         {
             Id = p.Id,

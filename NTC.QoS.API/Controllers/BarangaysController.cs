@@ -30,13 +30,21 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10, int pageNumber = 1, Guid? municipalityId = null)
+    public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
+                                                                                    int pageNumber = 1, 
+                                                                                    Guid? municipalityId = null,
+                                                                                    string? name = null,
+                                                                                    string? municipality = null,
+                                                                                    string? province = null)
     {
         var request = new GetAllBarangaysRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
             MunicipalityId = municipalityId,
+            Name = name,
+            Municipality = municipality,
+            Province= province
         };
         var barangays = await _mediator.Send(request);
         return Ok(barangays);
