@@ -12,4 +12,5 @@ public class NAP : BaseEntity
     public virtual NTC.QoS.Domain.Entities.File? File { get; set; }
     public string CoorLatitude { get; set; } = string.Empty;
     public string CoorLongitude { get; set; } = string.Empty;
+    public int? RowNumber { get; set; } 
 }

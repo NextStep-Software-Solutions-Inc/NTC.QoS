@@ -63,7 +63,7 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
             TAC = s.TAC,
             File = s.File != null? new()
             {
-                Id = s.FileId,
+                Id = s.File.Id,
                 Name = s.File.Name,
                 Path = s.File.Path
             } : null,

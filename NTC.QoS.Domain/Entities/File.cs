@@ -12,10 +12,13 @@ public class File : BaseEntity
     public DateTime UploadDate { get; set; }
     public FileTypeEnum Type { get; set; } = FileTypeEnum.Unknown;
     public FileStatusEnum Status { get; set; } = FileStatusEnum.Pending;
+
+    public byte[] Content { get; set; } = [];
+    public string ContentType { get; set; } = string.Empty;
+
     public virtual List<Speedtest> Speedtests { get; set; } = new();
     public virtual List<Cellular> Cellulars { get; set; } = new();
     public virtual List<Cell> Cells { get; set; } = new();
     public virtual List<NAP> NAPs { get; set; } = new();
-
 }
 
