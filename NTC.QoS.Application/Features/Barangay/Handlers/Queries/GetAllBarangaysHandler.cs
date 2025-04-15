@@ -51,7 +51,7 @@ public class GetAllBarangaysHandler(
             {
                 return new PaginatedResponse<BarangayDto>([], request.PageNumber, request.PageSize)
                 {
-                    Message = $"No Barangay found matching the provided Province '{request.Province}' not found.",
+                    Message = $"No Barangay found for the provided Province '{request.Province}'.",
                     Succeeded = false
                 };
             }
