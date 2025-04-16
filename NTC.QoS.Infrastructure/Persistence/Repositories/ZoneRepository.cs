@@ -43,4 +43,56 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
 
         return await query.FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<Zone?> FindByNameAsync(string? municipalityName, string? provinceName, string? regionName, CancellationToken cancellationToken = default)
+    {
+        IQueryable<Zone> query = _context.Set<Zone>()
+            .Where(z => !EF.Property<bool>(z, "IsDeleted"))
+            .Include(z => z.Barangay!)
+                .ThenInclude(b => b.Municipality!)
+                    .ThenInclude(m => m.Province!)
+                        .ThenInclude(p => p.Region!);
+
+        if (!string.IsNullOrEmpty(municipalityName))
+        {
+            query = query.Where(z => z.Barangay!.Municipality!.Name == municipalityName);
+        }
+
+        if (!string.IsNullOrEmpty(provinceName))
+        {
+            query = query.Where(z => z.Barangay!.Municipality!.Province!.Name == provinceName);
+        }
+
+        if (!string.IsNullOrEmpty(regionName))
+        {
+            query = query.Where(z => z.Barangay!.Municipality!.Province!.Region!.Name == regionName);
+        }
+
+        return await query.FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Zone?> FindFirstAnyMatchAsync(string? municipalityName, string? provinceName, string? regionName, CancellationToken cancellationToken = default)
+    {
+        IQueryable<Zone> query = _context.Set<Zone>()
+            .Where(z => !EF.Property<bool>(z, "IsDeleted"))
+            .Include(z => z.Barangay!)
+                .ThenInclude(b => b.Municipality!)
+                    .ThenInclude(m => m.Province!)
+                        .ThenInclude(p => p.Region!);
+
+        if (!string.IsNullOrEmpty(municipalityName))
+        {
+            query = query.Where(z => z.Barangay!.Municipality!.Name == municipalityName);
+        }
+        else if (!string.IsNullOrEmpty(provinceName))
+        {
+            query = query.Where(z => z.Barangay!.Municipality!.Province!.Name == provinceName);
+        }
+        else if (!string.IsNullOrEmpty(regionName))
+        {
+            query = query.Where(z => z.Barangay!.Municipality!.Province!.Region!.Name == regionName);
+        }
+
+        return await query.FirstOrDefaultAsync(cancellationToken);
+    }
 }

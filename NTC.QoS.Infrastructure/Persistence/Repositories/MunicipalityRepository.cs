@@ -41,4 +41,12 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
 
         return await query.FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<Municipality?> FindByNameAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Set<Municipality>()
+            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
+            .Include(m => m.Province).ThenInclude(p => p!.Region);
+        return await query.FirstOrDefaultAsync(m => m.Name == name, cancellationToken);
+    }
 }

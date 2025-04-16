@@ -5,6 +5,7 @@ using FluentValidation;
 using MediatR;
 using System.Reflection;
 using NTC.QoS.Application.Behaviors;
+using NTC.QoS.Application.Contracts;
 
 namespace NTC.QoS.Application;
 public static class ApplicationDependencyInjection
@@ -22,6 +23,13 @@ public static class ApplicationDependencyInjection
             .AsImplementedInterfaces()
             .WithScopedLifetime());
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+        // Register IFileProcessor implementations
+        services.Scan(scan => scan
+            .FromAssemblies(Assembly.GetExecutingAssembly())
+            .AddClasses(classes => classes.AssignableTo<IFileProcessor>())
+            .AsImplementedInterfaces()
+            .WithScopedLifetime());
 
         return services;
     }
