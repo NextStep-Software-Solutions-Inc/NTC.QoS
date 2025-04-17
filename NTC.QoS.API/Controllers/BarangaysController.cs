@@ -32,16 +32,16 @@ public class BarangaysController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1, 
-                                                                                    Guid? municipalityId = null,
-                                                                                    string? name = null,
-                                                                                    string? municipality = null,
-                                                                                    string? province = null)
+                                                                                    Guid[]? municipalityIds = default,
+                                                                                    string? name = default,
+                                                                                    string? municipality = default,
+                                                                                    string? province = default)
     {
         var request = new GetAllBarangaysRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
-            MunicipalityId = municipalityId,
+            MunicipalityIds = municipalityIds,
             Name = name,
             Municipality = municipality,
             Province= province
