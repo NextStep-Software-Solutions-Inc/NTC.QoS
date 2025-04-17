@@ -90,7 +90,6 @@ public class NAPFileProcessor(INAPRepository nAPRepository, IServiceProviderRepo
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing NAP file: {ex.Message}");
             return new ApiResponse<ProcessingResultDto>
             {
                 Succeeded = false,
@@ -112,7 +111,7 @@ public class NAPFileProcessor(INAPRepository nAPRepository, IServiceProviderRepo
             var expectedHeaders = new[] { "Service Provider", "Municipality", "Province", "Region", "Latitude", "Longitude" };
             var actualHeaders = headerRow.CellsUsed().Select(c => c.Value.ToString().Trim()).ToArray();
 
-            if (!expectedHeaders.SequenceEqual(actualHeaders))
+            if (!expectedHeaders.SequenceEqual(actualHeaders, StringComparer.OrdinalIgnoreCase))
             {
                 throw new ValidationException($"Invalid NAP file headers. Expected: '{string.Join("\t", expectedHeaders)}', Actual: '{string.Join("\t", actualHeaders)}'");
             }
@@ -138,10 +137,12 @@ public class NAPFileProcessor(INAPRepository nAPRepository, IServiceProviderRepo
 
             return JsonSerializer.Serialize(jsonDataList);
         }
-        catch (ValidationException) { throw; }
-        catch (Exception ex)
+        catch (ValidationException)
         {
-            Console.WriteLine($"Error parsing Excel file: {ex.Message}");
+            throw;
+        }
+        catch (Exception)
+        {
             return "[]";
         }
     }
@@ -201,8 +202,27 @@ public class NAPFileProcessor(INAPRepository nAPRepository, IServiceProviderRepo
                 FileId = fileId,
                 RowNumber = rowNumber
             };
+
+            var napRecordExists = await _napRecordRepository.FindAsync(n => n.ServiceProviderId == napRecord.ServiceProviderId
+                                                                      && n.ZoneId == napRecord.ZoneId
+                                                                      && n.CoorLatitude == napRecord.CoorLatitude
+                                                                      && n.CoorLongitude == napRecord.CoorLongitude);
+            if(napRecordExists is not null)
+            {
+                return new NAPRowProcessingResult { IsSuccess = false, RowNumber = rowNumber, Message = "Record already exists." };
+            }
+
             _napRecordRepository.Add(napRecord);
             return new NAPRowProcessingResult { IsSuccess = true, Message = "Record processed successfully." };
+        }
+        catch (JsonException ex)
+        {
+            return new ApiResponse<ProcessingResultDto>
+            {
+                Succeeded = false,
+                Message = $"Error deserializing NAP records: {ex.Message}",
+                Data = new ProcessingResultDto { IsSuccess = false, Message = $"Error deserializing NAP records: {ex.Message}", TotalProcessed = 0, SuccessfulCount = 0 }
+            };
         }
         catch (Exception ex)
         {
