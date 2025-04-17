@@ -103,6 +103,10 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         ArgumentNullException.ThrowIfNull(queryable);
 
+        if (pageNumber < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber), "Page number must be at least 1.");
+        }
         var totalCount = await queryable.CountAsync(cancellationToken);
         var paginatedData = await queryable
             .Skip((pageNumber - 1) * pageSize)
