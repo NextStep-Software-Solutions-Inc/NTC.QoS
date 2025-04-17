@@ -173,20 +173,6 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
 
         var speedtests = await _repository.ToListAsync(speedtestDtos, cancellationToken);
 
-        if (speedtests.Count is 0)
-        {
-            return new PaginatedResponse<SpeedtestDto>(new List<SpeedtestDto>(), request.PageNumber, request.PageSize)
-            {
-                Message = "No records found.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullSpeedtests", new[] { "No speedtests found." }
-                    }
-                }
-            };
-        }
         return new PaginatedResponse<SpeedtestDto>(speedtests, request.PageNumber, request.PageSize)
         {
             Data = speedtests,
