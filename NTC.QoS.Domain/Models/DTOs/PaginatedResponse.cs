@@ -7,7 +7,7 @@ public class PaginatedResponse<T> : ApiResponse<List<T>>
     public int PageNumber { get; private set; }
     public int TotalPageNumber { get; private set; }
     public bool LoadMore { get; private set; }
-    public int TotalRows { get; private set; }
+    public int TotalRows { get; set; }
 
 
     public PaginatedResponse(List<T> allData, int pageNumber, int pageSize)

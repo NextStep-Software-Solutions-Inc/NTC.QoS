@@ -103,11 +103,15 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         ArgumentNullException.ThrowIfNull(queryable);
 
+        var totalCount = await queryable.CountAsync(cancellationToken);
         var paginatedData = await queryable
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize);
+        return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize)
+        {
+            TotalRows = totalCount,
+        };
     }
 }
