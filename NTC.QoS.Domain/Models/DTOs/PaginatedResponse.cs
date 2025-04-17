@@ -22,7 +22,7 @@ public class PaginatedResponse<T> : ApiResponse<List<T>>
 
         var entityName = StringHelper.NormalizeText(typeof(T).Name);
 
-        Message = TotalRows > 0 ? $"{entityName} records successfully retreived." : $"No {entityName} record found.";
+        Message = TotalRows > 0 ? $"{entityName} records successfully retrieved." : $"No {entityName} record found.";
     }
 
    
