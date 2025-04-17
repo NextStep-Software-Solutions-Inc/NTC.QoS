@@ -45,6 +45,15 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
         return await query.FirstOrDefaultAsync(cancellationToken);
     }
 
+
+    /// <summary>
+    /// Asynchronously finds a Zone based on optional geographical names.
+    /// </summary>
+    /// <param name="municipalityName">The municipality name or description to search for (case-insensitive).</param>
+    /// <param name="provinceName">The province name or description to search for (case-insensitive).</param>
+    /// <param name="regionName">The region name or description to search for (case-insensitive).</param>
+    /// <param name="cancellationToken">A CancellationToken to observe while waiting for the task to complete.</param>
+    /// <returns>The first Zone that matches all provided non-null criteria, including related geographical data, or null if no match is found.</returns>
     public async Task<Zone?> FindByNameAsync(string? municipalityName, string? provinceName, string? regionName, CancellationToken cancellationToken = default)
     {
         IQueryable<Zone> query = _context.Set<Zone>()
@@ -93,6 +102,14 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
         return await query.FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Asynchronously finds the first Zone that matches based on the first provided (non-null) geographical name.
+    /// </summary>
+    /// <param name="municipalityName">The municipality name or description to search for (case-insensitive).</param>
+    /// <param name="provinceName">The province name or description to search for (case-insensitive) if municipalityName is null.</param>
+    /// <param name="regionName">The region name or description to search for (case-insensitive) if both municipalityName and provinceName are null.</param>
+    /// <param name="cancellationToken">A CancellationToken to observe while waiting for the task to complete.</param>
+    /// <returns>The first Zone that matches the first provided non-null criteria, including related geographical data, or null if no match is found.</returns>
     public async Task<Zone?> FindFirstAnyMatchAsync(string? municipalityName, string? provinceName, string? regionName, CancellationToken cancellationToken = default)
     {
         IQueryable<Zone> query = _context.Set<Zone>()
