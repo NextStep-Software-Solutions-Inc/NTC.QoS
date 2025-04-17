@@ -32,7 +32,7 @@ public class BarangaysController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1, 
-                                                                                    Guid[]? municipalityIds = default,
+                                                                                    [FromQuery] Guid[]? municipalityIds = default,
                                                                                     string? name = default,
                                                                                     string? municipality = default,
                                                                                     string? province = default)

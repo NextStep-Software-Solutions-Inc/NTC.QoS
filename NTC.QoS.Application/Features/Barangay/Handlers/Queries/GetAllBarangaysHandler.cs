@@ -14,14 +14,14 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
     {
         var allBarangaysQuery = _barangayRepository.Query(b => !b.IsDeleted);
 
-        allBarangaysQuery = allBarangaysQuery.Where(b => request.Name == null || b.Name != null && b.Name.Contains(request.Name, StringComparison.CurrentCultureIgnoreCase));
-        allBarangaysQuery = allBarangaysQuery.Where(b => request.Municipality == null || b.Municipality != null && b.Municipality.Name.Equals(request.Municipality));
-        allBarangaysQuery = allBarangaysQuery.Where(b => request.Province == null || b.Municipality != null && b.Municipality.Province != null && b.Municipality.Province.Name.Equals(request.Province));
-        
         if (request.MunicipalityIds is not null && request.MunicipalityIds.Length > 0)
         {
             allBarangaysQuery = allBarangaysQuery.Where(b => request.MunicipalityIds.Contains(b.MunicipalityId));
         }
+
+        allBarangaysQuery = allBarangaysQuery.Where(b => request.Name == null || b.Name.ToLower().Contains(request.Name.ToLower()));
+        allBarangaysQuery = allBarangaysQuery.Where(b => request.Municipality == null || b.Municipality.Name.ToLower().Contains(request.Municipality.ToLower()));
+        allBarangaysQuery = allBarangaysQuery.Where(b => request.Province == null || b.Municipality.Province.Name.ToLower().Contains(request.Province.ToLower()));
 
         var barangayDtosQuery = allBarangaysQuery.Select(b => new BarangayDto
         {
