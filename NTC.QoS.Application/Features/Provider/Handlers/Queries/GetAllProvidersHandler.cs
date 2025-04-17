@@ -28,20 +28,6 @@ public class GetAllProvidersHandler(IProviderRepository providerRepository) : IR
 
         var providerDtos = await _providerRepository.ToListAsync(providerDtosQuery, cancellationToken);
 
-        if (providerDtos.Count is 0)
-        {
-            return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize)
-            {
-                Succeeded = false,
-                Message = "No records found.",
-            };
-        }
-
-        return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize)
-        {
-            Data = providerDtos,
-            Succeeded = true,
-            Message = "Providers retrieved successfully."
-        };
+        return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize);
     }
 }
