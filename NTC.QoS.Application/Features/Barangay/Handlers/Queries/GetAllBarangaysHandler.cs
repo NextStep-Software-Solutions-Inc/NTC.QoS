@@ -19,9 +19,10 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
             allBarangaysQuery = allBarangaysQuery.Where(b => request.MunicipalityIds.Contains(b.MunicipalityId));
         }
 
-        allBarangaysQuery = allBarangaysQuery.Where(b => request.Name == null || b.Name.ToLower().Contains(request.Name.ToLower()));
-        allBarangaysQuery = allBarangaysQuery.Where(b => request.Municipality == null || b.Municipality.Name.ToLower().Contains(request.Municipality.ToLower()));
-        allBarangaysQuery = allBarangaysQuery.Where(b => request.Province == null || b.Municipality.Province.Name.ToLower().Contains(request.Province.ToLower()));
+        allBarangaysQuery = allBarangaysQuery
+            .Where(b => request.Name == null || b.Name.ToLower().Contains(request.Name.ToLower()))
+            .Where(b => request.Municipality == null || b.Municipality.Name.ToLower().Contains(request.Municipality.ToLower()))
+            .Where(b => request.Province == null || b.Municipality.Province.Name.ToLower().Contains(request.Province.ToLower()));
 
         var barangayDtosQuery = allBarangaysQuery.Select(b => new BarangayDto
         {
@@ -51,21 +52,6 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
 
         var allBarangays = await _barangayRepository.ToListAsync(barangayDtosQuery, cancellationToken);
 
-
-        if (allBarangays.Count is 0)
-        {
-            return new PaginatedResponse<BarangayDto>(allBarangays, request.PageNumber, request.PageSize)
-            {
-                Message = "No records found.",
-                Succeeded = false
-            };
-        }
-
-        return new PaginatedResponse<BarangayDto>(allBarangays, request.PageNumber, request.PageSize)
-        {
-            Data = allBarangays,
-            Message = "Barangay retrieved successfully.",
-            Succeeded = true
-        };
+        return new PaginatedResponse<BarangayDto>(allBarangays, request.PageNumber, request.PageSize);
     }
 }

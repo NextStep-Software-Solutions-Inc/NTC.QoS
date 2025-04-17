@@ -1,4 +1,5 @@
-﻿
+﻿using NTC.QoS.Domain.Helper;
+
 namespace NTC.QoS.Domain.Models.DTOs;
 
 public class PaginatedResponse<T> : ApiResponse<List<T>>
@@ -18,5 +19,11 @@ public class PaginatedResponse<T> : ApiResponse<List<T>>
         PageNumber = pageNumber;
         TotalPageNumber = (int)Math.Ceiling((double)TotalRows / PageSize);
         LoadMore = PageNumber < TotalPageNumber;
+
+        var entityName = StringHelper.NormalizeText(typeof(T).Name);
+
+        Message = TotalRows > 0 ? $"{entityName} records successfully retreived." : $"No {entityName} record found.";
     }
+
+   
 }
