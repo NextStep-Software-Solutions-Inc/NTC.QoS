@@ -23,14 +23,14 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
                 s => s.MCC,
                 s => s.MNC,
                 s => s.TAC,
-                s => s.Cell!.Name,
-                s => s.Cell!.Description,
-                s => s.Cell!.Group,
-                s => s.Cell!.Zone!.Name,
-                s => s.Cell!.Zone!.Barangay!.Name,
-                s => s.Cell!.Zone!.Barangay!.Municipality!.Name,
-                s => s.Cell!.Zone!.Barangay!.Municipality!.Province!.Name,
-                s => s.Cell!.Zone!.Barangay!.Municipality!.Province!.Region!.Name
+                s => s.Cell.Name,
+                s => s.Cell.Description,
+                s => s.Cell.Group,
+                s => s.Cell.Zone.Name,
+                s => s.Cell.Zone.Barangay.Name,
+                s => s.Cell.Zone.Barangay.Municipality.Name,
+                s => s.Cell.Zone.Barangay.Municipality.Province!.Name,
+                s => s.Cell.Zone.Barangay.Municipality.Province!.Region!.Name
             );
             speedtestQuery = speedtestQuery.Where(searchExpression);
         }
@@ -67,56 +67,56 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
                 Name = s.File.Name,
                 Path = s.File.Path
             } : null,
-            Barangay = s.Barangay != null ? new()
+            Barangay = new()
             {
                 Id = s.BarangayId,
                 Name = s.Barangay.Name,
                 Description = s.Barangay.Description,
-                Municipality = s.Barangay.Municipality != null ? new()
+                Municipality = new()
                 {
                     Id = s.Barangay.MunicipalityId,
                     Name = s.Barangay.Municipality.Name,
                     Description = s.Barangay.Municipality.Description,
                     IsCity = s.Barangay.Municipality.IsCity,
-                    Province = s.Barangay.Municipality.Province != null ? new()
+                    Province = new()
                     {
                         Id = s.Barangay.Municipality.ProvinceId,
                         Name = s.Barangay.Municipality.Province.Name,
                         Description = s.Barangay.Municipality.Province.Description,
-                        Region = s.Barangay.Municipality.Province.Region != null ? new()
+                        Region =new()
                         {
                             Id = s.Barangay.Municipality.Province.RegionId,
                             Name = s.Barangay.Municipality.Province.Region.Name,
                             Description = s.Barangay.Municipality.Province.Region.Description
-                        } : null
-                    } : null
-                } : null
-            } : null,
-            ServiceProvider = s.ServiceProvider != null ? new()
+                        }
+                    }
+                }
+            },
+            ServiceProvider = new()
             {
                 Id = s.ServiceProviderId,
-                Service = s.ServiceProvider.Service != null ? new()
+                Service = new()
                 {
                     Id = s.ServiceProvider.ServiceId,
                     Name = s.ServiceProvider.Service.Name,
                     Type = s.ServiceProvider.Service.Type.ToString()
-                } : null,
-                Provider = s.ServiceProvider.Provider != null ? new()
+                },
+                Provider = new()
                 {
                     Id = s.ServiceProvider.ProviderId,
                     Name = s.ServiceProvider.Provider.Name,
                     Description = s.ServiceProvider.Provider.Description,
                     LicenseNumber = s.ServiceProvider.Provider.LicenseNumber,
                     Color = s.ServiceProvider.Provider.Color
-                } : null
-            } : null,
-            Generation = s.Generation != null ? new()
+                },
+            },
+            Generation = new()
             {
                 Id = s.GenerationId,
                 Name = s.Generation.Name,
                 Description = s.Generation.Description
-            } : null,
-            Cell = s.Cell != null ? new()
+            },
+            Cell = new()
             {
                 Id = s.CellId,
                 Name = s.Cell.Name,
@@ -128,36 +128,36 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
                     Path = s.Cell.File.Path
                 } : null,
                 Description = s.Cell.Description,
-                Zone = s.Cell.Zone != null ? new()
+                Zone = new()
                 {
                     Id = s.Cell.ZoneId,
                     Name = s.Cell.Zone.Name,
-                    Barangay = s.Cell.Zone.Barangay != null ? new()
+                    Barangay = new()
                     {
                         Id = s.Cell.Zone.BarangayId,
                         Name = s.Cell.Zone.Barangay.Name,
                         Description = s.Cell.Zone.Barangay.Description,
-                        Municipality = s.Cell.Zone.Barangay.Municipality != null ? new()
+                        Municipality = new()
                         {
                             Id = s.Cell.Zone.Barangay.MunicipalityId,
                             IsCity = s.Cell.Zone.Barangay.Municipality.IsCity,
                             Name = s.Cell.Zone.Barangay.Municipality.Name,
                             Description = s.Cell.Zone.Barangay.Municipality.Description,
-                            Province = s.Cell.Zone.Barangay.Municipality.Province != null ? new()
+                            Province = new()
                             {
                                 Id = s.Cell.Zone.Barangay.Municipality.ProvinceId,
                                 Name = s.Cell.Zone.Barangay.Municipality.Province.Name,
                                 Description = s.Cell.Zone.Barangay.Municipality.Province.Description,
-                                Region = s.Cell.Zone.Barangay.Municipality.Province.Region != null ? new()
+                                Region = new()
                                 {
                                     Id = s.Cell.Zone.Barangay.Municipality.Province.Region.Id,
                                     Name = s.Cell.Zone.Barangay.Municipality.Province.Region.Name,
                                     Description = s.Cell.Zone.Barangay.Municipality.Province.Region.Description
-                                } : null,
-                            } : null,
-                        } : null,
-                    } : null,
-                } : null,
+                                },
+                            },
+                        },
+                    },
+                },
                 CID = s.Cell.CID,
                 LAC = s.Cell.LAC,
                 TAC = s.Cell.TAC,
@@ -168,7 +168,7 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
                 CoorLongitude = s.Cell.CoorLongitude,
                 IsVerified = s.Cell.IsVerified,
                 Status = s.Cell.Status.ToString()
-            } : null
+            }
         });
 
         var speedtests = await _repository.ToListAsync(speedtestDtos, cancellationToken);

@@ -6,7 +6,7 @@ namespace NTC.QoS.Domain.Aggregates;
 public class Cell : BaseEntity
 {
     public Guid ZoneId { get; set; }
-    public virtual Zone? Zone { get; set; }
+    public virtual Zone Zone { get; set; } = null!;
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider? ServiceProvider { get; set; }
     public Guid? FileId { get; set; }
