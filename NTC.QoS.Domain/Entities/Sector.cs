@@ -6,15 +6,15 @@ namespace NTC.QoS.Domain.Entities;
 public class Sector : BaseEntity
 {
     public Guid NetworkId { get; set; }
-    public virtual Network? Network { get; set; }
+    public virtual Network Network { get; set; } = null!;
     public Guid? MIMOId { get; set; }
     public virtual MIMO? MIMO { get; set; }
     public Guid CellId { get; set; }
-    public virtual Cell? Cell { get; set; }
+    public virtual Cell Cell { get; set; } = null!;
     public Guid TxAntennaPatternId { get; set; }
-    public virtual AntennaPattern? TxAntennaPattern { get; set; }
+    public virtual AntennaPattern TxAntennaPattern { get; set; } = null!;
     public Guid RxAntennaPatternId { get; set; }
-    public virtual AntennaPattern? RxAntennaPattern { get; set; }
+    public virtual AntennaPattern RxAntennaPattern { get; set; } = null!;
     public AntennaTypeEnum AntennaType { get; set; } = AntennaTypeEnum.Unknown;
     public int Number { get; set; }
     public string RadioEquipment { get; set; } = string.Empty;

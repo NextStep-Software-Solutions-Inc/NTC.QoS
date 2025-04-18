@@ -14,20 +14,21 @@ public class GetAllProvidersHandler(IProviderRepository providerRepository) : IR
     {
         var allProvidersQuery = _providerRepository.Query(p => !p.IsDeleted);
         
-        allProvidersQuery = allProvidersQuery.Where(p =>  request.ServiceIds == null || request.ServiceIds.Count.Equals(0) || p.ServiceProviders.Any(sp => sp.Service != null && request.ServiceIds.Contains(sp.Service.Id)));
-        allProvidersQuery = allProvidersQuery.Where(p => request.Names == null || request.Names.Any(n => p.Name.Trim().ToLower().Contains(n.Trim().ToLower())));
+        allProvidersQuery = allProvidersQuery
+            .Where(p =>  request.ServiceIds == null || request.ServiceIds.Count.Equals(0) || p.ServiceProviders.Any(sp => sp.Service != null && request.ServiceIds.Contains(sp.Service.Id)))
+            .Where(p => request.Names == null || request.Names.Any(n => p.Name.Trim().ToLower().Contains(n.Trim().ToLower())));
 
-        var providerDtosQuery = allProvidersQuery.Select(p => new ProviderDto
-        {
-            Id = p.Id,
-            Name = p.Name,
-            Description = p.Description,
-            LicenseNumber = p.LicenseNumber,
-            Color = p.Color
-        });
+        var providerDtosQuery = allProvidersQuery
+            .OrderBy(p => p.CreatedAt)
+            .Select(p => new ProviderDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                LicenseNumber = p.LicenseNumber,
+                Color = p.Color
+            });
 
-        var providerDtos = await _providerRepository.ToListAsync(providerDtosQuery, cancellationToken);
-
-        return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize);
+        return await _providerRepository.PaginateAsync(providerDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

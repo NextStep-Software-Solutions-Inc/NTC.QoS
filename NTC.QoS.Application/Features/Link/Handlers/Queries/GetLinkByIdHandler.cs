@@ -14,51 +14,59 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
 
     public async Task<ApiResponse<LinkDto>> Handle(GetLinkByIdRequest request, CancellationToken cancellationToken)
     {
-        var link = await _linkRepository.GetByIdAsync(request.Id, cancellationToken);
+        var linkQuery = _linkRepository.Query(l=> l.Id.Equals(request.Id));
+
+        var linkDtoQuery = linkQuery
+            .Select(link => new LinkDto
+            {
+                Id = link.Id,
+                Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),
+                ServiceProvider = new()
+                {
+                    Id = link.ServiceProviderId,
+                    Provider = new()
+                    {
+                        Id = link.ServiceProvider.Provider.Id,
+                        Name = link.ServiceProvider.Provider.Name,
+                        Description = link.ServiceProvider.Provider.Description,
+                        Color = link.ServiceProvider.Provider.Color,
+                        LicenseNumber = link.ServiceProvider.Provider.LicenseNumber
+                    },
+                    Service = new()
+                    {
+                        Id = link.ServiceProvider.ServiceId,
+                        Name = link.ServiceProvider.Service.Name,
+                        Type = link.ServiceProvider.Service.Type.ToString(),
+                    }
+                },
+                Band = new()
+                {
+                    Id = link.Band.Id,
+                    Name = link.Band.Name,
+                    Description = link.Band.Description,
+                    CreatedBy = link.Band.CreatedBy,
+                    CreatedDate = link.Band.CreatedAt,
+                    ModifiedBy = link.Band.UpdatedBy,
+                    ModifiedDate = link.Band.UpdatedAt
+                },
+                CenterFrequency = link.CenterFrequency,
+                LowerFrequency = link.LowerFrequency,
+                UpperFrequency = link.UpperFrequency,
+                RxThreshold = link.RxThreshold,
+
+            });
+
+        var link = await _linkRepository.FirstOrDefaultAsync(linkDtoQuery, cancellationToken);
 
         if (link is null)
         {
-            return new ApiResponse<LinkDto>
-            {
-                Succeeded = false,
-                Message = "Link not found."
-            };
+            return new ApiResponse<LinkDto>("Link not found");
         }
-
         return new ApiResponse<LinkDto>
         {
             Succeeded = true,
             Message = "Link retrieved successfully",
-            Data = new LinkDto()
-            {
-                Id = link.Id,
-                Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),
-                ServiceProvider = new ServiceProviderLinkDto
-                    {
-                        Id = link.ServiceProviderId,
-                        Provider = new ProviderLinkDto
-                        {
-                            Id = link.ServiceProvider?.ProviderId ?? Guid.Empty,
-                            Name = link.ServiceProvider?.Provider?.Name ?? "Unknown",
-                            Description = link.ServiceProvider?.Provider?.Description ?? string.Empty
-                        },
-                        Service = new ServiceLinkDto
-                        {
-                            Id = link.ServiceProvider?.ServiceId ?? Guid.Empty,
-                            Name = link.ServiceProvider?.Service?.Name ?? "Unknown",
-                            Type = link.ServiceProvider?.Service?.Type.ToString() ?? "Unknown"
-                        }
-                },
-                Band = new BandLinkDto
-                {
-                    Id = link.BandId,
-                    Name = link.Band?.Name ?? "Unknown",
-                    Description = link.Band?.Description ?? string.Empty
-                },
-                CenterFrequency = link.CenterFrequency,
-                LowerFrequency = link.LowerFrequency,
-                UpperFrequency = link.UpperFrequency
-            }
+            Data = link
         };
     }
 }

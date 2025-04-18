@@ -24,34 +24,33 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
             .Where(b => request.Municipality == null || b.Municipality.Name.ToLower().Contains(request.Municipality.ToLower()))
             .Where(b => request.Province == null || b.Municipality.Province.Name.ToLower().Contains(request.Province.ToLower()));
 
-        var barangayDtosQuery = allBarangaysQuery.Select(b => new BarangayDto
-        {
-            Id = b.Id,
-            Name = b.Name,
-            Description = b.Description,
-            Municipality = new ()
-            {
-                Id = b.MunicipalityId,
-                Name = b.Municipality.Name,
-                IsCity = b.Municipality.IsCity,
-                Description = b.Municipality.Description,
-                Province = new ()
+        var barangayDtosQuery = allBarangaysQuery
+            .OrderBy(b => b.CreatedAt)
+            .Select(b => new BarangayDto {
+                Id = b.Id,
+                Name = b.Name,
+                Description = b.Description,
+                Municipality = new ()
                 {
-                    Id = b.Municipality.ProvinceId,
-                    Name = b.Municipality.Province.Name,
-                    Description = b.Municipality.Province.Description,
-                    Region = new ()
+                    Id = b.MunicipalityId,
+                    Name = b.Municipality.Name,
+                    IsCity = b.Municipality.IsCity,
+                    Description = b.Municipality.Description,
+                    Province = new ()
                     {
-                        Id = b.Municipality.Province.Region.Id,
-                        Name = b.Municipality.Province.Region.Name,
-                        Description = b.Municipality.Province.Region.Description
+                        Id = b.Municipality.ProvinceId,
+                        Name = b.Municipality.Province.Name,
+                        Description = b.Municipality.Province.Description,
+                        Region = new ()
+                        {
+                            Id = b.Municipality.Province.Region.Id,
+                            Name = b.Municipality.Province.Region.Name,
+                            Description = b.Municipality.Province.Region.Description
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        var allBarangays = await _barangayRepository.ToListAsync(barangayDtosQuery, cancellationToken);
-
-        return new PaginatedResponse<BarangayDto>(allBarangays, request.PageNumber, request.PageSize);
+        return await _barangayRepository.PaginateAsync(barangayDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

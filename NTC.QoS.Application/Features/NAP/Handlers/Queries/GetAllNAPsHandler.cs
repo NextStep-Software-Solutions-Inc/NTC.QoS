@@ -12,87 +12,76 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
 
     public async Task<PaginatedResponse<NAPDto>> Handle(GetAllNAPsRequest request, CancellationToken cancellationToken)
     {
-        var allNAPs = await _NAPRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
+        var allNAPsQuery = _NAPRepository.Query(n => !n.IsDeleted);
 
-        var NAPs = allNAPs.Select(n => new NAPDto
-        {
-            Id = n.Id,
-            ServiceProvider = new ()
+        var NAPsDtoQuery = allNAPsQuery
+            .OrderBy(n => n.CreatedAt)
+            .Select(n => new NAPDto
             {
-                Id = n.ServiceProviderId,
-                Service = new ()
+                Id = n.Id,
+                ServiceProvider = new()
                 {
-                    Id = n.ServiceProvider?.ServiceId ?? Guid.Empty,
-                    Name = n.ServiceProvider?.Service?.Name ?? string.Empty,
-                    Type = n.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
-                },
-                Provider = new ()
-                {
-                    Id = n.ServiceProvider?.ProviderId ?? Guid.Empty,
-                    Name = n.ServiceProvider?.Provider?.Name ?? string.Empty,
-                    Color = n.ServiceProvider?.Provider?.Color ?? string.Empty,
-                }
-            },
-            Zone = new ()
-            {
-                Id = n.ZoneId ?? Guid.Empty,
-                Name = n.Zone?.Name ?? string.Empty,
-                Barangay = new ()
-                {
-                    Id = n.Zone?.BarangayId ?? Guid.Empty,
-                    Name = n.Zone?.Barangay?.Name ?? string.Empty,
-                    Description = n.Zone?.Barangay?.Description,
-                    Municipality = new ()
+                    Id = n.ServiceProvider.Id,
+                    Service = new()
                     {
-                        Id = n.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                        Name = n.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                        Description = n.Zone?.Barangay?.Description,
-                        IsCity = n.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                        Province = new ()
+                        Id = n.ServiceProvider.Service.Id,
+                        Name = n.ServiceProvider.Service.Name,
+                        Type = n.ServiceProvider.Service.Type.ToString(),
+                    },
+                    Provider = new()
+                    {
+                        Id = n.ServiceProvider.Provider.Id,
+                        Name = n.ServiceProvider.Provider.Name,
+                        Color = n.ServiceProvider.Provider.Color,
+                    }
+                },
+                Zone = n.Zone != null ? new()
+                {
+                    Id = n.Zone.Id,
+                    Name = n.Zone.Name,
+                    Barangay = new()
+                    {
+                        Id = n.Zone.Barangay.Id,
+                        Name = n.Zone.Barangay.Name,
+                        Description = n.Zone.Barangay.Description,
+                        Municipality = new()
                         {
-                            Id = n.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                            Name = n.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                            Description = n.Zone?.Barangay?.Municipality?.Province?.Description,
-                            Region = new ()
+                            Id = n.Zone.Barangay.Municipality.Id,
+                            Name = n.Zone.Barangay.Municipality.Name,
+                            Description = n.Zone.Barangay.Description,
+                            IsCity = n.Zone.Barangay.Municipality.IsCity,
+                            Province = new()
                             {
-                                Id = n.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                Name = n.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                Description = n.Zone?.Barangay?.Municipality?.Province?.Region?.Description
+                                Id = n.Zone.Barangay.Municipality.Province.Id,
+                                Name = n.Zone.Barangay.Municipality.Province.Name,
+                                Description = n.Zone.Barangay.Municipality.Province.Description,
+                                Region = new()
+                                {
+                                    Id = n.Zone.Barangay.Municipality.Province.Region.Id,
+                                    Name = n.Zone.Barangay.Municipality.Province.Region.Name,
+                                    Description = n.Zone.Barangay.Municipality.Province.Region.Description
+                                }
                             }
                         }
                     }
-                }
-            },
-            File = new ()
-            {
-                Id = n.FileId ?? Guid.Empty,
-                Name = n.File?.Name ?? string.Empty,
-                Path = n.File?.Path ?? string.Empty,
-            },
-            CoorLatitude = n.CoorLatitude,
-            CoorLongitude = n.CoorLongitude,
-        }).ToList();
+                } : null,
+                File = n.File != null ? new()
+                {
+                    Id = n.File.Id,
+                    Name = n.File.Name,
+                    Path = n.File.Path,
+                } : null,
+                CoorLatitude = n.CoorLatitude,
+                CoorLongitude = n.CoorLongitude,
+            });
 
-        NAPs = [.. NAPs
-            .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProvider?.Id == request.ServiceProviderId)
-            .Where(n => !request.ZoneId.HasValue || n.Zone?.Id == request.ZoneId)
-            .Where(n => !request.FileId.HasValue || n.File?.Id == request.FileId)];
+        NAPsDtoQuery = NAPsDtoQuery
+            .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProvider.Id == request.ServiceProviderId)
+            .Where(n => !request.ZoneId.HasValue || n.Zone == null || n.Zone.Id == request.ZoneId)
+            .Where(n => !request.FileId.HasValue || n.File == null || n.File.Id == request.FileId);
 
-        if (NAPs.Count is 0)
-        {
-            return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize)
-            {
-                Data = NAPs,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
 
-        return new PaginatedResponse<NAPDto>(NAPs, request.PageNumber, request.PageSize)
-        {
-            Data = NAPs,
-            Message = "NAPs retrieved successfully.",
-            Succeeded = true
-        };
+        return await _NAPRepository.PaginateAsync(NAPsDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
+    
     }
 }

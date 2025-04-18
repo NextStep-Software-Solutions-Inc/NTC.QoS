@@ -25,11 +25,11 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                c => c.Name,
                c => c.Description,
                c => c.Group,
-               c => c.Zone!.Name,
-               c => c.Zone!.Barangay!.Name,
-               c => c.Zone!.Barangay!.Municipality!.Name,
-               c => c.Zone!.Barangay!.Municipality!.Province!.Name,
-               c => c.Zone!.Barangay!.Municipality!.Province!.Region!.Name
+               c => c.Zone.Name,
+               c => c.Zone.Barangay.Name,
+               c => c.Zone.Barangay.Municipality.Name,
+               c => c.Zone.Barangay.Municipality.Province.Name,
+               c => c.Zone.Barangay.Municipality.Province.Region.Name
            );
             cellQuery = cellQuery.Where(searchExpression);
         }
@@ -42,7 +42,9 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             .Where(c => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId))))
             .Where(c => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId))));
 
-        var cellDtoQuery = cellQuery.Select(cell => new CellDto
+        var cellDtoQuery = cellQuery
+            .OrderBy(c => c.CreatedAt)
+            .Select(cell => new CellDto
         {
             Id = cell.Id,
             Name = cell.Name,
@@ -53,58 +55,57 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                 Name = cell.File.Name,
                 Path = cell.File.Path
             } : null,
-            Description = cell.Description ?? string.Empty,
-            Zone = cell.Zone != null ? new ZoneDto
+            Description = cell.Description,
+            Zone = new ()
             {
                 Id = cell.Zone.Id,
-                Name = cell.Zone.Name ?? string.Empty,
-                Barangay = cell.Zone.Barangay != null ? new()
+                Name = cell.Zone.Name,
+                Barangay = new()
                 {
                     Id = cell.Zone.Barangay.Id,
                     Name = cell.Zone.Barangay.Name,
                     Description = cell.Zone.Barangay.Description,
-                    Municipality = cell.Zone.Barangay.Municipality != null ? new()
+                    Municipality = new()
                     {
                         Id = cell.Zone.Barangay.Municipality.Id,
                         IsCity = cell.Zone.Barangay.Municipality.IsCity,
                         Name = cell.Zone.Barangay.Municipality.Name,
                         Description = cell.Zone.Barangay.Municipality.Description,
-                        Province = cell.Zone.Barangay.Municipality.Province != null ? new()
+                        Province = new()
                         {
                             Id = cell.Zone.Barangay.Municipality.Province.Id,
                             Name = cell.Zone.Barangay.Municipality.Province.Name,
                             Description = cell.Zone.Barangay.Municipality.Province.Description,
-                            Region = cell.Zone.Barangay.Municipality.Province.Region != null ? new()
+                            Region = new()
                             {
                                 Id = cell.Zone.Barangay.Municipality.Province.Region!.Id,
                                 Name = cell.Zone.Barangay.Municipality.Province.Region!.Name,
                                 Description = cell.Zone.Barangay.Municipality.Province.Region!.Description
-                            } : null
-                        } : null,
-                    } : null,
-                } : null
-            } : null,
-            ServiceProvider = cell.ServiceProvider != null ? new()
+                            }
+                        },
+                    },
+                }
+            },
+            ServiceProvider = new()
             {
                 Id = cell.ServiceProviderId,
-                Service = cell.ServiceProvider.Service != null ? new()
+                Service = new()
                 {
                     Id = cell.ServiceProvider.ServiceId,
-                    Name = cell.ServiceProvider.Service.Name ?? string.Empty,
-                    Type = cell.ServiceProvider.Service.Type.ToString() ?? string.Empty,
-                } : null,
-                Provider = cell.ServiceProvider.Provider != null ? new()
+                    Name = cell.ServiceProvider.Service.Name,
+                    Type = cell.ServiceProvider.Service.Type.ToString(),
+                },
+                Provider =new()
                 {
                     Id = cell.ServiceProvider.ProviderId,
-                    Name = cell.ServiceProvider.Provider.Name ?? string.Empty,
-                    Color = cell.ServiceProvider.Provider.Color ?? string.Empty,
-                    Description = cell.ServiceProvider.Provider.Description ?? string.Empty,
-                    LicenseNumber = cell.ServiceProvider.Provider.LicenseNumber ?? string.Empty,
-                } : null,
+                    Name = cell.ServiceProvider.Provider.Name,
+                    Color = cell.ServiceProvider.Provider.Color,
+                    Description = cell.ServiceProvider.Provider.Description,
+                    LicenseNumber = cell.ServiceProvider.Provider.LicenseNumber,
+                },
                 MNC = cell.ServiceProvider.MNC,
                 MCC = cell.ServiceProvider.MCC,
-            }
-            : null,
+            },
             CID = cell.CID,
             LAC = cell.LAC,
             TAC = cell.TAC,
@@ -114,27 +115,7 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
         });
 
-        var cells = await _repository.ToListAsync(cellDtoQuery, cancellationToken);
+        return await _repository.PaginateAsync(cellDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
 
-        if (cells.Count is 0)
-        {
-            return new PaginatedResponse<CellDto>(new List<CellDto>(), request.PageNumber, request.PageSize)
-            {
-                Message = "No records found.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullCells", new[] { "No cells found." }
-                    }
-                }
-            };
-        }
-        return new PaginatedResponse<CellDto>(cells, request.PageNumber, request.PageSize)
-        {
-            Data = cells,
-            Message = "Cells retrieved successfully.",
-            Succeeded = true
-        };
     }
 }
