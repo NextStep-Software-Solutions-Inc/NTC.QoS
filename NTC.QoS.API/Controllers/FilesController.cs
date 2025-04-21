@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
+using System.IO;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -56,5 +57,13 @@ public class FilesController(IMediator mediator) : ControllerBase
     {
         var file = await _mediator.Send(new DeleteFileByIdRequest(id));
         return file.Succeeded ? Ok(file) : BadRequest(file);
+    }
+
+    [HttpPost("download/{type}")]
+    public async Task<ActionResult<ApiResponse<FileDto>>> DownloadFile(string type)
+    {
+        var stream = await _mediator.Send(new DownloadTemplateFileRequest(type));
+        return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "file.xlsx");
+
     }
 }
