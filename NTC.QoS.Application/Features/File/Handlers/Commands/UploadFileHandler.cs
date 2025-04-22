@@ -34,101 +34,117 @@ public class UploadFileHandler(IFileRepository repository, IEnumerable<IFileProc
             Name = newFileName,
             Type = fileType,
             Path = Path.Combine("uploads", newFileName),
-            Content = fileContent,
-            ContentType = contentType,
             Status = FileStatusEnum.Pending,
         };
         _repository.Add(newFile);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        var processor = _fileProcessors.FirstOrDefault(p => p.FileType == fileType);
-        if (processor is null)
+        var newFileDto = new FileDto
         {
-            newFile.Status = FileStatusEnum.Failed;
-            await _repository.SaveChangesAsync(cancellationToken);
+            Id = newFile.Id,
+            Name = newFile.Name,
+            Path = newFile.Path,
+            UploadedBy = newFile.UploadedBy,
+            UploadDate = newFile.UploadDate,
+            Type = newFile.Type.ToString() ?? string.Empty,
+            Status = newFile.Status.ToString()
+        };
 
-            return new ApiResponse<FileDto>
-            {
-                Succeeded = false,
-                Message = $"Unsupported file type: {fileType}. No processor available.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullProcessor", [$"File upload failed. Unsupported file type: {fileType}. No processor available."]
-                    }
-                }
-            };
-        }
-
-        newFile.Status = FileStatusEnum.Processing;
-        await _repository.SaveChangesAsync(cancellationToken);
-
-        var processingResultWrapper = await processor.ProcessFileAsync(newFile);
-
-        if (!processingResultWrapper.Succeeded)
+        return new ApiResponse<FileDto>
         {
-            newFile.Status = FileStatusEnum.PartiallyProcessed;
-            await _repository.SaveChangesAsync(cancellationToken);
+            Data = newFileDto,
+            Message = "File uploaded and queued for processing.",
+            Succeeded = true
+        };
 
-            var newFileDto = new FileDto
-            {
-                Id = newFile.Id,
-                Name = newFile.Name,
-                Path = newFile.Path,
-                UploadedBy = newFile.UploadedBy,
-                UploadDate = newFile.UploadDate,
-                Type = newFile.Type.ToString() ?? string.Empty,
-                Status = newFile.Status.ToString()
-            };
+        //var processor = _fileProcessors.FirstOrDefault(p => p.FileType == fileType);
+        //if (processor is null)
+        //{
+        //    newFile.Status = FileStatusEnum.Failed;
+        //    await _repository.SaveChangesAsync(cancellationToken);
 
-            var errors = new Dictionary<string, string[]>();
+        //    return new ApiResponse<FileDto>
+        //    {
+        //        Succeeded = false,
+        //        Message = $"Unsupported file type: {fileType}. No processor available.",
+        //        Errors = new Dictionary<string, string[]>
+        //        {
+        //            {
+        //                "NullProcessor", [$"File upload failed. Unsupported file type: {fileType}. No processor available."]
+        //            }
+        //        }
+        //    };
+        //}
 
-            if (processingResultWrapper.Data?.Data is Dictionary<string, string[]> dataErrors)
-            {
-                errors = dataErrors;
-            }
-            else if (processingResultWrapper.Data?.Data is List<object> errorList)
-            {
-                var errorMessages = errorList
-                    .Select(e => JsonSerializer.Serialize(e))
-                    .ToArray();
-                errors.Add("ProcessingError", errorMessages);
-            }
-            else if (!string.IsNullOrEmpty(processingResultWrapper.Message))
-            {
-                errors.Add("ProcessingError", new[] { processingResultWrapper.Message });
-            }
+        //newFile.Status = FileStatusEnum.Processing;
+        //await _repository.SaveChangesAsync(cancellationToken);
 
-            return new ApiResponse<FileDto>
-            {
-                Succeeded = true,
-                Message = $"File '{newFile.Name}' upload successful, but processing failed: {processingResultWrapper.Message}",
-                Data = newFileDto,
-                Errors = errors
-            };
-        }
-        else
-        {
-            newFile.Status = FileStatusEnum.Success;
-            await _repository.SaveChangesAsync(cancellationToken);
+        //var processingResultWrapper = await processor.ProcessFileAsync(newFile);
 
-            var newFileDto = new FileDto
-            {
-                Id = newFile.Id,
-                Name = newFile.Name,
-                Path = newFile.Path,
-                UploadedBy = newFile.UploadedBy,
-                UploadDate = newFile.UploadDate,
-                Type = newFile.Type.ToString() ?? string.Empty,
-                Status = newFile.Status.ToString()
-            };
+        //if (!processingResultWrapper.Succeeded)
+        //{
+        //    newFile.Status = FileStatusEnum.PartiallyProcessed;
+        //    await _repository.SaveChangesAsync(cancellationToken);
 
-            return new ApiResponse<FileDto>
-            {
-                Data = newFileDto,
-                Message = "File uploaded and processed successfully.",
-                Succeeded = true
-            };
-        }
+        //    var newFileDto = new FileDto
+        //    {
+        //        Id = newFile.Id,
+        //        Name = newFile.Name,
+        //        Path = newFile.Path,
+        //        UploadedBy = newFile.UploadedBy,
+        //        UploadDate = newFile.UploadDate,
+        //        Type = newFile.Type.ToString() ?? string.Empty,
+        //        Status = newFile.Status.ToString()
+        //    };
+
+        //    var errors = new Dictionary<string, string[]>();
+
+        //    if (processingResultWrapper.Data?.Data is Dictionary<string, string[]> dataErrors)
+        //    {
+        //        errors = dataErrors;
+        //    }
+        //    else if (processingResultWrapper.Data?.Data is List<object> errorList)
+        //    {
+        //        var errorMessages = errorList
+        //            .Select(e => JsonSerializer.Serialize(e))
+        //            .ToArray();
+        //        errors.Add("ProcessingError", errorMessages);
+        //    }
+        //    else if (!string.IsNullOrEmpty(processingResultWrapper.Message))
+        //    {
+        //        errors.Add("ProcessingError", new[] { processingResultWrapper.Message });
+        //    }
+
+        //    return new ApiResponse<FileDto>
+        //    {
+        //        Succeeded = true,
+        //        Message = $"File '{newFile.Name}' upload successful, but processing failed: {processingResultWrapper.Message}",
+        //        Data = newFileDto,
+        //        Errors = errors
+        //    };
+        //}
+        //else
+        //{
+        //    newFile.Status = FileStatusEnum.Success;
+        //    await _repository.SaveChangesAsync(cancellationToken);
+
+        //    var newFileDto = new FileDto
+        //    {
+        //        Id = newFile.Id,
+        //        Name = newFile.Name,
+        //        Path = newFile.Path,
+        //        UploadedBy = newFile.UploadedBy,
+        //        UploadDate = newFile.UploadDate,
+        //        Type = newFile.Type.ToString() ?? string.Empty,
+        //        Status = newFile.Status.ToString()
+        //    };
+
+        //    return new ApiResponse<FileDto>
+        //    {
+        //        Data = newFileDto,
+        //        Message = "File uploaded and processed successfully.",
+        //        Succeeded = true
+        //    };
+        //}
     }
 }

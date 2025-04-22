@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
 
@@ -16,6 +17,29 @@ public class FilesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile( [FromForm] UploadFileDto uploadFile)
     {
         var file = await _mediator.Send(new UploadFileRequest(uploadFile));
+
+        var fileType = Enum.Parse<FileTypeEnum>(uploadFile.Type);
+
+        switch (fileType)
+        {
+            case FileTypeEnum.NAP:
+                // Process NAP file
+                await _mediator.Send(new ProcessNAPFileRequest(uploadFile));
+
+                break;
+            case FileTypeEnum.Speedtest:
+                // Process SPP file
+                break;
+            case FileTypeEnum.Cell:
+                // Process SPP_2 file
+                break;
+
+            case FileTypeEnum.Unknown:
+            default:
+                throw new ArgumentOutOfRangeException(nameof(fileType), $"Unsupported file type: {fileType}");
+        }
+
+
         return file.Succeeded ? Ok(file) : BadRequest(file);
     }
 
@@ -58,7 +82,7 @@ public class FilesController(IMediator mediator) : ControllerBase
         return file.Succeeded ? Ok(file) : BadRequest(file);
     }
 
-    [HttpPost("download/{type}")]
+    [HttpGet("download/{type}")]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {
         var res = await _mediator.Send(new DownloadTemplateFileRequest(type));
@@ -68,4 +92,5 @@ public class FilesController(IMediator mediator) : ControllerBase
         }
         return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{type}_template-file.xlsx");
     }
+
 }

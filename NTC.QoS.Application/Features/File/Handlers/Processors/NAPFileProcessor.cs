@@ -25,8 +25,8 @@ public class NAPFileProcessor(INAPRepository nAPRepository, IServiceProviderRepo
         int totalProcessed = 0;
         try
         {
-            var jsonData = ParseExcelToJson(file.Content);
-            var napRecords = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(jsonData);
+            //var jsonData = ParseExcelToJson(file.Content);
+            var napRecords = JsonSerializer.Deserialize<List<Dictionary<string, string>>>("");
 
             if (napRecords is null || napRecords.Count is 0)
             {

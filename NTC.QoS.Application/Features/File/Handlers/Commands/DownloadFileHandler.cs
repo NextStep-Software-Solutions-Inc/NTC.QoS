@@ -10,13 +10,13 @@ using System.Linq.Expressions;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 
-internal sealed class DownloadFileRequestHandler : IRequestHandler<DownloadTemplateFileRequest, ApiResponse<Stream>>
+internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFileRequest, ApiResponse<Stream>>
 {
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
 
-    public DownloadFileRequestHandler(
+    public DownloadFileHandler(
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IRepository<Domain.Entities.Municipality> municipalityRepository,
         IRepository<Domain.Entities.Province> provinceRepository)

@@ -6,6 +6,7 @@ using MediatR;
 using System.Reflection;
 using NTC.QoS.Application.Behaviors;
 using NTC.QoS.Application.Contracts;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Application;
 public static class ApplicationDependencyInjection
@@ -14,7 +15,11 @@ public static class ApplicationDependencyInjection
     {
         var applicationAssembly = typeof(ApplicationDependencyInjection).Assembly;
 
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(applicationAssembly));
+        services.AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssembly(applicationAssembly);
+            cfg.Lifetime = ServiceLifetime.Scoped;
+        });
         services.AddFluentValidationAutoValidation();
         //services.AddValidatorsFromAssembly(applicationAssembly); // This is what I used before FluentValidation.AspNetCore but it's not needed anymore since im using Scutor scanning to register validators in the next line.
         services.Scan(scan => scan
@@ -30,6 +35,13 @@ public static class ApplicationDependencyInjection
             .AddClasses(classes => classes.AssignableTo<IFileProcessor>())
             .AsImplementedInterfaces()
             .WithScopedLifetime());
+
+        services.Scan(scan =>
+            scan.FromAssemblies(Assembly.GetExecutingAssembly())
+                .AddClasses(classes => classes.AssignableTo<IBackgroundJob>())
+                .AsImplementedInterfaces()
+                .WithScopedLifetime()
+        );
 
         return services;
     }
