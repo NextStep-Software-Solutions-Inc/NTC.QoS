@@ -18,13 +18,22 @@ public class FilesController(IMediator mediator) : ControllerBase
     {
         var file = await _mediator.Send(new UploadFileRequest(uploadFile));
 
+        if (file.Succeeded.Equals(false) || file == null || file.Data == null)
+        {
+            return BadRequest(new ApiResponse<FileDto>
+            {
+                Succeeded = false,
+                Message = "File upload failed."
+            });
+        }
+
         var fileType = Enum.Parse<FileTypeEnum>(uploadFile.Type);
 
         switch (fileType)
         {
             case FileTypeEnum.NAP:
                 // Process NAP file
-                await _mediator.Send(new ProcessNAPFileRequest(uploadFile));
+                await _mediator.Send(new ProcessNAPFileRequest(file.Data));
 
                 break;
             case FileTypeEnum.Speedtest:
@@ -39,8 +48,8 @@ public class FilesController(IMediator mediator) : ControllerBase
                 throw new ArgumentOutOfRangeException(nameof(fileType), $"Unsupported file type: {fileType}");
         }
 
-
-        return file.Succeeded ? Ok(file) : BadRequest(file);
+        // Schedule a background job to delete the file and its database record after 1 day
+        return Ok(file);
     }
 
     [HttpGet]

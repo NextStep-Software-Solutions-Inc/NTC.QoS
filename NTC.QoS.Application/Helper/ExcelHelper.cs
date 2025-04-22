@@ -6,7 +6,7 @@ namespace NTC.QoS.Application.Helper;
 public static class ExcelHelper
 {
 
-    public static List<T> ParseExcelToClass<T>(MemoryStream stream) where T : new()
+    public static List<T> ParseExcelToClass<T>(FileStream stream) where T : new()
     {
         var result = new List<T>();
 

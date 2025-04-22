@@ -13,6 +13,7 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     Task<List<TResult>> ToListAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
     void Add(TEntity entity);
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
+    void AddRange(IEnumerable<TEntity> entities);
     void Update(TEntity entity);
     void Delete(TEntity entity);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

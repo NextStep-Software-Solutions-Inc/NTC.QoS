@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
+using System.IO.Packaging;
 using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
@@ -29,11 +30,27 @@ public class UploadFileHandler(IFileRepository repository, IEnumerable<IFileProc
         byte[] fileContent = memoryStream.ToArray();
         string contentType = request.File.File.ContentType;
 
+        // Define the save path
+        string uploadDirectory = Path.Combine(Directory.GetCurrentDirectory(), "uploads", request.File.Type);
+        string filePath = Path.Combine(uploadDirectory, newFileName);
+
+        // Ensure the directory exists
+        if (!Directory.Exists(uploadDirectory))
+        {
+            Directory.CreateDirectory(uploadDirectory);
+        }
+
+        // Save the file
+        using (var fileStream = new FileStream(filePath, FileMode.Create))
+        {
+            await request.File.File.CopyToAsync(fileStream, cancellationToken);
+        }
+
         var newFile = new Domain.Entities.File
         {
             Name = newFileName,
             Type = fileType,
-            Path = Path.Combine("uploads", newFileName),
+            Path = filePath,
             Status = FileStatusEnum.Pending,
         };
         _repository.Add(newFile);
@@ -49,6 +66,7 @@ public class UploadFileHandler(IFileRepository repository, IEnumerable<IFileProc
             Type = newFile.Type.ToString() ?? string.Empty,
             Status = newFile.Status.ToString()
         };
+
 
         return new ApiResponse<FileDto>
         {

@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.File.Requests;
 
-public sealed class ProcessNAPFileRequest(UploadFileDto file) : IRequest<bool>
+public sealed class ProcessNAPFileRequest(FileDto file) : IRequest<bool>
 {
-    public UploadFileDto File { get; set; } = file;
+    public FileDto File { get; set; } = file;
 }

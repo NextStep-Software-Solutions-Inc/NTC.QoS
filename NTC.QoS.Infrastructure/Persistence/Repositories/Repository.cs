@@ -92,4 +92,9 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
 
         return await queryable.FirstOrDefaultAsync(cancellationToken);
     }
+
+    public void AddRange(IEnumerable<TEntity> entities)
+    {
+        _context.AddRange(entities);
+    }
 }
