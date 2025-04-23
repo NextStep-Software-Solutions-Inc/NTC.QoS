@@ -1,5 +1,4 @@
 ﻿using MediatR;
-using NTC.QoS.Application.Contracts;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -18,9 +17,9 @@ public class UploadFileHandler(IFileRepository repository) : IRequestHandler<Upl
         var fileType = EnumHelper<FileTypeEnum>.GetValue(request.File.Type);
         var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
         string originalFileName = request.File.FileName ?? request.File.File.FileName;
-        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName) ?? "UnknownFile";
+        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName).Replace(" ", "-");
         string fileExtension = Path.GetExtension(originalFileName);
-        string newFileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}".Replace(" ", "-");
+        string newFileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}";
 
         // Define the save path
         string uploadDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", request.File.Type);
