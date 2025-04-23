@@ -196,8 +196,8 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                     }
                 }
 
-                // Check if all Id is present
-                if (serviceProviderId == Guid.Empty && municipalityId == Guid.Empty && (!zoneCache.TryGetValue(record.Municipality, out var zoneId) || zoneId == Guid.Empty))
+                // Check if all Ids are valid and present
+                if (serviceProviderId != Guid.Empty && municipalityId != Guid.Empty && zoneCache.TryGetValue(record.Municipality, out var zoneId) && zoneId != Guid.Empty)
                 {
                     // Create a new NAP entity
                     var nap = new Domain.Aggregates.NAP
