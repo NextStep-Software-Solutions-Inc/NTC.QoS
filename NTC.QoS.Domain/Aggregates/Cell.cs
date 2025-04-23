@@ -6,11 +6,11 @@ namespace NTC.QoS.Domain.Aggregates;
 public class Cell : BaseEntity
 {
     public Guid ZoneId { get; set; }
-    public virtual Zone? Zone { get; set; }
+    public virtual Zone Zone { get; set; } = null!;
     public Guid ServiceProviderId { get; set; }
-    public virtual ServiceProvider? ServiceProvider { get; set; }
+    public virtual ServiceProvider ServiceProvider { get; set; } = null!;
     public Guid? FileId { get; set; }
-    public virtual NTC.QoS.Domain.Entities.File? File { get; set; }
+    public virtual Entities.File? File { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Group { get; set; } = string.Empty;
     public string? Description { get; set; }
@@ -29,6 +29,4 @@ public class Cell : BaseEntity
     public virtual List<Sector> Sectors { get; set; } = new();
     public virtual List<Speedtest> Speedtests { get; set; } = new();
     public virtual List<Cellular> Cellulars { get; set; } = new();
-
-
 }

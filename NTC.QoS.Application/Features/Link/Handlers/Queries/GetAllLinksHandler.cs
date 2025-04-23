@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Link;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Enums;
 
-namespace NTC.QoS.Application.Features.Technology.Handlers.Queries;
+namespace NTC.QoS.Application.Features.Link.Handlers.Queries;
 
 public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandler<GetAllLinksRequest, PaginatedResponse<LinkDto>>
 {
@@ -14,53 +14,57 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
 
     public async Task<PaginatedResponse<LinkDto>> Handle(GetAllLinksRequest request, CancellationToken cancellationToken)
     {
-        var allLinks = await _linkRepository.ListAsync(l => !l.IsDeleted, cancellationToken);
+        var allLinksQuery = _linkRepository.Query(l => !l.IsDeleted);
 
         if (request.ServiceProviderId.HasValue)
         {
-            allLinks = [.. allLinks.Where(l => l.ServiceProviderId == request.ServiceProviderId.Value)];
+            allLinksQuery = allLinksQuery.Where(l => l.ServiceProviderId == request.ServiceProviderId.Value);
         }
 
         if (request.BandId.HasValue)
         {
-            allLinks = [.. allLinks.Where(l => l.BandId == request.BandId.Value)];
+            allLinksQuery = allLinksQuery.Where(l => l.BandId == request.BandId.Value);
         }
 
-        var linkDtos = allLinks.Select(l =>
-        {
-            return new LinkDto
+        var linkDtosQuery = allLinksQuery
+            .OrderBy(l => l.CreatedAt)
+            .Select(l => new LinkDto
             {
                 Id = l.Id,
                 Type = EnumHelper<LinkTypeEnum>.GetDescription(l.Type),
-                ServiceProvider = new ServiceProviderLinkDto
+                ServiceProvider = new()
                 {
-                    Id = l.ServiceProviderId,
-                    Provider = new ProviderLinkDto
+                    Id = l.ServiceProvider.Id,
+                    MCC = l.ServiceProvider.MCC,
+                    MNC = l.ServiceProvider.MNC,
+                    Provider = new()
                     {
-                        Id = l.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = l.ServiceProvider?.Provider?.Name ?? "Unknown",
-                        Description = l.ServiceProvider?.Provider?.Description ?? string.Empty
+                        Id = l.ServiceProvider.Provider.Id,
+                        Name = l.ServiceProvider.Provider.Name,
+                        Description = l.ServiceProvider.Provider.Description,
+                        Color = l.ServiceProvider.Provider.Color,
+                        LicenseNumber = l.ServiceProvider.Provider.LicenseNumber
                     },
-                    Service = new ServiceLinkDto
+                    Service = new()
                     {
-                        Id = l.ServiceProvider?.ServiceId ?? Guid.Empty,
-                        Name = l.ServiceProvider?.Service?.Name ?? "Unknown",
-                        Type = l.ServiceProvider?.Service?.Type.ToString() ?? "Unknown"
+                        Id = l.ServiceProvider.ServiceId,
+                        Name = l.ServiceProvider.Service.Name,
+                        Type = l.ServiceProvider.Service.Type.ToString(),
                     }
                 },
-                Band = new BandLinkDto
+                Band = new()
                 {
-                    Id = l.BandId,
-                    Name = l.Band?.Name ?? "Unknown",
-                    Description = l.Band?.Description ?? string.Empty
+                    Id = l.Band.Id,
+                    Name = l.Band.Name,
+                    Description = l.Band.Description
                 },
                 CenterFrequency = l.CenterFrequency,
                 LowerFrequency = l.LowerFrequency,
                 UpperFrequency = l.UpperFrequency,
                 RxThreshold = l.RxThreshold
-            };
-        }).ToList();
+            });
 
-        return new PaginatedResponse<LinkDto>(linkDtos, request.PageNumber, request.PageSize);
+        return await _linkRepository.PaginateAsync(linkDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
+
     }
 }

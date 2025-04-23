@@ -4,7 +4,6 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Provider;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.Application.Features.Service.Handlers.Queries;
@@ -15,54 +14,36 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
 
     public async Task<PaginatedResponse<ServiceDto>> Handle(GetAllServicesRequest request, CancellationToken cancellationToken)
     {
-        var allServices = await _repository.ListAsync(s => !s.IsDeleted, cancellationToken);
+        var allServicesQuery = _repository.Query(s => !s.IsDeleted);
 
         if (request.ProviderIds is not null && request.ProviderIds.Count > 0)
         {
-            allServices = allServices
-                        .Where(s => s.ServiceProviders.Any(sp => sp.Provider is not null && request.ProviderIds.Contains(sp.Provider.Id))).ToList();
+            allServicesQuery = allServicesQuery
+                        .Where(s => s.ServiceProviders.Any(sp => request.ProviderIds.Contains(sp.Provider.Id)));
         }
 
         if (request.Types is not null && request.Types.Count > 0)
         {
             var validTypes = request.Types
                 .Select(type => EnumHelper<ServiceTypeEnum>.ParseUserInput(type))
-                .Where(parsedType => parsedType != ServiceTypeEnum.Unknown)
-                .ToList();
+                .Where(parsedType => parsedType != ServiceTypeEnum.Unknown);
 
-            if (validTypes.Count != 0)
+            if (validTypes.Any())
             {
-                allServices = allServices.Where(s => validTypes.Contains(s.Type)).ToList();
+                allServicesQuery = allServicesQuery.Where(s => validTypes.Contains(s.Type));
             }
         }
 
-        var serviceDtos = allServices.Select(service => new ServiceDto
-        {
-            Id = service.Id,
-            Name = service.Name,
-            Type =service.Type.ToString()
-        }).ToList();
-
-        if (serviceDtos.Count is 0)
-        {
-            return new PaginatedResponse<ServiceDto>(serviceDtos, request.PageNumber, request.PageSize)
+        var serviceDtosQuery = allServicesQuery
+            .OrderBy(s => s.CreatedAt)
+            .Select(service => new ServiceDto
             {
-                Succeeded = false,
-                Message = "No records found.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullServices", ["No services found."]
-                    }
-                }
-            };
-        }
+                Id = service.Id,
+                Name = service.Name,
+                Type =service.Type.ToString()
+            });
 
-        return new PaginatedResponse<ServiceDto>(serviceDtos, request.PageNumber, request.PageSize)
-        {
-            Data = serviceDtos,
-            Succeeded = true,
-            Message = "Services retrieved successfully."
-        };
+        return await _repository.PaginateAsync(serviceDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
+
     }
 }

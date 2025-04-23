@@ -10,7 +10,7 @@ public class Speedtest : BaseEntity
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider? ServiceProvider { get; set; }
     public Guid GenerationId { get; set; }
-    public virtual Generation? Generation { get; set; }
+    public virtual Generation Generation { get; set; } = null!;
     public Guid CellId { get; set; }
     public virtual Cell? Cell { get; set; }
     public Guid? FileId { get; set; }
