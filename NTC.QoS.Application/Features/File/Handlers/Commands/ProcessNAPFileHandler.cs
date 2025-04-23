@@ -40,28 +40,14 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
     public Task<bool> Handle(ProcessNAPFileRequest request, CancellationToken cancellationToken)
     {
 
-       var processJob = _backgroundJobClient.Enqueue(() => ProcessFile(request.File.Id, cancellationToken));
+       var processJob = _backgroundJobClient.Enqueue(() => ProcessFile(request.File.Path, cancellationToken));
        var deleteJob = _backgroundJobClient.Schedule(() => DeleteFileAndRecord(request.File.Id, cancellationToken), TimeSpan.FromDays(1));
 
         return Task.FromResult(true);
     }
 
-    public async Task ProcessFile(Guid id, CancellationToken token)
+    public async Task ProcessFile(string filePath, CancellationToken token)
     {
-
-        var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id == id).Select(f => new
-        {
-            f.Path,
-        });
-        var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, cancellationToken: token);
-
-
-
-        if (file is null)
-        {
-            _logger.LogWarning($"File not found: {id}");
-            return;
-        }
 
         var serviceProviderCache = new Dictionary<string, Guid>();
         var provinceCache = new Dictionary<string, Guid>();
@@ -74,11 +60,11 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
 
         // Perform the processing logic here
 
-        using var fileStream = new FileStream(file.Path, FileMode.Open, FileAccess.Read);
+        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
         // Read the file and process its contents
         // For example, you might want to parse the file and save its contents to the database
         // Return a success response
-        _logger.LogInformation($"Processing file: {file.Path}");
+        _logger.LogInformation($"Processing file: {filePath}");
 
         fileStream.Position = 0;
         _logger.LogInformation("Processing started");
