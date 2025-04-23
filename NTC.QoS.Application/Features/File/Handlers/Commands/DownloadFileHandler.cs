@@ -1,11 +1,15 @@
 using MediatR;
+using NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Application.Features.Technology.Handlers.Queries;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using OfficeOpenXml;
 using OfficeOpenXml.DataValidation;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
@@ -15,15 +19,28 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
+    private readonly IRepository<Domain.Entities.Region> _regionRepository;
+    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository;
+    private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
+    private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
+
 
     public DownloadFileHandler(
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IRepository<Domain.Entities.Municipality> municipalityRepository,
-        IRepository<Domain.Entities.Province> provinceRepository)
+        IRepository<Domain.Entities.Province> provinceRepository,
+        IRepository<Domain.Entities.Region> regionRepository,
+        IRepository<Domain.Entities.Barangay> barangayRepository,
+        IRepository<Domain.Entities.Technology> technologyRepository,
+        IRepository<Domain.Aggregates.Generation> generationRepository)
     {
         _serviceProviderRepository = serviceProviderRepository;
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
+        _regionRepository = regionRepository;
+        _barangayRepository = barangayRepository;
+        _technologyRepository = technologyRepository;
+        _generationRepository = generationRepository;
     }
 
     public async Task<ApiResponse<Stream>> Handle(DownloadTemplateFileRequest request, CancellationToken cancellationToken)
@@ -39,6 +56,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         {
             case FileTypeEnum.NAP:
                 await GenerateTemplate(package, cancellationToken, GenerateNAPTemplate);
+                break;
+
+            case FileTypeEnum.Speedtest:
+                await GenerateTemplate(package, cancellationToken, GenerateSpeedtestTemplate);
                 break;
 
             // Add cases for other file types as needed
@@ -79,6 +100,28 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "A2:A10", providers);
         AddDropdownValidation(worksheet, "B2:B10", municipalities);
         AddDropdownValidation(worksheet, "C2:C10", provinces);
+    }
+
+    private async Task GenerateSpeedtestTemplate(ExcelWorksheet worksheet, CancellationToken cancellationToken)
+    {
+        AddHeaders(worksheet, "Region No", "Province", "City", "Barangay", "Date & Time", "Technology (2G, 3G, 4G, LTE, 5G)", "Service Provider", "Upload (Mbps)", "Download (Mbps)", "Signal Strength (dBm)", "Remarks (signal strength equivalency)");
+
+        var regions = await GetRegions(cancellationToken);
+        var provinces = await GetProvinces(cancellationToken);
+        var municipalities = await GetMunicipalities(cancellationToken);
+        var barangays = await GetBarangays(cancellationToken);
+        var providers = await GetServiceProviders(cancellationToken);
+        var technologyStandards = await GetTechnologyStandards(cancellationToken);
+        var generations = await GetGenerations(cancellationToken);
+        var technologies = generations.Concat(technologyStandards).Distinct().OrderBy(t => t).ToList(); // I combined and ordered distinct generation names and technology standards for the "Technology" dropdown (for review)
+
+
+        AddDropdownValidation(worksheet, "A2:A10", regions);
+        AddDropdownValidation(worksheet, "B2:B10", provinces);
+        AddDropdownValidation(worksheet, "C2:C10", municipalities);
+        AddDropdownValidation(worksheet, "D2:D10", barangays);
+        AddDropdownValidation(worksheet, "F2:F10", technologies);
+        AddDropdownValidation(worksheet, "G2:G10", providers);
     }
 
     private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
@@ -129,6 +172,31 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             .Select(sp => sp.Provider.Name);
 
         return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
+    }
+
+    private async Task<List<string>> GetRegions(CancellationToken cancellationToken)
+    {
+        return await GetEntityNames(_regionRepository, r => !r.IsDeleted, r => r.Name, cancellationToken);
+    }
+    
+    private async Task<List<string>> GetBarangays(CancellationToken cancellationToken)
+    {
+        return await GetEntityNames(_barangayRepository, b => !b.IsDeleted, b => b.Name, cancellationToken);
+    }
+    private async Task<List<string>> GetTechnologyStandards(CancellationToken cancellationToken)
+    {
+        var query = _technologyRepository.Query(t => !t.IsDeleted)
+            .OrderBy(t => t.Standard)
+            .Select(t => t.Standard);
+        return await _technologyRepository.ToListAsync(query, cancellationToken);
+    }
+
+    private async Task<List<string>> GetGenerations(CancellationToken cancellationToken)
+    {
+        var query = _generationRepository.Query(g => !g.IsDeleted)
+            .OrderBy(g => g.Name)
+            .Select(g => g.Name);
+        return await _generationRepository.ToListAsync(query, cancellationToken);
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(
