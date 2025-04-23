@@ -10,7 +10,7 @@ public class ProcessNAPJob : IProcessNAPJob
 {
     private readonly ILogger<ProcessNAPJob> _logger;
     private readonly IRepository<Domain.Aggregates.NAP> _NAPRepository;
-    private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepositoty;
+    private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
 
@@ -69,7 +69,7 @@ public class ProcessNAPJob : IProcessNAPJob
             if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
             {
                 // If not, fetch it from the database and add it to the cache
-                var serviceProviderQuery = _serviceProviderRepositoty
+                var serviceProviderQuery = _serviceProviderRepository
                     .Query(sp => !sp.IsDeleted)
                     .Where(sp => sp.Provider.Name.Equals(record.Provider));
 
@@ -79,7 +79,7 @@ public class ProcessNAPJob : IProcessNAPJob
                     ProviderName = sp.Provider.Name,
                     ServiceName = sp.Service.Name,
                 });
-                var serviceProvider = await _serviceProviderRepositoty.FirstOrDefaultAsync(serviceProviderNameQuery, cancellationToken: token);
+                var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderNameQuery, cancellationToken: token);
 
                 if (serviceProvider is null)
                 {
