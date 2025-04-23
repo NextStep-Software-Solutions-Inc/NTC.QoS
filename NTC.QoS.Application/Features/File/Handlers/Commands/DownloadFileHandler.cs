@@ -73,12 +73,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddHeaders(worksheet, "Provider", "Municipality", "Province", "Lat", "Lng");
 
         var providers = await GetServiceProviders(cancellationToken);
-        var munisipalities = await GetMunicipalities(cancellationToken);
+        var municipalities = await GetMunicipalities(cancellationToken);
         var provinces = await GetProvinces(cancellationToken);
 
         AddDropdownValidation(worksheet, "A2:A10", providers);
-        AddDropdownValidation(worksheet, "B2:B10", munisipalities);
-        AddDropdownValidation(worksheet, "C2:C10", provinces);
+        AddDropdownValidation(worksheet, "B2:B10", municipalities);
     }
 
     private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
