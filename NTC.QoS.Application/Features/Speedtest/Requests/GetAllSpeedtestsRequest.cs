@@ -9,7 +9,7 @@ public class GetAllSpeedtestsRequest(int pageNumber,
                                      int pageSize,
                                      string? search,
                                      string? status,
-                                     List<Guid?>? fileIds,
+                                     List<Guid>? fileIds,
                                      List<Guid>? serviceProviderIds,
                                      List<Guid>? barangayIds,
                                      List<Guid>? cellIds,
@@ -25,7 +25,7 @@ public class GetAllSpeedtestsRequest(int pageNumber,
     public List<Guid>? ServiceProviderIds { get; set; } = serviceProviderIds;
     public List<Guid>? GenerationIds { get; set; } = generationIds;
     public List<Guid>? CellIds { get; set; } = cellIds;
-    public List<Guid?>? FileIds { get; set; } = fileIds;
+    public List<Guid>? FileIds { get; set; } = fileIds;
     public SignalQualityEnum? SignalQuality { get; set; }
     public List<Guid>? ProviderIds { get; set; } = providerIds;
     public List<Guid>? ServiceIds { get; set; } = serviceIds;

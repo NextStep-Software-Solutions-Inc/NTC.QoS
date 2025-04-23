@@ -96,7 +96,7 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                     ProviderName = sp.Provider.Name,
                     ServiceName = sp.Service.Name,
                 });
-                var serviceProvider = await _serviceProviderRepositoty.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken: token);
+                var serviceProvider = await _serviceProviderRepositoty.FirstOrDefaultAsync(serviceProviderNameQuery, cancellationToken: token);
 
                 if (serviceProvider is null)
                 {

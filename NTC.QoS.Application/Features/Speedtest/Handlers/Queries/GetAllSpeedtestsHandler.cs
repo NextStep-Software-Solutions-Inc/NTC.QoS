@@ -43,7 +43,7 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
             .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && request.GenerationIds.Contains(s.GenerationId)))
             .Where(s => request.CellIds == null || (request.CellIds.Count > 0 && request.CellIds.Contains(s.CellId)))
             .Where(s => request.SignalQuality == null || s.SignalQuality == request.SignalQuality.Value)
-            .Where(s => request.FileIds == null || (request.FileIds.Count > 0 && request.FileIds.Contains(s.FileId)));
+            .Where(s => s.FileId == null || request.FileIds == null || (request.FileIds.Count > 0 && request.FileIds.Contains(s.FileId.Value)));
 
         var speedtestDtos = speedtestQuery.Select(s => new SpeedtestDto
         {
