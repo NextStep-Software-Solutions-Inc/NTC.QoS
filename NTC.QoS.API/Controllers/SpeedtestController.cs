@@ -32,7 +32,7 @@ public class SpeedtestsController : ControllerBase
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
-        [FromQuery] List<Guid?>? fileIds = null,
+        [FromQuery] List<Guid>? fileIds = null,
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? barangayIds = null,
         [FromQuery] List<Guid>? cellIds = null,
