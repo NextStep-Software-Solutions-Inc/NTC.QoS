@@ -3,7 +3,7 @@
 public class Barangay : BaseEntity
 {
     public Guid MunicipalityId { get; set; }
-    public virtual Municipality? Municipality { get; set; }
+    public virtual Municipality Municipality { get; set; } = null!;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public virtual List<Speedtest> Speedtests { get; set; } = new();
