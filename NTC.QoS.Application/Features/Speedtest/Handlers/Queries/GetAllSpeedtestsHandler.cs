@@ -193,6 +193,5 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
             Message = "Speedtests retrieved successfully.",
             Succeeded = true
         };
-
     }
 }
