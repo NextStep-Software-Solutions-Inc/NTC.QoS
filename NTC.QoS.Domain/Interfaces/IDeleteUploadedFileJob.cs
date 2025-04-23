@@ -1,7 +1,6 @@
-﻿using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs.File;
+﻿using NTC.QoS.Domain.Models.DTOs.File;
 
-namespace NTC.QoS.Infrastructure.BackgroundTasks;
+namespace NTC.QoS.Domain.Interfaces;
 
 public interface IDeleteUploadedFileJob: IBackgroundJob<FileDto>
 {

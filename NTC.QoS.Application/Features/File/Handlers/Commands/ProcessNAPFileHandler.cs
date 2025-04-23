@@ -1,7 +1,6 @@
 using MediatR;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Infrastructure.BackgroundTasks;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 

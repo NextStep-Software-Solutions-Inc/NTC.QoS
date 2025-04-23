@@ -78,6 +78,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         AddDropdownValidation(worksheet, "A2:A10", providers);
         AddDropdownValidation(worksheet, "B2:B10", municipalities);
+        AddDropdownValidation(worksheet, "C2:C10", provinces);
     }
 
     private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
