@@ -13,19 +13,19 @@ namespace NTC.QoS.Infrastructure.Services
         }
 
         /// <inheritdoc />
-        public string Schedule(Expression<Action> job, DateTime enqueueAt)
+        public string Schedule<TJob>(Expression<Action<TJob>> job, DateTime enqueueAt)
         {
             return BackgroundJob.Schedule(job, enqueueAt);
         }
 
         /// <inheritdoc />
-        public string Schedule(Expression<Action> job, TimeSpan delay)
+        public string Schedule<TJob>(Expression<Action<TJob>> job, TimeSpan delay)
         {
             return BackgroundJob.Schedule(job, delay);
         }
 
         /// <inheritdoc />
-        public void AddOrUpdateRecurringJob(string recurringJobId, Expression<Action> job, string cronExpression)
+        public void AddOrUpdateRecurringJob<TJob>(string recurringJobId, Expression<Action<TJob>> job, string cronExpression)
         {
             RecurringJob.AddOrUpdate(recurringJobId, job, cronExpression);
         }

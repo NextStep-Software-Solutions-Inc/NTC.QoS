@@ -17,7 +17,7 @@ public interface IBackgroundJobService
     /// <param name="jobExpression">The job expression to execute.</param>
     /// <param name="enqueueAt">The time to execute the job.</param>
     /// <returns>The job ID.</returns>
-    string Schedule(Expression<Action> jobExpression, DateTime enqueueAt);
+    string Schedule<TJob>(Expression<Action<TJob>> jobExpression, DateTime enqueueAt);
 
     /// <summary>
     /// Schedules a background job to be executed after a delay with parameters.
@@ -25,7 +25,7 @@ public interface IBackgroundJobService
     /// <param name="jobExpression">The job expression to execute.</param>
     /// <param name="delay">The delay after which the job will be executed.</param>
     /// <returns>The job ID.</returns>
-    string Schedule(Expression<Action> jobExpression, TimeSpan delay);
+    string Schedule<TJob>(Expression<Action<TJob>> jobExpression, TimeSpan delay);
 
     /// <summary>
     /// Adds or updates a recurring job with parameters.
@@ -33,7 +33,7 @@ public interface IBackgroundJobService
     /// <param name="recurringJobId">The ID of the recurring job.</param>
     /// <param name="jobExpression">The job expression to execute.</param>
     /// <param name="cronExpression">The CRON expression for the job schedule.</param>
-    void AddOrUpdateRecurringJob(string recurringJobId, Expression<Action> jobExpression, string cronExpression);
+    void AddOrUpdateRecurringJob<TJob>(string recurringJobId, Expression<Action<TJob>> jobExpression, string cronExpression);
 
     /// <summary>
     /// Removes a recurring job.

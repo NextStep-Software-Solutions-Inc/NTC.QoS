@@ -6,7 +6,7 @@ using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
-public class ProcessNAPJob : IBackgroundJob<FileDto>, IProcessNAPJob
+public class ProcessNAPJob : IProcessNAPJob
 {
     private readonly ILogger<ProcessNAPJob> _logger;
     private readonly IRepository<Domain.Aggregates.NAP> _NAPRepository;
