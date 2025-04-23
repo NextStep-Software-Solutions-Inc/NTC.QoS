@@ -148,7 +148,8 @@ public class ProcessNAPJob : IProcessNAPJob
                 if (municipality is null)
                 {
                     _logger.LogWarning($"Municipality under {record.Province} not found: {record.Municipality}");
-                    continue; // Skip this record
+                    TerminateProcess();
+                    return;
                 }
                 else
                 {
