@@ -88,8 +88,7 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
 
             if (napRecords.Count is 0)
             {
-                _logger.LogInformation("The Excel is emtpy.");
-                return;
+                _logger.LogInformation("The Excel is empty.");
             }
 
             foreach (var record in napRecords)
