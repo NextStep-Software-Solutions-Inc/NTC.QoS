@@ -14,7 +14,7 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
     private readonly ILogger<ProcessNAPFileHandler> _logger;
     private readonly IRepository<Domain.Aggregates.NAP> _NAPRepository;
     private readonly IRepository<Domain.Entities.File> _fileRepository;
-    private readonly IServiceProviderRepository _serviceProviderRepositoty;
+    private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepositoty;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
 
@@ -22,7 +22,7 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
         IBackgroundJobClient backgroundJobClient,
         IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.NAP> NAPRepository,
-        IServiceProviderRepository serviceProviderRepository,
+        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IRepository<Domain.Entities.Province> provinceRepository,
         IRepository<Domain.Entities.Municipality> municipalityRepository,
         ILogger<ProcessNAPFileHandler> logger
@@ -40,13 +40,13 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
     public Task<bool> Handle(ProcessNAPFileRequest request, CancellationToken cancellationToken)
     {
 
-       var processJob = _backgroundJobClient.Enqueue(() => ProcessFile(request.File.Path, cancellationToken));
+       var processJob = _backgroundJobClient.Enqueue(() => ProcessFile(request.File.Id, request.File.Path, cancellationToken));
        var deleteJob = _backgroundJobClient.Schedule(() => DeleteFileAndRecord(request.File.Id, cancellationToken), TimeSpan.FromDays(1));
 
         return Task.FromResult(true);
     }
 
-    public async Task ProcessFile(string filePath, CancellationToken token)
+    public async Task ProcessFile(Guid id, string filePath, CancellationToken token)
     {
 
         var serviceProviderCache = new Dictionary<string, Guid>();
