@@ -178,7 +178,7 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                         municipalityId = municipality.Id;
                         municipalityCache[record.Municipality] = municipalityId;
 
-                        // get the firts zone id from the barangay of the municipality
+                        // get the first zone id from the barangay of the municipality
                         // and add it to the zoneCache
 
                         var zone = municipality.Barangays
