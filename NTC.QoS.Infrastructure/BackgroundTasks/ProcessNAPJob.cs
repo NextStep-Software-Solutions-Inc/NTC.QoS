@@ -1,4 +1,9 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
+using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
@@ -9,6 +14,7 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 public class ProcessNAPJob : IProcessNAPJob
 {
     private readonly ILogger<ProcessNAPJob> _logger;
+    private readonly IRepository<Domain.Entities.File> _fileRepository;
     private readonly IRepository<Domain.Aggregates.NAP> _NAPRepository;
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
@@ -16,6 +22,7 @@ public class ProcessNAPJob : IProcessNAPJob
 
     public ProcessNAPJob(
         ILogger<ProcessNAPJob> logger,
+        IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.NAP> NAPRepository,
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IRepository<Domain.Entities.Province> provinceRepository,
@@ -23,6 +30,7 @@ public class ProcessNAPJob : IProcessNAPJob
         )
     {
         _logger = logger;
+        _fileRepository = fileRepository;
         _serviceProviderRepository = serviceProviderRepository;
         _provinceRepository = provinceRepository;
         _municipalityRepository = municipalityRepository;
@@ -31,6 +39,21 @@ public class ProcessNAPJob : IProcessNAPJob
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
+        var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id.Equals(parameters.Id));
+        var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
+        
+        if(file == null)
+        {
+            var message = "File not found";
+            _logger.LogError(message);
+            throw new Exception(message);
+        };
+
+        file.Status = FileStatusEnum.Processing;
+
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(token);
+
         var serviceProviderCache = new Dictionary<string, Guid>();
         var provinceCache = new Dictionary<string, Guid>();
         var municipalityCache = new Dictionary<string, Guid>();
@@ -84,7 +107,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 if (serviceProvider is null)
                 {
                     _logger.LogWarning($"Service Provider not found: {record.Provider}");
-                    TerminateProcess();
+                    await TerminateProcess(file, token);
                     return;
 
                 }
@@ -111,7 +134,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 if (province is null)
                 {
                     _logger.LogWarning($"Province not found: {record.Province}");
-                    TerminateProcess();
+                    await TerminateProcess(file, token);
                     return;
                 }
                 else
@@ -148,7 +171,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 if (municipality is null)
                 {
                     _logger.LogWarning($"Municipality under {record.Province} not found: {record.Municipality}");
-                    TerminateProcess();
+                    await TerminateProcess(file, token);
                     return;
                 }
                 else
@@ -160,12 +183,13 @@ public class ProcessNAPJob : IProcessNAPJob
                     // and add it to the zoneCache
 
                     var zone = municipality.Barangays
+                        .SelectMany(b => b.Zones)
                         .FirstOrDefault();
 
                     if (zone is null)
                     {
                         _logger.LogWarning($"No zones found for municipality: {record.Municipality}");
-                        TerminateProcess();
+                        await TerminateProcess(file, token);
                         return;
                     }
                     else
@@ -194,6 +218,9 @@ public class ProcessNAPJob : IProcessNAPJob
         // Add the NAP entities to the repository
         _NAPRepository.AddRange(NAPList);
 
+        file.Status = FileStatusEnum.Success;
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(token);
         await _NAPRepository.SaveChangesAsync(token);
 
         _logger.LogInformation("Processing completed");
@@ -207,10 +234,13 @@ public class ProcessNAPJob : IProcessNAPJob
         _logger.LogInformation(message);
     }
 
-    private void TerminateProcess()
+    private async Task TerminateProcess(Domain.Entities.File file, CancellationToken cancellationToken)
     {
-        // Implement the logic to terminate the process here
-        // For example, you might want to stop the background job or cancel the processing
+        file.Status = FileStatusEnum.Failed;
+        _fileRepository.Update(file);
+
+        await _fileRepository.SaveChangesAsync(cancellationToken);
+
         _logger.LogInformation("Process terminated due to error in runtime");
     }
 }
