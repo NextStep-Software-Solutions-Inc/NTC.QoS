@@ -79,8 +79,9 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
         foreach (var record in napRecords)
         {
             // Process each record
-            // For example, you might want to validate the record and save it to the database
             _logger.LogInformation($"Processing record: {record}");
+
+            ReportProgress($"Processing record: {record.Provider}, {record.Municipality} {record.Province} ({record.Latitude},{record.Longitude})");
 
             // Check if the Service Provider exists in the cache
             if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
@@ -101,7 +102,9 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                 if (serviceProvider is null)
                 {
                     _logger.LogWarning($"Service Provider not found: {record.Provider}");
-                    continue; // Skip this record
+                    TerminateProcess();
+                    return;
+
                 }
                 else
                 {
@@ -126,7 +129,8 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                 if (province is null)
                 {
                     _logger.LogWarning($"Province not found: {record.Province}");
-                    continue; // Skip this record
+                    TerminateProcess();
+                    return;
                 }
                 else
                 {
@@ -178,7 +182,8 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                     if (zone is null)
                     {
                         _logger.LogWarning($"No zones found for municipality: {record.Municipality}");
-                        continue; // Skip this record
+                        TerminateProcess();
+                        return;
                     }
                     else
                     {
@@ -239,5 +244,19 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
         _logger.LogInformation($"File record deleted: {file.Id}");
 
     }
+
+    public void ReportProgress(string message)
+    {
+        // Implement the logic to report progress here
+        // For example, you might want to log the progress or update a progress bar in the UI
+        _logger.LogInformation(message);
+    }
+
+    public void TerminateProcess()
+    {
+        // Implement the logic to terminate the process here
+        // For example, you might want to stop the background job or cancel the processing
+        _logger.LogInformation("Process terminated due to error in runtime");
+    }   
 }
 
