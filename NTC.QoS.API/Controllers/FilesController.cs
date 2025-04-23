@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
 
@@ -16,7 +17,39 @@ public class FilesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile( [FromForm] UploadFileDto uploadFile)
     {
         var file = await _mediator.Send(new UploadFileRequest(uploadFile));
-        return file.Succeeded ? Ok(file) : BadRequest(file);
+
+        if (file.Succeeded.Equals(false) || file == null || file.Data == null)
+        {
+            return BadRequest(new ApiResponse<FileDto>
+            {
+                Succeeded = false,
+                Message = "File upload failed."
+            });
+        }
+
+        var fileType = Enum.Parse<FileTypeEnum>(uploadFile.Type);
+
+        switch (fileType)
+        {
+            case FileTypeEnum.NAP:
+                // Process NAP file
+                await _mediator.Send(new ProcessNAPFileRequest(file.Data));
+
+                break;
+            case FileTypeEnum.Speedtest:
+                // Process SPP file
+                break;
+            case FileTypeEnum.Cell:
+                // Process SPP_2 file
+                break;
+
+            case FileTypeEnum.Unknown:
+            default:
+                throw new ArgumentOutOfRangeException(nameof(fileType), $"Unsupported file type: {fileType}");
+        }
+
+        // Schedule a background job to delete the file and its database record after 1 day
+        return Ok(file);
     }
 
     [HttpGet]
@@ -57,4 +90,16 @@ public class FilesController(IMediator mediator) : ControllerBase
         var file = await _mediator.Send(new DeleteFileByIdRequest(id));
         return file.Succeeded ? Ok(file) : BadRequest(file);
     }
+
+    [HttpGet("download/{type}")]
+    public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
+    {
+        var res = await _mediator.Send(new DownloadTemplateFileRequest(type));
+        if(res.Succeeded is false || res.Data is null || res.Data.Length is 0)
+        {
+            return BadRequest(res);
+        }
+        return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{type}_template-file.xlsx");
+    }
+
 }

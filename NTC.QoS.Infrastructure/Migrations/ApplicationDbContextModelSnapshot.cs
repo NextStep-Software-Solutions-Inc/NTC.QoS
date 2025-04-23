@@ -80,6 +80,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("RowNumber")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
@@ -302,6 +305,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<int?>("RowNumber")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
@@ -780,7 +786,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("FileId")
+                    b.Property<Guid?>("FileId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("GenerationBandId")
@@ -789,7 +795,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("RowNumber")
+                    b.Property<int?>("RowNumber")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("ServiceProviderId")
@@ -822,6 +828,14 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1526,7 +1540,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<decimal>("DownloadSpeed")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid>("FileId")
+                    b.Property<Guid?>("FileId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("GenerationId")
@@ -1555,6 +1569,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<decimal>("RSSI")
                         .HasColumnType("numeric");
+
+                    b.Property<int?>("RowNumber")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
@@ -2047,9 +2064,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.File", "File")
                         .WithMany("Cellulars")
-                        .HasForeignKey("FileId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("FileId");
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.GenerationBand", "GenerationBand")
                         .WithMany("Cellulars")
@@ -2153,9 +2168,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.File", "File")
                         .WithMany("Speedtests")
-                        .HasForeignKey("FileId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("FileId");
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
                         .WithMany("Speedtests")

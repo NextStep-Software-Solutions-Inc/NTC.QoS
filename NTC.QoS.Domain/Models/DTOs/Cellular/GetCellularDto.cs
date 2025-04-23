@@ -8,5 +8,5 @@ public class GetCellularDto
     public ServiceProviderCellularDto? ServiceProvider { get; set; }
     public GenerationBandCellularDto? GenerationBand { get; set; }
     public FileCellularDto? File { get; set; }
-    public int RowNumber { get; set; }
+    public int? RowNumber { get; set; }
 }
