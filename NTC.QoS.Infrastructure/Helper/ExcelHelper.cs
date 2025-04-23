@@ -1,7 +1,7 @@
 ﻿using ClosedXML.Excel;
 using NTC.QoS.Domain.Attributes;
 
-namespace NTC.QoS.Application.Helper;
+namespace NTC.QoS.Infrastructure.Helper;
 
 public static class ExcelHelper
 {

@@ -20,7 +20,7 @@ public static class ApplicationDependencyInjection
             cfg.Lifetime = ServiceLifetime.Scoped;
         });
         services.AddFluentValidationAutoValidation();
-        //services.AddValidatorsFromAssembly(applicationAssembly); // This is what I used before FluentValidation.AspNetCore but it's not needed anymore since im using Scutor scanning to register validators in the next line.
+        //services.AddValidatorsFromAssembly(applicationAssembly); // This is what I used before FluentValidation.AspNetCore but it's not needed anymore since im using Scutor scanning to register validators in the next line.  
         services.Scan(scan => scan
             .FromAssemblies(Assembly.GetExecutingAssembly())
             .AddClasses(classes => classes.AssignableTo(typeof(IValidator<>)))
@@ -31,7 +31,7 @@ public static class ApplicationDependencyInjection
 
         services.Scan(scan =>
             scan.FromAssemblies(Assembly.GetExecutingAssembly())
-                .AddClasses(classes => classes.AssignableTo<IBackgroundJob>())
+                .AddClasses(classes => classes.AssignableTo(typeof(IBackgroundJob<>)))
                 .AsImplementedInterfaces()
                 .WithScopedLifetime()
         );
