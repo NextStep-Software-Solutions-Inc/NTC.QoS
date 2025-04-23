@@ -100,7 +100,10 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
             if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
             {
                 // If not, fetch it from the database and add it to the cache
-                var serviceProviderQuery = _serviceProviderRepositoty.Query(sp => !sp.IsDeleted);
+                var serviceProviderQuery = _serviceProviderRepositoty
+                    .Query(sp => !sp.IsDeleted)
+                    .Where(sp => sp.Provider.Name.Equals(record.Provider));
+
                 var serviceProviderNameQuery = serviceProviderQuery.Select(sp => new
                 {
                     sp.Id,
@@ -124,7 +127,10 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
             if (!provinceCache.TryGetValue(record.Province, out var provinceId))
             {
                 // If not, fetch it from the database and add it to the cache
-                var provinceQuery = _provinceRepository.Query(p => !p.IsDeleted);
+                var provinceQuery = _provinceRepository
+                    .Query(p => !p.IsDeleted)
+                    .Where(p => p.Name.Equals(record.Province));
+
                 var provinceNameQuery = provinceQuery.Select(p => new
                 {
                     p.Id,
@@ -150,6 +156,7 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                 var municipalityQuery = _municipalityRepository.Query(m => !m.IsDeleted);
                 var municipalityNameQuery = municipalityQuery
                     .Where(m => m.ProvinceId == provinceId)
+                    .Where(m => m.Name.Equals(record.Municipality))
                     .Select(m => new
                     {
                         m.Id,
@@ -180,7 +187,6 @@ public class ProcessNAPFileHandler : IRequestHandler<ProcessNAPFileRequest, bool
                     // and add it to the zoneCache
 
                     var zone = municipality.Barangays
-                        .SelectMany(b => b.Zones)
                         .FirstOrDefault();
 
                     if (zone is null)
