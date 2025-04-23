@@ -6,49 +6,28 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
 
-public class GetAllProvidersHandler(IProviderRepository repository) : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<ProviderDto>>
+public class GetAllProvidersHandler(IProviderRepository providerRepository) : IRequestHandler<GetAllProvidersRequest, PaginatedResponse<ProviderDto>>
 {
-    private readonly IProviderRepository _repository = repository;
+    private readonly IProviderRepository _providerRepository = providerRepository;
 
     public async Task<PaginatedResponse<ProviderDto>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
     {
-        var allProviders = await _repository.ListAsync(p => !p.IsDeleted, cancellationToken);
+        var allProvidersQuery = _providerRepository.Query(p => !p.IsDeleted);
+        
+        allProvidersQuery = allProvidersQuery.Where(p =>  request.ServiceIds == null || request.ServiceIds.Count.Equals(0) || p.ServiceProviders.Any(sp => sp.Service != null && request.ServiceIds.Contains(sp.Service.Id)));
+        allProvidersQuery = allProvidersQuery.Where(p => request.Names == null || request.Names.Any(n => p.Name.Trim().ToLower().Contains(n.Trim().ToLower())));
 
-        if (request.ServiceIds is not null && request.ServiceIds.Count > 0)
-        {
-            allProviders = [.. allProviders
-                        .Where(p => p.ServiceProviders.Any(sp => sp.Service is not null && request.ServiceIds.Contains(sp.Service.Id)))];
-        }
-
-        var providerDtos = allProviders.Select(p => new ProviderDto
+        var providerDtosQuery = allProvidersQuery.Select(p => new ProviderDto
         {
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
             LicenseNumber = p.LicenseNumber,
             Color = p.Color
-        }).ToList();
+        });
 
-        if (providerDtos.Count is 0)
-        {
-            return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize)
-            {
-                Succeeded = false,
-                Message = "No records found.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullProviders", ["No providers found."]
-                    }
-                }
-            };
-        }
+        var providerDtos = await _providerRepository.ToListAsync(providerDtosQuery, cancellationToken);
 
-        return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize)
-        {
-            Data = providerDtos,
-            Succeeded = true,
-            Message = "Providers retrieved successfully."
-        };
+        return new PaginatedResponse<ProviderDto>(providerDtos, request.PageNumber, request.PageSize);
     }
 }

@@ -3,6 +3,7 @@ using NTC.QoS.Infrastructure;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using NTC.QoS.API.Extensions;
+using Hangfire;
 
 namespace NTC.QoS.API;
 
@@ -55,6 +56,7 @@ public class Program
         app.UseHttpsRedirection();
 
         app.UseAuthorization();
+        app.UseHangfireDashboard();
 
         app.ConfigureExceptionHandler(app.Logger); //Important line.
         app.MapControllers();

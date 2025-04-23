@@ -32,5 +32,21 @@ internal sealed class ServiceProviderRepository(ApplicationDbContext context)
 
         return await query.ToListAsync(cancellationToken);
     }
+
+    public async Task<ServiceProvider?> FindByServiceAndProviderNamesAsync(
+        string serviceName,
+        string providerName,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Set<ServiceProvider>()
+            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
+            .Include(sp => sp.Service)
+            .Include(sp => sp.Provider);
+
+        return await query.FirstOrDefaultAsync(
+            sp => sp.Service != null && sp.Service.Name == serviceName &&
+                  sp.Provider != null && sp.Provider.Name == providerName,
+            cancellationToken);
+    }
 }
 
