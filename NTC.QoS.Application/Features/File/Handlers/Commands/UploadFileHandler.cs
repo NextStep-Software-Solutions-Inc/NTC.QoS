@@ -9,10 +9,9 @@ using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 
-public class UploadFileHandler(IFileRepository repository, IEnumerable<IFileProcessor> fileProcessors) : IRequestHandler<UploadFileRequest, ApiResponse<FileDto>>
+public class UploadFileHandler(IFileRepository repository) : IRequestHandler<UploadFileRequest, ApiResponse<FileDto>>
 {
     private readonly IFileRepository _repository = repository;
-    private readonly IEnumerable<IFileProcessor> _fileProcessors = fileProcessors;
 
     public async Task<ApiResponse<FileDto>> Handle(UploadFileRequest request, CancellationToken cancellationToken)
     {
