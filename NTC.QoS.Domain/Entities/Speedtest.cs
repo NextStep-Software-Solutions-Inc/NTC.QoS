@@ -13,7 +13,7 @@ public class Speedtest : BaseEntity
     public virtual Generation? Generation { get; set; }
     public Guid CellId { get; set; }
     public virtual Cell? Cell { get; set; }
-    public Guid FileId { get; set; }
+    public Guid? FileId { get; set; }
     public virtual NTC.QoS.Domain.Entities.File? File { get; set; }
     public DateTime DateTime { get; set; }
     public decimal Ping { get; set; }
@@ -28,7 +28,5 @@ public class Speedtest : BaseEntity
     public string MNC { get; set; } = string.Empty;
     public string TAC { get; set; } = string.Empty;
     public SignalQualityEnum SignalQuality { get; set; } = SignalQualityEnum.Unknown;
-
+    public int? RowNumber { get; set; }
 }
-
-

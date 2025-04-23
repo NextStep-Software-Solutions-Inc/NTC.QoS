@@ -67,14 +67,17 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
             };
         }
 
-        var file = await _fileRepository.GetByIdAsync(request.Cellular.FileId, cancellationToken);
-        if (file is null)
+        if (request.Cellular.FileId.HasValue && request.Cellular.FileId.Value != Guid.Empty)
         {
-            return new ApiResponse<CreateCellularDto>
+            var file = await _fileRepository.GetByIdAsync(request.Cellular.FileId.Value, cancellationToken);
+            if (file is null)
             {
-                Message = "File not found.",
-                Succeeded = false
-            };
+                return new ApiResponse<CreateCellularDto>
+                {
+                    Message = "File not found.",
+                    Succeeded = false
+                };
+            }
         }
 
         var newCellular = new Domain.Entities.Cellular
@@ -83,7 +86,7 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
             CellId = cell.Id,
             ServiceProviderId = serviceProvider.Id,
             GenerationBandId = generationBand.Id,
-            FileId = file.Id,
+            FileId = request.Cellular.FileId,
             RowNumber = request.Cellular.RowNumber,
         };
 

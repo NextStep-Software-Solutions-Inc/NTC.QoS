@@ -118,4 +118,9 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
             TotalRows = totalCount,
         };
     }
+
+    public void AddRange(IEnumerable<TEntity> entities)
+    {
+        _context.AddRange(entities);
+    }
 }

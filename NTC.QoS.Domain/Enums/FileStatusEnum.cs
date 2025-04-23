@@ -6,4 +6,5 @@ public enum FileStatusEnum
     Processing = 2,
     Success = 3,
     Failed = 4,
+    PartiallyProcessed = 5
 }

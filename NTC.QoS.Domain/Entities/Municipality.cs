@@ -12,5 +12,3 @@ public class Municipality : BaseEntity
     public virtual List<Barangay> Barangays { get; set; } = new();
     public virtual List<StudyMunicipality> StudyMunicipalities { get; set; } = new();
 }
-
-

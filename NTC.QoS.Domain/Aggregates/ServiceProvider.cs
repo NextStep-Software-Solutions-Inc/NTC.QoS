@@ -5,9 +5,9 @@ namespace NTC.QoS.Domain.Aggregates;
 public class ServiceProvider : BaseEntity
 {
     public Guid ProviderId { get; set; }
-    public virtual Provider? Provider { get; set; }
+    public virtual Provider Provider { get; set; } = null!;
     public Guid ServiceId { get; set; }
-    public virtual Service? Service { get; set; }
+    public virtual Service Service { get; set; } = null!;
     public string MNC { get; set; } = string.Empty;
     public string MCC { get; set; } = string.Empty;
     public virtual List<Speedtest> Speedtests { get; set; } = new();

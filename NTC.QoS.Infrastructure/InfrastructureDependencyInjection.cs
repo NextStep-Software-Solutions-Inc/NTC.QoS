@@ -1,7 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Hangfire;
+using Hangfire.PostgreSql;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Infrastructure.BackgroundTasks;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Services;
@@ -12,6 +15,7 @@ public static class InfrastructureDependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
+        var hangfireConnectionString = configuration.GetConnectionString("HangfireConnection");
 
         // Register DbContext
         services.AddDbContext<ApplicationDbContext>(options =>
@@ -49,6 +53,21 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IStudyNetworkRepository, StudyNetworkRepository>();
         services.AddScoped<IRegionRepository, RegionRepository>();
         services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
+
+        services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
+        services.AddHostedService<QueuedHostedService>();
+
+        // Add Hangfire services.
+        services.AddHangfire(configuration => configuration
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(hangfireConnectionString)) // Replace with your PostgreSQL connection string name
+            .UseDashboardMetrics()
+            );
+
+        // Add the processing server as a hosted service
+        services.AddHangfireServer();
 
         return services;
     }
