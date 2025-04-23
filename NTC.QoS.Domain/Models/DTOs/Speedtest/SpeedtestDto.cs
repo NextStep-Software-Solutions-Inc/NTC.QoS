@@ -11,10 +11,10 @@ namespace NTC.QoS.Domain.Models.DTOs.Speedtest;
 public class SpeedtestDto
 {
     public Guid Id { get; set; }
-    public BarangayDto? Barangay { get; set; }
+    public required BarangayDto Barangay { get; set; }
     public ServiceProviderDto? ServiceProvider { get; set; }
     public GenerationDto? Generation { get; set; }
-    public CellDto? Cell { get; set; }
+    public required CellDto Cell { get; set; }
     public FileDto? File { get; set; }
     public DateTime DateTime { get; set; }
     public decimal Ping { get; set; }
