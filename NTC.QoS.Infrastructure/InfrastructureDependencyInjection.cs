@@ -24,6 +24,17 @@ public static class InfrastructureDependencyInjection
             options.UseNpgsql(connectionString).AddInterceptors(new TimestampInterceptor(userContextService));
         });
 
+        // Add Hangfire services.
+        services.AddHangfire(configuration => configuration
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(hangfireConnectionString)) // Replace with your PostgreSQL connection string name
+            .UseDashboardMetrics()
+        );
+        // Add the processing server as a hosted service
+        services.AddHangfireServer();
+
         // Register repositories
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IProviderRepository, ProviderRepository>();
@@ -54,20 +65,13 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IRegionRepository, RegionRepository>();
         services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
 
-        services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
-        services.AddHostedService<QueuedHostedService>();
 
-        // Add Hangfire services.
-        services.AddHangfire(configuration => configuration
-            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-            .UseSimpleAssemblyNameTypeSerializer()
-            .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(hangfireConnectionString)) // Replace with your PostgreSQL connection string name
-            .UseDashboardMetrics()
-            );
+        services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
 
-        // Add the processing server as a hosted service
-        services.AddHangfireServer();
+        // Register all Jobs here
+        services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
+        services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
+
 
         return services;
     }
