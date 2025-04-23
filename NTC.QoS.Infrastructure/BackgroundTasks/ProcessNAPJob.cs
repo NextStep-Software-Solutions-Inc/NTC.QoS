@@ -23,7 +23,7 @@ public class ProcessNAPJob : IProcessNAPJob
         )
     {
         _logger = logger;
-        _serviceProviderRepositoty = serviceProviderRepository;
+        _serviceProviderRepository = serviceProviderRepository;
         _provinceRepository = provinceRepository;
         _municipalityRepository = municipalityRepository;
         _NAPRepository = NAPRepository;
