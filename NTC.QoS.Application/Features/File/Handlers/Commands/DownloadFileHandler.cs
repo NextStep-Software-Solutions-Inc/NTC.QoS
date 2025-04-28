@@ -61,7 +61,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             case FileTypeEnum.Speedtest:
                 await GenerateTemplate(package, cancellationToken, GenerateSpeedtestTemplate);
                 break;
-
             // Add cases for other file types as needed
             // case FileTypeEnum.OtherType:
             //     await GenerateTemplate(package, cancellationToken, GenerateOtherTemplate);
@@ -104,24 +103,23 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateSpeedtestTemplate(ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "Region No", "Province", "City", "Barangay", "Date & Time", "Technology (2G, 3G, 4G, LTE, 5G)", "Service Provider", "Upload (Mbps)", "Download (Mbps)", "Signal Strength (dBm)", "Remarks (signal strength equivalency)");
+        AddHeaders(worksheet, "Region", "Province", "City", "Barangay", "Timestamp", "Generation", "Service Provider", "Upload", "Download", "Signal Strength", "Remarks");
 
         var regions = await GetRegions(cancellationToken);
         var provinces = await GetProvinces(cancellationToken);
-        var municipalities = await GetMunicipalities(cancellationToken);
+        var cities = await GetMunicipalities(cancellationToken);
         var barangays = await GetBarangays(cancellationToken);
         var providers = await GetServiceProviders(cancellationToken);
-        var technologyStandards = await GetTechnologyStandards(cancellationToken);
         var generations = await GetGenerations(cancellationToken);
-        var technologies = generations.Concat(technologyStandards).Distinct().OrderBy(t => t).ToList(); // I combined and ordered distinct generation names and technology standards for the "Technology" dropdown (for review)
-
+        var remarks = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
 
         AddDropdownValidation(worksheet, "A2:A10", regions);
         AddDropdownValidation(worksheet, "B2:B10", provinces);
-        AddDropdownValidation(worksheet, "C2:C10", municipalities);
+        AddDropdownValidation(worksheet, "C2:C10", cities);
         AddDropdownValidation(worksheet, "D2:D10", barangays);
-        AddDropdownValidation(worksheet, "F2:F10", technologies);
+        AddDropdownValidation(worksheet, "F2:F10", generations);
         AddDropdownValidation(worksheet, "G2:G10", providers);
+        AddDropdownValidation(worksheet, "K2:K10", remarks);
     }
 
     private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
@@ -183,20 +181,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         return await GetEntityNames(_barangayRepository, b => !b.IsDeleted, b => b.Name, cancellationToken);
     }
-    private async Task<List<string>> GetTechnologyStandards(CancellationToken cancellationToken)
-    {
-        var query = _technologyRepository.Query(t => !t.IsDeleted)
-            .OrderBy(t => t.Standard)
-            .Select(t => t.Standard);
-        return await _technologyRepository.ToListAsync(query, cancellationToken);
-    }
 
     private async Task<List<string>> GetGenerations(CancellationToken cancellationToken)
     {
-        var query = _generationRepository.Query(g => !g.IsDeleted)
-            .OrderBy(g => g.Name)
-            .Select(g => g.Name);
-        return await _generationRepository.ToListAsync(query, cancellationToken);
+        return await GetEntityNames(_generationRepository, g => !g.IsDeleted, g=> g.Name, cancellationToken);
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(
