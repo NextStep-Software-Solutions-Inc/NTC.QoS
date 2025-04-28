@@ -7,7 +7,7 @@ public class GenerationBand : BaseEntity
     public Guid BandId { get; set; }
     public virtual Band? Band { get; set; }
     public Guid GenerationId { get; set; }
-    public virtual Generation? Generation { get; set; }
+    public virtual Generation Generation { get; set; } = null!;
     public virtual List<Cellular> Cellulars { get; set; } = new();
 
 }

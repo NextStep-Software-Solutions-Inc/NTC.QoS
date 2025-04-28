@@ -11,9 +11,10 @@ public class GetAllBandsHandler (IRepository<Domain.Entities.Band> repository) :
     private readonly IRepository<Domain.Entities.Band> _repository = repository;
     public async Task<PaginatedResponse<BandDto>> Handle(GetAllBandsRequest request, CancellationToken cancellationToken)
     {
-        var allBands = await _repository.ListAsync(b => b.IsDeleted != true, cancellationToken);
+        var tempQuery = _repository.Query(b => b.IsDeleted.Equals(false));
+        tempQuery = tempQuery.Where(b => request.Technologies == null || b.GenerationBands.Any(gb => gb.Generation.Technologies.Any(t => request.Technologies.Contains(t.Id))));
 
-        var bandDtos = allBands.Select(b => new BandDto
+        var bandDtosQuery = tempQuery.Select(b => new BandDto
         {
             Id = b.Id,
             Name = b.Name,
@@ -22,8 +23,9 @@ public class GetAllBandsHandler (IRepository<Domain.Entities.Band> repository) :
             CreatedDate = b.CreatedAt,
             ModifiedBy = b.UpdatedBy,
             ModifiedDate = b.UpdatedAt
-        }).ToList();
+        });
 
-        return new PaginatedResponse<BandDto>(bandDtos, request.PageNumber, request.PageSize);
+        return await _repository.PaginateAsync(bandDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
+
     }
 }
