@@ -10,7 +10,7 @@ public class GetAllGenerationsRequest : IRequest<PaginatedResponse<GenerationDto
 
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
-    public List<Guid>? Providers { get; set; }
-    public List<Guid>? Services { get; set; }
-    public List<Guid>? ServiceProviders { get; set; }
+    public List<Guid>? ProviderIds { get; set; }
+    public List<Guid>? ServiceIds { get; set; }
+    public List<Guid>? ServiceProviderIds { get; set; }
 }
