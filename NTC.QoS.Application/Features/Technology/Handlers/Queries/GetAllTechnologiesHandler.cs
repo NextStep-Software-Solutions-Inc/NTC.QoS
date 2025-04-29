@@ -13,14 +13,11 @@ public class GetAllTechnologiesHandler(ITechnologyRepository technologyRepositor
 
     public async Task<PaginatedResponse<TechnologyDto>> Handle(GetAllTechnologiesRequest request, CancellationToken cancellationToken)
     {
-        var allTechnologies = await _technologyRepository.ListAsync(t => !t.IsDeleted, cancellationToken);
+        var technologyQuery = _technologyRepository.Query(t => t.IsDeleted.Equals(false));
 
-        if (request.GenerationId.HasValue)
-        {
-            allTechnologies = allTechnologies.Where(t => t.GenerationId == request.GenerationId.Value).ToList();
-        }
+        technologyQuery = technologyQuery.Where(t => request.GenerationIds == null || request.GenerationIds.Contains(t.GenerationId));
 
-        var technologyDtos = allTechnologies.Select(t => new TechnologyDto
+        var technologyQueryDtos = technologyQuery.Select(t => new TechnologyDto
         {
             Id = t.Id,
             Standard = t.Standard,
@@ -29,15 +26,14 @@ public class GetAllTechnologiesHandler(ITechnologyRepository technologyRepositor
             Generation = new GenerationDto
             {
                 Id = t.GenerationId,
-                Name = t.Generation?.Name ?? ""
+                Name = t.Generation.Name
             },
             CreatedBy = t.CreatedBy,
             CreatedDate = t.CreatedAt,
             ModifiedBy = t.UpdatedBy,
-            ModifiedDate = t.UpdatedAt 
-        }).ToList();
+            ModifiedDate = t.UpdatedAt
+        });
 
-
-        return new PaginatedResponse<TechnologyDto>(technologyDtos, request.PageNumber, request.PageSize);
+        return await _technologyRepository.PaginateAsync(technologyQueryDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }
