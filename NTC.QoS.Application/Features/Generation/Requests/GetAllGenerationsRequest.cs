@@ -6,14 +6,11 @@ namespace NTC.QoS.Application.Features.Generation.Requests;
 
 public class GetAllGenerationsRequest : IRequest<PaginatedResponse<GenerationDto>>
 {
-    public GetAllGenerationsRequest(int pageSize, int pageNumber)
-    {
-        PageSize = pageSize;
-        PageNumber = pageNumber;
-    }
-
     public GetAllGenerationsRequest() { }
 
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
+    public List<Guid>? Providers { get; set; }
+    public List<Guid>? Services { get; set; }
+    public List<Guid>? ServiceProviders { get; set; }
 }

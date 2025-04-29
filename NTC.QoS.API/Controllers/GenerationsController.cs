@@ -18,15 +18,22 @@ public class GenerationsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<GenerationDto>>> GetAllGenerations(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<GenerationDto>>> GetAllGenerations(int pageSize = 10,
+                                                                                        int pageNumber = 1,
+                                                                                        [FromQuery] List<Guid>? providers = default,
+                                                                                        [FromQuery] List<Guid>? services = default,
+                                                                                        [FromQuery] List<Guid>? serviceProviders = default)
     {
-        var result = await _mediator.Send(new GetAllGenerationsRequest
+        var generations = await _mediator.Send(new GetAllGenerationsRequest
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize,
+            Providers = providers,
+            Services = services,
+            ServiceProviders = serviceProviders
         });
 
-        return Ok(result);
+        return generations.Succeeded ? Ok(generations) : BadRequest(generations);
     }
 
     [HttpGet("{id}")]

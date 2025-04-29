@@ -11,9 +11,14 @@ public class GetAllGenerationsHandler (IRepository<Domain.Aggregates.Generation>
     private readonly IRepository<Domain.Aggregates.Generation> _repository = repository;
     public async Task<PaginatedResponse<GenerationDto>> Handle(GetAllGenerationsRequest request, CancellationToken cancellationToken)
     {
-        var allGenerations = await _repository.ListAsync(g => g.IsDeleted != true, cancellationToken);
+        var generationQuery = _repository.Query(g => g.IsDeleted.Equals(false));
 
-        var generationDtos = allGenerations.Select(g => new GenerationDto
+        generationQuery = generationQuery
+            .Where(g => request.Providers == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.Providers.Contains(l.ServiceProvider.ProviderId))))
+            .Where(g => request.Services == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.Services.Contains(l.ServiceProvider.ServiceId))))
+            .Where(g => request.ServiceProviders == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.ServiceProviders.Contains(l.ServiceProviderId))));
+
+        var generationDtosQuery = generationQuery.Select(g => new GenerationDto
         {
             Id = g.Id,
             Name = g.Name,
@@ -22,8 +27,8 @@ public class GetAllGenerationsHandler (IRepository<Domain.Aggregates.Generation>
             CreatedDate = g.CreatedAt,
             ModifiedBy = g.UpdatedBy,
             ModifiedDate = g.UpdatedAt
-        }).ToList();
+        });
 
-        return new PaginatedResponse<GenerationDto>(generationDtos, request.PageNumber, request.PageSize);
+        return await _repository.PaginateAsync(generationDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }
