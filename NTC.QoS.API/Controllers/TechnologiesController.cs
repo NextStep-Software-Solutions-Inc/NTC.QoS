@@ -16,14 +16,15 @@ public class TechnologiesController: ControllerBase
     {
         _mediator = mediator;
     }
+
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<TechnologyDto>>> GetAllTechnologies(int pageSize = 10, int pageNumber = 1, Guid? generationId = null)
+    public async Task<ActionResult<PaginatedResponse<TechnologyDto>>> GetAllTechnologies(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? generationIds = null)
     {
         var request = new GetAllTechnologiesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
-            GenerationId = generationId,
+            GenerationIds = generationIds,
         };
         var technologies = await _mediator.Send(request);
         return Ok(technologies);
