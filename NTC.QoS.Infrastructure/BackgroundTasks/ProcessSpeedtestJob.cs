@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+﻿using System.Globalization;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
@@ -73,7 +74,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             //Process each record
             _logger.LogInformation($"Processing record: {record}");
 
-            ReportProgress($"Processing record: {record.Region} {record.Province} {record.City} {record.Barangay}, {record.Timestamp}, {record.Generation}, {record.ServiceProvider}, ({record.Upload},{record.Download}), {record.SignalStrength}, {record.Remarks}");
+            ReportProgress($"Processing record: {record.Region} {record.Province} {record.City} {record.Barangay}, {record.Timestamp}, {record.Generation}, {record.Provider}, ({record.Upload},{record.Download}), {record.RSSI}, {record.Remarks}");
 
             // Check if the Region exists in the cache
             if (!regionCache.TryGetValue(record.Region, out var regionId))
@@ -190,12 +191,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 }
             }
 
-            if (!serviceProviderCache.TryGetValue(record.ServiceProvider, out var serviceProviderId))
+            if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
             {
                 // If not, fetch it from the database and add it to the cache
                 var serviceProviderQuery = _serviceProviderRepository
                     .Query(sp => !sp.IsDeleted)
-                    .Where(sp => sp.Provider.Name.Equals(record.ServiceProvider));
+                    .Where(sp => sp.Provider.Name.Equals(record.Provider));
 
                 var serviceProviderNameQuery = serviceProviderQuery.Select(sp => new
                 {
@@ -203,11 +204,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     ProviderName = sp.Provider.Name,
                     ServiceName = sp.Service.Name,
                 });
+
                 var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderNameQuery, cancellationToken: token);
 
                 if (serviceProvider is null)
                 {
-                    _logger.LogWarning($"Service Provider not found: {record.ServiceProvider}");
+                    _logger.LogWarning($"Service Provider not found: {record.Provider}");
                     TerminateProcess();
                     return;
 
@@ -215,7 +217,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 else
                 {
                     serviceProviderId = serviceProvider.Id;
-                    serviceProviderCache[record.ServiceProvider] = serviceProviderId;
+                    serviceProviderCache[record.Provider] = serviceProviderId;
                 }
             }
 
@@ -246,6 +248,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 }
             }
 
+            DateTime utcDateTime = record.Timestamp.ToUniversalTime();
+
             //Check if all valid Ids are valid
             if (barangayId != Guid.Empty && serviceProviderId != Guid.Empty && generationId != Guid.Empty)
             {
@@ -258,14 +262,15 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     DateTime = record.Timestamp,
                     UploadSpeed = record.Upload,
                     DownloadSpeed = record.Download,
-                    RSSI = decimal.TryParse(record.SignalStrength, out var rssiValue) ? rssiValue : 0,
+                    RSSI = decimal.TryParse(record.RSSI, out var rssiValue) ? rssiValue : 0,
                     SignalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.Remarks)
                 };
+                SpeedtestList.Add(speedtest);
             }
         }
 
 
-        if (SpeedtestList.Any())
+        if (SpeedtestList.Count != 0)
         {
             _SpeedtestRepository.AddRange(SpeedtestList);
             await _SpeedtestRepository.SaveChangesAsync(token);

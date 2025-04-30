@@ -21,7 +21,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<Domain.Entities.Region> _regionRepository;
     private readonly IRepository<Domain.Entities.Barangay> _barangayRepository;
-    private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
 
 
@@ -31,7 +30,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         IRepository<Domain.Entities.Province> provinceRepository,
         IRepository<Domain.Entities.Region> regionRepository,
         IRepository<Domain.Entities.Barangay> barangayRepository,
-        IRepository<Domain.Entities.Technology> technologyRepository,
         IRepository<Domain.Aggregates.Generation> generationRepository)
     {
         _serviceProviderRepository = serviceProviderRepository;
@@ -39,7 +37,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
         _barangayRepository = barangayRepository;
-        _technologyRepository = technologyRepository;
         _generationRepository = generationRepository;
     }
 
@@ -103,7 +100,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateSpeedtestTemplate(ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "Region", "Province", "City", "Barangay", "Timestamp", "Generation", "Service Provider", "Upload", "Download", "Signal Strength", "Remarks");
+        AddHeaders(worksheet, "Region", "Province", "City", "Barangay", "Timestamp", "Generation", "Provider", "Upload", "Download", "RSSI", "Remarks");
 
         var regions = await GetRegions(cancellationToken);
         var provinces = await GetProvinces(cancellationToken);

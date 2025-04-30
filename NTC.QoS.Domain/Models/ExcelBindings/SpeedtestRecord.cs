@@ -13,7 +13,6 @@ public record SpeedtestRecord
     public string City { get; set; } = string.Empty;
 
     [ExcelHeader("Barangay")]
-
     public string Barangay { get; set; } = string.Empty;
 
     [ExcelHeader("Timestamp")]
@@ -22,8 +21,8 @@ public record SpeedtestRecord
     [ExcelHeader("Generation")]
     public string Generation { get; set; } = string.Empty;
 
-    [ExcelHeader("ServiceProvider")]
-    public string ServiceProvider { get; set; } = string.Empty;
+    [ExcelHeader("Provider")]
+    public string Provider { get; set; } = string.Empty;
 
     [ExcelHeader("Upload")]
     public decimal Upload { get; set; }
@@ -31,8 +30,8 @@ public record SpeedtestRecord
     [ExcelHeader("Download")]
     public decimal Download { get; set; }
 
-    [ExcelHeader("SignalStrength")]
-    public string SignalStrength { get; set; } = string.Empty;
+    [ExcelHeader("RSSI")]
+    public string RSSI { get; set; } = string.Empty;
 
     [ExcelHeader("Remarks")]
     public string Remarks { get; set; } = string.Empty;
