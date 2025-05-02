@@ -117,10 +117,21 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateCellTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long",
-                            "2G GSM 900", "2G GSM 1800", "3G WCDMA 850", "3G WCDMA 2100", "4G FDD-LTE 2100", "4G FDD-LTE 900",
-                            "4G FDD-LTE 1800", "4G FDD-LTE 700", "4G TDD-LTE 2300", "4G TDD-LTE 2500", "4G TDD-LTE 2600",
-                            "5G 2600", "5G 3500", "Antenna Height (m)", "Tower Type", "Azimuth (°)");
+        // Define the multi-row header data
+        object[,] headers = new object[,]
+        {
+            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "5G", "5G", "Antenna Height (m)", "Tower Type", "Azimuth (°)"},
+            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "", "", "Antenna Height (m)", "Tower Type", "Azimuth (°)"},
+            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "900", "1800", "850", "2100", "2100", "900", "1800", "700", "2300", "2500", "2600", "2600", "3500", "Antenna Height (m)", "Tower Type", "Azimuth (°)" }
+        };
+
+        // Apply the multi-row headers
+        AddMultiRowHeaders(worksheet, headers, 1); // Start writing from row 1
+
+        //AddHeaders(worksheet, "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long",
+        //                    "2G GSM 900", "2G GSM 1800", "3G WCDMA 850", "3G WCDMA 2100", "4G FDD-LTE 2100", "4G FDD-LTE 900",
+        //                    "4G FDD-LTE 1800", "4G FDD-LTE 700", "4G TDD-LTE 2300", "4G TDD-LTE 2500", "4G TDD-LTE 2600",
+        //                    "5G 2600", "5G 3500", "Antenna Height (m)", "Tower Type", "Azimuth (°)");
 
         var providers = await GetServiceProviders(cancellationToken);
         var zones = await GetZones(cancellationToken);
@@ -131,69 +142,56 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         string[] trueFalseValues = { "TRUE", "FALSE" };
 
-        // Add providers to a hidden sheet
+        // Add hidden sheets for dropdowns
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
-        ExcelRange providerRange = providerSheet.Cells[1, 1, providers.Count, 1];
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "A2:A10", providerRange);
+        AddDropdownValidation(worksheet, "A4:A10", providerSheet.Cells[1, 1, providers.Count, 1]);
 
-        // Add zones to a hidden sheet
-        var zoneSheet = package.Workbook.Worksheets.Add("Zones");
+        ExcelWorksheet zoneSheet = package.Workbook.Worksheets.Add("Zones");
         zoneSheet.Cells.LoadFromCollection(zones.Select(z => new { Name = z }));
-        var zoneRange = zoneSheet.Cells[1, 1, zones.Count, 1];
         zoneSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "B2:B10", zoneRange);
+        AddDropdownValidation(worksheet, "B4:B10", zoneSheet.Cells[1, 1, zones.Count, 1]);
 
-        // Add barangays to a hidden sheet
-        var barangaySheet = package.Workbook.Worksheets.Add("Barangays");
+        ExcelWorksheet barangaySheet = package.Workbook.Worksheets.Add("Barangays");
         barangaySheet.Cells.LoadFromCollection(barangays.Select(b => new { Name = b }));
-        var barangayRange = barangaySheet.Cells[1, 1, barangays.Count, 1];
         barangaySheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "C2:C10", barangayRange);
+        AddDropdownValidation(worksheet, "C4:C10", barangaySheet.Cells[1, 1, barangays.Count, 1]);
 
-        // Add municipalities to a hidden sheet
-        var municipalitySheet = package.Workbook.Worksheets.Add("Municipalities");
+        ExcelWorksheet municipalitySheet = package.Workbook.Worksheets.Add("Municipalities");
         municipalitySheet.Cells.LoadFromCollection(municipalities.Select(m => new { Name = m }));
-        var municipalityRange = municipalitySheet.Cells[1, 1, municipalities.Count, 1];
         municipalitySheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "D2:D10", municipalityRange);
+        AddDropdownValidation(worksheet, "D4:D10", municipalitySheet.Cells[1, 1, municipalities.Count, 1]);
 
-        // Add provinces to a hidden sheet
-        var provinceSheet = package.Workbook.Worksheets.Add("Provinces");
+        ExcelWorksheet provinceSheet = package.Workbook.Worksheets.Add("Provinces");
         provinceSheet.Cells.LoadFromCollection(provinces.Select(p => new { Name = p }));
-        var provinceRange = provinceSheet.Cells[1, 1, provinces.Count, 1];
         provinceSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "E2:E10", provinceRange);
+        AddDropdownValidation(worksheet, "E4:E10", provinceSheet.Cells[1, 1, provinces.Count, 1]);
 
-        // Add regions to a hidden sheet
-        var regionSheet = package.Workbook.Worksheets.Add("Regions");
+        ExcelWorksheet regionSheet = package.Workbook.Worksheets.Add("Regions");
         regionSheet.Cells.LoadFromCollection(regions.Select(r => new { Name = r }));
-        var regionRange = regionSheet.Cells[1, 1, regions.Count, 1];
         regionSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "F2:F10", regionRange);
+        AddDropdownValidation(worksheet, "F4:F10", regionSheet.Cells[1, 1, regions.Count, 1]);
 
-        // Add tower types to a hidden sheet
-        var towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
+        ExcelWorksheet towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
         towerTypeSheet.Cells.LoadFromCollection(towerTypes.Select(t => new { Type = t }));
-        var towerTypeRange = towerTypeSheet.Cells[1, 1, towerTypes.Count, 1];
         towerTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "W2:W10", towerTypeRange);
+        AddDropdownValidation(worksheet, "W4:W10", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
 
         // Add "True/False" dropdowns directly
-        AddDropdownValidation(worksheet, "I2:I10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 900"
-        AddDropdownValidation(worksheet, "J2:J10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 1800"
-        AddDropdownValidation(worksheet, "K2:K10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 850"
-        AddDropdownValidation(worksheet, "L2:L10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 2100"
-        AddDropdownValidation(worksheet, "M2:M10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 2100"
-        AddDropdownValidation(worksheet, "N2:N10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 900"
-        AddDropdownValidation(worksheet, "O2:O10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 1800"
-        AddDropdownValidation(worksheet, "P2:P10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 700"
-        AddDropdownValidation(worksheet, "Q2:Q10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2300"
-        AddDropdownValidation(worksheet, "R2:R10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2500"
-        AddDropdownValidation(worksheet, "S2:S10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2600"
-        AddDropdownValidation(worksheet, "T2:T10", trueFalseValues.ToList(), "FALSE"); // "5G 2600"
-        AddDropdownValidation(worksheet, "U2:U10", trueFalseValues.ToList(), "FALSE"); // "5G 3500"
+        AddDropdownValidation(worksheet, "I4:I10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 900" - Default FALSE
+        AddDropdownValidation(worksheet, "J4:J10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 1800" - Default FALSE
+        AddDropdownValidation(worksheet, "K4:K10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 850" - Default FALSE
+        AddDropdownValidation(worksheet, "L4:L10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 2100" - Default FALSE
+        AddDropdownValidation(worksheet, "M4:M10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 2100" - Default FALSE
+        AddDropdownValidation(worksheet, "N4:N10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 900" - Default FALSE
+        AddDropdownValidation(worksheet, "O4:O10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 1800" - Default FALSE
+        AddDropdownValidation(worksheet, "P4:P10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 700" - Default FALSE
+        AddDropdownValidation(worksheet, "Q4:Q10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2300" - Default FALSE
+        AddDropdownValidation(worksheet, "R4:R10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2500" - Default FALSE
+        AddDropdownValidation(worksheet, "S4:S10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2600" - Default FALSE
+        AddDropdownValidation(worksheet, "T4:T10", trueFalseValues.ToList(), "FALSE"); // "5G 2600" - Default FALSE
+        AddDropdownValidation(worksheet, "U4:U10", trueFalseValues.ToList(), "FALSE"); // "5G 3500" - Default FALSE
     }
 
     private void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
@@ -203,6 +201,81 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             worksheet.Cells[1, i + 1].Value = headers[i];
             worksheet.Cells[1, i + 1].Style.Font.Bold = true;
         }
+    }
+
+    private void AddMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
+    {
+        int numRows = headers.GetLength(0);
+        int numCols = headers.GetLength(1);
+
+        // Write all header values with basic styling
+        for (int row = 0; row < numRows; row++)
+        {
+            for (int col = 0; col < numCols; col++)
+            {
+                var cell = worksheet.Cells[startRow + row, col + 1];
+                cell.Value = headers[row, col];
+                cell.Style.Font.Bold = true;
+                cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            }
+        }
+
+        // Merge "Generation" across the initial columns
+        using (var range = worksheet.Cells[startRow, 1, startRow, 8])
+        {
+            range.Merge = true;
+        }
+
+        // Merge "Technology" across the initial columns
+        using (var range = worksheet.Cells[startRow + 1, 1, startRow + 1, 8])
+        {
+            range.Merge = true;
+        }
+
+        // Define groups for merging (starting from column 9)
+        var generationGroups = new List<(int Start, int End)>
+    {
+        (9, 12), // 2G/3G
+        (13, 19), // 4G
+        (20, 21) // 5G
+    };
+
+        var technologyGroups = new List<(int Start, int End)>
+    {
+        (9, 10), // GSM
+        (11, 12), // WCDMA
+        (13, 16), // FDD-LTE
+        (17, 19), // TDD-LTE
+        (20, 21) // 5G
+    };
+
+        // Apply merging for "Generation"
+        foreach (var group in generationGroups)
+        {
+            using (var range = worksheet.Cells[startRow, group.Start, startRow, group.End])
+            {
+                range.Merge = true;
+            }
+        }
+
+        // Apply merging for "Technology"
+        foreach (var group in technologyGroups)
+        {
+            using (var range = worksheet.Cells[startRow + 1, group.Start, startRow + 1, group.End])
+            {
+                range.Merge = true;
+            }
+        }
+
+        // Merge the last three columns vertically
+        using (var range = worksheet.Cells[startRow, 22, startRow + 2, 22]) range.Merge = true; // Antenna Height
+        using (var range = worksheet.Cells[startRow, 23, startRow + 2, 23]) range.Merge = true; // Tower Type
+        using (var range = worksheet.Cells[startRow, 24, startRow + 2, 24]) range.Merge = true; // Azimuth
+
+        // Freeze the header rows
+        worksheet.View.FreezePanes(startRow + numRows, 1);
     }
 
     private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, string? defaultValue = null)
