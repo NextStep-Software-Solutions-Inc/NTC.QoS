@@ -182,19 +182,18 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         // Add "True/False" dropdowns directly
         AddDropdownValidation(worksheet, "I2:I10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 900"
-        AddDropdownValidation(worksheet, "J2:J10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 900"
-        AddDropdownValidation(worksheet, "K2:K10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 1800"
-        AddDropdownValidation(worksheet, "L2:L10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 850"
-        AddDropdownValidation(worksheet, "M2:M10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 2100"
-        AddDropdownValidation(worksheet, "N2:N10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 2100"
-        AddDropdownValidation(worksheet, "O2:O10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 900"
-        AddDropdownValidation(worksheet, "P2:P10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 1800"
-        AddDropdownValidation(worksheet, "Q2:Q10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 700"
-        AddDropdownValidation(worksheet, "R2:R10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2300"
-        AddDropdownValidation(worksheet, "S2:S10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2500"
-        AddDropdownValidation(worksheet, "T2:T10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2600"
-        AddDropdownValidation(worksheet, "U2:U10", trueFalseValues.ToList(), "FALSE"); // "5G 2600"
-        AddDropdownValidation(worksheet, "V2:V10", trueFalseValues.ToList(), "FALSE"); // "5G 3500"
+        AddDropdownValidation(worksheet, "J2:J10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 1800"
+        AddDropdownValidation(worksheet, "K2:K10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 850"
+        AddDropdownValidation(worksheet, "L2:L10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 2100"
+        AddDropdownValidation(worksheet, "M2:M10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 2100"
+        AddDropdownValidation(worksheet, "N2:N10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 900"
+        AddDropdownValidation(worksheet, "O2:O10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 1800"
+        AddDropdownValidation(worksheet, "P2:P10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 700"
+        AddDropdownValidation(worksheet, "Q2:Q10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2300"
+        AddDropdownValidation(worksheet, "R2:R10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2500"
+        AddDropdownValidation(worksheet, "S2:S10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2600"
+        AddDropdownValidation(worksheet, "T2:T10", trueFalseValues.ToList(), "FALSE"); // "5G 2600"
+        AddDropdownValidation(worksheet, "U2:U10", trueFalseValues.ToList(), "FALSE"); // "5G 3500"
     }
 
     private void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
