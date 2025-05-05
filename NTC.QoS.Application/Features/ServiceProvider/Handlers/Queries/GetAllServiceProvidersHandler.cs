@@ -1,5 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.ServiceProvider.Requests;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
@@ -13,16 +15,21 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
     {
         var allServiceProvidersQuery = _serviceProviderRepository.Query(s => !s.IsDeleted);
 
+        var requestedServiceTypes = request.ServiceTypes?
+            .Select(st => EnumHelper<ServiceTypeEnum>.GetValue(st))
+            .ToList();
+
         allServiceProvidersQuery = allServiceProvidersQuery
-            .Where(s => !request.ProviderId.HasValue || s.ProviderId == request.ProviderId.Value)
-            .Where(s => !request.ServiceId.HasValue || s.ServiceId == request.ServiceId.Value);
+            .Where(s => request.ProviderIds == null || request.ProviderIds.Contains(s.ProviderId))
+            .Where(s => request.ServiceIds == null || request.ServiceIds.Contains(s.ServiceId))
+            .Where(s => request.ServiceTypes == null || (requestedServiceTypes != null && requestedServiceTypes.Contains(s.Service.Type)));
 
         var serviceProviderDtosQuery = allServiceProvidersQuery
             .OrderBy(s => s.CreatedAt)
             .Select(serviceProvider => new ServiceProviderDto
             {
                 Id = serviceProvider.Id,
-                Provider = new ()
+                Provider = new()
                 {
                     Id = serviceProvider.ProviderId,
                     Name = serviceProvider.Provider.Name,
@@ -30,7 +37,7 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
                     LicenseNumber = serviceProvider.Provider.LicenseNumber,
                     Color = serviceProvider.Provider.Color
                 },
-                Service = new ()
+                Service = new()
                 {
                     Id = serviceProvider.ServiceId,
                     Name = serviceProvider.Service.Name,
@@ -40,8 +47,6 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
                 MCC = serviceProvider.MCC
             });
 
-        
         return await _serviceProviderRepository.PaginateAsync(serviceProviderDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
-
     }
 }

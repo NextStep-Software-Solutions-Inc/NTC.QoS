@@ -1,7 +1,6 @@
 using MediatR;
 using NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 using NTC.QoS.Application.Features.File.Requests;
-using NTC.QoS.Application.Features.Technology.Handlers.Queries;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;

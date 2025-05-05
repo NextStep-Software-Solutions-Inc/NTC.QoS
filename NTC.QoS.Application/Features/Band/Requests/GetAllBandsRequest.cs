@@ -16,4 +16,6 @@ public class GetAllBandsRequest : IRequest<PaginatedResponse<BandDto>>
 
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
+    public List<Guid>? Technologies { get; set; }
+
 }
