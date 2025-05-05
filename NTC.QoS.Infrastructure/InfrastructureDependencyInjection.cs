@@ -71,7 +71,7 @@ public static class InfrastructureDependencyInjection
         // Register all Jobs here
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
-
+        services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
 
         return services;
     }
