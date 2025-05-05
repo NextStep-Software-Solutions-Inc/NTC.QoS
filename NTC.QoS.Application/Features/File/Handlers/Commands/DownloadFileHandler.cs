@@ -6,8 +6,6 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using OfficeOpenXml;
 using OfficeOpenXml.DataValidation;
-using OfficeOpenXml.Drawing;
-using OfficeOpenXml.FormulaParsing.Excel;
 using OfficeOpenXml.Style;
 using System.Linq.Expressions;
 
@@ -22,6 +20,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<Domain.Entities.Region> _regionRepository;
+    private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
 
     public DownloadFileHandler(
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
@@ -29,7 +28,8 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         IRepository<Domain.Entities.Barangay> barangayRepository,
         IRepository<Domain.Entities.Municipality> municipalityRepository,
         IRepository<Domain.Entities.Province> provinceRepository,
-        IRepository<Domain.Entities.Region> regionRepository)
+        IRepository<Domain.Entities.Region> regionRepository,
+        IRepository<Domain.Aggregates.Generation> generationRepository)
     {
         _serviceProviderRepository = serviceProviderRepository;
         _zoneRepository = zoneRepository;
@@ -37,6 +37,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _generationRepository = generationRepository;
     }
 
     public async Task<ApiResponse<Stream>> Handle(DownloadTemplateFileRequest request, CancellationToken cancellationToken)
@@ -54,6 +55,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
                 await GenerateTemplate(package, worksheet => GenerateNAPTemplate(package, worksheet, cancellationToken), cancellationToken);
                 break;
 
+            case FileTypeEnum.Speedtest:
+                await GenerateTemplate(package, worksheet => GenerateSpeedtestTemplate(package, worksheet, cancellationToken), cancellationToken);
+                break;
             // Add cases for other file types as needed
             // case FileTypeEnum.OtherType:
             //     await GenerateTemplate(package, cancellationToken, GenerateOtherTemplate);
@@ -193,8 +197,28 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "T4:T10", trueFalseValues.ToList(), "FALSE"); // "5G 2600" - Default FALSE
         AddDropdownValidation(worksheet, "U4:U10", trueFalseValues.ToList(), "FALSE"); // "5G 3500" - Default FALSE
     }
+    private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
+    {
+        AddHeaders(worksheet, "Region", "Province", "City", "Barangay", "Timestamp", "Generation", "Provider", "Upload", "Download", "RSSI", "Remarks");
 
-    private void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
+        var regions = await GetRegions(cancellationToken);
+        var provinces = await GetProvinces(cancellationToken);
+        var cities = await GetMunicipalities(cancellationToken);
+        var barangays = await GetBarangays(cancellationToken);
+        var providers = await GetServiceProviders(cancellationToken);
+        var generations = await GetGenerations(cancellationToken);
+        var remarks = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
+
+        AddDropdownValidation(worksheet, "A2:A10", regions);
+        AddDropdownValidation(worksheet, "B2:B10", provinces);
+        AddDropdownValidation(worksheet, "C2:C10", cities);
+        AddDropdownValidation(worksheet, "D2:D10", barangays);
+        AddDropdownValidation(worksheet, "F2:F10", generations);
+        AddDropdownValidation(worksheet, "G2:G10", providers);
+        AddDropdownValidation(worksheet, "K2:K10", remarks);
+    }
+
+    private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
     {
         for (int i = 0; i < headers.Length; i++)
         {
@@ -203,7 +227,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
-    private void AddMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
+    private static void AddMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
     {
         int numRows = headers.GetLength(0);
         int numCols = headers.GetLength(1);
@@ -358,6 +382,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             .Select(sp => sp.Provider.Name);
 
         return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
+    }
+
+    private async Task<List<string>> GetGenerations(CancellationToken cancellationToken)
+    {
+        return await GetEntityNames(_generationRepository, g => !g.IsDeleted, g=> g.Name, cancellationToken);
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(

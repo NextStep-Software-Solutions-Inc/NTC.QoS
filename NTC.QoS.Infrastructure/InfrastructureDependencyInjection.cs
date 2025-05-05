@@ -72,7 +72,7 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
         services.AddTransient<IProcessCellJob, ProcessCellJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
-
+        services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
 
         return services;
     }
