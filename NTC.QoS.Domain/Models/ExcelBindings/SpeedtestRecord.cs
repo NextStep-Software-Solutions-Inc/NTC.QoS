@@ -31,7 +31,7 @@ public record SpeedtestRecord
     public decimal Download { get; set; }
 
     [ExcelHeader("RSSI")]
-    public string RSSI { get; set; } = string.Empty;
+    public decimal RSSI { get; set; }
 
     [ExcelHeader("Remarks")]
     public string Remarks { get; set; } = string.Empty;
