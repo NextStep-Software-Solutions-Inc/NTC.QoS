@@ -70,7 +70,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         fileStream.Position = 0;
         _logger.LogInformation($"Processing started");
 
-        var speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecordVersion2>(fileStream);
+        var speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
 
         if (speedtestRecords.Count is 0)
         {
