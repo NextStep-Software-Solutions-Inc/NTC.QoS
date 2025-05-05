@@ -210,6 +210,7 @@ public class ProcessNAPJob : IProcessNAPJob
                     FileId = parameters.Id,
                     CoorLatitude = record.Latitude.ToString(),
                     CoorLongitude = record.Longitude.ToString(),
+                    //IsFileUploaded = true,
                 };
                 NAPList.Add(nap);
             }
