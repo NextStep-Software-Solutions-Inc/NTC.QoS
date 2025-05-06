@@ -23,6 +23,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<Domain.Entities.Region> _regionRepository;
     private readonly IGenerationBandRepository _generationBandRepository;
+    private readonly IRepository<Domain.Entities.Sector> _sectorRepository;
 
     public ProcessCellJob(
         ILogger<ProcessCellJob> logger,
@@ -35,7 +36,8 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Entities.Municipality> municipalityRepository,
         IRepository<Domain.Entities.Province> provinceRepository,
         IRepository<Domain.Entities.Region> regionRepository,
-        IGenerationBandRepository generationBandRepository
+        IGenerationBandRepository generationBandRepository,
+        IRepository<Domain.Entities.Sector> sectorRepository
         )
     {
         _logger = logger;
@@ -49,6 +51,7 @@ public class ProcessCellJob : IProcessCellJob
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
         _generationBandRepository = generationBandRepository;
+        _sectorRepository = sectorRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -78,6 +81,7 @@ public class ProcessCellJob : IProcessCellJob
 
         var cellList = new List<Domain.Aggregates.Cell>();
         var cellularList = new List<Domain.Entities.Cellular>();
+        var sectorList = new List<Domain.Entities.Sector>();
 
         using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
         _logger.LogInformation($"Processing file: {parameters.Path}");
@@ -253,16 +257,45 @@ public class ProcessCellJob : IProcessCellJob
                 {
                     var cell = new Domain.Aggregates.Cell
                     {
+                        Name = $"Cell-{record.Zone}-{record.Municipality}-{record.Region}",
                         ServiceProviderId = serviceProviderId,
                         ZoneId = zoneId,
                         FileId = parameters.Id,
                         CoorLatitude = record.Latitude.ToString(),
                         CoorLongitude = record.Longitude.ToString(),
                         TowerType = record.TowerType,
-                        //IsFileUploaded = true,
+                        IsFileUploaded = true,
                     };
                     cellList.Add(cell);
                     CellId = cell.Id;
+                    
+                    //int number = 1;
+
+                    //if (!String.IsNullOrEmpty(record.Azimuth))
+                    //{
+                    //    var azimuths = record.Azimuth.Split(",");
+
+                    //    foreach (var azimuth in azimuths)
+                    //    {
+                    //        var trimmedAzimuth = azimuth.Trim();
+
+                    //        if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth))
+                    //        { }
+                    //        else
+                    //        {
+                    //            Console.WriteLine($"Warning: Could not parse '{trimmedAzimuth}' as a decimal for CellId {CellId}.");
+                    //        }
+                    //        var sector = new Domain.Entities.Sector
+                    //        {
+                    //            CellId = CellId,
+                    //            Number = number++,
+                    //            IsRxEqualTx = true,
+                    //            TxAntennaHeight = record.AntennaHeight,
+                    //            TxAzimuth = decimalAzimuth
+                    //        };
+                    //        sectorList.Add(sector);
+                    //    }
+                    //}
                 }
             }
             // Map generation bands for Cellular entity
@@ -274,14 +307,28 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("2G", "900", token);
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    // Check if a Cellular record already exists for this Cell and GenerationBand
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 2G, Band: 900");
+                    }
                 }
             }
             if (record.Gsm1800)
@@ -289,14 +336,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("2G", "1800");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 2G, Band: 1800");
+                    }
                 }
             }
 
@@ -306,14 +366,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("3G", "850");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 3G, Band: 850");
+                    }
                 }
             }
             if (record.Wcdma2100)
@@ -321,14 +394,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("3G", "2100");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 3G, Band: 2100");
+                    }
                 }
             }
 
@@ -338,14 +424,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("4G", "2100");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 4G, Band: 2100");
+                    }
                 }
             }
             if (record.FddLte900)
@@ -353,14 +452,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("4G", "900");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 4G, Band: 900");
+                    }
                 }
             }
             if (record.FddLte1800)
@@ -368,14 +480,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("4G", "1800");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 4G, Band: 1800");
+                    }
                 }
             }
             if (record.FddLte700)
@@ -383,14 +508,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("4G", "700");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 4G, Band: 700");
+                    }
                 }
             }
             if (record.TddLte2300)
@@ -398,14 +536,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("4G", "2300");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 4G, Band: 2300");
+                    }
                 }
             }
             if (record.TddLte2500)
@@ -413,14 +564,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("4G", "2500");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 4G, Band: 2500");
+                    }
                 }
             }
             if (record.TddLte2600)
@@ -428,14 +592,27 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("4G", "2600");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 4G, Band: 2600");
+                    }
                 }
             }
 
@@ -445,28 +622,56 @@ public class ProcessCellJob : IProcessCellJob
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("5G", "2600");
                 if (generationBand != null)
                 {
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 5G, Band: 2600");
+                    }
                 }
             }
             if (record.Nr3500)
             {
                 var generationBand = await _generationBandRepository.GetGenerationBandIdAsync("5G", "3500");
                 if (generationBand != null)
-                    cellularEntries.Add(new Domain.Entities.Cellular
+                {
+                    var existingCellular = await _cellularRepository.Query(c =>
+                            !c.IsDeleted &&
+                            c.CellId.Equals(CellId) &&
+                            c.GenerationBandId.Equals(generationBand.Id))
+                        .FirstOrDefaultAsync(token);
+
+                    if (existingCellular == null)
                     {
-                        CellId = CellId,
-                        FileId = parameters.Id,
-                        ServiceProviderId = serviceProviderId,
-                        BarangayId = barangayId,
-                        GenerationBandId = generationBand.Id
-                    });
+                        cellularEntries.Add(new Domain.Entities.Cellular
+                        {
+                            CellId = CellId,
+                            FileId = parameters.Id,
+                            ServiceProviderId = serviceProviderId,
+                            BarangayId = barangayId,
+                            GenerationBandId = generationBand.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Cellular record already exists for CellId: {CellId}, Generation: 5G, Band: 3500");
+                    }
+                }
             }
             cellularList.AddRange(cellularEntries);
         }
@@ -486,6 +691,17 @@ public class ProcessCellJob : IProcessCellJob
             _logger.LogInformation("No valid cell records found in the Excel file OR cell record already exists.");
         }
 
+        if (sectorList.Count != 0)
+        {
+            _sectorRepository.AddRange(sectorList);
+            await _sectorRepository.SaveChangesAsync(token);
+            _logger.LogInformation("Sector records saved successfully.");
+        }
+        else
+        {
+            _logger.LogInformation("No sector records to add OR sector under a cell record already exists.");
+        }
+
         if (cellularList.Count != 0)
         {
             _cellularRepository.AddRange(cellularList);
@@ -494,9 +710,7 @@ public class ProcessCellJob : IProcessCellJob
         }
         else
         {
-            _logger.LogInformation("No valid cellular records found in the Excel file.");
-            await TerminateProcess(file, token);
-            return;
+            _logger.LogInformation("No cellular records to add.");
         }
 
         _logger.LogInformation("Processing completed.");

@@ -11,9 +11,9 @@ public class Sector : BaseEntity
     public virtual MIMO? MIMO { get; set; }
     public Guid CellId { get; set; }
     public virtual Cell Cell { get; set; } = null!;
-    public Guid TxAntennaPatternId { get; set; }
+    public Guid TxAntennaPatternId { get; set; } = Guid.Empty;
     public virtual AntennaPattern TxAntennaPattern { get; set; } = null!;
-    public Guid RxAntennaPatternId { get; set; }
+    public Guid RxAntennaPatternId { get; set; } = Guid.Empty;
     public virtual AntennaPattern RxAntennaPattern { get; set; } = null!;
     public AntennaTypeEnum AntennaType { get; set; } = AntennaTypeEnum.Unknown;
     public int Number { get; set; }
