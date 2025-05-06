@@ -90,12 +90,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 //If not, fetch it from the database and add it to the cache
                 var regionQuery = _regionRepository
                     .Query(r => !r.IsDeleted)
-                    .Where(r => r.Description != null && r.Description.Equals(record.Region));
+                    .Where(r => r.Name != null && r.Name.Equals(record.Region));
 
                 var regionNameQuery = regionQuery.Select(r => new
                 {
                     r.Id,
-                    r.Description
+                    r.Name
                 });
 
                 var region = await _regionRepository.FirstOrDefaultAsync(regionNameQuery, cancellationToken: token);
