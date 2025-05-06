@@ -60,7 +60,7 @@ public record SpeedtestRecord
     [ExcelHeader("cell_id")]
     public string CellId { get; set; } = string.Empty;
 
-    [ExcelHeader("mcc")]
+    [ExcelHeader("MCC")]
     public string MCC { get; set; } = string.Empty;
 
     [ExcelHeader("MNC")]

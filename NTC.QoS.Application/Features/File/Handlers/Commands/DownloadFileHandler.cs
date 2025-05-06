@@ -21,6 +21,8 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private readonly IRepository<Domain.Entities.Region> _regionRepository;
     private readonly IRepository<Domain.Entities.Barangay> _barangayRepository;
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
+    private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
+    private readonly IRepository<Domain.Aggregates.Cell> _cellRepository;
 
 
     public DownloadFileHandler(
@@ -29,7 +31,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         IRepository<Domain.Entities.Province> provinceRepository,
         IRepository<Domain.Entities.Region> regionRepository,
         IRepository<Domain.Entities.Barangay> barangayRepository,
-        IRepository<Domain.Aggregates.Generation> generationRepository)
+        IRepository<Domain.Aggregates.Generation> generationRepository,
+        IRepository<Domain.Entities.Technology> technologyRepository,
+        IRepository<Domain.Aggregates.Cell> cellRepository)
     {
         _serviceProviderRepository = serviceProviderRepository;
         _municipalityRepository = municipalityRepository;
@@ -37,6 +41,8 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         _regionRepository = regionRepository;
         _barangayRepository = barangayRepository;
         _generationRepository = generationRepository;
+        _technologyRepository = technologyRepository;
+        _cellRepository = cellRepository;
     }
 
     public async Task<ApiResponse<Stream>> Handle(DownloadTemplateFileRequest request, CancellationToken cancellationToken)
@@ -99,23 +105,25 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateSpeedtestTemplate(ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "Region", "Province", "City", "Barangay", "Timestamp", "Generation", "Provider", "Upload", "Download", "RSSI", "Remarks");
+        AddHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
 
         var regions = await GetRegions(cancellationToken);
         var provinces = await GetProvinces(cancellationToken);
         var cities = await GetMunicipalities(cancellationToken);
         var barangays = await GetBarangays(cancellationToken);
         var providers = await GetServiceProviders(cancellationToken);
-        var generations = await GetGenerations(cancellationToken);
-        var remarks = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
+        var technologies = await GetTechnologies(cancellationToken);
+        var signalQuality = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
+        var CID = await GetCIDs(cancellationToken);
 
-        AddDropdownValidation(worksheet, "A2:A10", regions);
-        AddDropdownValidation(worksheet, "B2:B10", provinces);
-        AddDropdownValidation(worksheet, "C2:C10", cities);
-        AddDropdownValidation(worksheet, "D2:D10", barangays);
-        AddDropdownValidation(worksheet, "F2:F10", generations);
-        AddDropdownValidation(worksheet, "G2:G10", providers);
-        AddDropdownValidation(worksheet, "K2:K10", remarks);
+        AddDropdownValidation(worksheet, "F2:F10", regions);
+        AddDropdownValidation(worksheet, "G2:G10", provinces);
+        AddDropdownValidation(worksheet, "H2:H10", cities);
+        AddDropdownValidation(worksheet, "I2:I10", barangays);
+        AddDropdownValidation(worksheet, "L2:L10", providers);
+        AddDropdownValidation(worksheet, "R2:R10", technologies);
+        AddDropdownValidation(worksheet, "K2:K10", signalQuality);
+        AddDropdownValidation(worksheet, "S2:S10", CID);
     }
 
     private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
@@ -180,7 +188,22 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task<List<string>> GetGenerations(CancellationToken cancellationToken)
     {
-        return await GetEntityNames(_generationRepository, g => !g.IsDeleted, g=> g.Name, cancellationToken);
+        return await GetEntityNames(_generationRepository, g => !g.IsDeleted, g => g.Name, cancellationToken);
+    }
+
+    private async Task<List<string>> GetTechnologies(CancellationToken cancellationToken)
+    {
+        return await GetEntityNames(_technologyRepository, t => !t.IsDeleted, t => t.Standard, cancellationToken);
+    }
+
+    private async Task<List<string>> GetCIDs(CancellationToken cancellationToken)
+    {
+        var query = _cellRepository.Query(c => !c.IsDeleted)
+            .OrderBy(c => c.CID)
+            .Select(c => c.CID)
+            .Distinct();
+
+        return await _cellRepository.ToListAsync(query, cancellationToken);
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(
