@@ -171,13 +171,7 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
             }
         });
 
-        var speedtests = await _repository.ToListAsync(speedtestDtos, cancellationToken);
 
-        return new PaginatedResponse<SpeedtestDto>(speedtests, request.PageNumber, request.PageSize)
-        {
-            Data = speedtests,
-            Message = "Speedtests retrieved successfully.",
-            Succeeded = true
-        };
+        return await _repository.PaginateAsync(speedtestDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }
