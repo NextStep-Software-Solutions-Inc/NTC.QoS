@@ -795,6 +795,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsFileUploaded")
+                        .HasColumnType("boolean");
+
                     b.Property<int?>("RowNumber")
                         .HasColumnType("integer");
 

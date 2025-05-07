@@ -320,7 +320,8 @@ public class ProcessCellJob : IProcessCellJob
                                     FileId = parameters.Id,
                                     ServiceProviderId = serviceProviderId,
                                     BarangayId = barangayId,
-                                    GenerationBandId = generationBandId
+                                    GenerationBandId = generationBandId,
+                                    IsFileUploaded = true
                                 });
                             }
                         }
@@ -387,7 +388,7 @@ public class ProcessCellJob : IProcessCellJob
 
         _logger.LogInformation("Process terminated due to error in runtime");
     }
-
+     
     private static string GetBandFromPropertyName(string propertyName)
     {
         if (propertyName.Contains("700")) return "Band 28";
