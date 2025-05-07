@@ -123,4 +123,9 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         _context.AddRange(entities);
     }
+
+    public void RemoveRange(IEnumerable<TEntity> entities)
+    {
+        _context.RemoveRange(entities);
+    }
 }

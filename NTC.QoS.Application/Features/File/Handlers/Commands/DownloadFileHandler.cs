@@ -261,7 +261,8 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         // Define groups for merging (starting from column 9)
         var generationGroups = new List<(int Start, int End)>
     {
-        (9, 12), // 2G/3G
+        (9, 10), // 2G
+        (11, 12), // 3G
         (13, 19), // 4G
         (20, 21) // 5G
     };

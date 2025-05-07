@@ -18,6 +18,7 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     void Add(TEntity entity);
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
     void AddRange(IEnumerable<TEntity> entities);
+    void RemoveRange(IEnumerable<TEntity> entities);
     void Update(TEntity entity);
     void Delete(TEntity entity);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

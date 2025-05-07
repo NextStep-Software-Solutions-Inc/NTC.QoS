@@ -1,6 +1,7 @@
 ﻿using ClosedXML.Excel;
 using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Models.ExcelBindings;
+using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.Helper;
 
@@ -15,82 +16,73 @@ public class CellExcelHelper
             var worksheet = workbook.Worksheet(1);
 
             if (worksheet == null)
-            {
                 return result;
-            }
 
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
             var lastColumn = worksheet.LastColumnUsed()?.ColumnNumber() ?? 0;
 
-            if (lastRow < 3 || lastColumn == 0) // Ensure at least 3 header rows exist
-            {
+            if (lastRow < 3 || lastColumn == 0)
                 return result;
-            }
 
-            // Get headers from the THIRD row (row index 3)
+            // Read headers from row 3
             var headers = new List<string>();
             for (int col = 1; col <= lastColumn; col++)
             {
                 headers.Add(worksheet.Cell(3, col).GetString());
             }
 
-            // Parse rows into objects, starting from the FOURTH row (row index 4) for data
+            var properties = typeof(CellRecord).GetProperties();
+
+            // Get a map of column index → property based on property order
+            // Assumes that Excel columns are in the same order as properties
+            var propertyMap = new Dictionary<int, PropertyInfo>();
+            int propertyIndex = 0;
+            for (int col = 1; col <= lastColumn && propertyIndex < properties.Length; col++)
+            {
+                var property = properties[propertyIndex];
+                propertyMap[col] = property;
+                propertyIndex++;
+            }
+
             for (int row = 4; row <= lastRow; row++)
             {
                 var obj = new CellRecord();
-                var properties = typeof(CellRecord).GetProperties();
 
                 for (int col = 1; col <= lastColumn; col++)
                 {
                     var cellValue = worksheet.Cell(row, col).GetString();
-                    if (col - 1 < headers.Count)
+
+                    if (propertyMap.TryGetValue(col, out var property) && property.CanWrite)
                     {
-                        var header = headers[col - 1];
-
-                        var property = properties.FirstOrDefault(p =>
+                        try
                         {
-                            var attribute = p.GetCustomAttributes(typeof(ExcelHeaderAttribute), false)
-                                            .Cast<ExcelHeaderAttribute>()
-                                            .FirstOrDefault();
-                            return attribute != null && attribute.HeaderName.Equals(header, StringComparison.OrdinalIgnoreCase);
-                        });
-
-                        if (property != null && property.CanWrite)
+                            if (property.PropertyType == typeof(bool))
+                            {
+                                if (cellValue.Equals("TRUE", StringComparison.OrdinalIgnoreCase) || cellValue == "1")
+                                    property.SetValue(obj, true);
+                                else if (cellValue.Equals("FALSE", StringComparison.OrdinalIgnoreCase) || cellValue == "0" || string.IsNullOrEmpty(cellValue))
+                                    property.SetValue(obj, false);
+                                else
+                                    throw new InvalidOperationException($"Cannot convert value '{cellValue}' to boolean for '{property.Name}'");
+                            }
+                            else if (!string.IsNullOrEmpty(cellValue))
+                            {
+                                var convertedValue = Convert.ChangeType(cellValue, property.PropertyType);
+                                property.SetValue(obj, convertedValue);
+                            }
+                        }
+                        catch (Exception ex)
                         {
-                            try
-                            {
-                                // Handle boolean conversions specifically for "TRUE"/"FALSE"
-                                if (property.PropertyType == typeof(bool))
-                                {
-                                    if (cellValue.Equals("TRUE", StringComparison.OrdinalIgnoreCase) || cellValue.Equals("1"))
-                                    {
-                                        property.SetValue(obj, true);
-                                    }
-                                    else if (cellValue.Equals("FALSE", StringComparison.OrdinalIgnoreCase) || cellValue.Equals("0") || string.IsNullOrEmpty(cellValue))
-                                    {
-                                        property.SetValue(obj, false);
-                                    }
-                                    else if (!string.IsNullOrEmpty(cellValue))
-                                    {
-                                        throw new InvalidOperationException($"Cannot convert value '{cellValue}' to boolean for property '{property.Name}'. Expected 'TRUE', 'FALSE', '1', or '0'.");
-                                    }
-                                }
-                                else if (!string.IsNullOrEmpty(cellValue))
-                                {
-                                    var convertedValue = Convert.ChangeType(cellValue, property.PropertyType);
-                                    property.SetValue(obj, convertedValue);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}'.", ex);
-                            }
+                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}'.", ex);
                         }
                     }
                 }
+
                 result.Add(obj);
             }
         }
+
         return result;
     }
+
 }
