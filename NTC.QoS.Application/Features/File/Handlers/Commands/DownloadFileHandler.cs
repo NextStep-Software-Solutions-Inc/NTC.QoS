@@ -132,11 +132,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         // Apply the multi-row headers
         AddMultiRowHeaders(worksheet, headers, 1); // Start writing from row 1
 
-        //AddHeaders(worksheet, "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long",
-        //                    "2G GSM 900", "2G GSM 1800", "3G WCDMA 850", "3G WCDMA 2100", "4G FDD-LTE 2100", "4G FDD-LTE 900",
-        //                    "4G FDD-LTE 1800", "4G FDD-LTE 700", "4G TDD-LTE 2300", "4G TDD-LTE 2500", "4G TDD-LTE 2600",
-        //                    "5G 2600", "5G 3500", "Antenna Height (m)", "Tower Type", "Azimuth (°)");
-
         var providers = await GetServiceProviders(cancellationToken);
         var zones = await GetZones(cancellationToken);
         var barangays = await GetBarangays(cancellationToken);
@@ -183,20 +178,21 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "W4:W10", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
 
         // Add "True/False" dropdowns directly
-        AddDropdownValidation(worksheet, "I4:I10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 900" - Default FALSE
-        AddDropdownValidation(worksheet, "J4:J10", trueFalseValues.ToList(), "FALSE"); // "2G GSM 1800" - Default FALSE
-        AddDropdownValidation(worksheet, "K4:K10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 850" - Default FALSE
-        AddDropdownValidation(worksheet, "L4:L10", trueFalseValues.ToList(), "FALSE"); // "3G WCDMA 2100" - Default FALSE
-        AddDropdownValidation(worksheet, "M4:M10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 2100" - Default FALSE
-        AddDropdownValidation(worksheet, "N4:N10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 900" - Default FALSE
-        AddDropdownValidation(worksheet, "O4:O10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 1800" - Default FALSE
-        AddDropdownValidation(worksheet, "P4:P10", trueFalseValues.ToList(), "FALSE"); // "4G FDD-LTE 700" - Default FALSE
-        AddDropdownValidation(worksheet, "Q4:Q10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2300" - Default FALSE
-        AddDropdownValidation(worksheet, "R4:R10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2500" - Default FALSE
-        AddDropdownValidation(worksheet, "S4:S10", trueFalseValues.ToList(), "FALSE"); // "4G TDD-LTE 2600" - Default FALSE
-        AddDropdownValidation(worksheet, "T4:T10", trueFalseValues.ToList(), "FALSE"); // "5G 2600" - Default FALSE
-        AddDropdownValidation(worksheet, "U4:U10", trueFalseValues.ToList(), "FALSE"); // "5G 3500" - Default FALSE
+        AddDropdownValidation(worksheet, "I4:I10", trueFalseValues.ToList()); // "2G GSM 900"
+        AddDropdownValidation(worksheet, "J4:J10", trueFalseValues.ToList()); // "2G GSM 1800"
+        AddDropdownValidation(worksheet, "K4:K10", trueFalseValues.ToList()); // "3G WCDMA 850"
+        AddDropdownValidation(worksheet, "L4:L10", trueFalseValues.ToList()); // "3G WCDMA 2100"
+        AddDropdownValidation(worksheet, "M4:M10", trueFalseValues.ToList()); // "4G FDD-LTE 2100"
+        AddDropdownValidation(worksheet, "N4:N10", trueFalseValues.ToList()); // "4G FDD-LTE 900"
+        AddDropdownValidation(worksheet, "O4:O10", trueFalseValues.ToList()); // "4G FDD-LTE 1800"
+        AddDropdownValidation(worksheet, "P4:P10", trueFalseValues.ToList()); // "4G FDD-LTE 700"
+        AddDropdownValidation(worksheet, "Q4:Q10", trueFalseValues.ToList()); // "4G TDD-LTE 2300"
+        AddDropdownValidation(worksheet, "R4:R10", trueFalseValues.ToList()); // "4G TDD-LTE 2500"
+        AddDropdownValidation(worksheet, "S4:S10", trueFalseValues.ToList()); // "4G TDD-LTE 2600"
+        AddDropdownValidation(worksheet, "T4:T10", trueFalseValues.ToList()); // "5G 2600"
+        AddDropdownValidation(worksheet, "U4:U10", trueFalseValues.ToList()); // "5G 3500"
     }
+
     private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
         AddHeaders(worksheet, "Region", "Province", "City", "Barangay", "Timestamp", "Generation", "Provider", "Upload", "Download", "RSSI", "Remarks");
@@ -260,21 +256,21 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         // Define groups for merging (starting from column 9)
         var generationGroups = new List<(int Start, int End)>
-    {
-        (9, 10), // 2G
-        (11, 12), // 3G
-        (13, 19), // 4G
-        (20, 21) // 5G
-    };
+        {
+            (9, 10), // 2G
+            (11, 12), // 3G
+            (13, 19), // 4G
+            (20, 21) // 5G
+        };
 
         var technologyGroups = new List<(int Start, int End)>
-    {
-        (9, 10), // GSM
-        (11, 12), // WCDMA
-        (13, 16), // FDD-LTE
-        (17, 19), // TDD-LTE
-        (20, 21) // 5G
-    };
+        {
+            (9, 10), // GSM
+            (11, 12), // WCDMA
+            (13, 16), // FDD-LTE
+            (17, 19), // TDD-LTE
+            (20, 21) // 5G
+        };
 
         // Apply merging for "Generation"
         foreach (var group in generationGroups)
@@ -321,6 +317,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             targetCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
         }
     }
+
     private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, List<string> values, string? defaultValue = null)
     {
         var validation = worksheet.DataValidations.AddListValidation(range);
@@ -396,7 +393,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         Expression<Func<TEntity, string>> selector,
         CancellationToken cancellationToken) where TEntity : BaseEntity
     {
-        var query = repository.Query(predicate).OrderBy(selector).Select(selector);
+        var query = repository.Query(predicate).Select(selector).Distinct().OrderBy(name => name);
         return await repository.ToListAsync(query, cancellationToken);
     }
 }
