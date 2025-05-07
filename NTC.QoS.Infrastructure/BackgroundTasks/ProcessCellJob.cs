@@ -225,7 +225,7 @@ public class ProcessCellJob : IProcessCellJob
                 }
             }
 
-            Guid CellId = Guid.Empty;
+            Guid cellId = Guid.Empty;
             if (serviceProviderId != Guid.Empty && municipalityId != Guid.Empty && zoneId != Guid.Empty)
             {
                 var cellQuery = _cellRepository
@@ -236,7 +236,7 @@ public class ProcessCellJob : IProcessCellJob
                 if (existingCell != null)
                 {
                     _logger.LogWarning("Cell already exists for Service Provider: {Provider}, Zone: {Zone}", record.Provider, record.Zone);
-                    CellId = existingCell.Id;
+                    cellId = existingCell.Id;
                 }
                 else
                 {
@@ -254,8 +254,8 @@ public class ProcessCellJob : IProcessCellJob
                     _cellRepository.Add(cell);
                     await _cellRepository.SaveChangesAsync(token);
 
-                    CellId = cell.Id;
-                    _logger.LogInformation("Cell {CellId} saved successfully.", CellId);
+                    cellId = cell.Id;
+                    _logger.LogInformation("Cell {CellId} saved successfully.", cellId);
                 }
             }
             else
@@ -266,7 +266,7 @@ public class ProcessCellJob : IProcessCellJob
                 return;
             }
 
-            if (CellId != Guid.Empty)
+            if (cellId != Guid.Empty)
             {
                 foreach (var propInfo in bandGenerationProperties)
                 {
@@ -293,7 +293,7 @@ public class ProcessCellJob : IProcessCellJob
                     {
                         var existingCellular = await _cellularRepository.Query(c =>
                                 !c.IsDeleted &&
-                                c.CellId.Equals(CellId) &&
+                                c.CellId.Equals(cellId) &&
                                 c.ServiceProviderId.Equals(serviceProviderId) &&
                                 c.GenerationBandId.Equals(generationBandId) &&
                                 c.BarangayId.Equals(barangayId))
@@ -307,7 +307,7 @@ public class ProcessCellJob : IProcessCellJob
                             if (!isBandActiveInExcel)
                             {
                                 cellularToDelete.Add(existingCellular);
-                                _logger.LogInformation("Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Generation: {Generation}, Band: {Band}", existingCellular.Id, CellId, propInfo.Generation, propInfo.Band);
+                                _logger.LogInformation("Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Generation: {Generation}, Band: {Band}", existingCellular.Id, cellId, propInfo.Generation, propInfo.Band);
                             }
                         }
                         else
@@ -316,7 +316,7 @@ public class ProcessCellJob : IProcessCellJob
                             {
                                 cellularToAdd.Add(new Domain.Entities.Cellular
                                 {
-                                    CellId = CellId,
+                                    CellId = cellId,
                                     FileId = parameters.Id,
                                     ServiceProviderId = serviceProviderId,
                                     BarangayId = barangayId,
