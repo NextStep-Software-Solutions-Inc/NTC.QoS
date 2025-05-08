@@ -377,7 +377,8 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wired)
             .OrderBy(sp => sp.Provider.Name)
-            .Select(sp => sp.Provider.Name);
+            .Select(sp => sp.Provider.Name)
+            .Distinct();
 
         return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
     }
