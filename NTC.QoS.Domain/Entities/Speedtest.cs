@@ -28,5 +28,5 @@ public class Speedtest : BaseEntity
     public string MNC { get; set; } = string.Empty;
     public string TAC { get; set; } = string.Empty;
     public SignalQualityEnum SignalQuality { get; set; } = SignalQualityEnum.Unknown;
-    public int? RowNumber { get; set; }
+    public bool IsFileUploaded { get; set; }
 }

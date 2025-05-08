@@ -111,7 +111,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var provinces = await GetProvinces(cancellationToken);
         var cities = await GetMunicipalities(cancellationToken);
         var barangays = await GetBarangays(cancellationToken);
-        var providers = await GetServiceProviders(cancellationToken);
+        var providers = await GetWirelessServiceProviders(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
         var signalQuality = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
         var CID = await GetCIDs(cancellationToken);
@@ -200,12 +200,19 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         var query = _cellRepository.Query(c => !c.IsDeleted)
             .OrderBy(c => c.CID)
-            .Select(c => c.CID)
-            .Distinct();
+            .Select(c => c.CID);
 
         return await _cellRepository.ToListAsync(query, cancellationToken);
     }
 
+    private async Task<List<string>> GetWirelessServiceProviders(CancellationToken cancellationToken)
+    {
+        var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
+            .OrderBy(sp => sp.Provider.Name)
+            .Select(sp => sp.Provider.Name);
+
+        return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
+    }
     private static async Task<List<string>> GetEntityNames<TEntity>(
         IRepository<TEntity> repository,
         Expression<Func<TEntity, bool>> predicate,

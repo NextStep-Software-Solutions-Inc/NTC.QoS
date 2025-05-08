@@ -84,21 +84,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
             ReportProgress($"Processing record: {record.Region} {record.Province} {record.Municipality} {record.Barangay}, {record.Timestamp}, {record.NetworkType}, {record.Provider}, ({record.Upload},{record.Download}), {record.RSSI}, {record.SignalQuality}, {record.Provider}, {record.Latitude}, {record.Longitude}, {record.PhoneModel}, {record.CellId}, {record.MCC}, {record.TAC}");
 
-            // Check if the Region exists in the cache
             if (!regionCache.TryGetValue(record.Region, out var regionId))
             {
-                //If not, fetch it from the database and add it to the cache
-                var regionQuery = _regionRepository
-                    .Query(r => !r.IsDeleted)
-                    .Where(r => r.Name != null && r.Name.Equals(record.Region));
-
-                var regionNameQuery = regionQuery.Select(r => new
-                {
-                    r.Id,
-                    r.Name
-                });
-
-                var region = await _regionRepository.FirstOrDefaultAsync(regionNameQuery, cancellationToken: token);
+                var region = await _regionRepository.Query(r => !r.IsDeleted && r.Name.Equals(record.Region)).FirstOrDefaultAsync(cancellationToken: token);
                 if (region is null)
                 {
                     _logger.LogWarning($"Region not found: {record.Region}");
@@ -112,189 +100,124 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 }
             }
 
-            // Check if the province exists in the cache
+            var provinceCacheKey = $"{record.Province}-{regionId}";
             if (!provinceCache.TryGetValue(record.Province, out var provinceId))
             {
-                //If not, fetch it from the database and add it to the cache
-                var provinceQuery = _provinceRepository
-                    .Query(p => !p.IsDeleted)
-                    .Where(p => p.Name.Equals(record.Province));
-
-                var provinceNameQuery = provinceQuery.Select(p => new
-                {
-                    p.Id,
-                    p.Name
-                });
-
-                var province = await _provinceRepository.FirstOrDefaultAsync(provinceNameQuery, cancellationToken: token);
+                var province = await _provinceRepository.Query(p => !p.IsDeleted && p.Name.Equals(record.Province) && p.RegionId.Equals(regionId)).FirstOrDefaultAsync(cancellationToken: token);
                 if (province is null)
                 {
-                    _logger.LogWarning($"Province not found: {record.Province}");
+                    _logger.LogWarning("Province not found: {Province} in Region: {Region}", record.Province, record.Region);
                     TerminateProcess();
                     return;
                 }
                 else
                 {
                     provinceId = province.Id;
-                    provinceCache[record.Province] = provinceId;
+                    provinceCache[provinceCacheKey] = provinceId;
                 }
             }
 
-            // Check if the Municipality exists in the cache
+            var municipalityCacheKey = $"{record.Municipality}-{record.Province}-{record.Region}";
             if (!municipalityCache.TryGetValue(record.Municipality, out var municipalityId))
             {
-                // If not, fetch it from the database and add it to the cache
-                var municipalityQuery = _municipalityRepository.Query(m => !m.IsDeleted);
-                var municipalityNameQuery = municipalityQuery
-                    .Where(m => m.ProvinceId == provinceId)
-                    .Where(m => m.Name.Equals(record.Municipality))
-                    .Select(m => new
-                    {
-                        m.Id,
-                        m.Name,
-                        Barangays = m.Barangays.Select(b => new
-                        {
-                            b.Id,
-                            b.Name
-                        })
-                    });
-                var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityNameQuery, cancellationToken: token);
+                var municipality = await _municipalityRepository.Query(m => !m.IsDeleted && m.Name.Equals(record.Municipality) && m.ProvinceId.Equals(provinceId)).FirstOrDefaultAsync(cancellationToken: token);
                 if (municipality is null)
                 {
-                    _logger.LogWarning($"Municipality under {record.Province} not found: {record.Municipality}");
+                    _logger.LogWarning("Municipality not found: {Municipality} in Province: {Province}", record.Municipality, record.Province);
                     TerminateProcess();
                     return;
                 }
                 else
                 {
                     municipalityId = municipality.Id;
-                    municipalityCache[record.Municipality] = municipalityId;
+                    municipalityCache[municipalityCacheKey] = municipalityId;
                 }
             }
 
-            // Check if the Barangay exists in the cache
+            var barangayCacheKey = $"{record.Barangay}-{record.Municipality}-{record.Province}-{record.Region}";
             if (!barangayCache.TryGetValue(record.Barangay, out var barangayId))
             {
-                // If not, fetch it from the database and add it to the cache
-                var barangayQuery = _barangayRepository
-                    .Query(p => !p.IsDeleted)
-                    .Where(p => p.Name.Equals(record.Barangay));
-
-                var barangayNameQuery = barangayQuery.Select(p => new
-                {
-                    p.Id,
-                    p.Name
-                });
-                var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayNameQuery, cancellationToken: token);
+                var barangay = await _barangayRepository.Query(b => !b.IsDeleted && b.Name.Equals(record.Barangay) && b.MunicipalityId.Equals(municipalityId)).FirstOrDefaultAsync(cancellationToken: token);
                 if (barangay is null)
                 {
-                    _logger.LogWarning($"Barangay not found: {record.Barangay}");
+                    _logger.LogWarning("Barangay not found: {Barangay} in Municipality: {Municipality}", record.Barangay, record.Municipality);
                     TerminateProcess();
                     return;
                 }
                 else
                 {
                     barangayId = barangay.Id;
-                    barangayCache[record.Barangay] = barangayId;
+                    barangayCache[barangayCacheKey] = barangayId;
                 }
             }
 
+            var serviceProviderCacheKey = $"{record.Provider}-{ServiceTypeEnum.Wireless}";
             if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
             {
-                // If not, fetch it from the database and add it to the cache
-                var serviceProviderQuery = _serviceProviderRepository
-                    .Query(sp => !sp.IsDeleted)
-                    .Where(sp => sp.Provider.Name.Equals(record.Provider));
-
-                var serviceProviderNameQuery = serviceProviderQuery.Select(sp => new
-                {
-                    sp.Id,
-                    ProviderName = sp.Provider.Name,
-                    ServiceName = sp.Service.Name,
-                });
-
-                var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderNameQuery, cancellationToken: token);
+                var serviceProvider = await _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Provider.Name.Equals(record.Provider) && sp.Service.Type == ServiceTypeEnum.Wireless).FirstOrDefaultAsync(cancellationToken: token);
 
                 if (serviceProvider is null)
                 {
-                    _logger.LogWarning($"Service Provider not found: {record.Provider}");
+                    _logger.LogWarning("Wireless Service Provider not found: {Provider}", record.Provider);
                     TerminateProcess();
                     return;
                 }
                 else
                 {
                     serviceProviderId = serviceProvider.Id;
-                    serviceProviderCache[record.Provider] = serviceProviderId;
+                    serviceProviderCache[serviceProviderCacheKey] = serviceProviderId;
                 }
             }
 
             if (!generationCache.TryGetValue(record.NetworkType, out var generationId))
             {
-                var technology = await _technologyRepository
-                    .Query(t => !t.IsDeleted && t.Standard.Equals(record.NetworkType))
+                var generation = await _generationRepository.Query(g => !g.IsDeleted && g.Technologies.Any(t => t.Standard.Equals(record.NetworkType)))
+                    .Select(g => new { g.Id })
                     .FirstOrDefaultAsync(cancellationToken: token);
 
-                if (technology is not null)
+                if (generation is not null)
                 {
-                    // Lookup Generation using Technology.GenerationId
-                    var generationQuery = _generationRepository
-                        .Query(g => !g.IsDeleted)
-                        .Where(g => g.Id == technology.GenerationId);
-
-                    var generationNameQuery = generationQuery.Select(g => new
-                    {
-                        g.Id,
-                        g.Name
-                    });
-
-                    var generation = await _generationRepository.FirstOrDefaultAsync(generationNameQuery, cancellationToken: token);
-
-                    if (generation is not null)
-                    {
-                        generationId = generation.Id;
-                        generationCache[record.NetworkType] = generationId;
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"Generation not found for Technology: {record.NetworkType}");
-                        TerminateProcess();
-                        return;
-                    }
+                    generationId = generation.Id;
+                    generationCache[record.NetworkType] = generationId;
                 }
                 else
                 {
-                    _logger.LogWarning($"Technology not found: {record.NetworkType}");
+                    _logger.LogWarning("Generation not found for Technology: {NetworkType}", record.NetworkType);
                     TerminateProcess();
                     return;
                 }
             }
 
-            if (!cellCache.TryGetValue(record.CellId, out var cellId))
+            Guid cellId = Guid.Empty;
+
+            if (!string.IsNullOrEmpty(record.CellId))
             {
-                _logger.LogInformation($"Attempting to find Cell with CID: '{record.CellId}'");
+                _logger.LogInformation("Attempting to find Cell with CID: {CellId} for Service Provider ID: {serviceProviderId}", record.CellId, serviceProviderId);
 
-                var cellQuery = _cellRepository
-                    .Query(c => !c.IsDeleted)
-                    .Where(c => c.CID.Equals(record.CellId));
+                var existingCell = await _cellRepository.Query(c =>
+                        !c.IsDeleted &&
+                        c.CID.Equals(record.CellId) &&
+                        c.ServiceProviderId.Equals(serviceProviderId))
+                    .Select(c => new { c.Id })
+                    .FirstOrDefaultAsync(cancellationToken: token);
 
-                var cellNameQuery = cellQuery.Select(c => new
+                if (existingCell is not null)
                 {
-                    c.Id
-                });
-
-                var cell = await _cellRepository.FirstOrDefaultAsync(cellNameQuery, cancellationToken: token);
-
-                if (cell is not null)
-                {
-                    cellId = cell.Id;
+                    cellId = existingCell.Id;
                     cellCache[record.CellId] = cellId;
                 }
                 else
                 {
-                    _logger.LogWarning($"Cell with CID '{record.CellId}' not found. Terminating process.");
+                    _logger.LogWarning($"Cell with CID '{record.CellId}' and Service Provider ID '{serviceProviderId}' not found. Terminating process.");
                     TerminateProcess();
                     return;
                 }
+            }
+            else
+            {
+                _logger.LogInformation("CellId is missing in the record. Terminating process as CellId is required.");
+                TerminateProcess();
+                return;
             }
 
             //Check if all valid Ids are valid
@@ -319,7 +242,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     MNC = record.MNC,
                     TAC = record.TAC, 
                     Ping = record.Ping,
-                    Jitter = record.Jitter
+                    Jitter = record.Jitter,
+                    IsFileUploaded = true,
                 };
                 speedtestList.Add(speedtest);
             }
