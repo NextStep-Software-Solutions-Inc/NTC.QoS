@@ -22,7 +22,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private readonly IRepository<Domain.Entities.Barangay> _barangayRepository;
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
-    private readonly IRepository<Domain.Aggregates.Cell> _cellRepository;
 
 
     public DownloadFileHandler(
@@ -32,8 +31,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         IRepository<Domain.Entities.Region> regionRepository,
         IRepository<Domain.Entities.Barangay> barangayRepository,
         IRepository<Domain.Aggregates.Generation> generationRepository,
-        IRepository<Domain.Entities.Technology> technologyRepository,
-        IRepository<Domain.Aggregates.Cell> cellRepository)
+        IRepository<Domain.Entities.Technology> technologyRepository)
     {
         _serviceProviderRepository = serviceProviderRepository;
         _municipalityRepository = municipalityRepository;
@@ -42,7 +40,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         _barangayRepository = barangayRepository;
         _generationRepository = generationRepository;
         _technologyRepository = technologyRepository;
-        _cellRepository = cellRepository;
     }
 
     public async Task<ApiResponse<Stream>> Handle(DownloadTemplateFileRequest request, CancellationToken cancellationToken)
@@ -114,7 +111,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var providers = await GetWirelessServiceProviders(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
         var signalQuality = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
-        var CID = await GetCIDs(cancellationToken);
 
         AddDropdownValidation(worksheet, "F2:F10", regions);
         AddDropdownValidation(worksheet, "G2:G10", provinces);
@@ -123,7 +119,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "L2:L10", providers);
         AddDropdownValidation(worksheet, "R2:R10", technologies);
         AddDropdownValidation(worksheet, "K2:K10", signalQuality);
-        AddDropdownValidation(worksheet, "S2:S10", CID);
     }
 
     private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
@@ -194,15 +189,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private async Task<List<string>> GetTechnologies(CancellationToken cancellationToken)
     {
         return await GetEntityNames(_technologyRepository, t => !t.IsDeleted, t => t.Standard, cancellationToken);
-    }
-
-    private async Task<List<string>> GetCIDs(CancellationToken cancellationToken)
-    {
-        var query = _cellRepository.Query(c => !c.IsDeleted)
-            .OrderBy(c => c.CID)
-            .Select(c => c.CID);
-
-        return await _cellRepository.ToListAsync(query, cancellationToken);
     }
 
     private async Task<List<string>> GetWirelessServiceProviders(CancellationToken cancellationToken)

@@ -11,8 +11,6 @@ public class Speedtest : BaseEntity
     public virtual ServiceProvider ServiceProvider { get; set; } = null!;
     public Guid GenerationId { get; set; }
     public virtual Generation Generation { get; set; } = null!;
-    public Guid CellId { get; set; }
-    public virtual Cell Cell { get; set; } = null!;
     public Guid? FileId { get; set; }
     public virtual NTC.QoS.Domain.Entities.File? File { get; set; }
     public DateTime DateTime { get; set; }
@@ -29,4 +27,5 @@ public class Speedtest : BaseEntity
     public string TAC { get; set; } = string.Empty;
     public SignalQualityEnum SignalQuality { get; set; } = SignalQualityEnum.Unknown;
     public bool IsFileUploaded { get; set; }
+    public string CellIdentifier { get; set; } = string.Empty;
 }

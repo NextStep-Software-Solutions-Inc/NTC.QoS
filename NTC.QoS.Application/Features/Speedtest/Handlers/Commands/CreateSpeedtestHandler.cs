@@ -10,15 +10,13 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                                     IFileRepository fileRepository,
                                     IBarangayRepository barangayRepository,
                                     IServiceProviderRepository serviceProviderRepository,
-                                    IGenerationRepository generationRepository,
-                                    ICellRepository cellRepository) : IRequestHandler<CreateSpeedtestRequest, ApiResponse<SpeedtestDto>>
+                                    IGenerationRepository generationRepository) : IRequestHandler<CreateSpeedtestRequest, ApiResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
     private readonly IFileRepository _fileRepository = fileRepository;
     private readonly IBarangayRepository _barangayRepository = barangayRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationRepository _generationRepository = generationRepository;
-    private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(CreateSpeedtestRequest request, CancellationToken cancellationToken)
     {
@@ -73,27 +71,9 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             };
         }
 
-        var cell = await _cellRepository.GetByIdAsync(request.Speedtest.CellId, cancellationToken);
-
-        if (cell is null)
-        {
-            return new ApiResponse<SpeedtestDto>
-            {
-                Message = "Cell does not exist.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullCell", ["Cell not found."]
-                    }
-                }
-            };
-        }
-
         var existingSpeedtest = await _speedtestRepository.FindAsync(
             s => s.BarangayId == request.Speedtest.BarangayId &&
                  s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
-                 s.CellId == request.Speedtest.CellId &&
                  s.GenerationId == request.Speedtest.GenerationId &&
                  s.FileId == request.Speedtest.FileId &&
                  s.DateTime == request.Speedtest.DateTime &&
@@ -119,7 +99,6 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             BarangayId = barangay.Id,
             ServiceProviderId = serviceProvider.Id,
             GenerationId = generation.Id,
-            CellId = cell.Id,
             FileId = request.Speedtest.FileId,
             DateTime = request.Speedtest.DateTime,
             Ping = request.Speedtest.Ping,
@@ -133,7 +112,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             MCC = request.Speedtest.MCC,
             MNC = request.Speedtest.MNC,
             TAC = request.Speedtest.TAC,
-            SignalQuality = request.Speedtest.SignalQuality
+            SignalQuality = request.Speedtest.SignalQuality,
+            CellIdentifier = request.Speedtest.CellIdentifier
         };
 
         _speedtestRepository.Add(newSpeedtest);
@@ -193,77 +173,6 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                     Name = newSpeedtest.Generation?.Name ?? string.Empty,
                     Description = newSpeedtest.Generation?.Description,
                 },
-                Cell = new()
-                {
-                    Id = newSpeedtest.CellId,
-                    Name = newSpeedtest.Cell?.Name ?? string.Empty,
-                    Group = newSpeedtest.Cell?.Group ?? string.Empty,
-                    File = new()
-                    {
-                        Id = newSpeedtest.Cell?.FileId ?? Guid.Empty,
-                        Name = newSpeedtest.Cell?.File?.Name ?? string.Empty,
-                        Path = newSpeedtest.Cell?.File?.Path ?? string.Empty
-                    },
-                    Description = newSpeedtest.Cell?.Description ?? string.Empty,
-                    Zone = new()
-                    {
-                        Id = newSpeedtest.Cell?.ZoneId ?? Guid.Empty,
-                        Name = newSpeedtest.Cell?.Zone?.Name ?? string.Empty,
-                        Barangay = new()
-                        {
-                            Id = newSpeedtest.Cell?.Zone?.BarangayId ?? Guid.Empty,
-                            Name = newSpeedtest.Cell?.Zone?.Barangay?.Name ?? string.Empty,
-                            Description = newSpeedtest.Cell?.Zone?.Barangay?.Description,
-                            Municipality = new()
-                            {
-                                Id = newSpeedtest.Cell?.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                                IsCity = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                                Name = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                                Description = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.Description,
-                                Province = new()
-                                {
-                                    Id = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                                    Name = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                                    Description = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Description,
-                                    Region = new()
-                                    {
-                                        Id = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                        Name = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                        Description = newSpeedtest.Cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    ServiceProvider = new()
-                    {
-                        Id = newSpeedtest!.ServiceProviderId,
-                        Service = new()
-                        {
-                            Id = newSpeedtest.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                            Name = newSpeedtest.ServiceProvider?.Service?.Name ?? string.Empty,
-                            Type = newSpeedtest.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
-                        },
-                        Provider = new()
-                        {
-                            Id = newSpeedtest.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                            Name = newSpeedtest.ServiceProvider?.Provider?.Name ?? string.Empty,
-                            Description = newSpeedtest.ServiceProvider?.Provider?.Description,
-                            LicenseNumber = newSpeedtest.ServiceProvider?.Provider?.LicenseNumber,
-                            Color = newSpeedtest.ServiceProvider?.Provider?.Color ?? string.Empty
-                        }
-                    },
-                    CID = newSpeedtest.Cell?.CID ?? string.Empty,
-                    LAC = newSpeedtest.Cell?.LAC,
-                    TAC = newSpeedtest.Cell?.TAC ?? string.Empty,
-                    SiteId = newSpeedtest.Cell?.SiteId ?? string.Empty,
-                    TowerType = newSpeedtest.Cell?.TowerType ?? string.Empty,
-                    Elevation = newSpeedtest.Cell?.Elevation ?? 0,
-                    CoorLatitude = newSpeedtest.Cell?.CoorLatitude ?? string.Empty,
-                    CoorLongitude = newSpeedtest.CoorLongitude ?? string.Empty,
-                    IsVerified = newSpeedtest.Cell?.IsVerified ?? false,
-                    Status = newSpeedtest.Cell?.Status.ToString() ?? string.Empty,
-                },
                 DateTime = newSpeedtest.DateTime,
                 Ping = newSpeedtest.Ping,
                 Jitter = newSpeedtest.Jitter,
@@ -276,7 +185,9 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                 MCC = newSpeedtest.MCC,
                 MNC = newSpeedtest.MNC,
                 TAC = newSpeedtest.TAC,
-                SignalQuality = newSpeedtest.SignalQuality
+                SignalQuality = newSpeedtest.SignalQuality,
+                CellIdentifier = newSpeedtest.CellIdentifier,
+
             },
             Message = "Speedtest created successfully.",
             Succeeded = true

@@ -24,7 +24,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly IRepository<Domain.Entities.Region> _regionRepository;
     private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
-    private readonly IRepository<Domain.Aggregates.Cell> _cellRepository;
 
 
     public ProcessSpeedtestJob(
@@ -36,8 +35,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         IRepository<Domain.Entities.Barangay> barangayRepository,
         IRepository<Domain.Entities.Region> regionRepository,
         IRepository<Domain.Entities.Technology> technologyRepository,
-        IRepository<Domain.Aggregates.Generation> generationRepository,
-        IRepository<Domain.Aggregates.Cell> cellRepository
+        IRepository<Domain.Aggregates.Generation> generationRepository
         )
     {
         _logger = logger;
@@ -49,7 +47,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _regionRepository = regionRepository;
         _generationRepository = generationRepository;
         _technologyRepository = technologyRepository;
-        _cellRepository = cellRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -82,7 +79,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             //Process each record
             _logger.LogInformation($"Processing record: {record}");
 
-            ReportProgress($"Processing record: {record.Region} {record.Province} {record.Municipality} {record.Barangay}, {record.Timestamp}, {record.NetworkType}, {record.Provider}, ({record.Upload},{record.Download}), {record.RSSI}, {record.SignalQuality}, {record.Provider}, {record.Latitude}, {record.Longitude}, {record.PhoneModel}, {record.CellId}, {record.MCC}, {record.TAC}");
+            ReportProgress($"Processing record: {record.Region} {record.Province} {record.Municipality} {record.Barangay}, {record.Timestamp}, {record.NetworkType}, {record.Provider}, ({record.Upload},{record.Download}), {record.RSSI}, {record.SignalQuality}, {record.Provider}, {record.Latitude}, {record.Longitude}, {record.PhoneModel}, {record.CellIdentifier}, {record.MCC}, {record.TAC}");
 
             if (!regionCache.TryGetValue(record.Region, out var regionId))
             {
@@ -188,40 +185,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 }
             }
 
-            Guid cellId = Guid.Empty;
-
-            if (!string.IsNullOrEmpty(record.CellId))
-            {
-                _logger.LogInformation("Attempting to find Cell with CID: {CellId} for Service Provider ID: {serviceProviderId}", record.CellId, serviceProviderId);
-
-                var existingCell = await _cellRepository.Query(c =>
-                        !c.IsDeleted &&
-                        c.CID.Equals(record.CellId) &&
-                        c.ServiceProviderId.Equals(serviceProviderId))
-                    .Select(c => new { c.Id })
-                    .FirstOrDefaultAsync(cancellationToken: token);
-
-                if (existingCell is not null)
-                {
-                    cellId = existingCell.Id;
-                    cellCache[record.CellId] = cellId;
-                }
-                else
-                {
-                    _logger.LogWarning($"Cell with CID '{record.CellId}' and Service Provider ID '{serviceProviderId}' not found. Terminating process.");
-                    TerminateProcess();
-                    return;
-                }
-            }
-            else
-            {
-                _logger.LogInformation("CellId is missing in the record. Terminating process as CellId is required.");
-                TerminateProcess();
-                return;
-            }
 
             //Check if all valid Ids are valid
-            if (regionId != Guid.Empty && provinceId != Guid.Empty && municipalityId != Guid.Empty && barangayId != Guid.Empty && serviceProviderId != Guid.Empty && generationId != Guid.Empty && cellId != Guid.Empty)
+            if (regionId != Guid.Empty && provinceId != Guid.Empty && municipalityId != Guid.Empty && barangayId != Guid.Empty && serviceProviderId != Guid.Empty && generationId != Guid.Empty)
             {
                 //Create new Speedtest entity
                 var speedtest = new Domain.Entities.Speedtest
@@ -229,7 +195,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     BarangayId = barangayId,
                     ServiceProviderId = serviceProviderId,
                     GenerationId = generationId,
-                    CellId = cellId,
                     DateTime = record.Timestamp.ToUniversalTime(),
                     UploadSpeed = record.Upload,
                     DownloadSpeed = record.Download,
@@ -238,6 +203,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     CoorLatitude = record.Latitude,
                     CoorLongitude = record.Longitude,
                     PhoneModel = record.PhoneModel,
+                    CellIdentifier = record.CellIdentifier,
                     MCC = record.MCC,
                     MNC = record.MNC,
                     TAC = record.TAC, 
