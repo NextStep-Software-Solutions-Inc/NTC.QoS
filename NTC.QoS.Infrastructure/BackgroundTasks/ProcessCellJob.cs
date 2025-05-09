@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
@@ -23,7 +24,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<Domain.Entities.Region> _regionRepository;
     private readonly IGenerationBandRepository _generationBandRepository;
-    private readonly IRepository<Domain.Entities.Sector> _sectorRepository;
+    private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
 
     public ProcessCellJob(
         ILogger<ProcessCellJob> logger,
@@ -37,7 +38,7 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Entities.Province> provinceRepository,
         IRepository<Domain.Entities.Region> regionRepository,
         IGenerationBandRepository generationBandRepository,
-        IRepository<Domain.Entities.Sector> sectorRepository
+        IRepository<Domain.Entities.CellSector> cellSectorRepository
         )
     {
         _logger = logger;
@@ -51,7 +52,7 @@ public class ProcessCellJob : IProcessCellJob
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
         _generationBandRepository = generationBandRepository;
-        _sectorRepository = sectorRepository;
+        _cellSectorRepository = cellSectorRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -80,7 +81,7 @@ public class ProcessCellJob : IProcessCellJob
         var regionCache = new Dictionary<string, Guid>();
         var generationBandCache = new Dictionary<(string, string), Guid>();
 
-        var sectorList = new List<Domain.Entities.Sector>();
+        var cellSectorList = new List<Domain.Entities.CellSector>();
         var cellularToAdd = new List<Domain.Entities.Cellular>();
         var cellularToDelete = new List<Domain.Entities.Cellular>();
 
@@ -242,7 +243,8 @@ public class ProcessCellJob : IProcessCellJob
                 {
                     var cell = new Domain.Aggregates.Cell
                     {
-                        Name = $"Cell-{record.Provider.Trim()}-{record.Zone.Trim()}-{record.Municipality.Trim()}-{record.Region.Trim()}",
+                        Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}",
+                        Group = record.Provider,
                         ServiceProviderId = serviceProviderId,
                         ZoneId = zoneId,
                         FileId = parameters.Id,
@@ -256,6 +258,32 @@ public class ProcessCellJob : IProcessCellJob
 
                     cellId = cell.Id;
                     _logger.LogInformation("Cell {CellId} saved successfully.", cellId);
+
+                    if (!String.IsNullOrEmpty(record.Azimuth))
+                    {
+                        var azimuths = record.Azimuth.Split(",");
+
+                        foreach (var azimuth in azimuths)
+                        {
+                            var trimmedAzimuth = azimuth.Trim();
+
+                            if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth))
+                            { }
+                            else
+                            {
+                                _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for CellSectorId {CellSectorId}.", trimmedAzimuth, cellId);
+                            }
+                            var cellSector = new Domain.Entities.CellSector
+                            {
+                                CellId = cellId,
+                                AntennaHeight = record.AntennaHeight,
+                                AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
+                                Azimuth = decimalAzimuth,
+                                BeamTilt = record.BeamTilt,
+                            };
+                            cellSectorList.Add(cellSector);
+                        }
+                    }
                 }
             }
             else
@@ -340,22 +368,22 @@ public class ProcessCellJob : IProcessCellJob
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
-        //if (sectorList.Count != 0)
-        //{
-        //    _sectorRepository.AddRange(sectorList);
-        //    await _sectorRepository.SaveChangesAsync(token);
-        //    _logger.LogInformation("Sector records saved successfully.");
-        //}
-        //else
-        //{
-        //    _logger.LogInformation("No sector records to add OR sector under a cell record already exists.");
-        //}
+        if (cellSectorList.Count != 0)
+        {
+            _cellSectorRepository.AddRange(cellSectorList);
+            await _cellSectorRepository.SaveChangesAsync(token);
+            _logger.LogInformation("{Count} sector records saved successfully.", cellSectorList.Count);
+        }
+        else
+        {
+            _logger.LogInformation("No sector records to add.");
+        }
 
         if (cellularToAdd.Count != 0)
         {
             _cellularRepository.AddRange(cellularToAdd);
             await _cellularRepository.SaveChangesAsync(token);
-            _logger.LogInformation("{cellularToAdd.Count} cellular records saved successfully.", cellularToAdd.Count);
+            _logger.LogInformation("{Count} cellular records saved successfully.", cellularToAdd.Count);
         }
         else
         {
@@ -366,12 +394,12 @@ public class ProcessCellJob : IProcessCellJob
         {
             _cellularRepository.RemoveRange(cellularToDelete);
             await _cellularRepository.SaveChangesAsync(token);
-            _logger.LogInformation("{cellularToDelete.Count} cellular records deleted successfully.", cellularToDelete.Count);
+            _logger.LogInformation("{Count} cellular records deleted successfully.", cellularToDelete.Count);
         }
 
         _logger.LogInformation("Processing completed.");
     }
-
+    
     void ReportProgress(string message)
     {
         // Implement the logic to report progress here

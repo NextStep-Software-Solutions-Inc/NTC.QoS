@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 
 namespace NTC.QoS.Infrastructure.Persistence;
+
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, IConfiguration configuration) : DbContext(options)
 {
     private readonly IConfiguration _configuration = configuration;
@@ -40,8 +41,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Role> Roles { get; set; }
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
-
-
+    public DbSet<CellSector> CellSectors { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -197,9 +197,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(s => s.NetworkId);
 
         modelBuilder.Entity<Sector>()
-            .HasOne(s => s.Cell)
-            .WithMany(c => c.Sectors)
-            .HasForeignKey(s => s.CellId);
+            .HasOne(s => s.CellSector)
+            .WithMany(cs => cs.Sectors)
+            .HasForeignKey(s => s.CellSectorId);
 
         modelBuilder.Entity<Sector>()
             .HasOne(s => s.TxAntennaPattern)
@@ -326,5 +326,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<MIMO>()
             .HasMany(m => m.Sectors);
+
+        modelBuilder.Entity<CellSector>()
+            .HasOne(cs => cs.Cell)
+            .WithMany(cs => cs.CellSectors)
+            .HasForeignKey(cs => cs.CellId);
+
+        modelBuilder.Entity<CellSector>()
+            .HasMany(cs => cs.Sectors);
     }
 }

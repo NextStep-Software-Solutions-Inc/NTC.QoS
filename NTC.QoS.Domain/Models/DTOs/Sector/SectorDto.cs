@@ -7,9 +7,8 @@ public class SectorDto
     public required Guid Id { get; set; }
     public required NetworkSectorDto Network { get; set; }
     public required string AntennaType { get; set; }
-    public int Number { get; set; }
     public MIMOSectorDto? MIMO { get; set; }
-    public CellSectorDto? Cell { get; set; }
+    public CellSectorDto? CellSector { get; set; }
     public string RadioEquipment { get; set; } = string.Empty;
     public bool IsRxEqualTx { get; set; }
     public decimal TxPower { get; set; }

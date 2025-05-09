@@ -67,12 +67,18 @@ public record CellRecord
     [ExcelHeader("3500")]
     public bool Nr3500 { get; set; }
 
-    [ExcelHeader("Antenna Height (m)")]
-    public decimal AntennaHeight { get; set; }
-
     [ExcelHeader("Tower Type")]
     public string TowerType { get; set; } = string.Empty;
 
+    [ExcelHeader("Antenna Type")]
+    public string AntennaType { get; set; } = string.Empty;
+
+    [ExcelHeader("Antenna Height (m)")]
+    public decimal AntennaHeight { get; set; }
+
     [ExcelHeader("Azimuth (°)")]
     public string Azimuth { get; set; } = string.Empty;
+
+    [ExcelHeader("Beam Tilt (°)")]
+    public decimal BeamTilt { get; set; }
 }

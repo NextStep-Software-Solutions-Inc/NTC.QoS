@@ -6,7 +6,7 @@ public class UpdateSectorDto
     public string? AntennaType { get; set; }
     public int? Number { get; set; }
     public Guid? MIMOId { get; set; }
-    public Guid? CellId { get; set; }
+    public Guid? CellSectorId { get; set; }
     public string? RadioEquipment { get; set; }
     public  bool? IsRxEqualTx { get; set; }
     public decimal? TxPower { get; set; }
