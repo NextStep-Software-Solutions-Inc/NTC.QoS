@@ -766,6 +766,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("AntennaHeight")
+                        .HasColumnType("numeric");
+
                     b.Property<int>("AntennaType")
                         .HasColumnType("integer");
 
@@ -1396,9 +1399,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<Guid>("NetworkId")
                         .HasColumnType("uuid");
-
-                    b.Property<int>("Number")
-                        .HasColumnType("integer");
 
                     b.Property<string>("RadioEquipment")
                         .IsRequired()

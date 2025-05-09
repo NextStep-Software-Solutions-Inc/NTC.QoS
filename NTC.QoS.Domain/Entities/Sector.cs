@@ -16,7 +16,6 @@ public class Sector : BaseEntity
     public Guid RxAntennaPatternId { get; set; } = Guid.Empty;
     public virtual AntennaPattern RxAntennaPattern { get; set; } = null!;
     public AntennaTypeEnum AntennaType { get; set; } = AntennaTypeEnum.Unknown;
-    public int Number { get; set; }
     public string RadioEquipment { get; set; } = string.Empty;
     public bool IsRxEqualTx { get; set; }
     public decimal TxPower { get; set; }

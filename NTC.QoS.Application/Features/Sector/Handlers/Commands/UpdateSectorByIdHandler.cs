@@ -59,7 +59,6 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
             sector.NetworkId = network.Id;
         }
         if (request.Sector.AntennaType is not null) sector.AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
-        if (request.Sector.Number.HasValue) sector.Number = request.Sector.Number.Value;
         if (request.Sector.MIMOId.HasValue)
         {
             var mimo = await _mimoRepository.GetByIdAsync(request.Sector.MIMOId.Value, cancellationToken);
@@ -182,7 +181,6 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         var existingSectors = await _sectorRepository.GetAllSectorsAsync(cancellationToken);
         if (existingSectors.Any(s => s.Id != sector.Id &&
                                     s.NetworkId == sector.NetworkId &&
-                                    s.Number == sector.Number &&
                                     s.CellSectorId == sector.CellSectorId &&
                                     s.MIMOId == sector.MIMOId &&
                                     s.IsRxEqualTx == sector.IsRxEqualTx &&
@@ -213,7 +211,6 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                 SystemType = sector.Network?.SystemType.ToString() ?? string.Empty,
             },
             AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.AntennaType),
-            Number = sector.Number,
             MIMO = new MIMOSectorDto
             {
                 Id = sector.MIMOId ?? Guid.Empty,

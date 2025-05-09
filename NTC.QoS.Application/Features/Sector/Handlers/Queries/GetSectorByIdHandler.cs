@@ -39,7 +39,6 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 SystemType = sector.Network?.SystemType.ToString() ?? string.Empty,
             },
             AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.AntennaType),
-            Number = sector.Number,
             MIMO = new MIMOSectorDto
             {
                 Id = sector.MIMOId ?? Guid.Empty,

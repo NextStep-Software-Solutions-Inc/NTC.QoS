@@ -27,7 +27,6 @@ public class CreateSectorHandler(
         var sector = _sectorRepository.Query(s => !s.IsDeleted && s.NetworkId == request.Sector.NetworkId
                                                             && s.CellSectorId == request.Sector.CellSectorId
                                                             && s.AntennaType == antennaType
-                                                            && s.Number == request.Sector.Number
                                                             && s.MIMOId == request.Sector.MIMOId
                                                             && s.IsRxEqualTx == request.Sector.IsRxEqualTx);
 
@@ -151,7 +150,6 @@ public class CreateSectorHandler(
         MIMOId = dto.MIMOId,
         CellSectorId = cellId,
         AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(dto.AntennaType),
-        Number = dto.Number,
         RadioEquipment = dto.RadioEquipment,
         IsRxEqualTx = dto.IsRxEqualTx,
         TxPower = dto.TxPower,
@@ -212,7 +210,6 @@ public class CreateSectorHandler(
                     SystemType = newSector.Network?.SystemType.ToString() ?? string.Empty,
                 },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.AntennaType),
-                Number = newSector.Number,
                 MIMO = new MIMOSectorDto
                 {
                     Id = newSector.MIMOId ?? Guid.Empty,
