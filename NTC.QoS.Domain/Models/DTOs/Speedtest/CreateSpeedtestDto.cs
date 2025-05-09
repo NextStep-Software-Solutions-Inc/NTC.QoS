@@ -7,7 +7,6 @@ public class CreateSpeedtestDto
     public Guid BarangayId { get; set; }
     public Guid ServiceProviderId { get; set; }
     public Guid GenerationId { get; set; }
-    public Guid CellId { get; set; }
     public Guid FileId { get; set; }
     public DateTime DateTime { get; set; }
     public decimal Ping { get; set; }
@@ -22,4 +21,5 @@ public class CreateSpeedtestDto
     public required string MNC { get; set; } 
     public required string TAC { get; set; }
     public SignalQualityEnum SignalQuality { get; set; } = SignalQualityEnum.Unknown;
+    public required string CellIdentifier { get; set; }
 }

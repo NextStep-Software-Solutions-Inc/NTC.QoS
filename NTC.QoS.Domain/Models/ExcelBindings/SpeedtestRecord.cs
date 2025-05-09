@@ -58,9 +58,9 @@ public record SpeedtestRecord
     public string NetworkType { get; set; } = string.Empty;
 
     [ExcelHeader("cell_id")]
-    public string CellId { get; set; } = string.Empty;
+    public string CellIdentifier { get; set; } = string.Empty;
 
-    [ExcelHeader("mcc")]
+    [ExcelHeader("MCC")]
     public string MCC { get; set; } = string.Empty;
 
     [ExcelHeader("MNC")]
