@@ -139,7 +139,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var provinces = await GetProvinces(cancellationToken);
         var regions = await GetRegions(cancellationToken);
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
-        string[] trueFalseValues = { "TRUE", "FALSE" };
+        string[] trueFalseValues = ["TRUE", "FALSE"];
 
         // Add hidden sheets for dropdowns
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
@@ -178,19 +178,19 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "W4:W10", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
 
         // Add "True/False" dropdowns directly
-        AddDropdownValidation(worksheet, "I4:I10", trueFalseValues.ToList()); // "2G GSM 900"
-        AddDropdownValidation(worksheet, "J4:J10", trueFalseValues.ToList()); // "2G GSM 1800"
-        AddDropdownValidation(worksheet, "K4:K10", trueFalseValues.ToList()); // "3G WCDMA 850"
-        AddDropdownValidation(worksheet, "L4:L10", trueFalseValues.ToList()); // "3G WCDMA 2100"
-        AddDropdownValidation(worksheet, "M4:M10", trueFalseValues.ToList()); // "4G FDD-LTE 2100"
-        AddDropdownValidation(worksheet, "N4:N10", trueFalseValues.ToList()); // "4G FDD-LTE 900"
-        AddDropdownValidation(worksheet, "O4:O10", trueFalseValues.ToList()); // "4G FDD-LTE 1800"
-        AddDropdownValidation(worksheet, "P4:P10", trueFalseValues.ToList()); // "4G FDD-LTE 700"
-        AddDropdownValidation(worksheet, "Q4:Q10", trueFalseValues.ToList()); // "4G TDD-LTE 2300"
-        AddDropdownValidation(worksheet, "R4:R10", trueFalseValues.ToList()); // "4G TDD-LTE 2500"
-        AddDropdownValidation(worksheet, "S4:S10", trueFalseValues.ToList()); // "4G TDD-LTE 2600"
-        AddDropdownValidation(worksheet, "T4:T10", trueFalseValues.ToList()); // "5G 2600"
-        AddDropdownValidation(worksheet, "U4:U10", trueFalseValues.ToList()); // "5G 3500"
+        AddDropdownValidation(worksheet, "I4:I10", [.. trueFalseValues]); // "2G GSM 900"
+        AddDropdownValidation(worksheet, "J4:J10", [.. trueFalseValues]); // "2G GSM 1800"
+        AddDropdownValidation(worksheet, "K4:K10", [.. trueFalseValues]); // "3G WCDMA 850"
+        AddDropdownValidation(worksheet, "L4:L10", [.. trueFalseValues]); // "3G WCDMA 2100"
+        AddDropdownValidation(worksheet, "M4:M10", [.. trueFalseValues]); // "4G FDD-LTE 2100"
+        AddDropdownValidation(worksheet, "N4:N10", [.. trueFalseValues]); // "4G FDD-LTE 900"
+        AddDropdownValidation(worksheet, "O4:O10", [.. trueFalseValues]); // "4G FDD-LTE 1800"
+        AddDropdownValidation(worksheet, "P4:P10", [.. trueFalseValues]); // "4G FDD-LTE 700"
+        AddDropdownValidation(worksheet, "Q4:Q10", [.. trueFalseValues]); // "4G TDD-LTE 2300"
+        AddDropdownValidation(worksheet, "R4:R10", [.. trueFalseValues]); // "4G TDD-LTE 2500"
+        AddDropdownValidation(worksheet, "S4:S10", [.. trueFalseValues]); // "4G TDD-LTE 2600"
+        AddDropdownValidation(worksheet, "T4:T10", [.. trueFalseValues]); // "5G 2600"
+        AddDropdownValidation(worksheet, "U4:U10", [.. trueFalseValues]); // "5G 3500"
     }
 
     private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -275,19 +275,15 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         // Apply merging for "Generation"
         foreach (var group in generationGroups)
         {
-            using (var range = worksheet.Cells[startRow, group.Start, startRow, group.End])
-            {
-                range.Merge = true;
-            }
+            using var range = worksheet.Cells[startRow, group.Start, startRow, group.End];
+            range.Merge = true;
         }
 
         // Apply merging for "Technology"
         foreach (var group in technologyGroups)
         {
-            using (var range = worksheet.Cells[startRow + 1, group.Start, startRow + 1, group.End])
-            {
-                range.Merge = true;
-            }
+            using var range = worksheet.Cells[startRow + 1, group.Start, startRow + 1, group.End];
+            range.Merge = true;
         }
 
         // Merge the last three columns vertically

@@ -24,7 +24,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
                                                 int pageNumber = 1,
                                                 Guid? networkId = null,
                                                 Guid? mimoId = null,
-                                                Guid? cellId = null,
+                                                Guid? cellSectorId = null,
                                                 Guid? txAntennaPatternId = null,
                                                 Guid? rxAntennaPatternId = null)
     {
@@ -32,7 +32,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
                                                                     pageNumber,
                                                                     networkId,
                                                                     mimoId,
-                                                                    cellId,
+                                                                    cellSectorId,
                                                                     txAntennaPatternId,
                                                                     rxAntennaPatternId));
        

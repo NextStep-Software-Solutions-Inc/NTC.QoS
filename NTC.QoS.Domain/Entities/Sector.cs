@@ -9,8 +9,8 @@ public class Sector : BaseEntity
     public virtual Network Network { get; set; } = null!;
     public Guid? MIMOId { get; set; }
     public virtual MIMO? MIMO { get; set; }
-    public Guid CellId { get; set; }
-    public virtual Cell Cell { get; set; } = null!;
+    public Guid CellSectorId { get; set; }
+    public virtual CellSector CellSector { get; set; } = null!;
     public Guid TxAntennaPatternId { get; set; } = Guid.Empty;
     public virtual AntennaPattern TxAntennaPattern { get; set; } = null!;
     public Guid RxAntennaPatternId { get; set; } = Guid.Empty;

@@ -760,6 +760,55 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("Barangays");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellSector", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AntennaType")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Azimuth")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("BeamTilt")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("CellId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CellId");
+
+                    b.ToTable("CellSectors");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1319,7 +1368,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int>("AntennaType")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("CellId")
+                    b.Property<Guid>("CellSectorId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1437,7 +1486,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CellId");
+                    b.HasIndex("CellSectorId");
 
                     b.HasIndex("MIMOId");
 
@@ -2043,6 +2092,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Municipality");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellSector", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Cell", "Cell")
+                        .WithMany("CellSectors")
+                        .HasForeignKey("CellId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cell");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
@@ -2108,9 +2168,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Sector", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Cell", "Cell")
+                    b.HasOne("NTC.QoS.Domain.Entities.CellSector", "CellSector")
                         .WithMany("Sectors")
-                        .HasForeignKey("CellId")
+                        .HasForeignKey("CellSectorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2136,7 +2196,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Cell");
+                    b.Navigation("CellSector");
 
                     b.Navigation("MIMO");
 
@@ -2246,9 +2306,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
                 {
-                    b.Navigation("Cellulars");
+                    b.Navigation("CellSectors");
 
-                    b.Navigation("Sectors");
+                    b.Navigation("Cellulars");
 
                     b.Navigation("Speedtests");
                 });
@@ -2320,6 +2380,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Speedtests");
 
                     b.Navigation("Zones");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellSector", b =>
+                {
+                    b.Navigation("Sectors");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>

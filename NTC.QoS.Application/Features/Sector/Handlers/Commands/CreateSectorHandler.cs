@@ -24,13 +24,13 @@ public class CreateSectorHandler(
     public async Task<ApiResponse<SectorDto>> Handle(CreateSectorRequest request, CancellationToken cancellationToken)
     {
         var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
-        var sector = await _sectorRepository.FindAsync(s => s.NetworkId == request.Sector.NetworkId
-                                                            && s.CellId == request.Sector.CellId
+        var sector = _sectorRepository.Query(s => !s.IsDeleted && s.NetworkId == request.Sector.NetworkId
+                                                            && s.CellSectorId == request.Sector.CellSectorId
                                                             && s.AntennaType == antennaType
                                                             && s.Number == request.Sector.Number
                                                             && s.MIMOId == request.Sector.MIMOId
-                                                            && s.IsRxEqualTx == request.Sector.IsRxEqualTx
-                                                            && !s.IsDeleted, cancellationToken);
+                                                            && s.IsRxEqualTx == request.Sector.IsRxEqualTx);
+
         if (sector is not null)
         {
             return new ApiResponse<SectorDto>
@@ -46,7 +46,7 @@ public class CreateSectorHandler(
             };
         }
 
-        var network = await _networkRepository.GetByIdAsync(request.Sector.NetworkId, cancellationToken);
+        var network = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Sector.NetworkId);
         if (network is null)
         {
             return new ApiResponse<SectorDto>
@@ -81,8 +81,8 @@ public class CreateSectorHandler(
             }
         }
 
-        var cell = await _cellRepository.GetByIdAsync(request.Sector.CellId, cancellationToken);
-        if (cell is null)
+        var cellSector = _cellRepository.Query(cs => !cs.IsDeleted && cs.Id == request.Sector.CellSectorId);
+        if (cellSector is null)
         {
             return new ApiResponse<SectorDto>
             {
@@ -97,7 +97,7 @@ public class CreateSectorHandler(
             };
         }
 
-        var txAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.TxAntennaPatternId, cancellationToken);
+        var txAntennaPattern = _antennaPatternRepository.Query(tap => !tap.IsDeleted && tap.Id == request.Sector.TxAntennaPatternId);
         if (txAntennaPattern is null)
         {
             return new ApiResponse<SectorDto>
@@ -113,15 +113,15 @@ public class CreateSectorHandler(
             };
         }
 
-        var newSector = CreateSectorEntity(request.Sector, network.Id, cell.Id, txAntennaPattern.Id);
+        var newSector = CreateSectorEntity(request.Sector, request.Sector.NetworkId, request.Sector.CellSectorId, request.Sector.TxAntennaPatternId);
 
         if (request.Sector.IsRxEqualTx)
         {
-            CopyTxToRx(newSector, txAntennaPattern.Id);
+            CopyTxToRx(newSector, request.Sector.TxAntennaPatternId);
         }
         else
         {
-            var rxAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.RxAntennaPatternId, cancellationToken);
+            var rxAntennaPattern = _antennaPatternRepository.Query(rap => !rap.IsDeleted && rap.Id == request.Sector.RxAntennaPatternId);
             if (rxAntennaPattern is null)
             {
                 return new ApiResponse<SectorDto>
@@ -136,7 +136,7 @@ public class CreateSectorHandler(
                 },
                 };
             }
-            AssignRxProperties(newSector, request.Sector, rxAntennaPattern.Id);
+            AssignRxProperties(newSector, request.Sector, request.Sector.RxAntennaPatternId);
         }
 
         _sectorRepository.Add(newSector);
@@ -149,7 +149,7 @@ public class CreateSectorHandler(
     {
         NetworkId = networkId,
         MIMOId = dto.MIMOId,
-        CellId = cellId,
+        CellSectorId = cellId,
         AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(dto.AntennaType),
         Number = dto.Number,
         RadioEquipment = dto.RadioEquipment,
@@ -218,29 +218,21 @@ public class CreateSectorHandler(
                     Id = newSector.MIMOId ?? Guid.Empty,
                     Type = newSector.MIMO?.Type.ToString() ?? string.Empty
                 },
-                Cell = new CellSectorDto
+                CellSector = new CellSectorDto
                 {
-                    Id = newSector.Cell?.Id ?? Guid.Empty,
-                    SiteId = newSector.Cell?.SiteId ?? string.Empty,
-                    Name = newSector.Cell?.Name ?? string.Empty,
-                    Description = newSector.Cell?.Description ?? string.Empty,
-                    TowerType = newSector.Cell?.TowerType.ToString() ?? string.Empty,
-                    ServiceProvider = new ServiceProviderSectorDto
+                    Id = newSector.CellSector?.Id ?? Guid.Empty,
+                    Cell = new ()
                     {
-                        Id = newSector.Cell?.ServiceProvider?.Id ?? Guid.Empty,
-                        Provider = new ProviderSectorDto
-                        {
-                            Id = newSector.Cell?.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                            Name = newSector.Cell?.ServiceProvider?.Provider?.Name ?? string.Empty,
-                            Description = newSector.Cell?.ServiceProvider?.Provider?.Description ?? string.Empty,
-                        },
-                        Service = new ServiceSectorDto
-                        {
-                            Id = newSector.Cell?.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                            Name = newSector.Cell?.ServiceProvider?.Service?.Name ?? string.Empty,
-                            Type = newSector.Cell?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
-                        },
+                        Id = newSector.CellSector?.Cell?.Id ?? Guid.Empty,
+                        Name = newSector.CellSector?.Cell?.Name ?? string.Empty,
+                        CoorLatitude = newSector.CellSector?.Cell?.CoorLatitude ?? string.Empty,
+                        CoorLongitude = newSector.CellSector?.Cell?.CoorLongitude ?? string.Empty,
+                        CID = newSector.CellSector?.Cell?.CID ?? string.Empty,
+                        LAC = newSector.CellSector?.Cell?.LAC ?? string.Empty,
                     },
+                    AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.CellSector?.AntennaType ?? AntennaTypeEnum.Unknown),
+                    Azimuth = newSector.CellSector?.Azimuth ?? 0,
+                    BeamTilt = newSector.CellSector?.BeamTilt ?? 0,
                 },
                 RadioEquipment = newSector.RadioEquipment,
                 IsRxEqualTx = newSector.IsRxEqualTx,

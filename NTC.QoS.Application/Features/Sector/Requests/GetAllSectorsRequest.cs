@@ -8,7 +8,7 @@ public class GetAllSectorsRequest(int pageNumber,
                                   int pageSize,
                                   Guid? networkId,
                                   Guid? mimoId,
-                                  Guid? cellId,
+                                  Guid? cellSectorId,
                                   Guid? txAntennaPatternId,
                                   Guid? rxAntennaPatternId) : IRequest<PaginatedResponse<SectorDto>>
 {
@@ -16,7 +16,7 @@ public class GetAllSectorsRequest(int pageNumber,
     public int PageNumber { get; set; } = pageNumber;
     public Guid? NetworkId { get; set; } = networkId;
     public Guid? MIMOId { get; set; } = mimoId;
-    public Guid? CellId { get; set; } = cellId;
+    public Guid? CellSectorId { get; set; } = cellSectorId;
     public Guid? TxAntennaPatternId { get; set; } = txAntennaPatternId;
     public Guid? RxAntennaPatternId { get; set; } = rxAntennaPatternId;
 }

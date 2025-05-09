@@ -18,7 +18,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
         allSectorsQuery = allSectorsQuery
             .Where(s => !request.NetworkId.HasValue || s.NetworkId == request.NetworkId)
             .Where(s => !request.MIMOId.HasValue || s.MIMOId == request.MIMOId)
-            .Where(s => !request.CellId.HasValue || s.CellId == request.CellId)
+            .Where(s => !request.CellSectorId.HasValue || s.CellSectorId == request.CellSectorId)
             .Where(s => !request.TxAntennaPatternId.HasValue || s.TxAntennaPatternId == request.TxAntennaPatternId)
             .Where(s => !request.RxAntennaPatternId.HasValue || s.RxAntennaPatternId == request.RxAntennaPatternId);
 
@@ -27,42 +27,34 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
             .Select(s => new SectorDto
             {
                 Id = s.Id,
-                Network = new () 
-                { 
+                Network = new()
+                {
                     Id = s.Network.Id,
                     Name = s.Network.Name,
                     SystemType = s.Network.SystemType.ToString(),
                 },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(s.AntennaType),
                 Number = s.Number,
-                MIMO = s.MIMO != null ? new ()
-                { 
-                    Id = s.MIMO.Id,
-                    Type = s.MIMO.Type.ToString() 
-                }: null,
-                Cell = new ()
+                MIMO = s.MIMO != null ? new()
                 {
-                    Id = s.Cell.Id,
-                    SiteId = s.Cell.SiteId,
-                    Name = s.Cell.Name,
-                    Description = s.Cell.Description,
-                    TowerType = s.Cell.TowerType.ToString(),
-                    ServiceProvider = new ()
+                    Id = s.MIMO.Id,
+                    Type = s.MIMO.Type.ToString()
+                } : null,
+                CellSector = new()
+                {
+                    Id = s.CellSector != null ? s.CellSector.Id : Guid.Empty,
+                    Cell = new()
                     {
-                        Id = s.Cell.ServiceProvider.Id,
-                        Provider = new () 
-                        { 
-                            Id = s.Cell.ServiceProvider.Provider.Id,
-                            Name = s.Cell.ServiceProvider.Provider.Name,
-                            Description = s.Cell.ServiceProvider.Provider.Description,
-                        },
-                        Service = new ()
-                        {
-                            Id = s.Cell.ServiceProvider.Service.Id,
-                            Name = s.Cell.ServiceProvider.Service.Name,
-                            Type = s.Cell.ServiceProvider.Service.Type.ToString(),
-                        },
+                        Id = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Id : Guid.Empty,
+                        Name = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Name : string.Empty,
+                        CoorLatitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CoorLatitude : string.Empty,
+                        CoorLongitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CoorLongitude : string.Empty,
+                        CID = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CID : string.Empty,
+                        LAC = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.LAC : string.Empty,
                     },
+                    AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(s.CellSector != null ? s.CellSector.AntennaType : AntennaTypeEnum.Unknown),
+                    Azimuth = s.CellSector != null ? s.CellSector.Azimuth : 0,
+                    BeamTilt = s.CellSector != null ? s.CellSector.BeamTilt : 0,
                 },
                 RadioEquipment = s.RadioEquipment,
                 IsRxEqualTx = s.IsRxEqualTx,
@@ -76,7 +68,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                 TxAntennaGain = s.TxAntennaGain,
                 TxAzimuth = s.TxAzimuth,
                 TxBeamTilt = s.TxBeamTilt,
-                TxAntennaPattern = new ()
+                TxAntennaPattern = new()
                 {
                     Id = s.TxAntennaPatternId,
                     Name = s.TxAntennaPattern.Name,
@@ -92,7 +84,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                 RxAntennaGain = s.RxAntennaGain,
                 RxAzimuth = s.RxAzimuth,
                 RxBeamTilt = s.RxBeamTilt,
-                RxAntennaPattern = new ()
+                RxAntennaPattern = new()
                 {
                     Id = s.RxAntennaPatternId,
                     Name = s.RxAntennaPattern.Name,
@@ -100,7 +92,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                 },
                 RxEIRP = s.RxEIRP
             });
-        
+
         return await _sectorRepository.PaginateAsync(allSectorDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
 
     }

@@ -13,13 +13,14 @@ internal sealed class SectorRepository(ApplicationDbContext context)
         var query = _context.Set<Sector>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(s => s.Network)
             .Include(s => s.MIMO)
-            .Include(s => s.Cell).ThenInclude(c => c!.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(s => s.Cell).ThenInclude(c => c!.ServiceProvider).ThenInclude(sp => sp!.Service)
+            .Include(s => s.CellSector).ThenInclude(cs => cs.Cell).ThenInclude(c => c.ServiceProvider).ThenInclude(sp => sp.Provider)
+            .Include(s => s.CellSector).ThenInclude(cs => cs.Cell).ThenInclude(c => c.ServiceProvider).ThenInclude(sp => sp.Service)
             .Include(s => s.TxAntennaPattern)
             .Include(s => s.RxAntennaPattern);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
+
     public override async Task<List<Sector>> ListAsync(
         Expression<Func<Sector, bool>>? expression = null, 
         CancellationToken cancellationToken = default)
@@ -28,8 +29,8 @@ internal sealed class SectorRepository(ApplicationDbContext context)
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(s => s.Network)
             .Include(s => s.MIMO)
-            .Include(s => s.Cell).ThenInclude(c => c!.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(s => s.Cell).ThenInclude(c => c!.ServiceProvider).ThenInclude(sp => sp!.Service)
+            .Include(s => s.CellSector).ThenInclude(cs => cs.Cell).ThenInclude(c => c.ServiceProvider).ThenInclude(sp => sp.Provider)
+            .Include(s => s.CellSector).ThenInclude(cs => cs.Cell).ThenInclude(c => c.ServiceProvider).ThenInclude(sp => sp.Service)
             .Include(s => s.TxAntennaPattern)
             .Include(s => s.RxAntennaPattern);
 
