@@ -80,5 +80,5 @@ public record CellRecord
     public string Azimuth { get; set; } = string.Empty;
 
     [ExcelHeader("Beam Tilt (°)")]
-    public decimal BeamTilt { get; set; }
+    public string BeamTilt { get; set; } = string.Empty;
 }

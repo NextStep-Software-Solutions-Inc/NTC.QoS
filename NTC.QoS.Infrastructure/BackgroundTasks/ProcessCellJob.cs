@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using ClosedXML;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Enums;
@@ -65,8 +66,7 @@ public class ProcessCellJob : IProcessCellJob
             const string message = "File not found";
             _logger.LogError(message);
             throw new Exception(message);
-        }
-        ;
+        };
 
         file.Status = FileStatusEnum.Processing;
 
@@ -111,13 +111,15 @@ public class ProcessCellJob : IProcessCellJob
             .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Generation))
             .ToList();
 
-        foreach (var record in cellRecords)
+        for (int recordIndex = 0; recordIndex < cellRecords.Count; recordIndex++)
         {
-            _logger.LogInformation("Processing record: {Provider}, {Zone} {Barangay} {Municipality} {Province} {Region}, Coordinates: ({Latitude}, {Longitude})",
-                record.Provider, record.Zone, record.Barangay, record.Municipality, record.Province, record.Region, record.Latitude, record.Longitude);
+            var record = cellRecords[recordIndex];
+            var actualRowNumber = recordIndex + 4; // Adjust for the starting row
 
-            ReportProgress($"Processing record: {record.Provider}, {record.Zone} {record.Barangay} {record.Municipality} {record.Province} {record.Region}, Coordinates: ({record.Latitude}, {record.Longitude})");
+            _logger.LogInformation("Processing record from Excel row {RowNumber}: {Provider}, {Zone} {Barangay} {Municipality} {Province} {Region}, Coordinates: ({Latitude}, {Longitude})",
+                actualRowNumber, record.Provider, record.Zone, record.Barangay, record.Municipality, record.Province, record.Region, record.Latitude, record.Longitude);
 
+            ReportProgress($"Processing record from Excel row {actualRowNumber}: {record.Provider}, {record.Zone} {record.Barangay} {record.Municipality} {record.Province} {record.Region}, Coordinates: ({record.Latitude}, {record.Longitude})");
             var spCacheKey = (record.Provider + ServiceTypeEnum.Wireless.ToString());
 
             if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
@@ -261,26 +263,44 @@ public class ProcessCellJob : IProcessCellJob
                     if (!String.IsNullOrEmpty(record.Azimuth))
                     {
                         var azimuths = record.Azimuth.Split(",");
+                        var beamTilts = record.BeamTilt?.Split(',');
 
-                        foreach (var azimuth in azimuths)
+                        if (beamTilts == null || azimuths.Length != beamTilts.Length)
                         {
-                            var trimmedAzimuth = azimuth.Trim();
+                            _logger.LogError("The number of Azimuth values ('{AzimuthCount}') does not match the number of BeamTilt values ('{BeamTiltCount}') for record in Excel row {RowNumber}. The file is invalid and needs to be re-uploaded.", azimuths.Length, beamTilts?.Length ?? 0, actualRowNumber);
+                            await TerminateProcess(file, token);
+                            return;
+                        }
 
-                            if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth))
-                            { }
+                        for (int i = 0; i < azimuths.Length; i++)
+                        {
+                            var trimmedAzimuth = azimuths[i].Trim();
+                            var trimmedBeamTilt = beamTilts[i].Trim();
+
+                            if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth) &&
+                              decimal.TryParse(trimmedBeamTilt, out decimal decimalBeamTilt))
+                            {
+                                var cellSector = new Domain.Entities.CellSector
+                                {
+                                    CellId = cellId,
+                                    AntennaHeight = record.AntennaHeight,
+                                    AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
+                                    Azimuth = decimalAzimuth,
+                                    BeamTilt = decimalBeamTilt,
+                                };
+                                cellSectorList.Add(cellSector);
+                            }
                             else
                             {
-                                _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for CellSectorId {CellSectorId}.", trimmedAzimuth, cellId);
+                                if (!decimal.TryParse(trimmedAzimuth, out _))
+                                {
+                                    _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for record in Excel row {RowNumber}, Azimuth index {Index}.", trimmedAzimuth, actualRowNumber, i);
+                                }
+                                if (!decimal.TryParse(trimmedBeamTilt, out _))
+                                {
+                                    _logger.LogWarning("Could not parse '{TrimmedBeamTilt}' as a decimal for record in Excel row {RowNumber}, BeamTilt index {Index}.", trimmedBeamTilt, actualRowNumber, i);
+                                }
                             }
-                            var cellSector = new Domain.Entities.CellSector
-                            {
-                                CellId = cellId,
-                                AntennaHeight = record.AntennaHeight,
-                                AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
-                                Azimuth = decimalAzimuth,
-                                BeamTilt = record.BeamTilt,
-                            };
-                            cellSectorList.Add(cellSector);
                         }
                     }
                 }
