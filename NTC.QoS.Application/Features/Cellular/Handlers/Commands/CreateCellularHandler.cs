@@ -48,7 +48,7 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
         }
 
         var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Cellular.ServiceProviderId && !sp.IsDeleted);
-        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is null)
         {
             return new ApiResponse<CellularDto>
