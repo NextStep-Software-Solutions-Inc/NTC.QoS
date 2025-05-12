@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -8,16 +9,17 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class CreateCellHandler(ICellRepository cellRepository, IFileRepository fileRepository, IZoneRepository zoneRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
+public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
-    private readonly IFileRepository _fileRepository = fileRepository;
-    private readonly IZoneRepository _zoneRepository = zoneRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
 
     public async Task<ApiResponse<CellDto>> Handle(CreateCellRequest request, CancellationToken cancellationToken)
     {
-        var cell = await _cellRepository.FindAsync(c => c.Name == request.Cell.Name && !c.IsDeleted, cancellationToken);
+        Point location = GeometryHelper.CreatePoint(x: request.Cell.Latitude, y: request.Cell.Longitude);
+
+        var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Location.Equals(location) && c.Name == request.Cell.Name);
+        var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is not null)
         {
             return new ApiResponse<CellDto>
@@ -27,50 +29,14 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Duplicate", ["Cell with the same name already exists."]
+                        "Duplicate", ["Cell with the same name and location already exists."]
                     }
                 }
             };
         }
 
-        Guid? fileId = null;
-        if (request.Cell.FileId is not null)
-        {
-            var file = await _fileRepository.GetByIdAsync(request.Cell.FileId.Value, cancellationToken);
-            if (file is null)
-            {
-                return new ApiResponse<CellDto>
-                {
-                    Message = "File not found.",
-                    Succeeded = false,
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        {
-                            "NullFile", ["File not found."]
-                        }
-                    }
-                };
-            }
-            fileId = file.Id;
-        }
-
-        var zone = await _zoneRepository.GetByIdAsync(request.Cell.ZoneId, cancellationToken);
-        if (zone is null)
-        {
-            return new ApiResponse<CellDto>
-            {
-                Message = "Zone not found.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullZone", ["Zone not found."]
-                    }
-                }
-            };
-        }
-
-        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Cell.ServiceProviderId, cancellationToken);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Id == request.Cell.ServiceProviderId);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is null)
         {
             return new ApiResponse<CellDto>
@@ -90,9 +56,8 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
         {
             Name = request.Cell.Name,
             Group = request.Cell.Group,
-            FileId = fileId,
             Description = request.Cell.Description,
-            ZoneId = zone.Id,
+            Address = request.Cell.Address,
             ServiceProviderId = serviceProvider.Id,
             CID = request.Cell.CID,
             SiteId = request.Cell.SiteId,
@@ -100,8 +65,7 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
             Elevation = request.Cell.Elevation,
             TAC = request.Cell.TAC,
             LAC = request.Cell.LAC,
-            CoorLatitude = request.Cell.CoorLatitude,
-            CoorLongitude = request.Cell.CoorLongitude,
+            Location = location,
             Status = EnumHelper<CellStatusEnum>.GetValue(request.Cell.Status)
         };
 
@@ -115,43 +79,8 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
                 Id = newCell.Id,
                 Name = newCell.Name,
                 Group = newCell.Group,
-                File = new()
-                {
-                    Id = newCell.FileId ?? Guid.Empty,
-                    Name = newCell.File?.Name ?? string.Empty,
-                    Path = newCell.File?.Path ?? string.Empty
-                },
                 Description = newCell.Description ?? string.Empty,
-                Zone = new()
-                {
-                    Id = newCell.ZoneId,
-                    Name = newCell.Zone?.Name ?? string.Empty,
-                    Barangay = new()
-                    {
-                        Id = newCell.Zone?.BarangayId ?? Guid.Empty,
-                        Name = newCell.Zone?.Barangay?.Name ?? string.Empty,
-                        Description = newCell.Zone?.Barangay?.Description,
-                        Municipality = new()
-                        {
-                            Id = newCell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                            IsCity = newCell.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                            Name = newCell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                            Description = newCell.Zone?.Barangay?.Municipality?.Description,
-                            Province = new()
-                            {
-                                Id = newCell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                                Name = newCell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                                Description = newCell.Zone?.Barangay?.Municipality?.Province?.Description,
-                                Region = new()
-                                {
-                                    Id = newCell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                    Name = newCell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                    Description = newCell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
-                                }
-                            }
-                        }
-                    }
-                },
+                Address = newCell.Address ?? string.Empty,
                 ServiceProvider = new()
                 {
                     Id = newCell!.ServiceProviderId,
@@ -176,8 +105,8 @@ public class CreateCellHandler(ICellRepository cellRepository, IFileRepository f
                 SiteId = newCell.SiteId,
                 TowerType = newCell.TowerType,
                 Elevation = newCell.Elevation,
-                CoorLatitude = newCell.CoorLatitude,
-                CoorLongitude = newCell.CoorLongitude,
+                Latitude = newCell.Location.X,
+                Longitude = newCell.Location.Y,
                 IsVerified = newCell.IsVerified,
                 Status = EnumHelper<CellStatusEnum>.GetName(newCell.Status)
             },

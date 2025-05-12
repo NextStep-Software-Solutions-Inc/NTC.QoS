@@ -51,8 +51,8 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 {
                     Id = sector.CellSector?.Cell?.Id ?? Guid.Empty,
                     Name = sector.CellSector?.Cell?.Name ?? string.Empty,
-                    CoorLatitude = sector.CellSector?.Cell?.CoorLatitude ?? string.Empty,
-                    CoorLongitude = sector.CellSector?.Cell?.CoorLongitude ?? string.Empty,
+                    Latitude = sector.CellSector?.Cell?.Location.X ?? 0,
+                    Longitude = sector.CellSector?.Cell?.Location.Y ?? 0,
                     CID = sector.CellSector?.Cell?.CID ?? string.Empty,
                     LAC = sector.CellSector?.Cell?.LAC ?? string.Empty,
                 },

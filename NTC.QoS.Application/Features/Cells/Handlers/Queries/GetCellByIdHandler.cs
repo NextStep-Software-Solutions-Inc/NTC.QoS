@@ -21,69 +21,34 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
             Id = cell.Id,
             Name = cell.Name,
             Group = cell.Group,
-            Description = cell.Description,
-            File = cell.File != null ? new()
+            Description = cell.Description ?? string.Empty,
+            Address = cell.Address ?? string.Empty,
+            ServiceProvider = new()
             {
-                Id = cell.File.Id,
-                Name = cell.File.Name,
-                Path = cell.File.Path
-            } : null,
-            Zone = cell.Zone != null ? new()
-            {
-                Id = cell.Zone.Id,
-                Name = cell.Zone.Name,
-                Barangay = cell.Zone.Barangay != null ? new()
+                Id = cell.ServiceProviderId,
+                Service = new()
                 {
-                    Id = cell.Zone.Barangay.Id,
-                    Name = cell.Zone.Barangay.Name,
-                    Description = cell.Zone.Barangay.Description,
-                    Municipality = cell.Zone.Barangay.Municipality != null ? new()
-                    {
-                        Id = cell.Zone.Barangay.Municipality.Id,
-                        IsCity = cell.Zone.Barangay.Municipality.IsCity,
-                        Name = cell.Zone.Barangay.Municipality.Name,
-                        Description = cell.Zone.Barangay.Municipality.Description,
-                        Province = cell.Zone.Barangay.Municipality.Province != null ? new ()
-                        {
-                            Id = cell.Zone.Barangay.Municipality.Province.Id,
-                            Name = cell.Zone.Barangay.Municipality.Province.Name,
-                            Description = cell.Zone.Barangay.Municipality.Province.Description,
-                            Region = cell.Zone.Barangay.Municipality.Province.Region != null ? new RegionDto()
-                            {
-                                Id = cell.Zone.Barangay.Municipality.Province.Region!.Id,
-                                Name = cell.Zone.Barangay.Municipality.Province.Region!.Name,
-                                Description = cell.Zone.Barangay.Municipality.Province.Region!.Description
-                            } : null
-                        } : null
-                    } : null
-                } : null
-            } : null,
-            ServiceProvider = cell.ServiceProvider != null ? new()
-            {
-                Id = cell.ServiceProvider.Id,
-                Service = cell.ServiceProvider.Service != null ? new()
+                    Id = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Id : Guid.Empty,
+                    Name = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Name : string.Empty,
+                    Type = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Type.ToString() : string.Empty
+                },
+                Provider = new()
                 {
-                    Id = cell.ServiceProvider.Service.Id,
-                    Name = cell.ServiceProvider.Service.Name,
-                    Type = EnumHelper<ServiceTypeEnum>.GetName(cell.ServiceProvider.Service.Type),
-                } : null,
-                Provider = cell.ServiceProvider.Provider != null ? new()
-                {
-                    Id = cell.ServiceProvider.Provider.Id,
-                    Name = cell.ServiceProvider.Provider.Name,
-                    Description = cell.ServiceProvider.Provider.Description,
-                    LicenseNumber = cell.ServiceProvider.Provider.LicenseNumber,
-                    Color = cell.ServiceProvider.Provider.Color
-                } : null
-            } : null,
-            CID = cell!.CID,
+                    Id = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Id : Guid.Empty,
+                    Name = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Name : string.Empty,
+                    Description = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Description : null,
+                    LicenseNumber = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.LicenseNumber : null,
+                    Color = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Color : string.Empty
+                }
+            },
+            CID = cell.CID,
             LAC = cell.LAC,
             TAC = cell.TAC,
             SiteId = cell.SiteId,
             TowerType = cell.TowerType,
             Elevation = cell.Elevation,
-            CoorLatitude = cell.CoorLatitude,
-            CoorLongitude = cell.CoorLongitude,
+            Latitude = cell.Location.X,
+            Longitude = cell.Location.Y,
             IsVerified = cell.IsVerified,
             Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
         });

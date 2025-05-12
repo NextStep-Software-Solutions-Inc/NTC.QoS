@@ -1,6 +1,7 @@
 ﻿using ClosedXML;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -74,11 +75,6 @@ public class ProcessCellJob : IProcessCellJob
         await _fileRepository.SaveChangesAsync(token);
 
         var serviceProviderCache = new Dictionary<string, Guid>();
-        var zoneCache = new Dictionary<string, Guid>();
-        var barangayCache = new Dictionary<string, Guid>();
-        var municipalityCache = new Dictionary<string, Guid>();
-        var provinceCache = new Dictionary<string, Guid>();
-        var regionCache = new Dictionary<string, Guid>();
         var generationBandCache = new Dictionary<(string, string), Guid>();
 
         var cellSectorList = new List<Domain.Entities.CellSector>();
@@ -143,102 +139,21 @@ public class ProcessCellJob : IProcessCellJob
                 }
             }
 
-            if (!regionCache.TryGetValue(record.Region, out var regionId))
-            {
-                var region = await _regionRepository.Query(r => !r.IsDeleted && r.Name.Equals(record.Region)).FirstOrDefaultAsync(token);
-                if (region != null)
-                {
-                    regionId = region.Id;
-                    regionCache[record.Region] = regionId;
-                }
-                else
-                {
-                    _logger.LogWarning("Region not found: {Region}", record.Region);
-                    await TerminateProcess(file, token);
-                    return;
-                }
-            }
-
-            var provinceCacheKey = $"{record.Province}-{regionId}";
-            if (!provinceCache.TryGetValue(provinceCacheKey, out var provinceId))
-            {
-                var province = await _provinceRepository.Query(p => !p.IsDeleted && p.Name.Equals(record.Province) && p.RegionId.Equals(regionId)).FirstOrDefaultAsync(token);
-                if (province != null)
-                {
-                    provinceId = province.Id;
-                    provinceCache[provinceCacheKey] = provinceId;
-                }
-                else
-                {
-                    _logger.LogWarning("Province not found: {Province} in Region: {Region}", record.Province, record.Region);
-                    await TerminateProcess(file, token);
-                    return;
-                }
-            }
-
-            var municipalityCacheKey = $"{record.Municipality}-{provinceId}";
-            if (!municipalityCache.TryGetValue(municipalityCacheKey, out var municipalityId))
-            {
-                var municipality = await _municipalityRepository.Query(m => !m.IsDeleted && m.Name.Equals(record.Municipality) && m.ProvinceId.Equals(provinceId)).FirstOrDefaultAsync(token);
-                if (municipality != null)
-                {
-                    municipalityId = municipality.Id;
-                    municipalityCache[municipalityCacheKey] = municipalityId;
-                }
-                else
-                {
-                    _logger.LogWarning("Municipality not found: {Municipality} in Province: {Province}, Region: {Region}", record.Municipality, record.Province, record.Region);
-                    await TerminateProcess(file, token);
-                    return;
-                }
-            }
-
-            var barangayCacheKey = $"{record.Barangay}-{municipalityId}";
-            if (!barangayCache.TryGetValue(barangayCacheKey, out var barangayId))
-            {
-                var barangay = await _barangayRepository.Query(b => !b.IsDeleted && b.Name.Equals(record.Barangay) && b.MunicipalityId.Equals(municipalityId)).FirstOrDefaultAsync(token);
-                if (barangay != null)
-                {
-                    barangayId = barangay.Id;
-                    barangayCache[barangayCacheKey] = barangayId;
-                }
-                else
-                {
-                    _logger.LogWarning("Barangay not found: {Barangay} in Municipality: {Municipality}, Province: {Province}, Region: {Region}", record.Barangay, record.Municipality, record.Province, record.Region);
-                    await TerminateProcess(file, token);
-                    return;
-                }
-            }
-
-            var zoneCacheKey = $"{record.Zone}-{barangayId}";
-            if (!zoneCache.TryGetValue(zoneCacheKey, out var zoneId))
-            {
-                var zone = await _zoneRepository.Query(z => !z.IsDeleted && z.Name.Equals(record.Zone) && z.BarangayId.Equals(barangayId)).FirstOrDefaultAsync(token);
-                if (zone != null)
-                {
-                    zoneId = zone.Id;
-                    zoneCache[zoneCacheKey] = zoneId;
-                }
-                else
-                {
-                    _logger.LogWarning("Zone not found: {Zone} in Barangay: {Barangay}, Municipality: {Municipality}, Province: {Province}, Region: {Region}",
-                                       record.Zone, record.Barangay, record.Municipality, record.Province, record.Region);
-                    await TerminateProcess(file, token);
-                    return;
-                }
-            }
+            Point location = GeometryHelper.CreatePoint(x: record.Latitude, y: record.Longitude);
+            string address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
 
             Guid cellId = Guid.Empty;
-            if (serviceProviderId != Guid.Empty && municipalityId != Guid.Empty && zoneId != Guid.Empty)
+            if (serviceProviderId != Guid.Empty)
             {
                 var cellQuery = _cellRepository
-                    .Query(c => !c.IsDeleted && c.ServiceProviderId.Equals(serviceProviderId) && c.ZoneId.Equals(zoneId))
-                    .Where(c => c.TowerType.Equals(record.TowerType));
+                    .Query(c => !c.IsDeleted && c.ServiceProviderId.Equals(serviceProviderId))
+                    .Where(c => c.TowerType.Equals(record.TowerType))
+                    .Where(c => c.Location.Equals(location));
 
                 var existingCell = await _cellRepository.FirstOrDefaultAsync(cellQuery, token);
                 if (existingCell != null)
                 {
-                    _logger.LogWarning("Cell already exists for Service Provider: {Provider}, Zone: {Zone}", record.Provider, record.Zone);
+                    _logger.LogWarning("Cell already exists for Service Provider: {Provider}, Location: {location}", record.Provider, location);
                     cellId = existingCell.Id;
                 }
                 else
@@ -247,12 +162,10 @@ public class ProcessCellJob : IProcessCellJob
                     {
                         Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}",
                         Group = record.Provider,
+                        Address = address,
                         ServiceProviderId = serviceProviderId,
-                        ZoneId = zoneId,
-                        FileId = parameters.Id,
-                        CoorLatitude = record.Latitude.ToString(),
-                        CoorLongitude = record.Longitude.ToString(),
                         TowerType = record.TowerType,
+                        Location = location,
                         IsFileUploaded = true,
                     };
                     _cellRepository.Add(cell);
@@ -342,8 +255,7 @@ public class ProcessCellJob : IProcessCellJob
                                 !c.IsDeleted &&
                                 c.CellId.Equals(cellId) &&
                                 c.ServiceProviderId.Equals(serviceProviderId) &&
-                                c.GenerationBandId.Equals(generationBandId) &&
-                                c.BarangayId.Equals(barangayId))
+                                c.GenerationBandId.Equals(generationBandId))
                             .FirstOrDefaultAsync(token);
 
                         var value = propInfo.Property.GetValue(record);
@@ -364,10 +276,9 @@ public class ProcessCellJob : IProcessCellJob
                                 cellularToAdd.Add(new Domain.Entities.Cellular
                                 {
                                     CellId = cellId,
-                                    FileId = parameters.Id,
                                     ServiceProviderId = serviceProviderId,
-                                    BarangayId = barangayId,
                                     GenerationBandId = generationBandId,
+                                    Address = address,
                                     IsFileUploaded = true
                                 });
                             }

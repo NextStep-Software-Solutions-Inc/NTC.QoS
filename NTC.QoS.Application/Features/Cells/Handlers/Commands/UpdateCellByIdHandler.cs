@@ -8,13 +8,14 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class UpdateCellByIdHandler(ICellRepository repository) : IRequestHandler<UpdateCellByIdRequest, ApiResponse<CellDto>>
+public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHandler<UpdateCellByIdRequest, ApiResponse<CellDto>>
 {
-    private readonly ICellRepository _repository = repository;
+    private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<CellDto>> Handle(UpdateCellByIdRequest request, CancellationToken cancellationToken)
     {
-        var cell = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is null)
         {
             return new ApiResponse<CellDto>
@@ -36,12 +37,12 @@ public class UpdateCellByIdHandler(ICellRepository repository) : IRequestHandler
         if(!string.IsNullOrEmpty(request.Cell.SiteId)) cell.SiteId = request.Cell.SiteId;
         if(!string.IsNullOrEmpty(request.Cell.TowerType)) cell.TowerType = request.Cell.TowerType;
         if(request.Cell.Elevation is not 0) cell.Elevation = request.Cell.Elevation;
-        if(!string.IsNullOrEmpty(request.Cell.CoorLatitude)) cell.CoorLatitude = request.Cell.CoorLatitude;
-        if(!string.IsNullOrEmpty(request.Cell.CoorLongitude)) cell.CoorLongitude = request.Cell.CoorLongitude;
+        if(request.Cell.Latitude is not 0) cell.Location.X = request.Cell.Latitude;
+        if(request.Cell.Longitude is not 0) cell.Location.Y = request.Cell.Longitude;
         if(request.Cell.IsVerified.HasValue) cell.IsVerified = request.Cell.IsVerified.Value;
 
-        _repository.Update(cell);
-        await _repository.SaveChangesAsync(cancellationToken);
+        _cellRepository.Update(cell);
+        await _cellRepository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<CellDto>
         {
@@ -50,43 +51,8 @@ public class UpdateCellByIdHandler(ICellRepository repository) : IRequestHandler
                 Id = cell.Id,
                 Name = cell.Name,
                 Group = cell.Group,
-                File = new()
-                {
-                    Id = cell.FileId ?? Guid.Empty,
-                    Name = cell.File?.Name ?? string.Empty,
-                    Path = cell.File?.Path ?? string.Empty
-                },
                 Description = cell.Description ?? string.Empty,
-                Zone = new()
-                {
-                    Id = cell.ZoneId,
-                    Name = cell.Zone?.Name ?? string.Empty,
-                    Barangay = new()
-                    {
-                        Id = cell.Zone?.BarangayId ?? Guid.Empty,
-                        Name = cell.Zone?.Barangay?.Name ?? string.Empty,
-                        Description = cell.Zone?.Barangay?.Description,
-                        Municipality = new()
-                        {
-                            Id = cell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                            IsCity = cell.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                            Name = cell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                            Description = cell.Zone?.Barangay?.Municipality?.Description,
-                            Province = new()
-                            {
-                                Id = cell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                                Name = cell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                                Description = cell.Zone?.Barangay?.Municipality?.Province?.Description,
-                                Region = new()
-                                {
-                                    Id = cell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                    Name = cell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                    Description = cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
-                                }
-                            }
-                        }
-                    }
-                },
+                Address = cell.Address ?? string.Empty,
                 ServiceProvider = new()
                 {
                     Id = cell!.ServiceProviderId,
@@ -111,8 +77,8 @@ public class UpdateCellByIdHandler(ICellRepository repository) : IRequestHandler
                 SiteId = cell.SiteId,
                 TowerType = cell.TowerType,
                 Elevation = cell.Elevation,
-                CoorLatitude = cell.CoorLatitude,
-                CoorLongitude = cell.CoorLongitude,
+                Latitude = cell.Location.X,
+                Longitude = cell.Location.Y,
                 IsVerified = cell.IsVerified,
                 Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
             },

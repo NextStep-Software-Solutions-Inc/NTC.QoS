@@ -25,13 +25,11 @@ public class CellsController(IMediator mediator) : ControllerBase
                                                                             [FromQuery] int pageSize = 10,
                                                                             [FromQuery] string? search = null,
                                                                             [FromQuery] string? status = null,
-                                                                            [FromQuery] List<Guid?>? fileIds = null,
-                                                                            [FromQuery] List<Guid>? zoneIds = null,
                                                                             [FromQuery] List<Guid>? serviceProviderIds = null,
                                                                             [FromQuery] List<Guid>? providerIds = null,
                                                                             [FromQuery] List<Guid>? serviceIds = null)
     {
-        var request = new GetAllCellsRequest(pageNumber, pageSize, search, status, fileIds, zoneIds, serviceProviderIds, providerIds, serviceIds);
+        var request = new GetAllCellsRequest(pageNumber, pageSize, search, status, serviceProviderIds, providerIds, serviceIds);
         var cells = await _mediator.Send(request);
         return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }

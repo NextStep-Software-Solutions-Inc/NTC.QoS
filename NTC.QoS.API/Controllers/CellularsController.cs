@@ -27,27 +27,24 @@ public class CellularsController(IMediator mediator) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<GetCellularDto>>> GetAllCellulars(int pageSize = 10,
                                                                                        int pageNumber = 1,
-                                                                                       Guid? barangayId = null,
                                                                                        Guid? cellId = null,
                                                                                        Guid? serviceProviderId = null,
-                                                                                       Guid? generationBandId = null,
-                                                                                       Guid? fileId = null)
+                                                                                       Guid? generationBandId = null)
     {
         var result = await _mediator.Send(new GetAllCellularsRequest
         {
             PageSize = pageSize,
             PageNumber = pageNumber,
-            BarangayId = barangayId,
             CellId = cellId,
             ServiceProviderId = serviceProviderId,
             GenerationBandId = generationBandId,
-            FileId = fileId
         });
-        return Ok(result);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<GetCellularDto>>> GetCellularById(Guid id)
+    public async Task<ActionResult<ApiResponse<CellularDto>>> GetCellularById(Guid id)
     {
         var request = new GetCellularByIdRequest(id);
         var cellular = await _mediator.Send(request);

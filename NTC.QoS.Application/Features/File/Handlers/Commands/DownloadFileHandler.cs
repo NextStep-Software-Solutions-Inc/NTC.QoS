@@ -117,11 +117,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddMultiRowHeaders(worksheet, headers, 1); // Start writing from row 1
 
         var providers = await GetServiceProviders(cancellationToken);
-        var zones = await GetZones(cancellationToken);
-        var barangays = await GetBarangays(cancellationToken);
-        var municipalities = await GetMunicipalities(cancellationToken);
-        var provinces = await GetProvinces(cancellationToken);
-        var regions = await GetRegions(cancellationToken);
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
         string[] trueFalseValues = ["TRUE", "FALSE"];
@@ -131,31 +126,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
         AddDropdownValidation(worksheet, "A4:A10", providerSheet.Cells[1, 1, providers.Count, 1]);
-
-        ExcelWorksheet zoneSheet = package.Workbook.Worksheets.Add("Zones");
-        zoneSheet.Cells.LoadFromCollection(zones.Select(z => new { Name = z }));
-        zoneSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "B4:B10", zoneSheet.Cells[1, 1, zones.Count, 1]);
-
-        ExcelWorksheet barangaySheet = package.Workbook.Worksheets.Add("Barangays");
-        barangaySheet.Cells.LoadFromCollection(barangays.Select(b => new { Name = b }));
-        barangaySheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "C4:C10", barangaySheet.Cells[1, 1, barangays.Count, 1]);
-
-        ExcelWorksheet municipalitySheet = package.Workbook.Worksheets.Add("Municipalities");
-        municipalitySheet.Cells.LoadFromCollection(municipalities.Select(m => new { Name = m }));
-        municipalitySheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "D4:D10", municipalitySheet.Cells[1, 1, municipalities.Count, 1]);
-
-        ExcelWorksheet provinceSheet = package.Workbook.Worksheets.Add("Provinces");
-        provinceSheet.Cells.LoadFromCollection(provinces.Select(p => new { Name = p }));
-        provinceSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "E4:E10", provinceSheet.Cells[1, 1, provinces.Count, 1]);
-
-        ExcelWorksheet regionSheet = package.Workbook.Worksheets.Add("Regions");
-        regionSheet.Cells.LoadFromCollection(regions.Select(r => new { Name = r }));
-        regionSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "F4:F10", regionSheet.Cells[1, 1, regions.Count, 1]);
 
         ExcelWorksheet towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
         towerTypeSheet.Cells.LoadFromCollection(towerTypes.Select(t => new { Type = t }));
