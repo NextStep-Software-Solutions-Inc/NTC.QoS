@@ -234,19 +234,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(s => s.ServiceProviderId);
 
         modelBuilder.Entity<Speedtest>()
-            .HasOne(s => s.File)
-            .WithMany(f => f.Speedtests)
-            .HasForeignKey(s => s.FileId);
-
-        modelBuilder.Entity<Speedtest>()
             .HasOne(s => s.Generation)
             .WithMany(g => g.Speedtests)
             .HasForeignKey(s => s.GenerationId);
 
         modelBuilder.Entity<Speedtest>()
-            .HasOne(s => s.Barangay)
-            .WithMany(b => b.Speedtests)
-            .HasForeignKey(s => s.BarangayId);
+                .Property(n => n.Location)
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Cellular>()
             .HasOne(c => c.Barangay)

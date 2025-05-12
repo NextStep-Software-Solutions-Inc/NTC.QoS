@@ -28,21 +28,29 @@ public class SpeedtestsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string? search = null,
-        [FromQuery] string? status = null,
-        [FromQuery] List<Guid>? fileIds = null,
+         int pageNumber = 1,
+         int pageSize = 10,
+         string? search = null,
+        string? status = null,
+        string? address = null,
         [FromQuery] List<Guid>? serviceProviderIds = null,
-        [FromQuery] List<Guid>? barangayIds = null,
         [FromQuery] List<Guid>? cellIds = null,
         [FromQuery] List<Guid>? generationIds = null,
         [FromQuery] List<Guid>? providerIds = null,
         [FromQuery] List<Guid>? serviceIds = null)
     {
-        var request = new GetAllSpeedtestsRequest(pageNumber, pageSize, search, status, fileIds, serviceProviderIds, barangayIds, cellIds, generationIds, providerIds, serviceIds);
-        var speedtests = await _mediator.Send(request);
-        return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
+        var speedtTest = await _mediator.Send(new GetAllSpeedtestsRequest(pageNumber, pageSize)
+        {
+            Search = search,
+            Status = status,
+            Address = address,
+            ServiceProviderIds = serviceProviderIds,
+            CellIds = cellIds,
+            GenerationIds = generationIds,
+            ProviderIds = providerIds,
+            ServiceIds = serviceIds
+        });
+        return speedtTest.Succeeded ? Ok(speedtTest) : BadRequest(speedtTest);
     }
 
     [HttpGet("{id}")]
