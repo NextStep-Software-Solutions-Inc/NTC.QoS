@@ -311,7 +311,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("geometry")
-                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=3857;POINT (0 0)"));
 
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
@@ -2300,8 +2300,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("CellSectors");
 
                     b.Navigation("Cellulars");
-
-                    b.Navigation("Speedtests");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Generation", b =>

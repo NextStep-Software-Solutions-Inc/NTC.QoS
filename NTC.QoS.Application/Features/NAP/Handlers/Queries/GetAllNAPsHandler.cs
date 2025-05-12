@@ -21,7 +21,7 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
 
         allNAPsQuery = allNAPsQuery
             .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProvider.Id == request.ServiceProviderId)
-            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance/1000))
+            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance / 1000))
             .OrderBy(n => n.Location.Distance(locationPoint));
 
             var NAPsDtoQuery = allNAPsQuery
@@ -48,7 +48,7 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
                 IsFileUploaded = n.IsFileUploaded,
                 Latitude = n.Location.X,
                 Longitude = n.Location.Y,
-                Distance = n.Location.Distance(locationPoint) * 1000
+                Distance = Math.Round(n.Location.Distance(locationPoint) * 1000, 2)
             });
         return await _NAPRepository.PaginateAsync(NAPsDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     

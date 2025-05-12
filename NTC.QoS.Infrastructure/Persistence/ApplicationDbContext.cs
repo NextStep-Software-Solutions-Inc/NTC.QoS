@@ -222,8 +222,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(n => n.ServiceProviderId);
 
         modelBuilder.Entity<NAP>()
-        .Property(n => n.Location)
-        .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+            .Property(n => n.Location)
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Zone>()
             .HasMany(z => z.NAPs);
