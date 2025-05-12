@@ -27,9 +27,21 @@ public class CellsController(IMediator mediator) : ControllerBase
                                                                             [FromQuery] string? status = null,
                                                                             [FromQuery] List<Guid>? serviceProviderIds = null,
                                                                             [FromQuery] List<Guid>? providerIds = null,
-                                                                            [FromQuery] List<Guid>? serviceIds = null)
+                                                                            [FromQuery] List<Guid>? serviceIds = null,
+                                                                            double longitude = 0,
+                                                                            double latitude = 0,
+                                                                            double distance = 1000)
     {
-        var request = new GetAllCellsRequest(pageNumber, pageSize, search, status, serviceProviderIds, providerIds, serviceIds);
+        var request = new GetAllCellsRequest(pageNumber, pageSize)
+        {
+            Search = search,
+            Status = status,
+            ServiceProviderIds = serviceProviderIds,
+            ProviderIds = providerIds,
+            ServiceIds = serviceIds,
+            Coordinate = new(y: longitude, x: latitude),
+            Distance = distance
+        };
         var cells = await _mediator.Send(request);
         return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }

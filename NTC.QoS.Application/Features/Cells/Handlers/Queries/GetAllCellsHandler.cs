@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
@@ -18,6 +19,8 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
     {
         IQueryable<Cell> cellQuery = _repository.Query(c => !c.IsDeleted);
 
+        Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
+
         if (!string.IsNullOrEmpty(request.Search))
         {
             var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Cell>(
@@ -34,10 +37,11 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
             .Where(c => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(c.ServiceProviderId)))
             .Where(c => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId))))
-            .Where(c => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId))));
+            .Where(c => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId))))
+            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance))
+            .OrderBy(n => n.Location.Distance(locationPoint));
 
         var cellDtoQuery = cellQuery
-            .OrderBy(c => c.CreatedAt)
             .Select(cell => new CellDto
             {
                 Id = cell.Id,
@@ -72,10 +76,10 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                 Latitude = cell.Location.X,
                 Longitude = cell.Location.Y,
                 IsVerified = cell.IsVerified,
-                Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
+                Status = EnumHelper<CellStatusEnum>.GetName(cell.Status),
+                Distance = Math.Round(cell.Location.Distance(locationPoint), 2)
             });
 
         return await _repository.PaginateAsync(cellDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
-
     }
 }
