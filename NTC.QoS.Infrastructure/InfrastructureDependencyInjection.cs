@@ -8,6 +8,7 @@ using NTC.QoS.Infrastructure.BackgroundTasks;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Services;
+using NetTopologySuite.Geometries; // For Point
 
 namespace NTC.QoS.Infrastructure;
 public static class InfrastructureDependencyInjection
@@ -21,7 +22,7 @@ public static class InfrastructureDependencyInjection
         services.AddDbContext<ApplicationDbContext>(options =>
         {
             var userContextService = services.BuildServiceProvider().GetRequiredService<IUserContextService>();
-            options.UseNpgsql(connectionString).AddInterceptors(new TimestampInterceptor(userContextService));
+            options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()).AddInterceptors(new TimestampInterceptor(userContextService));
         });
 
         // Add Hangfire services.

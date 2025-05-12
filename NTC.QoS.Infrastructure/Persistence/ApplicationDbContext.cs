@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
+using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Helper;
 
 namespace NTC.QoS.Infrastructure.Persistence;
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, IConfiguration configuration) : DbContext(options)
@@ -45,10 +47,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-
+        optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
+        modelBuilder.HasPostgresExtension("postgis");
+
         // ... any entity configuration ...
         modelBuilder.Entity<Provider>()
             .HasIndex(p => p.Name)
@@ -217,14 +222,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(n => n.ServiceProviderId);
 
         modelBuilder.Entity<NAP>()
-            .HasOne(n => n.Zone)
-            .WithMany(z => z.NAPs)
-            .HasForeignKey(n => n.ZoneId);
-
-        modelBuilder.Entity<NAP>()
-            .HasOne(n => n.File)
-            .WithMany(f => f.NAPs)
-            .HasForeignKey(n => n.FileId);
+        .Property(n => n.Location)
+        .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Zone>()
             .HasMany(z => z.NAPs);
@@ -326,5 +325,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<MIMO>()
             .HasMany(m => m.Sectors);
+
+        base.OnModelCreating(modelBuilder);
     }
 }

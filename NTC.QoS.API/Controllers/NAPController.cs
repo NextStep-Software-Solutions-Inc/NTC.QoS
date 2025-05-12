@@ -1,4 +1,5 @@
-﻿using MediatR;
+﻿using System.ComponentModel.DataAnnotations;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -29,18 +30,19 @@ public class NAPsController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
         int pageSize = 10,
         int pageNumber = 1,
-        Guid? serviceProviderId = null, 
-        Guid? zoneId = null,
-        Guid? fileId = null)
+        Guid? serviceProviderId = null,
+        [Required] double longitude = 0,
+        [Required] double latitude = 0,
+        [Required] double distance = 1000)
     {
-        var NAP = await _mediator.Send(new GetAllNAPsRequest
+
+        var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
         {
-            PageNumber = pageNumber,
-            PageSize = pageSize,
             ServiceProviderId = serviceProviderId,
-            ZoneId = zoneId,
-            FileId = fileId
+            Coordinate = new (y: longitude, x: latitude),
+            Distance = distance
         });
+
         return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
     }
 

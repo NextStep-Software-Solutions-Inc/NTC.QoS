@@ -1,9 +1,7 @@
-﻿using DocumentFormat.OpenXml.Spreadsheet;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
-using NTC.QoS.Domain.Entities;
+﻿using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
@@ -17,23 +15,17 @@ public class ProcessNAPJob : IProcessNAPJob
     private readonly IRepository<Domain.Entities.File> _fileRepository;
     private readonly IRepository<Domain.Aggregates.NAP> _NAPRepository;
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
-    private readonly IRepository<Domain.Entities.Province> _provinceRepository;
-    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
 
     public ProcessNAPJob(
         ILogger<ProcessNAPJob> logger,
         IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.NAP> NAPRepository,
-        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
-        IRepository<Domain.Entities.Province> provinceRepository,
-        IRepository<Domain.Entities.Municipality> municipalityRepository
+        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository
         )
     {
         _logger = logger;
         _fileRepository = fileRepository;
         _serviceProviderRepository = serviceProviderRepository;
-        _provinceRepository = provinceRepository;
-        _municipalityRepository = municipalityRepository;
         _NAPRepository = NAPRepository;
     }
 
@@ -117,99 +109,18 @@ public class ProcessNAPJob : IProcessNAPJob
                     serviceProviderCache[record.Provider] = serviceProviderId;
                 }
             }
-            // Check if the Province exists in the cache
-            if (!provinceCache.TryGetValue(record.Province, out var provinceId))
-            {
-                // If not, fetch it from the database and add it to the cache
-                var provinceQuery = _provinceRepository
-                    .Query(p => !p.IsDeleted)
-                    .Where(p => p.Name.Equals(record.Province));
-
-                var provinceNameQuery = provinceQuery.Select(p => new
-                {
-                    p.Id,
-                    p.Name
-                });
-                var province = await _provinceRepository.FirstOrDefaultAsync(provinceNameQuery, cancellationToken: token);
-                if (province is null)
-                {
-                    _logger.LogWarning($"Province not found: {record.Province}");
-                    await TerminateProcess(file, token);
-                    return;
-                }
-                else
-                {
-                    provinceId = province.Id;
-                    provinceCache[record.Province] = provinceId;
-                }
-            }
-
-            // Check if the Municipality exists in the cache
-            if (!municipalityCache.TryGetValue(record.Municipality, out var municipalityId))
-            {
-                // If not, fetch it from the database and add it to the cache
-                var municipalityQuery = _municipalityRepository.Query(m => !m.IsDeleted);
-                var municipalityNameQuery = municipalityQuery
-                    .Where(m => m.ProvinceId == provinceId)
-                    .Where(m => m.Name.Equals(record.Municipality))
-                    .Select(m => new
-                    {
-                        m.Id,
-                        m.Name,
-                        Barangays = m.Barangays.Select(b => new
-                        {
-                            b.Id,
-                            b.Name,
-                            Zones = b.Zones.Select(z => new
-                            {
-                                z.Id,
-                                z.Name
-                            })
-                        })
-                    });
-                var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityNameQuery, cancellationToken: token);
-                if (municipality is null)
-                {
-                    _logger.LogWarning($"Municipality under {record.Province} not found: {record.Municipality}");
-                    await TerminateProcess(file, token);
-                    return;
-                }
-                else
-                {
-                    municipalityId = municipality.Id;
-                    municipalityCache[record.Municipality] = municipalityId;
-
-                    // get the first zone id from the barangay of the municipality
-                    // and add it to the zoneCache
-
-                    var zone = municipality.Barangays
-                        .SelectMany(b => b.Zones)
-                        .FirstOrDefault();
-
-                    if (zone is null)
-                    {
-                        _logger.LogWarning($"No zones found for municipality: {record.Municipality}");
-                        await TerminateProcess(file, token);
-                        return;
-                    }
-                    else
-                    {
-                        zoneCache[record.Municipality] = zone.Id;
-                    }
-                }
-            }
 
             // Check if all Ids are valid and present
-            if (serviceProviderId != Guid.Empty && municipalityId != Guid.Empty && zoneCache.TryGetValue(record.Municipality, out var zoneId) && zoneId != Guid.Empty)
+            if (serviceProviderId != Guid.Empty)
             {
+                Point location = GeometryHelper.CreatePoint(x: record.Latitude, y: record.Longitude);
                 // Create a new NAP entity
                 var nap = new Domain.Aggregates.NAP
                 {
                     ServiceProviderId = serviceProviderId,
-                    ZoneId = zoneId,
-                    FileId = parameters.Id,
-                    CoorLatitude = record.Latitude.ToString(),
-                    CoorLongitude = record.Longitude.ToString(),
+                    Address = $"{record.Province}, {record.Municipality}",
+                    Location = location,
+                    IsFileUploaded = true,
                 };
                 NAPList.Add(nap);
             }
