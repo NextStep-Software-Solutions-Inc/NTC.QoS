@@ -9,6 +9,6 @@ public class Municipality : BaseEntity
     public bool IsCity { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public virtual List<Barangay> Barangays { get; set; } = new();
-    public virtual List<StudyMunicipality> StudyMunicipalities { get; set; } = new();
+    public virtual List<Barangay> Barangays { get; set; } = [];
+    public virtual List<StudyMunicipality> StudyMunicipalities { get; set; } = [];
 }

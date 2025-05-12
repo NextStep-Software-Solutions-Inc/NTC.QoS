@@ -4,9 +4,8 @@ public class CreateSectorDto
 {
     public required Guid NetworkId { get; set; }
     public required string AntennaType { get; set; }
-    public required int Number { get; set; }
     public Guid? MIMOId { get; set; }
-    public required Guid CellId { get; set; }
+    public required Guid CellSectorId { get; set; }
     public required string RadioEquipment { get; set; }
     public required bool IsRxEqualTx { get; set; }
     public required decimal TxPower { get; set; }

@@ -70,6 +70,7 @@ public static class InfrastructureDependencyInjection
 
         // Register all Jobs here
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
+        services.AddTransient<IProcessCellJob, ProcessCellJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
 
