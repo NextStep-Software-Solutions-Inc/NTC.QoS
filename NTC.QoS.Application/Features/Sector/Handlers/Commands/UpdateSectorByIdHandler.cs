@@ -11,13 +11,13 @@ namespace NTC.QoS.Application.Features.Sector.Handlers.Commands;
 public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                                      INetworkRepository networkRepository,
                                      IMIMORepository mimoRepository,
-                                     ICellRepository cellRepository,
+                                     IRepository<Domain.Entities.CellSector> cellSectorRepository,
                                      IRepository<Domain.Entities.AntennaPattern> antennaPatternRepository) : IRequestHandler<UpdateSectorByIdRequest, ApiResponse<SectorDto>>
 {
     private readonly ISectorRepository _sectorRepository = sectorRepository;
     private readonly INetworkRepository _networkRepository = networkRepository;
     private readonly IMIMORepository _mimoRepository = mimoRepository;
-    private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository = cellSectorRepository;
     private readonly IRepository<Domain.Entities.AntennaPattern> _antennaPatternRepository = antennaPatternRepository;
 
     public async Task<ApiResponse<SectorDto>> Handle(UpdateSectorByIdRequest request, CancellationToken cancellationToken)
@@ -61,7 +61,8 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         if (request.Sector.AntennaType is not null) sector.AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
         if (request.Sector.MIMOId.HasValue)
         {
-            var mimo = await _mimoRepository.GetByIdAsync(request.Sector.MIMOId.Value, cancellationToken);
+            var mimoQuery = _mimoRepository.Query(m => !m.IsDeleted && m.Id == request.Sector.MIMOId.Value);
+            var mimo = await _mimoRepository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
             if (mimo is null)
             {
                 return new ApiResponse<SectorDto>
@@ -80,8 +81,8 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         }
         if (request.Sector.CellSectorId.HasValue)
         {
-            var cellSectorQuery = _sectorRepository.Query(c => !c.IsDeleted && c.Id == request.Sector.CellSectorId.Value);
-            var cellSector = await _cellRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
+            var cellSectorQuery = _cellSectorRepository.Query(c => !c.IsDeleted && c.Id == request.Sector.CellSectorId.Value);
+            var cellSector = await _cellSectorRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
             if (cellSector is null)
             {
                 return new ApiResponse<SectorDto>
@@ -112,7 +113,8 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         if (request.Sector.TxBeamTilt.HasValue) sector.TxBeamTilt = request.Sector.TxBeamTilt.Value;
         if (request.Sector.TxAntennaPatternId.HasValue) 
         {
-            var txAntennaPattern = await _antennaPatternRepository.GetByIdAsync(request.Sector.TxAntennaPatternId.Value, cancellationToken);
+            var txAntennaPatternQuery = _antennaPatternRepository.Query(a => !a.IsDeleted && a.Id == request.Sector.TxAntennaPatternId.Value);
+            var txAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(txAntennaPatternQuery, cancellationToken);
             if (txAntennaPattern is null)
             {
                 return new ApiResponse<SectorDto>
@@ -157,8 +159,8 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
             if (request.Sector.RxBeamTilt.HasValue) sector.RxBeamTilt = request.Sector.RxBeamTilt.Value;
             if (request.Sector.RxAntennaPatternId.HasValue)
             {
-                var txAntennaPatternQuery = _sectorRepository.Query(a => !a.IsDeleted && a.Id == request.Sector.RxAntennaPatternId.Value);
-                var rxAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(txAntennaPatternQuery, cancellationToken);
+                var rxAntennaPatternQuery = _antennaPatternRepository.Query(a => !a.IsDeleted && a.Id == request.Sector.RxAntennaPatternId.Value);
+                var rxAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(rxAntennaPatternQuery, cancellationToken);
                 if (rxAntennaPattern is null)
                 {
                     return new ApiResponse<SectorDto>
