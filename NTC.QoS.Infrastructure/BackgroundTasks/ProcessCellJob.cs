@@ -254,7 +254,6 @@ public class ProcessCellJob : IProcessCellJob
                         IsFileUploaded = true,
                     };
                     _cellRepository.Add(cell);
-                    await _cellRepository.SaveChangesAsync(token);
 
                     cellId = cell.Id;
                     _logger.LogInformation("Cell {CellId} saved successfully.", cellId);
@@ -367,6 +366,8 @@ public class ProcessCellJob : IProcessCellJob
         file.Status = FileStatusEnum.Success;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        await _cellRepository.SaveChangesAsync(token);
 
         if (cellSectorList.Count != 0)
         {
