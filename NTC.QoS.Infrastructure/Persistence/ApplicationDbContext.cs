@@ -240,11 +240,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(s => s.FileId);
 
         modelBuilder.Entity<Speedtest>()
-            .HasOne(s => s.Cell)
-            .WithMany(c => c.Speedtests)
-            .HasForeignKey(s => s.CellId);
-
-        modelBuilder.Entity<Speedtest>()
             .HasOne(s => s.Generation)
             .WithMany(g => g.Speedtests)
             .HasForeignKey(s => s.GenerationId);

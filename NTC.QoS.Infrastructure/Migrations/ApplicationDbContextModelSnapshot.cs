@@ -1553,8 +1553,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("BarangayId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("CellId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CellIdentifier")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("CoorLatitude")
                         .IsRequired()
@@ -1593,6 +1594,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsFileUploaded")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("Jitter")
                         .HasColumnType("numeric");
 
@@ -1613,9 +1617,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<decimal>("RSSI")
                         .HasColumnType("numeric");
-
-                    b.Property<int?>("RowNumber")
-                        .HasColumnType("integer");
 
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
@@ -1640,8 +1641,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BarangayId");
-
-                    b.HasIndex("CellId");
 
                     b.HasIndex("FileId");
 
@@ -2215,12 +2214,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Cell", "Cell")
-                        .WithMany("Speedtests")
-                        .HasForeignKey("CellId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("NTC.QoS.Domain.Entities.File", "File")
                         .WithMany("Speedtests")
                         .HasForeignKey("FileId");
@@ -2238,8 +2231,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Barangay");
-
-                    b.Navigation("Cell");
 
                     b.Navigation("File");
 
