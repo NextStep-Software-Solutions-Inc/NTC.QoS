@@ -31,9 +31,9 @@ public class NAPsController : ControllerBase
         int pageSize = 10,
         int pageNumber = 1,
         Guid? serviceProviderId = null,
-        [Required] double longitude = 0,
-        [Required] double latitude = 0,
-        [Required] double distance = 1000)
+        double longitude = 0,
+        double latitude = 0,
+        double distance = 1000)
     {
 
         var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
