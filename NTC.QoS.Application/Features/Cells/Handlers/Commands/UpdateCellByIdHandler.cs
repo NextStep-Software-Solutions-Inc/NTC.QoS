@@ -37,8 +37,8 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
         if(!string.IsNullOrEmpty(request.Cell.SiteId)) cell.SiteId = request.Cell.SiteId;
         if(!string.IsNullOrEmpty(request.Cell.TowerType)) cell.TowerType = request.Cell.TowerType;
         if(request.Cell.Elevation is not 0) cell.Elevation = request.Cell.Elevation;
-        if(request.Cell.Latitude is not 0) cell.Location.X = request.Cell.Latitude;
-        if(request.Cell.Longitude is not 0) cell.Location.Y = request.Cell.Longitude;
+        if(request.Cell.Latitude is not null) cell.Location.X = request.Cell.Latitude.Value;
+        if(request.Cell.Longitude is not null) cell.Location.Y = request.Cell.Longitude.Value;
         if(request.Cell.IsVerified.HasValue) cell.IsVerified = request.Cell.IsVerified.Value;
 
         _cellRepository.Update(cell);
