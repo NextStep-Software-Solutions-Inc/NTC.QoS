@@ -20,11 +20,6 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Aggregates.Cell> _cellRepository;
     private readonly IRepository<Domain.Entities.Cellular> _cellularRepository;
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
-    private readonly IRepository<Domain.Entities.Zone> _zoneRepository;
-    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository;
-    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
-    private readonly IRepository<Domain.Entities.Province> _provinceRepository;
-    private readonly IRepository<Domain.Entities.Region> _regionRepository;
     private readonly IGenerationBandRepository _generationBandRepository;
     private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
 
@@ -34,11 +29,6 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Aggregates.Cell> cellRepository,
         IRepository<Domain.Entities.Cellular> cellularRepository,
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
-        IRepository<Domain.Entities.Zone> zoneRepository,
-        IRepository<Domain.Entities.Barangay> barangayRepository,
-        IRepository<Domain.Entities.Municipality> municipalityRepository,
-        IRepository<Domain.Entities.Province> provinceRepository,
-        IRepository<Domain.Entities.Region> regionRepository,
         IGenerationBandRepository generationBandRepository,
         IRepository<Domain.Entities.CellSector> cellSectorRepository
         )
@@ -48,11 +38,6 @@ public class ProcessCellJob : IProcessCellJob
         _cellRepository = cellRepository;
         _cellularRepository = cellularRepository;
         _serviceProviderRepository = serviceProviderRepository;
-        _zoneRepository = zoneRepository;
-        _barangayRepository = barangayRepository;
-        _municipalityRepository = municipalityRepository;
-        _provinceRepository = provinceRepository;
-        _regionRepository = regionRepository;
         _generationBandRepository = generationBandRepository;
         _cellSectorRepository = cellSectorRepository;
     }
@@ -64,7 +49,7 @@ public class ProcessCellJob : IProcessCellJob
 
         if (file == null)
         {
-            const string message = "File not found";
+            const string message = "File not found.";
             _logger.LogError(message);
             throw new Exception(message);
         };
