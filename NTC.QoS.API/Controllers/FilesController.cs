@@ -41,7 +41,7 @@ public class FilesController(IMediator mediator) : ControllerBase
                 await _mediator.Send(new ProcessSpeedtestFileRequest(file.Data));
                 break;
             case FileTypeEnum.Cell:
-                // Process SPP_2 file
+                await _mediator.Send(new ProcessCellFileRequest(file.Data));
                 break;
 
             case FileTypeEnum.Unknown:

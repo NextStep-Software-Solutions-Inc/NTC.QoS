@@ -13,7 +13,8 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
     private readonly ISectorRepository _sectorRepository = sectorRepository;
     public async Task<ApiResponse<SectorDto>> Handle(GetSectorByIdRequest request, CancellationToken cancellationToken)
     {
-        var sector = await _sectorRepository.GetByIdAsync(request.Id, cancellationToken);
+        var sectorQuery = _sectorRepository.Query(s => !s.IsDeleted && s.Id == request.Id);
+        var sector = await _sectorRepository.FirstOrDefaultAsync(sectorQuery, cancellationToken);
         if (sector is null)
         {
             return new ApiResponse<SectorDto>
@@ -38,35 +39,26 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 SystemType = sector.Network?.SystemType.ToString() ?? string.Empty,
             },
             AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.AntennaType),
-            Number = sector.Number,
             MIMO = new MIMOSectorDto
             {
                 Id = sector.MIMOId ?? Guid.Empty,
                 Type = sector.MIMO?.Type.ToString() ?? string.Empty
             },
-            Cell = new CellSectorDto
+            CellSector = new CellSectorDto
             {
-                Id = sector.Cell?.Id ?? Guid.Empty,
-                SiteId = sector.Cell?.SiteId ?? string.Empty,
-                Name = sector.Cell?.Name ?? string.Empty,
-                Description = sector.Cell?.Description ?? string.Empty,
-                TowerType = sector.Cell?.TowerType.ToString() ?? string.Empty,
-                ServiceProvider = new ServiceProviderSectorDto
+                Id = sector.CellSector?.Id ?? Guid.Empty,
+                Cell = new()
                 {
-                    Id = sector.Cell?.ServiceProvider?.Id ?? Guid.Empty,
-                    Provider = new ProviderSectorDto
-                    {
-                        Id = sector.Cell?.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                        Name = sector.Cell?.ServiceProvider?.Provider?.Name ?? string.Empty,
-                        Description = sector.Cell?.ServiceProvider?.Provider?.Description ?? string.Empty,
-                    },
-                    Service = new ServiceSectorDto
-                    {
-                        Id = sector.Cell?.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                        Name = sector.Cell?.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = sector.Cell?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
-                    },
+                    Id = sector.CellSector?.Cell?.Id ?? Guid.Empty,
+                    Name = sector.CellSector?.Cell?.Name ?? string.Empty,
+                    CoorLatitude = sector.CellSector?.Cell?.CoorLatitude ?? string.Empty,
+                    CoorLongitude = sector.CellSector?.Cell?.CoorLongitude ?? string.Empty,
+                    CID = sector.CellSector?.Cell?.CID ?? string.Empty,
+                    LAC = sector.CellSector?.Cell?.LAC ?? string.Empty,
                 },
+                AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.CellSector?.AntennaType ?? AntennaTypeEnum.Unknown),
+                Azimuth = sector.CellSector?.Azimuth ?? 0,
+                BeamTilt = sector.CellSector?.BeamTilt ?? 0,
             },
             RadioEquipment = sector.RadioEquipment,
             IsRxEqualTx = sector.IsRxEqualTx,

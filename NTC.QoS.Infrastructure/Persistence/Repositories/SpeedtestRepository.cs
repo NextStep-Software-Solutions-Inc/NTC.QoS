@@ -15,7 +15,6 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
             .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(s => s.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
             .Include(s => s.Generation).ThenInclude(g =>g!.Technologies)
-            .Include(s => s.Cell).ThenInclude(c => c!.Zone).ThenInclude(z => z!.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
             .Include(s => s.File);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
@@ -30,7 +29,6 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
             .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(s => s.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
             .Include(s => s.Generation).ThenInclude(g => g!.Technologies)
-            .Include(s => s.Cell).ThenInclude(c => c!.Zone).ThenInclude(z => z!.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
             .Include(s => s.File);
 
         if (expression != null)

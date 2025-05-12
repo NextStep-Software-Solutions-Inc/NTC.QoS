@@ -1,7 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using DocumentFormat.OpenXml.Office2010.Excel;
+using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Interfaces;
 using System.Linq.Expressions;
+using System.Threading;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -29,5 +31,17 @@ internal sealed class GenerationBandRepository(ApplicationDbContext context) : R
             query = query.Where(expression);
         }
         return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task<GenerationBand?> GetGenerationBandIdAsync(string generation, string band, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<GenerationBand>()
+            .Where(gb => !EF.Property<bool>(gb, "IsDeleted") &&
+                         gb.Generation != null && gb.Generation.Name.Contains(generation) &&
+                         gb.Band != null && (gb.Band.Name != null && gb.Band.Name.Contains(band) ||
+                                             gb.Band.Description != null && gb.Band.Description.Contains(band)))
+            .Include(gb => gb.Generation)
+            .Include(gb => gb.Band)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

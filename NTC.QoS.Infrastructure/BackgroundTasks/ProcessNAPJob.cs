@@ -118,7 +118,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 var nap = new Domain.Aggregates.NAP
                 {
                     ServiceProviderId = serviceProviderId,
-                    Address = $"{record.Province}, {record.Municipality}",
+                    Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
                     Location = location,
                     IsFileUploaded = true,
                 };
