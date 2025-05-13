@@ -33,24 +33,27 @@ public class SpeedtestsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         string? search = null,
-        string? address = null,
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? cellIds = null,
         [FromQuery] List<Guid>? generationIds = null,
         [FromQuery] List<Guid>? providerIds = null,
         [FromQuery] List<Guid>? serviceIds = null,
-        string? signalQuality = null)
+        string? signalQuality = null,
+        double longitude = 0,
+        double latitude = 0,
+        double distance = 1000)
     {
         var speedtTest = await _mediator.Send(new GetAllSpeedtestsRequest(pageNumber, pageSize)
         {
             Search = search,
-            Address = address,
             ServiceProviderIds = serviceProviderIds,
             CellIds = cellIds,
             GenerationIds = generationIds,
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
-            SignalQuality = signalQuality
+            SignalQuality = signalQuality,
+            Coordinate = new(y: longitude, x: latitude),
+            Distance = distance
         });
         return speedtTest.Succeeded ? Ok(speedtTest) : BadRequest(speedtTest);
     }

@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
@@ -17,5 +18,7 @@ public class GetAllSpeedtestsRequest(int pageNumber, int pageSize) : IRequest<Pa
     public List<Guid>? ProviderIds { get; set; }
     public List<Guid>? ServiceIds { get; set; }
     public string? SignalQuality { get; set; }
+    public required Coordinate Coordinate { get; set; }
+    public double Distance { get; set; }
 }
 
