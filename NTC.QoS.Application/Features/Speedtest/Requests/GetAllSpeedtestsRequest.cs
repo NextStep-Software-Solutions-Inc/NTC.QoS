@@ -10,13 +10,12 @@ public class GetAllSpeedtestsRequest(int pageNumber, int pageSize) : IRequest<Pa
     public int PageNumber { get; set; } = pageNumber;
     public int PageSize { get; set; } = pageSize;
     public string? Search { get; set; }
-    public string? Status { get; set; }
     public string? Address { get; set; }
     public List<Guid>? ServiceProviderIds { get; set; }
     public List<Guid>? CellIds { get; set; }
     public List<Guid>? GenerationIds { get; set; }
     public List<Guid>? ProviderIds { get; set; }
     public List<Guid>? ServiceIds { get; set; }
-    public SignalQualityEnum? SignalQuality { get; set; }
+    public string? SignalQuality { get; set; }
 }
 

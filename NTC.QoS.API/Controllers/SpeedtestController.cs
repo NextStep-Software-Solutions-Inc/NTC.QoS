@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
@@ -28,27 +30,27 @@ public class SpeedtestsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(
-         int pageNumber = 1,
-         int pageSize = 10,
-         string? search = null,
-        string? status = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        string? search = null,
         string? address = null,
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? cellIds = null,
         [FromQuery] List<Guid>? generationIds = null,
         [FromQuery] List<Guid>? providerIds = null,
-        [FromQuery] List<Guid>? serviceIds = null)
+        [FromQuery] List<Guid>? serviceIds = null,
+        string? signalQuality = null)
     {
         var speedtTest = await _mediator.Send(new GetAllSpeedtestsRequest(pageNumber, pageSize)
         {
             Search = search,
-            Status = status,
             Address = address,
             ServiceProviderIds = serviceProviderIds,
             CellIds = cellIds,
             GenerationIds = generationIds,
             ProviderIds = providerIds,
-            ServiceIds = serviceIds
+            ServiceIds = serviceIds,
+            SignalQuality = signalQuality
         });
         return speedtTest.Succeeded ? Ok(speedtTest) : BadRequest(speedtTest);
     }

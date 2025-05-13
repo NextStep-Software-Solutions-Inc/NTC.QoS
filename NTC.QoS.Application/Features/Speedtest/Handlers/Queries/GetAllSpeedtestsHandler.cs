@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -29,12 +30,12 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
         }
 
         speedtestQuery = speedtestQuery
-            //.Where(s => request.BarangayIds == null || (request.BarangayIds.Count > 0 && request.BarangayIds.Contains(s.BarangayId)))
+            .Where(s => request.Address == null || request.Address.Contains(s.Address))
             .Where(s => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(s.ServiceProviderId)))
             .Where(s => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (s.ServiceProvider != null && request.ProviderIds.Contains(s.ServiceProvider.ProviderId))))
             .Where(s => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (s.ServiceProvider != null && request.ServiceIds.Contains(s.ServiceProvider.ServiceId))))
             .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && request.GenerationIds.Contains(s.GenerationId)))
-            .Where(s => request.SignalQuality == null || s.SignalQuality == request.SignalQuality.Value);
+            .Where(s => request.SignalQuality == null || s.SignalQuality == EnumHelper<SignalQualityEnum>.ParseUserInput(request.SignalQuality));
 
         var speedtestDtos = speedtestQuery.Select(s => new SpeedtestDto
         {
