@@ -39,7 +39,7 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
             .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && request.GenerationIds.Contains(s.GenerationId)))
             .Where(s => request.SignalQuality == null || s.SignalQuality == EnumHelper<SignalQualityEnum>.ParseUserInput(request.SignalQuality))
             .Where(s => locationPoint.IsValid && s.Location.IsWithinDistance(locationPoint, request.Distance))
-            .OrderBy(s => s.Location.Distance(locationPoint)); ;
+            .OrderBy(s => s.Location.Distance(locationPoint));
 
         var speedtestDtos = speedtestQuery.Select(s => new SpeedtestDto
         {
