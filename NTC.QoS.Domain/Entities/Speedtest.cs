@@ -6,7 +6,7 @@ namespace NTC.QoS.Domain.Entities;
 
 public class Speedtest : BaseEntity
 {
-    public string Address { get; set; } = null!;
+    public string Address { get; set; } = string.Empty;
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider ServiceProvider { get; set; } = null!;
     public Guid GenerationId { get; set; }

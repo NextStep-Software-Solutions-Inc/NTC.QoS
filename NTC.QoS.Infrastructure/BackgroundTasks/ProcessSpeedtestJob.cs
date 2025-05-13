@@ -53,10 +53,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
-        var regionCache = new Dictionary<string, Guid>();
-        var provinceCache = new Dictionary<string, Guid>();
-        var municipalityCache = new Dictionary<string, Guid>();
-        var barangayCache = new Dictionary<string, Guid>();
         var generationCache = new Dictionary<string, Guid>();
         var technologyCache = new Dictionary<string, Guid>();
         var serviceProviderCache = new Dictionary<string, Guid>();
@@ -82,73 +78,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             _logger.LogInformation($"Processing record: {record}");
 
             ReportProgress($"Processing record: {record.Region} {record.Province} {record.Municipality} {record.Barangay}, {record.Timestamp}, {record.NetworkType}, {record.Provider}, ({record.Upload},{record.Download}), {record.RSSI}, {record.SignalQuality}, {record.Provider}, {record.Latitude}, {record.Longitude}, {record.PhoneModel}, {record.CellIdentifier}, {record.MCC}, {record.TAC}");
-
-            if (!regionCache.TryGetValue(record.Region, out var regionId))
-            {
-                var region = await _regionRepository.Query(r => !r.IsDeleted && r.Name.Equals(record.Region)).FirstOrDefaultAsync(cancellationToken: token);
-                if (region is null)
-                {
-                    _logger.LogWarning($"Region not found: {record.Region}");
-                    TerminateProcess();
-                    return;
-                }
-                else
-                {
-                    regionId = region.Id;
-                    regionCache[record.Region] = regionId;
-                }
-            }
-
-            var provinceCacheKey = $"{record.Province}-{regionId}";
-            if (!provinceCache.TryGetValue(record.Province, out var provinceId))
-            {
-                var province = await _provinceRepository.Query(p => !p.IsDeleted && p.Name.Equals(record.Province) && p.RegionId.Equals(regionId)).FirstOrDefaultAsync(cancellationToken: token);
-                if (province is null)
-                {
-                    _logger.LogWarning("Province not found: {Province} in Region: {Region}", record.Province, record.Region);
-                    TerminateProcess();
-                    return;
-                }
-                else
-                {
-                    provinceId = province.Id;
-                    provinceCache[provinceCacheKey] = provinceId;
-                }
-            }
-
-            var municipalityCacheKey = $"{record.Municipality}-{record.Province}-{record.Region}";
-            if (!municipalityCache.TryGetValue(record.Municipality, out var municipalityId))
-            {
-                var municipality = await _municipalityRepository.Query(m => !m.IsDeleted && m.Name.Equals(record.Municipality) && m.ProvinceId.Equals(provinceId)).FirstOrDefaultAsync(cancellationToken: token);
-                if (municipality is null)
-                {
-                    _logger.LogWarning("Municipality not found: {Municipality} in Province: {Province}", record.Municipality, record.Province);
-                    TerminateProcess();
-                    return;
-                }
-                else
-                {
-                    municipalityId = municipality.Id;
-                    municipalityCache[municipalityCacheKey] = municipalityId;
-                }
-            }
-
-            var barangayCacheKey = $"{record.Barangay}-{record.Municipality}-{record.Province}-{record.Region}";
-            if (!barangayCache.TryGetValue(record.Barangay, out var barangayId))
-            {
-                var barangay = await _barangayRepository.Query(b => !b.IsDeleted && b.Name.Equals(record.Barangay) && b.MunicipalityId.Equals(municipalityId)).FirstOrDefaultAsync(cancellationToken: token);
-                if (barangay is null)
-                {
-                    _logger.LogWarning("Barangay not found: {Barangay} in Municipality: {Municipality}", record.Barangay, record.Municipality);
-                    TerminateProcess();
-                    return;
-                }
-                else
-                {
-                    barangayId = barangay.Id;
-                    barangayCache[barangayCacheKey] = barangayId;
-                }
-            }
 
             var serviceProviderCacheKey = $"{record.Provider}-{ServiceTypeEnum.Wireless}";
             if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
@@ -189,12 +118,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
 
             //Check if all valid Ids are valid
-            if (regionId != Guid.Empty && provinceId != Guid.Empty && municipalityId != Guid.Empty && barangayId != Guid.Empty && serviceProviderId != Guid.Empty && generationId != Guid.Empty)
+            if (serviceProviderId != Guid.Empty && generationId != Guid.Empty)
             {
                 //Create new Speedtest entity
                 var speedtest = new Domain.Entities.Speedtest
                 {
-                    Address = record.Barangay,
+                    Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
                     ServiceProviderId = serviceProviderId,
                     GenerationId = generationId,
                     DateTime = record.Timestamp.ToUniversalTime(),

@@ -4,6 +4,7 @@ using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
+using NTC.QoS.Domain.Aggregates;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
@@ -34,11 +35,6 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
             Data = new SpeedtestDto()
             {
                 Id = speedtest.Id,
-                Barangay = speedtest.Address != null ? new BarangayDto
-                {
-                    Name = speedtest.Address,
-                    Description = speedtest.Address
-                } : null!,
                 ServiceProvider = new()
                 {
                     Id = speedtest!.ServiceProviderId,
@@ -69,14 +65,16 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                 RSSI = speedtest.RSSI,
                 UploadSpeed = speedtest.UploadSpeed,
                 DownloadSpeed = speedtest.DownloadSpeed,
-                CoorLatitude = speedtest.Location.X.ToString(),
-                CoorLongitude = speedtest.Location.Y.ToString(),
+                Latitude = speedtest.Location.X,
+                Longitude = speedtest.Location.Y,
                 PhoneModel = speedtest.PhoneModel,
                 MCC = speedtest.MCC,
                 MNC = speedtest.MNC,
                 TAC = speedtest.TAC,
                 SignalQuality = speedtest.SignalQuality,
                 CellIdentifier = speedtest.CellIdentifier,
+                Address = speedtest.Address ?? string.Empty,
+
             }
         };
     }

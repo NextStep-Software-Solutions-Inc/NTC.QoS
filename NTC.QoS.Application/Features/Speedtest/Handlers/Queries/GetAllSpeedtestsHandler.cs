@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -9,13 +10,15 @@ using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
-public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequestHandler<GetAllSpeedtestsRequest, PaginatedResponse<SpeedtestDto>>
+public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) : IRequestHandler<GetAllSpeedtestsRequest, PaginatedResponse<SpeedtestDto>>
 {
-    private readonly ISpeedtestRepository _repository = repository;
+    private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
 
     public async Task<PaginatedResponse<SpeedtestDto>> Handle(GetAllSpeedtestsRequest request, CancellationToken cancellationToken)
     {
-        IQueryable<Domain.Entities.Speedtest> speedtestQuery = _repository.Query(s => !s.IsDeleted);
+        IQueryable<Domain.Entities.Speedtest> speedtestQuery = _speedtestRepository.Query(n => !n.IsDeleted);
+
+        Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 
         if (!string.IsNullOrEmpty(request.Search))
         {
@@ -30,12 +33,13 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
         }
 
         speedtestQuery = speedtestQuery
-            .Where(s => request.Address == null || request.Address.Contains(s.Address))
             .Where(s => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(s.ServiceProviderId)))
             .Where(s => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (s.ServiceProvider != null && request.ProviderIds.Contains(s.ServiceProvider.ProviderId))))
             .Where(s => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (s.ServiceProvider != null && request.ServiceIds.Contains(s.ServiceProvider.ServiceId))))
             .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && request.GenerationIds.Contains(s.GenerationId)))
-            .Where(s => request.SignalQuality == null || s.SignalQuality == EnumHelper<SignalQualityEnum>.ParseUserInput(request.SignalQuality));
+            .Where(s => request.SignalQuality == null || s.SignalQuality == EnumHelper<SignalQualityEnum>.ParseUserInput(request.SignalQuality))
+            .Where(s => locationPoint.IsValid && s.Location.IsWithinDistance(locationPoint, request.Distance))
+            .OrderBy(s => s.Location.Distance(locationPoint));
 
         var speedtestDtos = speedtestQuery.Select(s => new SpeedtestDto
         {
@@ -47,18 +51,13 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
             SignalQuality = s.SignalQuality,
             UploadSpeed = s.UploadSpeed,
             DownloadSpeed = s.DownloadSpeed,
-            CoorLatitude = s.Location.X.ToString(),
-            CoorLongitude = s.Location.Y.ToString(),
+            Latitude = s.Location.X,
+            Longitude = s.Location.Y,
             PhoneModel = s.PhoneModel,
             MCC = s.MCC,
             MNC = s.MNC,
             TAC = s.TAC,
             CellIdentifier = s.CellIdentifier,
-            Barangay = s.Address != null ? new BarangayDto
-            {
-                Name = s.Address,
-                Description = s.Address
-            } : null!,
             ServiceProvider = new()
             {
                 Id = s.ServiceProviderId,
@@ -83,8 +82,11 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
                 Name = s.Generation.Name,
                 Description = s.Generation.Description
             },
+            Address = s.Address,
+            IsFileUploaded = s.IsFileUploaded,
+            Distance = Math.Round(s.Location.Distance(locationPoint), 2)
         });
 
-        return await _repository.PaginateAsync(speedtestDtos, request.PageNumber, request.PageSize, cancellationToken);
+        return await _speedtestRepository.PaginateAsync(speedtestDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

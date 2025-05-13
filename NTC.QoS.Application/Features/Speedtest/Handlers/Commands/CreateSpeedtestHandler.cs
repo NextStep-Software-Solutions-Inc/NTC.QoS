@@ -123,11 +123,6 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             Data = new SpeedtestDto
             {
                 Id = newSpeedtest.Id,
-                Barangay =  new Domain.Models.DTOs.Barangay.BarangayDto
-                {
-                    Id = barangay.Id,
-                    Name = barangay.Name
-                },
                 ServiceProvider = new ()
                 {
                     Id = newSpeedtest!.ServiceProviderId,
@@ -158,8 +153,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                 RSSI = newSpeedtest.RSSI,
                 UploadSpeed = newSpeedtest.UploadSpeed,
                 DownloadSpeed = newSpeedtest.DownloadSpeed,
-                CoorLatitude = newSpeedtest.Location.X.ToString(),
-                CoorLongitude = newSpeedtest.Location.Y.ToString(),
+                Latitude = newSpeedtest.Location.X,
+                Longitude = newSpeedtest.Location.Y,
                 PhoneModel = newSpeedtest.PhoneModel,
                 MCC = newSpeedtest.MCC,
                 MNC = newSpeedtest.MNC,
