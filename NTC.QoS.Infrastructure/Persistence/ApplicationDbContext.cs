@@ -177,16 +177,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .IsUnique();
 
         modelBuilder.Entity<Cell>()
-            .HasOne(c => c.File)
-            .WithMany(f => f.Cells)
-            .HasForeignKey(c => c.FileId);
-
-        modelBuilder.Entity<Cell>()
-            .HasOne(c => c.Zone)
-            .WithMany(z => z.Cells)
-            .HasForeignKey(c => c.ZoneId);
-
-        modelBuilder.Entity<Cell>()
             .HasOne(c => c.ServiceProvider)
             .WithMany(sp => sp.Cells)
             .HasForeignKey(c => c.ServiceProviderId);
@@ -249,11 +239,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(s => s.BarangayId);
 
         modelBuilder.Entity<Cellular>()
-            .HasOne(c => c.Barangay)
-            .WithMany(b => b.Cellulars)
-            .HasForeignKey(c => c.BarangayId);
-
-        modelBuilder.Entity<Cellular>()
             .HasOne(c => c.Cell)
             .WithMany(cl => cl.Cellulars)
             .HasForeignKey(c => c.CellId);
@@ -267,11 +252,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(c => c.GenerationBand)
             .WithMany(gb => gb.Cellulars)
             .HasForeignKey(c => c.GenerationBandId);
-
-        modelBuilder.Entity<Cellular>()
-            .HasOne(c => c.File)
-            .WithMany(f => f.Cellulars)
-            .HasForeignKey(c => c.FileId);
 
         modelBuilder.Entity<Province>()
             .HasOne(p => p.Region)
@@ -328,6 +308,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<CellSector>()
             .HasMany(cs => cs.Sectors);
+
+        modelBuilder.Entity<Cell>()
+            .Property(n => n.Location)
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         base.OnModelCreating(modelBuilder);
     }

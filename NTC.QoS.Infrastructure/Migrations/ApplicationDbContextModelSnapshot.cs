@@ -30,15 +30,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Address")
+                        .HasColumnType("text");
+
                     b.Property<string>("CID")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CoorLatitude")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CoorLongitude")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -81,6 +76,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("LAC")
                         .HasColumnType("text");
 
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geometry")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=3857;POINT (0 0)"));
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -110,7 +111,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("ZoneId")
+                    b.Property<Guid?>("ZoneId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -822,7 +823,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BarangayId")
+                    b.Property<string>("Address")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("BarangayId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("CellId")
@@ -853,9 +857,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<bool>("IsFileUploaded")
                         .HasColumnType("boolean");
-
-                    b.Property<int?>("RowNumber")
-                        .HasColumnType("integer");
 
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
@@ -1897,7 +1898,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.File", "File")
+                    b.HasOne("NTC.QoS.Domain.Entities.File", null)
                         .WithMany("Cells")
                         .HasForeignKey("FileId");
 
@@ -1907,17 +1908,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Zone", "Zone")
+                    b.HasOne("NTC.QoS.Domain.Entities.Zone", null)
                         .WithMany("Cells")
-                        .HasForeignKey("ZoneId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("File");
+                        .HasForeignKey("ZoneId");
 
                     b.Navigation("ServiceProvider");
-
-                    b.Navigation("Zone");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
@@ -2104,11 +2099,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
                         .WithMany("Cellulars")
-                        .HasForeignKey("BarangayId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("BarangayId");
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.Cell", "Cell")
                         .WithMany("Cellulars")
@@ -2116,7 +2109,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.File", "File")
+                    b.HasOne("NTC.QoS.Domain.Entities.File", null)
                         .WithMany("Cellulars")
                         .HasForeignKey("FileId");
 
@@ -2132,11 +2125,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Barangay");
-
                     b.Navigation("Cell");
-
-                    b.Navigation("File");
 
                     b.Navigation("GenerationBand");
 

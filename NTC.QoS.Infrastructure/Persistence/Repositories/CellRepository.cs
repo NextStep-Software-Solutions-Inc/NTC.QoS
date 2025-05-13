@@ -11,10 +11,8 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
     {
         return await _context.Set<Cell>()
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(c => c.Zone).ThenInclude(z => z!.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(c => c.File)
             .FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
 
@@ -22,10 +20,8 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
     {
         return await _context.Set<Cell>()
             .Where(expression)
-            .Include(c => c.Zone).ThenInclude(z => z!.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(c => c.File)
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

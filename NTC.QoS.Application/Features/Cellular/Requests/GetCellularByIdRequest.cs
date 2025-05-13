@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.Cellular;
 
 namespace NTC.QoS.Application.Features.Cellular.Requests;
 
-public class GetCellularByIdRequest(Guid id) : IRequest<ApiResponse<GetCellularDto>>
+public class GetCellularByIdRequest(Guid id) : IRequest<ApiResponse<CellularDto>>
 {
     public Guid Id { get; set; } = id;
 }

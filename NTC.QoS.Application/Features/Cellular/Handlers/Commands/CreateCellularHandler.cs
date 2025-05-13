@@ -1,107 +1,133 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
+using NTC.QoS.Domain.Models.DTOs.GenerationBand;
+using NTC.QoS.Domain.Models.DTOs.Provider;
+using NTC.QoS.Domain.Models.DTOs.Service;
+using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.Cellular.Handlers.Commands;
 
-public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellularRepository, IBarangayRepository barangayRepository, ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository, IGenerationBandRepository generationBandRepository, IFileRepository fileRepository) : IRequestHandler<CreateCellularRequest, ApiResponse<CreateCellularDto>>
+public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellularRepository, ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository, IGenerationBandRepository generationBandRepository) : IRequestHandler<CreateCellularRequest, ApiResponse<CellularDto>>
 {
     private readonly IRepository<Domain.Entities.Cellular> _cellularRepository = cellularRepository;
-    private readonly IBarangayRepository _barangayRepository = barangayRepository;
     private readonly ICellRepository _cellRepository = cellRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationBandRepository _generationBandRepository = generationBandRepository;
-    private readonly IFileRepository _fileRepository = fileRepository;
 
-    public async Task<ApiResponse<CreateCellularDto>> Handle(CreateCellularRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<CellularDto>> Handle(CreateCellularRequest request, CancellationToken cancellationToken)
     {
-        var existingCellular = await _cellularRepository.FindAsync(c => c.BarangayId == request.Cellular.BarangayId && c.CellId == request.Cellular.CellId && c.ServiceProviderId == request.Cellular.ServiceProviderId && c.GenerationBandId == request.Cellular.GenerationBandId && c.FileId == request.Cellular.FileId && c.RowNumber == request.Cellular.RowNumber && !c.IsDeleted, cancellationToken);
+        var cellularQuery = _cellularRepository.Query(c => c.CellId == request.Cellular.CellId
+            && c.ServiceProviderId == request.Cellular.ServiceProviderId
+            && c.GenerationBandId == request.Cellular.GenerationBandId
+            && !c.IsDeleted
+        );
+        var existingCellular = await _cellularRepository.FirstOrDefaultAsync(cellularQuery, cancellationToken);
         if (existingCellular is null)
         {
-            return new ApiResponse<CreateCellularDto>
+            return new ApiResponse<CellularDto>
             {
                 Message = "Cellular already exists.",
                 Succeeded = false
             };
         }
-        
-        var barangay = await _barangayRepository.GetByIdAsync(request.Cellular.BarangayId, cancellationToken);
-        if (barangay is null)
-        {
-            return new ApiResponse<CreateCellularDto>
-            {
-                Message = "Barangay not found.",
-                Succeeded = false
-            };
-        }
 
-        var cell = await _cellRepository.GetByIdAsync(request.Cellular.CellId, cancellationToken);
+        var cellQuery = _cellRepository.Query(c => c.Id == request.Cellular.CellId && !c.IsDeleted);
+        var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is null)
         {
-            return new ApiResponse<CreateCellularDto>
+            return new ApiResponse<CellularDto>
             {
                 Message = "Cell not found.",
                 Succeeded = false
             };
         }
 
-        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Cellular.ServiceProviderId, cancellationToken);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Cellular.ServiceProviderId && !sp.IsDeleted);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is null)
         {
-            return new ApiResponse<CreateCellularDto>
+            return new ApiResponse<CellularDto>
             {
                 Message = "Service provider not found.",
                 Succeeded = false
             };
         }
 
-        var generationBand = await _generationBandRepository.GetByIdAsync(request.Cellular.GenerationBandId, cancellationToken);
+        var generationBandQuery = _generationBandRepository.Query(gb => gb.Id == request.Cellular.GenerationBandId && !gb.IsDeleted);
+        var generationBand = await _generationBandRepository.FirstOrDefaultAsync(generationBandQuery, cancellationToken);
         if (generationBand is null)
         {
-            return new ApiResponse<CreateCellularDto>
+            return new ApiResponse<CellularDto>
             {
                 Message = "Generation band not found.",
                 Succeeded = false
             };
         }
 
-        if (request.Cellular.FileId.HasValue && request.Cellular.FileId.Value != Guid.Empty)
-        {
-            var file = await _fileRepository.GetByIdAsync(request.Cellular.FileId.Value, cancellationToken);
-            if (file is null)
-            {
-                return new ApiResponse<CreateCellularDto>
-                {
-                    Message = "File not found.",
-                    Succeeded = false
-                };
-            }
-        }
-
         var newCellular = new Domain.Entities.Cellular
         {
-            BarangayId = barangay.Id,
             CellId = cell.Id,
             ServiceProviderId = serviceProvider.Id,
             GenerationBandId = generationBand.Id,
-            FileId = request.Cellular.FileId,
-            RowNumber = request.Cellular.RowNumber,
+            Address = request.Cellular.Address,
         };
 
         _cellularRepository.Add(newCellular);
         await _cellularRepository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<CreateCellularDto>
+
+        return new ApiResponse<CellularDto>
         {
-            Data = new CreateCellularDto
+            Data = new CellularDto
             {
-                BarangayId = newCellular.BarangayId,
-                CellId = newCellular.CellId,
-                ServiceProviderId = newCellular.ServiceProviderId,
-                GenerationBandId = newCellular.GenerationBandId,
-                FileId = newCellular.FileId,
-                RowNumber = newCellular.RowNumber,
+                Id = newCellular.Id,
+                Cell = newCellular.Cell != null ? new CellDto()
+                {
+                    Id = newCellular.CellId,
+                    Name = newCellular.Cell.Name,
+                    Latitude = newCellular.Cell.Location.X,
+                    Longitude = newCellular.Cell.Location.Y,
+                    ServiceProvider = null,
+                    LAC = newCellular.Cell.LAC,
+                    CID = newCellular.Cell.CID,
+                } : null,
+                ServiceProvider = newCellular.ServiceProvider != null && newCellular.ServiceProvider.Provider != null && newCellular.ServiceProvider.Service != null ? new ServiceProviderDto()
+                {
+                    Id = newCellular.ServiceProviderId,
+                    Provider = new ProviderDto()
+                    {
+                        Id = newCellular.ServiceProvider.ProviderId,
+                        Name = newCellular.ServiceProvider.Provider.Name,
+                        Color = newCellular.ServiceProvider.Provider.Color,
+                    },
+                    Service = new ServiceDto()
+                    {
+                        Id = newCellular.ServiceProvider.ServiceId,
+                        Name = newCellular.ServiceProvider.Service.Name,
+                        Type = newCellular.ServiceProvider.Service.Type.ToString(),
+                    },
+                } : null,
+                GenerationBand =  newCellular.GenerationBand != null ? new GetGenerationBandDto()
+                {
+                    Id = newCellular.GenerationBandId,
+                    Generation = new GenerationBandDto()
+                    {
+                        Id = newCellular.GenerationBand.GenerationId,
+                        Name = newCellular.GenerationBand.Generation.Name,
+                        Description = newCellular.GenerationBand.Generation.Description,
+                    },
+                    Band = new GenerationBandDto()
+                    {
+                        Id = newCellular.GenerationBand.BandId,
+                        Name = newCellular.GenerationBand.Band.Name,
+                        Description = newCellular.GenerationBand.Band.Description,
+                    },
+                } : null,
+                Address = newCellular.Address
             },
             Message = "Cellular record created successfully.",
             Succeeded = true

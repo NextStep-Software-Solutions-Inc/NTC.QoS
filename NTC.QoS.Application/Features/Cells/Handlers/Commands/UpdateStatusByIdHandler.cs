@@ -8,13 +8,14 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class UpdateStatusByIdHandler(ICellRepository repository) : IRequestHandler<UpdateCellStatusByIdRequest, ApiResponse<CellDto>>
+public class UpdateStatusByIdHandler(ICellRepository cellRepository) : IRequestHandler<UpdateCellStatusByIdRequest, ApiResponse<CellDto>>
 {
-    private readonly ICellRepository _repository = repository;
+    private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<CellDto>> Handle(UpdateCellStatusByIdRequest request, CancellationToken cancellationToken)
     {
-        var cell = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is null)
         {
             return new ApiResponse<CellDto>
@@ -32,8 +33,8 @@ public class UpdateStatusByIdHandler(ICellRepository repository) : IRequestHandl
 
         cell.Status = EnumHelper<CellStatusEnum>.ParseUserInput(request.Status);
 
-        _repository.Update(cell);
-        await _repository.SaveChangesAsync(cancellationToken);
+        _cellRepository.Update(cell);
+        await _cellRepository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<CellDto>
         {
@@ -42,43 +43,8 @@ public class UpdateStatusByIdHandler(ICellRepository repository) : IRequestHandl
                 Id = cell.Id,
                 Name = cell.Name,
                 Group = cell.Group,
-                File = new()
-                {
-                    Id = cell.FileId ?? Guid.Empty,
-                    Name = cell.File?.Name ?? string.Empty,
-                    Path = cell.File?.Path ?? string.Empty
-                },
                 Description = cell.Description ?? string.Empty,
-                Zone = new()
-                {
-                    Id = cell.ZoneId,
-                    Name = cell.Zone?.Name ?? string.Empty,
-                    Barangay = new()
-                    {
-                        Id = cell.Zone?.BarangayId ?? Guid.Empty,
-                        Name = cell.Zone?.Barangay?.Name ?? string.Empty,
-                        Description = cell.Zone?.Barangay?.Description,
-                        Municipality = new()
-                        {
-                            Id = cell.Zone?.Barangay?.MunicipalityId ?? Guid.Empty,
-                            IsCity = cell.Zone?.Barangay?.Municipality?.IsCity ?? false,
-                            Name = cell.Zone?.Barangay?.Municipality?.Name ?? string.Empty,
-                            Description = cell.Zone?.Barangay?.Municipality?.Description,
-                            Province = new()
-                            {
-                                Id = cell.Zone?.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                                Name = cell.Zone?.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                                Description = cell.Zone?.Barangay?.Municipality?.Province?.Description,
-                                Region = new()
-                                {
-                                    Id = cell.Zone?.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                    Name = cell.Zone?.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                    Description = cell?.Zone?.Barangay?.Municipality?.Province?.Region?.Description
-                                }
-                            }
-                        }
-                    }
-                },
+                Address = cell.Address ?? string.Empty,
                 ServiceProvider = new()
                 {
                     Id = cell!.ServiceProviderId,
@@ -103,8 +69,8 @@ public class UpdateStatusByIdHandler(ICellRepository repository) : IRequestHandl
                 SiteId = cell.SiteId,
                 TowerType = cell.TowerType,
                 Elevation = cell.Elevation,
-                CoorLatitude = cell.CoorLatitude,
-                CoorLongitude = cell.CoorLongitude,
+                Latitude = cell.Location.X,
+                Longitude = cell.Location.Y,
                 IsVerified = cell.IsVerified,
                 Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
             },

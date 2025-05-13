@@ -9,6 +9,6 @@ public class UpdateCellDto
     public string? TowerType { get; set; }
     public float Elevation { get; set; }
     public bool? IsVerified { get; set; }
-    public string? CoorLatitude { get; set; }
-    public string? CoorLongitude { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
 }

@@ -23,10 +23,10 @@ public record CellRecord
     public string Region { get; set; } = string.Empty;
 
     [ExcelHeader("Lat")]
-    public string Latitude { get; set; } = string.Empty;
+    public double Latitude { get; set; }
 
     [ExcelHeader("Long")]
-    public string Longitude { get; set; } = string.Empty;
+    public double Longitude { get; set; }
 
     [ExcelHeader("900")]
     public bool Gsm900 { get; set; }

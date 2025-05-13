@@ -9,26 +9,22 @@ internal sealed class CellularRepository(ApplicationDbContext context) : Reposit
     public override async Task<Cellular?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Cellular>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(c => c.Barangay)
             .Include(c => c.Cell)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Generation)
-            .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Band)
-            .Include(c => c.File);
+            .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Band);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
     public override async Task<Cellular?> FindAsync(Expression<Func<Cellular, bool>> expression, CancellationToken cancellationToken = default)
     {
         var query = _context.Set<Cellular>().Where(expression)
-            .Include(c => c.Barangay)
             .Include(c => c.Cell)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Generation)
-            .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Band)
-            .Include(c => c.File);
+            .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Band);
 
         return await query.FirstOrDefaultAsync(cancellationToken);
     }
@@ -38,13 +34,11 @@ internal sealed class CellularRepository(ApplicationDbContext context) : Reposit
         CancellationToken cancellationToken = default)
     {
         IQueryable<Cellular> query = _context.Set<Cellular>()
-            .Include(c => c.Barangay)
             .Include(c => c.Cell)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Service)
             .Include(c => c.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Generation)
-            .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Band)
-            .Include(c => c.File);
+            .Include(c => c.GenerationBand).ThenInclude(gb => gb!.Band);
 
         if (expression is not null)
         {
