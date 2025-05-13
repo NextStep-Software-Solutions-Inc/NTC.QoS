@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
@@ -192,7 +194,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 //Create new Speedtest entity
                 var speedtest = new Domain.Entities.Speedtest
                 {
-                    BarangayId = barangayId,
+                    Address = record.Barangay,
                     ServiceProviderId = serviceProviderId,
                     GenerationId = generationId,
                     DateTime = record.Timestamp.ToUniversalTime(),
@@ -200,8 +202,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     DownloadSpeed = record.Download,
                     RSSI = record.RSSI,
                     SignalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality),
-                    CoorLatitude = record.Latitude,
-                    CoorLongitude = record.Longitude,
+                    Location = GeometryHelper.CreatePoint(x: record.Latitude, y: record.Longitude),
                     PhoneModel = record.PhoneModel,
                     CellIdentifier = record.CellIdentifier,
                     MCC = record.MCC,

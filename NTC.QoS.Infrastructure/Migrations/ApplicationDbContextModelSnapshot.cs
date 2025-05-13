@@ -1555,18 +1555,14 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BarangayId")
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("BarangayId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("CellIdentifier")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CoorLatitude")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CoorLongitude")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -1604,6 +1600,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<decimal>("Jitter")
                         .HasColumnType("numeric");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geometry")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=3857;POINT (0 0)"));
 
                     b.Property<string>("MCC")
                         .IsRequired()
@@ -2197,13 +2199,11 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Speedtest", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
                         .WithMany("Speedtests")
-                        .HasForeignKey("BarangayId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("BarangayId");
 
-                    b.HasOne("NTC.QoS.Domain.Entities.File", "File")
+                    b.HasOne("NTC.QoS.Domain.Entities.File", null)
                         .WithMany("Speedtests")
                         .HasForeignKey("FileId");
 
@@ -2218,10 +2218,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Barangay");
-
-                    b.Navigation("File");
 
                     b.Navigation("Generation");
 

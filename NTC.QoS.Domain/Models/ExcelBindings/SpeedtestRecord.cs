@@ -40,10 +40,10 @@ public record SpeedtestRecord
     public string Provider { get; set; } = string.Empty;
 
     [ExcelHeader("lat")]
-    public string Latitude { get; set; } = string.Empty;
+    public double Latitude { get; set; }
 
     [ExcelHeader("lon")]
-    public string Longitude { get; set; } = string.Empty;
+    public double Longitude { get; set; }
 
     [ExcelHeader("phone_model")]
     public string PhoneModel { get; set; } = string.Empty;

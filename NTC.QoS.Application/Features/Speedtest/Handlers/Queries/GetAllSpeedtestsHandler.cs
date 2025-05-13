@@ -1,8 +1,10 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
@@ -28,13 +30,12 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
         }
 
         speedtestQuery = speedtestQuery
-            .Where(s => request.BarangayIds == null || (request.BarangayIds.Count > 0 && request.BarangayIds.Contains(s.BarangayId)))
+            .Where(s => request.Address == null || request.Address.Contains(s.Address))
             .Where(s => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(s.ServiceProviderId)))
             .Where(s => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (s.ServiceProvider != null && request.ProviderIds.Contains(s.ServiceProvider.ProviderId))))
             .Where(s => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (s.ServiceProvider != null && request.ServiceIds.Contains(s.ServiceProvider.ServiceId))))
             .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && request.GenerationIds.Contains(s.GenerationId)))
-            .Where(s => request.SignalQuality == null || s.SignalQuality == request.SignalQuality.Value)
-            .Where(s => request.FileIds == null || (request.FileIds.Count > 0 && s.FileId != null && request.FileIds.Contains(s.FileId.Value)));
+            .Where(s => request.SignalQuality == null || s.SignalQuality == EnumHelper<SignalQualityEnum>.ParseUserInput(request.SignalQuality));
 
         var speedtestDtos = speedtestQuery.Select(s => new SpeedtestDto
         {
@@ -46,44 +47,18 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
             SignalQuality = s.SignalQuality,
             UploadSpeed = s.UploadSpeed,
             DownloadSpeed = s.DownloadSpeed,
-            CoorLatitude = s.CoorLatitude,
-            CoorLongitude = s.CoorLongitude,
+            CoorLatitude = s.Location.X.ToString(),
+            CoorLongitude = s.Location.Y.ToString(),
             PhoneModel = s.PhoneModel,
             MCC = s.MCC,
             MNC = s.MNC,
             TAC = s.TAC,
             CellIdentifier = s.CellIdentifier,
-            File = s.File != null? new()
+            Barangay = s.Address != null ? new BarangayDto
             {
-                Id = s.File.Id,
-                Name = s.File.Name,
-                Path = s.File.Path
-            } : null,
-            Barangay = new()
-            {
-                Id = s.BarangayId,
-                Name = s.Barangay.Name,
-                Description = s.Barangay.Description,
-                Municipality = new()
-                {
-                    Id = s.Barangay.MunicipalityId,
-                    Name = s.Barangay.Municipality.Name,
-                    Description = s.Barangay.Municipality.Description,
-                    IsCity = s.Barangay.Municipality.IsCity,
-                    Province = new()
-                    {
-                        Id = s.Barangay.Municipality.ProvinceId,
-                        Name = s.Barangay.Municipality.Province.Name,
-                        Description = s.Barangay.Municipality.Province.Description,
-                        Region =new()
-                        {
-                            Id = s.Barangay.Municipality.Province.RegionId,
-                            Name = s.Barangay.Municipality.Province.Region.Name,
-                            Description = s.Barangay.Municipality.Province.Region.Description
-                        }
-                    }
-                }
-            },
+                Name = s.Address,
+                Description = s.Address
+            } : null!,
             ServiceProvider = new()
             {
                 Id = s.ServiceProviderId,
@@ -109,7 +84,6 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository repository) : IRequest
                 Description = s.Generation.Description
             },
         });
-
 
         return await _repository.PaginateAsync(speedtestDtos, request.PageNumber, request.PageSize, cancellationToken);
     }

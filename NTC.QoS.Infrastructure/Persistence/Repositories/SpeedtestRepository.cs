@@ -13,9 +13,7 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
         var query = _context.Set<Speedtest>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Service)
-            .Include(s => s.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
-            .Include(s => s.Generation).ThenInclude(g =>g!.Technologies)
-            .Include(s => s.File);
+            .Include(s => s.Generation).ThenInclude(g => g!.Technologies);
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -27,9 +25,7 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
             .Where(e => !EF.Property<bool>(e, "IsDeleted"))
             .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Provider)
             .Include(s => s.ServiceProvider).ThenInclude(sp => sp!.Service)
-            .Include(s => s.Barangay).ThenInclude(b => b!.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region)
-            .Include(s => s.Generation).ThenInclude(g => g!.Technologies)
-            .Include(s => s.File);
+            .Include(s => s.Generation).ThenInclude(g => g!.Technologies);
 
         if (expression != null)
         {

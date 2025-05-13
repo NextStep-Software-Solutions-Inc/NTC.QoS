@@ -20,7 +20,9 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(CreateSpeedtestRequest request, CancellationToken cancellationToken)
     {
-        var barangay = await _barangayRepository.GetByIdAsync(request.Speedtest.BarangayId, cancellationToken);
+        var barangay = await _barangayRepository.FirstOrDefaultAsync(
+            _barangayRepository.Query(b => b.Name == request.Speedtest.Address),
+            cancellationToken);
 
         if (barangay is null)
         {
@@ -71,13 +73,13 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             };
         }
 
-        var existingSpeedtest = await _speedtestRepository.FindAsync(
-            s => s.BarangayId == request.Speedtest.BarangayId &&
-                 s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
-                 s.GenerationId == request.Speedtest.GenerationId &&
-                 s.FileId == request.Speedtest.FileId &&
-                 s.DateTime == request.Speedtest.DateTime &&
-                 !s.IsDeleted, cancellationToken);
+        var existingSpeedtest = await _speedtestRepository.FirstOrDefaultAsync(
+            _speedtestRepository.Query(s => s.Address == request.Speedtest.Address &&
+                                            s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
+                                            s.GenerationId == request.Speedtest.GenerationId &&
+                                            s.DateTime == request.Speedtest.DateTime &&
+                                            !s.IsDeleted),
+            cancellationToken);
 
         if (existingSpeedtest is not null)
         {
@@ -96,18 +98,15 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
 
         var newSpeedtest = new Domain.Entities.Speedtest
         {
-            BarangayId = barangay.Id,
+            Address = barangay.Name,
             ServiceProviderId = serviceProvider.Id,
             GenerationId = generation.Id,
-            FileId = request.Speedtest.FileId,
             DateTime = request.Speedtest.DateTime,
             Ping = request.Speedtest.Ping,
             Jitter = request.Speedtest.Jitter,
             RSSI = request.Speedtest.RSSI,
             UploadSpeed = request.Speedtest.UploadSpeed,
             DownloadSpeed = request.Speedtest.DownloadSpeed,
-            CoorLatitude = request.Speedtest.CoorLatitude,
-            CoorLongitude = request.Speedtest.CoorLongitude,
             PhoneModel = request.Speedtest.PhoneModel,
             MCC = request.Speedtest.MCC,
             MNC = request.Speedtest.MNC,
@@ -124,30 +123,10 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             Data = new SpeedtestDto
             {
                 Id = newSpeedtest.Id,
-                Barangay = new ()
+                Barangay =  new Domain.Models.DTOs.Barangay.BarangayDto
                 {
-                    Id = newSpeedtest.BarangayId,
-                    Name = newSpeedtest.Barangay?.Name ?? string.Empty,
-                    Description = newSpeedtest.Barangay?.Description,
-                    Municipality = new ()
-                    {
-                        Id = newSpeedtest.Barangay?.MunicipalityId ?? Guid.Empty,
-                        Name = newSpeedtest.Barangay?.Municipality?.Name ?? string.Empty,
-                        Description = newSpeedtest.Barangay?.Municipality?.Description,
-                        IsCity = newSpeedtest.Barangay?.Municipality?.IsCity ?? false,
-                        Province = new ()
-                        {
-                            Id = newSpeedtest.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                            Name = newSpeedtest.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                            Description = newSpeedtest.Barangay?.Municipality?.Province?.Description,
-                            Region = new ()
-                            {
-                                Id = newSpeedtest.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                Name = newSpeedtest.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                Description = newSpeedtest.Barangay?.Municipality?.Province?.Region?.Description
-                            }
-                        }
-                    }
+                    Id = barangay.Id,
+                    Name = barangay.Name
                 },
                 ServiceProvider = new ()
                 {
@@ -179,8 +158,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                 RSSI = newSpeedtest.RSSI,
                 UploadSpeed = newSpeedtest.UploadSpeed,
                 DownloadSpeed = newSpeedtest.DownloadSpeed,
-                CoorLatitude = newSpeedtest.CoorLatitude,
-                CoorLongitude = newSpeedtest.CoorLongitude ?? string.Empty,
+                CoorLatitude = newSpeedtest.Location.X.ToString(),
+                CoorLongitude = newSpeedtest.Location.Y.ToString(),
                 PhoneModel = newSpeedtest.PhoneModel,
                 MCC = newSpeedtest.MCC,
                 MNC = newSpeedtest.MNC,

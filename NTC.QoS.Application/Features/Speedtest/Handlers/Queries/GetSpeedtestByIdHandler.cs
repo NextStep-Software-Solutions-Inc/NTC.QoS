@@ -3,6 +3,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
+using NTC.QoS.Domain.Models.DTOs.Barangay;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
@@ -33,31 +34,11 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
             Data = new SpeedtestDto()
             {
                 Id = speedtest.Id,
-                Barangay = new()
+                Barangay = speedtest.Address != null ? new BarangayDto
                 {
-                    Id = speedtest.BarangayId,
-                    Name = speedtest.Barangay?.Name ?? string.Empty,
-                    Description = speedtest.Barangay?.Description,
-                    Municipality = new()
-                    {
-                        Id = speedtest.Barangay?.MunicipalityId ?? Guid.Empty,
-                        Name = speedtest.Barangay?.Municipality?.Name ?? string.Empty,
-                        Description = speedtest.Barangay?.Municipality?.Description,
-                        IsCity = speedtest.Barangay?.Municipality?.IsCity ?? false,
-                        Province = new()
-                        {
-                            Id = speedtest.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
-                            Name = speedtest.Barangay?.Municipality?.Province?.Name ?? string.Empty,
-                            Description = speedtest.Barangay?.Municipality?.Province?.Description,
-                            Region = new()
-                            {
-                                Id = speedtest.Barangay?.Municipality?.Province?.RegionId ?? Guid.Empty,
-                                Name = speedtest.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
-                                Description = speedtest.Barangay?.Municipality?.Province?.Region?.Description
-                            }
-                        }
-                    }
-                },
+                    Name = speedtest.Address,
+                    Description = speedtest.Address
+                } : null!,
                 ServiceProvider = new()
                 {
                     Id = speedtest!.ServiceProviderId,
@@ -88,8 +69,8 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                 RSSI = speedtest.RSSI,
                 UploadSpeed = speedtest.UploadSpeed,
                 DownloadSpeed = speedtest.DownloadSpeed,
-                CoorLatitude = speedtest.CoorLatitude,
-                CoorLongitude = speedtest.CoorLongitude ?? string.Empty,
+                CoorLatitude = speedtest.Location.X.ToString(),
+                CoorLongitude = speedtest.Location.Y.ToString(),
                 PhoneModel = speedtest.PhoneModel,
                 MCC = speedtest.MCC,
                 MNC = speedtest.MNC,
