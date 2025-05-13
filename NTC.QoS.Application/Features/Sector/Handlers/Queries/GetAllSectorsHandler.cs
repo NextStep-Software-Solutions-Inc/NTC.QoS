@@ -46,8 +46,8 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                     {
                         Id = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Id : Guid.Empty,
                         Name = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Name : string.Empty,
-                        CoorLatitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CoorLatitude : string.Empty,
-                        CoorLongitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CoorLongitude : string.Empty,
+                        Latitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.X : 0,
+                        Longitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.Y : 0,
                         CID = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CID : string.Empty,
                         LAC = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.LAC : string.Empty,
                     },

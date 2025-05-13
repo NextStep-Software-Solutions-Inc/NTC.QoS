@@ -3,20 +3,25 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Cellular.Requests;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
+using NTC.QoS.Domain.Models.DTOs.Cell;
+using NTC.QoS.Domain.Models.DTOs.GenerationBand;
+using NTC.QoS.Domain.Models.DTOs.Provider;
+using NTC.QoS.Domain.Models.DTOs.Service;
+using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.Cellular.Handlers.Queries;
 
-public class GetCellularByIdHandler(ICellularRepository repository) : IRequestHandler<GetCellularByIdRequest, ApiResponse<GetCellularDto>>
+public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IRequestHandler<GetCellularByIdRequest, ApiResponse<CellularDto>>
 {
-    private readonly ICellularRepository _repository = repository;
+    private readonly ICellularRepository _cellularRepository = cellularRepository;
 
-    public async Task<ApiResponse<GetCellularDto>> Handle(GetCellularByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<CellularDto>> Handle(GetCellularByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellular = await _repository.GetByIdAsync(request.Id, cancellationToken);
-
+        var cellularQuery = _cellularRepository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var cellular = await _cellularRepository.FirstOrDefaultAsync(cellularQuery, cancellationToken);
         if (cellular is null)
         {
-            return new ApiResponse<GetCellularDto>
+            return new ApiResponse<CellularDto>
             {
                 Succeeded = false,
                 Message = "Cellular record not found.",
@@ -27,62 +32,56 @@ public class GetCellularByIdHandler(ICellularRepository repository) : IRequestHa
             };
         }
 
-        return new ApiResponse<GetCellularDto>
+        return new ApiResponse<CellularDto>
         {
             Succeeded = true,
             Message = "Cellular record retrieved successfully.",
-            Data = new GetCellularDto
+            Data = new CellularDto
             {
                 Id = cellular.Id,
-                Barangay = new CommonCellularDto
-                {
-                    Id = cellular.BarangayId,
-                    Name = cellular.Barangay?.Name ?? string.Empty,
-                    Description = cellular.Barangay?.Description ?? string.Empty
-                },
-                Cell = new CellCellularDto
+                Cell = cellular.Cell != null ? new CellDto()
                 {
                     Id = cellular.CellId,
-                    Name = cellular.Cell?.Name ?? string.Empty,
-                },
-                ServiceProvider = new ServiceProviderCellularDto
+                    Name = cellular.Cell.Name,
+                    Latitude = cellular.Cell.Location.X,
+                    Longitude = cellular.Cell.Location.Y,
+                    ServiceProvider = null,
+                    LAC = cellular.Cell.LAC,
+                    CID = cellular.Cell.CID,
+                } : null,
+                ServiceProvider = cellular.ServiceProvider != null && cellular.ServiceProvider.Provider != null && cellular.ServiceProvider.Service != null ? new ServiceProviderDto()
                 {
                     Id = cellular.ServiceProviderId,
-                    Provider = new CommonCellularDto
+                    Provider = new ProviderDto()
                     {
-                        Id = cellular.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                        Name = cellular.ServiceProvider?.Provider?.Name ?? string.Empty,
-                        Description = cellular.ServiceProvider?.Provider?.Description ?? string.Empty
+                        Id = cellular.ServiceProvider.ProviderId,
+                        Name = cellular.ServiceProvider.Provider.Name,
+                        Color = cellular.ServiceProvider.Provider.Color,
                     },
-                    Service = new ServiceCellularDto
+                    Service = new ServiceDto()
                     {
-                        Id = cellular.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                        Name = cellular.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = cellular.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
-                    }
-                },
-                GenerationBand = new GenerationBandCellularDto
+                        Id = cellular.ServiceProvider.ServiceId,
+                        Name = cellular.ServiceProvider.Service.Name,
+                        Type = cellular.ServiceProvider.Service.Type.ToString(),
+                    },
+                } : null,
+                GenerationBand = cellular.GenerationBand != null ? new GetGenerationBandDto()
                 {
                     Id = cellular.GenerationBandId,
-                    Generation = new CommonCellularDto
+                    Generation = new GenerationBandDto()
                     {
-                        Id = cellular.GenerationBand?.Generation?.Id ?? Guid.Empty,
-                        Name = cellular.GenerationBand?.Generation?.Name ?? string.Empty,
-                        Description = cellular.GenerationBand?.Generation?.Description ?? string.Empty
+                        Id = cellular.GenerationBand.GenerationId,
+                        Name = cellular.GenerationBand.Generation.Name,
+                        Description = cellular.GenerationBand.Generation.Description,
                     },
-                    Band = new CommonCellularDto
+                    Band = new GenerationBandDto()
                     {
-                        Id = cellular.GenerationBand?.Band?.Id ?? Guid.Empty,
-                        Name = cellular.GenerationBand?.Band?.Name ?? string.Empty,
-                        Description = cellular.GenerationBand?.Band?.Description ?? string.Empty
-                    }
-                },
-                File = new FileCellularDto
-                {
-                    Id = cellular.FileId,
-                    Name = cellular.File?.Name ?? string.Empty
-                },
-                RowNumber = cellular.RowNumber
+                        Id = cellular.GenerationBand.BandId,
+                        Name = cellular.GenerationBand.Band.Name,
+                        Description = cellular.GenerationBand.Band.Description,
+                    },
+                } : null,
+                Address = cellular.Address
             }
         };
     }
