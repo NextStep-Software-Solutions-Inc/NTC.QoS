@@ -136,9 +136,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     CellIdentifier = record.CellIdentifier,
                     MCC = record.MCC,
                     MNC = record.MNC,
-                    TAC = record.TAC, 
-                    Ping = record.Ping,
-                    Jitter = record.Jitter,
+                    TAC = record.TAC,
+                    Ping = decimal.TryParse(record.Ping, out decimal pingValue) ? pingValue : 0,
+                    Jitter = decimal.TryParse(record.Jitter, out decimal jitterValue) ? jitterValue : 0,
                     IsFileUploaded = true,
                 };
                 speedtestList.Add(speedtest);
