@@ -1,4 +1,4 @@
-﻿using ClosedXML;
+﻿using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
@@ -9,7 +9,6 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
-using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
