@@ -61,6 +61,7 @@ public class ProcessCellJob : IProcessCellJob
 
         var serviceProviderCache = new Dictionary<string, Guid>();
         var generationBandCache = new Dictionary<(string, string), Guid>();
+        var cellCache = new Dictionary<string, Guid>();
 
         var cellSectorList = new List<Domain.Entities.CellSector>();
         var cellularToAdd = new List<Domain.Entities.Cellular>();
@@ -130,77 +131,87 @@ public class ProcessCellJob : IProcessCellJob
             Guid cellId = Guid.Empty;
             if (serviceProviderId != Guid.Empty)
             {
-                var cellQuery = _cellRepository
+                var cellCacheKey = $"Cell-{serviceProviderId}_{record.TowerType}_{location.Coordinate.X}_{location.Coordinate.Y}";
+                if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
+                {
+                    var cellQuery = _cellRepository
                     .Query(c => !c.IsDeleted && c.ServiceProviderId.Equals(serviceProviderId))
                     .Where(c => c.TowerType.Equals(record.TowerType))
                     .Where(c => c.Location.Equals(location));
 
-                var existingCell = await _cellRepository.FirstOrDefaultAsync(cellQuery, token);
-                if (existingCell != null)
-                {
-                    _logger.LogWarning("Cell already exists for Service Provider: {Provider}, Location: {location}", record.Provider, location);
-                    cellId = existingCell.Id;
-                }
-                else
-                {
-                    var cell = new Domain.Aggregates.Cell
+                    var existingCell = await _cellRepository.FirstOrDefaultAsync(cellQuery, token);
+                    if (existingCell != null)
                     {
-                        Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}",
-                        Group = record.Provider,
-                        Address = address,
-                        ServiceProviderId = serviceProviderId,
-                        TowerType = record.TowerType,
-                        Location = location,
-                        IsFileUploaded = true,
-                    };
-                    _cellRepository.Add(cell);
-
-                    cellId = cell.Id;
-                    _logger.LogInformation("Cell {CellId} saved successfully.", cellId);
-
-                    if (!String.IsNullOrEmpty(record.Azimuth))
+                        _logger.LogWarning("Cell already exists for Service Provider: {Provider}, Location: {location}", record.Provider, location);
+                        cellId = existingCell.Id;
+                    }
+                    else
                     {
-                        var azimuths = record.Azimuth.Split(",");
-                        var beamTilts = record.BeamTilt?.Split(',');
-
-                        if (beamTilts == null || azimuths.Length != beamTilts.Length)
+                        var cell = new Domain.Aggregates.Cell
                         {
-                            _logger.LogError("The number of Azimuth values ('{AzimuthCount}') does not match the number of BeamTilt values ('{BeamTiltCount}') for record in Excel row {RowNumber}. The file is invalid and needs to be re-uploaded.", azimuths.Length, beamTilts?.Length ?? 0, actualRowNumber);
-                            await TerminateProcess(file, token);
-                            return;
-                        }
+                            Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}",
+                            Group = record.Provider,
+                            Address = address,
+                            ServiceProviderId = serviceProviderId,
+                            TowerType = record.TowerType,
+                            Location = location,
+                            IsFileUploaded = true,
+                        };
+                        _cellRepository.Add(cell);
 
-                        for (int i = 0; i < azimuths.Length; i++)
+                        cellId = cell.Id;
+                        _logger.LogInformation("Cell {CellId} saved successfully.", cellId);
+
+                        cellCache[cellCacheKey] = cellId;
+
+                        if (!String.IsNullOrEmpty(record.Azimuth))
                         {
-                            var trimmedAzimuth = azimuths[i].Trim();
-                            var trimmedBeamTilt = beamTilts[i].Trim();
+                            var azimuths = record.Azimuth.Split(",");
+                            var beamTilts = record.BeamTilt?.Split(',');
 
-                            if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth) &&
-                              decimal.TryParse(trimmedBeamTilt, out decimal decimalBeamTilt))
+                            if (beamTilts == null || azimuths.Length != beamTilts.Length)
                             {
-                                var cellSector = new Domain.Entities.CellSector
-                                {
-                                    CellId = cellId,
-                                    AntennaHeight = record.AntennaHeight,
-                                    AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
-                                    Azimuth = decimalAzimuth,
-                                    BeamTilt = decimalBeamTilt,
-                                };
-                                cellSectorList.Add(cellSector);
+                                _logger.LogError("The number of Azimuth values ('{AzimuthCount}') does not match the number of BeamTilt values ('{BeamTiltCount}') for record in Excel row {RowNumber}. The file is invalid and needs to be re-uploaded.", azimuths.Length, beamTilts?.Length ?? 0, actualRowNumber);
+                                await TerminateProcess(file, token);
+                                return;
                             }
-                            else
+
+                            for (int i = 0; i < azimuths.Length; i++)
                             {
-                                if (!decimal.TryParse(trimmedAzimuth, out _))
+                                var trimmedAzimuth = azimuths[i].Trim();
+                                var trimmedBeamTilt = beamTilts[i].Trim();
+
+                                if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth) &&
+                                  decimal.TryParse(trimmedBeamTilt, out decimal decimalBeamTilt))
                                 {
-                                    _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for record in Excel row {RowNumber}, Azimuth index {Index}.", trimmedAzimuth, actualRowNumber, i);
+                                    var cellSector = new Domain.Entities.CellSector
+                                    {
+                                        CellId = cellId,
+                                        AntennaHeight = record.AntennaHeight,
+                                        AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
+                                        Azimuth = decimalAzimuth,
+                                        BeamTilt = decimalBeamTilt,
+                                    };
+                                    cellSectorList.Add(cellSector);
                                 }
-                                if (!decimal.TryParse(trimmedBeamTilt, out _))
+                                else
                                 {
-                                    _logger.LogWarning("Could not parse '{TrimmedBeamTilt}' as a decimal for record in Excel row {RowNumber}, BeamTilt index {Index}.", trimmedBeamTilt, actualRowNumber, i);
+                                    if (!decimal.TryParse(trimmedAzimuth, out _))
+                                    {
+                                        _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for record in Excel row {RowNumber}, Azimuth index {Index}.", trimmedAzimuth, actualRowNumber, i);
+                                    }
+                                    if (!decimal.TryParse(trimmedBeamTilt, out _))
+                                    {
+                                        _logger.LogWarning("Could not parse '{TrimmedBeamTilt}' as a decimal for record in Excel row {RowNumber}, BeamTilt index {Index}.", trimmedBeamTilt, actualRowNumber, i);
+                                    }
                                 }
                             }
                         }
                     }
+                }
+                else
+                {
+                    cellId = cachedCellId;
                 }
             }
             else
