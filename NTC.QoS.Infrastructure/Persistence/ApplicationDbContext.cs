@@ -213,7 +213,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<NAP>()
             .Property(n => n.Location)
-            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<Zone>()
             .HasMany(z => z.NAPs);
