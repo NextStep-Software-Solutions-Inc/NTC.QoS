@@ -1,19 +1,14 @@
-﻿using System.Globalization;
-using System.Threading;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
-using NTC.QoS.Infrastructure.Persistence.Repositories;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -22,11 +17,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly ILogger<ProcessSpeedtestJob> _logger;
     private readonly IRepository<Speedtest> _SpeedtestRepository;
     private readonly IRepository<ServiceProvider> _serviceProviderRepository;
-    private readonly IRepository<Province> _provinceRepository;
-    private readonly IRepository<Municipality> _municipalityRepository;
-    private readonly IRepository<Barangay> _barangayRepository;
-    private readonly IRepository<Region> _regionRepository;
-    private readonly IRepository<Technology> _technologyRepository;
     private readonly IRepository<Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.File> _fileRepository;
 
@@ -35,11 +25,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         ILogger<ProcessSpeedtestJob> logger,
         IRepository<Speedtest> SpeedtestRepository,
         IRepository<ServiceProvider> serviceProviderRepository,
-        IRepository<Province> provinceRepository,
-        IRepository<Municipality> municipalityRepository,
-        IRepository<Barangay> barangayRepository,
-        IRepository<Region> regionRepository,
-        IRepository<Technology> technologyRepository,
         IRepository<Generation> generationRepository,
         IRepository<Domain.Entities.File> fileRepository
         )
@@ -47,12 +32,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _logger = logger;
         _SpeedtestRepository = SpeedtestRepository;
         _serviceProviderRepository = serviceProviderRepository;
-        _provinceRepository = provinceRepository;
-        _municipalityRepository = municipalityRepository;
-        _barangayRepository = barangayRepository;
-        _regionRepository = regionRepository;
         _generationRepository = generationRepository;
-        _technologyRepository = technologyRepository;
         _fileRepository = fileRepository;
     }
 
@@ -142,6 +122,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             //Check if all valid Ids are valid
             if (serviceProviderId != Guid.Empty && generationId != Guid.Empty)
             {
+                Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
+
                 //Create new Speedtest entity
                 var speedtest = new Speedtest
                 {
@@ -153,7 +135,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     DownloadSpeed = record.Download,
                     RSSI = record.RSSI,
                     SignalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality),
-                    Location = GeometryHelper.CreatePoint(x: record.Latitude, y: record.Longitude),
+                    Location = location,
                     PhoneModel = record.PhoneModel,
                     CellIdentifier = record.CellIdentifier,
                     MCC = record.MCC,

@@ -41,7 +41,7 @@ public class SpeedtestsController : ControllerBase
         string? signalQuality = null,
         double longitude = 0,
         double latitude = 0,
-        double distance = 1000)
+        double distance = 15000000)
     {
         var speedtTest = await _mediator.Send(new GetAllSpeedtestsRequest(pageNumber, pageSize)
         {
@@ -52,7 +52,7 @@ public class SpeedtestsController : ControllerBase
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
             SignalQuality = signalQuality,
-            Coordinate = new(y: longitude, x: latitude),
+            Coordinate = new(x: longitude, y: latitude),
             Distance = distance
         });
         return speedtTest.Succeeded ? Ok(speedtTest) : BadRequest(speedtTest);
