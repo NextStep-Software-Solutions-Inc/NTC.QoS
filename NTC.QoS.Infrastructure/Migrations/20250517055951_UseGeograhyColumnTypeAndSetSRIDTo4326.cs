@@ -7,7 +7,7 @@ using NetTopologySuite.Geometries;
 namespace NTC.QoS.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class UseGeograhyColumnTypeAndSetSRIDTo4326 : Migration
+    public partial class UseGeographyColumnTypeAndSetSRIDTo4326 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
