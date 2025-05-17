@@ -37,8 +37,8 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
             },
             Address = NAP.Address,
             IsFileUploaded = NAP.IsFileUploaded,
-            Latitude = NAP.Location.Y,
-            Longitude = NAP.Location.X,
+            Latitude = NAP.Location.Coordinate.Y,
+            Longitude = NAP.Location.Coordinate.X,
             Distance = Math.Round(NAP.Location.Distance(NAP.Location), 2)
         });
 
