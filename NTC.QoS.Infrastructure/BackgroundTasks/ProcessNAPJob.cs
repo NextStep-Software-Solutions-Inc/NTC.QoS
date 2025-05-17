@@ -113,7 +113,7 @@ public class ProcessNAPJob : IProcessNAPJob
             // Check if all Ids are valid and present
             if (serviceProviderId != Guid.Empty)
             {
-                Point location = GeometryHelper.CreatePoint(x: record.Latitude, y: record.Longitude);
+                Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
                 // Create a new NAP entity
                 var nap = new Domain.Aggregates.NAP
                 {
