@@ -90,7 +90,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     // Just duplicate and modify this method for more template
     private async Task GenerateNAPTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lng", "Lat");
+        AddHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lat", "Lng");
 
         var providers = await GetServiceProviders(cancellationToken);
 
