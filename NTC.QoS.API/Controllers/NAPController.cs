@@ -33,7 +33,7 @@ public class NAPsController : ControllerBase
         Guid? serviceProviderId = null,
         double longitude = 0,
         double latitude = 0,
-        double distance = 1000)
+        double distance = 15000000)
     {
 
         var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
