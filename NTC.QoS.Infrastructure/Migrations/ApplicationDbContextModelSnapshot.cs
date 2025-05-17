@@ -79,7 +79,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Name")

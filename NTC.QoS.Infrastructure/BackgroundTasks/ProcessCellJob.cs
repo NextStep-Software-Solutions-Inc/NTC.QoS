@@ -124,7 +124,7 @@ public class ProcessCellJob : IProcessCellJob
                 }
             }
 
-            Point location = GeometryHelper.CreatePoint(y: record.Latitude, x: record.Longitude);
+            Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
             string address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
 
             Guid cellId = Guid.Empty;

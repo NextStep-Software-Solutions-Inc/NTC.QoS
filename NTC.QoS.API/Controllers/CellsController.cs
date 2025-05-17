@@ -39,7 +39,7 @@ public class CellsController(IMediator mediator) : ControllerBase
             ServiceProviderIds = serviceProviderIds,
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
-            Coordinate = new(y: longitude, x: latitude),
+            Coordinate = new(x: longitude, y: latitude),
             Distance = distance
         };
         var cells = await _mediator.Send(request);
