@@ -307,7 +307,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Cell>()
             .Property(n => n.Location)
-            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         base.OnModelCreating(modelBuilder);
     }

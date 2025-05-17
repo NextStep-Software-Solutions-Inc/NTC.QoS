@@ -69,9 +69,10 @@ public class UpdateStatusByIdHandler(ICellRepository cellRepository) : IRequestH
                 SiteId = cell.SiteId,
                 TowerType = cell.TowerType,
                 Elevation = cell.Elevation,
-                Latitude = cell.Location.X,
-                Longitude = cell.Location.Y,
+                Latitude = cell.Location.Coordinate.Y,
+                Longitude = cell.Location.Coordinate.X,
                 IsVerified = cell.IsVerified,
+                IsFileUploaded = cell.IsFileUploaded,
                 Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
             },
             Succeeded = true,

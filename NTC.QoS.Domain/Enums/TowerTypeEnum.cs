@@ -6,5 +6,6 @@ public enum TowerTypeEnum
     Guyed = 1,
     SelfSupporting = 2,
     Monopole = 3,
-    Stealth = 4
+    Stealth = 4,
+    Rooftop = 5
 }

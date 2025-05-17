@@ -7,7 +7,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
-using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
@@ -73,8 +72,8 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                 SiteId = cell.SiteId,
                 TowerType = cell.TowerType,
                 Elevation = cell.Elevation,
-                Latitude = cell.Location.X,
-                Longitude = cell.Location.Y,
+                Latitude = cell.Location.Coordinate.Y,
+                Longitude = cell.Location.Coordinate.X,
                 IsVerified = cell.IsVerified,
                 Status = EnumHelper<CellStatusEnum>.GetName(cell.Status),
                 Distance = Math.Round(cell.Location.Distance(locationPoint), 2)

@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -37,9 +38,9 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
         if(!string.IsNullOrEmpty(request.Cell.SiteId)) cell.SiteId = request.Cell.SiteId;
         if(!string.IsNullOrEmpty(request.Cell.TowerType)) cell.TowerType = request.Cell.TowerType;
         if(request.Cell.Elevation is not 0) cell.Elevation = request.Cell.Elevation;
-        if (request.Cell.Latitude is not 0 || request.Cell.Longitude is not 0)
+        if(request.Cell.Latitude is not 0 || request.Cell.Longitude is not 0)
         {
-            cell.Location = GeometryHelper.CreatePoint(request.Cell.Latitude, request.Cell.Longitude);
+            cell.Location = GeometryHelper.CreatePoint(new Coordinate(y: request.Cell.Latitude, x: request.Cell.Longitude));
         }
         if(request.Cell.IsVerified.HasValue) cell.IsVerified = request.Cell.IsVerified.Value;
 
@@ -79,9 +80,10 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
                 SiteId = cell.SiteId,
                 TowerType = cell.TowerType,
                 Elevation = cell.Elevation,
-                Latitude = cell.Location.X,
-                Longitude = cell.Location.Y,
+                Latitude = cell.Location.Coordinate.Y,
+                Longitude = cell.Location.Coordinate.X,
                 IsVerified = cell.IsVerified,
+                IsFileUploaded = cell.IsFileUploaded,
                 Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
             },
             Succeeded = true,

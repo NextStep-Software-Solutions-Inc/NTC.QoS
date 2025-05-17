@@ -16,7 +16,7 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
 
     public async Task<ApiResponse<CellDto>> Handle(CreateCellRequest request, CancellationToken cancellationToken)
     {
-        Point location = GeometryHelper.CreatePoint(x: request.Cell.Latitude, y: request.Cell.Longitude);
+        Point location = GeometryHelper.CreatePoint(new Coordinate(y: request.Cell.Latitude, x: request.Cell.Longitude));
 
         var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Location.Equals(location) && c.Name == request.Cell.Name);
         var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
@@ -66,7 +66,8 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
             TAC = request.Cell.TAC,
             LAC = request.Cell.LAC,
             Location = location,
-            Status = EnumHelper<CellStatusEnum>.GetValue(request.Cell.Status)
+            Status = EnumHelper<CellStatusEnum>.GetValue(request.Cell.Status),
+            IsFileUploaded = false
         };
 
         _cellRepository.Add(newCell);
@@ -105,9 +106,10 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
                 SiteId = newCell.SiteId,
                 TowerType = newCell.TowerType,
                 Elevation = newCell.Elevation,
-                Latitude = newCell.Location.X,
-                Longitude = newCell.Location.Y,
+                Latitude = newCell.Location.Coordinate.Y,
+                Longitude = newCell.Location.Coordinate.X,
                 IsVerified = newCell.IsVerified,
+                IsFileUploaded = newCell.IsFileUploaded,
                 Status = EnumHelper<CellStatusEnum>.GetName(newCell.Status)
             },
             Message = "Cell created successfully.",
