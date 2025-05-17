@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
@@ -12,32 +13,35 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using NTC.QoS.Infrastructure.Persistence.Repositories;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
 public class ProcessSpeedtestJob : IProcessSpeedtestJob
 {
     private readonly ILogger<ProcessSpeedtestJob> _logger;
-    private readonly IRepository<Domain.Entities.Speedtest> _SpeedtestRepository;
-    private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
-    private readonly IRepository<Domain.Entities.Province> _provinceRepository;
-    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
-    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository;
-    private readonly IRepository<Domain.Entities.Region> _regionRepository;
-    private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
-    private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
+    private readonly IRepository<Speedtest> _SpeedtestRepository;
+    private readonly IRepository<ServiceProvider> _serviceProviderRepository;
+    private readonly IRepository<Province> _provinceRepository;
+    private readonly IRepository<Municipality> _municipalityRepository;
+    private readonly IRepository<Barangay> _barangayRepository;
+    private readonly IRepository<Region> _regionRepository;
+    private readonly IRepository<Technology> _technologyRepository;
+    private readonly IRepository<Generation> _generationRepository;
+    private readonly IRepository<Domain.Entities.File> _fileRepository;
 
 
     public ProcessSpeedtestJob(
         ILogger<ProcessSpeedtestJob> logger,
-        IRepository<Domain.Entities.Speedtest> SpeedtestRepository,
-        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
-        IRepository<Domain.Entities.Province> provinceRepository,
-        IRepository<Domain.Entities.Municipality> municipalityRepository,
-        IRepository<Domain.Entities.Barangay> barangayRepository,
-        IRepository<Domain.Entities.Region> regionRepository,
-        IRepository<Domain.Entities.Technology> technologyRepository,
-        IRepository<Domain.Aggregates.Generation> generationRepository
+        IRepository<Speedtest> SpeedtestRepository,
+        IRepository<ServiceProvider> serviceProviderRepository,
+        IRepository<Province> provinceRepository,
+        IRepository<Municipality> municipalityRepository,
+        IRepository<Barangay> barangayRepository,
+        IRepository<Region> regionRepository,
+        IRepository<Technology> technologyRepository,
+        IRepository<Generation> generationRepository,
+        IRepository<Domain.Entities.File> fileRepository
         )
     {
         _logger = logger;
@@ -49,15 +53,33 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _regionRepository = regionRepository;
         _generationRepository = generationRepository;
         _technologyRepository = technologyRepository;
+        _fileRepository = fileRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
+
+        var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id.Equals(parameters.Id));
+        var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
+
+        if (file == null)
+        {
+            var message = "File not found";
+            _logger.LogError(message);
+            throw new Exception(message);
+        }
+        ;
+
+        file.Status = FileStatusEnum.Processing;
+
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(token);
+
         var generationCache = new Dictionary<string, Guid>();
         var technologyCache = new Dictionary<string, Guid>();
         var serviceProviderCache = new Dictionary<string, Guid>();
         var cellCache = new Dictionary<string, Guid>();
-        var speedtestList = new List<Domain.Entities.Speedtest>();
+        var speedtestList = new List<Speedtest>();
 
         using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
         _logger.LogInformation($"Processing file: {parameters.Path}");
@@ -87,7 +109,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 if (serviceProvider is null)
                 {
                     _logger.LogWarning("Wireless Service Provider not found: {Provider}", record.Provider);
-                    TerminateProcess();
+                    await TerminateProcess(file, token);
                     return;
                 }
                 else
@@ -111,7 +133,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 else
                 {
                     _logger.LogWarning("Generation not found for Technology: {NetworkType}", record.NetworkType);
-                    TerminateProcess();
+                    await TerminateProcess(file, token);
                     return;
                 }
             }
@@ -121,7 +143,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             if (serviceProviderId != Guid.Empty && generationId != Guid.Empty)
             {
                 //Create new Speedtest entity
-                var speedtest = new Domain.Entities.Speedtest
+                var speedtest = new Speedtest
                 {
                     Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
                     ServiceProviderId = serviceProviderId,
@@ -136,9 +158,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     CellIdentifier = record.CellIdentifier,
                     MCC = record.MCC,
                     MNC = record.MNC,
-                    TAC = record.TAC, 
-                    Ping = record.Ping,
-                    Jitter = record.Jitter,
+                    TAC = record.TAC,
+                    Ping = decimal.TryParse(record.Ping, out decimal pingValue) ? pingValue : 0,
+                    Jitter = decimal.TryParse(record.Jitter, out decimal jitterValue) ? jitterValue : 0,
                     IsFileUploaded = true,
                 };
                 speedtestList.Add(speedtest);
@@ -148,6 +170,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         if (speedtestList.Count != 0)
         {
             _SpeedtestRepository.AddRange(speedtestList);
+
+
             await _SpeedtestRepository.SaveChangesAsync(token);
             _logger.LogInformation($"Successfully added {speedtestList.Count} speedtest records.");
         }
@@ -155,6 +179,10 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         {
             _logger.LogInformation("No valid speedtest records found to add.");
         }
+
+        file.Status = FileStatusEnum.Success;
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(token);
 
         _logger.LogInformation("Processing completed");
     }
@@ -164,8 +192,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _logger.LogInformation(message);
     }
 
-    private void TerminateProcess()
+    private async Task TerminateProcess(Domain.Entities.File file, CancellationToken cancellationToken)
     {
+        file.Status = FileStatusEnum.Failed;
+        _fileRepository.Update(file);
+
+        await _fileRepository.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Process terminated due to error in runtime");
     }
 }

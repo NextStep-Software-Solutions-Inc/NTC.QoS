@@ -90,7 +90,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     // Just duplicate and modify this method for more template
     private async Task GenerateNAPTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lng", "Lat");
+        AddHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lat", "Lng");
 
         var providers = await GetServiceProviders(cancellationToken);
 
@@ -157,18 +157,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         AddHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
 
-        var regions = await GetRegions(cancellationToken);
-        var provinces = await GetProvinces(cancellationToken);
-        var cities = await GetMunicipalities(cancellationToken);
-        var barangays = await GetBarangays(cancellationToken);
         var providers = await GetWirelessServiceProviders(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
         var signalQuality = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
 
-        AddDropdownValidation(worksheet, "F2:F10", regions);
-        AddDropdownValidation(worksheet, "G2:G10", provinces);
-        AddDropdownValidation(worksheet, "H2:H10", cities);
-        AddDropdownValidation(worksheet, "I2:I10", barangays);
         AddDropdownValidation(worksheet, "L2:L10", providers);
         AddDropdownValidation(worksheet, "R2:R10", technologies);
         AddDropdownValidation(worksheet, "K2:K10", signalQuality);
