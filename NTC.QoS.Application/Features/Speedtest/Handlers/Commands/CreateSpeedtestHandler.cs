@@ -153,15 +153,15 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                 RSSI = newSpeedtest.RSSI,
                 UploadSpeed = newSpeedtest.UploadSpeed,
                 DownloadSpeed = newSpeedtest.DownloadSpeed,
-                Latitude = newSpeedtest.Location.X,
-                Longitude = newSpeedtest.Location.Y,
+                Latitude = newSpeedtest.Location.Coordinate.Y,
+                Longitude = newSpeedtest.Location.Coordinate.X,
                 PhoneModel = newSpeedtest.PhoneModel,
                 MCC = newSpeedtest.MCC,
                 MNC = newSpeedtest.MNC,
                 TAC = newSpeedtest.TAC,
                 SignalQuality = newSpeedtest.SignalQuality,
                 CellIdentifier = newSpeedtest.CellIdentifier,
-
+                Distance = 0
             },
             Message = "Speedtest created successfully.",
             Succeeded = true

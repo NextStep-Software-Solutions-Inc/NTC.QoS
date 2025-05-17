@@ -65,8 +65,8 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                 RSSI = speedtest.RSSI,
                 UploadSpeed = speedtest.UploadSpeed,
                 DownloadSpeed = speedtest.DownloadSpeed,
-                Latitude = speedtest.Location.X,
-                Longitude = speedtest.Location.Y,
+                Latitude = speedtest.Location.Coordinate.Y,
+                Longitude = speedtest.Location.Coordinate.X,
                 PhoneModel = speedtest.PhoneModel,
                 MCC = speedtest.MCC,
                 MNC = speedtest.MNC,
@@ -74,7 +74,7 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                 SignalQuality = speedtest.SignalQuality,
                 CellIdentifier = speedtest.CellIdentifier,
                 Address = speedtest.Address ?? string.Empty,
-
+                Distance = Math.Round(speedtest.Location.Distance(speedtest.Location), 2)
             }
         };
     }

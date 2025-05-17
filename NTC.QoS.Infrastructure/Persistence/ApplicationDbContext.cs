@@ -230,7 +230,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(s => s.GenerationId);
 
         modelBuilder.Entity<Speedtest>()
-                .Property(n => n.Location)
+            .Property(n => n.Location)
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Cellular>()
