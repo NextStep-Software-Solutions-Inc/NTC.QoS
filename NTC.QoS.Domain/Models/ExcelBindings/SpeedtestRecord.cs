@@ -7,10 +7,10 @@ public record SpeedtestRecord
     public DateTime Timestamp { get; set; }
 
     [ExcelHeader("ping")]
-    public decimal Ping { get; set; }
+    public string Ping { get; set; } = string.Empty;
 
     [ExcelHeader("jitter")]
-    public decimal Jitter { get; set; }
+    public string Jitter { get; set; } = string.Empty;
 
     [ExcelHeader("upload")]
     public decimal Upload { get; set; }
