@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json;
 using NTC.QoS.API.Extensions;
 using Hangfire;
+using Microsoft.AspNetCore.ResponseCompression;
 
 namespace NTC.QoS.API;
 
@@ -37,6 +38,13 @@ public class Program
         });
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
         builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+        builder.Services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<GzipCompressionProvider>();
+            options.Providers.Add<BrotliCompressionProvider>();
+        });
+        builder.Services.AddResponseCaching();
 
         var app = builder.Build();
         
@@ -49,11 +57,15 @@ public class Program
             {
                 s.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
                 s.ConfigObject.AdditionalItems.Add("persistAuthorization", "true");
+                s.ConfigObject.DeepLinking = true;
+                s.ConfigObject.DisplayRequestDuration = true;
             });
         }
 
 
         app.UseHttpsRedirection();
+        app.UseResponseCompression();
+        app.UseResponseCaching();
 
         app.UseAuthorization();
         app.UseHangfireDashboard();
