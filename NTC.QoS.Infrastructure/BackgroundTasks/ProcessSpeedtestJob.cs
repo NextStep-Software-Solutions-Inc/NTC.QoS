@@ -82,7 +82,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             ReportProgress($"Processing record: {record.Region} {record.Province} {record.Municipality} {record.Barangay}, {record.Timestamp}, {record.NetworkType}, {record.Provider}, ({record.Upload},{record.Download}), {record.RSSI}, {record.SignalQuality}, {record.Provider}, {record.Latitude}, {record.Longitude}, {record.PhoneModel}, {record.CellIdentifier}, {record.MCC}, {record.TAC}");
 
             var serviceProviderCacheKey = $"{record.Provider}-{ServiceTypeEnum.Wireless}";
-            if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
+            if (!serviceProviderCache.TryGetValue(serviceProviderCacheKey, out var serviceProviderId))
             {
                 var serviceProvider = await _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Provider.Name.Equals(record.Provider) && sp.Service.Type == ServiceTypeEnum.Wireless).FirstOrDefaultAsync(cancellationToken: token);
 
