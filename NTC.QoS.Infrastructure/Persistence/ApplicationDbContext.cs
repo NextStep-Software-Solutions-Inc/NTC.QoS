@@ -216,6 +216,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
+        modelBuilder.Entity<NAP>()
+            .HasIndex(n => n.Location)
+            .HasDatabaseName("IX_NAP_Location")
+            .HasMethod("GIST"); // Use GIST for spatial indexing
+
         modelBuilder.Entity<Zone>()
             .HasMany(z => z.NAPs);
 

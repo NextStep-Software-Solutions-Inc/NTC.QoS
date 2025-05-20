@@ -16,30 +16,14 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
     {
         var NAPQuery = _NAPRepository.Query(n => n.Id.Equals(request.Id));
 
-        var NAPDtoQuery = NAPQuery.Select(NAP => new NAPDto()
+        var NAPDtoQuery = NAPQuery.Select(n => new NAPDto()
         {
-            Id = NAP.Id,
-            ServiceProvider = new()
-            {
-                Id = NAP.ServiceProvider.Id,
-                Service = new()
-                {
-                    Id = NAP.ServiceProvider.Service.Id,
-                    Name = NAP.ServiceProvider.Service.Name,
-                    Type = EnumHelper<ServiceTypeEnum>.GetName(NAP.ServiceProvider.Service.Type)
-                },
-                Provider = new()
-                {
-                    Id = NAP.ServiceProvider.Provider.Id,
-                    Name = NAP.ServiceProvider.Provider.Name,
-                    Color = NAP.ServiceProvider.Provider.Color
-                }
-            },
-            Address = NAP.Address,
-            IsFileUploaded = NAP.IsFileUploaded,
-            Latitude = NAP.Location.Coordinate.Y,
-            Longitude = NAP.Location.Coordinate.X,
-            Distance = Math.Round(NAP.Location.Distance(NAP.Location), 2)
+            Id = n.Id,
+            ISP = n.ServiceProvider.Provider.Name,
+            ISPColor = n.ServiceProvider.Provider.Color,
+            Lat = n.Location.Coordinate.Y,
+            Lng = n.Location.Coordinate.X,
+            Dist = 0
         });
 
         var NAP = await _NAPRepository.FirstOrDefaultAsync(NAPDtoQuery, cancellationToken);

@@ -32,27 +32,11 @@ public class CreateNAPHandler(INAPRepository repository) : IRequestHandler<Creat
             Data = new NAPDto
             {
                 Id = NAP.Id,
-                ServiceProvider = new ()
-                {
-                    Id = NAP.ServiceProviderId,
-                    Service = new ()
-                    {
-                        Id = NAP.ServiceProvider?.ServiceId ?? Guid.Empty,
-                        Name = NAP.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = NAP.ServiceProvider?.Service?.Type.ToString() ?? string.Empty,
-                    },
-                    Provider = new ()
-                    {
-                        Id = NAP.ServiceProvider?.ProviderId ?? Guid.Empty,
-                        Name = NAP.ServiceProvider?.Provider?.Name ?? string.Empty,
-                        Color = NAP.ServiceProvider?.Provider?.Color ?? string.Empty,
-                    }
-                },
-                Address = NAP.Address,
-                IsFileUploaded = NAP.IsFileUploaded,
-                Latitude = NAP.Location.X,
-                Longitude = NAP.Location.Y,
-                Distance = 0
+                ISP = NAP.ServiceProvider.Provider.Name,
+                ISPColor = NAP.ServiceProvider.Provider.Color,
+                Lat = NAP.Location.Coordinate.Y,
+                Lng = NAP.Location.Coordinate.X,
+                Dist = 0
             },
             Message = "NAP created successfully.",
             Succeeded = true

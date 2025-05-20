@@ -27,27 +27,11 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<G
         .Select(n => new NAPDto
         {
             Id = n.Id,
-            ServiceProvider = new()
-            {
-                Id = n.ServiceProvider.Id,
-                Service = new()
-                {
-                    Id = n.ServiceProvider.Service.Id,
-                    Name = n.ServiceProvider.Service.Name,
-                    Type = n.ServiceProvider.Service.Type.ToString(),
-                },
-                Provider = new()
-                {
-                    Id = n.ServiceProvider.Provider.Id,
-                    Name = n.ServiceProvider.Provider.Name,
-                    Color = n.ServiceProvider.Provider.Color,
-                }
-            },
-            Address = n.Address,
-            IsFileUploaded = n.IsFileUploaded,
-            Latitude = n.Location.Coordinate.Y,
-            Longitude = n.Location.Coordinate.X,
-            Distance = Math.Round(n.Location.Distance(locationPoint), 2)
+            ISP = n.ServiceProvider.Provider.Name,
+            ISPColor = n.ServiceProvider.Provider.Color,
+            Lat = n.Location.Coordinate.Y,
+            Lng = n.Location.Coordinate.X,
+            Dist = 0
         });
         return await _NAPRepository.PaginateAsync(NAPsDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     

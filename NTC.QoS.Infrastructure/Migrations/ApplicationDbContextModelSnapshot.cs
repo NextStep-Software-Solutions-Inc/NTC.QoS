@@ -331,6 +331,11 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("FileId");
 
+                    b.HasIndex("Location")
+                        .HasDatabaseName("IX_NAP_Location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
                     b.HasIndex("ServiceProviderId");
 
                     b.HasIndex("ZoneId");
