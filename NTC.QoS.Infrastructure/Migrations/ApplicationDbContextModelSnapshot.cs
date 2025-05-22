@@ -118,6 +118,11 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("FileId");
 
+                    b.HasIndex("Location")
+                        .HasDatabaseName("IX_Cell_Location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
                     b.HasIndex("Name")
                         .IsUnique();
 
@@ -1657,6 +1662,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("FileId");
 
                     b.HasIndex("GenerationId");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("IX_Speedtest_Location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
                     b.HasIndex("ServiceProviderId");
 
