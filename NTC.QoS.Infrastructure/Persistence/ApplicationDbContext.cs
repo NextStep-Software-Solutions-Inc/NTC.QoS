@@ -1,9 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Configuration;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
-using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Models.DTOs.NAP;
 
 namespace NTC.QoS.Infrastructure.Persistence;
 
@@ -45,14 +47,45 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
 
+    public DbSet<ClusteredNapResultDto> ClusteredNapResults { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
 
         modelBuilder.HasPostgresExtension("postgis");
+
+        // Map ST_ClusterWithinWin
+        modelBuilder.HasDbFunction(() => Extensions.DbFunctionsExtensions.ST_ClusterWithin(new GeometryFactory().CreatePoint(new Coordinate(0, 0)), 0.0))
+            .HasName("st_clusterwithinwin");
+
+        // Map ST_ClusterWithin
+        modelBuilder.HasDbFunction(() => Extensions.DbFunctionsExtensions.ST_ClusterWithin(new GeometryFactory().CreatePoint(new Coordinate(0, 0)), 0.0))
+            .HasName("st_clusterwithin");
+
+        // Map ST_Centroid
+        modelBuilder.HasDbFunction(() => Extensions.DbFunctionsExtensions.ST_Centroid(new GeometryFactory().CreatePoint(new Coordinate(0, 0))))
+            .HasName("st_centroid");
+
+        // Map ST_Collect
+        modelBuilder.HasDbFunction(() => Extensions.DbFunctionsExtensions.ST_Collect(new List<Geometry> { new GeometryFactory().CreatePoint(new Coordinate(0, 0)) }))
+            .HasName("st_collect");
+
+        // Map ST_ClusterDBSCAN
+        modelBuilder.HasDbFunction(() => Extensions.DbFunctionsExtensions.ST_ClusterDBSCAN(new GeometryFactory().CreatePoint(new Coordinate(0, 0)), 0.0, 0))
+            .HasName("st_clusterdbscan");
+
+        // Configure the ClusteredNapResultDto to be a keyless entity type
+        // This tells EF Core it's not a table, but something it can query into.
+        modelBuilder.Entity<ClusteredNapResultDto>().HasNoKey();
+        modelBuilder.Entity<ClusteredNapResultDto>().ToView(null); // Or .ToTable(null) for older EF Core versions
+        // If your column names in SQL don't exactly match C# property names (e.g., snake_case in DB, PascalCase in C#)
+        // you might need to use .Property(p => p.ClusterId).HasColumnName("cluster_id");
+        // but since we're aliasing to PascalCase in SQL, it should map automatically.
 
         // ... any entity configuration ...
         modelBuilder.Entity<Provider>()
@@ -315,6 +348,23 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
-        base.OnModelCreating(modelBuilder);
+        
+    }
+}
+public static class MethodCallTranslatorProviderExtensions
+{
+    public static void AddTranslators(this IMethodCallTranslatorProvider provider, IEnumerable<IMethodCallTranslator> translators)
+    {
+        // Implementation logic for adding translators.
+        // This might involve casting the provider to a specific implementation type
+        // and adding the translators to its internal collection.
+        if (provider is RelationalMethodCallTranslatorProvider relationalProvider)
+        {
+            relationalProvider.AddTranslators(translators);
+        }
+        else
+        {
+            throw new NotSupportedException("The provided IMethodCallTranslatorProvider does not support adding translators.");
+        }
     }
 }

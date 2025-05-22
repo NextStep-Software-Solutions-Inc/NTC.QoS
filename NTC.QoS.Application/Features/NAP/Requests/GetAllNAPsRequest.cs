@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs.NAP;
 
 namespace NTC.QoS.Application.Features.NAP.Requests;
 
-public class GetAllNAPsRequest(int pageSize, int pageNumber) : IRequest<PaginatedResponse<NAPDto>>
+public class GetAllNAPsRequest(int pageSize, int pageNumber) : IRequest<PaginatedResponse<ClusteredNapResultDto>>
 {
     public int PageSize { get; set; } = pageSize;
     public int PageNumber { get; set; } = pageNumber;

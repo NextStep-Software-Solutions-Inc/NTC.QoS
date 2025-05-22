@@ -8,32 +8,31 @@ using NTC.QoS.Domain.Models.DTOs.NAP;
 
 namespace NTC.QoS.Application.Features.NAP.Handlers.Queries;
 
-public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<GetAllNAPsRequest, PaginatedResponse<NAPDto>>
+public class GetAllNAPsHandler(INAPRepository NAPRepository) : IRequestHandler<GetAllNAPsRequest, PaginatedResponse<ClusteredNapResultDto>>
 {
     private readonly INAPRepository _NAPRepository = NAPRepository;
 
-    public async Task<PaginatedResponse<NAPDto>> Handle(GetAllNAPsRequest request, CancellationToken cancellationToken)
+    public async Task<PaginatedResponse<ClusteredNapResultDto>> Handle(GetAllNAPsRequest request, CancellationToken cancellationToken)
     {
-        var allNAPsQuery = _NAPRepository.Query(n => !n.IsDeleted);
 
-        Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
+        var clusteredNapsQuery = await  _NAPRepository.GetClusteredNapsAsync(request.Distance);
 
-        allNAPsQuery = allNAPsQuery
-            .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProvider.Id == request.ServiceProviderId)
-            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance))
-            .OrderBy(n => n.Location.Distance(locationPoint));
+        return new PaginatedResponse<ClusteredNapResultDto>(clusteredNapsQuery, pageNumber: request.PageNumber, pageSize: request.PageSize);
 
-        var NAPsDtoQuery = allNAPsQuery
-        .Select(n => new NAPDto
-        {
-            Id = n.Id,
-            ISP = n.ServiceProvider.Provider.Name,
-            ISPColor = n.ServiceProvider.Provider.Color,
-            Lat = n.Location.Coordinate.Y,
-            Lng = n.Location.Coordinate.X,
-            Dist = 0
-        });
-        return await _NAPRepository.PaginateAsync(NAPsDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
+        //return await _NAPRepository.PaginateAsync(clusteredNapsQuery, pageSize: request.PageSize, pageNumber: request.PageNumber);
+        //var allNAPsQuery = _NAPRepository.Query(n => !n.IsDeleted);
+
+        //var NAPsDtoQuery = allNAPsQuery
+        //.Select(n => new NAPDto
+        //{
+        //    Id = n.Id,
+        //    ISP = n.ServiceProvider.Provider.Name,
+        //    ISPColor = n.ServiceProvider.Provider.Color,
+        //    Lat = n.Location.Coordinate.Y,
+        //    Lng = n.Location.Coordinate.X,
+        //    Dist = 0
+        //});
+        //return await _NAPRepository.PaginateAsync(NAPsDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     
     }
 }
