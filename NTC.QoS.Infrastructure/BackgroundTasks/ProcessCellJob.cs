@@ -80,8 +80,8 @@ public class ProcessCellJob : IProcessCellJob
             .Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
             .Select(sp => new { sp.Id, sp.Provider.Name })
             .ToDictionaryAsync( // 1. Fetches data AND populates the dictionary in one go
-                 sp => $"{sp.Name}-{ServiceTypeEnum.Wireless}".ToLower(), // Key selector
-                 sp => sp.Id,                                          // Element selector
+                 sp => $"{sp.Name}-{ServiceTypeEnum.Wireless}".ToLowerInvariant(), 
+                 sp => sp.Id,                                          
                  token
             );
 
@@ -105,8 +105,10 @@ public class ProcessCellJob : IProcessCellJob
 
         _logger.LogInformation("Pre-loaded {Count} generation bands.", generationBandCache.Count);
 
+        var providerIds = serviceProviderCache.Values.ToList();
+
         cellCache = await _cellRepository
-            .Query(c => !c.IsDeleted && serviceProviderCache.Values.Contains(c.ServiceProviderId))
+            .Query(c => !c.IsDeleted && providerIds.Contains(c.ServiceProviderId))
             .ToDictionaryAsync(
                 c => ($"Cell-{c.ServiceProviderId}_{c.TowerType}_{c.Location.Coordinate.X}_{c.Location.Coordinate.Y}"),
                 c => c.Id,
