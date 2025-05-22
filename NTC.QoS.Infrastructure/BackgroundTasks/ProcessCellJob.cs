@@ -37,7 +37,7 @@ public class ProcessCellJob : IProcessCellJob
         _cellRepository = cellRepository;
         _cellularRepository = cellularRepository;
         _serviceProviderRepository = serviceProviderRepository;
-        _generationBandRepository = generationBandRepository; // Keep this as you have it
+        _generationBandRepository = generationBandRepository;
         _cellSectorRepository = cellSectorRepository;
     }
 
@@ -79,7 +79,7 @@ public class ProcessCellJob : IProcessCellJob
             .Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
             .Select(sp => new { sp.Id, sp.Provider.Name })
             .ToDictionaryAsync( // 1. Fetches data AND populates the dictionary in one go
-                 sp => $"{sp.Name}-{ServiceTypeEnum.Wireless}".ToLowerInvariant(), 
+                 sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless), 
                  sp => sp.Id,                                          
                  token
             );
@@ -97,7 +97,7 @@ public class ProcessCellJob : IProcessCellJob
                 Band = gb.Band.Name            
             })
             .ToDictionaryAsync(
-                gb => (gb.Generation, gb.Band),
+                gb => CacheKeyGenerator.GenerateGenerationBandCacheKey(gb.Generation, gb.Band),
                 gb => gb.Id,                    
                 token
             );
@@ -109,7 +109,7 @@ public class ProcessCellJob : IProcessCellJob
         cellCache = await _cellRepository
             .Query(c => !c.IsDeleted && providerIds.Contains(c.ServiceProviderId))
             .ToDictionaryAsync(
-                c => ($"Cell-{c.ServiceProviderId}_{c.TowerType}_{c.Location.Coordinate.X}_{c.Location.Coordinate.Y}"),
+                c => CacheKeyGenerator.GenerateCellCacheKey(c.ServiceProviderId, c.TowerType, c.Location),
                 c => c.Id,
                 token
             );
@@ -170,7 +170,7 @@ public class ProcessCellJob : IProcessCellJob
 
             // Inside the main loop
             // Ensure the entire key is lowercased to match what was stored
-            var spCacheKey = ($"{record.Provider}-{ServiceTypeEnum.Wireless}").ToLowerInvariant();
+            var spCacheKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
 
             if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
             {
@@ -187,7 +187,7 @@ public class ProcessCellJob : IProcessCellJob
             // The check for serviceProviderId != Guid.Empty is already handled by the `TryGetValue` above.
             // If we reach here, serviceProviderId is valid.
 
-            var cellCacheKey = $"Cell-{serviceProviderId}_{record.TowerType}_{location.Coordinate.X}_{location.Coordinate.Y}";
+            var cellCacheKey = CacheKeyGenerator.GenerateCellCacheKey(serviceProviderId, record.TowerType, location);
 
             if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
             {
@@ -264,7 +264,7 @@ public class ProcessCellJob : IProcessCellJob
             {
                 foreach (var propInfo in bandGenerationProperties)
                 {
-                    var generationBandCacheKey = (propInfo.Generation, propInfo.Band);
+                    var generationBandCacheKey = CacheKeyGenerator.GenerateGenerationBandCacheKey(propInfo.Generation, propInfo.Band);
 
                     if (!generationBandCache.TryGetValue(generationBandCacheKey, out var generationBandId))
                     {
