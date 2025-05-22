@@ -58,11 +58,6 @@ public class ProcessCellJob : IProcessCellJob
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
-        //Step 2: Initialize Caches and Lists for Batch Operations ---
-        var serviceProviderCache = new Dictionary<string, Guid>();
-        var generationBandCache = new Dictionary<(string, string), Guid>();
-        var cellCache = new Dictionary<string, Guid>();
-
         var cellSectorList = new List<Domain.Entities.CellSector>();
         var cellularToAdd = new List<Domain.Entities.Cellular>();
         var cellularToDelete = new List<Domain.Entities.Cellular>();
@@ -75,7 +70,7 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("Pre-loading reference data.");
 
         // Pre-load all wireless service providers
-        serviceProviderCache = await _serviceProviderRepository
+        var serviceProviderCache = await _serviceProviderRepository
             .Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
             .Select(sp => new { sp.Id, sp.Provider.Name })
             .ToDictionaryAsync( // 1. Fetches data AND populates the dictionary in one go
@@ -88,7 +83,7 @@ public class ProcessCellJob : IProcessCellJob
 
         // Pre-load all generation bands
         // Corrected pre-loading of generation bands
-        generationBandCache = await _generationBandRepository
+        var generationBandCache = await _generationBandRepository
             .Query(gb => !gb.IsDeleted)
             .Select(gb => new
             {
@@ -106,7 +101,7 @@ public class ProcessCellJob : IProcessCellJob
 
         var providerIds = serviceProviderCache.Values.ToList();
 
-        cellCache = await _cellRepository
+        var cellCache = await _cellRepository
             .Query(c => !c.IsDeleted && providerIds.Contains(c.ServiceProviderId))
             .ToDictionaryAsync(
                 c => CacheKeyGenerator.GenerateCellCacheKey(c.ServiceProviderId, c.TowerType, c.Location),
