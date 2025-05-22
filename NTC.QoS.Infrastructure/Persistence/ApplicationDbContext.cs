@@ -219,7 +219,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<NAP>()
             .HasIndex(n => n.Location)
             .HasDatabaseName("IX_NAP_Location")
-            .HasMethod("GIST"); // Use GIST for spatial indexing
+            .HasMethod("GIST");
 
         modelBuilder.Entity<Zone>()
             .HasMany(z => z.NAPs);
@@ -238,6 +238,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(n => n.Location)
             .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Speedtest>()
+            .HasIndex(n => n.Location)
+            .HasDatabaseName("IX_Speedtest_Location")
+            .HasMethod("GIST");
 
         modelBuilder.Entity<Cellular>()
             .HasOne(c => c.Cell)
@@ -314,6 +319,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(n => n.Location)
             .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
+
+        modelBuilder.Entity<Cell>()
+            .HasIndex(n => n.Location)
+            .HasDatabaseName("IX_Cell_Location")
+            .HasMethod("GIST");
 
         base.OnModelCreating(modelBuilder);
     }
