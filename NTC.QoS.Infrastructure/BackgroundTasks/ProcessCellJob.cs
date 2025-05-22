@@ -19,7 +19,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Aggregates.Cell> _cellRepository;
     private readonly IRepository<Domain.Entities.Cellular> _cellularRepository;
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
-    private readonly IGenerationBandRepository _generationBandRepository; // Keep this as you have it
+    private readonly IGenerationBandRepository _generationBandRepository;
     private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
 
     public ProcessCellJob(
@@ -53,7 +53,6 @@ public class ProcessCellJob : IProcessCellJob
             _logger.LogError(message);
             throw new Exception(message);
         }
-        ;
 
         file.Status = FileStatusEnum.Processing;
         _fileRepository.Update(file);
@@ -171,7 +170,7 @@ public class ProcessCellJob : IProcessCellJob
 
             // Inside the main loop
             // Ensure the entire key is lowercased to match what was stored
-            var spCacheKey = ($"{record.Provider}-{ServiceTypeEnum.Wireless}").ToLower();
+            var spCacheKey = ($"{record.Provider}-{ServiceTypeEnum.Wireless}").ToLowerInvariant();
 
             if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
             {
