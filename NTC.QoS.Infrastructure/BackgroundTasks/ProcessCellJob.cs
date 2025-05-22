@@ -51,7 +51,7 @@ public class ProcessCellJob : IProcessCellJob
         {
             const string message = "File not found.";
             _logger.LogError(message);
-            throw new Exception(message);
+            throw new InvalidOperationException(message);
         }
 
         file.Status = FileStatusEnum.Processing;
