@@ -5,6 +5,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Sector;
+using NTC.QoS.Domain.Models.DTOs.CellSector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Queries;
 
@@ -39,7 +40,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                     Id = s.MIMO.Id,
                     Type = s.MIMO.Type.ToString()
                 } : null,
-                CellSector = new()
+                CellSector = new CellSectorDto
                 {
                     Id = s.CellSector != null ? s.CellSector.Id : Guid.Empty,
                     Cell = new()
@@ -52,6 +53,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                         LAC = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.LAC : string.Empty,
                     },
                     AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(s.CellSector != null ? s.CellSector.AntennaType : AntennaTypeEnum.Unknown),
+                    AntennaHeight = s.CellSector != null ? s.CellSector.AntennaHeight : 0,
                     Azimuth = s.CellSector != null ? s.CellSector.Azimuth : 0,
                     BeamTilt = s.CellSector != null ? s.CellSector.BeamTilt : 0,
                 },

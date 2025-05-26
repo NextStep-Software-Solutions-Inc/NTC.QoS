@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.CellSector;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Commands;
@@ -231,6 +232,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                     LAC = sector.CellSector?.Cell?.LAC ?? string.Empty,
                 },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.CellSector?.AntennaType ?? AntennaTypeEnum.Unknown),
+                AntennaHeight = sector.CellSector?.AntennaHeight ?? 0,
                 Azimuth = sector.CellSector?.Azimuth ?? 0,
                 BeamTilt = sector.CellSector?.BeamTilt ?? 0,
             },

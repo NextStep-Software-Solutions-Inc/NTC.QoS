@@ -305,7 +305,7 @@ public class ProcessCellJob : IProcessCellJob
         // --- Step 6: Batch Save All Accumulated Changes ---
 
         // Batch add new cells
-        if (cellsToAdd.Any()) // Corrected: Check if the list contains items
+        if (cellsToAdd.Count != 0) // Corrected: Check if the list contains items
         {
             _cellRepository.AddRange(cellsToAdd); // Add all new cells to EF Core's change tracker
             await _cellRepository.SaveChangesAsync(token); // Save all new cells in one batch

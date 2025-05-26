@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.CellSector;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Commands;
@@ -210,11 +211,11 @@ public class CreateSectorHandler(
                     SystemType = newSector.Network?.SystemType.ToString() ?? string.Empty,
                 },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.AntennaType),
-                MIMO = new MIMOSectorDto
+                MIMO = newSector.MIMO != null ? new MIMOSectorDto
                 {
-                    Id = newSector.MIMOId ?? Guid.Empty,
-                    Type = newSector.MIMO?.Type.ToString() ?? string.Empty
-                },
+                    Id = newSector.MIMO.Id,
+                    Type = newSector.MIMO.Type.ToString()
+                } : null,
                 CellSector = new CellSectorDto
                 {
                     Id = newSector.CellSector?.Id ?? Guid.Empty,
@@ -228,6 +229,7 @@ public class CreateSectorHandler(
                         LAC = newSector.CellSector?.Cell?.LAC ?? string.Empty,
                     },
                     AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.CellSector?.AntennaType ?? AntennaTypeEnum.Unknown),
+                    AntennaHeight = newSector.CellSector?.AntennaHeight ?? 0,
                     Azimuth = newSector.CellSector?.Azimuth ?? 0,
                     BeamTilt = newSector.CellSector?.BeamTilt ?? 0,
                 },
