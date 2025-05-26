@@ -18,13 +18,7 @@ public class DeleteCellSectorByIdHandler(IRepository<Domain.Entities.CellSector>
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Message = "Cell sector not found",
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullCellSector", ["Cell sector not found."]
-                    }
-                }
+                Message = "Cell sector not found"
             };
         }
 

@@ -1,7 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.CellSector.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellSector;
@@ -22,18 +20,18 @@ public class GetAllCellSectorsHandler(IRepository<Domain.Entities.CellSector> ce
             .Select(cs => new CellSectorDto
             {
                 Id = cs.Id,
-                Cell = new Domain.Models.DTOs.Cell.CellDto
+                Cell = new()
                 {
                     Id = cs.Cell.Id,
                     Name = cs.Cell.Name,
                     Group = cs.Cell.Group,
-                    Description = cs.Cell.Description ?? string.Empty,
-                    Address = cs.Cell.Address ?? string.Empty,
+                    Description = cs.Cell.Description,
+                    Address = cs.Cell.Address,
                     LAC = cs.Cell.LAC,
                     TAC = cs.Cell.TAC,
                     CID = cs.Cell.CID,
                 },
-                AntennaType = EnumHelper<AntennaTypeEnum>.GetName(cs.AntennaType),
+                AntennaType = cs.AntennaType.ToString(),
                 AntennaHeight = cs.AntennaHeight,
                 Azimuth = cs.Azimuth,
                 BeamTilt = cs.BeamTilt

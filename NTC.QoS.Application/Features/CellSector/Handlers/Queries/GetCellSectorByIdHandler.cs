@@ -1,7 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.CellSector.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellSector;
@@ -14,23 +12,23 @@ public class GetCellSectorByIdHandler(IRepository<Domain.Entities.CellSector> ce
 
     public async Task<ApiResponse<CellSectorDto>> Handle(GetCellSectorByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellSectorQuery = _cellSectorRepository.Query(cs => cs.Id.Equals(request.Id));
+        var cellSectorQuery = _cellSectorRepository.Query(cs => !cs.IsDeleted && cs.Id.Equals(request.Id));
 
         var cellSectorDto = cellSectorQuery.Select(cellSector => new CellSectorDto
         {
             Id = cellSector.Id,
-            Cell = new Domain.Models.DTOs.Cell.CellDto
+            Cell = new ()
             {
                 Id = cellSector.Cell.Id,
                 Name = cellSector.Cell.Name,
                 Group = cellSector.Cell.Group,
-                Description = cellSector.Cell.Description ?? string.Empty,
-                Address = cellSector.Cell.Address ?? string.Empty,
+                Description = cellSector.Cell.Description,
+                Address = cellSector.Cell.Address,
                 LAC = cellSector.Cell.LAC,
                 TAC = cellSector.Cell.TAC,
                 CID = cellSector.Cell.CID,
             },
-            AntennaType = EnumHelper<AntennaTypeEnum>.GetName(cellSector.AntennaType),
+            AntennaType = cellSector.AntennaType.ToString(),
             AntennaHeight = cellSector.AntennaHeight,
             Azimuth = cellSector.Azimuth,
             BeamTilt = cellSector.BeamTilt

@@ -2,7 +2,6 @@
 
 public class UpdateCellSectorDto
 {
-    public Guid? CellId { get; set; }
     public string? AntennaType { get; set; }
     public decimal? AntennaHeight { get; set; }
     public decimal? Azimuth { get; set; }
