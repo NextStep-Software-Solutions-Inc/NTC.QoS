@@ -22,7 +22,17 @@ public class GetAllCellSectorsHandler(IRepository<Domain.Entities.CellSector> ce
             .Select(cs => new CellSectorDto
             {
                 Id = cs.Id,
-                CellId = cs.CellId,
+                Cell = new Domain.Models.DTOs.Cell.CellDto
+                {
+                    Id = cs.Cell.Id,
+                    Name = cs.Cell.Name,
+                    Group = cs.Cell.Group,
+                    Description = cs.Cell.Description ?? string.Empty,
+                    Address = cs.Cell.Address ?? string.Empty,
+                    LAC = cs.Cell.LAC,
+                    TAC = cs.Cell.TAC,
+                    CID = cs.Cell.CID,
+                },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetName(cs.AntennaType),
                 AntennaHeight = cs.AntennaHeight,
                 Azimuth = cs.Azimuth,

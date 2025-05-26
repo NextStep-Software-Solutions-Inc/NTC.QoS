@@ -55,7 +55,17 @@ public class UpdateCellSectorByIdHandler(IRepository<Domain.Entities.CellSector>
             Data = new CellSectorDto
             {
                 Id = cellSector.Id,
-                CellId = cellSector.CellId,
+                Cell = new Domain.Models.DTOs.Cell.CellDto
+                {
+                    Id = cellSector.Cell.Id,
+                    Name = cellSector.Cell.Name,
+                    Group = cellSector.Cell.Group,
+                    Description = cellSector.Cell.Description ?? string.Empty,
+                    Address = cellSector.Cell.Address ?? string.Empty,
+                    LAC = cellSector.Cell.LAC,
+                    TAC = cellSector.Cell.TAC,
+                    CID = cellSector.Cell.CID,
+                },
                 AntennaType = cellSector.AntennaType.ToString(),
                 AntennaHeight = cellSector.AntennaHeight,
                 Azimuth = cellSector.Azimuth,

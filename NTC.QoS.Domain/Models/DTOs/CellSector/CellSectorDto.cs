@@ -1,13 +1,11 @@
-﻿using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
-using System.Drawing;
+﻿using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Domain.Models.DTOs.CellSector;
 
 public class CellSectorDto
 {
-    public Guid Id { get; set; }
-    public required Guid CellId { get; set; }
+    public required Guid Id { get; set; }
+    public required CellDto Cell { get; set; }
     public required string AntennaType { get; set; }
     public required decimal AntennaHeight { get; set; }
     public required decimal Azimuth { get; set; }

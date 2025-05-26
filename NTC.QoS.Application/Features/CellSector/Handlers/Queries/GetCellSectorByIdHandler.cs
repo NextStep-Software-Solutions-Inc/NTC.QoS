@@ -19,7 +19,17 @@ public class GetCellSectorByIdHandler(IRepository<Domain.Entities.CellSector> ce
         var cellSectorDto = cellSectorQuery.Select(cellSector => new CellSectorDto
         {
             Id = cellSector.Id,
-            CellId = cellSector.CellId,
+            Cell = new Domain.Models.DTOs.Cell.CellDto
+            {
+                Id = cellSector.Cell.Id,
+                Name = cellSector.Cell.Name,
+                Group = cellSector.Cell.Group,
+                Description = cellSector.Cell.Description ?? string.Empty,
+                Address = cellSector.Cell.Address ?? string.Empty,
+                LAC = cellSector.Cell.LAC,
+                TAC = cellSector.Cell.TAC,
+                CID = cellSector.Cell.CID,
+            },
             AntennaType = EnumHelper<AntennaTypeEnum>.GetName(cellSector.AntennaType),
             AntennaHeight = cellSector.AntennaHeight,
             Azimuth = cellSector.Azimuth,

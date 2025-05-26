@@ -1,4 +1,5 @@
-﻿using NTC.QoS.Domain.Models.DTOs.Network;
+﻿using NTC.QoS.Domain.Models.DTOs.CellSector;
+using NTC.QoS.Domain.Models.DTOs.Network;
 
 namespace NTC.QoS.Domain.Models.DTOs.Sector;
 
