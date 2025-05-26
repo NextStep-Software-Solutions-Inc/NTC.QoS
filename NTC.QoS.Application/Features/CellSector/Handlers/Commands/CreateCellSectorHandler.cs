@@ -21,7 +21,7 @@ public class CreateCellSectorHandler(IRepository<Domain.Entities.CellSector> cel
         {
             return new ApiResponse<CellSectorDto>
             {
-                Message = "Cell does not exists.",
+                Message = "Cell does not exist.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
