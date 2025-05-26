@@ -1,4 +1,3 @@
-using System.Drawing;
 
 namespace NTC.QoS.Domain.Models.DTOs.CellSector;
 
