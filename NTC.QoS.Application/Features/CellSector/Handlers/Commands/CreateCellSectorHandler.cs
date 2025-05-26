@@ -1,12 +1,10 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.CellSector.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellSector;
-using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.CellSector.Handlers.Commands;
 
@@ -17,7 +15,7 @@ public class CreateCellSectorHandler(IRepository<Domain.Entities.CellSector> cel
 
     public async Task<ApiResponse<CellSectorDto>> Handle(CreateCellSectorRequest request, CancellationToken cancellationToken)
     {
-        var cellQuery = _cellRepository.Query(c => !c.IsDeleted);
+        var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Id.Equals(request.CellSector.CellId));
         var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is null)
         {
@@ -48,19 +46,19 @@ public class CreateCellSectorHandler(IRepository<Domain.Entities.CellSector> cel
 
         return new ApiResponse<CellSectorDto>
         {
-            Data = new CellSectorDto
+            Data = new ()
             {
                 Id = newCellSector.Id,
-                Cell = new Domain.Models.DTOs.Cell.CellDto
+                Cell = new ()
                 {
-                    Id = newCellSector.Cell.Id,
-                    Name = newCellSector.Cell.Name,
-                    Group = newCellSector.Cell.Group,
-                    Description = newCellSector.Cell.Description ?? string.Empty,
-                    Address = newCellSector.Cell.Address ?? string.Empty,
-                    LAC = newCellSector.Cell.LAC,
-                    TAC = newCellSector.Cell.TAC,
-                    CID = newCellSector.Cell.CID,
+                    Id = cell.Id,
+                    Name = cell.Name,
+                    Group = cell.Group,
+                    Description = cell.Description,
+                    Address = cell.Address,
+                    LAC = cell.LAC,
+                    TAC = cell.TAC,
+                    CID = cell.CID,
                 },
                 AntennaType = newCellSector.AntennaType.ToString(),
                 AntennaHeight = newCellSector.AntennaHeight,

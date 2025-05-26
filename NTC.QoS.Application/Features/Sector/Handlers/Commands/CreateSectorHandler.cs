@@ -211,11 +211,11 @@ public class CreateSectorHandler(
                     SystemType = newSector.Network?.SystemType.ToString() ?? string.Empty,
                 },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.AntennaType),
-                MIMO = new MIMOSectorDto
+                MIMO = newSector.MIMO != null ? new MIMOSectorDto
                 {
-                    Id = newSector.MIMOId ?? Guid.Empty,
-                    Type = newSector.MIMO?.Type.ToString() ?? string.Empty
-                },
+                    Id = newSector.MIMO.Id,
+                    Type = newSector.MIMO.Type.ToString()
+                } : null,
                 CellSector = new CellSectorDto
                 {
                     Id = newSector.CellSector?.Id ?? Guid.Empty,
