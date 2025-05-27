@@ -44,6 +44,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
+    public DbSet<CellularCoverage> CellularCoverages { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -316,14 +317,30 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(cs => cs.Sectors);
 
         modelBuilder.Entity<Cell>()
-            .Property(n => n.Location)
+            .Property(c => c.Location)
             .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<Cell>()
-            .HasIndex(n => n.Location)
+            .HasIndex(c => c.Location)
             .HasDatabaseName("IX_Cell_Location")
             .HasMethod("GIST");
+
+        modelBuilder.Entity<CellularCoverage>()
+            .HasOne(cc => cc.Network)
+            .WithMany(n => n.CellularCoverages)
+            .HasForeignKey(cc => cc.NetworkId);
+
+        modelBuilder.Entity<CellularCoverage>()
+            .Property(cc => cc.Location)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
+
+        modelBuilder.Entity<CellularCoverage>()
+            .HasIndex(cc => cc.Location)
+            .HasDatabaseName("IX_CellularCoverage_Location")
+            .HasMethod("GIST");
+
 
         base.OnModelCreating(modelBuilder);
     }

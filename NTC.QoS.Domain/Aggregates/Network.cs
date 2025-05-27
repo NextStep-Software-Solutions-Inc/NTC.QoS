@@ -15,4 +15,5 @@ public class Network : BaseEntity
     public virtual Link? DownLink { get; set; }
     public virtual List<StudyNetwork> StudyNetworks { get; set; } = [];
     public virtual List<Sector> Sectors { get; set; } = [];
+    public virtual List<CellularCoverage> CellularCoverages { get; set; } = [];
 }
