@@ -8,9 +8,9 @@ using NTC.QoS.Domain.Models.DTOs.CellSector;
 
 namespace NTC.QoS.Application.Features.CellSector.Handlers.Commands;
 
-public class CreateCellSectorHandler(ICellSectorRepository cellSectorRepository, ICellRepository cellRepository) : IRequestHandler<CreateCellSectorRequest, ApiResponse<CellSectorDto>>
+public class CreateCellSectorHandler(IRepository<Domain.Entities.CellSector> cellSectorRepository, ICellRepository cellRepository) : IRequestHandler<CreateCellSectorRequest, ApiResponse<CellSectorDto>>
 {
-    private readonly ICellSectorRepository _cellSectorRepository = cellSectorRepository;
+    private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository = cellSectorRepository;
     private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<CellSectorDto>> Handle(CreateCellSectorRequest request, CancellationToken cancellationToken)
