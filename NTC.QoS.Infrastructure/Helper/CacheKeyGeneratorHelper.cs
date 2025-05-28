@@ -49,5 +49,10 @@ namespace NTC.QoS.Infrastructure.Helper
             // as what's stored in the database for `c.Location.Coordinate.X` and `c.Location.Coordinate.Y`.
             return $"Cell-{serviceProviderId}_{towerType}_{location.Coordinate.X}_{location.Coordinate.Y}";
         }
+
+        public static string GenerateNetworkCacheKey(string networkName)
+        {
+            return networkName.ToLowerInvariant();
+        }
     }
 }

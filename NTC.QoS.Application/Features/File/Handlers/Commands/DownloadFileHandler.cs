@@ -19,17 +19,20 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
     private readonly IRepository<Domain.Entities.Band> _bandRepository;
+    private readonly IRepository<Domain.Aggregates.Network> _networkRepository;
 
     public DownloadFileHandler(
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IRepository<Domain.Aggregates.Generation> generationRepository,
         IRepository<Domain.Entities.Technology> technologyRepository,
-        IRepository<Domain.Entities.Band> bandRepository)
+        IRepository<Domain.Entities.Band> bandRepository,
+        IRepository<Domain.Aggregates.Network> networkRepository)
     {
         _serviceProviderRepository = serviceProviderRepository;
         _generationRepository = generationRepository;
         _technologyRepository = technologyRepository;
         _bandRepository = bandRepository;
+        _networkRepository = networkRepository;
     }
 
     public async Task<ApiResponse<Stream>> Handle(DownloadTemplateFileRequest request, CancellationToken cancellationToken)
@@ -161,27 +164,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateCellularCoverageTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        worksheet.Cells[1, 1].Value = "Network Name: ";
-        using (var range = worksheet.Cells["B1:E1"])
-        {
-            range.Style.Border.Bottom.Style = ExcelBorderStyle.Thin; // Or whatever style you prefer (Medium, Thick, Dashed, etc.)
-            range.Style.Border.Bottom.Color.SetColor(System.Drawing.Color.Black); // Optional: Set border color
-        }
-        AddNetworkNameHeaders(worksheet, "", "[provider]", "[generation]", "[technology standard]", "[band (frequency)]");
+        AddCommonHeaders(worksheet, "Network", "Lat", "Lng", "Strength", "Address");
 
-        var providers = await GetWirelessServiceProviders(cancellationToken);
-        AddDropdownValidation(worksheet, "B1", providers);
-
-        var generations = await GetGenerations(cancellationToken);
-        AddDropdownValidation(worksheet, "C1", generations);
-
-        var technologies = await GetTechnologies(cancellationToken);
-        AddDropdownValidation(worksheet, "D1", technologies);
-
-        var bands = await GetBands(cancellationToken);
-        AddDropdownValidation(worksheet, "E1", bands);
-
-        AddCellularCoverageHeaders(worksheet, "Lat", "Lng", "Strength", "Address", "Azimuth");
+        var networks = await GetNetworks(cancellationToken);
+        AddDropdownValidation(worksheet, "A2", networks);
 
         worksheet.Cells.AutoFitColumns();
     }
@@ -192,18 +178,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         {
             worksheet.Cells[1, i + 1].Value = headers[i];
             worksheet.Cells[1, i + 1].Style.Font.Bold = true;
-        }
-    }
-    private static void AddNetworkNameHeaders(ExcelWorksheet worksheet, params string[] headers)
-    {
-        for (int i = 0; i < headers.Length; i++)
-        {
-            worksheet.Cells[2, i + 1].Value = headers[i];
-            worksheet.Cells[2, i + 1].Style.Font.Bold = false;
-            worksheet.Cells[2, i + 1].Style.Font.Italic = true;
-            worksheet.Cells[2, i + 1].Style.Font.Size = 9;
-            worksheet.Cells[2, i + 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-            worksheet.Cells[2, i + 1].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
         }
     }
 
@@ -279,18 +253,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         // Freeze the header rows
         worksheet.View.FreezePanes(startRow + numRows, 1);
-    }
-
-    private static void AddCellularCoverageHeaders(ExcelWorksheet worksheet, params string[] headers)
-    {
-        for (int i = 0; i < headers.Length; i++)
-        {
-            worksheet.Cells[4, i + 1].Value = headers[i]; // Headers start on Row 4
-            worksheet.Cells[4, i + 1].Style.Font.Bold = true;
-            worksheet.Cells[4, i + 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-            worksheet.Cells[4, i + 1].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
-            worksheet.Cells[4, i + 1].Style.Border.BorderAround(ExcelBorderStyle.Thin);
-        }
     }
 
     private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, string? defaultValue = null)
@@ -376,6 +338,12 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
     }
+
+    private async Task<List<string>> GetNetworks(CancellationToken cancellationToken)
+    {
+        return await GetEntityNames(_networkRepository, n => !n.IsDeleted, n => n.Name, cancellationToken);
+    }
+
     private static async Task<List<string>> GetEntityNames<TEntity>(
         IRepository<TEntity> repository,
         Expression<Func<TEntity, bool>> predicate,

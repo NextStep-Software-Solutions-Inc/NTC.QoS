@@ -74,6 +74,7 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IProcessCellJob, ProcessCellJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
+        services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
 
         return services;
     }
