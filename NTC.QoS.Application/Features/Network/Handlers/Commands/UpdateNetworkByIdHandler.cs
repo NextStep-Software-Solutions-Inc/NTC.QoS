@@ -33,7 +33,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
 
         if (!string.IsNullOrEmpty(request.Network.Name)) network.Name = request.Network.Name;
 
-        var networkExistsQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id != request.Id && n.Name == request.Network.Name);
+        var networkExistsQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id != request.Id && n.Name == request.Network.Name && n.SystemTypeId == request.Network.SystemTypeId);
         var networkExists = await _networkRepository.FirstOrDefaultAsync(networkExistsQuery, cancellationToken);
         if (networkExists is not null)
         {
