@@ -116,8 +116,16 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
             }
         }
 
-        _cellularCoverageRepository.AddRange(cellularCoverageList);
-        await _cellularCoverageRepository.SaveChangesAsync(token);
+        if (cellularCoverageList.Count != 0)
+        {
+            _cellularCoverageRepository.AddRange(cellularCoverageList);
+            await _cellularCoverageRepository.SaveChangesAsync(token);
+            _logger.LogInformation("{Count} cellular coverage records saved successfully (batched).", cellularCoverageList.Count);
+        }
+        else
+        {
+            _logger.LogInformation("No cellular coverage records to add.");
+        }
 
         file.Status = FileStatusEnum.Success;
         _fileRepository.Update(file);
@@ -136,7 +144,6 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         file.Status = FileStatusEnum.Failed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Process terminated due to error in runtime");
+        _logger.LogInformation("Process terminated due to error in runtime.");
     }
-
 }

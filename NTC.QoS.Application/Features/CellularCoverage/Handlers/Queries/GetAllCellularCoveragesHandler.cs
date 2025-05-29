@@ -32,22 +32,8 @@ public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellular
                 Strength = cc.Strength,
                 Address = cc.Address,
                 Band = cc.Network.UpLink != null ? cc.Network.UpLink.Band.Name : string.Empty,
-                Generation = cc.Network.UpLink != null && cc.Network.UpLink.Band != null &&
-                             cc.Network.UpLink.Band.GenerationBands != null
-                    ? cc.Network.UpLink.Band.GenerationBands
-                        .Where(gb => gb.BandId == cc.Network.UpLink.BandId && gb.Generation != null)
-                        .Select(gb => gb.Generation.Name)
-                        .FirstOrDefault() ?? string.Empty
-                    : string.Empty,
-                Standard = cc.Network.UpLink != null && cc.Network.UpLink.Band != null &&
-                           cc.Network.UpLink.Band.GenerationBands != null
-                    ? cc.Network.UpLink.Band.GenerationBands
-                        .Where(gb => gb.Generation != null && gb.Generation.Technologies.Any())
-                        .Select(gb => gb.Generation.Technologies
-                            .Select(t => t.Standard)
-                            .FirstOrDefault())
-                        .FirstOrDefault() ?? string.Empty
-                    : string.Empty,
+                Generation = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Generation.Name : string.Empty,
+                Standard = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Standard : string.Empty,
                 Provider = cc.Network.UpLink != null ? new CCProviderDto
                 {
                     Id = cc.Network.UpLink.ServiceProvider.Provider.Id,
