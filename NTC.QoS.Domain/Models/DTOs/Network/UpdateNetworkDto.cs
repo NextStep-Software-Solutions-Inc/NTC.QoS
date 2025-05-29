@@ -3,5 +3,4 @@
 public class UpdateNetworkDto
 {
     public string? Name { get; set; }
-    public string? SystemType { get; set; }
 }

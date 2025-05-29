@@ -43,7 +43,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 Description = network.NetworkTemplate?.Description ?? string.Empty,
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
-            SystemType = network.SystemType?.Name ?? string.Empty,
+            SystemTypeName = network.SystemType?.Name ?? string.Empty,
             Uplink = new LinkNetworkDto
             {
                 Id = network.UpLinkId,

@@ -94,7 +94,7 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
                     Description = newNetwork.NetworkTemplate?.Description ?? string.Empty,
                     URL = newNetwork.NetworkTemplate?.URL ?? string.Empty
                 },
-                SystemType = newNetwork.SystemType?.Name ?? string.Empty,
+                SystemTypeName = newNetwork.SystemType?.Name ?? string.Empty,
                 Uplink = new LinkNetworkDto
                 {
                     Id = newNetwork.UpLinkId,
