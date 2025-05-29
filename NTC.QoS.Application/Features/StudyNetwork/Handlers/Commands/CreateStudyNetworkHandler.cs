@@ -97,7 +97,7 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
                 {
                     Id = newStudyNetwork.NetworkId,
                     Name = newStudyNetwork.Network?.Name ?? string.Empty,
-                    SystemType = newStudyNetwork.Network?.SystemType.ToString() ?? string.Empty,
+                    SystemTypeName = newStudyNetwork.Network?.SystemType.ToString() ?? string.Empty,
                     NetworkTemplate = new NetworkTemplateDto
                     {
                         Id = newStudyNetwork.Network?.NetworkTemplate?.Id ?? Guid.Empty,

@@ -14,53 +14,38 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
     private readonly INetworkRepository _networkRepository = networkRepository;
     public async Task<PaginatedResponse<NetworkDto>> Handle(GetAllNetworksRequest request, CancellationToken cancellationToken)
     {
-        var allNetworks = await _networkRepository.ListAsync(n => !n.IsDeleted, cancellationToken);
-        
-        var networkDtos = allNetworks.Select(n => new NetworkDto
+        var networksQuery = _networkRepository.Query(n => !n.IsDeleted);
+
+        var networkDtos = networksQuery.Select(n => new NetworkDto
         {
             Id = n.Id,
             Name = n.Name,
             NetworkTemplate = new NetworkTemplateDto
             {
                 Id = n.NetworkTemplateId,
-                Name = n.NetworkTemplate?.Name ?? string.Empty,
-                Description = n.NetworkTemplate?.Description ?? string.Empty,
-                URL = n.NetworkTemplate?.URL ?? string.Empty
+                Name = n.NetworkTemplate.Name,
+                Description = n.NetworkTemplate.Description,
+                URL = n.NetworkTemplate.URL
             },
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(n.SystemType),
+            SystemTypeName = n.SystemType.Name,
             Uplink = new LinkNetworkDto
             {
                 Id = n.UpLinkId,
-                Type = n.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(n.UpLink.Type) : string.Empty,
-                CenterFrequency = n.UpLink?.CenterFrequency ?? 0,
+                Type = EnumHelper<LinkTypeEnum>.GetName(n.UpLink.Type),
+                CenterFrequency = n.UpLink.CenterFrequency
             },
             DownLink = new LinkNetworkDto
             {
                 Id = n.DownLinkId,
-                Type = n.DownLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(n.DownLink.Type) : string.Empty,
-                CenterFrequency = n.DownLink?.CenterFrequency ?? 0,
+                Type = EnumHelper<LinkTypeEnum>.GetName(n.DownLink.Type),
+                CenterFrequency = n.DownLink.CenterFrequency,
             }
-        }).ToList();
+        });
 
-        networkDtos = [.. networkDtos
-            .Where(n => string.IsNullOrEmpty(request.Search) || (n.Name is not null && n.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)))
-            .Where(n => !request.NetworkTemplateId.HasValue || n.NetworkTemplate?.Id == request.NetworkTemplateId)];
+        networkDtos = networkDtos
+            .Where(n => string.IsNullOrEmpty(request.Search) || (n.Name != null && n.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)))
+            .Where(n => !request.NetworkTemplateId.HasValue || n.NetworkTemplate.Id == request.NetworkTemplateId);
 
-        if (networkDtos.Count is 0)
-        {
-            return new PaginatedResponse<NetworkDto>(networkDtos, request.PageNumber, request.PageSize)
-            {
-                Data = networkDtos,
-                Message = "No records found.",
-                Succeeded = false
-            };
-        }
-
-        return new PaginatedResponse<NetworkDto>(networkDtos, request.PageNumber, request.PageSize)
-        {
-            Data = networkDtos,
-            Succeeded = true,
-            Message = "Networks retrieved successfully."
-        };
+        return await _networkRepository.PaginateAsync(networkDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

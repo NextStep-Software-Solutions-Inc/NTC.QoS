@@ -65,6 +65,8 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IStudyNetworkRepository, StudyNetworkRepository>();
         services.AddScoped<IRegionRepository, RegionRepository>();
         services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
+        services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
+        services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
 
 
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
@@ -74,6 +76,7 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IProcessCellJob, ProcessCellJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
+        services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
 
         return services;
     }

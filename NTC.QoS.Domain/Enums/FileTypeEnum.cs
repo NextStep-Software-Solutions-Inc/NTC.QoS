@@ -6,5 +6,6 @@ public enum FileTypeEnum
     Cellular = 2,
     NAP = 3,
     Cell = 4,
-    Unknown = 5,
+    CellularCoverage = 5,
+    Unknown = 6,
 }

@@ -1,5 +1,6 @@
 using MediatR;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
@@ -15,32 +16,23 @@ namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFileRequest, ApiResponse<Stream>>
 {
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
-    private readonly IRepository<Domain.Entities.Zone> _zoneRepository;
-    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository;
-    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
-    private readonly IRepository<Domain.Entities.Province> _provinceRepository;
-    private readonly IRepository<Domain.Entities.Region> _regionRepository;
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
+    private readonly IRepository<Domain.Entities.Band> _bandRepository;
+    private readonly IRepository<Domain.Aggregates.Network> _networkRepository;
 
     public DownloadFileHandler(
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
-        IRepository<Domain.Entities.Zone> zoneRepository,
-        IRepository<Domain.Entities.Barangay> barangayRepository,
-        IRepository<Domain.Entities.Municipality> municipalityRepository,
-        IRepository<Domain.Entities.Province> provinceRepository,
-        IRepository<Domain.Entities.Region> regionRepository,
         IRepository<Domain.Aggregates.Generation> generationRepository,
-        IRepository<Domain.Entities.Technology> technologyRepository)
+        IRepository<Domain.Entities.Technology> technologyRepository,
+        IRepository<Domain.Entities.Band> bandRepository,
+        IRepository<Domain.Aggregates.Network> networkRepository)
     {
         _serviceProviderRepository = serviceProviderRepository;
-        _zoneRepository = zoneRepository;
-        _barangayRepository = barangayRepository;
-        _municipalityRepository = municipalityRepository;
-        _provinceRepository = provinceRepository;
-        _regionRepository = regionRepository;
         _generationRepository = generationRepository;
         _technologyRepository = technologyRepository;
+        _bandRepository = bandRepository;
+        _networkRepository = networkRepository;
     }
 
     public async Task<ApiResponse<Stream>> Handle(DownloadTemplateFileRequest request, CancellationToken cancellationToken)
@@ -64,6 +56,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
             case FileTypeEnum.Cell:
                 await GenerateTemplate(package, worksheet => GenerateCellTemplate(package, worksheet, cancellationToken), cancellationToken);
+                break;
+
+            case FileTypeEnum.CellularCoverage:
+                await GenerateTemplate(package, worksheet => GenerateCellularCoverageTemplate(package, worksheet, cancellationToken), cancellationToken);
                 break;
 
             default:
@@ -90,7 +86,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     // Just duplicate and modify this method for more template
     private async Task GenerateNAPTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lat", "Lng");
+        AddCommonHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lat", "Lng");
 
         var providers = await GetServiceProviders(cancellationToken);
 
@@ -114,7 +110,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         };
 
         // Apply the multi-row headers
-        AddMultiRowHeaders(worksheet, headers, 1); // Start writing from row 1
+        AddCellMultiRowHeaders(worksheet, headers, 1); // Start writing from row 1
 
         var providers = await GetServiceProviders(cancellationToken);
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
@@ -155,7 +151,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
+        AddCommonHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
 
         var providers = await GetWirelessServiceProviders(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
@@ -166,7 +162,17 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "K2:K10", signalQuality);
     }
 
-    private static void AddHeaders(ExcelWorksheet worksheet, params string[] headers)
+    private async Task GenerateCellularCoverageTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
+    {
+        AddCommonHeaders(worksheet, "Network", "Lat", "Lng", "Strength", "Address");
+
+        var networks = await GetNetworks(cancellationToken);
+        AddDropdownValidation(worksheet, "A2:A12", networks);
+
+        worksheet.Cells.AutoFitColumns();
+    }
+
+    private static void AddCommonHeaders(ExcelWorksheet worksheet, params string[] headers)
     {
         for (int i = 0; i < headers.Length; i++)
         {
@@ -175,7 +181,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
-    private static void AddMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
+    private static void AddCellMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
     {
         int numRows = headers.GetLength(0);
         int numCols = headers.GetLength(1);
@@ -299,30 +305,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
-    private async Task<List<string>> GetZones(CancellationToken cancellationToken)
-    {
-        return await GetEntityNames(_zoneRepository, z => !z.IsDeleted, z => z.Name, cancellationToken);
-    }
-    private async Task<List<string>> GetBarangays(CancellationToken cancellationToken)
-    {
-        return await GetEntityNames(_barangayRepository, b => !b.IsDeleted, b => b.Name, cancellationToken);
-    }
-
-    private async Task<List<string>> GetMunicipalities(CancellationToken cancellationToken)
-    {
-        return await GetEntityNames(_municipalityRepository, m => !m.IsDeleted, m => m.Name, cancellationToken);
-    }
-
-    private async Task<List<string>> GetProvinces(CancellationToken cancellationToken)
-    {
-        return await GetEntityNames(_provinceRepository, p => !p.IsDeleted, p => p.Name, cancellationToken);
-    }
-
-    private async Task<List<string>> GetRegions(CancellationToken cancellationToken)
-    {
-        return await GetEntityNames(_regionRepository, r => !r.IsDeleted, r => r.Name, cancellationToken);
-    }
-
     private async Task<List<string>> GetServiceProviders(CancellationToken cancellationToken)
     {
         var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wired)
@@ -343,6 +325,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         return await GetEntityNames(_technologyRepository, t => !t.IsDeleted, t => t.Standard, cancellationToken);
     }
 
+    private async Task<List<string>> GetBands(CancellationToken cancellationToken)
+    {
+        return await GetEntityNames(_bandRepository, b => !b.IsDeleted, b => b.Name, cancellationToken);
+    }
+
     private async Task<List<string>> GetWirelessServiceProviders(CancellationToken cancellationToken)
     {
         var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
@@ -351,6 +338,12 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
     }
+
+    private async Task<List<string>> GetNetworks(CancellationToken cancellationToken)
+    {
+        return await GetEntityNames(_networkRepository, n => !n.IsDeleted, n => n.Name, cancellationToken);
+    }
+
     private static async Task<List<string>> GetEntityNames<TEntity>(
         IRepository<TEntity> repository,
         Expression<Func<TEntity, bool>> predicate,

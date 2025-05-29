@@ -62,7 +62,7 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
             {
                 Id = sn.NetworkId,
                 Name = sn.Network?.Name ?? string.Empty,
-                SystemType = sn.Network?.SystemType.ToString() ?? string.Empty,
+                SystemTypeName = sn.Network?.SystemType.ToString() ?? string.Empty,
                 NetworkTemplate = new NetworkTemplateDto
                 {
                     Id = sn.Network?.NetworkTemplate?.Id ?? Guid.Empty,

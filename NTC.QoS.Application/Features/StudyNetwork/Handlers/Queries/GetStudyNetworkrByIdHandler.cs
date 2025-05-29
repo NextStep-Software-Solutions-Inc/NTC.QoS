@@ -56,7 +56,7 @@ public class GetStudyNetworkrByIdHandler(IStudyNetworkRepository repository) : I
                 {
                     Id = studyNetwork.NetworkId,
                     Name = studyNetwork.Network?.Name ?? string.Empty,
-                    SystemType = studyNetwork.Network?.SystemType.ToString() ?? string.Empty,
+                    SystemTypeName = studyNetwork.Network?.SystemType?.Name ?? string.Empty,
                     NetworkTemplate = new NetworkTemplateDto
                     {
                         Id = studyNetwork.Network?.NetworkTemplate?.Id ?? Guid.Empty,

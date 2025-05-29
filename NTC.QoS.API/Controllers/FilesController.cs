@@ -34,18 +34,22 @@ public class FilesController(IMediator mediator) : ControllerBase
             case FileTypeEnum.NAP:
                 // Process NAP file
                 await _mediator.Send(new ProcessNAPFileRequest(file.Data));
-
                 break;
             case FileTypeEnum.Speedtest:
                 // Process Speedtest file
                 await _mediator.Send(new ProcessSpeedtestFileRequest(file.Data));
                 break;
+
             case FileTypeEnum.Cell:
                 await _mediator.Send(new ProcessCellFileRequest(file.Data));
                 break;
 
+            case FileTypeEnum.CellularCoverage:
+                await _mediator.Send(new ProcessCellularCoverageFileRequest(file.Data));
+                break;
+
             case FileTypeEnum.Unknown:
-            default:
+                default:
                 throw new ArgumentOutOfRangeException(nameof(fileType), $"Unsupported file type: {fileType}");
         }
 
