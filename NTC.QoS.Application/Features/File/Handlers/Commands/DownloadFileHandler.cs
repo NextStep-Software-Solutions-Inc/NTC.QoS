@@ -167,7 +167,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddCommonHeaders(worksheet, "Network", "Lat", "Lng", "Strength", "Address");
 
         var networks = await GetNetworks(cancellationToken);
-        AddDropdownValidation(worksheet, "A2", networks);
+        AddDropdownValidation(worksheet, "A2:A12", networks);
 
         worksheet.Cells.AutoFitColumns();
     }

@@ -27,16 +27,14 @@ public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellular
             .Select(cc => new CellularCoverageDto
             {
                 Id = cc.Id,
-                Latitude = cc.Location.Coordinate.Y,
-                Longitude = cc.Location.Coordinate.X,
+                Lat = cc.Location.Coordinate.Y,
+                Lng = cc.Location.Coordinate.X,
                 Strength = cc.Strength,
-                Address = cc.Address,
                 Band = cc.Network.UpLink != null ? cc.Network.UpLink.Band.Name : string.Empty,
-                Generation = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Generation.Name : string.Empty,
-                Standard = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Standard : string.Empty,
+                Gen = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Generation.Name : string.Empty,
+                Std = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Standard : string.Empty,
                 Provider = cc.Network.UpLink != null ? new CCProviderDto
                 {
-                    Id = cc.Network.UpLink.ServiceProvider.Provider.Id,
                     Name = cc.Network.UpLink.ServiceProvider.Provider.Name,
                     Color = cc.Network.UpLink.ServiceProvider.Provider.Color
                 } : null
