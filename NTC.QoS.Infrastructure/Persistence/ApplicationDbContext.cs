@@ -45,6 +45,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
+    public DbSet<SystemType> SystemTypes { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -341,6 +342,25 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasDatabaseName("IX_CellularCoverage_Location")
             .HasMethod("GIST");
 
+        modelBuilder.Entity<SystemType>()
+            .HasMany(st => st.Networks)
+            .WithOne(n => n.SystemType)
+            .HasForeignKey(n => n.SystemTypeId);
+
+        modelBuilder.Entity<SystemType>()
+            .HasOne(st => st.Technology)
+            .WithMany(t => t.SystemTypes)
+            .HasForeignKey(st => st.TechnologyId);
+
+        modelBuilder.Entity<Network>()
+            .HasOne(n => n.SystemType)
+            .WithMany(st => st.Networks)
+            .HasForeignKey(n => n.SystemTypeId);
+
+        modelBuilder.Entity<Technology>()
+            .HasMany(t => t.SystemTypes)
+            .WithOne(st => st.Technology)
+            .HasForeignKey(st => st.TechnologyId);
 
         base.OnModelCreating(modelBuilder);
     }

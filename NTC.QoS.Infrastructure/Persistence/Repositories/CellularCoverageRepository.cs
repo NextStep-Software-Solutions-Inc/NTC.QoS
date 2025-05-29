@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Interfaces;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
+
 internal sealed class CellularCoverageRepository(ApplicationDbContext context) : Repository<CellularCoverage>(context), ICellularCoverageRepository
 {
     public override IQueryable<CellularCoverage> Query(Expression<Func<CellularCoverage, bool>>? expression = null)

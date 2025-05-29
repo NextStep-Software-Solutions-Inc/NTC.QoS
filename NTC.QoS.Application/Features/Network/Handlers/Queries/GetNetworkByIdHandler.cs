@@ -15,7 +15,8 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
 
     public async Task<ApiResponse<NetworkDto>> Handle(GetNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var network = await _networkRepository.GetByIdAsync(request.Id, cancellationToken);
+        var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Id);
+        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is null)
         {
             return new ApiResponse<NetworkDto>
@@ -42,7 +43,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 Description = network.NetworkTemplate?.Description ?? string.Empty,
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(network.SystemType),
+            SystemType = network.SystemType?.Name ?? string.Empty,
             Uplink = new LinkNetworkDto
             {
                 Id = network.UpLinkId,

@@ -8,7 +8,8 @@ public class Network : BaseEntity
     public Guid NetworkTemplateId { get; set; }
     public virtual NetworkTemplate? NetworkTemplate { get; set; }
     public string Name { get; set; } = string.Empty;
-    public NetworkSystemTypeEnum SystemType { get; set; } = NetworkSystemTypeEnum.Unknown;
+    public Guid SystemTypeId { get; set; }
+    public virtual SystemType? SystemType { get; set; }
     public Guid UpLinkId { get; set; }
     public virtual Link? UpLink { get; set; }
     public Guid DownLinkId { get; set; }

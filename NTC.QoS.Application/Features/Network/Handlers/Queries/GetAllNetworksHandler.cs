@@ -27,7 +27,7 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
                 Description = n.NetworkTemplate?.Description ?? string.Empty,
                 URL = n.NetworkTemplate?.URL ?? string.Empty
             },
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(n.SystemType),
+            SystemType = n.SystemType?.Name ?? string.Empty,
             Uplink = new LinkNetworkDto
             {
                 Id = n.UpLinkId,

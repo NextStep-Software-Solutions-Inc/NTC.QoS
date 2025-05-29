@@ -15,9 +15,8 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
     private readonly ILinkRepository _linkRepository = linkRepository;
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
-        var systemType = EnumHelper<NetworkSystemTypeEnum>.ParseUserInput(request.Network.SystemType);
-
-        var network = await _networkRepository.FindAsync(n => n.Name == request.Network.Name && n.SystemType == systemType && !n.IsDeleted, cancellationToken);
+        var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Name.Equals(request.Network.Name) && n.SystemTypeId == request.Network.SystemTypeId);
+        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is not null)
         {
             return new ApiResponse<NetworkDto>
@@ -74,7 +73,7 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
         {
             Name = request.Network.Name,
             NetworkTemplateId = request.Network.NetworkTemplateId,
-            SystemType = systemType,
+            SystemTypeId = request.Network.SystemTypeId,
             UpLinkId = request.Network.UplinkId,
             DownLinkId = request.Network.DownLinkId
         };
@@ -95,7 +94,7 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
                     Description = newNetwork.NetworkTemplate?.Description ?? string.Empty,
                     URL = newNetwork.NetworkTemplate?.URL ?? string.Empty
                 },
-                SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(newNetwork.SystemType),
+                SystemType = newNetwork.SystemType?.Name ?? string.Empty,
                 Uplink = new LinkNetworkDto
                 {
                     Id = newNetwork.UpLinkId,
