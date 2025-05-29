@@ -52,13 +52,13 @@ public class CreateSystemTypeHandler(ISystemTypeRepository systemTypeRepository,
                 Name = newSystemType.Name,
                 Technology = new() 
                 { 
-                    Id = newSystemType.TechnologyId,
-                    Standard = newSystemType.Technology != null ? newSystemType.Technology.Standard : string.Empty,
-                    Description = newSystemType.Technology != null && newSystemType.Technology.Description != null ? newSystemType.Technology.Description : string.Empty,
+                    Id = technology.Id,
+                    Standard = technology.Standard,
+                    Description = technology.Description ?? string.Empty,
                     Generation = new() 
                     {
-                        Id = newSystemType.Technology != null && newSystemType.Technology.Generation != null ? newSystemType.Technology.GenerationId : Guid.Empty,
-                        Name = newSystemType.Technology != null && newSystemType.Technology.Generation != null ? newSystemType.Technology.Generation.Name : string.Empty
+                        Id = technology.GenerationId,
+                        Name = technology.Generation?.Name ?? string.Empty
                     }
                 }
             },
