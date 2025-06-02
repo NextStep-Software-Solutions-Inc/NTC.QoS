@@ -128,4 +128,10 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         _context.RemoveRange(entities);
     }
+
+    public async Task<int> ExecuteDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(queryable);
+        return await queryable.ExecuteDeleteAsync(cancellationToken);
+    }
 }

@@ -49,7 +49,7 @@ public class CellularCoveragesController(IMediator mediator) : ControllerBase
         return result.Succeeded ? Ok(result) : NotFound(result);
     }
 
-    [HttpDelete("{networkId}")]
+    [HttpDelete("/networks/{networkId}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoverageByNetworkId(Guid networkId)
     {
         var result = await _mediator.Send(new DeleteCellularCoverageByNetworkIdRequest
@@ -57,5 +57,12 @@ public class CellularCoveragesController(IMediator mediator) : ControllerBase
             NetworkId = networkId
         });
         return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpDelete]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoveragesByIds([FromQuery] List<Guid> ids)
+    {
+        var result = await _mediator.Send(new DeleteCellularCoveragesByIdsRequest { Ids = ids });
+        return result.Succeeded ? Ok(result) : NotFound(result);
     }
 }
