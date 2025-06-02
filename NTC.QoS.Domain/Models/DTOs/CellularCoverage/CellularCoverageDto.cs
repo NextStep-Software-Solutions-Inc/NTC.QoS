@@ -3,6 +3,7 @@
 public class CellularCoverageDto
 {
     public Guid Id { get; set; }
+    public Guid NetworkId { get; set; }
     public double Lat { get; set; }
     public double Lng { get; set; }
     public decimal Strength { get; set; }

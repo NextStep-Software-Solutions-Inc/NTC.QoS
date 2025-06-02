@@ -42,6 +42,13 @@ public class CellularCoveragesController(IMediator mediator) : ControllerBase
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<CellularCoverageDto>>> GetCellularCoverageById(Guid id)
+    {
+        var result = await _mediator.Send(new GetCellularCoverageByIdRequest(id));
+        return result.Succeeded ? Ok(result) : NotFound(result);
+    }
+
     [HttpDelete("{networkId}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoverageByNetworkId(Guid networkId)
     {
