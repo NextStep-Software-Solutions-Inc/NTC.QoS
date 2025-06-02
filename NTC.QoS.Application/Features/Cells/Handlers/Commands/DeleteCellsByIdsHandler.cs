@@ -26,7 +26,7 @@ public class DeleteCellsByIdsHandler(ICellRepository repository) : IRequestHandl
         return new ApiResponse<bool>
         {
             Succeeded = true,
-            Message = $"{cellsToDelete} cells deleted successfully."
+            Message = $"{cellsToDelete} cell/s deleted successfully."
         };
     }
 }
