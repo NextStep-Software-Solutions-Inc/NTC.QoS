@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
+using System.ComponentModel.DataAnnotations;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -68,7 +69,7 @@ public class SpeedtestsController : ControllerBase
     }
 
     [HttpDelete]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Speedtest>>> DeleteSpeedtestById([FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<Domain.Entities.Speedtest>>> DeleteSpeedtestById([Required][FromQuery] List<Guid> ids)
     {
         var speedtests = await _mediator.Send(new DeleteSpeedtestsByIdsRequest { Ids = ids});
 

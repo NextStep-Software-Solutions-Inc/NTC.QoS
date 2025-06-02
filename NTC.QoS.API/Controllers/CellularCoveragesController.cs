@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
+using System.ComponentModel.DataAnnotations;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -60,7 +61,7 @@ public class CellularCoveragesController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoveragesByIds([FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoveragesByIds([Required] [FromQuery] List<Guid> ids)
     {
         var result = await _mediator.Send(new DeleteCellularCoveragesByIdsRequest { Ids = ids });
         return result.Succeeded ? Ok(result) : NotFound(result);
