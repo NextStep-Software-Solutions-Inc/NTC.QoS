@@ -1,4 +1,4 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.Cellular;
+﻿namespace NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
 public class CellularCoverageDto
 {

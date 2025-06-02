@@ -1,8 +1,8 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Cellular;
+using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -29,6 +29,12 @@ public class CellularCoveragesController(IMediator mediator) : ControllerBase
             Distance = distance
         });
         return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
 
+    [HttpDelete]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoverageByNetworkId([FromQuery] Guid networkId)
+    {
+        var result = await _mediator.Send(new DeleteCellularCoverageByNetworkIdRequest { NetworkId = networkId });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 }

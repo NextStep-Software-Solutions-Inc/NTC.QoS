@@ -1,9 +1,9 @@
 ﻿using MediatR;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Cellular;
+using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
-namespace NTC.QoS.Application.Features.Cellular.Requests;
+namespace NTC.QoS.Application.Features.CellularCoverage.Requests;
 
 public class GetAllCellularCoveragesRequest : IRequest<PaginatedResponse<CellularCoverageDto>>
 {
