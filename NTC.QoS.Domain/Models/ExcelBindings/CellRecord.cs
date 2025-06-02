@@ -37,11 +37,17 @@ public record CellRecord
     [ExcelHeader("850")]
     public bool Wcdma850 { get; set; }
 
+    [ExcelHeader("900")]
+    public bool Wcdma900 { get; set; }
+
     [ExcelHeader("2100")]
     public bool Wcdma2100 { get; set; }
 
-    [ExcelHeader("2100")]
-    public bool FddLte2100 { get; set; }
+    [ExcelHeader("700")]
+    public bool FddLte700 { get; set; }
+
+    [ExcelHeader("850")]
+    public bool FddLte850 { get; set; }
 
     [ExcelHeader("900")]
     public bool FddLte900 { get; set; }
@@ -49,8 +55,8 @@ public record CellRecord
     [ExcelHeader("1800")]
     public bool FddLte1800 { get; set; }
 
-    [ExcelHeader("700")]
-    public bool FddLte700 { get; set; }
+    [ExcelHeader("2100")]
+    public bool FddLte2100 { get; set; }
 
     [ExcelHeader("2300")]
     public bool TddLte2300 { get; set; }
