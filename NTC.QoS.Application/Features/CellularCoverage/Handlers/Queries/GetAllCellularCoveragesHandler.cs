@@ -1,12 +1,12 @@
 ﻿using MediatR;
 using NetTopologySuite.Geometries;
-using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Cellular;
+using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
-namespace NTC.QoS.Application.Features.Cellular.Handlers.Queries;
+namespace NTC.QoS.Application.Features.CellularCoverage.Handlers.Queries;
 
 public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellularCoverageRepository) : IRequestHandler<GetAllCellularCoveragesRequest, PaginatedResponse<CellularCoverageDto>>
 {

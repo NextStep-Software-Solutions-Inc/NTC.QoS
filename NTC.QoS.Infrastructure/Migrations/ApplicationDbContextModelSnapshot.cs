@@ -921,6 +921,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsFileUploaded")
+                        .HasColumnType("boolean");
+
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

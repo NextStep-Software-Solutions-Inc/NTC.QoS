@@ -10,4 +10,5 @@ public class CellularCoverage : BaseEntity
     public string? Address { get; set; }
     public decimal Strength { get; set; }
     public Point Location { get; set; } = null!;
+    public bool IsFileUploaded { get; set; }
 }

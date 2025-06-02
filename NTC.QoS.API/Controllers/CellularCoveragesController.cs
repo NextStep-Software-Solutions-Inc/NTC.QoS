@@ -12,6 +12,17 @@ public class CellularCoveragesController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<CellularCoverageDto>>> CreateCellularCoverage(CreateCellularCoverageDto cellularCoverage)
+    {
+        var request = new CreateCellularCoverageRequest
+        {
+            CellularCoverage = cellularCoverage
+        };
+        var result = await _mediator.Send(request);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages([FromQuery] int pageSize = 10,
                                                                                     [FromQuery] int pageNumber = 1,
@@ -31,10 +42,13 @@ public class CellularCoveragesController(IMediator mediator) : ControllerBase
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
-    [HttpDelete]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoverageByNetworkId([FromQuery] Guid networkId)
+    [HttpDelete("{networkId}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoverageByNetworkId(Guid networkId)
     {
-        var result = await _mediator.Send(new DeleteCellularCoverageByNetworkIdRequest { NetworkId = networkId });
+        var result = await _mediator.Send(new DeleteCellularCoverageByNetworkIdRequest
+        {
+            NetworkId = networkId
+        });
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 }
