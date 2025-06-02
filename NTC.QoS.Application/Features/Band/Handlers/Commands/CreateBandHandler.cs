@@ -12,7 +12,8 @@ public class CreateBandHandler (IRepository<Domain.Entities.Band> repository): I
 
     public async Task<ApiResponse<CreateBandDto>> Handle(CreateBandRequest request, CancellationToken cancellationToken)
     {
-        var band = await _repository.FindAsync(b => b.Name == request.Band.Name && !b.IsDeleted, cancellationToken);
+        var bandQuery = _repository.Query(b => b.Name == request.Band.Name && !b.IsDeleted);
+        var band = await _repository.FirstOrDefaultAsync(bandQuery, cancellationToken);
 
         if (band != null)
         {

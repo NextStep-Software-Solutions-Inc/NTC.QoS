@@ -11,7 +11,9 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
     private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
     public async Task<ApiResponse<AreaStudyDto>> Handle(UpdateAreaStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var areaStudy = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var areaStudyQuery = _repository.Query(a => a.Id == request.Id && !a.IsDeleted);
+        var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
+
         if (areaStudy is null)
         {
             return new ApiResponse<AreaStudyDto> 
@@ -30,7 +32,9 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
         if (!String.IsNullOrEmpty(request.AreaStudy.Name)) areaStudy.Name = request.AreaStudy.Name;
         if (!String.IsNullOrEmpty(request.AreaStudy.Description)) areaStudy.Description = request.AreaStudy.Description;
 
-        var existingAreaStudy = await _repository.FindAsync(a => a.Name == areaStudy.Name, cancellationToken);
+        var existingAreaStudyQuery = _repository.Query(a => a.Name == areaStudy.Name);
+        var existingAreaStudy = await _repository.FirstOrDefaultAsync(existingAreaStudyQuery, cancellationToken);
+
         if (existingAreaStudy is not null)
         {
             return new ApiResponse<AreaStudyDto>

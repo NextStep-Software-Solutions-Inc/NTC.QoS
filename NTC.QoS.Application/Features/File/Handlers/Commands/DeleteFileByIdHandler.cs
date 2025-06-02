@@ -10,7 +10,9 @@ public class DeleteFileByIdHandler(IFileRepository repository) : IRequestHandler
     private readonly IFileRepository _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteFileByIdRequest request, CancellationToken cancellationToken)
     {
-        var file = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var fileQuery = _repository.Query(f => f.Id == request.Id && !f.IsDeleted);
+        var file = await _repository.FirstOrDefaultAsync(fileQuery, cancellationToken);
+
         if (file is null)
         {
             return new ApiResponse<bool>

@@ -12,7 +12,8 @@ public class CreateGenerationBandHandler(IRepository<Domain.Aggregates.Generatio
 
     public async Task<ApiResponse<CreateGenerationBandDto>> Handle(CreateGenerationBandRequest request, CancellationToken cancellationToken)
     {
-        var existingGenerationBand = await _repository.FindAsync(gb => gb.GenerationId == request.GenerationBand.GenerationId && gb.BandId == request.GenerationBand.BandId, cancellationToken);
+        var existingGenerationBandQuery = _repository.Query(gb => gb.GenerationId == request.GenerationBand.GenerationId && gb.BandId == request.GenerationBand.BandId);
+        var existingGenerationBand = await _repository.FirstOrDefaultAsync(existingGenerationBandQuery, cancellationToken);
 
         if (existingGenerationBand is not null)
         {

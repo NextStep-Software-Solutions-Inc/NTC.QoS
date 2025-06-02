@@ -12,7 +12,8 @@ public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
     public async Task<ApiResponse<UpdateAntennaPatternDto>> Handle(UpdateAntennaPatternByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var antennaPattern = await _repository.FindAsync(ap => ap.Id == request.Id && !ap.IsDeleted, cancellationToken);
+        var antennaPatternQuery = _repository.Query(ap => ap.Id == request.Id && !ap.IsDeleted);
+        var antennaPattern = await _repository.FirstOrDefaultAsync(antennaPatternQuery, cancellationToken);
 
         if (antennaPattern is null)
         {
@@ -22,7 +23,7 @@ public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Id", ["Antenna Pattern not found."] }
+                    { "Id", new[] { "Antenna Pattern not found." } }
                 },
                 Message = "The antenna pattern you are trying to edit does not exist.",
             };

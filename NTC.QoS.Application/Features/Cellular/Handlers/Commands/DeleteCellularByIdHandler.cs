@@ -11,7 +11,8 @@ public class DeleteCellularByIdHandler(IRepository<Domain.Entities.Cellular> rep
     public async Task<ApiResponse<bool>> Handle(DeleteCellularByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var cellular = await _repository.FindAsync(c => c.Id == request.Id && !c.IsDeleted, cancellationToken);
+        var cellularQuery = _repository.Query(c => c.Id == request.Id && !c.IsDeleted);
+        var cellular = await _repository.FirstOrDefaultAsync(cellularQuery, cancellationToken);
 
         if (cellular is null)
         {

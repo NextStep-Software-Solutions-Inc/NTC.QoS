@@ -11,9 +11,10 @@ public class DeleteAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
     public async Task<ApiResponse<bool>> Handle(DeleteAntennaPatternByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var antennaPattern = await _repository.FindAsync(ap => ap.Id == request.Id && !ap.IsDeleted, cancellationToken);
+        var antennaPattern = _repository.Query(ap => ap.Id == request.Id && !ap.IsDeleted);
+        var existingAntennaPattern = await _repository.FirstOrDefaultAsync(antennaPattern, cancellationToken);
 
-        if (antennaPattern is null)
+        if (existingAntennaPattern is null)
         {
             return new ApiResponse<bool>
             {
@@ -26,7 +27,7 @@ public class DeleteAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
             };
         }
 
-        _repository.Delete(antennaPattern);
+        _repository.Delete(existingAntennaPattern);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>

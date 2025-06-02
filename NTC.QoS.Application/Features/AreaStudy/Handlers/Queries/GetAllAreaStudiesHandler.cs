@@ -12,7 +12,8 @@ public class GetAllAreaStudiesHandler(IRepository<Domain.Entities.AreaStudy> rep
 
     public async Task<PaginatedResponse<AreaStudyDto>> Handle(GetAllAreaStudiesRequest request, CancellationToken cancellationToken)
     {
-        var allAreaStudies = await _repository.ListAsync(a => !a.IsDeleted, cancellationToken);
+        var allAreaStudiesQuery = _repository.Query(a => !a.IsDeleted);
+        var allAreaStudies = await _repository.ToListAsync(allAreaStudiesQuery, cancellationToken);
 
         var areaStudyDtos = allAreaStudies.Select(a => new AreaStudyDto
         {
