@@ -1,12 +1,12 @@
 ﻿using MediatR;
 using NetTopologySuite.Geometries;
-using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Cellular;
+using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
-namespace NTC.QoS.Application.Features.Cellular.Handlers.Queries;
+namespace NTC.QoS.Application.Features.CellularCoverage.Handlers.Queries;
 
 public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellularCoverageRepository) : IRequestHandler<GetAllCellularCoveragesRequest, PaginatedResponse<CellularCoverageDto>>
 {
@@ -27,9 +27,11 @@ public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellular
             .Select(cc => new CellularCoverageDto
             {
                 Id = cc.Id,
+                NetworkId = cc.NetworkId,
                 Lat = cc.Location.Coordinate.Y,
                 Lng = cc.Location.Coordinate.X,
                 Strength = cc.Strength,
+
                 Band = cc.Network.UpLink != null ? cc.Network.UpLink.Band.Name : string.Empty,
                 Gen = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Generation.Name : string.Empty,
                 Std = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Standard : string.Empty,

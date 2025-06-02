@@ -107,6 +107,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                     Location = GeometryHelper.CreatePoint(new Coordinate(x: record.Longitude, y: record.Latitude)),
                     Strength = record.Strength,
                     Address = record.Address,
+                    IsFileUploaded = true,
                 };
                 cellularCoverageList.Add(cellularCoverage);
             }

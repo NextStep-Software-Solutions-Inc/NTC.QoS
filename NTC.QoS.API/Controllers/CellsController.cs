@@ -4,6 +4,7 @@ using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using System.ComponentModel.DataAnnotations;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -67,10 +68,10 @@ public class CellsController(IMediator mediator) : ControllerBase
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
     
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById(Guid id)
+    [HttpDelete]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById([Required] [FromQuery] List<Guid> ids)
     {
-        var cell = await _mediator.Send(new DeleteCellByIdRequest(id));
-        return cell.Succeeded ? Ok(cell) : BadRequest(cell);
+        var cells = await _mediator.Send(new DeleteCellsByIdsRequest { Ids = ids});
+        return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }
 }

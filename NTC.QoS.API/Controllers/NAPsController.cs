@@ -54,10 +54,10 @@ public class NAPsController : ControllerBase
         return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
     }
 
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Aggregates.NAP>>> DeleteNAPById(Guid id)
+    [HttpDelete]
+    public async Task<ActionResult<ApiResponse<Domain.Aggregates.NAP>>> DeleteNAPsByIds([Required] [FromQuery] List<Guid> ids)
     {
-        var NAP = await _mediator.Send(new DeleteNAPByIdRequest(id));
+        var NAP = await _mediator.Send(new DeleteNAPsByIdsRequest { Ids = ids});
 
         return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
     }
