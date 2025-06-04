@@ -11,6 +11,7 @@ using NTC.QoS.Infrastructure.Services;
 using NetTopologySuite.Geometries; // For Point
 
 namespace NTC.QoS.Infrastructure;
+
 public static class InfrastructureDependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -18,10 +19,25 @@ public static class InfrastructureDependencyInjection
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
         var hangfireConnectionString = configuration.GetConnectionString("HangfireConnection");
 
-        // Register DbContext
-        services.AddDbContext<ApplicationDbContext>(options =>
+        services.AddHttpClient<IClerkUserService, ClerkUserService>(client =>
         {
-            var userContextService = services.BuildServiceProvider().GetRequiredService<IUserContextService>();
+            // BaseAddress and DefaultRequestHeaders should ideally be set here
+            // to ensure the HttpClient instance injected into ClerkService is pre-configured.
+            // This also ensures that the HttpClient is correctly managed by HttpClientFactory.
+            client.BaseAddress = new Uri("https://api.clerk.com/v1/");
+            // The API key will be added in the ClerkService constructor as it depends on IConfiguration.
+            // For a more robust solution, consider passing Clerk API settings via options pattern.
+        });
+
+        // Register DbContext
+        // Ensure IUserContextService is registered before DbContext if DbContext depends on it directly for interceptors.
+        // It's generally better to register IUserContextService first and then resolve it.
+        services.AddScoped<IUserContextService, UserContextService>();
+
+        services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
+        {
+            // Resolve IUserContextService from the serviceProvider within the DbContext configuration
+            var userContextService = serviceProvider.GetRequiredService<IUserContextService>();
             options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()).AddInterceptors(new TimestampInterceptor(userContextService));
         });
 

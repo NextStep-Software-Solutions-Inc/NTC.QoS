@@ -5,9 +5,10 @@ using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
-public class CreateSessionHandler(IUserRepository userRepository) : IRequestHandler<CreateSessionRequest, ApiResponse<bool>>
+public class CreateSessionHandler(IUserRepository userRepository, IClerkUserService clerkUserService) : IRequestHandler<CreateSessionRequest, ApiResponse<bool>>
 {
     private readonly IUserRepository _userRepository = userRepository;
+    private readonly IClerkUserService _clerkUserService = clerkUserService;
 
     public async Task<ApiResponse<bool>> Handle(CreateSessionRequest request, CancellationToken cancellationToken)
     {
@@ -23,14 +24,34 @@ public class CreateSessionHandler(IUserRepository userRepository) : IRequestHand
             };
         }
 
-        if (user.Role is null || user.Role.RolePermissions is null || user.Organization is null)
+        //if (user.Role is null || user.Role.RolePermissions is null || user.Organization is null)
+        //{
+        //    return new ApiResponse<bool>
+        //    {
+        //        Succeeded = false,
+        //        Message = "Role or Role Permissions or Role Organization are missing."
+        //    };
+        //}
+
+        //var metadataPayload = new
+        //{
+        //    public_metadata = new
+        //    {
+        //        role = user.Role.Key,
+        //        organization = user.Role.Organization.Name,
+        //        permissions = user.Role.RolePermissions.Select(rp => rp.Permission!.Key).ToList()
+        //    }
+        //};
+
+        await _clerkUserService.UpdateUserMetadataAsync(user.AuthUserId, new UserMetadataPayload
         {
-            return new ApiResponse<bool>
+            PublicMetadata = new Dictionary<string, object>
             {
-                Succeeded = false,
-                Message = "Role or Role Permissions or Role Organization are missing."
-            };
-        }
+                { "role", user.Role?.Key ?? "unknown" },
+                { "organization", user.Organization?.Name ?? "unknown" },
+                { "permissions", user.Role?.RolePermissions?.Select(rp => rp.Permission?.Key).ToList() ?? [] }
+            }
+        });
 
         return new ApiResponse<bool>
         {

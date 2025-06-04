@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -9,6 +10,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("cellular-coverages", Name = "cellular-coverages")]
+[Authorize]
+
 public class CellularCoveragesController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;

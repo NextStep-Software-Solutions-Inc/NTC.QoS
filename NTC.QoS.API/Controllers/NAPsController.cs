@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -9,6 +10,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("NAPs", Name = "NAPs")]
+[Authorize]
+
 public class NAPsController : ControllerBase
 {
     private readonly IMediator _mediator;

@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.AntennaPattern.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("antenna-patterns", Name = "antenna-patterns")]
+[Authorize]
+
 public class AntennaPatternsController: ControllerBase
 {
     private readonly IMediator _mediator;

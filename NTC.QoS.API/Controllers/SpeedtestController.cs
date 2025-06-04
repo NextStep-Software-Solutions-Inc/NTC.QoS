@@ -1,9 +1,7 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Speedtest.Requests;
-using NTC.QoS.Domain.Aggregates;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using System.ComponentModel.DataAnnotations;
@@ -12,6 +10,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("speedtests", Name = "speedtests")]
+[Authorize]
+
 public class SpeedtestsController : ControllerBase
 {
     private readonly IMediator _mediator;

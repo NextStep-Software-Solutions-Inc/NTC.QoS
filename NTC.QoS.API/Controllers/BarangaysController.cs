@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Barangay.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -6,9 +7,10 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("barangays", Name = "barangays")]
+[Authorize]
+
 public class BarangaysController : ControllerBase
 {
     private readonly IMediator _mediator;

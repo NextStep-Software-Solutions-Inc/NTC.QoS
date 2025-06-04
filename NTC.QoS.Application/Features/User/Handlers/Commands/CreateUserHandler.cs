@@ -16,10 +16,13 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var existingUser = await _userRepository.FindAsync(u => u.RoleId == request.User.RoleId
+        var userQuery = _userRepository.Query(u => u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId
-                                                           && u.AuthUserId == request.User.AuthUserId, cancellationToken);
-        if (existingUser is not null) 
+                                                           && u.AuthUserId == request.User.AuthUserId
+                                                           && !u.IsDeleted);
+        var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
+
+        if (user is not null) 
         {
             return new ApiResponse<UserDto>
             {
@@ -34,42 +37,10 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             };
         }
         
-        var role = await _roleRepository.GetByIdAsync(request.User.RoleId, cancellationToken);
-        if (role is null)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "Role not found.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { 
-                        "RoleId", ["Role with the specified Id does not exist"] 
-                    }
-                }
-            };
-        }
-
-        var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId, cancellationToken);
-        if (organization is null)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "Organization not found.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "OrganizationId", ["Organization with the specified Id does not exist."] 
-                    }
-                }
-            };
-        }
-
         var newUser = new Domain.Entities.User
         {
-            RoleId = role.Id,
-            OrganizationId = organization.Id,
+            RoleId = request.User.RoleId,
+            OrganizationId = request.User.OrganizationId,
             AuthUserId = request.User.AuthUserId
         };
 

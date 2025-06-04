@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -6,9 +7,10 @@ using NTC.QoS.Domain.Models.DTOs.Municipality;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("municipalities", Name = "municipalities")]
+[Authorize]
+
 public class MunicipalitiesController : ControllerBase
 {
     private readonly IMediator _mediator;

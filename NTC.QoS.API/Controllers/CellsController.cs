@@ -1,7 +1,7 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Cells.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using System.ComponentModel.DataAnnotations;
@@ -10,6 +10,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("cells", Name = "cells")]
+[Authorize]
+
 public class CellsController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
