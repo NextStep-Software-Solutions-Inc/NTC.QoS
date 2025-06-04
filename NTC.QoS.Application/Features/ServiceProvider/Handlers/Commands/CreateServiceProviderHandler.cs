@@ -17,7 +17,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
                                                                     && sp.MNC == request.ServiceProvider.MNC
                                                                     && sp.MCC == request.ServiceProvider.MCC);
         var serviceProvider = await _repository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
-        if (serviceProvider is not null && serviceProvider.IsDeleted.Equals(true))
+        if (serviceProvider is not null && serviceProvider.IsDeleted)
         {
             serviceProvider.IsDeleted = false;
             _repository.Update(serviceProvider);
@@ -50,7 +50,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
             };
         }
 
-        if (serviceProvider is not null && serviceProvider.IsDeleted.Equals(false))
+        if (serviceProvider is not null && !serviceProvider.IsDeleted)
         {
             return new ApiResponse<ServiceProviderDto>
             {

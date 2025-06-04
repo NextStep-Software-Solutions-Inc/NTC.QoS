@@ -18,7 +18,7 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
 
     public async Task<ApiResponse<StudyNetworkDto>> Handle(CreateStudyNetworkRequest request, CancellationToken cancellationToken)
     {
-        var studyNetworkQuery = _repository.Query(sn => sn.StudyId == request.StudyNetwork.StudyId && sn.NetworkId == request.StudyNetwork.NetworkId);
+        var studyNetworkQuery = _repository.Query(sn => !sn.IsDeleted && sn.StudyId == request.StudyNetwork.StudyId && sn.NetworkId == request.StudyNetwork.NetworkId);
         var studyNetwork = await _repository.FirstOrDefaultAsync(studyNetworkQuery, cancellationToken);
 
         if (studyNetwork is not null)

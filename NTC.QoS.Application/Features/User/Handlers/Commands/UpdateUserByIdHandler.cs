@@ -78,6 +78,7 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         if (!string.IsNullOrEmpty(request.User.AuthUserId)) user.AuthUserId = request.User.AuthUserId;
 
         var existingUserQuery = _userRepository.Query(u => u.Id != request.Id &&
+                                !u.IsDeleted &&
                                  u.RoleId == user.RoleId &&
                                  u.OrganizationId == user.OrganizationId &&
                                  u.AuthUserId == user.AuthUserId);

@@ -34,7 +34,7 @@ public class CreateProvinceRequestHandler(IProvinceRepository provinceRepository
             };
         }
 
-        var existsQuery = _provinceRepository.Query(p => p.Name == request.Province.Name && p.RegionId == request.Province.RegionId);
+        var existsQuery = _provinceRepository.Query(p => p.Name == request.Province.Name && p.RegionId == request.Province.RegionId && !p.IsDeleted);
         var exists = await _provinceRepository.FirstOrDefaultAsync(existsQuery, cancellationToken);
 
         if (exists is not null)

@@ -14,7 +14,7 @@ public class CreateAreaStudyHandler(IRepository<Domain.Entities.AreaStudy> repos
         var areaStudyQuery = _repository.Query(a => a.Name == request.AreaStudy.Name);
         var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
 
-        if (areaStudy is not null && areaStudy.IsDeleted.Equals(true)) 
+        if (areaStudy is not null && areaStudy.IsDeleted) 
         {
             areaStudy.IsDeleted = false;
             _repository.Update(areaStudy);
@@ -33,7 +33,7 @@ public class CreateAreaStudyHandler(IRepository<Domain.Entities.AreaStudy> repos
             };
         }
 
-        if (areaStudy is not null && areaStudy.IsDeleted.Equals(false))
+        if (areaStudy is not null && !areaStudy.IsDeleted)
         {
             return new ApiResponse<AreaStudyDto>
             {

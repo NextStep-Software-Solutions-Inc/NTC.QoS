@@ -11,10 +11,10 @@ public class GetMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository) : 
     private readonly IRepository<Domain.Entities.MIMO> _repository = repository;
     public async Task<ApiResponse<MIMODto>> Handle(GetMIMOByIdRequest request, CancellationToken cancellationToken)
     {
-        var mimoQuery = _repository.Query(m => m.Id == request.Id);
+        var mimoQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
         var mimo = await _repository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
 
-        if (mimo == null)
+        if (mimo is null)
         {
             return new ApiResponse<MIMODto>
             {

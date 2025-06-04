@@ -47,8 +47,7 @@ public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IReques
             };
         }
 
-        var existsQuery = _repository.Query(
-                p => p.Name == request.Province.Name && p.RegionId == province.RegionId);
+        var existsQuery = _repository.Query(p => p.Name == request.Province.Name && p.RegionId == province.RegionId && p.Id != request.Id && !p.IsDeleted);
         var exists = await _repository.FirstOrDefaultAsync(existsQuery, cancellationToken);
 
         if (exists is not null)

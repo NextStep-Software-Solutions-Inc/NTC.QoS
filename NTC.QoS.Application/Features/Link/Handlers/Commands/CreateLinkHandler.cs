@@ -45,8 +45,8 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
             };
         }
 
-        var serviceProviderQuer = _serviceProviderRepository.Query(sp => sp.Id == request.Link.ServiceProviderId && !sp.IsDeleted);
-        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuer, cancellationToken);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Link.ServiceProviderId && !sp.IsDeleted);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
 
         if (serviceProvider is null)
         {

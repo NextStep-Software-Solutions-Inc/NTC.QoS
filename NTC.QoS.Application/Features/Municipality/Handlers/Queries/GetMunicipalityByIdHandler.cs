@@ -14,7 +14,7 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(GetMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Id);
+        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Id && !m.IsDeleted);
         var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)

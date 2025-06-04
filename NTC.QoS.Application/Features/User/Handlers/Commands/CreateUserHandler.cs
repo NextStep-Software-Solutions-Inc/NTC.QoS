@@ -16,7 +16,7 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var existingUserQuery = _userRepository.Query(u => u.RoleId == request.User.RoleId
+        var existingUserQuery = _userRepository.Query(u => !u.IsDeleted && u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId
                                                            && u.AuthUserId == request.User.AuthUserId);
         var existingUser = await _userRepository.FirstOrDefaultAsync(existingUserQuery, cancellationToken);

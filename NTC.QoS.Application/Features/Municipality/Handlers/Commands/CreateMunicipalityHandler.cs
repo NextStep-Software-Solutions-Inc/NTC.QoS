@@ -33,7 +33,7 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
             };
         }
 
-        var provinceQuery = _provinceRepository.Query(p => p.Id == request.Municipality.ProvinceId);
+        var provinceQuery = _provinceRepository.Query(p => p.Id == request.Municipality.ProvinceId && !p.IsDeleted);
         var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
