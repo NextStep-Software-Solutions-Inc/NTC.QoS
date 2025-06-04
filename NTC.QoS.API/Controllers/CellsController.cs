@@ -37,7 +37,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         [FromQuery] List<Guid>? serviceIds = null,
         double longitude = 0,
         double latitude = 0,
-        double distance = 1000)
+        double distance = 180000000)
     {
         if (memoryCache.TryGetValue(CellsCacheKey, out PaginatedResponse<CellDto>? cachedCells))
             return Ok(cachedCells);
