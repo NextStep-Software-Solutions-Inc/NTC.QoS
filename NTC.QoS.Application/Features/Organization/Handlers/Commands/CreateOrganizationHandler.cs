@@ -12,7 +12,8 @@ public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization>
 
     public async Task<ApiResponse<CreateOrganizationDto>> Handle(CreateOrganizationRequest request, CancellationToken cancellationToken)
     {
-        var organization = await _repository.FindAsync(o => o.Name == request.Organization.Name && !o.IsDeleted, cancellationToken);
+        var organizationQuery = _repository.Query(o => o.Name == request.Organization.Name && !o.IsDeleted);
+        var organization = await _repository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
 
         if (organization is not null)
         {

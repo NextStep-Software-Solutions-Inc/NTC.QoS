@@ -12,7 +12,7 @@ public class GetAllStudiesHandler(IStudyRepository studyRepository) : IRequestHa
     private readonly IStudyRepository _studyRepository = studyRepository;
     public async Task<PaginatedResponse<StudyDto>> Handle(GetAllStudiesRequest request, CancellationToken cancellationToken)
     {
-        var studies = await _studyRepository.ListAsync(s => !s.IsDeleted, cancellationToken);
+        var studies = _studyRepository.Query(s => !s.IsDeleted);
 
         var allStudies = studies.Select(study => new StudyDto
         {
@@ -22,32 +22,14 @@ public class GetAllStudiesHandler(IStudyRepository studyRepository) : IRequestHa
             AreaStudy = new AreaStudyDto
             {
                 Id = study.AreaStudyId,
-                Name = study.AreaStudy?.Name ?? string.Empty,
-                Description = study.AreaStudy?.Description
+                Name = study.AreaStudy != null ? study.AreaStudy.Name : string.Empty,
+                Description = study.AreaStudy != null ? study.AreaStudy.Description : null
             },
             StudyRadius = study.StudyRadius
-        }).ToList();
+        });
 
-        allStudies = [.. allStudies
-                .Where(s => !request.AreaStudyId.HasValue || s.AreaStudy!.Id == request.AreaStudyId.Value)];
-        
+        allStudies = allStudies.Where(s => !request.AreaStudyId.HasValue || s.AreaStudy!.Id == request.AreaStudyId.Value);
 
-        if (allStudies.Count is 0)
-        {
-            return new PaginatedResponse<StudyDto>(allStudies, request.PageNumber, request.PageSize)
-            {
-                Data = allStudies,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
-
-        return new PaginatedResponse<StudyDto>(allStudies, request.PageNumber, request.PageSize)
-        {
-
-            Data = allStudies,
-            Message = "Studies retrieved successfully.",
-            Succeeded = true
-        };
+        return await _studyRepository.PaginateAsync(allStudies, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

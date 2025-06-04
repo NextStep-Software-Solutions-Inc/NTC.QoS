@@ -10,7 +10,8 @@ public class DeleteMunicipalityHandler(IMunicipalityRepository repository) : IRe
     private readonly IMunicipalityRepository _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipality = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var municipalityQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
         {

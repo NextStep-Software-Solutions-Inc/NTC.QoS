@@ -15,8 +15,9 @@ public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler
     private readonly IZoneRepository _repository = repository;
     public async Task<ApiResponse<ZoneDto>> Handle(UpdateZoneByIdRequest request, CancellationToken cancellationToken)
     {
-        var zone = await _repository.FindAsync(z => z.Id == request.Id && !z.IsDeleted, cancellationToken);
-        
+        var zoneQuery = _repository.Query(z => z.Id == request.Id && !z.IsDeleted);
+        var zone = await _repository.FirstOrDefaultAsync(zoneQuery, cancellationToken); 
+
         if (zone is null)
         {
             return new ApiResponse<ZoneDto>

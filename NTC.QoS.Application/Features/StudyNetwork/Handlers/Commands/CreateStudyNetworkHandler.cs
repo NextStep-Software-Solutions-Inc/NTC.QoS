@@ -18,7 +18,9 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
 
     public async Task<ApiResponse<StudyNetworkDto>> Handle(CreateStudyNetworkRequest request, CancellationToken cancellationToken)
     {
-        var studyNetwork = await _repository.FindAsync(sn => sn.StudyId == request.StudyNetwork.StudyId && sn.NetworkId == request.StudyNetwork.NetworkId, cancellationToken);
+        var studyNetworkQuery = _repository.Query(sn => sn.StudyId == request.StudyNetwork.StudyId && sn.NetworkId == request.StudyNetwork.NetworkId);
+        var studyNetwork = await _repository.FirstOrDefaultAsync(studyNetworkQuery, cancellationToken);
+
         if (studyNetwork is not null)
         {
             return new ApiResponse<StudyNetworkDto>
@@ -34,7 +36,8 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
             };
         }
 
-        var network = await _networkRepository.GetByIdAsync(request.StudyNetwork.NetworkId, cancellationToken);
+        var networkQuery = _networkRepository.Query(n => n.Id == request.StudyNetwork.NetworkId && !n.IsDeleted);
+        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is null)
         {
             return new ApiResponse<StudyNetworkDto>
@@ -50,7 +53,8 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
             };
         }
 
-        var study = await _studyRepository.GetByIdAsync(request.StudyNetwork.StudyId, cancellationToken);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.StudyNetwork.StudyId && !s.IsDeleted);
+        var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
         if (study is null)
         {
             return new ApiResponse<StudyNetworkDto>

@@ -11,7 +11,8 @@ public class DeleteTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
     public async Task<ApiResponse<bool>> Handle(DeleteTechnologyByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var technology = await _repository.FindAsync(t => t.Id == request.Id && !t.IsDeleted, cancellationToken);
+        var technologyQuery = _repository.Query(t => t.Id == request.Id && !t.IsDeleted);
+        var technology = await _repository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
 
         if (technology == null)
         {

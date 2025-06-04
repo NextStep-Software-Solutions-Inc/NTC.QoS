@@ -12,7 +12,9 @@ public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository
 
     public async Task<ApiResponse<RoleDto>> Handle(CreateRoleRequest request, CancellationToken cancellationToken)
     {
-        var role = await _roleRepository.FindAsync(r => r.Name == request.Role.Name && !r.IsDeleted, cancellationToken);
+        var roleQuery = _roleRepository.Query(r => r.Name == request.Role.Name && !r.IsDeleted);
+        var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
+
         if (role is not null) return new ApiResponse<RoleDto>("Role already exists.");
                 
         var newRole = new Domain.Entities.Role

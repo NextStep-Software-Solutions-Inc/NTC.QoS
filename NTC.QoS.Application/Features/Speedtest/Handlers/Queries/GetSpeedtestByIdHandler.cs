@@ -14,7 +14,8 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(GetSpeedtestByIdRequest request, CancellationToken cancellationToken)
     {
-        var speedtest = await _speedtestRepository.GetByIdAsync(request.Id, cancellationToken);
+        var speedtestQuery = _speedtestRepository.Query(sp => sp.Id == request.Id && !sp.IsDeleted);
+        var speedtest = await _speedtestRepository.FirstOrDefaultAsync(speedtestQuery, cancellationToken);
 
         if (speedtest is null)
         {

@@ -15,7 +15,8 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(CreateMunicipalityRequest request, CancellationToken cancellationToken)
     {
-        var municipality = await _repository.FindAsync(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId && !m.IsDeleted, cancellationToken);
+        var municipalityQuery = _repository.Query(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId && !m.IsDeleted);
+        var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is not null)
         {
@@ -32,8 +33,9 @@ public class CreateMunicipalityHandler(IMunicipalityRepository repository, IProv
             };
         }
 
-        var province = await _provinceRepository.GetByIdAsync(request.Municipality.ProvinceId, cancellationToken);
-        
+        var provinceQuery = _provinceRepository.Query(p => p.Id == request.Municipality.ProvinceId);
+        var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
+
         if (province is null)
         {
             return new ApiResponse<MunicipalityDto>

@@ -8,38 +8,24 @@ namespace NTC.QoS.Application.Features.AreaStudy.Handlers.Queries;
 
 public class GetAllAreaStudiesHandler(IRepository<Domain.Entities.AreaStudy> repository) : IRequestHandler<GetAllAreaStudiesRequest, PaginatedResponse<AreaStudyDto>>
 {
-    private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;   
+    private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
 
     public async Task<PaginatedResponse<AreaStudyDto>> Handle(GetAllAreaStudiesRequest request, CancellationToken cancellationToken)
     {
-        var allAreaStudiesQuery = _repository.Query(a => !a.IsDeleted);
-        var allAreaStudies = await _repository.ToListAsync(allAreaStudiesQuery, cancellationToken);
+        var areaStudiesQuery = _repository.Query(a => !a.IsDeleted);
 
-        var areaStudyDtos = allAreaStudies.Select(a => new AreaStudyDto
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            areaStudiesQuery = areaStudiesQuery.Where(a => a.Name != null && a.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var areaStudyDtosQuery = areaStudiesQuery.Select(a => new AreaStudyDto
         {
             Id = a.Id,
             Name = a.Name,
             Description = a.Description
-        }).ToList();
+        });
 
-        areaStudyDtos = [.. areaStudyDtos
-            .Where(a => string.IsNullOrEmpty(request.Search) || (a.Name is not null && a.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)))];
-
-        if (areaStudyDtos.Count is 0)
-        {
-            return new PaginatedResponse<AreaStudyDto>(areaStudyDtos, request.PageNumber, request.PageSize)
-            {
-                Data = areaStudyDtos,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
-
-        return new PaginatedResponse<AreaStudyDto>(areaStudyDtos, request.PageNumber, request.PageSize)
-        {
-            Data = areaStudyDtos,
-            Succeeded = true,
-            Message = "Area studies retrieved successfully."
-        };
+        return await _repository.PaginateAsync(areaStudyDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

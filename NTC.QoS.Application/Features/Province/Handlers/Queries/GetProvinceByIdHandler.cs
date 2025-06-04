@@ -13,7 +13,8 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
 
     public async Task<ApiResponse<ProvinceDto>> Handle(GetProvinceByIdRequest request, CancellationToken cancellationToken)
     {
-        var province = await _provinceRepository.GetByIdAsync(request.Id, cancellationToken);
+        var provinceQuery = _provinceRepository.Query(p => !p.IsDeleted && p.Id.Equals(request.Id));
+        var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
         {

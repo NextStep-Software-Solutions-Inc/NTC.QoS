@@ -39,7 +39,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             };
         }
 
-        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Speedtest.ServiceProviderId, cancellationToken);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Speedtest.ServiceProviderId && !sp.IsDeleted);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
 
         if (serviceProvider is null)
         {
@@ -56,7 +57,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             };
         }
 
-        var generation = await _generationRepository.GetByIdAsync(request.Speedtest.GenerationId, cancellationToken);
+        var generationQuery = _generationRepository.Query(g => g.Id == request.Speedtest.GenerationId && !g.IsDeleted);
+        var generation = await _generationRepository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
         if (generation is null)
         {

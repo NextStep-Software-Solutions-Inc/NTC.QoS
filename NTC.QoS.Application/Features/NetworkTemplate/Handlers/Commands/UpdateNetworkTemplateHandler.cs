@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using NTC.QoS.Application.Features.NetworkTemplate.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -11,7 +12,9 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(UpdateNetworkTemplateRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplateExist = await _repository.FindAsync(nt => nt.Id == request.Id && !nt.IsDeleted, cancellationToken);
+        var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id && !nt.IsDeleted);
+        var networkTemplateExist = await _repository.FirstOrDefaultAsync(networkTemplateExistQuery, cancellationToken);
+        
         if (networkTemplateExist is null)
         {
             return new ApiResponse<NetworkTemplateDto>

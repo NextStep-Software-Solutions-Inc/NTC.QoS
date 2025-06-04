@@ -12,7 +12,8 @@ public class CreateMIMOHandler(IRepository<Domain.Entities.MIMO> repository) : I
 
     public async Task<ApiResponse<CreateMIMODto>> Handle(CreateMIMORequest request, CancellationToken cancellationToken)
     {
-        var mimo = await _repository.FindAsync(m => m.Type == request.MIMO.Type && !m.IsDeleted, cancellationToken);
+        var mimoQuery = _repository.Query(m => m.Type == request.MIMO.Type && !m.IsDeleted);
+        var mimo = await _repository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
 
         if (mimo is not null)
         {

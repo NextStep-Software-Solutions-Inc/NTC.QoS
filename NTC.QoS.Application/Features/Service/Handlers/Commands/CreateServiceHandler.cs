@@ -16,8 +16,9 @@ public class CreateServiceHandler(IRepository<Domain.Entities.Service> repositor
 
     public async Task<ApiResponse<ServiceDto>> Handle(CreateServiceRequest request, CancellationToken cancellationToken)
     {
-        var service = await _repository.FindAsync(s => s.Name == request.Service.Name
-                                                       && s.Type == EnumHelper<ServiceTypeEnum>.ParseUserInput(request.Service.Type), cancellationToken);
+        var serviceQuery = _repository.Query(s => s.Name == request.Service.Name
+                                                       && s.Type == EnumHelper<ServiceTypeEnum>.ParseUserInput(request.Service.Type));
+        var service = await _repository.FirstOrDefaultAsync(serviceQuery, cancellationToken);
         if (service is not null && service.IsDeleted.Equals(true))
         {
             service.IsDeleted = false;

@@ -13,38 +13,26 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
-        var allProvinces = await _provinceRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
+        var provincesQuery = _provinceRepository.Query(p => !p.IsDeleted);
 
-        var provinceDtos = allProvinces.Select(p => new ProvinceDto
+        if (request.RegionId.HasValue)
+        {
+            provincesQuery = provincesQuery.Where(p => p.RegionId == request.RegionId.Value);
+        }
+
+        var provinceDtosQuery = provincesQuery.Select(static p => new ProvinceDto
         {
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
             Region = new RegionDto
             {
-                Id = p.RegionId,
-                Name = p.Region?.Name ?? string.Empty,
-                Description = p.Region?.Description,
+                Id = p.Region.Id,         
+                Name = p.Region.Name,    
+                Description = p.Region.Description,
             }
-        }).ToList();
+        });
 
-        provinceDtos = [.. provinceDtos.Where(p => !request.RegionId.HasValue || p.Region?.Id == request.RegionId.Value)];
-
-        if (provinceDtos.Count is 0)
-        {
-            return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize)
-            {
-                Data = provinceDtos,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
-
-        return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize)
-        {
-            Data = provinceDtos,
-            Message = "Provinces retrieved successfully.",
-            Succeeded = true
-        };
+        return await _provinceRepository.PaginateAsync(provinceDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

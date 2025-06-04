@@ -12,8 +12,9 @@ public class GetPermissionByIdHandler(IRepository<Domain.Entities.Permission> re
 
     public async Task<ApiResponse<PermissionDto>> Handle(GetPermissionByIdRequest request, CancellationToken cancellationToken)
     {
-        var permission = await _repository.GetByIdAsync(request.Id, cancellationToken);
-        
+        var permissionQuery = _repository.Query(p => !p.IsDeleted && p.Id.Equals(request.Id));
+        var permission = await _repository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
+
         if (permission is null)
         {
             return new ApiResponse<PermissionDto>
@@ -22,7 +23,7 @@ public class GetPermissionByIdHandler(IRepository<Domain.Entities.Permission> re
                 Message = "Permission not found.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Id", ["Permission with the specified ID does not exist."] }
+                    {"Id", new[] { "Permission with the specified ID does not exist." } }
                 },
             };
         }

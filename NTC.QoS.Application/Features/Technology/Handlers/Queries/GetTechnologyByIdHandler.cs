@@ -13,9 +13,9 @@ public class GetTechnologyByIdHandler(ITechnologyRepository technologyRepository
 
     public async Task<ApiResponse<TechnologyDto>> Handle(GetTechnologyByIdRequest request, CancellationToken cancellationToken)
     {
-        var technology = await _technologyRepository.GetByIdAsync(request.Id, cancellationToken);
-
-        if (technology == null)
+        var technologyQuery = _technologyRepository.Query(t => t.Id == request.Id && !t.IsDeleted);
+        var technology = await _technologyRepository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
+        if (technology is null)
         {
             return new ApiResponse<TechnologyDto>
             {

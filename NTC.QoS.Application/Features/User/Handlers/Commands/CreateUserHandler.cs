@@ -16,9 +16,10 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var existingUser = await _userRepository.FindAsync(u => u.RoleId == request.User.RoleId
+        var existingUserQuery = _userRepository.Query(u => u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId
-                                                           && u.AuthUserId == request.User.AuthUserId, cancellationToken);
+                                                           && u.AuthUserId == request.User.AuthUserId);
+        var existingUser = await _userRepository.FirstOrDefaultAsync(existingUserQuery, cancellationToken);
         if (existingUser is not null) 
         {
             return new ApiResponse<UserDto>
@@ -34,7 +35,9 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             };
         }
         
-        var role = await _roleRepository.GetByIdAsync(request.User.RoleId, cancellationToken);
+        var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId && !r.IsDeleted);
+        var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
+
         if (role is null)
         {
             return new ApiResponse<UserDto>
@@ -50,7 +53,8 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             };
         }
 
-        var organization = await _organizationRepository.GetByIdAsync(request.User.OrganizationId, cancellationToken);
+        var organizationQuery = _organizationRepository.Query(r => r.Id == request.User.OrganizationId && !r.IsDeleted);
+        var organization = await _organizationRepository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
         if (organization is null)
         {
             return new ApiResponse<UserDto>

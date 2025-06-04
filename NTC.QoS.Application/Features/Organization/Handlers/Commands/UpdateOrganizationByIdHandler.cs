@@ -27,7 +27,8 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             };
         }
 
-        var organization = await _repository.FindAsync(o => o.Id == request.Id && !o.IsDeleted, cancellationToken);
+        var organizationQuery = _repository.Query(o => o.Id == request.Id && !o.IsDeleted);
+        var organization = await _repository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
 
         if (organization is null)
         {
@@ -43,9 +44,9 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             };
         }
 
-        var existingOrganizationWithName = await _repository.FindAsync(
-            o => o.Name == request.Organization.Name && o.Id != request.Id && !o.IsDeleted,
-            cancellationToken);
+        var existingOrganizationWithNameQuery = _repository.Query(
+            o => o.Name == request.Organization.Name && o.Id != request.Id && !o.IsDeleted);
+        var existingOrganizationWithName = await _repository.FirstOrDefaultAsync(existingOrganizationWithNameQuery, cancellationToken);
 
         if (existingOrganizationWithName is not null)
         {

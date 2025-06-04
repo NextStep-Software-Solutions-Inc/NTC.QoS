@@ -15,8 +15,9 @@ public class CreateProvinceRequestHandler(IProvinceRepository provinceRepository
 
     public async Task<ApiResponse<ProvinceDto>> Handle(CreateProvinceRequest request, CancellationToken cancellationToken)
     {
-        var existingProvince = await _provinceRepository.FindAsync(
-            p => p.Name == request.Province.Name && !p.IsDeleted, cancellationToken);
+        var existingProvinceQuery = _provinceRepository.Query(
+            p => p.Name == request.Province.Name && !p.IsDeleted);
+        var existingProvince = await _provinceRepository.FirstOrDefaultAsync(existingProvinceQuery, cancellationToken);
 
         if (existingProvince is not null)
         {
@@ -33,7 +34,8 @@ public class CreateProvinceRequestHandler(IProvinceRepository provinceRepository
             };
         }
 
-        var exists = await _provinceRepository.FindAsync(p => p.Name == request.Province.Name && p.RegionId == request.Province.RegionId, cancellationToken);
+        var existsQuery = _provinceRepository.Query(p => p.Name == request.Province.Name && p.RegionId == request.Province.RegionId);
+        var exists = await _provinceRepository.FirstOrDefaultAsync(existsQuery, cancellationToken);
 
         if (exists is not null)
         {

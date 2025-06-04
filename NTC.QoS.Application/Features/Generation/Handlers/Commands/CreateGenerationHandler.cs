@@ -12,7 +12,8 @@ public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> 
 
     public async Task<ApiResponse<CreateGenerationDto>> Handle(CreateGenerationRequest request, CancellationToken cancellationToken)
     {
-        var generation = await _repository.FindAsync(g => g.Name == request.Generation.Name && !g.IsDeleted, cancellationToken);
+        var generationQuery = _repository.Query(g => g.Name == request.Generation.Name && !g.IsDeleted);
+        var generation = await _repository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
         if (generation != null)
         {

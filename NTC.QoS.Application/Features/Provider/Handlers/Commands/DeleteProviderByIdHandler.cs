@@ -11,7 +11,8 @@ public class DeleteProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
 
     public async Task<ApiResponse<bool>> Handle(DeleteProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var provider = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var providerQuery = _repository.Query(p => p.Id == request.Id);
+        var provider = await _repository.FirstOrDefaultAsync(providerQuery, cancellationToken);
         if (provider is null)
         {
             return new ApiResponse<bool>

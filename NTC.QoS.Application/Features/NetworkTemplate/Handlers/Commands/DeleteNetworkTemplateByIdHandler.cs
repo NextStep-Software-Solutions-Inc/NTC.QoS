@@ -10,7 +10,9 @@ public class DeleteNetworkTemplateByIdHandler(IRepository<Domain.Entities.Networ
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteNetworkTemplateByIdRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplateExist = await _repository.FindAsync(nt => nt.Id == request.Id && !nt.IsDeleted, cancellationToken);
+        var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id && !nt.IsDeleted);
+        var networkTemplateExist = await _repository.FirstOrDefaultAsync(networkTemplateExistQuery, cancellationToken);
+
         if (networkTemplateExist is null)
         {
             return new ApiResponse<bool>

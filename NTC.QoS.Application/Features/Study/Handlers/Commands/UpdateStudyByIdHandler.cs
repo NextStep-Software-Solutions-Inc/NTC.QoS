@@ -14,7 +14,8 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
 
     public async Task<ApiResponse<StudyDto>> Handle(UpdateStudyRequest request, CancellationToken cancellationToken)
     {
-        var study = await _studyRepository.GetByIdAsync(request.Id, cancellationToken);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
         if (study is null)
         {
             return new ApiResponse<StudyDto>
@@ -33,7 +34,8 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
         if(!String.IsNullOrEmpty(request.Study.Name)) study.Name = request.Study.Name;
         if (request.Study.AreaStudyId.HasValue)
         {
-            var areaStudy = await _areaStudyRepository.GetByIdAsync(request.Study.AreaStudyId.Value, cancellationToken);
+            var areaStudyQuery = _areaStudyRepository.Query(a => a.Id == request.Study.AreaStudyId.Value && !a.IsDeleted);
+            var areaStudy = await _areaStudyRepository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
             if (areaStudy is null)
             {
                 return new ApiResponse<StudyDto>
@@ -53,7 +55,8 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
         if (!String.IsNullOrEmpty(request.Study.Description)) study.Description = request.Study.Description;
         if (request.Study.StudyRadius.HasValue) study.StudyRadius = request.Study.StudyRadius.Value;
 
-        var studyExist = await _studyRepository.FindAsync(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && !s.IsDeleted, cancellationToken);
+        var studyExistQuery = _studyRepository.Query(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && !s.IsDeleted);
+        var studyExist = await _studyRepository.FirstOrDefaultAsync(studyExistQuery, cancellationToken);
         if (studyExist is not null)
         {
             return new ApiResponse<StudyDto>

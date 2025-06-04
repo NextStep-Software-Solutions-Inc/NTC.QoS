@@ -16,7 +16,8 @@ public class GetStudyMunicipalityByIdHandler(IStudyMunicipalityRepository studyM
     private readonly IStudyMunicipalityRepository _studyMunicipalityRepository = studyMunicipalityRepository;
     public async Task<ApiResponse<StudyMunicipalityDto>> Handle(GetStudyMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var studyMunicipality = await _studyMunicipalityRepository.GetByIdAsync(request.Id, cancellationToken);
+        var studyMunicipalityQuery = _studyMunicipalityRepository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var studyMunicipality = await _studyMunicipalityRepository.FirstOrDefaultAsync(studyMunicipalityQuery, cancellationToken);
 
         if (studyMunicipality is null)
         {
