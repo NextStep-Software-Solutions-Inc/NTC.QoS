@@ -14,7 +14,8 @@ public class NAPsController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IMemoryCache _memoryCache;
-    private const string NAPsCacheKey = "naps";
+    private const string NAPsCachePrefix = "naps_";
+    private const string NAPsCacheKeysSet = "naps_cache_keys";
 
     public NAPsController(IMediator mediator, IMemoryCache memoryCache)
     {
@@ -28,14 +29,14 @@ public class NAPsController : ControllerBase
         var NAP = await _mediator.Send(new CreateNAPRequest(createNAPDto));
         if (NAP.Succeeded)
         {
-            _memoryCache.Remove(NAPsCacheKey); // Purge cache
+            RemoveAllNAPsCache(); // Purge all NAPs cache
             return Ok(NAP);
         }
         return BadRequest(NAP);
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false)] // tell browser to cache for 5 min
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "serviceProviderId", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
         int pageSize = 10,
         int pageNumber = 1,
@@ -44,7 +45,8 @@ public class NAPsController : ControllerBase
         double latitude = 0,
         double distance = 15000000)
     {
-        if (_memoryCache.TryGetValue(NAPsCacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
+        var cacheKey = $"{NAPsCachePrefix}{pageSize}_{pageNumber}_{serviceProviderId}_{longitude}_{latitude}_{distance}";
+        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
             return Ok(cachedNAPs);
 
         var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
@@ -55,7 +57,10 @@ public class NAPsController : ControllerBase
         });
 
         if (NAP.Succeeded && NAP.Data != null)
-            _memoryCache.Set(NAPsCacheKey, NAP, TimeSpan.FromHours(1));
+        {
+            _memoryCache.Set(cacheKey, NAP, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
 
         return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
     }
@@ -74,9 +79,31 @@ public class NAPsController : ControllerBase
         var NAP = await _mediator.Send(new DeleteNAPsByIdsRequest { Ids = ids });
         if (NAP.Succeeded)
         {
-            _memoryCache.Remove(NAPsCacheKey); // Purge cache
+            RemoveAllNAPsCache(); // Purge all NAPs cache
             return Ok(NAP);
         }
         return BadRequest(NAP);
     }
+
+
+    private void TrackCacheKey(string key)
+    {
+        var keys = _memoryCache.GetOrCreate<HashSet<string>>(NAPsCacheKeysSet, _ => new HashSet<string>());
+        if (keys != null) // Ensure keys is not null before dereferencing  
+        {
+            keys.Add(key);
+            _memoryCache.Set(NAPsCacheKeysSet, keys, TimeSpan.FromHours(1));
+        }
+    }
+
+    private void RemoveAllNAPsCache()
+    {
+        if (_memoryCache.TryGetValue<HashSet<string>>(NAPsCacheKeysSet, out var keys) && keys != null)
+        {
+            foreach (var key in keys)
+                _memoryCache.Remove(key);
+            _memoryCache.Remove(NAPsCacheKeysSet);
+        }
+    }
+
 }
