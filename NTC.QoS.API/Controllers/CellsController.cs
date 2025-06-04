@@ -12,7 +12,8 @@ namespace NTC.QoS.API.Controllers;
 [Route("cells", Name = "cells")]
 public class CellsController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
-    private const string CellsCacheKey = "cells";
+    private const string CellsCachePrefix = "cells_";
+    private const string CellsCacheKeysSet = "cells_cache_keys";
 
     [HttpPost]
     public async Task<ActionResult<ApiResponse<CellDto>>> CreateCell(CreateCellDto createCell)
@@ -21,12 +22,12 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         if (!cell.Succeeded || cell.Data == null)
             return BadRequest(cell.Data == null ? "Cell creation failed, no data returned." : cell);
 
-        memoryCache.Remove(CellsCacheKey);
+        RemoveAllCellsCache();
         return CreatedAtAction(nameof(GetCellById), new { id = cell.Data.Id }, cell);
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false)] // tell browser to cache for 5 min
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -39,7 +40,8 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         double latitude = 0,
         double distance = 180000000)
     {
-        if (memoryCache.TryGetValue(CellsCacheKey, out PaginatedResponse<CellDto>? cachedCells))
+        var cacheKey = $"{CellsCachePrefix}{pageNumber}_{pageSize}_{search}_{status}_{string.Join(",", serviceProviderIds ?? [])}_{string.Join(",", providerIds ?? [])}_{string.Join(",", serviceIds ?? [])}_{longitude}_{latitude}_{distance}";
+        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
             return Ok(cachedCells);
 
         var request = new GetAllCellsRequest(pageNumber, pageSize)
@@ -54,7 +56,10 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         };
         var cells = await mediator.Send(request);
         if (cells.Succeeded && cells.Data != null)
-            memoryCache.Set(CellsCacheKey, cells, TimeSpan.FromHours(1));
+        {
+            memoryCache.Set(cacheKey, cells, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
 
         return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }
@@ -73,7 +78,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         if (!cell.Succeeded)
             return BadRequest(cell);
 
-        memoryCache.Remove(CellsCacheKey);
+        RemoveAllCellsCache();
         return Ok(cell);
     }
 
@@ -84,7 +89,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         if (!cell.Succeeded)
             return BadRequest(cell);
 
-        memoryCache.Remove(CellsCacheKey);
+        RemoveAllCellsCache();
         return Ok(cell);
     }
 
@@ -95,7 +100,27 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         if (!cells.Succeeded)
             return BadRequest(cells);
 
-        memoryCache.Remove(CellsCacheKey);
+        RemoveAllCellsCache();
         return Ok(cells);
+    }
+
+    private void TrackCacheKey(string key)
+    {
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellsCacheKeysSet, _ => new HashSet<string>());
+        if (keys != null)
+        {
+            keys.Add(key);
+            memoryCache.Set(CellsCacheKeysSet, keys, TimeSpan.FromHours(1));
+        }
+    }
+
+    private void RemoveAllCellsCache()
+    {
+        if (memoryCache.TryGetValue<HashSet<string>>(CellsCacheKeysSet, out var keys) && keys != null)
+        {
+            foreach (var key in keys)
+                memoryCache.Remove(key);
+            memoryCache.Remove(CellsCacheKeysSet);
+        }
     }
 }
