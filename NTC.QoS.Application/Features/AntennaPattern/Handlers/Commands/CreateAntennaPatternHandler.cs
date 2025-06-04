@@ -12,10 +12,10 @@ public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPat
 
     public async Task<ApiResponse<CreateAntennaPatternDto>> Handle(CreateAntennaPatternRequest request, CancellationToken cancellationToken)
     {
-        var antennaPattern = _repository.Query(ap => ap.Name == request.AntennaPattern.Name && !ap.IsDeleted);
-        var existingAntennaPattern = await _repository.FirstOrDefaultAsync(antennaPattern, cancellationToken);
+        var antennaPatternQuery = _repository.Query(ap => ap.Name == request.AntennaPattern.Name && !ap.IsDeleted);
+        var antennaPattern = await _repository.FirstOrDefaultAsync(antennaPatternQuery, cancellationToken);
 
-        if (existingAntennaPattern is not null)
+        if (antennaPattern is not null)
         {
             return new ApiResponse<CreateAntennaPatternDto>
             {
