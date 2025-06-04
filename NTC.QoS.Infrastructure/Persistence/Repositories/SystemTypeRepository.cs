@@ -11,7 +11,7 @@ internal sealed class SystemTypeRepository(ApplicationDbContext context) : Repos
     {
         var query = _context.Set<SystemType>()
             .Include(st => st.Technology)
-                .ThenInclude(t => t.Generation)
+                .ThenInclude(t => t!.Generation)
             .AsQueryable();
 
         if (expression != null)

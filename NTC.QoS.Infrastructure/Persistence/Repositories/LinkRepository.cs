@@ -18,31 +18,4 @@ internal sealed class LinkRepository(ApplicationDbContext context) : Repository<
 
         return link is not null;
     }
-
-    public override async Task<Link?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var query = _context.Set<Link>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Service)
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(l => l.Band);
-        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
-    }
-
-    public override async Task<List<Link>> ListAsync(
-        Expression<Func<Link, bool>>? expression = null,
-        CancellationToken cancellationToken = default)
-    {
-        IQueryable<Link> query = _context.Set<Link>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Service)
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(l => l.Band);
-
-        if (expression is not null)
-        {
-            query = query.Where(expression);
-        }
-        return await query.ToListAsync(cancellationToken);
-    }
 }

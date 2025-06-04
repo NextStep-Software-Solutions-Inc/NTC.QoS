@@ -77,11 +77,12 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
 
         if (!string.IsNullOrEmpty(request.User.AuthUserId)) user.AuthUserId = request.User.AuthUserId;
 
-        var existingUser = await _userRepository.GetAllUsersAsync(cancellationToken);
-        if (existingUser.Any(u => u.Id != request.Id &&
+        var existingUserQuery = _userRepository.Query(u => u.Id != request.Id &&
                                  u.RoleId == user.RoleId &&
                                  u.OrganizationId == user.OrganizationId &&
-                                 u.AuthUserId == user.AuthUserId))
+                                 u.AuthUserId == user.AuthUserId);
+        var existingUser = await _userRepository.FirstOrDefaultAsync(existingUserQuery, cancellationToken);
+        if (existingUser != null)
         {
             return new ApiResponse<UserDto>
             {

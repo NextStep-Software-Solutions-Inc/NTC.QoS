@@ -64,7 +64,7 @@ public class CreateSectorHandler(
 
         if (request.Sector.MIMOId.HasValue)
         {
-            var mimo = await _mimoRepository.GetByIdAsync(request.Sector.MIMOId.Value, cancellationToken);
+            var mimo = _mimoRepository.Query(m => m.Id == request.Sector.MIMOId.Value && !m.IsDeleted);
             if (mimo is null)
             {
                 return new ApiResponse<SectorDto>
