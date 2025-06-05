@@ -25,5 +25,16 @@ public class DashboardController(IMediator mediator) : ControllerBase
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
+    [HttpGet("NAPs-count")]
+    public async Task<ActionResult<ApiResponse<int>>> GetTotalNAPsCount(
+        [FromQuery, Required] DateTime startDate,
+        [FromQuery, Required] DateTime endDate)
+    {
+        DateTime utcStartDate = startDate.ToUniversalTime();
+        DateTime utcEndDate = endDate.ToUniversalTime();
+        var request = new GetTotalNAPsCountRequest { StartDate = utcStartDate, EndDate = utcEndDate };
+        var response = await _mediator.Send(request);
 
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
 }
