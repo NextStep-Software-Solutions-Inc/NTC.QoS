@@ -44,6 +44,7 @@ public class Program
             options.Providers.Add<GzipCompressionProvider>();
             options.Providers.Add<BrotliCompressionProvider>();
         });
+        builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
 
         var app = builder.Build();

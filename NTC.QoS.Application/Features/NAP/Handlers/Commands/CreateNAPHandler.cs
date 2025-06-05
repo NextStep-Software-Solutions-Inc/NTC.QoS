@@ -32,8 +32,8 @@ public class CreateNAPHandler(INAPRepository repository) : IRequestHandler<Creat
             Data = new NAPDto
             {
                 Id = NAP.Id,
-                ISP = NAP.ServiceProvider.Provider.Name,
-                ISPColor = NAP.ServiceProvider.Provider.Color,
+                ISP = "",
+                ISPColor = "",
                 Lat = NAP.Location.Coordinate.Y,
                 Lng = NAP.Location.Coordinate.X,
                 Dist = 0
