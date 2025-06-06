@@ -15,7 +15,8 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
 
     public async Task<ApiResponse<BarangayDto>> Handle(GetBarangayByIdRequest request, CancellationToken cancellationToken)
     {
-        var barangay = await _barangayRepository.GetByIdAsync(request.Id, cancellationToken);
+        var barangayQuery = _barangayRepository.Query(b => !b.IsDeleted && b.Id.Equals(request.Id));
+        var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is null)
         {

@@ -1,5 +1,7 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
@@ -7,39 +9,19 @@ using NTC.QoS.Domain.Models.DTOs.Speedtest;
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Commands;
 
 public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
-                                    IFileRepository fileRepository,
-                                    IBarangayRepository barangayRepository,
                                     IServiceProviderRepository serviceProviderRepository,
                                     IGenerationRepository generationRepository) : IRequestHandler<CreateSpeedtestRequest, ApiResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
-    private readonly IFileRepository _fileRepository = fileRepository;
-    private readonly IBarangayRepository _barangayRepository = barangayRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationRepository _generationRepository = generationRepository;
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(CreateSpeedtestRequest request, CancellationToken cancellationToken)
     {
-        var barangay = await _barangayRepository.FirstOrDefaultAsync(
-            _barangayRepository.Query(b => b.Name == request.Speedtest.Address),
-            cancellationToken);
+        Point location = GeometryHelper.CreatePoint(x: request.Speedtest.Longitude, y: request.Speedtest.Latitude);
 
-        if (barangay is null)
-        {
-            return new ApiResponse<SpeedtestDto>
-            {
-                Message = "Barangay does not exist.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullBarangay", ["Barangay not found."]
-                    }
-                }
-            };
-        }
-
-        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Speedtest.ServiceProviderId, cancellationToken);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Speedtest.ServiceProviderId && !sp.IsDeleted);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
 
         if (serviceProvider is null)
         {
@@ -56,7 +38,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             };
         }
 
-        var generation = await _generationRepository.GetByIdAsync(request.Speedtest.GenerationId, cancellationToken);
+        var generationQuery = _generationRepository.Query(g => g.Id == request.Speedtest.GenerationId && !g.IsDeleted);
+        var generation = await _generationRepository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
         if (generation is null)
         {
@@ -98,7 +81,7 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
 
         var newSpeedtest = new Domain.Entities.Speedtest
         {
-            Address = barangay.Name,
+            Address = request.Speedtest.Address,
             ServiceProviderId = serviceProvider.Id,
             GenerationId = generation.Id,
             DateTime = request.Speedtest.DateTime,
@@ -112,7 +95,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             MNC = request.Speedtest.MNC,
             TAC = request.Speedtest.TAC,
             SignalQuality = request.Speedtest.SignalQuality,
-            CellIdentifier = request.Speedtest.CellIdentifier
+            CellIdentifier = request.Speedtest.CellIdentifier,
+            Location = location
         };
 
         _speedtestRepository.Add(newSpeedtest);
@@ -161,7 +145,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                 TAC = newSpeedtest.TAC,
                 SignalQuality = newSpeedtest.SignalQuality,
                 CellIdentifier = newSpeedtest.CellIdentifier,
-                Distance = 0
+                Distance = 0,
+                Address = newSpeedtest.Address ?? string.Empty,
             },
             Message = "Speedtest created successfully.",
             Succeeded = true

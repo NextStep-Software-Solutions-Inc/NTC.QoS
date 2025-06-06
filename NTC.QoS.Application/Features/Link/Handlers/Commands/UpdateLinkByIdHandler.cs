@@ -14,7 +14,8 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
     public async Task<ApiResponse<UpdateLinkDto>> Handle(UpdateLinkByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var link = await _repository.FindAsync(l => l.Id == request.Id && !l.IsDeleted, cancellationToken);
+        var linkQuery = _repository.Query(l => l.Id == request.Id && !l.IsDeleted);
+        var link = await _repository.FirstOrDefaultAsync(linkQuery, cancellationToken);
 
         if (link is null)
         {
@@ -34,7 +35,7 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
         link.CenterFrequency = request.Link.CenterFrequency;
         link.LowerFrequency = request.Link.LowerFrequency;
         link.UpperFrequency = request.Link.UpperFrequency;
-        link.RxThreshold = request.Link.RxThreshold;    
+        link.RxThreshold = request.Link.RxThreshold;
 
         _repository.Update(link);
         await _repository.SaveChangesAsync(cancellationToken);

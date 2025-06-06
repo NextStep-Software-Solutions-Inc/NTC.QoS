@@ -53,6 +53,5 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
             });
 
         return await _zoneRepository.PaginateAsync(zoneDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
-
     }
 }

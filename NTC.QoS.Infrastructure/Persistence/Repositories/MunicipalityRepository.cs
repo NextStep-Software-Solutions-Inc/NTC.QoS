@@ -8,45 +8,4 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class MunicipalityRepository(ApplicationDbContext context) : Repository<Municipality>(context), IMunicipalityRepository
 {
-    public override async Task<Municipality?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var query = _context.Set<Municipality>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(m => m.Province)
-                .ThenInclude(p => p!.Region);
-
-        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
-    }
-
-    public override async Task<List<Municipality>> ListAsync(
-        Expression<Func<Municipality, bool>>? expression = null,
-        CancellationToken cancellationToken = default)
-    {
-        IQueryable<Municipality> query = _context.Set<Municipality>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(m => m.Province)
-                .ThenInclude(p => p!.Region);
-
-        if (expression != null)
-        {
-            query = query.Where(expression);
-        }
-
-        return await query.ToListAsync(cancellationToken);
-    }
-
-    public override async Task<Municipality?> FindAsync(Expression<Func<Municipality, bool>> expression, CancellationToken cancellationToken = default)
-    {
-        var query = _context.Set<Municipality>().Where(expression)
-            .Include(m => m.Province).ThenInclude(p => p!.Region);
-
-        return await query.FirstOrDefaultAsync(cancellationToken);
-    }
-
-    public async Task<Municipality?> FindByNameAsync(string name, CancellationToken cancellationToken = default)
-    {
-        var query = _context.Set<Municipality>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(m => m.Province).ThenInclude(p => p!.Region);
-        return await query.FirstOrDefaultAsync(m => m.Name == name, cancellationToken);
-    }
 }

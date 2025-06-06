@@ -13,7 +13,8 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
 
     public async Task<ApiResponse<StudyDto>> Handle(GetStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var study = await _studyRepository.GetByIdAsync(request.Id, cancellationToken);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
         if (study is null)
         {
             return new ApiResponse<StudyDto>

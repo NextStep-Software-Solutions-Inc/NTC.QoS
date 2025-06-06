@@ -13,7 +13,7 @@ public class GetAllTechnologiesHandler(ITechnologyRepository technologyRepositor
 
     public async Task<PaginatedResponse<TechnologyDto>> Handle(GetAllTechnologiesRequest request, CancellationToken cancellationToken)
     {
-        var technologyQuery = _technologyRepository.Query(t => t.IsDeleted.Equals(false));
+        var technologyQuery = _technologyRepository.Query(t => !t.IsDeleted);
 
         technologyQuery = technologyQuery.Where(t => request.GenerationIds == null || request.GenerationIds.Contains(t.GenerationId));
 

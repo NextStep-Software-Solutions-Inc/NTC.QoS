@@ -17,6 +17,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
     {
         var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Id);
         var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
+
         if (network is null)
         {
             return new ApiResponse<NetworkDto>

@@ -11,7 +11,8 @@ public class GetByIdFileHandler(IFileRepository repository) : IRequestHandler<Ge
     private readonly IFileRepository _repository = repository;
     public async Task<ApiResponse<FileDto>> Handle(GetFileByIdRequest request, CancellationToken cancellationToken)
     {
-        var file = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var fileQuery = _repository.Query(f => !f.IsDeleted && f.Id.Equals(request.Id));
+        var file = await _repository.FirstOrDefaultAsync(fileQuery, cancellationToken);
 
         if (file is null)
         {

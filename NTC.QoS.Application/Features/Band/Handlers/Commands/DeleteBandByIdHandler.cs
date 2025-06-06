@@ -11,7 +11,8 @@ public class DeleteBandByIdHandler(IRepository<Domain.Entities.Band> repository)
     public async Task<ApiResponse<bool>> Handle(DeleteBandByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var band = await _repository.FindAsync(b => b.Id == request.Id && !b.IsDeleted, cancellationToken);
+        var bandQuery = _repository.Query(b => b.Id == request.Id && !b.IsDeleted);
+        var band = await _repository.FirstOrDefaultAsync(bandQuery, cancellationToken);
 
         if (band == null)
         {

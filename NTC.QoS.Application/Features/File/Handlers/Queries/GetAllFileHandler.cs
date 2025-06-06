@@ -30,23 +30,6 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
             .Where(f => request.Types == null || request.Types.Length == 0 || request.Types.Contains(f.Type))
             .Where(f => request.Statuses == null || request.Statuses.Length == 0 || request.Statuses.Contains(f.Status));
 
-        var filesDto = await _repository.ToListAsync(filesDtoQuery, cancellationToken);
-
-        if (filesDto.Count is 0)
-        {
-            return new PaginatedResponse<FileDto>(filesDto, request.PageNumber, request.PageSize)
-            {
-                Data = filesDto,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
-
-        return new PaginatedResponse<FileDto>(filesDto, request.PageNumber, request.PageSize)
-        {
-            Data = filesDto,
-            Message = "Files retrieved successfully.",
-            Succeeded = true
-        };
+        return await _repository.PaginateAsync(filesDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

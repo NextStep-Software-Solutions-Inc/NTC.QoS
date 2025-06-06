@@ -11,7 +11,7 @@ public class GetAllGenerationsHandler (IRepository<Domain.Aggregates.Generation>
     private readonly IRepository<Domain.Aggregates.Generation> _repository = repository;
     public async Task<PaginatedResponse<GenerationDto>> Handle(GetAllGenerationsRequest request, CancellationToken cancellationToken)
     {
-        var generationQuery = _repository.Query(g => g.IsDeleted.Equals(false));
+        var generationQuery = _repository.Query(g => !g.IsDeleted);
 
         generationQuery = generationQuery
             .Where(g => request.ProviderIds == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.ProviderIds.Contains(l.ServiceProvider.ProviderId))))

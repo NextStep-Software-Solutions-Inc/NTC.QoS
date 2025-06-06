@@ -181,13 +181,14 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
             if (request.Sector.RxEIRP.HasValue) sector.RxEIRP = request.Sector.RxEIRP.Value;
         }
 
-        var existingSectors = await _sectorRepository.GetAllSectorsAsync(cancellationToken);
-        if (existingSectors.Any(s => s.Id != sector.Id &&
+        var existingSectorsQuery = _sectorRepository.Query(s => s.Id != sector.Id &&
                                     s.NetworkId == sector.NetworkId &&
                                     s.CellSectorId == sector.CellSectorId &&
                                     s.MIMOId == sector.MIMOId &&
                                     s.IsRxEqualTx == sector.IsRxEqualTx &&
-                                    s.AntennaType == sector.AntennaType))
+                                    s.AntennaType == sector.AntennaType);
+        var existingSectors = await _sectorRepository.FirstOrDefaultAsync(existingSectorsQuery, cancellationToken);
+        if (existingSectors is not null)
         {
             return new ApiResponse<SectorDto>
             {

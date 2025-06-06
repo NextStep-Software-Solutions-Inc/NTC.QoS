@@ -12,7 +12,8 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
 
     public async Task<ApiResponse<UserDto>> Handle(GetUserByIdRequest request, CancellationToken cancellationToken)
     {
-        var user = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var userQuery = _repository.Query(u => !u.IsDeleted && u.Id.Equals(request.Id));
+        var user = await _repository.FirstOrDefaultAsync(userQuery, cancellationToken);
         if (user is null)
         {
             return new ApiResponse<UserDto>

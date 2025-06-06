@@ -13,7 +13,8 @@ public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IReques
     public async Task<ApiResponse<ProvinceDto>> Handle(UpdateProvinceRequest request,
             CancellationToken cancellationToken)
     {
-        var province = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var provinceQuery = _repository.Query(p => p.Id == request.Id && !p.IsDeleted);
+        var province = await _repository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
         {
@@ -46,9 +47,8 @@ public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IReques
             };
         }
 
-        var exists = await _repository.FindAsync(
-                p => p.Name == request.Province.Name && p.RegionId == province.RegionId,
-                cancellationToken);
+        var existsQuery = _repository.Query(p => p.Name == request.Province.Name && p.RegionId == province.RegionId && p.Id != request.Id && !p.IsDeleted);
+        var exists = await _repository.FirstOrDefaultAsync(existsQuery, cancellationToken);
 
         if (exists is not null)
         {

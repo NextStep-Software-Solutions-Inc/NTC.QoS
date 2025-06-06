@@ -29,7 +29,9 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
         _linkRepository.Add(newLink);
         await _linkRepository.SaveChangesAsync(cancellationToken);
 
-        var band = await _bandRepository.GetByIdAsync(request.Link.BandId, cancellationToken);
+        var bandQuery = _bandRepository.Query(b => b.Id == request.Link.BandId && !b.IsDeleted);
+        var band = await _bandRepository.FirstOrDefaultAsync(bandQuery, cancellationToken);
+
         if (band is null)
         {
             return new ApiResponse<CreateLinkDto>
@@ -43,7 +45,9 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
             };
         }
 
-        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Link.ServiceProviderId, cancellationToken);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Link.ServiceProviderId && !sp.IsDeleted);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
+
         if (serviceProvider is null)
         {
             return new ApiResponse<CreateLinkDto>

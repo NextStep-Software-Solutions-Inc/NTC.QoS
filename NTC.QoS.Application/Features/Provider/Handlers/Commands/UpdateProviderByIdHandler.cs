@@ -24,7 +24,8 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
             };
         }
 
-        var provider = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var providerQuery = _repository.Query(p => p.Id == request.Id && !p.IsDeleted);
+        var provider = await _repository.FirstOrDefaultAsync(providerQuery, cancellationToken);
         if (provider is null)
         {
             return new ApiResponse<ProviderDto>
