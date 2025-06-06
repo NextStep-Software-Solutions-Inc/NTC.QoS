@@ -30,16 +30,17 @@ public class CreateCellularCoverageHandler(ICellularCoverageRepository cellularC
 
         return new ApiResponse<CellularCoverageDto>
         {
-            Data = new ()
+            Data = new CellularCoverageDto
             {
                 Id = newCellularCoverage.Id,
+                NetworkId = newCellularCoverage.NetworkId,
                 Lat = newCellularCoverage.Location.Coordinate.Y,
                 Lng = newCellularCoverage.Location.Coordinate.X,
                 Strength = newCellularCoverage.Strength,
-                Band = newCellularCoverage.Network.UpLink != null ? newCellularCoverage.Network.UpLink.Band.Name : string.Empty,
-                Gen = newCellularCoverage.Network.SystemType != null && newCellularCoverage.Network.SystemType.Technology != null ? newCellularCoverage.Network.SystemType.Technology.Generation.Name : string.Empty,
-                Std = newCellularCoverage.Network.SystemType != null && newCellularCoverage .Network.SystemType.Technology != null ? newCellularCoverage.Network.SystemType.Technology.Standard : string.Empty,
-                Provider = newCellularCoverage.Network.UpLink != null ? new CCProviderDto
+                Band = newCellularCoverage.Network?.UpLink?.Band?.Name ?? string.Empty,
+                Gen = newCellularCoverage.Network?.SystemType?.Technology?.Generation?.Name ?? string.Empty,
+                Std = newCellularCoverage.Network?.SystemType?.Technology?.Standard ?? string.Empty,
+                Provider = newCellularCoverage.Network?.UpLink?.ServiceProvider?.Provider != null ? new CCProviderDto
                 {
                     Name = newCellularCoverage.Network.UpLink.ServiceProvider.Provider.Name,
                     Color = newCellularCoverage.Network.UpLink.ServiceProvider.Provider.Color
