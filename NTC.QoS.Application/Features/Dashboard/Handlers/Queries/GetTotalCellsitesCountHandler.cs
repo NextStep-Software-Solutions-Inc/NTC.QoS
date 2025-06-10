@@ -1,0 +1,42 @@
+﻿using MediatR;
+using NTC.QoS.Application.Features.Dashboard.Requests;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Dashboard;
+
+namespace NTC.QoS.Application.Features.Dashboard.Handlers.Queries;
+
+public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCountRequest, ApiResponse<CellsiteCountsDto>>
+{
+    private readonly ICellRepository _cellRepository;
+
+    public GetTotalCellsitesCountHandler(ICellRepository cellRepository)
+    {
+        _cellRepository = cellRepository;
+    }
+
+    public async Task<ApiResponse<CellsiteCountsDto>> Handle(GetTotalCellsitesCountRequest request, CancellationToken cancellationToken)
+    {
+        var verifiedCells = _cellRepository.Query(c => !c.IsDeleted && c.IsVerified &&
+            c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
+
+        var unverifiedCells = _cellRepository.Query(c => !c.IsDeleted && !c.IsVerified &&
+            c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
+
+        var totalCells = _cellRepository.Query(c => !c.IsDeleted).Count();
+
+        var responseData = new CellsiteCountsDto
+        {
+            VerifiedCells = verifiedCells,
+            UnverifiedCells = unverifiedCells,
+            TotalCells = totalCells
+        };
+
+        return await Task.FromResult(new ApiResponse<CellsiteCountsDto>
+        {
+            Data = responseData,
+            Succeeded = true,
+            Message = "Total cellsites count retrieved successfully."
+        });
+    }
+}
