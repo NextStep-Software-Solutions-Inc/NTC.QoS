@@ -17,13 +17,11 @@ public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCo
 
     public async Task<ApiResponse<CellsiteCountsDto>> Handle(GetTotalCellsitesCountRequest request, CancellationToken cancellationToken)
     {
-        var verifiedCells = _cellRepository.Query(c => !c.IsDeleted && c.IsVerified &&
-            c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
+        var cells = _cellRepository.Query(c => !c.IsDeleted).ToList();
 
-        var unverifiedCells = _cellRepository.Query(c => !c.IsDeleted && !c.IsVerified &&
-            c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
-
-        var totalCells = _cellRepository.Query(c => !c.IsDeleted).Count();
+        var verifiedCells = cells.Count(c => c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
+        var unverifiedCells = cells.Count(c => !c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
+        var totalCells = cells.Count;
 
         var responseData = new CellsiteCountsDto
         {
