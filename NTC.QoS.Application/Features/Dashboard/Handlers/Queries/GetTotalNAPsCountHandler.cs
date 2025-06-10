@@ -18,7 +18,7 @@ public class GetTotalNAPsCountHandler(INAPRepository napRepository) : IRequestHa
         {
             Data = nAPs,
             Succeeded = true,
-            Message = "Total N A P count retrieved successfully."
+            Message = $"Total NAP counts between ({request.StartDate}) to ({request.EndDate}) retrieved successfully."
         });
     }
 }
