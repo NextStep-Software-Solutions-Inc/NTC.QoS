@@ -13,7 +13,7 @@ public class DashboardController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpGet("cell-counts")]
-    public async Task<ActionResult<ApiResponse<int>>> GetTotalVerifiedCellsitesCount(
+    public async Task<ActionResult<ApiResponse<int>>> GetTotalCellsitesCount(
         [FromQuery, Required] DateTime startDate,
         [FromQuery, Required] DateTime endDate)
     {
@@ -25,7 +25,7 @@ public class DashboardController(IMediator mediator) : ControllerBase
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
-    [HttpGet("NAP-counts")]
+    [HttpGet("NAPs-count")]
     public async Task<ActionResult<ApiResponse<int>>> GetTotalNAPsCount(
         [FromQuery, Required] DateTime startDate,
         [FromQuery, Required] DateTime endDate)
