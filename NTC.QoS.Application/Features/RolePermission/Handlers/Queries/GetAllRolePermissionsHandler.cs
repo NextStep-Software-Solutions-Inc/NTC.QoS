@@ -11,42 +11,37 @@ public class GetAllRolePermissionsHandler(IRolePermissionRepository rolePermissi
     private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
     public async Task<PaginatedResponse<GetRolePermissionDto>> Handle(GetAllRolePermissionsRequest request, CancellationToken cancellationToken)
     {
-        var allRolePermissions = await _rolePermissionRepository.ListAsync(rp => !rp.IsDeleted, cancellationToken);
-        
-        var rolePermissionDtos = allRolePermissions.Select(static rp => new GetRolePermissionDto
+        var allRolePermissions = _rolePermissionRepository.Query(rp => !rp.IsDeleted);
+
+        var rolePermissionDtos = allRolePermissions.Select(rp => new GetRolePermissionDto
         {
             Id = rp.Id,
-            Role = new RolePermissionDto
+            Role = new()
             {
                 Id = rp.RoleId,
-                Name = rp.Role?.Name ?? string.Empty,
-                Key = rp.Role?.Key ?? string.Empty,
-                Description = rp.Role?.Description ?? string.Empty
+                Name = rp.Role != null ? rp.Role.Name : string.Empty,
+                Key = rp.Role != null ? rp.Role.Key : string.Empty,
+                Description = rp.Role != null ? rp.Role.Description : string.Empty
             },
-            Permission = new RolePermissionDto
+            Permission = new()
             {
                 Id = rp.PermissionId,
-                Name = rp.Permission?.Name ?? string.Empty,
-                Key = rp.Permission?.Key ?? string.Empty,
-                Description = rp.Permission?.Description ?? string.Empty
+                Name = rp.Permission != null ? rp.Permission.Name : string.Empty,
+                Key = rp.Permission != null ? rp.Permission.Key : string.Empty,
+                Description = rp.Permission != null ? rp.Permission.Description : string.Empty
             }
-        }).ToList();
+        });
 
         if (request.RoleId.HasValue)
         {
-            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.Role.Id == request.RoleId)];
+            rolePermissionDtos = rolePermissionDtos.Where(rp => rp.Role.Id == request.RoleId);
         }
 
         if (request.PermissionId.HasValue)
         {
-            rolePermissionDtos = [.. rolePermissionDtos.Where(rp => rp.Permission.Id == request.PermissionId)];
+            rolePermissionDtos = rolePermissionDtos.Where(rp => rp.Permission.Id == request.PermissionId);
         }
 
-        return new PaginatedResponse<GetRolePermissionDto>(rolePermissionDtos, request.PageNumber, request.PageSize)
-        {
-            Data = rolePermissionDtos,
-            Succeeded = true,
-            Message = "Role permissions retrieved successfully."
-        };
+        return await _rolePermissionRepository.PaginateAsync(rolePermissionDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

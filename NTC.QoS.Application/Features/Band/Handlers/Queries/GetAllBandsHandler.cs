@@ -26,6 +26,5 @@ public class GetAllBandsHandler (IRepository<Domain.Entities.Band> repository) :
         });
 
         return await _repository.PaginateAsync(bandDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
-
     }
 }

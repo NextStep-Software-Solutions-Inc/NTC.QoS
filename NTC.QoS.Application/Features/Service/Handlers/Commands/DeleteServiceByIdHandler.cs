@@ -10,7 +10,8 @@ public class DeleteServiceHandler(IRepository<Domain.Entities.Service> repositor
     private readonly IRepository<Domain.Entities.Service> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteServiceByIdRequest request, CancellationToken cancellationToken)
     {
-        var service = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var serviceQuery = _repository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var service = await _repository.FirstOrDefaultAsync(serviceQuery, cancellationToken);
         if (service is null)
         {
             return new ApiResponse<bool>

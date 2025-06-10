@@ -12,7 +12,8 @@ public class GetOrganizationByIdHandler(IRepository<Domain.Entities.Organization
 
     public async Task<ApiResponse<GetOrganizationDto>> Handle(GetOrganizationByIdRequest request, CancellationToken cancellationToken)
     {
-        var organization = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var organizationQuery = _repository.Query(o => !o.IsDeleted && o.Id.Equals(request.Id));
+        var organization = await _repository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
 
         if (organization is null)
         {

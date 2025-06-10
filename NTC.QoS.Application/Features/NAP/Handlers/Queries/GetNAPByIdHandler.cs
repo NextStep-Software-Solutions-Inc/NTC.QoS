@@ -14,7 +14,7 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
 
     public async Task<ApiResponse<NAPDto>> Handle(GetNAPByIdRequest request, CancellationToken cancellationToken)
     {
-        var NAPQuery = _NAPRepository.Query(n => n.Id.Equals(request.Id));
+        var NAPQuery = _NAPRepository.Query(n => n.Id.Equals(request.Id) && !n.IsDeleted);
 
         var NAPDtoQuery = NAPQuery.Select(n => new NAPDto()
         {

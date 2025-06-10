@@ -17,7 +17,8 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
 
     public async Task<ApiResponse<ZoneDto>> Handle(CreateZoneRequest request, CancellationToken cancellationToken)
     {
-        var zone = await _repository.FindAsync(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId && !z.IsDeleted, cancellationToken);
+        var zoneQuery = _repository.Query(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId && !z.IsDeleted);
+        var zone = await _repository.FirstOrDefaultAsync(zoneQuery, cancellationToken);
 
         if (zone is not null)
         {
@@ -34,8 +35,9 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
             };
         }
 
-        var barangay = await _barangayRepository.GetByIdAsync(request.Zone.BarangayId, cancellationToken);
-        
+        var barangayQuery = _barangayRepository.Query(z => z.Id == request.Zone.BarangayId && !z.IsDeleted);
+        var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
+
         if (barangay is null)
         {
             return new ApiResponse<ZoneDto>

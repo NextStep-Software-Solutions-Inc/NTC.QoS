@@ -1,5 +1,4 @@
 ﻿using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.DTOs.Generation;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;

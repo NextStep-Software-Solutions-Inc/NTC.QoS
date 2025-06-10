@@ -12,7 +12,8 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
 
     public async Task<ApiResponse<RegionDto>> Handle(UpdateRegionRequest request, CancellationToken cancellationToken)
     {
-        var region = await _regionRepository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
+        var regionQuery = _regionRepository.Query(r => r.Id == request.Id && !r.IsDeleted);
+        var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
         if (request.Region is null || string.IsNullOrEmpty(request.Region.Name?.Trim()))
         {
@@ -47,11 +48,11 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
         region.Name = request.Region.Name.Trim();
         region.Description = request.Region.Description;
 
-        var existingRegion = await _regionRepository.FindAsync(
+        var existingRegionQuery = _regionRepository.Query(
             r => r.Name == region.Name
                  && r.Id != request.Id
-                 && !r.IsDeleted,
-            cancellationToken);
+                 && !r.IsDeleted);
+        var existingRegion = await _regionRepository.FirstOrDefaultAsync(existingRegionQuery, cancellationToken);
 
         if (existingRegion is not null)
         {

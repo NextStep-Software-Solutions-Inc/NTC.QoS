@@ -11,7 +11,7 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
     private readonly IUserRepository _repository = repository;
     public async Task<PaginatedResponse<UserDto>> Handle(GetAllUsersRequest request, CancellationToken cancellationToken)
     {
-        var allUsers = await _repository.ListAsync(u => !u.IsDeleted, cancellationToken);
+        var allUsers = _repository.Query(u => !u.IsDeleted);
 
         var userDtos = allUsers.Select(u => new UserDto
         {
@@ -19,39 +19,23 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             Role = new RoleUserDto
             {
                 Id = u.RoleId,
-                Name = u.Role?.Name ?? string.Empty,
-                Key = u.Role?.Key ?? string.Empty,
-                Description = u.Role?.Description ?? string.Empty
+                Name = u.Role != null ? u.Role.Name : string.Empty,
+                Key = u.Role != null ? u.Role.Key : string.Empty,
+                Description = u.Role != null ? u.Role.Description ?? string.Empty : string.Empty
             },
             Organization = new OrganizationUserDto
             {
                 Id = u.OrganizationId,
-                Name = u.Organization?.Name ?? string.Empty,
-                Description = u.Organization?.Description ?? string.Empty
+                Name = u.Organization != null ? u.Organization.Name : string.Empty,
+                Description = u.Organization != null ? u.Organization.Description ?? string.Empty : string.Empty
             },
             AuthUserId = u.AuthUserId
-        }).ToList();
+        });
 
-        userDtos = [.. userDtos
-            .Where(u => !request.RoleId.HasValue || u.Role?.Id == request.RoleId)
-            .Where(u => !request.OrganizationId.HasValue || u.Organization?.Id == request.OrganizationId.Value)
-        ];
+        userDtos = userDtos
+            .Where(u => !request.RoleId.HasValue || (u.Role != null && u.Role.Id == request.RoleId))
+            .Where(u => !request.OrganizationId.HasValue || (u.Organization != null && u.Organization.Id == request.OrganizationId.Value));
 
-        if (userDtos.Count is 0)
-        {
-            return new PaginatedResponse<UserDto>(userDtos, request.PageNumber, request.PageSize)
-            {
-                Data = userDtos,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
-
-        return new PaginatedResponse<UserDto>(userDtos, request.PageNumber, request.PageSize)
-        {
-            Data = userDtos,
-            Message = "Users retrieved successfully.",
-            Succeeded = true
-        };
+        return await _repository.PaginateAsync(userDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

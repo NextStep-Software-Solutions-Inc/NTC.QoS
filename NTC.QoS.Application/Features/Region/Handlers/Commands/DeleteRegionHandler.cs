@@ -11,7 +11,8 @@ public class DeleteRegionHandler(IRegionRepository repository) : IRequestHandler
 
     public async Task<ApiResponse<bool>> Handle(DeleteRegionRequest request, CancellationToken cancellationToken)
     {
-        var region = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var regionQuery = _repository.Query(r => r.Id == request.Id && !r.IsDeleted);
+        var region = await _repository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
         if (region is null)
         {

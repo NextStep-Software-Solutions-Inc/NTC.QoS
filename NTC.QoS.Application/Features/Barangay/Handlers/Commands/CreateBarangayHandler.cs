@@ -16,7 +16,8 @@ public class CreateBarangayHandler(IBarangayRepository repository, IMunicipality
 
     public async Task<ApiResponse<BarangayDto>> Handle(CreateBarangayRequest request, CancellationToken cancellationToken)
     {
-        var barangay = await _repository.FindAsync(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId && !b.IsDeleted, cancellationToken);
+        var barangayQuery = _repository.Query(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId && !b.IsDeleted);
+        var barangay = await _repository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is not null)
         {
@@ -32,7 +33,8 @@ public class CreateBarangayHandler(IBarangayRepository repository, IMunicipality
                 }
             };
         }
-        var municipality = await _municipalityRepository.GetByIdAsync(request.Barangay.MunicipalityId, cancellationToken);
+        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Barangay.MunicipalityId && !m.IsDeleted);
+        var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
         {

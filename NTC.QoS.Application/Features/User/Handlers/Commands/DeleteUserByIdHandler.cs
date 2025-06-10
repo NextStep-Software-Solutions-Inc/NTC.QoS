@@ -10,7 +10,8 @@ public class DeleteUserByIdHandler(IUserRepository repository) : IRequestHandler
     private readonly IUserRepository _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteUserByIdRequest request, CancellationToken cancellationToken)
     {
-        var user = await _repository.FindAsync(u => u.Id == request.Id && !u.IsDeleted, cancellationToken);
+        var userQuery = _repository.Query(u => u.Id == request.Id && !u.IsDeleted);
+        var user = await _repository.FirstOrDefaultAsync(userQuery, cancellationToken);
         if (user is null)
         {
             return new ApiResponse<bool>

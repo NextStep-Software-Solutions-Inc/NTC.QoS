@@ -26,7 +26,8 @@ public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
             };
         }
 
-        var generation = await _repository.FindAsync(g => g.Id == request.Id && !g.IsDeleted, cancellationToken);
+        var generationQuery = _repository.Query(g => g.Id == request.Id && !g.IsDeleted);
+        var generation = await _repository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
         if (generation == null)
         {

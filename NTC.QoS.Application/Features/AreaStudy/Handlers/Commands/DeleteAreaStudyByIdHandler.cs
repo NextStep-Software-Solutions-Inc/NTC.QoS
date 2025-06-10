@@ -10,7 +10,9 @@ public class DeleteAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
     private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteAreaStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var areaStudy = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var areaStudyQuery = _repository.Query(ap => ap.Id == request.Id && !ap.IsDeleted);
+        var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
+
         if (areaStudy is null)
         {
             return new ApiResponse<bool>

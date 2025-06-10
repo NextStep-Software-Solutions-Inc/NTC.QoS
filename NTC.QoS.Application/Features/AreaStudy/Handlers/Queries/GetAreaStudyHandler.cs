@@ -11,7 +11,9 @@ public class GetAreaStudyHandler(IRepository<Domain.Entities.AreaStudy> reposito
     private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
     public async Task<ApiResponse<AreaStudyDto>> Handle(GetAreaStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var areaStudy = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var areaStudyQuery = _repository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
+
         if (areaStudy is null)
         {
             return new ApiResponse<AreaStudyDto>

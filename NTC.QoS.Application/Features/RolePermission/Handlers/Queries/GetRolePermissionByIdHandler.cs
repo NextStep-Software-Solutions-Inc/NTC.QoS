@@ -11,7 +11,9 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
     private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
     public async Task<ApiResponse<GetRolePermissionDto>> Handle(GetRolePermissionByIdRequest request, CancellationToken cancellationToken)
     {
-        var rolePermission = await _rolePermissionRepository.GetByIdAsync(request.Id, cancellationToken);
+        var rolePermissionQuery = _rolePermissionRepository.Query(r => !r.IsDeleted && r.Id.Equals(request.Id));
+        var rolePermission = await _rolePermissionRepository.FirstOrDefaultAsync(rolePermissionQuery, cancellationToken);
+
         if (rolePermission is null)
         {
             return new ApiResponse<GetRolePermissionDto>

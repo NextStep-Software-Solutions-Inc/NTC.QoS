@@ -16,7 +16,8 @@ public class GetStudyNetworkrByIdHandler(IStudyNetworkRepository repository) : I
 
     public async Task<ApiResponse<StudyNetworkDto>> Handle(GetStudyNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var studyNetwork = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var studyNetworkQuery = _repository.Query(sn => sn.Id == request.Id && !sn.IsDeleted);
+        var studyNetwork = await _repository.FirstOrDefaultAsync(studyNetworkQuery, cancellationToken);
         if (studyNetwork is null)
         {
             return new ApiResponse<StudyNetworkDto>

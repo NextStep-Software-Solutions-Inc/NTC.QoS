@@ -16,7 +16,8 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
 
     public async Task<ApiResponse<CreateRolePermissionDto>> Handle(CreateRolePermissionRequest request, CancellationToken cancellationToken)
     {
-        var existingRolePermission = await _rolePermissionRepository.FindAsync(rp => rp.RoleId == request.RolePermission.RoleId && rp.PermissionId == request.RolePermission.PermissionId, cancellationToken);
+        var existingRolePermissionQuery = _rolePermissionRepository.Query(rp => rp.RoleId == request.RolePermission.RoleId && rp.PermissionId == request.RolePermission.PermissionId);
+        var existingRolePermission = await _rolePermissionRepository.FirstOrDefaultAsync(existingRolePermissionQuery, cancellationToken);
 
         if (existingRolePermission is not null)
         {
@@ -35,7 +36,9 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
 
         if (request.RolePermission.RoleId != Guid.Empty)
         {
-            var role = await _roleRepository.GetByIdAsync(request.RolePermission.RoleId, cancellationToken);
+            var roleQuery = _roleRepository.Query(r => r.Id == request.RolePermission.RoleId);
+            var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
+
             if (role is null)
             {
                 return new ApiResponse<CreateRolePermissionDto>
@@ -54,7 +57,9 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
 
         if (request.RolePermission.PermissionId != Guid.Empty)
         {
-            var permission = await _permissionRepository.GetByIdAsync(request.RolePermission.PermissionId, cancellationToken);
+            var permissionQuery = _permissionRepository.Query(p => p.Id == request.RolePermission.PermissionId);
+            var permission = await _permissionRepository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
+
             if (permission is null)
             {
                 return new ApiResponse<CreateRolePermissionDto>
