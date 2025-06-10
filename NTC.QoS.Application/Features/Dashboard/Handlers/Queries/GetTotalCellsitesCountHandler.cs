@@ -34,7 +34,7 @@ public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCo
         {
             Data = responseData,
             Succeeded = true,
-            Message = "Total cellsites count retrieved successfully."
+            Message = $"Cellsite counts between ({request.StartDate}) to ({request.EndDate}) retrieved successfully."
         });
     }
 }
