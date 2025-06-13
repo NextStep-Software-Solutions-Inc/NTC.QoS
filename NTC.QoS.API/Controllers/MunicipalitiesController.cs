@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
+using System.ComponentModel.DataAnnotations;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -61,12 +62,12 @@ public class MunicipalitiesController : ControllerBase
         return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
     }
 
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    [HttpDelete]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteMunicipalities([Required][FromQuery] List<Guid> ids)
     {
-        var request = new DeleteMunicipalityByIdRequest(id);
-        var municipality = await _mediator.Send(request);
+        var request = new DeleteMunicipalitiesByIdsRequest { Ids = ids};
+        var result = await _mediator.Send(request);
 
-        return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 }

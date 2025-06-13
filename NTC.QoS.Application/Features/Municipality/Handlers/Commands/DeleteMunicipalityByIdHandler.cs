@@ -5,37 +5,27 @@ using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
-public class DeleteMunicipalityHandler(IMunicipalityRepository repository) : IRequestHandler<DeleteMunicipalityByIdRequest, ApiResponse<bool>>
+public class DeleteMunicipalitiesByIdsHandler(IMunicipalityRepository repository) : IRequestHandler<DeleteMunicipalitiesByIdsRequest, ApiResponse<bool>>
 {
     private readonly IMunicipalityRepository _repository = repository;
-    public async Task<ApiResponse<bool>> Handle(DeleteMunicipalityByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<bool>> Handle(DeleteMunicipalitiesByIdsRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
-        var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
+        var municipalitiesToDeleteQuery = _repository.Query(m => request.Ids.Contains(m.Id) && !m.IsDeleted);
+        var municipalitiesToDeleteCount = await _repository.ExecuteDeleteAsync(municipalitiesToDeleteQuery, cancellationToken);
 
-        if (municipality is null)
+        if (municipalitiesToDeleteCount is 0)
         {
             return new ApiResponse<bool>
             {
-                Data = false,
                 Succeeded = false,
-                Message = "The Municipality you are trying to delete does not exist.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullMunicipality", ["Municipality not found."]
-                    }
-                }
+                Message = "None of the specified municipalities exist or are already deleted."
             };
         }
-        _repository.Delete(municipality);
-        await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>
         {
             Succeeded = true,
-            Data = true,
-            Message = "Municipality deleted successfully."
+            Message = $"{municipalitiesToDeleteCount} municipalities deleted successfully."
         };
     }
 }
