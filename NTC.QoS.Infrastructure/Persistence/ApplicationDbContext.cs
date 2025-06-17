@@ -362,6 +362,42 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithOne(st => st.Technology)
             .HasForeignKey(st => st.TechnologyId);
 
+        modelBuilder.Entity<Region>()
+            .Property(r => r.Boundaries)
+            .HasColumnType("geography (MultiPolygon, 4326)");
+
+        modelBuilder.Entity<Region>()
+            .HasIndex(r => r.Boundaries)
+            .HasDatabaseName("IX_Region_Boundaries_GIST")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Region>()
+            .Property(r => r.Center)
+            .HasColumnType("geography (Point, 4326)");
+
+        modelBuilder.Entity<Region>()
+            .HasIndex(r => r.Center)
+            .HasDatabaseName("IX_Region_Center_GIST")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Province>()
+            .Property(p => p.Boundaries)
+            .HasColumnType("geography (MultiPolygon, 4326)");
+
+        modelBuilder.Entity<Province>()
+            .HasIndex(p => p.Boundaries)
+            .HasDatabaseName("IX_Province_Boundaries_GIST")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Province>()
+            .Property(p => p.Center)
+            .HasColumnType("geography (Point, 4326)");
+
+        modelBuilder.Entity<Province>()
+            .HasIndex(p => p.Center)
+            .HasDatabaseName("IX_Province_Center_GIST")
+            .HasMethod("GIST");
+
         base.OnModelCreating(modelBuilder);
     }
 }

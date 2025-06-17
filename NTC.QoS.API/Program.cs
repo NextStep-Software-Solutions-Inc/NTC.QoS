@@ -5,6 +5,10 @@ using System.Text.Json;
 using NTC.QoS.API.Extensions;
 using Hangfire;
 using Microsoft.AspNetCore.ResponseCompression;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Infrastructure.Persistence;
+using NTC.QoS.Infrastructure.Seeder;
+using Microsoft.EntityFrameworkCore;
 
 namespace NTC.QoS.API;
 
@@ -71,8 +75,32 @@ public class Program
         app.UseAuthorization();
         app.UseHangfireDashboard();
 
-        app.ConfigureExceptionHandler(app.Logger); //Important line.
+        app.ConfigureExceptionHandler(app.Logger);
         app.MapControllers();
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            try
+            {
+                var dbContext = services.GetRequiredService<ApplicationDbContext>();
+
+                Console.WriteLine("Applying database migrations (if any)...");
+                dbContext.Database.MigrateAsync().GetAwaiter().GetResult();
+                Console.WriteLine("Database migrations applied.");
+
+                Console.WriteLine("Starting database seeding process...");
+                DatabaseSeeder.SeedEntityAsync(dbContext, LocationTypeToSeedEnum.Region).GetAwaiter().GetResult();
+                DatabaseSeeder.SeedEntityAsync(dbContext, LocationTypeToSeedEnum.Province).GetAwaiter().GetResult();
+
+                Console.WriteLine("Database seeding process completed.");
+            }
+            catch (Exception ex)
+            {
+                var logger = services.GetRequiredService<ILogger<Program>>();
+                logger.LogError(ex, "An error occurred while seeding the database.");
+            }
+        }
 
         app.Run();
     }

@@ -9,6 +9,7 @@ using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Services;
 using NetTopologySuite.Geometries; // For Point
+using NTC.QoS.Application.Services;
 
 namespace NTC.QoS.Infrastructure;
 public static class InfrastructureDependencyInjection
@@ -68,6 +69,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
 
+        services.AddScoped<IGeoSpatialService, GeospatialService>();
 
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
 

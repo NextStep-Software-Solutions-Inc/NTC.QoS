@@ -1310,6 +1310,21 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .IsRequired()
+                        .HasColumnType("geography (MultiPolygon, 4326)");
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .HasColumnType("geography (Point, 4326)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1346,6 +1361,16 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Province_Boundaries_GIST");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Province_Center_GIST");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
+
                     b.HasIndex("RegionId");
 
                     b.ToTable("Provinces");
@@ -1356,6 +1381,21 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .IsRequired()
+                        .HasColumnType("geography (MultiPolygon, 4326)");
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .HasColumnType("geography (Point, 4326)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1389,6 +1429,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Region_Boundaries_GIST");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Region_Center_GIST");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
                     b.ToTable("Regions");
                 });
