@@ -362,6 +362,66 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithOne(st => st.Technology)
             .HasForeignKey(st => st.TechnologyId);
 
+        modelBuilder.Entity<Region>()
+            .Property(r => r.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+
+        modelBuilder.Entity<Region>()
+            .HasIndex(r => r.Boundaries)
+            .HasDatabaseName("IX_Region_Boundaries")
+            .HasMethod("GIST");
+        
+        modelBuilder.Entity<Region>()
+            .Property(r => r.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Region>()
+            .HasIndex(r => r.Center)
+            .HasDatabaseName("IX_Region_Center")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Province>()
+            .Property(p => p.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+
+        modelBuilder.Entity<Province>()
+            .HasIndex(p => p.Boundaries)
+            .HasDatabaseName("IX_Province_Boundaries")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Province>()
+            .Property(p => p.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Province>()
+            .HasIndex(p => p.Center)
+            .HasDatabaseName("IX_Province_Center")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Region>()
+            .Property<MultiPolygon>("BoundariesGeometry")
+            .HasComputedColumnSql(@"""Boundaries""::geometry", stored: true);
+
+        modelBuilder.Entity<Region>()
+            .Property<Point>("CenterGeometry")
+            .HasComputedColumnSql(@"""Center""::geometry", stored: true);
+
+        modelBuilder.Entity<Cell>()
+            .Property<Point>("LocationGeometry")
+            .HasComputedColumnSql(@"""Location""::geometry", stored: true);
+
+        modelBuilder.Entity<Province>()
+            .Property<MultiPolygon>("BoundariesGeometry")
+            .HasComputedColumnSql(@"""Boundaries""::geometry", stored: true);
+
+        modelBuilder.Entity<Province>()
+            .Property<Point>("CenterGeometry")
+            .HasComputedColumnSql(@"""Center""::geometry", stored: true);
+
         base.OnModelCreating(modelBuilder);
     }
 }

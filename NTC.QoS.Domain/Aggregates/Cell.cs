@@ -1,6 +1,7 @@
 ﻿using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NetTopologySuite.Geometries;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace NTC.QoS.Domain.Aggregates;
 
@@ -22,6 +23,11 @@ public class Cell : BaseEntity
     public bool IsVerified { get; set; }
     public CellStatusEnum Status { get; set; } = CellStatusEnum.Unknown;
     public bool IsFileUploaded { get; set; }
+
+
+    [NotMapped]
+    public Point LocationGeometry { get; set; } = null!;
+
     public virtual List<CellSector> CellSectors { get; set; } = [];
     public virtual List<Cellular> Cellulars { get; set; } = [];
 }
