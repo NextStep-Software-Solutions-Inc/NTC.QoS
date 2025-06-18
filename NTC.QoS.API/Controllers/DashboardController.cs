@@ -40,8 +40,7 @@ public class DashboardController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("regions/top-by-cell-count")]
-    [ProducesResponseType(typeof(List<GeoEntityCellCountDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetTopRegionsByCellCount([FromQuery] int topCount = 0)
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount([FromQuery] int topCount = 0)
     {
         var query = new GetTopRegionsByCellCountRequest { TopCount = topCount };
         var result = await _mediator.Send(query);
@@ -49,8 +48,7 @@ public class DashboardController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("provinces/top-by-cell-count/region-id")]
-    [ProducesResponseType(typeof(List<GeoEntityCellCountDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetTopProvincesInRegionByCellCount([Required][FromQuery] Guid regionId, [FromQuery] int topCount = 0)
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopProvincesInRegionByCellCount([Required][FromQuery] Guid regionId, [FromQuery] int topCount = 0)
     {
         var query = new GetTopProvincesInRegionByCellCountRequest { RegionId = regionId, TopCount = topCount };
         var result = await _mediator.Send(query);
