@@ -6,6 +6,7 @@ using NTC.QoS.API.Extensions;
 using Hangfire;
 using Microsoft.AspNetCore.ResponseCompression;
 using NTC.QoS.Application.Services;
+using NetTopologySuite.IO.Converters;
 
 namespace NTC.QoS.API;
 
@@ -31,6 +32,7 @@ public class Program
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; // Set to camelCase
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                options.JsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory()); // Add GeoJSON converter
             });
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(option =>

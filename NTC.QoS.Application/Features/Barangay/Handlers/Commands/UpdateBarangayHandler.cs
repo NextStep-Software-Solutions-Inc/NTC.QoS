@@ -66,6 +66,8 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
                         }
                     }
                 },
+                Code = barangay.Code,
+                Area = barangay.Area,
             },
         };
     }
