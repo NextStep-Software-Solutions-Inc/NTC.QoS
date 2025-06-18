@@ -21,7 +21,7 @@ public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCo
 
         var verifiedCells = cells.Count(c => c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
         var unverifiedCells = cells.Count(c => !c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
-        var totalCells = cells.Count;
+        var totalCells = cells.Count(c => c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
 
         var responseData = new CellsiteCountsDto
         {
