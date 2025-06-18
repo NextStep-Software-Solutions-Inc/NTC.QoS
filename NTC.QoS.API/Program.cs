@@ -5,6 +5,7 @@ using System.Text.Json;
 using NTC.QoS.API.Extensions;
 using Hangfire;
 using Microsoft.AspNetCore.ResponseCompression;
+using NTC.QoS.Application.Services;
 
 namespace NTC.QoS.API;
 
@@ -46,6 +47,7 @@ public class Program
         });
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
+        builder.Services.AddScoped<GeospatialQueryService>();
 
         var app = builder.Build();
         
@@ -62,7 +64,6 @@ public class Program
                 s.ConfigObject.DisplayRequestDuration = true;
             });
         }
-
 
         app.UseHttpsRedirection();
         app.UseResponseCompression();
