@@ -26,8 +26,8 @@ public static class LocationSeeder
 
         await SeedRegionsAsync(context);
         await SeedProvincesAsync(context);
-        //await SeedMunicipalitiesAsync(context);
-        //await SeedBarangaysAsync(context);
+        await SeedMunicipalitiesAsync(context);
+        await SeedBarangaysAsync(context);
 
         Console.WriteLine("Full database seeding process completed.");
     }
@@ -52,12 +52,12 @@ public static class LocationSeeder
             case LocationTypeToSeedEnum.Province:
                 await SeedProvincesAsync(context);
                 break;
-            //case LocationTypeToSeedEnum.Municipality:
-            //    await SeedMunicipalitiesAsync(context);
-            //    break;
-            //case LocationTypeToSeedEnum.Barangay:
-            //    await SeedBarangaysAsync(context);
-            //    break;
+            case LocationTypeToSeedEnum.Municipality:
+                await SeedMunicipalitiesAsync(context);
+                break;
+            case LocationTypeToSeedEnum.Barangay:
+                await SeedBarangaysAsync(context);
+                break;
             default:
                 Console.WriteLine($"Unknown entity type '{entityType}'. No seeding performed.");
                 break;
@@ -281,218 +281,218 @@ public static class LocationSeeder
     /// Placeholder for seeding Municipality entities.
     /// This method will be expanded once GeoJSON format for Municipalities is provided.
     /// </summary>
-    //private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext
-    //{
-    //    if (await dbContext.Municipalities.AnyAsync())
-    //    {
-    //        Console.WriteLine("Database already contains municipalities. Skipping municipality seeding.");
-    //        return;
-    //    }
-    //    Console.WriteLine($"Starting municipalities seeding from {MunicipalityGeoJsonFilePath}...");
+    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext
+    {
+        if (await dbContext.Municipalities.AnyAsync())
+        {
+            Console.WriteLine("Database already contains municipalities. Skipping municipality seeding.");
+            return;
+        }
+        Console.WriteLine($"Starting municipalities seeding from {MunicipalityGeoJsonFilePath}...");
 
-    //    FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = new FeatureCollection();
 
-    //    try
-    //    {
-    //        string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, MunicipalityGeoJsonFilePath);
+        try
+        {
+            string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, MunicipalityGeoJsonFilePath);
 
-    //        if (!System.IO.File.Exists(fullGeoJsonPath))
-    //        {
-    //            Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
-    //            return;
-    //        }
+            if (!System.IO.File.Exists(fullGeoJsonPath))
+            {
+                Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
+                return;
+            }
 
-    //        string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
-    //        var serializer = GeoJsonSerializer.Create();
+            string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
+            var serializer = GeoJsonSerializer.Create();
 
-    //        using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
-    //        {
-    //            featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
-    //        }
+            using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
+            {
+                featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
+            }
 
-    //        if (featureCollection == null || !featureCollection.Any())
-    //        {
-    //            Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
-    //            return;
-    //        }
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        Console.WriteLine($"Error reading or parsing GeoJSON file for municipalities: {ex.Message}");
-    //        Console.WriteLine(ex.StackTrace);
-    //        return;
-    //    }
+            if (featureCollection == null || !featureCollection.Any())
+            {
+                Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error reading or parsing GeoJSON file for municipalities: {ex.Message}");
+            Console.WriteLine(ex.StackTrace);
+            return;
+        }
 
-    //    var provinceMap = await dbContext.Provinces.ToDictionaryAsync(p => p.Code, p => p.Id);
+        var provinceMap = await dbContext.Provinces.ToDictionaryAsync(p => p.Code, p => p.Id);
 
-    //    var municipalitiesToAdd = new List<Municipality>();
+        var municipalitiesToAdd = new List<Municipality>();
 
-    //    foreach (var feature in featureCollection)
-    //    {
-    //        if (feature?.Geometry == null || feature.Attributes == null)
-    //        {
-    //            Console.WriteLine("Skipping feature due to missing geometry or attributes.");
-    //            continue;
-    //        }
+        foreach (var feature in featureCollection)
+        {
+            if (feature?.Geometry == null || feature.Attributes == null)
+            {
+                Console.WriteLine("Skipping feature due to missing geometry or attributes.");
+                continue;
+            }
 
-    //        var municipality = new Municipality
-    //        {
-    //            Name = feature.Attributes["ADM3_EN"]?.ToString() ?? string.Empty,
-    //            Description = null,
-    //            Code = feature.Attributes["ADM3_PCODE"]?.ToString() ?? string.Empty,
-    //            Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
-    //        };
+            var municipality = new Municipality
+            {
+                Name = feature.Attributes["ADM3_EN"]?.ToString() ?? string.Empty,
+                Description = null,
+                Code = feature.Attributes["ADM3_PCODE"]?.ToString() ?? string.Empty,
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
+            };
 
-    //        if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
-    //        {
-    //            municipality.Boundaries = geoJsonMultiPolygon;
-    //            municipality.Center = geoJsonMultiPolygon.Centroid;
-    //        }
-    //        else if (feature.Geometry is Polygon geoJsonPolygon)
-    //        {
-    //            municipality.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
-    //            municipality.Center = geoJsonPolygon.Centroid;
-    //        }
-    //        else
-    //        {
-    //            Console.WriteLine($"Terminated '{municipality.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
-    //            return;
-    //        }
+            if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
+            {
+                municipality.Boundaries = geoJsonMultiPolygon;
+                municipality.Center = geoJsonMultiPolygon.Centroid;
+            }
+            else if (feature.Geometry is Polygon geoJsonPolygon)
+            {
+                municipality.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
+                municipality.Center = geoJsonPolygon.Centroid;
+            }
+            else
+            {
+                Console.WriteLine($"Terminated '{municipality.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
+                return;
+            }
 
-    //        var provinceCode = feature.Attributes["ADM2_PCODE"]?.ToString();
-    //        if (!string.IsNullOrWhiteSpace(provinceCode) && provinceMap.TryGetValue(provinceCode, out var provinceId))
-    //        {
-    //            municipality.ProvinceId = provinceId;
-    //        }
-    //        else
-    //        {
-    //            Console.WriteLine($"Warning: Could not find Province for municipality '{municipality.Name}' with ADM2_PCODE '{provinceCode}'");
-    //            continue;
-    //        }
+            var provinceCode = feature.Attributes["ADM2_PCODE"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(provinceCode) && provinceMap.TryGetValue(provinceCode, out var provinceId))
+            {
+                municipality.ProvinceId = provinceId;
+            }
+            else
+            {
+                Console.WriteLine($"Warning: Could not find Province for municipality '{municipality.Name}' with ADM2_PCODE '{provinceCode}'");
+                continue;
+            }
 
-    //        municipalitiesToAdd.Add(municipality);
-    //    }
+            municipalitiesToAdd.Add(municipality);
+        }
 
-    //    try
-    //    {
-    //        await dbContext.Municipalities.AddRangeAsync(municipalitiesToAdd);
-    //        await dbContext.SaveChangesAsync();
-    //        Console.WriteLine($"Successfully seeded {municipalitiesToAdd.Count} municipalities into the database.");
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        Console.WriteLine($"Error saving regions to database: {ex.Message}");
-    //        Console.WriteLine(ex.InnerException?.Message);
-    //        Console.WriteLine(ex.StackTrace);
-    //    }
-    //}
+        try
+        {
+            await dbContext.Municipalities.AddRangeAsync(municipalitiesToAdd);
+            await dbContext.SaveChangesAsync();
+            Console.WriteLine($"Successfully seeded {municipalitiesToAdd.Count} municipalities into the database.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving municipalities to database: {ex.Message}");
+            Console.WriteLine(ex.InnerException?.Message);
+            Console.WriteLine(ex.StackTrace);
+        }
+    }
 
-    ///// <summary>
-    ///// Placeholder for seeding Barangay entities.
-    ///// This method will be expanded once GeoJSON format for Barangays is provided.
-    ///// </summary>
-    //private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext
-    //{
-    //    if (await dbContext.Barangays.AnyAsync())
-    //    {
-    //        Console.WriteLine("Database already contains barangays. Skipping barangay seeding.");
-    //        return;
-    //    }
-    //    Console.WriteLine($"Starting barangays seeding from {BarangayGeoJsonFilePath}...");
+    /// <summary>
+    /// Placeholder for seeding Barangay entities.
+    /// This method will be expanded once GeoJSON format for Barangays is provided.
+    /// </summary>
+    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext
+    {
+        if (await dbContext.Barangays.AnyAsync())
+        {
+            Console.WriteLine("Database already contains barangays. Skipping barangay seeding.");
+            return;
+        }
+        Console.WriteLine($"Starting barangays seeding from {BarangayGeoJsonFilePath}...");
 
-    //    FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = new FeatureCollection();
 
-    //    try
-    //    {
-    //        string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, BarangayGeoJsonFilePath);
+        try
+        {
+            string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, BarangayGeoJsonFilePath);
 
-    //        if (!System.IO.File.Exists(fullGeoJsonPath))
-    //        {
-    //            Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
-    //            return;
-    //        }
+            if (!System.IO.File.Exists(fullGeoJsonPath))
+            {
+                Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
+                return;
+            }
 
-    //        string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
-    //        var serializer = GeoJsonSerializer.Create();
+            string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
+            var serializer = GeoJsonSerializer.Create();
 
-    //        using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
-    //        {
-    //            featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
-    //        }
+            using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
+            {
+                featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
+            }
 
-    //        if (featureCollection == null || !featureCollection.Any())
-    //        {
-    //            Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
-    //            return;
-    //        }
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        Console.WriteLine($"Error reading or parsing GeoJSON file for provinces: {ex.Message}");
-    //        Console.WriteLine(ex.StackTrace);
-    //        return;
-    //    }
+            if (featureCollection == null || !featureCollection.Any())
+            {
+                Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error reading or parsing GeoJSON file for provinces: {ex.Message}");
+            Console.WriteLine(ex.StackTrace);
+            return;
+        }
 
-    //    var municipalityMap = await dbContext.Municipalities.ToDictionaryAsync(m => m.Code, m => m.Id);
+        var municipalityMap = await dbContext.Municipalities.ToDictionaryAsync(m => m.Code, m => m.Id);
 
-    //    var barangaysToAdd = new List<Barangay>();
+        var barangaysToAdd = new List<Barangay>();
 
-    //    foreach (var feature in featureCollection)
-    //    {
-    //        if (feature?.Geometry == null || feature.Attributes == null)
-    //        {
-    //            Console.WriteLine("Skipping feature due to missing geometry or attributes.");
-    //            continue;
-    //        }
+        foreach (var feature in featureCollection)
+        {
+            if (feature?.Geometry == null || feature.Attributes == null)
+            {
+                Console.WriteLine("Skipping feature due to missing geometry or attributes.");
+                continue;
+            }
 
-    //        var barangay = new Barangay
-    //        {
-    //            Name = feature.Attributes["ADM4_EN"]?.ToString() ?? string.Empty,
-    //            Description = null,
-    //            Code = feature.Attributes["ADM4_PCODE"]?.ToString() ?? string.Empty,
-    //            Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
-    //        };
+            var barangay = new Barangay
+            {
+                Name = feature.Attributes["ADM4_EN"]?.ToString() ?? string.Empty,
+                Description = null,
+                Code = feature.Attributes["ADM4_PCODE"]?.ToString() ?? string.Empty,
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
+            };
 
-    //        if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
-    //        {
-    //            barangay.Boundaries = geoJsonMultiPolygon;
-    //            barangay.Center = geoJsonMultiPolygon.Centroid;
-    //        }
-    //        else if (feature.Geometry is Polygon geoJsonPolygon)
-    //        {
-    //            barangay.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
-    //            barangay.Center = geoJsonPolygon.Centroid;
-    //        }
-    //        else
-    //        {
-    //            Console.WriteLine($"Terminated '{barangay.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
-    //            return;
-    //        }
+            if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
+            {
+                barangay.Boundaries = geoJsonMultiPolygon;
+                barangay.Center = geoJsonMultiPolygon.Centroid;
+            }
+            else if (feature.Geometry is Polygon geoJsonPolygon)
+            {
+                barangay.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
+                barangay.Center = geoJsonPolygon.Centroid;
+            }
+            else
+            {
+                Console.WriteLine($"Terminated '{barangay.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
+                return;
+            }
 
-    //        var municipalityCode = feature.Attributes["ADM3_PCODE"]?.ToString();
-    //        if (!string.IsNullOrWhiteSpace(municipalityCode) && municipalityMap.TryGetValue(municipalityCode, out var municipalityId))
-    //        {
-    //            barangay.MunicipalityId = municipalityId;
-    //        }
-    //        else
-    //        {
-    //            Console.WriteLine($"Warning: Could not find Municipality for barangay '{barangay.Name}' with ADM3_PCODE '{municipalityCode}'");
-    //            continue;
-    //        }
-    //        barangaysToAdd.Add(barangay);
-    //    }
+            var municipalityCode = feature.Attributes["ADM3_PCODE"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(municipalityCode) && municipalityMap.TryGetValue(municipalityCode, out var municipalityId))
+            {
+                barangay.MunicipalityId = municipalityId;
+            }
+            else
+            {
+                Console.WriteLine($"Warning: Could not find Municipality for barangay '{barangay.Name}' with ADM3_PCODE '{municipalityCode}'");
+                continue;
+            }
+            barangaysToAdd.Add(barangay);
+        }
 
-    //    try
-    //    {
-    //        await dbContext.Barangays.AddRangeAsync(barangaysToAdd);
-    //        await dbContext.SaveChangesAsync();
-    //        Console.WriteLine($"Successfully seeded {barangaysToAdd.Count} barangays into the database.");
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        Console.WriteLine($"Error saving regions to database: {ex.Message}");
-    //        Console.WriteLine(ex.InnerException?.Message);
-    //        Console.WriteLine(ex.StackTrace);
-    //    }
-    //}
+        try
+        {
+            await dbContext.Barangays.AddRangeAsync(barangaysToAdd);
+            await dbContext.SaveChangesAsync();
+            Console.WriteLine($"Successfully seeded {barangaysToAdd.Count} barangays into the database.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving barangays to database: {ex.Message}");
+            Console.WriteLine(ex.InnerException?.Message);
+            Console.WriteLine(ex.StackTrace);
+        }
+    }
 }

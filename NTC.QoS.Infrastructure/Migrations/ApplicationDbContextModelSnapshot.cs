@@ -82,12 +82,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
-                    b.Property<Point>("LocationGeometry")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("geometry")
-                        .HasComputedColumnSql("\"Location\"::geometry", true);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -742,6 +736,25 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -777,6 +790,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Barangay_Boundaries");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Barangay_Center");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
                     b.HasIndex("MunicipalityId");
 
@@ -1080,6 +1103,25 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1118,6 +1160,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Municipality_Boundaries");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Municipality_Center");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
                     b.HasIndex("ProvinceId");
 
@@ -1325,23 +1377,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("geography (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
-                    b.Property<MultiPolygon>("BoundariesGeometry")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("geometry")
-                        .HasComputedColumnSql("\"Boundaries\"::geometry", true);
-
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
-
-                    b.Property<Point>("CenterGeometry")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("geometry")
-                        .HasComputedColumnSql("\"Center\"::geometry", true);
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -1413,23 +1453,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("geography (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
-                    b.Property<MultiPolygon>("BoundariesGeometry")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("geometry")
-                        .HasComputedColumnSql("\"Boundaries\"::geometry", true);
-
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
-
-                    b.Property<Point>("CenterGeometry")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("geometry")
-                        .HasComputedColumnSql("\"Center\"::geometry", true);
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -2365,7 +2393,7 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Province", "Province")
-                        .WithMany()
+                        .WithMany("Municipalities")
                         .HasForeignKey("ProvinceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2378,7 +2406,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
                         .WithMany("Provinces")
                         .HasForeignKey("RegionId")
-                        .OnDelete(DeleteBehavior.NoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Region");
@@ -2643,6 +2671,11 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Provider", b =>
                 {
                     b.Navigation("ServiceProviders");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Province", b =>
+                {
+                    b.Navigation("Municipalities");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Region", b =>

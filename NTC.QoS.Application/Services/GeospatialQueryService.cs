@@ -24,7 +24,7 @@ public class GeospatialQueryService
                 Id = geoEntity.Id,
                 Name = EF.Property<string>(geoEntity, "Name"),
                 Code = EF.Property<string>(geoEntity, "Code"),
-                BoundariesGeometry = EF.Property<MultiPolygon>(geoEntity, "BoundariesGeometry"),
+                Boundaries = EF.Property<MultiPolygon>(geoEntity, "Boundaries"),
                 EntityType = typeof(TEntity).Name
             });
 
@@ -36,9 +36,9 @@ public class GeospatialQueryService
                 Code = geo.Code,
                 EntityType = geo.EntityType,
                 CellCount = _dbContext.Cells.Count(c =>
-                    EF.Property<Point>(c, "LocationGeometry") != null &&
-                    geo.BoundariesGeometry != null &&
-                    EF.Property<Point>(c, "LocationGeometry").Within(geo.BoundariesGeometry)
+                    EF.Property<Point>(c, "Location") != null &&
+                    geo.Boundaries != null &&
+                    EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0)
                 )
             })
             .OrderByDescending(dto => dto.CellCount)
@@ -69,7 +69,7 @@ public class GeospatialQueryService
                 child.Id,
                 Name = EF.Property<string>(child, "Name"),
                 Code = EF.Property<string>(child, "Code"),
-                BoundariesGeometry = EF.Property<MultiPolygon>(child, "BoundariesGeometry"),
+                Boundaries = EF.Property<MultiPolygon>(child, "Boundaries"),
                 EntityType = typeof(TChild).Name
             });
 
@@ -81,39 +81,12 @@ public class GeospatialQueryService
                 Code = dto.Code,
                 EntityType = dto.EntityType,
                 CellCount = _dbContext.Cells.Count(c =>
-                    EF.Property<Point>(c, "LocationGeometry") != null &&
-                    dto.BoundariesGeometry != null &&
-                    EF.Property<Point>(c, "LocationGeometry").Within(dto.BoundariesGeometry)
+                    EF.Property<Point>(c, "Location") != null &&
+                    dto.Boundaries != null &&
+                    EF.Property<Point>(c, "Location").IsWithinDistance(dto.Boundaries, 0)
                 )
             })
             .OrderByDescending(x => x.CellCount)
-            .Take(topCount > 0 ? topCount : int.MaxValue)
-            .ToListAsync();
-
-        return results;
-    }
-
-    public async Task<List<GeoEntityCellCountDto>> GetTopProvincesInRegionByCellCountAsync(Guid regionId, int topCount)
-    {
-        var region = await _dbContext.Regions.FindAsync(regionId);
-        if (region == null)
-            return new List<GeoEntityCellCountDto>();
-
-        var results = await _dbContext.Provinces
-            .Where(p => p.RegionId == regionId)
-            .Select(province => new GeoEntityCellCountDto
-            {
-                Id = province.Id,
-                Name = province.Name,
-                Code = province.Code,
-                EntityType = nameof(Province),
-                CellCount = _dbContext.Cells.Count(c =>
-                    EF.Property<Point>(c, "LocationGeometry") != null &&
-                    province.BoundariesGeometry != null &&
-                    EF.Property<Point>(c, "LocationGeometry").Within(province.BoundariesGeometry)
-                )
-            })
-            .OrderByDescending(dto => dto.CellCount)
             .Take(topCount > 0 ? topCount : int.MaxValue)
             .ToListAsync();
 

@@ -264,8 +264,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Province>()
             .HasOne(p => p.Region)
             .WithMany(r => r.Provinces)
-            .HasForeignKey(p => p.RegionId)
-            .OnDelete(DeleteBehavior.NoAction);
+            .HasForeignKey(p => p.RegionId);
+
+        modelBuilder.Entity<Province>()
+            .HasMany(p => p.Municipalities);
 
         modelBuilder.Entity<Region>()
             .HasMany(r => r.Provinces);
@@ -402,25 +404,45 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasDatabaseName("IX_Province_Center")
             .HasMethod("GIST");
 
-        modelBuilder.Entity<Region>()
-            .Property<MultiPolygon>("BoundariesGeometry")
-            .HasComputedColumnSql(@"""Boundaries""::geometry", stored: true);
+        modelBuilder.Entity<Municipality>()
+            .Property(m => m.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
 
-        modelBuilder.Entity<Region>()
-            .Property<Point>("CenterGeometry")
-            .HasComputedColumnSql(@"""Center""::geometry", stored: true);
+        modelBuilder.Entity<Municipality>()
+            .HasIndex(m => m.Boundaries)
+            .HasDatabaseName("IX_Municipality_Boundaries")
+            .HasMethod("GIST");
 
-        modelBuilder.Entity<Cell>()
-            .Property<Point>("LocationGeometry")
-            .HasComputedColumnSql(@"""Location""::geometry", stored: true);
+        modelBuilder.Entity<Municipality>()
+            .Property(m => m.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
-        modelBuilder.Entity<Province>()
-            .Property<MultiPolygon>("BoundariesGeometry")
-            .HasComputedColumnSql(@"""Boundaries""::geometry", stored: true);
+        modelBuilder.Entity<Municipality>()
+            .HasIndex(m => m.Center)
+            .HasDatabaseName("IX_Municipality_Center")
+            .HasMethod("GIST");
 
-        modelBuilder.Entity<Province>()
-            .Property<Point>("CenterGeometry")
-            .HasComputedColumnSql(@"""Center""::geometry", stored: true);
+        modelBuilder.Entity<Barangay>()
+            .Property(b => b.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+
+        modelBuilder.Entity<Barangay>()
+            .HasIndex(b => b.Boundaries)
+            .HasDatabaseName("IX_Barangay_Boundaries")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Barangay>()
+            .Property(b => b.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Barangay>()
+            .HasIndex(b => b.Center)
+            .HasDatabaseName("IX_Barangay_Center")
+            .HasMethod("GIST");
 
         base.OnModelCreating(modelBuilder);
     }

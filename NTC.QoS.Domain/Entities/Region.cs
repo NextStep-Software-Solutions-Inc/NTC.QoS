@@ -1,5 +1,4 @@
 ﻿using NetTopologySuite.Geometries;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace NTC.QoS.Domain.Entities;
 
@@ -11,11 +10,6 @@ public class Region : BaseEntity
     public Point Center { get; set; } = null!;
     public string Code { get; set; } = null!;
     public float Area { get; set; } = 0f;
-
-    [NotMapped]
-    public MultiPolygon BoundariesGeometry { get; set; } = null!;
-    [NotMapped]
-    public Point CenterGeometry { get; set; } = null!;
 
     public virtual List<Province> Provinces { get; set; } = [];
 }
