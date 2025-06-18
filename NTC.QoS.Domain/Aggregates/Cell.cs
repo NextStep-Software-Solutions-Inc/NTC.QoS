@@ -22,6 +22,7 @@ public class Cell : BaseEntity
     public bool IsVerified { get; set; }
     public CellStatusEnum Status { get; set; } = CellStatusEnum.Unknown;
     public bool IsFileUploaded { get; set; }
+
     public virtual List<CellSector> CellSectors { get; set; } = [];
     public virtual List<Cellular> Cellulars { get; set; } = [];
 }
