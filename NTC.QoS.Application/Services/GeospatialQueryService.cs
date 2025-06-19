@@ -15,7 +15,10 @@ public class GeospatialQueryService
         _dbContext = dbContext;
     }
 
-    public async Task<List<GeoEntityCellCountDto>> GetTopGeoEntitiesByCellCountAsync<TEntity>(int topCount)
+    public async Task<List<GeoEntityCellCountDto>> GetTopGeoEntitiesByCellCountAsync<TEntity>(
+        int topCount,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
         where TEntity : BaseEntity, new()
     {
         var query = _dbContext.Set<TEntity>()
@@ -38,7 +41,9 @@ public class GeospatialQueryService
                 CellCount = _dbContext.Cells.Count(c =>
                     EF.Property<Point>(c, "Location") != null &&
                     geo.Boundaries != null &&
-                    EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0)
+                    EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
                 )
             })
             .OrderByDescending(dto => dto.CellCount)
@@ -51,7 +56,9 @@ public class GeospatialQueryService
     public async Task<List<GeoEntityCellCountDto>> GetTopChildEntitiesByCellCountAsync<TParent, TChild>(
         Guid parentId,
         string parentIdPropertyName,
-        int topCount)
+        int topCount,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
         where TParent : BaseEntity
         where TChild : BaseEntity
     {
@@ -83,7 +90,9 @@ public class GeospatialQueryService
                 CellCount = _dbContext.Cells.Count(c =>
                     EF.Property<Point>(c, "Location") != null &&
                     dto.Boundaries != null &&
-                    EF.Property<Point>(c, "Location").IsWithinDistance(dto.Boundaries, 0)
+                    EF.Property<Point>(c, "Location").IsWithinDistance(dto.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
                 )
             })
             .OrderByDescending(x => x.CellCount)

@@ -86,6 +86,7 @@ public class CreateBarangayHandler(IBarangayRepository repository, IMunicipality
                         }
                     }
                 },
+
             },
             Message = "Barangay created successfully.",
             Succeeded = true

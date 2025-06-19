@@ -8,4 +8,6 @@ public class GetTopProvincesInRegionByCellCountRequest : IRequest<ApiResponse<Li
 {
     public Guid RegionId { get; set; }
     public int TopCount { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
 }

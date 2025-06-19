@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Dashboard.Requests;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 using System.ComponentModel.DataAnnotations;
@@ -9,18 +10,33 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("dashboard", Name = "dashboard")]
-public class DashboardController(IMediator mediator) : ControllerBase
+public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeHelper) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
+    private readonly IDateRangeHelper _dateRangeHelper = dateRangeHelper;
 
     [HttpGet("cell-counts")]
     public async Task<ActionResult<ApiResponse<int>>> GetTotalCellsitesCount(
-        [FromQuery, Required] DateTime startDate,
-        [FromQuery, Required] DateTime endDate)
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate)
     {
-        DateTime utcStartDate = startDate.ToUniversalTime();
-        DateTime utcEndDate = endDate.ToUniversalTime();
-        var request = new GetTotalCellsitesCountRequest { StartDate = utcStartDate, EndDate = utcEndDate };
+        DateTime finalStartDate;
+        DateTime finalEndDate;
+
+        if (startDate.HasValue && endDate.HasValue)
+        {
+            // Use provided dates, convert to UTC
+            finalStartDate = startDate.Value.ToUniversalTime();
+            finalEndDate = endDate.Value.ToUniversalTime();
+        }
+        else
+        {
+            // Use backend-driven default from the helper
+            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            Console.WriteLine($"Dashboard (CellCounts): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+        }
+
+        var request = new GetTotalCellsitesCountRequest { StartDate = finalStartDate, EndDate = finalEndDate };
         var response = await _mediator.Send(request);
 
         return response.Succeeded ? Ok(response) : BadRequest(response);
@@ -28,21 +44,51 @@ public class DashboardController(IMediator mediator) : ControllerBase
 
     [HttpGet("NAPs-count")]
     public async Task<ActionResult<ApiResponse<int>>> GetTotalNAPsCount(
-        [FromQuery, Required] DateTime startDate,
-        [FromQuery, Required] DateTime endDate)
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate)
     {
-        DateTime utcStartDate = startDate.ToUniversalTime();
-        DateTime utcEndDate = endDate.ToUniversalTime();
-        var request = new GetTotalNAPsCountRequest { StartDate = utcStartDate, EndDate = utcEndDate };
+        DateTime finalStartDate;
+        DateTime finalEndDate;
+
+        if (startDate.HasValue && endDate.HasValue)
+        {
+            // Use provided dates, convert to UTC
+            finalStartDate = startDate.Value.ToUniversalTime();
+            finalEndDate = endDate.Value.ToUniversalTime();
+        }
+        else
+        {
+            // Use backend-driven default from the helper
+            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            Console.WriteLine($"Dashboard (NAPsCount): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+        }
+
+        var request = new GetTotalNAPsCountRequest { StartDate = finalStartDate, EndDate = finalEndDate };
         var response = await _mediator.Send(request);
 
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
     [HttpGet("regions/top-by-cell-count")]
-    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount([FromQuery] int topCount = 0)
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int topCount = 0)
     {
-        var query = new GetTopRegionsByCellCountRequest { TopCount = topCount };
+        DateTime finalStartDate;
+        DateTime finalEndDate;
+
+        if (startDate.HasValue && endDate.HasValue)
+        {
+            // Use provided dates, convert to UTC
+            finalStartDate = startDate.Value.ToUniversalTime();
+            finalEndDate = endDate.Value.ToUniversalTime();
+        }
+        else
+        {
+            // Use backend-driven default from the helper
+            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            Console.WriteLine($"Dashboard (NAPsCount): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+        }
+
+        var query = new GetTopRegionsByCellCountRequest { TopCount = topCount, StartDate = finalStartDate, EndDate = finalEndDate };
         var result = await _mediator.Send(query);
         return Ok(result);
     }
