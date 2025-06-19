@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Dashboard.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Dashboard;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 using System.ComponentModel.DataAnnotations;
 
@@ -99,5 +100,31 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         var query = new GetTopProvincesInRegionByCellCountRequest { RegionId = regionId, TopCount = topCount };
         var result = await _mediator.Send(query);
         return Ok(result);
+    }
+
+    [HttpGet("overview")]
+    public async Task<ActionResult<ApiResponse<DashboardOverviewDto>>> GetDashboardOverview(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] int topCount = 5)
+    {
+        DateTime finalStartDate;
+        DateTime finalEndDate;
+        if (startDate.HasValue && endDate.HasValue)
+        {
+            // Use provided dates, convert to UTC
+            finalStartDate = startDate.Value.ToUniversalTime();
+            finalEndDate = endDate.Value.ToUniversalTime();
+        }
+        else
+        {
+            // Use backend-driven default from the helper
+            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            Console.WriteLine($"Dashboard (Overview): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+        }
+        var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, TopCount = topCount};
+        var response = await _mediator.Send(request);
+        return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 }

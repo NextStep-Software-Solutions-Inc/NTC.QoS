@@ -8,4 +8,6 @@ public class GetDashboardOverviewRequest : IRequest<ApiResponse<DashboardOvervie
 {
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
+    public int TopCount { get; set; }
+    public Guid? RegionId { get; set; }
 }

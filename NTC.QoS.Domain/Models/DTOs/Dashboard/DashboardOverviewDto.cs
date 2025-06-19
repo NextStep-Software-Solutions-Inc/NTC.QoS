@@ -6,6 +6,6 @@ public class DashboardOverviewDto
 {
     public CellsiteCountsDto CellsiteCounts { get; set; } = new CellsiteCountsDto();
     public int TotalNAPsCount { get; set; }
-    public List<GeoEntityCellCountDto> TopGeoEntitesByCellCount { get; set; } = [];
-    public List<GeoEntityCellCountDto> TopChildGeoEntityByCellCount { get; set; } = [];
+    public List<GeoEntityCellCountDto> TopRegionsByCellCount { get; set; } = [];
+    public List<GeoEntityCellCountDto> TopProvincesInRegionByCellCount { get; set; } = [];
 }

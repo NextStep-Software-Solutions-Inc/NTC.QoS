@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Dashboard.Requests;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
@@ -10,11 +11,13 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
 {
     private readonly ICellRepository _cellRepository;
     private readonly INAPRepository _napRepository;
+    private readonly GeospatialQueryService _geospatialQueryService;
 
-    public GetDashboardOverviewHandler(ICellRepository cellRepository, INAPRepository napRepository)
+    public GetDashboardOverviewHandler(ICellRepository cellRepository, INAPRepository napRepository, GeospatialQueryService geospatialQueryService)
     {
         _cellRepository = cellRepository;
         _napRepository = napRepository;
+        _geospatialQueryService = geospatialQueryService;
     }
 
     public async Task<ApiResponse<DashboardOverviewDto>> Handle(GetDashboardOverviewRequest request, CancellationToken cancellationToken)
@@ -35,6 +38,9 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
         var nAPsCount = _napRepository.Query(c => !c.IsDeleted &&
             c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
 
+        var topRegionsByCellCount = await _geospatialQueryService.GetTopGeoEntitiesByCellCountAsync<Domain.Entities.Region>(request.TopCount, request.StartDate, request.EndDate);
+
+        var topProvincesInRegionByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Region, Domain.Entities.Province>(request.RegionId, "RegionId", request.TopCount, request.StartDate, request.EndDate);
 
         return await Task.FromResult(new ApiResponse<DashboardOverviewDto>
         {
@@ -42,7 +48,8 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
             {
                 CellsiteCounts = cellData,
                 TotalNAPsCount = nAPsCount,
-
+                TopRegionsByCellCount = topRegionsByCellCount,
+                TopProvincesInRegionByCellCount = topProvincesInRegionByCellCount
             },
             Succeeded = true,
             Message = $"Dashboard data overview between ({request.StartDate}) to ({request.EndDate}) retrieved successfully."
