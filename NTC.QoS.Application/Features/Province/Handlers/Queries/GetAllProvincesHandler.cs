@@ -25,6 +25,8 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
+            Code = p.Code,
+            Area = p.Area,
             Region = new RegionDto
             {
                 Id = p.Region.Id,         

@@ -1,5 +1,9 @@
-﻿using MediatR;
+﻿using System.Text.Json;
+using MediatR;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.IO.Converters;
 using NTC.QoS.Application.Features.Province.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Province;
@@ -7,9 +11,17 @@ using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Commands;
 
-public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IRequestHandler<UpdateProvinceRequest, ApiResponse<ProvinceDto>>
+public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, ApiResponse<ProvinceDto>>
 {
-    private readonly IProvinceRepository _repository = repository;
+    private readonly IProvinceRepository _repository;
+    private readonly JsonSerializerOptions _jsonSerializerOptions;
+
+    public UpdateProvinceByIdHandler(IProvinceRepository repository)
+    {
+        _repository = repository;
+        _jsonSerializerOptions = new JsonSerializerOptions();
+        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
+    }
     public async Task<ApiResponse<ProvinceDto>> Handle(UpdateProvinceRequest request,
             CancellationToken cancellationToken)
     {
@@ -67,8 +79,86 @@ public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IReques
 
         province.Name = request.Province.Name;
         province.Description = request.Province.Description;
+        province.Code = request.Province.Code ?? string.Empty;
+        province.Area = request.Province.Area ?? 0f;
 
-         _repository.Update(province);
+        if (request.Province.Boundaries.HasValue)
+        {
+            if (request.Province.Boundaries.Value.ValueKind == JsonValueKind.Null)
+            {
+                province.Boundaries = GeometryHelper.CreateMultiPolygon(Array.Empty<Polygon>());
+                province.Center = GeometryHelper.CreatePoint(0, 0);
+            }
+            else
+            {
+                try
+                {
+                    Geometry? receivedGeometry = request.Province.Boundaries.Value.Deserialize<Geometry>(_jsonSerializerOptions);
+
+                    if (receivedGeometry == null)
+                    {
+                        return new ApiResponse<ProvinceDto>
+                        {
+                            Succeeded = false,
+                            Errors = new Dictionary<string, string[]>
+                    {
+                        { "InvalidBoundaries", new[] { "Provided boundaries GeoJSON is invalid or empty after deserialization." } }
+                    },
+                            Message = "Invalid boundaries provided."
+                        };
+                    }
+
+                    if (receivedGeometry is MultiPolygon multiPolygon)
+                    {
+                        province.Boundaries = multiPolygon;
+                    }
+                    else if (receivedGeometry is Polygon polygon)
+                    {
+                        province.Boundaries = GeometryHelper.CreateMultiPolygon(new[] { polygon });
+                    }
+                    else
+                    {
+                        return new ApiResponse<ProvinceDto>
+                        {
+                            Succeeded = false,
+                            Errors = new Dictionary<string, string[]>
+                    {
+                        { "InvalidBoundariesType", new[] { $"Boundaries must be a Polygon or MultiPolygon GeoJSON. Received: {receivedGeometry.GeometryType}." } }
+                    },
+                            Message = "Invalid boundaries provided."
+                        };
+                    }
+
+                    province.Center = province.Boundaries.Centroid;
+                }
+                catch (JsonException ex)
+                {
+                    return new ApiResponse<ProvinceDto>
+                    {
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                {
+                    { "InvalidGeoJSON", new[] { $"Failed to parse boundaries GeoJSON: {ex.Message}" } }
+                },
+                        Message = "Invalid boundaries GeoJSON format."
+                    };
+                }
+                catch (ArgumentException ex)
+                {
+                    return new ApiResponse<ProvinceDto>
+                    {
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                {
+                    { "BoundariesError", new[] { ex.Message } }
+                },
+                        Message = "Error processing boundaries."
+                    };
+                }
+            }
+        }
+
+        _repository.Update(province);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<ProvinceDto>
@@ -84,7 +174,9 @@ public class UpdateProvinceByIdHandler(IProvinceRepository repository) : IReques
                     Id = province.RegionId,
                     Name = province.Region?.Name ?? string.Empty,
                     Description = province.Region?.Description
-                }
+                },
+                Code = province.Code ?? string.Empty,
+                Area = province.Area,
             },
             Message = "Province updated successfully."
         };

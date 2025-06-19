@@ -40,6 +40,8 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
                 Id = province.Id,
                 Name = province.Name,
                 Description = province.Description,
+                Code = province.Code,
+                Area = province.Area,
                 Region = new RegionDto
                 {
                     Id = province.RegionId,
