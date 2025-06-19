@@ -139,7 +139,7 @@ public static class LocationSeeder
             }
             else if (feature.Geometry is Polygon geoJsonPolygon)
             {
-                region.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
+                region.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
                 region.Center = geoJsonPolygon.Centroid;
             }
             else
@@ -239,7 +239,7 @@ public static class LocationSeeder
             }
             else if (feature.Geometry is Polygon geoJsonPolygon)
             {
-                province.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
+                province.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
                 province.Center = geoJsonPolygon.Centroid;
             }
             else
@@ -350,8 +350,8 @@ public static class LocationSeeder
             }
             else if (feature.Geometry is Polygon geoJsonPolygon)
             {
-                municipality.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
-                municipality.Center = geoJsonPolygon.Centroid;
+                municipality.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
+                municipality.Center = geoJsonPolygon.Centroid;  
             }
             else
             {
@@ -460,7 +460,7 @@ public static class LocationSeeder
             }
             else if (feature.Geometry is Polygon geoJsonPolygon)
             {
-                barangay.Boundaries = GeometryHelper.CreateMultiPolygon(geoJsonPolygon);
+                barangay.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
                 barangay.Center = geoJsonPolygon.Centroid;
             }
             else

@@ -34,7 +34,7 @@ public static class GeometryHelper
     /// <param name="shellCoordinates">The coordinates for the exterior ring of the polygon.</param>
     /// <param name="holeCoordinates">Optional: A collection of collections of coordinates for interior rings (holes).</param>
     /// <returns>A NetTopologySuite Polygon object.</returns>
-    public static Polygon CreatePolygon(IEnumerable<Coordinate> shellCoordinates, IEnumerable<IEnumerable<Coordinate>> holeCoordinates = null)
+    public static Polygon CreatePolygon(IEnumerable<Coordinate> shellCoordinates, IEnumerable<IEnumerable<Coordinate>>? holeCoordinates = null)
     {
         if (shellCoordinates == null)
         {
@@ -44,7 +44,7 @@ public static class GeometryHelper
         // Ensure the shell is a closed linear ring
         var shell = new LinearRing(shellCoordinates.ToArray());
 
-        List<LinearRing> holes = null;
+        List<LinearRing>? holes = null;
         if (holeCoordinates != null)
         {
             holes = new List<LinearRing>();
@@ -66,7 +66,7 @@ public static class GeometryHelper
     /// </summary>
     /// <param name="polygons">An array of Polygon objects to be included in the MultiPolygon.</param>
     /// <returns>A NetTopologySuite MultiPolygon object.</returns>
-    public static MultiPolygon CreateMultiPolygon(params Polygon[] polygons)
+    public static MultiPolygon CreateMultiPolygon(MultiPolygon? boundaries, params Polygon[] polygons)
     {
         if (polygons == null)
         {
