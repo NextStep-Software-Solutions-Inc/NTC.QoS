@@ -53,7 +53,9 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
                         Name = municipality.Province?.Region?.Name ?? "Unknown",
                         Description = municipality.Province?.Region?.Description
                     }
-                }
+                },
+                Code = municipality.Code ?? string.Empty,
+                Area = municipality.Area
             }
         };
     }
