@@ -6,12 +6,26 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
+using System.Text.Json;
+using NetTopologySuite.IO.Converters;
+using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Helper;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
-public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) : IRequestHandler<UpdateBarangayByIdRequest, ApiResponse<BarangayDto>>
+public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdRequest, ApiResponse<BarangayDto>>
 {
-    private readonly IBarangayRepository _barangayRepository = barangayRepository;
+    private readonly IBarangayRepository _barangayRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly JsonSerializerOptions _jsonSerializerOptions;
+
+    public UpdateBarangayByIdHandler(IBarangayRepository barangayRepository, IMunicipalityRepository municipalityRepository)
+    {
+        _barangayRepository = barangayRepository;
+        _municipalityRepository = municipalityRepository;
+        _jsonSerializerOptions = new JsonSerializerOptions();
+        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
+    }
     public async Task<ApiResponse<BarangayDto>> Handle(UpdateBarangayByIdRequest request, CancellationToken cancellationToken)
     {
         var barangayQuery = _barangayRepository.Query(b => b.Id == request.Id && !b.IsDeleted);
@@ -34,6 +48,88 @@ public class UpdateBarangayByIdHandler(IBarangayRepository barangayRepository) :
         }
         barangay.Name = request.Barangay.Name;
         barangay.Description = request.Barangay.Description;
+        barangay.Code = request.Barangay.Code ?? string.Empty;
+        barangay.Area = request.Barangay.Area ?? 0f;
+
+        // Process Boundaries
+        if (request.Barangay.Boundaries.HasValue) 
+        {
+            if (request.Barangay.Boundaries.Value.ValueKind == JsonValueKind.Null)
+            {
+                // Yes, it was included, AND its value is explicitly 'null'.
+                // This is interpreted as an explicit instruction to clear the boundaries.
+                barangay.Boundaries = GeometryHelper.CreateMultiPolygon(Array.Empty<Polygon>());
+                barangay.Center = GeometryHelper.CreatePoint(0, 0);
+            }
+            else
+            {
+                // Yes, it was included, AND its value is NOT null (meaning it should be valid GeoJSON).
+                try
+                {
+                    Geometry? receivedGeometry = request.Barangay.Boundaries.Value.Deserialize<Geometry>(_jsonSerializerOptions);
+
+                    if (receivedGeometry == null)
+                    {
+                        return new ApiResponse<BarangayDto>
+                        {
+                            Succeeded = false,
+                            Errors = new Dictionary<string, string[]>
+                    {
+                        { "InvalidBoundaries", new[] { "Provided boundaries GeoJSON is invalid or empty after deserialization." } }
+                    },
+                            Message = "Invalid boundaries provided."
+                        };
+                    }
+
+                    if (receivedGeometry is MultiPolygon multiPolygon)
+                    {
+                        barangay.Boundaries = multiPolygon;
+                    }
+                    else if (receivedGeometry is Polygon polygon)
+                    {
+                        barangay.Boundaries = GeometryHelper.CreateMultiPolygon(new[] { polygon });
+                    }
+                    else
+                    {
+                        return new ApiResponse<BarangayDto>
+                        {
+                            Succeeded = false,
+                            Errors = new Dictionary<string, string[]>
+                    {
+                        { "InvalidBoundariesType", new[] { $"Boundaries must be a Polygon or MultiPolygon GeoJSON. Received: {receivedGeometry.GeometryType}." } }
+                    },
+                            Message = "Invalid boundaries provided."
+                        };
+                    }
+
+                    barangay.Center = barangay.Boundaries.Centroid;
+                }
+                catch (JsonException ex)
+                {
+                    return new ApiResponse<BarangayDto>
+                    {
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                {
+                    { "InvalidGeoJSON", new[] { $"Failed to parse boundaries GeoJSON: {ex.Message}" } }
+                },
+                        Message = "Invalid boundaries GeoJSON format."
+                    };
+                }
+                catch (ArgumentException ex)
+                {
+                    return new ApiResponse<BarangayDto>
+                    {
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                {
+                    { "BoundariesError", new[] { ex.Message } }
+                },
+                        Message = "Error processing boundaries."
+                    };
+                }
+            }
+        }
 
         _barangayRepository.Update(barangay);
         await _barangayRepository.SaveChangesAsync(cancellationToken);
