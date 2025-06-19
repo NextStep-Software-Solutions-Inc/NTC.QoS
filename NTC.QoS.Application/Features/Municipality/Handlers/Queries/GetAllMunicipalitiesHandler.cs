@@ -16,6 +16,9 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
     {
         var allMunicipalities = _municipalityRepository.Query(m => !m.IsDeleted);
 
+        allMunicipalities = allMunicipalities
+            .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));
+
         var municipalityDtos = allMunicipalities.Select(m => new MunicipalityDto
         {
             Id = m.Id,
@@ -35,9 +38,6 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
                 }
             }
         });
-
-        municipalityDtos = municipalityDtos
-            .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));
 
         return await _municipalityRepository.PaginateAsync(municipalityDtos, request.PageNumber, request.PageSize, cancellationToken);
     }

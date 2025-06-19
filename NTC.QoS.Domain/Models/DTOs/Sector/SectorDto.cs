@@ -6,7 +6,7 @@ namespace NTC.QoS.Domain.Models.DTOs.Sector;
 public class SectorDto
 {
     public required Guid Id { get; set; }
-    public required NetworkSectorDto Network { get; set; }
+    public required NetworkSectorDto? Network { get; set; }
     public required string AntennaType { get; set; }
     public MIMOSectorDto? MIMO { get; set; }
     public CellSectorDto? CellSector { get; set; }

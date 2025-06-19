@@ -1,5 +1,7 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Zone.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
@@ -91,7 +93,9 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
                                 Description = newZone.Barangay?.Municipality?.Province?.Region?.Description,
                             }
                         }
-                    }
+                    },
+                    Code = newZone.Barangay?.Code ?? string.Empty,
+                    Area = newZone.Barangay?.Area ?? 0f
                 }
             },
             Message = "Zone created successfully.",

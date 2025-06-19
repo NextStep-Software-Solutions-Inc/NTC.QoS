@@ -7,6 +7,8 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
+using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Helper;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Queries;
 
@@ -65,7 +67,9 @@ public class GetZoneByIdHandler(IZoneRepository zoneRepository) : IRequestHandle
                                 Description = zone.Barangay?.Municipality?.Province?.Region?.Description,
                             }
                         }
-                    }
+                    },
+                    Code = zone.Barangay?.Code ?? string.Empty,
+                    Area = zone.Barangay?.Area ?? 0f
                 }
             }
         };

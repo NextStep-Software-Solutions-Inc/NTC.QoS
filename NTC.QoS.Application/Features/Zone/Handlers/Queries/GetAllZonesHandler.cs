@@ -1,5 +1,7 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Zone.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Zone;
@@ -48,7 +50,9 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
                                 Description = z.Barangay.Municipality.Province.Region.Description,
                             }
                         }
-                    }
+                    },
+                    Code = z.Barangay.Code ?? string.Empty,
+                    Area = z.Barangay.Area
                 }
             });
 

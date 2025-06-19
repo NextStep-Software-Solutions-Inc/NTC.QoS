@@ -1,5 +1,7 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Barangay.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
@@ -48,7 +50,9 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
                             Description = b.Municipality.Province.Region.Description
                         }
                     }
-                }
+                },
+                Code = b.Code ?? string.Empty,
+                Area = b.Area,
             });
 
         return await _barangayRepository.PaginateAsync(barangayDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
