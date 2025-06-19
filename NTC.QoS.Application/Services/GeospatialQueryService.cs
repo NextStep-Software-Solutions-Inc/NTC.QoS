@@ -54,7 +54,7 @@ public class GeospatialQueryService
     }
 
     public async Task<List<GeoEntityCellCountDto>> GetTopChildEntitiesByCellCountAsync<TParent, TChild>(
-        Guid parentId,
+        Guid? parentId,
         string parentIdPropertyName,
         int topCount,
         DateTime? startDate = null,
@@ -62,15 +62,21 @@ public class GeospatialQueryService
         where TParent : BaseEntity
         where TChild : BaseEntity
     {
-        // Check if parent exists
-        var parent = await _dbContext.Set<TParent>().FindAsync(parentId);
-        if (parent == null)
-            return new List<GeoEntityCellCountDto>();
+        IQueryable<TChild> query = _dbContext.Set<TChild>();
 
-        var query = _dbContext.Set<TChild>()
-            .Where(child =>
-                EF.Property<Guid>(child, parentIdPropertyName) == parentId
-            )
+        // If parentId is null, act like GetTopGeoEntitiesByCellCountAsync (no parent filtering)
+        // Otherwise, filter by parentId
+        if (parentId.HasValue)
+        {
+            // Optional: You might still want to check if the parent actually exists,
+            // but for acting like topGeoEntities when null, this check isn't strictly necessary for the 'else' branch.
+            // If parentId is provided but doesn't exist, the Where clause will simply yield no results.
+            query = query.Where(child =>
+                EF.Property<Guid>(child, parentIdPropertyName) == parentId.Value
+            );
+        }
+
+        var projectedQuery = query
             .Select(child => new
             {
                 child.Id,
@@ -80,7 +86,7 @@ public class GeospatialQueryService
                 EntityType = typeof(TChild).Name
             });
 
-        var results = await query
+        var results = await projectedQuery
             .Select(dto => new GeoEntityCellCountDto
             {
                 Id = dto.Id,
