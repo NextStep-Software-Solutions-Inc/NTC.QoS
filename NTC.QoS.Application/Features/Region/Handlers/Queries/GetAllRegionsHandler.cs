@@ -18,6 +18,8 @@ public class GetAllRegionsHandler(IRegionRepository repository) : IRequestHandle
             Id = r.Id,
             Name = r.Name,
             Description = r.Description,
+            Code = r.Code,
+            Area = r.Area,
         });
 
         return await _repository.PaginateAsync(regionDtos, request.PageNumber, request.PageSize, cancellationToken);
