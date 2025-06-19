@@ -1,4 +1,6 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.Dashboard;
+﻿using NTC.QoS.Domain.Models.DTOs.GeoEntity;
+
+namespace NTC.QoS.Domain.Models.DTOs.Dashboard;
 
 public class DashboardOverviewDto
 {
