@@ -43,8 +43,8 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
                 {
                     Id = cellular.CellId,
                     Name = cellular.Cell.Name,
-                    Latitude = cellular.Cell.Location.X,
-                    Longitude = cellular.Cell.Location.Y,
+                    Latitude = cellular.Cell.Location.Coordinate.X,
+                    Longitude = cellular.Cell.Location.Coordinate.Y,
                     ServiceProvider = null,
                     LAC = cellular.Cell.LAC,
                     CID = cellular.Cell.CID,
