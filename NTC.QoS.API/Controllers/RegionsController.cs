@@ -53,7 +53,7 @@ public class RegionsController : ControllerBase
     [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> UpdateRegionById(Guid id, UpdateRegionDto updateRegionDto)
     {
-        var region = await _mediator.Send(new UpdateRegionRequest(id, updateRegionDto));
+        var region = await _mediator.Send(new UpdateRegionRequest{ Id = id, Region = updateRegionDto });
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 

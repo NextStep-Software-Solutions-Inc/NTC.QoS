@@ -107,17 +107,17 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         {
             throw new ArgumentOutOfRangeException(nameof(pageNumber), "Page number must be at least 1.");
         }
+
         var totalCount = await queryable.CountAsync(cancellationToken);
+
         var paginatedData = await queryable
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize)
-        {
-            TotalRows = totalCount,
-        };
+        return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize, totalCount);
     }
+
 
     public void AddRange(IEnumerable<TEntity> entities)
     {
