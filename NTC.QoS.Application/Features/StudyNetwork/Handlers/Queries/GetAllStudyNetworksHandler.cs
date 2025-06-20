@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.StudyNetwork.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Network;
 using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
@@ -19,14 +18,14 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
         var allStudyNetworks = _repository.Query(sn => !sn.IsDeleted);
         if (allStudyNetworks is null)
         {
-            return new PaginatedResponse<StudyNetworkDto>([], request.PageNumber, request.PageSize)
+            return new PaginatedResponse<StudyNetworkDto>(new List<StudyNetworkDto>(), request.PageNumber, request.PageSize, 0)
             {
                 Succeeded = false,
                 Message = "No records found.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullStudyNetworks", ["No study networks found."]
+                        "NullStudyNetworks", new[] { "No study networks found." }
                     }
                 }
             };

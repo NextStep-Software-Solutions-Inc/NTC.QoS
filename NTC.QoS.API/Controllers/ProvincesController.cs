@@ -51,7 +51,7 @@ public class ProvincesController : ControllerBase
     [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<ProvinceDto>>> UpdateProvinceById(Guid id, UpdateProvinceDto updateProvince)
     {
-        var province = await _mediator.Send(new UpdateProvinceRequest(id, updateProvince));
+        var province = await _mediator.Send(new UpdateProvinceRequest { Id = id, Province = updateProvince });
         return province.Succeeded ? Ok(province) : BadRequest(province);
     }
 
