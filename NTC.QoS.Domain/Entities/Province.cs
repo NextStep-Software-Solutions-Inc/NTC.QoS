@@ -8,7 +8,7 @@ public class Province : BaseEntity
     public virtual Region Region { get; set; } = null!;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public MultiPolygon Boundaries { get; set; } = null!;
+    public MultiPolygon? Boundaries { get; set; }
     public Point Center { get; set; } = null!;
     public string Code { get; set; } = null!;
     public float Area { get; set; } = 0f;
