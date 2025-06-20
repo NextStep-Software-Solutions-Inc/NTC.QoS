@@ -10,19 +10,18 @@ using System.Text.Json;
 using NetTopologySuite.IO.Converters;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Entities;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
 public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdRequest, ApiResponse<BarangayDto>>
 {
     private readonly IBarangayRepository _barangayRepository;
-    private readonly IMunicipalityRepository _municipalityRepository;
     private readonly JsonSerializerOptions _jsonSerializerOptions;
 
-    public UpdateBarangayByIdHandler(IBarangayRepository barangayRepository, IMunicipalityRepository municipalityRepository)
+    public UpdateBarangayByIdHandler(IBarangayRepository barangayRepository)
     {
         _barangayRepository = barangayRepository;
-        _municipalityRepository = municipalityRepository;
         _jsonSerializerOptions = new JsonSerializerOptions();
         _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
@@ -46,24 +45,17 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
                 Message = "The barangay you are trying to edit does not exist."
             };
         }
-        barangay.Name = request.Barangay.Name;
-        barangay.Description = request.Barangay.Description;
-        barangay.Code = request.Barangay.Code ?? string.Empty;
-        barangay.Area = request.Barangay.Area ?? 0f;
 
         // Process Boundaries
-        if (request.Barangay.Boundaries.HasValue) 
+        if (request.Barangay.Boundaries.HasValue)
         {
             if (request.Barangay.Boundaries.Value.ValueKind == JsonValueKind.Null)
             {
-                // Yes, it was included, AND its value is explicitly 'null'.
-                // This is interpreted as an explicit instruction to clear the boundaries.
                 barangay.Boundaries = GeometryHelper.CreateMultiPolygon(Array.Empty<Polygon>());
                 barangay.Center = GeometryHelper.CreatePoint(0, 0);
             }
             else
             {
-                // Yes, it was included, AND its value is NOT null (meaning it should be valid GeoJSON).
                 try
                 {
                     Geometry? receivedGeometry = request.Barangay.Boundaries.Value.Deserialize<Geometry>(_jsonSerializerOptions);
@@ -74,9 +66,9 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
                         {
                             Succeeded = false,
                             Errors = new Dictionary<string, string[]>
-                    {
-                        { "InvalidBoundaries", new[] { "Provided boundaries GeoJSON is invalid or empty after deserialization." } }
-                    },
+                        {
+                            { "InvalidBoundaries", new[] { "Provided boundaries GeoJSON is invalid or empty after deserialization." } }
+                        },
                             Message = "Invalid boundaries provided."
                         };
                     }
@@ -95,9 +87,9 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
                         {
                             Succeeded = false,
                             Errors = new Dictionary<string, string[]>
-                    {
-                        { "InvalidBoundariesType", new[] { $"Boundaries must be a Polygon or MultiPolygon GeoJSON. Received: {receivedGeometry.GeometryType}." } }
-                    },
+                        {
+                            { "InvalidBoundariesType", new[] { $"Boundaries must be a Polygon or MultiPolygon GeoJSON. Received: {receivedGeometry.GeometryType}." } }
+                        },
                             Message = "Invalid boundaries provided."
                         };
                     }
@@ -110,26 +102,19 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
                     {
                         Succeeded = false,
                         Errors = new Dictionary<string, string[]>
-                {
-                    { "InvalidGeoJSON", new[] { $"Failed to parse boundaries GeoJSON: {ex.Message}" } }
-                },
-                        Message = "Invalid boundaries GeoJSON format."
-                    };
-                }
-                catch (ArgumentException ex)
-                {
-                    return new ApiResponse<BarangayDto>
                     {
-                        Succeeded = false,
-                        Errors = new Dictionary<string, string[]>
-                {
-                    { "BoundariesError", new[] { ex.Message } }
-                },
-                        Message = "Error processing boundaries."
+                        { "InvalidGeoJSON", new[] { $"Failed to parse boundaries GeoJSON: {ex.Message}" } }
+                    },
+                        Message = "Invalid boundaries GeoJSON format."
                     };
                 }
             }
         }
+
+        barangay.Name = request.Barangay.Name ?? barangay.Name;
+        barangay.Description = request.Barangay.Description ?? barangay.Description;
+        barangay.Code = request.Barangay.Code ?? barangay.Code;
+        barangay.Area = request.Barangay.Area ?? barangay.Area;
 
         _barangayRepository.Update(barangay);
         await _barangayRepository.SaveChangesAsync(cancellationToken);
@@ -143,27 +128,24 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
                 Id = barangay.Id,
                 Name = barangay.Name,
                 Description = barangay.Description,
+                Code = barangay.Code,
+                Area = barangay.Area,
                 Municipality = new MunicipalityDto
                 {
                     Id = barangay.MunicipalityId,
                     Name = barangay.Municipality?.Name ?? string.Empty,
-                    Description = barangay.Municipality?.Description,
                     IsCity = barangay.Municipality != null && barangay.Municipality.IsCity,
                     Province = new ProvinceDto
                     {
                         Id = barangay.Municipality?.ProvinceId ?? Guid.Empty,
                         Name = barangay.Municipality?.Province?.Name ?? string.Empty,
-                        Description = barangay.Municipality?.Province?.Description,
                         Region = new RegionDto
                         {
                             Id = barangay.Municipality?.Province?.RegionId ?? Guid.Empty,
                             Name = barangay.Municipality?.Province?.Region?.Name ?? string.Empty,
-                            Description = barangay.Municipality?.Province?.Region?.Description
                         }
                     }
                 },
-                Code = barangay.Code,
-                Area = barangay.Area,
             },
         };
     }

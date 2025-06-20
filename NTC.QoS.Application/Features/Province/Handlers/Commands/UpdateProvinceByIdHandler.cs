@@ -44,21 +44,6 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
             };
         }
 
-        if (string.IsNullOrEmpty(request.Province.Name))
-        {
-            return new ApiResponse<ProvinceDto>
-            {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "Name", new[] { "Province name is required." }
-                    }
-                },
-                Message = "Province name is required."
-            };
-        }
-
         var existsQuery = _repository.Query(p => p.Name == request.Province.Name && p.RegionId == province.RegionId && p.Id != request.Id && !p.IsDeleted);
         var exists = await _repository.FirstOrDefaultAsync(existsQuery, cancellationToken);
 
@@ -77,10 +62,10 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
             };
         }
 
-        province.Name = request.Province.Name;
-        province.Description = request.Province.Description;
-        province.Code = request.Province.Code ?? string.Empty;
-        province.Area = request.Province.Area ?? 0f;
+        province.Name = request.Province.Name ?? province.Name;
+        province.Description = request.Province.Description ?? province.Description;
+        province.Code = request.Province.Code ?? province.Code;
+        province.Area = request.Province.Area ?? province.Area;
 
         if (request.Province.Boundaries.HasValue)
         {
@@ -175,7 +160,7 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
                     Name = province.Region?.Name ?? string.Empty,
                     Description = province.Region?.Description
                 },
-                Code = province.Code ?? string.Empty,
+                Code = province.Code,
                 Area = province.Area,
             },
             Message = "Province updated successfully."

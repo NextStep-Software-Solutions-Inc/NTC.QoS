@@ -41,11 +41,11 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
                 Message = "The municipality you are trying to edit does not exist."
             };
         }
-        municipality.Name = request.Municipality.Name;
-        municipality.Description = request.Municipality.Description;
-        municipality.IsCity = request.Municipality.IsCity;
-        municipality.Code = request.Municipality.Code ?? string.Empty;
-        municipality.Area = request.Municipality.Area ?? 0f;
+        municipality.Name = request.Municipality.Name ?? municipality.Name;
+        municipality.Description = request.Municipality.Description ?? municipality.Description;
+        municipality.Code = request.Municipality.Code ?? municipality.Code;
+        municipality.IsCity = request.Municipality.IsCity ?? municipality.IsCity;
+        municipality.Area = request.Municipality.Area ?? municipality.Area;
 
         // Process Boundaries
         if (request.Municipality.Boundaries.HasValue)

@@ -27,21 +27,6 @@ public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiRespo
         var regionQuery = _regionRepository.Query(r => r.Id == request.Id && !r.IsDeleted);
         var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
-        if (request.Region is null || string.IsNullOrEmpty(request.Region.Name?.Trim()))
-        {
-            return new ApiResponse<RegionDto>
-            {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-        {
-            {
-                "Name", ["Region name is required."]
-            }
-        },
-                Message = "Region name cannot be empty."
-            };
-        }
-
         if (region is null)
         {
             return new ApiResponse<RegionDto>
@@ -57,10 +42,10 @@ public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiRespo
             };
         }
 
-        region.Name = request.Region.Name.Trim();
-        region.Description = request.Region.Description;
-        region.Code = request.Region.Code ?? string.Empty;
-        region.Area = request.Region.Area ?? 0f;
+        region.Name = request.Region.Name ?? region.Name;
+        region.Description = request.Region.Description ?? region.Description;
+        region.Code = request.Region.Code ?? region.Code;
+        region.Area = request.Region.Area ?? region.Area;
 
         if (request.Region.Boundaries.HasValue)
         {
