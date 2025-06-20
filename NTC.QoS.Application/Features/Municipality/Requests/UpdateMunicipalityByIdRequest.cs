@@ -4,13 +4,8 @@ using NTC.QoS.Domain.Models.DTOs.Municipality;
 
 namespace NTC.QoS.Application.Features.Municipality.Requests;
 
-public class UpdateMunicipalityByIdRequest : IRequest<ApiResponse<MunicipalityDto>>
+public class UpdateMunicipalityByIdRequest(Guid id, UpdateMunicipalityDto municipality) : IRequest<ApiResponse<MunicipalityDto>>
 {
-    public UpdateMunicipalityByIdRequest(Guid id, UpdateMunicipalityDto municipality)
-    {
-        Id = id;
-        Municipality = municipality;
-    }
-    public Guid Id { get; set; }
-    public UpdateMunicipalityDto Municipality { get; set; }
+    public Guid Id { get; set; } = id;
+    public UpdateMunicipalityDto Municipality { get; set; } = municipality;
 }

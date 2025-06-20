@@ -36,7 +36,9 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
                     Name = m.Province != null && m.Province.Region != null ? m.Province.Region.Name : string.Empty,
                     Description = m.Province != null && m.Province.Region != null ? m.Province.Region.Description : null,
                 }
-            }
+            },
+            Code = m.Code ?? string.Empty,
+            Area = m.Area
         });
 
         return await _municipalityRepository.PaginateAsync(municipalityDtos, request.PageNumber, request.PageSize, cancellationToken);

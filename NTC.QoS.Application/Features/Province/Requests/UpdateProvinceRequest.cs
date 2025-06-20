@@ -7,5 +7,10 @@ namespace NTC.QoS.Application.Features.Province.Requests;
 public class UpdateProvinceRequest : IRequest<ApiResponse<ProvinceDto>>
 {
     public Guid Id { get; set; }
-    public required UpdateProvinceDto Province { get; set; }
+    public UpdateProvinceDto Province { get; set; }
+    public UpdateProvinceRequest(Guid id, UpdateProvinceDto province)
+    {
+        Id = id;
+        Province = province;
+    }
 }

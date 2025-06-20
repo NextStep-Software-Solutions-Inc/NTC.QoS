@@ -8,4 +8,19 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class MunicipalityRepository(ApplicationDbContext context) : Repository<Municipality>(context), IMunicipalityRepository
 {
+    public override IQueryable<Municipality> Query(Expression<Func<Municipality, bool>>? expression = null)
+    {
+        var query = _context.Set<Municipality>()
+            .Include(m => m.Province)
+            .ThenInclude(p => p.Region)
+            .AsQueryable();
+
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+
+        return query;
+
+    }
 }

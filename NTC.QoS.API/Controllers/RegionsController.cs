@@ -50,15 +50,10 @@ public class RegionsController : ControllerBase
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> Put(Guid id, UpdateRegionDto updateRegionDto)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> UpdateRegionById(Guid id, UpdateRegionDto updateRegionDto)
     {
-        var region = await _mediator.Send(new UpdateRegionRequest
-        {
-            Id = id,
-            Region = updateRegionDto
-        });
-
+        var region = await _mediator.Send(new UpdateRegionRequest(id, updateRegionDto));
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 

@@ -39,6 +39,8 @@ public class GetRegionByIdHandler(IRegionRepository repository) : IRequestHandle
                 Id = region.Id,
                 Name = region.Name,
                 Description = region.Description,
+                Code = region.Code,
+                Area = region.Area,
             }
         };
     }

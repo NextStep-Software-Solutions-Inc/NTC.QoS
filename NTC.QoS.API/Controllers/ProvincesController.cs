@@ -48,15 +48,10 @@ public class ProvincesController : ControllerBase
         return province.Succeeded ? Ok(province) : BadRequest(province);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<ProvinceDto>>> Put(Guid id, UpdateProvinceDto updateProvinceDto)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<ProvinceDto>>> UpdateProvinceById(Guid id, UpdateProvinceDto updateProvince)
     {
-        var province = await _mediator.Send(new UpdateProvinceRequest
-        {
-            Id = id,
-            Province = updateProvinceDto
-        });
-
+        var province = await _mediator.Send(new UpdateProvinceRequest(id, updateProvince));
         return province.Succeeded ? Ok(province) : BadRequest(province);
     }
 
