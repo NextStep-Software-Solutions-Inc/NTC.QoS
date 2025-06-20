@@ -223,8 +223,8 @@ public class CreateSectorHandler(
                     {
                         Id = newSector.CellSector?.Cell?.Id ?? Guid.Empty,
                         Name = newSector.CellSector?.Cell?.Name ?? string.Empty,
-                        Latitude = newSector.CellSector?.Cell.Location.X ?? 0,
-                        Longitude = newSector.CellSector?.Cell?.Location.Y ?? 0,
+                        Latitude = newSector.CellSector?.Cell.Location.Coordinate.X ?? 0,
+                        Longitude = newSector.CellSector?.Cell?.Location.Coordinate.Y ?? 0,
                         CID = newSector.CellSector?.Cell?.CID ?? string.Empty,
                         LAC = newSector.CellSector?.Cell?.LAC ?? string.Empty,
                     },

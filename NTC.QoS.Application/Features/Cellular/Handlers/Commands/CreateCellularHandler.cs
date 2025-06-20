@@ -89,8 +89,8 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
                 {
                     Id = newCellular.CellId,
                     Name = newCellular.Cell.Name,
-                    Latitude = newCellular.Cell.Location.X,
-                    Longitude = newCellular.Cell.Location.Y,
+                    Latitude = newCellular.Cell.Location.Coordinate.X,
+                    Longitude = newCellular.Cell.Location.Coordinate.Y,
                     ServiceProvider = null,
                     LAC = newCellular.Cell.LAC,
                     CID = newCellular.Cell.CID,
