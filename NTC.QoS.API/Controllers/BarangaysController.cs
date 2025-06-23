@@ -59,7 +59,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPatch("{id}")]
-    public async Task<ActionResult<ApiResponse<BarangayDto>>> UpdateBarangayById(Guid id, UpdateBarangayDto updateBarangay)
+    public async Task<ActionResult<ApiResponse<BarangayDto>>> UpdateBarangayById(Guid id, [FromForm] UpdateBarangayDto updateBarangay)
     {
         var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(id, updateBarangay));
         return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);
