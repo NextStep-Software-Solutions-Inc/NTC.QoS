@@ -51,7 +51,7 @@ public class MunicipalitiesController : ControllerBase
     }
 
     [HttpPatch("{id}")]
-    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> UpdateMunicipalityById(Guid id, UpdateMunicipalityDto updateMunicipality)
+    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> UpdateMunicipalityById(Guid id, [FromForm] UpdateMunicipalityDto updateMunicipality)
     {
         var municipality = await _mediator.Send(new UpdateMunicipalityByIdRequest(id, updateMunicipality));
         return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
