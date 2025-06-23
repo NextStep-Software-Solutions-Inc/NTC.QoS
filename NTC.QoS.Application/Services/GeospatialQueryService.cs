@@ -16,7 +16,7 @@ public class GeospatialQueryService
     }
 
     public async Task<List<GeoEntityCellCountDto>> GetTopGeoEntitiesByCellCountAsync<TEntity>(
-        int topCount,
+        int limit,
         DateTime? startDate = null,
         DateTime? endDate = null)
         where TEntity : BaseEntity, new()
@@ -47,7 +47,7 @@ public class GeospatialQueryService
                 )
             })
             .OrderByDescending(dto => dto.CellCount)
-            .Take(topCount > 0 ? topCount : int.MaxValue)
+            .Take(limit > 0 ? limit : int.MaxValue)
             .ToListAsync();
 
         return results;
@@ -56,7 +56,7 @@ public class GeospatialQueryService
     public async Task<List<GeoEntityCellCountDto>> GetTopChildEntitiesByCellCountAsync<TParent, TChild>(
         Guid? parentId,
         string parentIdPropertyName,
-        int topCount,
+        int limit,
         DateTime? startDate = null,
         DateTime? endDate = null)
         where TParent : BaseEntity
@@ -102,7 +102,7 @@ public class GeospatialQueryService
                 )
             })
             .OrderByDescending(x => x.CellCount)
-            .Take(topCount > 0 ? topCount : int.MaxValue)
+            .Take(limit > 0 ? limit : int.MaxValue)
             .ToListAsync();
 
         return results;

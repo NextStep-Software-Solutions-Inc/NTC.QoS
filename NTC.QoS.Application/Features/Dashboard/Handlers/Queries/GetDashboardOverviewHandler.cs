@@ -38,9 +38,9 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
         var nAPsCount = _napRepository.Query(c => !c.IsDeleted &&
             c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
 
-        var topRegionsByCellCount = await _geospatialQueryService.GetTopGeoEntitiesByCellCountAsync<Domain.Entities.Region>(request.TopCount, request.StartDate, request.EndDate);
+        var topRegionsByCellCount = await _geospatialQueryService.GetTopGeoEntitiesByCellCountAsync<Domain.Entities.Region>(request.Limit, request.StartDate, request.EndDate);
 
-        var topProvincesInRegionByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Region, Domain.Entities.Province>(request.RegionId, "RegionId", request.TopCount, request.StartDate, request.EndDate);
+        var topProvincesInRegionByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Region, Domain.Entities.Province>(request.RegionId, "RegionId", request.Limit, request.StartDate, request.EndDate);
 
         return await Task.FromResult(new ApiResponse<DashboardOverviewDto>
         {

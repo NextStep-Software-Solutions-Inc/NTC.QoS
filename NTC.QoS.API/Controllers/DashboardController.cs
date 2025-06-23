@@ -70,7 +70,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
     }
 
     [HttpGet("regions/top-by-cell-count")]
-    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int topCount = 0)
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int limit = 0)
     {
         DateTime finalStartDate;
         DateTime finalEndDate;
@@ -86,15 +86,15 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
             _logger.LogInformation("Dashboard (RegionsTopByCellCount): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
 
-        var query = new GetTopRegionsByCellCountRequest { TopCount = topCount, StartDate = finalStartDate, EndDate = finalEndDate };
+        var query = new GetTopRegionsByCellCountRequest { Limit = limit, StartDate = finalStartDate, EndDate = finalEndDate };
         var result = await _mediator.Send(query);
         return Ok(result);
     }
 
     [HttpGet("provinces/top-by-cell-count/region-id")]
-    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopProvincesInRegionByCellCount([Required][FromQuery] Guid regionId, [FromQuery] int topCount = 0)
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopProvincesInRegionByCellCount([Required][FromQuery] Guid regionId, [FromQuery] int limit = 0)
     {
-        var query = new GetTopProvincesInRegionByCellCountRequest { RegionId = regionId, TopCount = topCount };
+        var query = new GetTopProvincesInRegionByCellCountRequest { RegionId = regionId, Limit = limit };
         var result = await _mediator.Send(query);
         return Ok(result);
     }
@@ -104,7 +104,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] Guid? regionId = null,
-        [FromQuery] int topCount = 5)
+        [FromQuery] int limit = 5)
     {
         DateTime finalStartDate;
         DateTime finalEndDate;
@@ -118,7 +118,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
             (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
             _logger.LogInformation("Dashboard (Overview): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
-        var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, TopCount = topCount};
+        var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, Limit = limit };
         var response = await _mediator.Send(request);
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
