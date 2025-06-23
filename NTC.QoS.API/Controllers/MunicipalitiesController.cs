@@ -19,7 +19,7 @@ public class MunicipalitiesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> CreateMunicipality(CreateMunicipalityDto createMunicipality)
+    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> CreateMunicipality([FromForm] CreateMunicipalityDto createMunicipality)
     {
         var municipality = await _mediator.Send(new CreateMunicipalityRequest
         {
@@ -41,6 +41,7 @@ public class MunicipalitiesController : ControllerBase
         var municipalities = await _mediator.Send(request);
         return municipalities.Succeeded ? Ok(municipalities) : BadRequest(municipalities);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<MunicipalityDto>>> GetMunicipalityById(Guid id)
     {
