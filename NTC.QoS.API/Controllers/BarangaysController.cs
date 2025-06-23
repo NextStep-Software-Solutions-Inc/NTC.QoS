@@ -19,7 +19,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<BarangayDto>>> CreateBarangay(CreateBarangayDto barangayDto)
+    public async Task<ActionResult<ApiResponse<BarangayDto>>> CreateBarangay([FromForm] CreateBarangayDto barangayDto)
     {
         var barangay = await _mediator.Send(new CreateBarangayRequest
         {
