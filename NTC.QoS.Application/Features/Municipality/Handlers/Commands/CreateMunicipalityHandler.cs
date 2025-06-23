@@ -7,11 +7,9 @@ using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
@@ -19,14 +17,11 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
 {
     private readonly IMunicipalityRepository _repository;
     private readonly IProvinceRepository _provinceRepository;
-    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public CreateMunicipalityHandler(IMunicipalityRepository repository, IProvinceRepository provinceRepository)
     {
         _repository = repository;
         _provinceRepository = provinceRepository;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(CreateMunicipalityRequest request, CancellationToken cancellationToken)
@@ -84,7 +79,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
             try
             {
                 using var streamReader = new StreamReader(request.Municipality.BoundariesFile.OpenReadStream());
-                string geoJsonString = await streamReader.ReadToEndAsync();
+                string geoJsonString = await streamReader.ReadToEndAsync(cancellationToken);
 
                 if (string.IsNullOrWhiteSpace(geoJsonString))
                 {
