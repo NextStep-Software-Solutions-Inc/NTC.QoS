@@ -42,6 +42,10 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
 
         var topProvincesInRegionByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Region, Domain.Entities.Province>(request.RegionId, "RegionId", request.Limit, request.StartDate, request.EndDate);
 
+        var topMunicipalitiesInProvinceByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Province, Domain.Entities.Municipality>(request.ProvinceId, "ProvinceId", request.Limit, request.StartDate, request.EndDate);
+
+        var topBarangaysInMunicipalityByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Municipality, Domain.Entities.Barangay>(request.MunicipalityId, "MunicipalityId", request.Limit, request.StartDate, request.EndDate);
+
         return await Task.FromResult(new ApiResponse<DashboardOverviewDto>
         {
             Data = new()
@@ -49,7 +53,9 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
                 CellsiteCounts = cellData,
                 TotalNAPsCount = nAPsCount,
                 TopRegionsByCellCount = topRegionsByCellCount,
-                TopProvincesInRegionByCellCount = topProvincesInRegionByCellCount
+                TopProvincesInRegionByCellCount = topProvincesInRegionByCellCount,
+                TopMunicipalitiesInProvinceByCellCount = topMunicipalitiesInProvinceByCellCount,
+                TopBarangaysInMunicipalityByCellCount = topBarangaysInMunicipalityByCellCount
             },
             Succeeded = true,
             Message = $"Dashboard data overview between ({request.StartDate}) to ({request.EndDate}) retrieved successfully."

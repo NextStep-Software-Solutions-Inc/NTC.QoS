@@ -8,4 +8,6 @@ public class DashboardOverviewDto
     public int TotalNAPsCount { get; set; }
     public List<GeoEntityCellCountDto> TopRegionsByCellCount { get; set; } = [];
     public List<GeoEntityCellCountDto> TopProvincesInRegionByCellCount { get; set; } = [];
+    public List<GeoEntityCellCountDto> TopMunicipalitiesInProvinceByCellCount { get; set; } = [];
+    public List<GeoEntityCellCountDto> TopBarangaysInMunicipalityByCellCount { get; set; } = [];
 }

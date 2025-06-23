@@ -3,13 +3,13 @@ using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.BackgroundTasks;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
+using NTC.QoS.Infrastructure.Seed;
 using NTC.QoS.Infrastructure.Services;
-using NetTopologySuite.Geometries;
-using NTC.QoS.Infrastructure.Seed; // For Point
 
 namespace NTC.QoS.Infrastructure;
 public static class InfrastructureDependencyInjection
@@ -83,8 +83,9 @@ public static class InfrastructureDependencyInjection
         {
             using var scope = services.BuildServiceProvider().CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger>(); 
 
-            await LocationSeeder.SeedAllAsync(dbContext);
+            await LocationSeeder.SeedAllAsync(dbContext, logger);
         });
 
         return services;

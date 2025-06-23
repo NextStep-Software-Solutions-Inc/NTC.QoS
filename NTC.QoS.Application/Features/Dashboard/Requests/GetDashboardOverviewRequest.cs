@@ -10,4 +10,6 @@ public class GetDashboardOverviewRequest : IRequest<ApiResponse<DashboardOvervie
     public DateTime EndDate { get; set; }
     public int Limit { get; set; }
     public Guid? RegionId { get; set; }
+    public Guid? ProvinceId { get; set; }
+    public Guid? MunicipalityId { get; set; }
 }

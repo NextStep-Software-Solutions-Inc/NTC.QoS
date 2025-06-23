@@ -104,6 +104,8 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
         [FromQuery] int limit = 5)
     {
         DateTime finalStartDate;
@@ -118,7 +120,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
             (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
             _logger.LogInformation("Dashboard (Overview): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
-        var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, Limit = limit };
+        var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, ProvinceId = provinceId, MunicipalityId = municipalityId, Limit = limit };
         var response = await _mediator.Send(request);
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
