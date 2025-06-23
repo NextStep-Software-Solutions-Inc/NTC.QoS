@@ -11,10 +11,11 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("dashboard", Name = "dashboard")]
-public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeHelper) : ControllerBase
+public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeHelper, ILogger<DashboardController> logger) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
     private readonly IDateRangeHelper _dateRangeHelper = dateRangeHelper;
+    private readonly ILogger<DashboardController> _logger = logger;
 
     [HttpGet("cell-counts")]
     public async Task<ActionResult<ApiResponse<int>>> GetTotalCellsitesCount(
@@ -34,7 +35,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         {
             // Use backend-driven default from the helper
             (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
-            Console.WriteLine($"Dashboard (CellCounts): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+            _logger.LogInformation("Dashboard (CellCounts): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate); ;
         }
 
         var request = new GetTotalCellsitesCountRequest { StartDate = finalStartDate, EndDate = finalEndDate };
@@ -53,15 +54,13 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
 
         if (startDate.HasValue && endDate.HasValue)
         {
-            // Use provided dates, convert to UTC
             finalStartDate = startDate.Value.ToUniversalTime();
             finalEndDate = endDate.Value.ToUniversalTime();
         }
         else
         {
-            // Use backend-driven default from the helper
             (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
-            Console.WriteLine($"Dashboard (NAPsCount): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+            _logger.LogInformation("Dashboard (NAPsCount): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
 
         var request = new GetTotalNAPsCountRequest { StartDate = finalStartDate, EndDate = finalEndDate };
@@ -78,15 +77,13 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
 
         if (startDate.HasValue && endDate.HasValue)
         {
-            // Use provided dates, convert to UTC
             finalStartDate = startDate.Value.ToUniversalTime();
             finalEndDate = endDate.Value.ToUniversalTime();
         }
         else
         {
-            // Use backend-driven default from the helper
             (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
-            Console.WriteLine($"Dashboard (NAPsCount): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+            _logger.LogInformation("Dashboard (RegionsTopByCellCount): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
 
         var query = new GetTopRegionsByCellCountRequest { TopCount = topCount, StartDate = finalStartDate, EndDate = finalEndDate };
@@ -113,15 +110,13 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         DateTime finalEndDate;
         if (startDate.HasValue && endDate.HasValue)
         {
-            // Use provided dates, convert to UTC
             finalStartDate = startDate.Value.ToUniversalTime();
             finalEndDate = endDate.Value.ToUniversalTime();
         }
         else
         {
-            // Use backend-driven default from the helper
             (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
-            Console.WriteLine($"Dashboard (Overview): No date range provided. Using default from helper: {finalStartDate:yyyy-MM-dd} to {finalEndDate:yyyy-MM-dd}");
+            _logger.LogInformation("Dashboard (Overview): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
         var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, TopCount = topCount};
         var response = await _mediator.Send(request);
