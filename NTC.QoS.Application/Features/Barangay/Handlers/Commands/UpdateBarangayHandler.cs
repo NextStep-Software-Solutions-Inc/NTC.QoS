@@ -2,7 +2,6 @@
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
-using NetTopologySuite.IO.Converters;
 using NTC.QoS.Application.Features.Barangay.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -11,20 +10,16 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
 public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdRequest, ApiResponse<BarangayDto>>
 {
     private readonly IBarangayRepository _barangayRepository;
-    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public UpdateBarangayByIdHandler(IBarangayRepository barangayRepository)
     {
         _barangayRepository = barangayRepository;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
     public async Task<ApiResponse<BarangayDto>> Handle(UpdateBarangayByIdRequest request, CancellationToken cancellationToken)
     {

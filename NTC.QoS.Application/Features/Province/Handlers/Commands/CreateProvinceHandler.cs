@@ -1,14 +1,11 @@
-﻿using System.Text.Json;
-using MediatR;
+﻿using MediatR;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
-using NetTopologySuite.IO.Converters;
 using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
 
@@ -17,15 +14,10 @@ namespace NTC.QoS.Application.Features.Province.Handlers.Commands;
 public class CreateProvinceRequestHandler : IRequestHandler<CreateProvinceRequest, ApiResponse<ProvinceDto>>
 {
     private readonly IProvinceRepository _provinceRepository;
-    private readonly IRegionRepository _regionRepository;
-    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public CreateProvinceRequestHandler(IProvinceRepository provinceRepository, IRegionRepository regionRepository)
     {
         _provinceRepository = provinceRepository;
-        _regionRepository = regionRepository;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
 
     public async Task<ApiResponse<ProvinceDto>> Handle(CreateProvinceRequest request, CancellationToken cancellationToken)

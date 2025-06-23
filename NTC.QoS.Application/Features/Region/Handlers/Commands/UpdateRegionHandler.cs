@@ -1,15 +1,12 @@
 ﻿using MediatR;
+using NetTopologySuite.Features;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
+using NTC.QoS.Application.Features.Region.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Application.Features.Region.Requests;
-using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Helper;
-using System.Text.Json;
-using NetTopologySuite.IO.Converters;
-using NetTopologySuite.IO;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NetTopologySuite.Features;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands;
 

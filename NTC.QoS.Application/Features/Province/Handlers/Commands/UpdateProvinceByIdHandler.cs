@@ -16,13 +16,10 @@ namespace NTC.QoS.Application.Features.Province.Handlers.Commands;
 public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, ApiResponse<ProvinceDto>>
 {
     private readonly IProvinceRepository _repository;
-    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public UpdateProvinceByIdHandler(IProvinceRepository repository)
     {
         _repository = repository;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
     public async Task<ApiResponse<ProvinceDto>> Handle(UpdateProvinceRequest request,
             CancellationToken cancellationToken)

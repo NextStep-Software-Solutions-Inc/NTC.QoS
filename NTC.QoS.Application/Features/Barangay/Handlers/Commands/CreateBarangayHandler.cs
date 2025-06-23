@@ -1,6 +1,7 @@
 ﻿using MediatR;
+using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
-using NetTopologySuite.IO; // For GeoJsonReader
+using NetTopologySuite.IO;
 using NTC.QoS.Application.Features.Barangay.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -9,11 +10,6 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using Microsoft.AspNetCore.Http; // Required for IFormFile
-using System.IO; // Required for StreamReader
-using Newtonsoft.Json; // Required for JsonSerializationException
-using System.Linq;
-using NetTopologySuite.Features; // Required for .FirstOrDefault()
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
@@ -30,8 +26,6 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
 
     public async Task<ApiResponse<BarangayDto>> Handle(CreateBarangayRequest request, CancellationToken cancellationToken)
     {
-        // Assuming request.Barangay is still the DTO containing the details
-        // and that request.Barangay.BoundariesFile is where the IFormFile is located.
         var barangayQuery = _repository.Query(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId && !b.IsDeleted);
         var barangay = await _repository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 

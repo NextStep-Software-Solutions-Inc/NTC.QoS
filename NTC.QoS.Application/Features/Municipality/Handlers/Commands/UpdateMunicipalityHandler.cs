@@ -1,29 +1,24 @@
 ﻿using MediatR;
+using NetTopologySuite.Features;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
 using NTC.QoS.Application.Features.Municipality.Requests;
-using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Helper;
-using System.Text.Json;
-using NetTopologySuite.IO.Converters;
-using NetTopologySuite.IO;
-using NetTopologySuite.Features;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
 public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityByIdRequest, ApiResponse<MunicipalityDto>>
 {
     private readonly IMunicipalityRepository _repository;
-    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public UpdateMunicipalityByIdHandler(IMunicipalityRepository repository)
     {
         _repository = repository;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
     
     public async Task<ApiResponse<MunicipalityDto>> Handle(UpdateMunicipalityByIdRequest request, CancellationToken cancellationToken)
