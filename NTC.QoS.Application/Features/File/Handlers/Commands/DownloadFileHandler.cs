@@ -47,19 +47,19 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         switch (fileType)
         {
             case FileTypeEnum.NAP:
-                await GenerateTemplate(package, worksheet => GenerateNAPTemplate(package, worksheet, cancellationToken), cancellationToken);
+                await GenerateTemplate(package, worksheet => GenerateNAPTemplate(package, worksheet, cancellationToken));
                 break;
 
             case FileTypeEnum.Speedtest:
-                await GenerateTemplate(package, worksheet => GenerateSpeedtestTemplate(package, worksheet, cancellationToken), cancellationToken);
+                await GenerateTemplate(package, worksheet => GenerateSpeedtestTemplate(package, worksheet, cancellationToken));
                 break;
 
             case FileTypeEnum.Cell:
-                await GenerateTemplate(package, worksheet => GenerateCellTemplate(package, worksheet, cancellationToken), cancellationToken);
+                await GenerateTemplate(package, worksheet => GenerateCellTemplate(package, worksheet, cancellationToken));
                 break;
 
             case FileTypeEnum.CellularCoverage:
-                await GenerateTemplate(package, worksheet => GenerateCellularCoverageTemplate(package, worksheet, cancellationToken), cancellationToken);
+                await GenerateTemplate(package, worksheet => GenerateCellularCoverageTemplate(package, worksheet, cancellationToken));
                 break;
 
             default:
@@ -76,7 +76,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         return new ApiResponse<Stream>(memoryStream, succeeded: true, message: "File generated successfully");
     }
 
-    private async Task GenerateTemplate(ExcelPackage package, Func<ExcelWorksheet, Task> TemplateGenerator, CancellationToken cancellationToken)
+    private async Task GenerateTemplate(ExcelPackage package, Func<ExcelWorksheet, Task> TemplateGenerator)
     {
         var worksheet = package.Workbook.Worksheets.Add("Data");
         await TemplateGenerator(worksheet);
@@ -88,7 +88,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         AddCommonHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lat", "Lng");
 
-        var providers = await GetServiceProviders(cancellationToken);
+        var providers = await GetServiceProviders(ServiceTypeEnum.Wired, cancellationToken);
 
         // Add providers to a hidden sheet
         var providerSheet = package.Workbook.Worksheets.Add("Providers");
@@ -112,7 +112,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         // Apply the multi-row headers
         AddCellMultiRowHeaders(worksheet, headers, 1); // Start writing from row 1
 
-        var providers = await GetServiceProviders(cancellationToken);
+        var providers = await GetServiceProviders(ServiceTypeEnum.Wireless, cancellationToken);
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
         string[] trueFalseValues = ["TRUE", "FALSE"];
@@ -307,9 +307,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
-    private async Task<List<string>> GetServiceProviders(CancellationToken cancellationToken)
+    private async Task<List<string>> GetServiceProviders(ServiceTypeEnum service, CancellationToken cancellationToken)
     {
-        var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wired)
+        var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Service.Type == service)
             .OrderBy(sp => sp.Provider.Name)
             .Select(sp => sp.Provider.Name)
             .Distinct();
