@@ -1,7 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Dashboard.Requests;
-using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
@@ -11,10 +11,9 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("dashboard", Name = "dashboard")]
-public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeHelper, ILogger<DashboardController> logger) : ControllerBase
+public class DashboardController(IMediator mediator, ILogger<DashboardController> logger) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
-    private readonly IDateRangeHelper _dateRangeHelper = dateRangeHelper;
     private readonly ILogger<DashboardController> _logger = logger;
 
     [HttpGet("cell-counts")]
@@ -34,7 +33,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         else
         {
             // Use backend-driven default from the helper
-            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
             _logger.LogInformation("Dashboard (CellCounts): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate); ;
         }
 
@@ -59,7 +58,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         }
         else
         {
-            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
             _logger.LogInformation("Dashboard (NAPsCount): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
 
@@ -82,7 +81,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         }
         else
         {
-            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
             _logger.LogInformation("Dashboard (RegionsTopByCellCount): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
 
@@ -117,7 +116,7 @@ public class DashboardController(IMediator mediator, IDateRangeHelper dateRangeH
         }
         else
         {
-            (finalStartDate, finalEndDate) = _dateRangeHelper.GetDefaultDateRange();
+            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
             _logger.LogInformation("Dashboard (Overview): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
         }
         var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, ProvinceId = provinceId, MunicipalityId = municipalityId, Limit = limit };

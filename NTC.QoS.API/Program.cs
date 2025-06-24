@@ -52,7 +52,6 @@ public class Program
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
         builder.Services.AddScoped<GeospatialQueryService>();
-        builder.Services.AddScoped<IDateRangeHelper, DateRangeHelper>();
 
         var app = builder.Build();
         
