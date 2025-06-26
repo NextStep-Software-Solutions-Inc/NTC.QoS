@@ -7,6 +7,6 @@ namespace NTC.QoS.Application.Features.Dashboard.Requests;
 public class GetTopRegionsByCellCountRequest : IRequest<ApiResponse<List<GeoEntityCellCountDto>>>
 {
     public int Limit { get; set; }
-    public DateTime StartDate { get; set; }
-    public DateTime EndDate { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
 }

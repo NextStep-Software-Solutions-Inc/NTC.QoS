@@ -6,7 +6,6 @@ using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
-using System.ComponentModel.DataAnnotations;
 using static NTC.QoS.Domain.Models.DTOs.Dashboard.DashboardAggregateDTO;
 
 namespace NTC.QoS.API.Controllers;
@@ -24,23 +23,10 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     [HttpGet("cell-counts")]
     public async Task<ActionResult<ApiResponse<int>>> GetTotalCellsitesCount(
         [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate)
+        [FromQuery] DateTime? endDate,
+        [FromQuery] int? daysInPast)
     {
-        DateTime finalStartDate;
-        DateTime finalEndDate;
-
-        if (startDate.HasValue && endDate.HasValue)
-        {
-            // Use provided dates, convert to UTC
-            finalStartDate = startDate.Value.ToUniversalTime();
-            finalEndDate = endDate.Value.ToUniversalTime();
-        }
-        else
-        {
-            // Use backend-driven default from the helper
-            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
-            _logger.LogInformation("Dashboard (CellCounts): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate); ;
-        }
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
 
         var request = new GetTotalCellsitesCountRequest { StartDate = finalStartDate, EndDate = finalEndDate };
         var response = await _mediator.Send(request);
@@ -51,21 +37,10 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     [HttpGet("NAPs-count")]
     public async Task<ActionResult<ApiResponse<int>>> GetTotalNAPsCount(
         [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate)
+        [FromQuery] DateTime? endDate,
+        [FromQuery] int? daysInPast)
     {
-        DateTime finalStartDate;
-        DateTime finalEndDate;
-
-        if (startDate.HasValue && endDate.HasValue)
-        {
-            finalStartDate = startDate.Value.ToUniversalTime();
-            finalEndDate = endDate.Value.ToUniversalTime();
-        }
-        else
-        {
-            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
-            _logger.LogInformation("Dashboard (NAPsCount): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
-        }
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
 
         var request = new GetTotalNAPsCountRequest { StartDate = finalStartDate, EndDate = finalEndDate };
         var response = await _mediator.Send(request);
@@ -74,21 +49,9 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     }
 
     [HttpGet("regions/top-by-cell-count")]
-    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int limit = 0)
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int? daysInPast, [FromQuery] int limit = 0)
     {
-        DateTime finalStartDate;
-        DateTime finalEndDate;
-
-        if (startDate.HasValue && endDate.HasValue)
-        {
-            finalStartDate = startDate.Value.ToUniversalTime();
-            finalEndDate = endDate.Value.ToUniversalTime();
-        }
-        else
-        {
-            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
-            _logger.LogInformation("Dashboard (RegionsTopByCellCount): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
-        }
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
 
         var query = new GetTopRegionsByCellCountRequest { Limit = limit, StartDate = finalStartDate, EndDate = finalEndDate };
         var result = await _mediator.Send(query);
@@ -96,9 +59,11 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     }
 
     [HttpGet("provinces/top-by-cell-count/region-id")]
-    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopProvincesInRegionByCellCount([Required][FromQuery] Guid regionId, [FromQuery] int limit = 0)
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopProvincesInRegionByCellCount([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int? daysInPast, [FromQuery] Guid regionId, [FromQuery] int limit = 0)
     {
-        var query = new GetTopProvincesInRegionByCellCountRequest { RegionId = regionId, Limit = limit };
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
+
+        var query = new GetTopProvincesInRegionByCellCountRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, Limit = limit };
         var result = await _mediator.Send(query);
         return Ok(result);
     }
@@ -107,37 +72,33 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     public async Task<ActionResult<ApiResponse<DashboardOverviewDto>>> GetDashboardOverview(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
-        [FromQuery] Guid? regionId = null,
-        [FromQuery] Guid? provinceId = null,
-        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] int? daysInPast,
+        [FromQuery] Guid? regionId,
+        [FromQuery] Guid? provinceId,
+        [FromQuery] Guid? municipalityId,
+        
         [FromQuery] int limit = 5)
     {
-        DateTime finalStartDate;
-        DateTime finalEndDate;
-        if (startDate.HasValue && endDate.HasValue)
-        {
-            finalStartDate = startDate.Value.ToUniversalTime();
-            finalEndDate = endDate.Value.ToUniversalTime();
-        }
-        else
-        {
-            (finalStartDate, finalEndDate) = DateTimeHelper.GetDefaultDateRange();
-            _logger.LogInformation("Dashboard (Overview): No date range provided. Using default from helper: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}", finalStartDate, finalEndDate);
-        }
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
+
+        var totalCellCounts = new GetTotalCellsitesCountRequest();
+
         var request = new GetDashboardOverviewRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, ProvinceId = provinceId, MunicipalityId = municipalityId, Limit = limit };
         var response = await _mediator.Send(request);
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
-    [HttpGet]
+    [HttpGet("all")]
     public async Task<ActionResult<DashboardAggregateDto>> GetCompleteDashboard(
-    [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate,
+    [FromQuery] DateTime? startDate, 
+    [FromQuery] DateTime? endDate,
+    [FromQuery] int? daysInPast,
     [FromQuery] Guid? regionId = null,
     [FromQuery] Guid? provinceId = null,
     [FromQuery] Guid? municipalityId = null,
     [FromQuery] int limit = 5)
     {
-        var (finalStartDate, finalEndDate) = ResolveDateRange(startDate, endDate);
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
         string cacheKey = $"{DashboardCachePrefix}all_{finalStartDate:yyyyMMdd}_{finalEndDate:yyyyMMdd}_{regionId}_{provinceId}_{municipalityId}_{limit}";
 
         if (_memoryCache.TryGetValue(cacheKey, out DashboardAggregateDto? cached))
@@ -207,13 +168,13 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         }
     }
 
-    private (DateTime finalStartDate, DateTime finalEndDate) ResolveDateRange(DateTime? startDate, DateTime? endDate)
-    {
-        if (startDate.HasValue && endDate.HasValue)
-        {
-            return (startDate.Value.ToUniversalTime(), endDate.Value.ToUniversalTime());
-        }
+    //private (DateTime finalStartDate, DateTime finalEndDate) ResolveDateRange(DateTime? startDate, DateTime? endDate)
+    //{
+    //    if (startDate.HasValue && endDate.HasValue)
+    //    {
+    //        return (startDate.Value.ToUniversalTime(), endDate.Value.ToUniversalTime());
+    //    }
 
-        return DateTimeHelper.GetDefaultDateRange();
-    }
+    //    return DateTimeHelper.GetDefaultDateRange();
+    //}
 }
