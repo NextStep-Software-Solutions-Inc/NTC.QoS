@@ -4,12 +4,10 @@ namespace NTC.QoS.Domain.Models.DTOs.Dashboard;
 
 public class DashboardAggregateDTO
 {
-    public class DashboardAggregateDto
-    {
-        public ApiResponse<CellsiteCountsDto>? TotalCellsiteCount { get; set; }
-        public ApiResponse<int>? TotalNAPCount { get; set; }
-        public ApiResponse<List<GeoEntityCellCountDto>>? TopRegions { get; set; }
-        public ApiResponse<List<GeoEntityCellCountDto>>? TopProvincesInRegion { get; set; }
-        public ApiResponse<DashboardOverviewDto>? Overview { get; set; }
-    }
+    public ApiResponse<CellsiteCountsDto>? TotalCellsitesCount { get; set; }
+    public ApiResponse<int>? TotalNAPsCount { get; set; }
+    public ApiResponse<List<GeoEntityCellCountDto>>? TopRegionsByCellCount { get; set; }
+    public ApiResponse<List<GeoEntityCellCountDto>>? TopProvincesInRegionByCellCount { get; set; }
+    public ApiResponse<List<GeoEntityCellCountDto>>? TopMunicipalitiesInProvinceByCellCount { get; set; }
+    public ApiResponse<List<GeoEntityCellCountDto>>? TopBarangaysInMunicipalityByCellCount { get; set; }
 }
