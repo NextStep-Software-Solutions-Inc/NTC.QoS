@@ -20,7 +20,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     [Obsolete("GetByIdAsync is deprecated. Use the Query method with appropriate filters instead then call FirstOrDefaultAsync().")]
     public virtual async Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted")); 
+        var query = _context.Set<TEntity>(); 
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -28,7 +28,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     [Obsolete("ListAsync is deprecated. Use the Query method with appropriate filters instead then call ToListAsync or PaginateAsync.")]
     public virtual async Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted"));
+        var query = _context.Set<TEntity>().AsQueryable();
 
         if (expression != null)
         {
