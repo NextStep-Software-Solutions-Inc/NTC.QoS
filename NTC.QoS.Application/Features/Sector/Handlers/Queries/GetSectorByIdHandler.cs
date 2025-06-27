@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.CellSector;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Queries;
@@ -51,12 +52,13 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 {
                     Id = sector.CellSector?.Cell?.Id ?? Guid.Empty,
                     Name = sector.CellSector?.Cell?.Name ?? string.Empty,
-                    Latitude = sector.CellSector?.Cell?.Location.X ?? 0,
-                    Longitude = sector.CellSector?.Cell?.Location.Y ?? 0,
+                    Latitude = sector.CellSector?.Cell?.Location.Coordinate.X ?? 0,
+                    Longitude = sector.CellSector?.Cell?.Location.Coordinate.Y ?? 0,
                     CID = sector.CellSector?.Cell?.CID ?? string.Empty,
                     LAC = sector.CellSector?.Cell?.LAC ?? string.Empty,
                 },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.CellSector?.AntennaType ?? AntennaTypeEnum.Unknown),
+                AntennaHeight = sector.CellSector?.AntennaHeight ?? 0,
                 Azimuth = sector.CellSector?.Azimuth ?? 0,
                 BeamTilt = sector.CellSector?.BeamTilt ?? 0,
             },

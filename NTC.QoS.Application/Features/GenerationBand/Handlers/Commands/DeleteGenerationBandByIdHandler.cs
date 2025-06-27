@@ -11,7 +11,8 @@ public class DeleteGenerationBandByIdHandler(IRepository<Domain.Aggregates.Gener
     public async Task<ApiResponse<bool>> Handle(DeleteGenerationBandByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var generationBand = await _repository.FindAsync(gb => gb.Id == request.Id && !gb.IsDeleted, cancellationToken);
+        var generationBandQuery = _repository.Query(gb => gb.Id == request.Id && !gb.IsDeleted);
+        var generationBand = await _repository.FirstOrDefaultAsync(generationBandQuery, cancellationToken);
 
         if (generationBand is null)
         {

@@ -12,9 +12,10 @@ public class CreateTechnologyHandler (IRepository<Domain.Entities.Technology> re
 
     public async Task<ApiResponse<CreateTechnologyDto>> Handle(CreateTechnologyRequest request, CancellationToken cancellationToken)
     {
-        var technology = await _repository.FindAsync(t => t.Standard == request.Technology.Standard && !t.IsDeleted, cancellationToken);
+        var technologyQuery = _repository.Query(t => t.Standard == request.Technology.Standard && !t.IsDeleted);
+        var technology = await _repository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
 
-        if (technology != null)
+        if (technology is not null)
         {
             return new ApiResponse<CreateTechnologyDto>
             {

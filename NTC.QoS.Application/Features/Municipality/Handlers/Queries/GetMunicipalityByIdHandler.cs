@@ -14,7 +14,8 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(GetMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipality = await _municipalityRepository.GetByIdAsync(request.Id, cancellationToken);
+        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
         {
@@ -25,7 +26,7 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullMunicipality", ["Municipality not found."]
+                        "NullMunicipality", new[] { "Municipality not found." }
                     }
                 }
             };
@@ -48,11 +49,13 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
                     Description = municipality.Province?.Description,
                     Region = new RegionDto
                     {
-                        Id = municipality.Province?.Region?.Id ?? Guid.Empty, 
+                        Id = municipality.Province?.Region?.Id ?? Guid.Empty,
                         Name = municipality.Province?.Region?.Name ?? "Unknown",
                         Description = municipality.Province?.Region?.Description
                     }
-                }
+                },
+                Code = municipality.Code ?? string.Empty,
+                Area = municipality.Area
             }
         };
     }

@@ -12,7 +12,8 @@ public class GetRegionByIdHandler(IRegionRepository repository) : IRequestHandle
 
     public async Task<ApiResponse<RegionDto>> Handle(GetRegionByIdRequest request, CancellationToken cancellationToken)
     {
-        var region = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var regionQuery = _repository.Query(r => !r.IsDeleted && r.Id.Equals(request.Id));
+        var region = await _repository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
         if (region is null)
         {
@@ -38,6 +39,8 @@ public class GetRegionByIdHandler(IRegionRepository repository) : IRequestHandle
                 Id = region.Id,
                 Name = region.Name,
                 Description = region.Description,
+                Code = region.Code,
+                Area = region.Area,
             }
         };
     }

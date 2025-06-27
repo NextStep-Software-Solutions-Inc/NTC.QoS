@@ -11,8 +11,8 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
     public async Task<ApiResponse<Domain.Entities.MIMO>> Handle(UpdateMIMOByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var mimo = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
-
+        var mimoQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var mimo = await _repository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
 
         if (string.IsNullOrEmpty(request.MIMO.Type))
         {

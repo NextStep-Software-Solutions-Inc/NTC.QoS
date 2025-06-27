@@ -23,4 +23,5 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     void Delete(TEntity entity);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<PaginatedResponse<TResult>> PaginateAsync<TResult>(IQueryable<TResult> queryable, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+    Task<int> ExecuteDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
 }

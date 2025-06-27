@@ -34,8 +34,8 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
                 {
                     Id = c.CellId,
                     Name = c.Cell.Name,
-                    Latitude = c.Cell.Location.X,
-                    Longitude = c.Cell.Location.Y,
+                    Latitude = c.Cell.Location.Coordinate.X,
+                    Longitude = c.Cell.Location.Coordinate.Y,
                     ServiceProvider = null,
                     LAC = c.Cell.LAC,
                     CID = c.Cell.CID,

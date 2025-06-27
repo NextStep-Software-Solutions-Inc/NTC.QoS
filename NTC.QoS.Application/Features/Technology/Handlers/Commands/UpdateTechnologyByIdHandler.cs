@@ -13,8 +13,8 @@ public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
     public async Task<ApiResponse<UpdateTechnologyDto>> Handle(UpdateTechnologyRequest request,
             CancellationToken cancellationToken)
     {
-        var technology = await _repository.FindAsync(t => t.Id == request.Id && !t.IsDeleted, cancellationToken);
-
+        var technologyQuery = _repository.Query(t => t.Id == request.Id && !t.IsDeleted);
+        var technology = await _repository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
 
         if (string.IsNullOrEmpty(request.Technology.Standard))
         {
@@ -29,7 +29,7 @@ public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
                 Message = request.Technology.Standard + " already exists in our system. Please try a different one."
             };
         }
-        if (technology == null)
+        if (technology is null)
         {
             return new ApiResponse<UpdateTechnologyDto>
             {

@@ -7,6 +7,8 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
+using NTC.QoS.Domain.Helper;
+using NetTopologySuite.Geometries;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Commands;
 
@@ -15,8 +17,9 @@ public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler
     private readonly IZoneRepository _repository = repository;
     public async Task<ApiResponse<ZoneDto>> Handle(UpdateZoneByIdRequest request, CancellationToken cancellationToken)
     {
-        var zone = await _repository.FindAsync(z => z.Id == request.Id && !z.IsDeleted, cancellationToken);
-        
+        var zoneQuery = _repository.Query(z => z.Id == request.Id && !z.IsDeleted);
+        var zone = await _repository.FirstOrDefaultAsync(zoneQuery, cancellationToken); 
+
         if (zone is null)
         {
             return new ApiResponse<ZoneDto>
@@ -68,8 +71,10 @@ public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler
                                 Description = zone.Barangay?.Municipality?.Province?.Region?.Description,
                             }
                         }
-                    }
-                }
+                    },
+                    Code = zone.Barangay?.Code ?? string.Empty,
+                    Area = zone.Barangay?.Area ?? 0f
+                },
             }
         };
     }

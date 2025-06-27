@@ -11,10 +11,11 @@ public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTem
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(CreateNetworkTemplateRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplate = await _repository.FindAsync(
-            nt => nt.Name == request.CreateNetworkTemplate.Name && !nt.IsDeleted, cancellationToken);
+        var networkTemplate = _repository.Query(
+            nt => nt.Name == request.CreateNetworkTemplate.Name && !nt.IsDeleted);
+        var existingNetworkTemplate = await _repository.FirstOrDefaultAsync(networkTemplate, cancellationToken);
 
-        if (networkTemplate is not null)
+        if (existingNetworkTemplate is not null)
         {
             return new ApiResponse<NetworkTemplateDto>
             {

@@ -43,6 +43,7 @@ public class ProcessCellJob : IProcessCellJob
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
+        // --- Step 1: Initial File Status Update ---
         var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id.Equals(parameters.Id));
         var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
 
@@ -50,33 +51,93 @@ public class ProcessCellJob : IProcessCellJob
         {
             const string message = "File not found.";
             _logger.LogError(message);
-            throw new Exception(message);
-        };
+            throw new InvalidOperationException(message);
+        }
 
         file.Status = FileStatusEnum.Processing;
-
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
-
-        var serviceProviderCache = new Dictionary<string, Guid>();
-        var generationBandCache = new Dictionary<(string, string), Guid>();
-        var cellCache = new Dictionary<string, Guid>();
 
         var cellSectorList = new List<Domain.Entities.CellSector>();
         var cellularToAdd = new List<Domain.Entities.Cellular>();
         var cellularToDelete = new List<Domain.Entities.Cellular>();
 
+        // IMPORTANT: Declare cellsToAdd list here, BEFORE the main loop,
+        // so it can accumulate new cells across all records.
+        var cellsToAdd = new List<Domain.Aggregates.Cell>();
+
+        //Step 3: Pre-load Static/Reference Data for Performance
+        _logger.LogInformation("Pre-loading reference data.");
+
+        // Pre-load all wireless service providers
+        var serviceProviderCache = await _serviceProviderRepository
+            .Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
+            .Select(sp => new { sp.Id, sp.Provider.Name })
+            .ToDictionaryAsync( // 1. Fetches data AND populates the dictionary in one go
+                 sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless), 
+                 sp => sp.Id,                                          
+                 token
+            );
+
+        _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
+
+        // Pre-load all generation bands
+        // Corrected pre-loading of generation bands
+        var generationBandCache = await _generationBandRepository
+            .Query(gb => !gb.IsDeleted)
+            .Select(gb => new
+            {
+                gb.Id,
+                Generation = gb.Generation.Name, 
+                Band = gb.Band.Name            
+            })
+            .ToDictionaryAsync(
+                gb => CacheKeyGenerator.GenerateGenerationBandCacheKey(gb.Generation, gb.Band),
+                gb => gb.Id,                    
+                token
+            );
+
+        _logger.LogInformation("Pre-loaded {Count} generation bands.", generationBandCache.Count);
+
+        var providerIds = serviceProviderCache.Values.ToList();
+
+        var cellCache = await _cellRepository
+            .Query(c => !c.IsDeleted && providerIds.Contains(c.ServiceProviderId))
+            .ToDictionaryAsync(
+                c => CacheKeyGenerator.GenerateCellCacheKey(c.ServiceProviderId, c.TowerType, c.Location),
+                c => c.Id,
+                token
+            );
+
+        _logger.LogInformation("Pre-loaded {Count} existing cells.", cellCache.Count);
+
+        // Pre-load existing Cellular records for efficient in-memory checks.
+        var cellularLookup = await _cellularRepository
+            .Query(c => !c.IsDeleted && serviceProviderCache.Values.Contains(c.ServiceProviderId))
+            .ToDictionaryAsync(
+                c => (c.CellId, c.ServiceProviderId, c.GenerationBandId),
+                c => c,
+                token
+            );
+
+        _logger.LogInformation("Pre-loaded {Count} existing cellular records.", cellularLookup.Count);
+
+
+        // --- Step 4: Process the Excel File ---
         using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
         _logger.LogInformation("Processing file: {FilePath}", parameters.Path);
 
         fileStream.Position = 0;
-        _logger.LogInformation("Processing started");
+        _logger.LogInformation("Excel processing started");
 
         var cellRecords = CellExcelHelper.ParseExcelToCellRecords(fileStream);
 
         if (cellRecords.Count is 0)
         {
             _logger.LogInformation("The Excel is empty.");
+            file.Status = FileStatusEnum.Success;
+            _fileRepository.Update(file);
+            await _fileRepository.SaveChangesAsync(token);
             return;
         }
 
@@ -92,245 +153,212 @@ public class ProcessCellJob : IProcessCellJob
             .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Generation))
             .ToList();
 
+        // --- Step 5: Main Loop for Processing Each Cell Record ---
         for (int recordIndex = 0; recordIndex < cellRecords.Count; recordIndex++)
         {
             var record = cellRecords[recordIndex];
-            var actualRowNumber = recordIndex + 4; // Adjust for the starting row
+            var actualRowNumber = recordIndex + 4;
 
+            ReportProgress($"Processing record from Excel row {actualRowNumber}: {record.Provider}, {record.Zone} {record.Barangay} {record.Municipality} {record.Province} {record.Region}, Coordinates: ({record.Latitude}, {record.Longitude})");
             _logger.LogInformation("Processing record from Excel row {RowNumber}: {Provider}, {Zone} {Barangay} {Municipality} {Province} {Region}, Coordinates: ({Latitude}, {Longitude})",
                 actualRowNumber, record.Provider, record.Zone, record.Barangay, record.Municipality, record.Province, record.Region, record.Latitude, record.Longitude);
 
-            ReportProgress($"Processing record from Excel row {actualRowNumber}: {record.Provider}, {record.Zone} {record.Barangay} {record.Municipality} {record.Province} {record.Region}, Coordinates: ({record.Latitude}, {record.Longitude})");
-            var spCacheKey = (record.Provider + ServiceTypeEnum.Wireless.ToString());
+            // Inside the main loop
+            // Ensure the entire key is lowercased to match what was stored
+            var spCacheKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
 
             if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
             {
-                var serviceProviderQuery = _serviceProviderRepository
-                    .Query(sp => !sp.IsDeleted)
-                    .Where(sp => sp.Provider.Name.ToLower() == record.Provider.ToLower() && sp.Service.Type == ServiceTypeEnum.Wireless);
-
-                var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken: token);
-
-                if (serviceProvider is not null)
-                {
-                    serviceProviderId = serviceProvider.Id;
-                    serviceProviderCache[spCacheKey] = serviceProviderId;
-                }
-                else
-                {
-                    _logger.LogWarning("Wireless Service Provider not found: {Provider}", record.Provider);
-                    await TerminateProcess(file, token);
-                    return;
-                }
+                // This log now genuinely means it's not found in the DB (or is not wireless)
+                _logger.LogWarning("Wireless Service Provider not found in pre-loaded cache: {Provider}. Terminating process.", record.Provider);
+                await TerminateProcess(file, token);
+                return;
             }
 
             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
             string address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
 
             Guid cellId = Guid.Empty;
-            if (serviceProviderId != Guid.Empty)
+            // The check for serviceProviderId != Guid.Empty is already handled by the `TryGetValue` above.
+            // If we reach here, serviceProviderId is valid.
+
+            var cellCacheKey = CacheKeyGenerator.GenerateCellCacheKey(serviceProviderId, record.TowerType, location);
+
+            if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
             {
-                var cellCacheKey = $"Cell-{serviceProviderId}_{record.TowerType}_{location.Coordinate.X}_{location.Coordinate.Y}";
-                if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
+                // Cell not in cache, meaning it's a new cell.
+                var cell = new Domain.Aggregates.Cell
                 {
-                    var cellQuery = _cellRepository
-                    .Query(c => !c.IsDeleted && c.ServiceProviderId.Equals(serviceProviderId))
-                    .Where(c => c.TowerType.Equals(record.TowerType))
-                    .Where(c => c.Location.Equals(location));
+                    Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
+                    Group = record.Provider,
+                    Address = address,
+                    ServiceProviderId = serviceProviderId,
+                    TowerType = record.TowerType,
+                    Location = location,
+                    IsFileUploaded = true,
+                };
+                cellsToAdd.Add(cell); // Add to the list for batch save
+                cellId = cell.Id; // Get the ID of the new cell
+                cellCache[cellCacheKey] = cellId; // Add to cache for subsequent lookups in this file
+                _logger.LogInformation("Cell {CellId} marked for addition. Name: {Name}", cellId, cell.Name);
 
-                    var existingCell = await _cellRepository.FirstOrDefaultAsync(cellQuery, token);
-                    if (existingCell != null)
+                // Cell Sector Processing (only for newly created cells, as per original logic)
+                if (!String.IsNullOrEmpty(record.Azimuth))
+                {
+                    var azimuths = record.Azimuth.Split(",", StringSplitOptions.RemoveEmptyEntries);
+                    var beamTilts = record.BeamTilt?.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                    if (beamTilts == null || azimuths.Length != beamTilts.Length)
                     {
-                        _logger.LogWarning("Cell already exists for Service Provider: {Provider}, Location: {location}", record.Provider, location);
-                        cellId = existingCell.Id;
+                        _logger.LogError("The number of Azimuth values ('{AzimuthCount}') does not match the number of BeamTilt values ('{BeamTiltCount}') for record in Excel row {RowNumber}. The file is invalid and needs to be re-uploaded.", azimuths.Length, beamTilts?.Length ?? 0, actualRowNumber);
+                        await TerminateProcess(file, token);
+                        return;
                     }
-                    else
+
+                    for (int i = 0; i < azimuths.Length; i++)
                     {
-                        var cell = new Domain.Aggregates.Cell
+                        var trimmedAzimuth = azimuths[i].Trim();
+                        var trimmedBeamTilt = beamTilts[i].Trim();
+
+                        if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth) &&
+                            decimal.TryParse(trimmedBeamTilt, out decimal decimalBeamTilt))
                         {
-                            Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}",
-                            Group = record.Provider,
-                            Address = address,
-                            ServiceProviderId = serviceProviderId,
-                            TowerType = record.TowerType,
-                            Location = location,
-                            IsFileUploaded = true,
-                        };
-                        _cellRepository.Add(cell);
-
-                        cellId = cell.Id;
-                        _logger.LogInformation("Cell {CellId} saved successfully.", cellId);
-
-                        cellCache[cellCacheKey] = cellId;
-
-                        if (!String.IsNullOrEmpty(record.Azimuth))
-                        {
-                            var azimuths = record.Azimuth.Split(",");
-                            var beamTilts = record.BeamTilt?.Split(',');
-
-                            if (beamTilts == null || azimuths.Length != beamTilts.Length)
+                            var cellSector = new Domain.Entities.CellSector
                             {
-                                _logger.LogError("The number of Azimuth values ('{AzimuthCount}') does not match the number of BeamTilt values ('{BeamTiltCount}') for record in Excel row {RowNumber}. The file is invalid and needs to be re-uploaded.", azimuths.Length, beamTilts?.Length ?? 0, actualRowNumber);
-                                await TerminateProcess(file, token);
-                                return;
+                                CellId = cellId,
+                                AntennaHeight = record.AntennaHeight,
+                                AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
+                                Azimuth = decimalAzimuth,
+                                BeamTilt = decimalBeamTilt,
+                            };
+                            cellSectorList.Add(cellSector);
+                        }
+                        else
+                        {
+                            if (!decimal.TryParse(trimmedAzimuth, out _))
+                            {
+                                _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for record in Excel row {RowNumber}, Azimuth index {Index}.", trimmedAzimuth, actualRowNumber, i);
                             }
-
-                            for (int i = 0; i < azimuths.Length; i++)
+                            if (!decimal.TryParse(trimmedBeamTilt, out _))
                             {
-                                var trimmedAzimuth = azimuths[i].Trim();
-                                var trimmedBeamTilt = beamTilts[i].Trim();
-
-                                if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth) &&
-                                  decimal.TryParse(trimmedBeamTilt, out decimal decimalBeamTilt))
-                                {
-                                    var cellSector = new Domain.Entities.CellSector
-                                    {
-                                        CellId = cellId,
-                                        AntennaHeight = record.AntennaHeight,
-                                        AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
-                                        Azimuth = decimalAzimuth,
-                                        BeamTilt = decimalBeamTilt,
-                                    };
-                                    cellSectorList.Add(cellSector);
-                                }
-                                else
-                                {
-                                    if (!decimal.TryParse(trimmedAzimuth, out _))
-                                    {
-                                        _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for record in Excel row {RowNumber}, Azimuth index {Index}.", trimmedAzimuth, actualRowNumber, i);
-                                    }
-                                    if (!decimal.TryParse(trimmedBeamTilt, out _))
-                                    {
-                                        _logger.LogWarning("Could not parse '{TrimmedBeamTilt}' as a decimal for record in Excel row {RowNumber}, BeamTilt index {Index}.", trimmedBeamTilt, actualRowNumber, i);
-                                    }
-                                }
+                                _logger.LogWarning("Could not parse '{TrimmedBeamTilt}' as a decimal for record in Excel row {RowNumber}, BeamTilt index {Index}.", trimmedBeamTilt, actualRowNumber, i);
                             }
                         }
                     }
                 }
-                else
-                {
-                    cellId = cachedCellId;
-                }
             }
             else
             {
-                _logger.LogWarning("Address not found: {Zone} in Barangay: {Barangay}, Municipality: {Municipality}, Province: {Province}, Region: {Region}",
-                                   record.Zone, record.Barangay, record.Municipality, record.Province, record.Region);
-                await TerminateProcess(file, token);
-                return;
+                // Cell found in cache (meaning it already exists in DB)
+                cellId = cachedCellId;
+                _logger.LogInformation("Cell already exists for Service Provider: {Provider}, Location: {location}. Re-using CellId: {CellId}", record.Provider, location, cellId);
             }
 
-            if (cellId != Guid.Empty)
+            // --- Cellular Data Processing ---
+            if (cellId != Guid.Empty) // Should always be true if we got cellId
             {
                 foreach (var propInfo in bandGenerationProperties)
                 {
-                    var generationBandCacheKey = (propInfo.Generation, propInfo.Band);
+                    var generationBandCacheKey = CacheKeyGenerator.GenerateGenerationBandCacheKey(propInfo.Generation, propInfo.Band);
 
                     if (!generationBandCache.TryGetValue(generationBandCacheKey, out var generationBandId))
                     {
-                        var generationBand = await _generationBandRepository.GetGenerationBandIdAsync(propInfo.Generation, propInfo.Band, token);
-
-                        if (generationBand != null)
-                        {
-                            generationBandId = generationBand.Id;
-                            generationBandCache[generationBandCacheKey] = generationBandId;
-                        }
-                        else
-                        {
-                            _logger.LogWarning("Generation Band not found: Generation: {Generation}, Band: {Band}", propInfo.Generation, propInfo.Band);
-                            await TerminateProcess(file, token);
-                            return;
-                        }
+                        _logger.LogWarning("Generation Band not found in pre-loaded cache: Generation: {Generation}, Band: {Band}. Terminating process.", propInfo.Generation, propInfo.Band);
+                        await TerminateProcess(file, token);
+                        return;
                     }
 
-                    if (generationBandId != Guid.Empty)
+                    // Check for existing cellular record in-memory (using the pre-loaded lookup)
+                    var value = propInfo.Property.GetValue(record);
+                    bool isBandActiveInExcel = value is not null && (bool)value;
+
+                    if (cellularLookup.TryGetValue((cellId, serviceProviderId, generationBandId), out var existingCellular))
                     {
-                        var existingCellular = await _cellularRepository.Query(c =>
-                                !c.IsDeleted &&
-                                c.CellId.Equals(cellId) &&
-                                c.ServiceProviderId.Equals(serviceProviderId) &&
-                                c.GenerationBandId.Equals(generationBandId))
-                            .FirstOrDefaultAsync(token);
-
-                        var value = propInfo.Property.GetValue(record);
-                        bool isBandActiveInExcel = value is not null && (bool)value;
-
-                        if (existingCellular != null)
+                        if (!isBandActiveInExcel)
                         {
-                            if (!isBandActiveInExcel)
-                            {
-                                cellularToDelete.Add(existingCellular);
-                                _logger.LogInformation("Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Generation: {Generation}, Band: {Band}", existingCellular.Id, cellId, propInfo.Generation, propInfo.Band);
-                            }
+                            cellularToDelete.Add(existingCellular);
+                            _logger.LogInformation("Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Generation: {Generation}, Band: {Band}", existingCellular.Id, cellId, propInfo.Generation, propInfo.Band);
                         }
-                        else
+                    }
+                    else
+                    {
+                        if (isBandActiveInExcel)
                         {
-                            if (isBandActiveInExcel)
+                            var newCellular = new Domain.Entities.Cellular
                             {
-                                cellularToAdd.Add(new Domain.Entities.Cellular
-                                {
-                                    CellId = cellId,
-                                    ServiceProviderId = serviceProviderId,
-                                    GenerationBandId = generationBandId,
-                                    Address = address,
-                                    IsFileUploaded = true
-                                });
-                            }
+                                CellId = cellId,
+                                ServiceProviderId = serviceProviderId,
+                                GenerationBandId = generationBandId,
+                                Address = address,
+                                IsFileUploaded = true
+                            };
+                            cellularToAdd.Add(newCellular);
+                            // Add to in-memory lookup immediately to prevent duplicate additions
+                            cellularLookup[(newCellular.CellId, newCellular.ServiceProviderId, newCellular.GenerationBandId)] = newCellular;
+                            _logger.LogInformation("Marked Cellular record for addition: CellId: {CellId}, Generation: {Generation}, Band: {Band}", cellId, propInfo.Generation, propInfo.Band);
                         }
                     }
                 }
             }
-            else
-            {
-                _logger.LogWarning("Cell not found nor created.");
-                await TerminateProcess(file, token);
-                return;
-            }
         }
 
-        file.Status = FileStatusEnum.Success;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(token);
+        // --- Step 6: Batch Save All Accumulated Changes ---
 
-        await _cellRepository.SaveChangesAsync(token);
+        // Batch add new cells
+        if (cellsToAdd.Count != 0) // Corrected: Check if the list contains items
+        {
+            _cellRepository.AddRange(cellsToAdd); // Add all new cells to EF Core's change tracker
+            await _cellRepository.SaveChangesAsync(token); // Save all new cells in one batch
+            _logger.LogInformation("{Count} new cells saved successfully (batched).", cellsToAdd.Count);
+        }
+        else
+        {
+            _logger.LogInformation("No new cells to add (batched).");
+        }
 
+
+        // Batch add new cell sectors
         if (cellSectorList.Count != 0)
         {
             _cellSectorRepository.AddRange(cellSectorList);
             await _cellSectorRepository.SaveChangesAsync(token);
-            _logger.LogInformation("{Count} sector records saved successfully.", cellSectorList.Count);
+            _logger.LogInformation("{Count} sector records saved successfully (batched).", cellSectorList.Count);
         }
         else
         {
             _logger.LogInformation("No sector records to add.");
         }
 
+        // Batch add new cellular entries
         if (cellularToAdd.Count != 0)
         {
             _cellularRepository.AddRange(cellularToAdd);
             await _cellularRepository.SaveChangesAsync(token);
-            _logger.LogInformation("{Count} cellular records saved successfully.", cellularToAdd.Count);
+            _logger.LogInformation("{Count} cellular records saved successfully (batched).", cellularToAdd.Count);
         }
         else
         {
             _logger.LogInformation("No cellular records to add.");
         }
 
+        // Batch delete cellular entries
         if (cellularToDelete.Count != 0)
         {
             _cellularRepository.RemoveRange(cellularToDelete);
             await _cellularRepository.SaveChangesAsync(token);
-            _logger.LogInformation("{Count} cellular records deleted successfully.", cellularToDelete.Count);
+            _logger.LogInformation("{Count} cellular records deleted successfully (batched).", cellularToDelete.Count);
         }
+
+        // --- Step 7: Final File Status Update ---
+        file.Status = FileStatusEnum.Success;
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(token);
 
         _logger.LogInformation("Processing completed.");
     }
-    
+
     void ReportProgress(string message)
     {
-        // Implement the logic to report progress here
-        // For example, you might want to log the progress or update a progress bar in the UI
         _logger.LogInformation(message);
     }
 
@@ -338,12 +366,10 @@ public class ProcessCellJob : IProcessCellJob
     {
         file.Status = FileStatusEnum.Failed;
         _fileRepository.Update(file);
-
         await _fileRepository.SaveChangesAsync(cancellationToken);
-
         _logger.LogInformation("Process terminated due to error in runtime");
     }
-     
+
     private static string GetBandFromPropertyName(string propertyName)
     {
         if (propertyName.Contains("700")) return "Band 28";

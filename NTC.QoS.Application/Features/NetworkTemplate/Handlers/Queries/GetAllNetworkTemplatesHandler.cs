@@ -11,11 +11,11 @@ public class GetAllNetworkTemplatesHandler(IRepository<Domain.Entities.NetworkTe
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
     public async Task<PaginatedResponse<NetworkTemplateDto>> Handle(GetAllNetworkTemplatesRequest request, CancellationToken cancellationToken)
     {
-        var allNetworkTemplates = await _repository.ListAsync(nt => !nt.IsDeleted, cancellationToken);
+        var allNetworkTemplates = _repository.Query(nt => !nt.IsDeleted);
 
         if (request.Search is not null)
         {
-            allNetworkTemplates = [.. allNetworkTemplates.Where(nt => nt.Name.Contains(request.Search))];
+            allNetworkTemplates = allNetworkTemplates.Where(nt => nt.Name.Contains(request.Search));
         }
 
         var networkTemplates = allNetworkTemplates.Select(static allNetworkTemplate => new NetworkTemplateDto
@@ -24,7 +24,8 @@ public class GetAllNetworkTemplatesHandler(IRepository<Domain.Entities.NetworkTe
             Name = allNetworkTemplate.Name,
             Description = allNetworkTemplate.Description,
             URL = allNetworkTemplate.URL
-        }).ToList();
-        return new PaginatedResponse<NetworkTemplateDto>(networkTemplates, request.PageNumber, request.PageSize);
+        });
+
+        return await _repository.PaginateAsync<NetworkTemplateDto>(networkTemplates, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

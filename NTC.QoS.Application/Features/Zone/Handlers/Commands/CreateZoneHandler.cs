@@ -1,5 +1,7 @@
 ﻿using MediatR;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Zone.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
@@ -17,7 +19,8 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
 
     public async Task<ApiResponse<ZoneDto>> Handle(CreateZoneRequest request, CancellationToken cancellationToken)
     {
-        var zone = await _repository.FindAsync(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId && !z.IsDeleted, cancellationToken);
+        var zoneQuery = _repository.Query(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId && !z.IsDeleted);
+        var zone = await _repository.FirstOrDefaultAsync(zoneQuery, cancellationToken);
 
         if (zone is not null)
         {
@@ -34,8 +37,9 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
             };
         }
 
-        var barangay = await _barangayRepository.GetByIdAsync(request.Zone.BarangayId, cancellationToken);
-        
+        var barangayQuery = _barangayRepository.Query(z => z.Id == request.Zone.BarangayId && !z.IsDeleted);
+        var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
+
         if (barangay is null)
         {
             return new ApiResponse<ZoneDto>
@@ -89,7 +93,9 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
                                 Description = newZone.Barangay?.Municipality?.Province?.Region?.Description,
                             }
                         }
-                    }
+                    },
+                    Code = newZone.Barangay?.Code ?? string.Empty,
+                    Area = newZone.Barangay?.Area ?? 0f
                 }
             },
             Message = "Zone created successfully.",

@@ -11,7 +11,8 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
     public async Task<ApiResponse<bool>> Handle(DeleteProvinceByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var province = await _repository.FindAsync(p => p.Id == request.Id && !p.IsDeleted, cancellationToken);
+        var provinceQuery = _repository.Query(p => p.Id == request.Id && !p.IsDeleted);
+        var province = await _repository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
         {

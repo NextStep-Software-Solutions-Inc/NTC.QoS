@@ -7,24 +7,17 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class TechnologyRepository(ApplicationDbContext context) : Repository<Technology>(context), ITechnologyRepository
 {
-    public new async Task<Technology?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public override IQueryable<Technology> Query(Expression<Func<Technology, bool>>? expression = null)
     {
-        var query = _context.Set<Technology>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(t => t.Generation);
-        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
-    }
-    public new async Task<List<Technology>> ListAsync(
-        Expression<Func<Technology, bool>>? expression = null,
-        CancellationToken cancellationToken = default)
-    {
-        IQueryable<Technology> query = _context.Set<Technology>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(t => t.Generation);
+        var query = _context.Set<Technology>()
+            .Include(t => t.Generation)
+            .AsQueryable();
 
         if (expression != null)
         {
             query = query.Where(expression);
         }
-        return await query.ToListAsync(cancellationToken);
+
+        return query;
     }
 }

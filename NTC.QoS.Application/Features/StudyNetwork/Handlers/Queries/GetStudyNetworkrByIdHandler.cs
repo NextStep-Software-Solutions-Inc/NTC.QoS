@@ -16,7 +16,8 @@ public class GetStudyNetworkrByIdHandler(IStudyNetworkRepository repository) : I
 
     public async Task<ApiResponse<StudyNetworkDto>> Handle(GetStudyNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var studyNetwork = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var studyNetworkQuery = _repository.Query(sn => sn.Id == request.Id && !sn.IsDeleted);
+        var studyNetwork = await _repository.FirstOrDefaultAsync(studyNetworkQuery, cancellationToken);
         if (studyNetwork is null)
         {
             return new ApiResponse<StudyNetworkDto>
@@ -56,7 +57,7 @@ public class GetStudyNetworkrByIdHandler(IStudyNetworkRepository repository) : I
                 {
                     Id = studyNetwork.NetworkId,
                     Name = studyNetwork.Network?.Name ?? string.Empty,
-                    SystemType = studyNetwork.Network?.SystemType.ToString() ?? string.Empty,
+                    SystemTypeName = studyNetwork.Network?.SystemType?.Name ?? string.Empty,
                     NetworkTemplate = new NetworkTemplateDto
                     {
                         Id = studyNetwork.Network?.NetworkTemplate?.Id ?? Guid.Empty,

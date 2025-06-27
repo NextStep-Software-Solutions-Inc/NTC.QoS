@@ -15,7 +15,9 @@ public class GetServiceProviderByIdHandler(IServiceProviderRepository servicePro
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     public async Task<ApiResponse<ServiceProviderDto>> Handle(GetServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceProvider = await _serviceProviderRepository.GetByIdAsync(request.Id, cancellationToken);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Id.Equals(request.Id));
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
+
         if (serviceProvider is null)
         {
             return new ApiResponse<ServiceProviderDto>

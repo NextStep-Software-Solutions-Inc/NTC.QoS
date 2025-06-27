@@ -10,7 +10,8 @@ public class DeleteBarangayHandler(IBarangayRepository repository) : IRequestHan
     private readonly IBarangayRepository _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteBarangayByIdRequest request, CancellationToken cancellationToken)
     {
-        var barangay = await _repository.FindAsync(b => b.Id == request.Id && !b.IsDeleted, cancellationToken);
+        var barangayQuery = _repository.Query(b => b.Id == request.Id && !b.IsDeleted);
+        var barangay = await _repository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is null)
         {

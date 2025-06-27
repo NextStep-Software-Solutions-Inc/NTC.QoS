@@ -10,7 +10,9 @@ public class DeleteNetworkByIdHandler(INetworkRepository networkRepository) : IR
     private readonly INetworkRepository _networkRepository = networkRepository;
     public async Task<ApiResponse<bool>> Handle(DeleteNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var network = await _networkRepository.FindAsync(n => n.Id == request.Id && !n.IsDeleted, cancellationToken);
+        var networkQuery = _networkRepository.Query(n => n.Id == request.Id && !n.IsDeleted);
+        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
+
         if (network is null)
         {
             return new ApiResponse<bool>

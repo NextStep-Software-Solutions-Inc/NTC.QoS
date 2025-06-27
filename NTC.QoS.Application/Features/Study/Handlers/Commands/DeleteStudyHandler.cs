@@ -10,7 +10,8 @@ public class DeleteStudyHandler(IRepository<Domain.Entities.Study> repository) :
     private readonly IRepository<Domain.Entities.Study> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var study = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var studyQuery = _repository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var study = await _repository.FirstOrDefaultAsync(studyQuery, cancellationToken);
         if (study is null)
         {
             return new ApiResponse<bool>

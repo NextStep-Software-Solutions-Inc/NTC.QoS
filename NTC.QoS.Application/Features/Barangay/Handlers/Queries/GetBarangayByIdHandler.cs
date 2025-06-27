@@ -6,6 +6,8 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
+using NTC.QoS.Domain.Helper;
+using NetTopologySuite.Geometries;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 
@@ -15,7 +17,8 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
 
     public async Task<ApiResponse<BarangayDto>> Handle(GetBarangayByIdRequest request, CancellationToken cancellationToken)
     {
-        var barangay = await _barangayRepository.GetByIdAsync(request.Id, cancellationToken);
+        var barangayQuery = _barangayRepository.Query(b => !b.IsDeleted && b.Id.Equals(request.Id));
+        var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is null)
         {
@@ -59,7 +62,9 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
                             Description = barangay.Municipality?.Province?.Region?.Description,
                         }
                     }
-                }
+                },
+                Code = barangay.Code ?? string.Empty,
+                Area = barangay.Area,
             }
         };
     }

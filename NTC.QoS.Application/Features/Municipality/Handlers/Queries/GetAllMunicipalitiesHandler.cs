@@ -14,7 +14,10 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
 
     public async Task<PaginatedResponse<MunicipalityDto>> Handle(GetAllMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
-        var allMunicipalities = await _municipalityRepository.ListAsync(m => !m.IsDeleted, cancellationToken);
+        var allMunicipalities = _municipalityRepository.Query(m => !m.IsDeleted);
+
+        allMunicipalities = allMunicipalities
+            .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));
 
         var municipalityDtos = allMunicipalities.Select(m => new MunicipalityDto
         {
@@ -25,35 +28,19 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
             Province = new ProvinceDto
             {
                 Id = m.ProvinceId,
-                Name = m.Province?.Name ?? string.Empty,
-                Description = m.Province?.Description,
+                Name = m.Province != null ? m.Province.Name : string.Empty,
+                Description = m.Province != null ? m.Province.Description : null,
                 Region = new RegionDto
                 {
-                    Id = m.Province?.Region?.Id ?? Guid.Empty,
-                    Name = m.Province?.Region?.Name ?? string.Empty,
-                    Description = m.Province?.Region?.Description,
+                    Id = m.Province != null && m.Province.Region != null ? m.Province.Region.Id : Guid.Empty,
+                    Name = m.Province != null && m.Province.Region != null ? m.Province.Region.Name : string.Empty,
+                    Description = m.Province != null && m.Province.Region != null ? m.Province.Region.Description : null,
                 }
-            }
-        }).ToList();
+            },
+            Code = m.Code ?? string.Empty,
+            Area = m.Area
+        });
 
-        municipalityDtos = [..municipalityDtos
-            .Where(m => !request.ProvinceId.HasValue || m.Province?.Id == request.ProvinceId)];
-
-        if (municipalityDtos.Count is 0)
-        {
-            return new PaginatedResponse<MunicipalityDto>(municipalityDtos, request.PageNumber, request.PageSize)
-            {
-                Data = municipalityDtos,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
-
-        return new PaginatedResponse<MunicipalityDto>(municipalityDtos, request.PageNumber, request.PageSize)
-        {
-            Data = municipalityDtos,
-            Message = "Users retrieved successfully.",
-            Succeeded = true
-        };
+        return await _municipalityRepository.PaginateAsync(municipalityDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

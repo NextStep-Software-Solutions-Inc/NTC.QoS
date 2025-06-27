@@ -14,7 +14,8 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
     private readonly INetworkRepository _networkRepository = networkRepository;
     public async Task<ApiResponse<NetworkDto>> Handle(UpdateNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var network = await _networkRepository.GetByIdAsync(request.Id, cancellationToken);
+        var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Id);
+        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is null)
         {
             return new ApiResponse<NetworkDto>
@@ -31,20 +32,14 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         }
 
         if (!string.IsNullOrEmpty(request.Network.Name)) network.Name = request.Network.Name;
-        if (!string.IsNullOrEmpty(request.Network.SystemType)) network.SystemType = EnumHelper<NetworkSystemTypeEnum>.ParseUserInput(request.Network.SystemType);
 
-        var networkExists = await _networkRepository.FindAsync(n => n.Name == network.Name && n.SystemType == network.SystemType && !n.IsDeleted, cancellationToken);
+        var networkExistsQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id != request.Id && n.Name == request.Network.Name);
+        var networkExists = await _networkRepository.FirstOrDefaultAsync(networkExistsQuery, cancellationToken);
         if (networkExists is not null)
         {
             return new ApiResponse<NetworkDto>
             {
                 Message = "Network already exist.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "Duplicate", ["Network with the same name and system type already exists."]
-                    }
-                },
                 Succeeded = false,
             };
         }
@@ -63,7 +58,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                 Description = network.NetworkTemplate?.Description ?? string.Empty,
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
-            SystemType = EnumHelper<NetworkSystemTypeEnum>.GetDescription(network.SystemType),
+            SystemTypeName = network.SystemType?.Name ?? string.Empty,
             Uplink = new LinkNetworkDto
             {
                 Id = network.UpLinkId,

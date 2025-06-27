@@ -5,6 +5,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Sector;
+using NTC.QoS.Domain.Models.DTOs.CellSector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Queries;
 
@@ -31,7 +32,7 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                 {
                     Id = s.Network.Id,
                     Name = s.Network.Name,
-                    SystemType = s.Network.SystemType.ToString(),
+                    SystemType = s.Network.SystemType.ToString()!,
                 },
                 AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(s.AntennaType),
                 MIMO = s.MIMO != null ? new()
@@ -39,19 +40,20 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                     Id = s.MIMO.Id,
                     Type = s.MIMO.Type.ToString()
                 } : null,
-                CellSector = new()
+                CellSector = new CellSectorDto
                 {
                     Id = s.CellSector != null ? s.CellSector.Id : Guid.Empty,
                     Cell = new()
                     {
                         Id = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Id : Guid.Empty,
                         Name = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Name : string.Empty,
-                        Latitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.X : 0,
-                        Longitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.Y : 0,
+                        Latitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.Coordinate.X : 0,
+                        Longitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.Coordinate.Y : 0,
                         CID = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CID : string.Empty,
                         LAC = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.LAC : string.Empty,
                     },
                     AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(s.CellSector != null ? s.CellSector.AntennaType : AntennaTypeEnum.Unknown),
+                    AntennaHeight = s.CellSector != null ? s.CellSector.AntennaHeight : 0,
                     Azimuth = s.CellSector != null ? s.CellSector.Azimuth : 0,
                     BeamTilt = s.CellSector != null ? s.CellSector.BeamTilt : 0,
                 },

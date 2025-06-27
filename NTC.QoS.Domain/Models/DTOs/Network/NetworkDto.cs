@@ -1,4 +1,5 @@
 ﻿using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
+using NTC.QoS.Domain.Models.DTOs.SystemType;
 
 namespace NTC.QoS.Domain.Models.DTOs.Network;
 
@@ -6,8 +7,9 @@ public class NetworkDto
 {
     public required Guid Id { get; set; }
     public required string Name { get; set; }
-    public NetworkTemplateDto? NetworkTemplate { get; set; }
-    public required string SystemType { get; set; }
+    public required NetworkTemplateDto NetworkTemplate { get; set; }
+    public required string SystemTypeName { get; set; }
     public LinkNetworkDto? Uplink { get; set; }
     public LinkNetworkDto? DownLink { get; set; }
 }
+

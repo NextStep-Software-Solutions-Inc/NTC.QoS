@@ -11,7 +11,8 @@ public class DeleteMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
     public async Task<ApiResponse<bool>> Handle(DeleteMIMOByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var mimo = await _repository.FindAsync(m => m.Id == request.Id && !m.IsDeleted, cancellationToken);
+        var mimoQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var mimo = await _repository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
 
         if (mimo is null)
         {

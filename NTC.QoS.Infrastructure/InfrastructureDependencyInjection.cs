@@ -8,7 +8,8 @@ using NTC.QoS.Infrastructure.BackgroundTasks;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Services;
-using NetTopologySuite.Geometries; // For Point
+using NetTopologySuite.Geometries;
+using NTC.QoS.Infrastructure.Seed; // For Point
 
 namespace NTC.QoS.Infrastructure;
 public static class InfrastructureDependencyInjection
@@ -65,6 +66,8 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IStudyNetworkRepository, StudyNetworkRepository>();
         services.AddScoped<IRegionRepository, RegionRepository>();
         services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
+        services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
+        services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
 
 
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
@@ -74,6 +77,15 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IProcessCellJob, ProcessCellJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
+        services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
+
+        Task.Run(async () =>
+        {
+            using var scope = services.BuildServiceProvider().CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            await LocationSeeder.SeedAllAsync(dbContext);
+        });
 
         return services;
     }

@@ -12,7 +12,8 @@ public class GetGenerationBandByIdHandler(IGenerationBandRepository repository) 
 
     public async Task<ApiResponse<GetGenerationBandDto>> Handle(GetGenerationBandByIdRequest request, CancellationToken cancellationToken)
     {
-        var generationBand = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var generationBandQuery = _repository.Query(gb => !gb.IsDeleted && gb.Id.Equals(request.Id));
+        var generationBand = await _repository.FirstOrDefaultAsync(generationBandQuery, cancellationToken);
 
         if (generationBand is null)
         {
