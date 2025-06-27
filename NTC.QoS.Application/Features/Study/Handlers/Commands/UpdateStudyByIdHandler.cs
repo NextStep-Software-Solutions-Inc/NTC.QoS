@@ -31,31 +31,11 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
             };
         }
 
-        if(!String.IsNullOrEmpty(request.Study.Name)) study.Name = request.Study.Name;
-        if (request.Study.AreaStudyId.HasValue)
-        {
-            var areaStudyQuery = _areaStudyRepository.Query(a => a.Id == request.Study.AreaStudyId.Value && !a.IsDeleted);
-            var areaStudy = await _areaStudyRepository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
-            if (areaStudy is null)
-            {
-                return new ApiResponse<StudyDto>
-                {
-                    Message = "Area study not found.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        {
-                            "AreaStudyId", [$"Area study with ID [{request.Study.AreaStudyId}] does not exist."]
-                        }
-                    },
-                    Succeeded = false
-                };
-            }
-            study.AreaStudyId = areaStudy.Id;
-        }
-        if (!String.IsNullOrEmpty(request.Study.Description)) study.Description = request.Study.Description;
-        if (request.Study.StudyRadius.HasValue) study.StudyRadius = request.Study.StudyRadius.Value;
+        study.Name = request.Study.Name ?? study.Name;
+        study.Description = request.Study.Description ?? study.Description;
+        study.StudyRadius = request.Study.StudyRadius ?? study.StudyRadius;
 
-        var studyExistQuery = _studyRepository.Query(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && !s.IsDeleted);
+        var studyExistQuery = _studyRepository.Query(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && s.Description == study.Description && !s.IsDeleted);
         var studyExist = await _studyRepository.FirstOrDefaultAsync(studyExistQuery, cancellationToken);
         if (studyExist is not null)
         {
