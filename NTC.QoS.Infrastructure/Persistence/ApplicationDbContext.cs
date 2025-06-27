@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Helper;
+using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence;
 
@@ -48,11 +49,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
+        
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-
         modelBuilder.HasPostgresExtension("postgis");
+
+        foreach ( var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if(typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                var parameter = Expression.Parameter(entityType.ClrType, "entity");
+                var property = Expression.Property(parameter, nameof(BaseEntity.IsDeleted));
+                var notDeletedExpression = Expression.Not(property);
+                var lambda = Expression.Lambda(notDeletedExpression, parameter);
+
+                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(lambda);
+            }
+        }
 
         // ... any entity configuration ...
         modelBuilder.Entity<Provider>()

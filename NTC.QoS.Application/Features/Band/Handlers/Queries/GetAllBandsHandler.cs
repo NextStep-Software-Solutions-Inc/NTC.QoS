@@ -11,7 +11,7 @@ public class GetAllBandsHandler (IRepository<Domain.Entities.Band> repository) :
     private readonly IRepository<Domain.Entities.Band> _repository = repository;
     public async Task<PaginatedResponse<BandDto>> Handle(GetAllBandsRequest request, CancellationToken cancellationToken)
     {
-        var tempQuery = _repository.Query(b => b.IsDeleted.Equals(false));
+        var tempQuery = _repository.Query();
         tempQuery = tempQuery.Where(b => request.Technologies == null || b.GenerationBands.Any(gb => gb.Generation.Technologies.Any(t => request.Technologies.Contains(t.Id))));
 
         var bandDtosQuery = tempQuery.Select(b => new BandDto
