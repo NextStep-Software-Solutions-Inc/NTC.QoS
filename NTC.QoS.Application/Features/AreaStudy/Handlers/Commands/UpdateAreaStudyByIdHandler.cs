@@ -29,8 +29,8 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
             };
         }
 
-        if (!String.IsNullOrEmpty(request.AreaStudy.Name)) areaStudy.Name = request.AreaStudy.Name;
-        if (!String.IsNullOrEmpty(request.AreaStudy.Description)) areaStudy.Description = request.AreaStudy.Description;
+        areaStudy.Name = request.AreaStudy.Name ?? areaStudy.Name;
+        areaStudy.Description = request.AreaStudy.Description ?? areaStudy.Description;
 
         var existingAreaStudyQuery = _repository.Query(a => a.Name == areaStudy.Name && a.Id != request.Id && !a.IsDeleted);
         var existingAreaStudy = await _repository.FirstOrDefaultAsync(existingAreaStudyQuery, cancellationToken);
@@ -61,6 +61,8 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
                 Name = areaStudy.Name,
                 Description = areaStudy.Description
             },
+            Succeeded = true,
+            Message = "Area study updated successfully."
         };
     }
 }
