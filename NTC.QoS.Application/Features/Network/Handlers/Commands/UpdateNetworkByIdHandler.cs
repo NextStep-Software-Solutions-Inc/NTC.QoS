@@ -62,13 +62,13 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
             UpLink = new()
             {
                 Id = network.UpLinkId,
-                Type = network.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.UpLink.Type) : string.Empty,
+                Type = network.UpLink?.Type is not null ? network.UpLink.Type.ToString() : string.Empty,
                 CenterFrequency = network.UpLink?.CenterFrequency ?? 0,
             },
             DownLink = new()
             {
                 Id = network.DownLinkId,
-                Type = network.DownLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.DownLink.Type) : string.Empty,
+                Type = network.DownLink?.Type is not null ? network.DownLink.Type.ToString() : string.Empty,
                 CenterFrequency = network.DownLink?.CenterFrequency ?? 0,
             }
         };

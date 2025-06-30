@@ -1,8 +1,5 @@
 ﻿using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Network.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Network;
 
@@ -36,13 +33,13 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
             UpLink = new()
             {
                 Id = n.UpLinkId,
-                Type = EnumHelper<LinkTypeEnum>.GetName(n.UpLink.Type),
+                Type = n.UpLink.Type.ToString(),
                 CenterFrequency = n.UpLink.CenterFrequency
             },
             DownLink = new()
             {
                 Id = n.DownLinkId,
-                Type = EnumHelper<LinkTypeEnum>.GetName(n.DownLink.Type),
+                Type = n.DownLink.Type.ToString(),
                 CenterFrequency = n.DownLink.CenterFrequency,
             }
         });
