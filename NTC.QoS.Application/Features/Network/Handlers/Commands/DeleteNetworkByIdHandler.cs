@@ -34,7 +34,6 @@ public class DeleteNetworkByIdHandler(INetworkRepository networkRepository) : IR
 
         return new ApiResponse<bool>
         {
-            Data = true,
             Message = "Network deleted successfully.",
             Succeeded = true
         };

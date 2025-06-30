@@ -44,7 +44,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
             SystemTypeName = network.SystemType?.Name ?? string.Empty,
-            Uplink = new()
+            UpLink = new()
             {
                 Id = network.UpLinkId,
                 Type = network.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.UpLink.Type) : string.Empty,
