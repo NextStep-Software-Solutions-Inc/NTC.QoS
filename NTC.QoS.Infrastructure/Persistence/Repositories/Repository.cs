@@ -117,7 +117,6 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize, totalCount);
     }
 
-
     public void AddRange(IEnumerable<TEntity> entities)
     {
         _context.AddRange(entities);
