@@ -24,7 +24,7 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
     public async Task<ApiResponse<ProvinceDto>> Handle(UpdateProvinceRequest request,
             CancellationToken cancellationToken)
     {
-        var provinceQuery = _repository.Query(p => p.Id == request.Id && !p.IsDeleted);
+        var provinceQuery = _repository.Query(p => p.Id == request.Id);
         var province = await _repository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
@@ -36,14 +36,14 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullProvince", new[] { "Province not found." }
+                        "NullProvince", new[] { "The province you are trying to edit does not exist." }
                     }
                 },
-                Message = "The province you are trying to edit does not exist."
+                Message = "Province not found."
             };
         }
 
-        var existsQuery = _repository.Query(p => p.Name == request.Province.Name && p.RegionId == province.RegionId && p.Id != request.Id && !p.IsDeleted);
+        var existsQuery = _repository.Query(p => p.Name == request.Province.Name && p.RegionId == province.RegionId && p.Id != request.Id);
         var exists = await _repository.FirstOrDefaultAsync(existsQuery, cancellationToken);
 
         if (exists is not null)

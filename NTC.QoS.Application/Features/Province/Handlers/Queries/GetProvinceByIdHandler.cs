@@ -13,7 +13,7 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
 
     public async Task<ApiResponse<ProvinceDto>> Handle(GetProvinceByIdRequest request, CancellationToken cancellationToken)
     {
-        var provinceQuery = _provinceRepository.Query(p => !p.IsDeleted && p.Id.Equals(request.Id));
+        var provinceQuery = _provinceRepository.Query(p => p.Id.Equals(request.Id));
         var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
@@ -24,10 +24,10 @@ public class GetProvinceByIdHandler(IProvinceRepository provinceRepository) : IR
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullProvince", ["Province not found."] 
+                        "NullProvince", ["Province with the specified ID does not exist."] 
                     }
                 },
-                Message = "Province with the specified ID does not exist."
+                Message = "Province not found."
             };
         }
 
