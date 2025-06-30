@@ -1,11 +1,11 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Hangfire;
 using Microsoft.AspNetCore.ResponseCompression;
 using NTC.QoS.API.Extensions;
 using NTC.QoS.Application;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API;
 

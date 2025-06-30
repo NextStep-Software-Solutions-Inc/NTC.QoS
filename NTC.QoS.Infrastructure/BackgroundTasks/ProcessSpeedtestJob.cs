@@ -44,22 +44,43 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
         if (file == null)
         {
-            var message = "File not found";
+            const string message = "File not found";
             _logger.LogError(message);
-            throw new Exception(message);
+            throw new InvalidOperationException(message);
         }
-        ;
 
         file.Status = FileStatusEnum.Processing;
 
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
-        var generationCache = new Dictionary<string, Guid>();
-        var technologyCache = new Dictionary<string, Guid>();
-        var serviceProviderCache = new Dictionary<string, Guid>();
-        var cellCache = new Dictionary<string, Guid>();
+        var generationCache = await _generationRepository
+            .Query(g => !g.IsDeleted)
+            .Include(g => g.Technologies)
+            .ToListAsync(token);
+
+        var technologyCache = generationCache
+            .SelectMany(g => g.Technologies.Select(t => new { t.Standard, g.Id }))
+            .ToDictionary(x => CacheKeyGenerator.GenerateGenerationCacheKey(x.Standard), x => x.Id);
+
+        var serviceProviders = await _serviceProviderRepository
+            .Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
+            .Include(sp => sp.Provider)
+            .ToListAsync(token);
+
+        var serviceProviderCache = serviceProviders
+            .ToDictionary(
+                sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Provider.Name, ServiceTypeEnum.Wireless),
+                sp => sp.Id
+            );
+
         var speedtestList = new List<Speedtest>();
+
+        //var generationCache = new Dictionary<string, Guid>();
+        //var technologyCache = new Dictionary<string, Guid>();
+        //var serviceProviderCache = new Dictionary<string, Guid>();
+        //var cellCache = new Dictionary<string, Guid>();
+        //var speedtestList = new List<Speedtest>();
 
         using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
         _logger.LogInformation($"Processing file: {parameters.Path}");
@@ -76,48 +97,23 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
         foreach (var record in speedtestRecords)
         {
-            //Process each record
-            _logger.LogInformation($"Processing record: {record}");
+            ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}");
 
-            ReportProgress($"Processing record: {record.Region} {record.Province} {record.Municipality} {record.Barangay}, {record.Timestamp}, {record.NetworkType}, {record.Provider}, ({record.Upload},{record.Download}), {record.RSSI}, {record.SignalQuality}, {record.Provider}, {record.Latitude}, {record.Longitude}, {record.PhoneModel}, {record.CellIdentifier}, {record.MCC}, {record.TAC}");
-
-            var serviceProviderCacheKey = $"{record.Provider}-{ServiceTypeEnum.Wireless}";
-            if (!serviceProviderCache.TryGetValue(serviceProviderCacheKey, out var serviceProviderId))
+            var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+            if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
             {
-                var serviceProvider = await _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Provider.Name.Equals(record.Provider) && sp.Service.Type == ServiceTypeEnum.Wireless).FirstOrDefaultAsync(cancellationToken: token);
-
-                if (serviceProvider is null)
-                {
-                    _logger.LogWarning("Wireless Service Provider not found: {Provider}", record.Provider);
-                    await TerminateProcess(file, token);
-                    return;
-                }
-                else
-                {
-                    serviceProviderId = serviceProvider.Id;
-                    serviceProviderCache[serviceProviderCacheKey] = serviceProviderId;
-                }
+                _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
+                await TerminateProcess(file, token);
+                return;
             }
 
-            if (!generationCache.TryGetValue(record.NetworkType, out var generationId))
+            var generationKey = CacheKeyGenerator.GenerateGenerationCacheKey(record.NetworkType);
+            if (!technologyCache.TryGetValue(generationKey, out var generationId))
             {
-                var generation = await _generationRepository.Query(g => !g.IsDeleted && g.Technologies.Any(t => t.Standard.Equals(record.NetworkType)))
-                    .Select(g => new { g.Id })
-                    .FirstOrDefaultAsync(cancellationToken: token);
-
-                if (generation is not null)
-                {
-                    generationId = generation.Id;
-                    generationCache[record.NetworkType] = generationId;
-                }
-                else
-                {
-                    _logger.LogWarning("Generation not found for Technology: {NetworkType}", record.NetworkType);
-                    await TerminateProcess(file, token);
-                    return;
-                }
+                _logger.LogWarning("Generation not found for NetworkType: {NetworkType}.Terminating process.", record.NetworkType);
+                await TerminateProcess(file, token);
+                return;
             }
-
 
             //Check if all valid Ids are valid
             if (serviceProviderId != Guid.Empty && generationId != Guid.Empty)

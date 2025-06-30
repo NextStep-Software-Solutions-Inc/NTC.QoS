@@ -134,4 +134,15 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         ArgumentNullException.ThrowIfNull(queryable);
         return await queryable.ExecuteDeleteAsync(cancellationToken);
     }
+    public IQueryable<TEntity> QueryWithIgnoreQueryFilters(Expression<Func<TEntity, bool>>? expression = null)
+    {
+        var query = _context.Set<TEntity>().AsQueryable().IgnoreQueryFilters();
+
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+
+        return query;
+    }
 }
