@@ -19,7 +19,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<BarangayDto>>> CreateBarangay(CreateBarangayDto barangayDto)
+    public async Task<ActionResult<ApiResponse<BarangayDto>>> CreateBarangay([FromForm] CreateBarangayDto barangayDto)
     {
         var barangay = await _mediator.Send(new CreateBarangayRequest
         {
@@ -59,7 +59,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPatch("{id}")]
-    public async Task<ActionResult<ApiResponse<BarangayDto>>> UpdateBarangayById(Guid id, UpdateBarangayDto updateBarangay)
+    public async Task<ActionResult<ApiResponse<BarangayDto>>> UpdateBarangayById(Guid id, [FromForm] UpdateBarangayDto updateBarangay)
     {
         var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(id, updateBarangay));
         return barangay.Succeeded ? Ok(barangay) : BadRequest(barangay);

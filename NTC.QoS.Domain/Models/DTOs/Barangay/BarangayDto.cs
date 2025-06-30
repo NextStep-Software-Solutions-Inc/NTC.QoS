@@ -1,5 +1,4 @@
 ﻿using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 
 namespace NTC.QoS.Domain.Models.DTOs.Barangay;

@@ -1,6 +1,7 @@
 ﻿using MediatR;
+using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
-using NetTopologySuite.IO.Converters;
+using NetTopologySuite.IO;
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -8,7 +9,6 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
@@ -16,14 +16,11 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
 {
     private readonly IMunicipalityRepository _repository;
     private readonly IProvinceRepository _provinceRepository;
-    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public CreateMunicipalityHandler(IMunicipalityRepository repository, IProvinceRepository provinceRepository)
     {
         _repository = repository;
         _provinceRepository = provinceRepository;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(CreateMunicipalityRequest request, CancellationToken cancellationToken)
@@ -76,18 +73,36 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
 
         MultiPolygon? boundariesGeometry = null;
 
-        // Process Boundaries
-        if (request.Municipality.Boundaries.HasValue && request.Municipality.Boundaries.Value.ValueKind != JsonValueKind.Null)
+        if (request.Municipality.BoundariesFile != null && request.Municipality.BoundariesFile.Length > 0)
         {
             try
             {
-                // Correctly deserialize JsonElement to NetTopologySuite.Geometries.Geometry
-                // The GeoJsonConverterFactory will handle mapping GeoJSON types to NTS types.
-                Geometry? receivedGeometry = request.Municipality.Boundaries.Value.Deserialize<Geometry>(_jsonSerializerOptions);
+                using var streamReader = new StreamReader(request.Municipality.BoundariesFile.OpenReadStream());
+                string geoJsonString = await streamReader.ReadToEndAsync(cancellationToken);
+
+                if (string.IsNullOrWhiteSpace(geoJsonString))
+                {
+                    throw new ArgumentException("Provided boundaries GeoJSON file is empty or contains only whitespace.");
+                }
+
+                var geoJsonReader = new GeoJsonReader();
+                Geometry? receivedGeometry = null;
+
+                try
+                {
+                    var featureCollection = geoJsonReader.Read<FeatureCollection>(geoJsonString);
+                    receivedGeometry = featureCollection?
+                        .FirstOrDefault(f => f.Geometry is Polygon || f.Geometry is MultiPolygon)?
+                        .Geometry;
+                }
+                catch (Newtonsoft.Json.JsonSerializationException)
+                {
+                    receivedGeometry = geoJsonReader.Read<Geometry>(geoJsonString);
+                }
 
                 if (receivedGeometry == null)
                 {
-                    throw new ArgumentException("Provided boundaries GeoJSON is invalid or empty.");
+                    throw new ArgumentException("Provided boundaries GeoJSON file content could not be parsed into a valid Polygon or MultiPolygon geometry.");
                 }
 
                 if (receivedGeometry is MultiPolygon multiPolygon)
@@ -96,12 +111,10 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
                 }
                 else if (receivedGeometry is Polygon polygon)
                 {
-                    // If it's a single Polygon, use GeometryHelper to wrap it in a MultiPolygon.
-                    boundariesGeometry = GeometryHelper.CreateMultiPolygon((IEnumerable<Polygon>)polygon);
+                    boundariesGeometry = GeometryHelper.CreateMultiPolygon(new[] { polygon });
                 }
                 else
                 {
-                    // If an unexpected geometry type is provided (e.g., Point, LineString)
                     return new ApiResponse<MunicipalityDto>
                     {
                         Succeeded = false,
@@ -116,16 +129,16 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
                 newMunicipality.Boundaries = boundariesGeometry;
                 newMunicipality.Center = newMunicipality.Boundaries.Centroid;
             }
-            catch (JsonException ex)
+            catch (Newtonsoft.Json.JsonSerializationException ex)
             {
                 return new ApiResponse<MunicipalityDto>
                 {
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "InvalidGeoJSON", new[] { $"Failed to parse boundaries GeoJSON: {ex.Message}" } }
+                        { "InvalidGeoJSONFile", new[] { $"Failed to parse boundaries GeoJSON file: {ex.Message}" } }
                     },
-                    Message = "Invalid boundaries GeoJSON format."
+                    Message = "Invalid boundaries GeoJSON file format. Check GeoJSON syntax."
                 };
             }
             catch (ArgumentException ex)
@@ -137,13 +150,25 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
                     {
                         { "BoundariesError", new[] { ex.Message } }
                     },
-                    Message = "Error processing boundaries."
+                    Message = "Error processing boundaries from file."
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<MunicipalityDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "ProcessingError", new[] { $"An unexpected error occurred during GeoJSON processing: {ex.Message}" } }
+                    },
+                    Message = "An unexpected error occurred while processing boundaries."
                 };
             }
         }
         else
         {
-            newMunicipality.Boundaries = GeometryHelper.CreateMultiPolygon(Array.Empty<Polygon>());
+            newMunicipality.Boundaries = GeometryHelper.CreateMultiPolygon([]);
             newMunicipality.Center = GeometryHelper.CreatePoint(0, 0);
         }
 

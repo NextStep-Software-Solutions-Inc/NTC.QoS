@@ -18,7 +18,7 @@ public class ProvincesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<ProvinceDto>>> Post(CreateProvinceDto provinceDto)
+    public async Task<ActionResult<ApiResponse<ProvinceDto>>> CreateProvince([FromForm] CreateProvinceDto provinceDto)
     {
         var province = await _mediator.Send(new CreateProvinceRequest
         {
@@ -40,6 +40,7 @@ public class ProvincesController : ControllerBase
         var provinces = await _mediator.Send(request);
         return Ok(provinces);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ProvinceDto>>> GetProvinceById(Guid id)
     {
@@ -49,7 +50,7 @@ public class ProvincesController : ControllerBase
     }
 
     [HttpPatch("{id}")]
-    public async Task<ActionResult<ApiResponse<ProvinceDto>>> UpdateProvinceById(Guid id, UpdateProvinceDto updateProvince)
+    public async Task<ActionResult<ApiResponse<ProvinceDto>>> UpdateProvinceById(Guid id, [FromForm] UpdateProvinceDto updateProvince)
     {
         var province = await _mediator.Send(new UpdateProvinceRequest { Id = id, Province = updateProvince });
         return province.Succeeded ? Ok(province) : BadRequest(province);

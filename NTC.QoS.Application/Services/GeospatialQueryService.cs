@@ -15,7 +15,10 @@ public class GeospatialQueryService
         _dbContext = dbContext;
     }
 
-    public async Task<List<GeoEntityCellCountDto>> GetTopGeoEntitiesByCellCountAsync<TEntity>(int topCount)
+    public async Task<List<GeoEntityCellCountDto>> GetTopGeoEntitiesByCellCountAsync<TEntity>(
+        int limit,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
         where TEntity : BaseEntity, new()
     {
         var query = _dbContext.Set<TEntity>()
@@ -38,32 +41,42 @@ public class GeospatialQueryService
                 CellCount = _dbContext.Cells.Count(c =>
                     EF.Property<Point>(c, "Location") != null &&
                     geo.Boundaries != null &&
-                    EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0)
+                    EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
                 )
             })
             .OrderByDescending(dto => dto.CellCount)
-            .Take(topCount > 0 ? topCount : int.MaxValue)
+            .Take(limit > 0 ? limit : int.MaxValue)
             .ToListAsync();
 
         return results;
     }
 
     public async Task<List<GeoEntityCellCountDto>> GetTopChildEntitiesByCellCountAsync<TParent, TChild>(
-        Guid parentId,
+        Guid? parentId,
         string parentIdPropertyName,
-        int topCount)
+        int limit,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
         where TParent : BaseEntity
         where TChild : BaseEntity
     {
-        // Check if parent exists
-        var parent = await _dbContext.Set<TParent>().FindAsync(parentId);
-        if (parent == null)
-            return new List<GeoEntityCellCountDto>();
+        IQueryable<TChild> query = _dbContext.Set<TChild>();
 
-        var query = _dbContext.Set<TChild>()
-            .Where(child =>
-                EF.Property<Guid>(child, parentIdPropertyName) == parentId
-            )
+        // If parentId is null, act like GetTopGeoEntitiesByCellCountAsync (no parent filtering)
+        // Otherwise, filter by parentId
+        if (parentId.HasValue)
+        {
+            // Optional: You might still want to check if the parent actually exists,
+            // but for acting like topGeoEntities when null, this check isn't strictly necessary for the 'else' branch.
+            // If parentId is provided but doesn't exist, the Where clause will simply yield no results.
+            query = query.Where(child =>
+                EF.Property<Guid>(child, parentIdPropertyName) == parentId.Value
+            );
+        }
+
+        var projectedQuery = query
             .Select(child => new
             {
                 child.Id,
@@ -73,7 +86,7 @@ public class GeospatialQueryService
                 EntityType = typeof(TChild).Name
             });
 
-        var results = await query
+        var results = await projectedQuery
             .Select(dto => new GeoEntityCellCountDto
             {
                 Id = dto.Id,
@@ -83,11 +96,13 @@ public class GeospatialQueryService
                 CellCount = _dbContext.Cells.Count(c =>
                     EF.Property<Point>(c, "Location") != null &&
                     dto.Boundaries != null &&
-                    EF.Property<Point>(c, "Location").IsWithinDistance(dto.Boundaries, 0)
+                    EF.Property<Point>(c, "Location").IsWithinDistance(dto.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
                 )
             })
             .OrderByDescending(x => x.CellCount)
-            .Take(topCount > 0 ? topCount : int.MaxValue)
+            .Take(limit > 0 ? limit : int.MaxValue)
             .ToListAsync();
 
         return results;
