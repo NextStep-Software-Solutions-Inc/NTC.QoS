@@ -1,10 +1,9 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Application.Features.Link.Requests;
-using NTC.QoS.Domain.Models.DTOs.Link;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Link;
 
 namespace NTC.QoS.Application.Features.Link.Handlers.Queries;
 
@@ -14,7 +13,7 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
 
     public async Task<PaginatedResponse<LinkDto>> Handle(GetAllLinksRequest request, CancellationToken cancellationToken)
     {
-        var allLinksQuery = _linkRepository.Query(l => !l.IsDeleted);
+        var allLinksQuery = _linkRepository.Query();
 
         if (request.ServiceProviderId.HasValue)
         {
@@ -31,7 +30,7 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
             .Select(l => new LinkDto
             {
                 Id = l.Id,
-                Type = EnumHelper<LinkTypeEnum>.GetDescription(l.Type),
+                Type = l.Type.ToString(),
                 ServiceProvider = new()
                 {
                     Id = l.ServiceProvider.Id,
@@ -65,6 +64,5 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
             });
 
         return await _linkRepository.PaginateAsync(linkDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
-
     }
 }
