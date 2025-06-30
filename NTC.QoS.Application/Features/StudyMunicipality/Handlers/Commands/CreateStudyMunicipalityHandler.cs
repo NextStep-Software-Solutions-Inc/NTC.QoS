@@ -2,11 +2,6 @@
 using NTC.QoS.Application.Features.StudyMunicipality.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Domain.Models.DTOs.Study;
 using NTC.QoS.Domain.Models.DTOs.StudyMunicipality;
 
 namespace NTC.QoS.Application.Features.StudyMunicipality.Handlers.Commands;
@@ -87,31 +82,31 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
             Data = new StudyMunicipalityDto
             {
                 Id = newStudyMunicipality.Id,
-                Study = new StudyDto
+                Study = new()
                 {
                     Id = newStudyMunicipality.StudyId,
                     Name = newStudyMunicipality.Study?.Name ?? string.Empty,
                     Description = newStudyMunicipality.Study?.Description,
                     StudyRadius = newStudyMunicipality.Study?.StudyRadius ?? 0,
-                    AreaStudy = new AreaStudyDto
+                    AreaStudy = new()
                     {
                         Id = newStudyMunicipality.Study?.AreaStudyId ?? Guid.Empty,
                         Name = newStudyMunicipality.Study?.AreaStudy?.Name ?? string.Empty,
                         Description = newStudyMunicipality.Study?.Description ?? string.Empty
                     }
                 },
-                Municipality = new MunicipalityDto
+                Municipality = new()
                 {
                     Id = newStudyMunicipality.MunicipalityId,
                     Name = newStudyMunicipality.Municipality?.Name ?? string.Empty,
                     IsCity = newStudyMunicipality.Municipality?.IsCity ?? false,
                     Description = newStudyMunicipality.Municipality?.Description,
-                    Province = new ProvinceDto
+                    Province = new()
                     {
                         Id = newStudyMunicipality.Municipality?.ProvinceId ?? Guid.Empty,
                         Name = newStudyMunicipality.Municipality?.Province?.Name ?? string.Empty,
                         Description = newStudyMunicipality.Municipality?.Province?.Description,
-                        Region = new RegionDto
+                        Region = new()
                         {
                             Id = newStudyMunicipality.Municipality?.Province?.RegionId ?? Guid.Empty,
                             Name = newStudyMunicipality.Municipality?.Province?.Region?.Name ?? string.Empty,
