@@ -72,7 +72,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return Ok(result);
     }
 
-    [HttpGet("overview/1")]
+    [HttpGet("overview")]
     public async Task<ActionResult<ApiResponse<DashboardOverviewDto>>> GetDashboardOverview(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
@@ -104,7 +104,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
-    [HttpGet("all/1")]
+    [HttpGet("all")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
     VaryByQueryKeys = new[] { "startDate", "endDate", "daysInPast", "regionId", "provinceId", "municipalityId", "limit" })]
     public async Task<ActionResult<DashboardAggregateDTO>> GetAllDashboard(
@@ -168,22 +168,6 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return Ok(result);
     }
 
-
-    private async Task<T> GetOrCacheAsync<T>(string key, Func<Task<T>> factory)
-    {
-        if (memoryCache.TryGetValue(key, out T? cached))
-        {
-            _logger.LogInformation("Cache HIT: {CacheKey}", key);
-            return cached!;
-        }
-
-        var result = await factory();
-        memoryCache.Set(key, result, TimeSpan.FromHours(24));
-        _logger.LogInformation("Cache SET: {CacheKey}", key);
-        TrackCacheKey(key);
-        return result;
-    }
-
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => new HashSet<string>());
@@ -203,66 +187,4 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
             memoryCache.Remove(DashboardCacheKeysSet);
         }
     }
-
-    [HttpGet("all")]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "startDate", "endDate", "daysInPast", "regionId", "provinceId", "municipalityId", "limit" })]
-    public async Task<ActionResult<DashboardAggregateDTO>> GetCompleteDashboard(
-        [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate,
-        [FromQuery] Guid? regionId = null,
-        [FromQuery] Guid? provinceId = null,
-        [FromQuery] Guid? municipalityId = null,
-        [FromQuery] int? daysInPast = null,
-        [FromQuery] int limit = 5)
-    {
-        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
-
-        // All caching logic is now handled by the MediatR pipeline behavior
-        var result = new DashboardAggregateDTO
-        {
-            TotalCellsitesCount = await mediator.Send(new GetTotalCellsitesCountRequest { StartDate = finalStartDate, EndDate = finalEndDate }),
-            TotalNAPsCount = await mediator.Send(new GetTotalNAPsCountRequest { StartDate = finalStartDate, EndDate = finalEndDate }),
-            TopRegionsByCellCount = await mediator.Send(new GetTopRegionsByCellCountRequest { StartDate = finalStartDate, EndDate = finalEndDate, Limit = limit }),
-            TopProvincesInRegionByCellCount = await mediator.Send(new GetTopProvincesInRegionByCellCountRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, Limit = limit }),
-            TopMunicipalitiesInProvinceByCellCount = await mediator.Send(new GetTopMunicipalitiesInProvinceByCellCountRequest { StartDate = finalStartDate, EndDate = finalEndDate, ProvinceId = provinceId, Limit = limit }),
-            TopBarangaysInMunicipalityByCellCount = await mediator.Send(new GetTopBarangaysInMunicipalityByCellCountRequest { StartDate = finalStartDate, EndDate = finalEndDate, MunicipalityId = municipalityId, Limit = limit }),
-        };
-
-        return Ok(result);
-    }
-
-    //[HttpGet("overview")]
-    //[ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
-    //    VaryByQueryKeys = new[] { "startDate", "endDate", "daysInPast", "regionId", "provinceId", "municipalityId", "limit" })]
-    //public async Task<ActionResult<ApiResponse<DashboardOverviewDto>>> GetDashboardOverview(
-    //    [FromQuery] DateTime? startDate,
-    //    [FromQuery] DateTime? endDate,
-    //    [FromQuery] int? daysInPast,
-    //    [FromQuery] Guid? regionId,
-    //    [FromQuery] Guid? provinceId,
-    //    [FromQuery] Guid? municipalityId,
-    //    [FromQuery] int limit = 5)
-    //{
-    //    var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
-
-    //    // Create the MediatR request
-    //    var request = new GetDashboardOverviewRequest
-    //    {
-    //        StartDate = finalStartDate,
-    //        EndDate = finalEndDate,
-    //        RegionId = regionId,
-    //        ProvinceId = provinceId,
-    //        MunicipalityId = municipalityId,
-    //        Limit = limit
-    //    };
-
-    //    // Send the request via MediatR.
-    //    // The CachingBehavior will intercept this, check the cache, and handle fetching if it's a miss.
-    //    var data = await mediator.Send(request);
-
-    //    // Wrap the data in your ApiResponse<T>
-    //    var response = new ApiResponse<DashboardOverviewDto> { Succeeded = true, Data = data };
-
-    //    return Ok(response);
-    //}
 }
