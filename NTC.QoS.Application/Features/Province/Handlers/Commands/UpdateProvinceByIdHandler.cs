@@ -1,15 +1,12 @@
-﻿using System.Text.Json;
-using MediatR;
+﻿using MediatR;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
-using NetTopologySuite.IO.Converters;
 using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Commands;
 
@@ -36,7 +33,7 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullProvince", new[] { "The province you are trying to edit does not exist." }
+                        "NullProvince", ["The province you are trying to edit does not exist."]
                     }
                 },
                 Message = "Province not found."
@@ -54,7 +51,7 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Name", new[] { "A province with this name already exists in the selected region." }
+                        "Name", ["A province with this name already exists in the selected region."]
                     }
                 },
                 Message = "Province name already exists in this region. Please choose a different name."
@@ -178,7 +175,7 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
                 Id = province.Id,
                 Name = province.Name,
                 Description = province.Description,
-                Region = new RegionDto
+                Region = new()
                 {
                     Id = province.RegionId,
                     Name = province.Region?.Name ?? string.Empty,

@@ -1,10 +1,8 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Municipality.Requests;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Queries;
 
@@ -42,12 +40,12 @@ public class GetMunicipalityByIdHandler(IMunicipalityRepository municipalityRepo
                 Name = municipality.Name,
                 Description = municipality.Description,
                 IsCity = municipality.IsCity,
-                Province = new ProvinceDto
+                Province = new()
                 {
                     Id = municipality.ProvinceId,
                     Name = municipality.Province?.Name ?? "Unknown",
                     Description = municipality.Province?.Description,
-                    Region = new RegionDto
+                    Region = new()
                     {
                         Id = municipality.Province?.Region?.Id ?? Guid.Empty,
                         Name = municipality.Province?.Region?.Name ?? "Unknown",

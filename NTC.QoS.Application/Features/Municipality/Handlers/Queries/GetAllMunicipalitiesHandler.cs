@@ -2,8 +2,6 @@
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Queries;
 
@@ -24,12 +22,12 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
             Name = m.Name,
             Description = m.Description,
             IsCity = m.IsCity,
-            Province = new ProvinceDto
+            Province = new()
             {
                 Id = m.ProvinceId,
                 Name = m.Province != null ? m.Province.Name : string.Empty,
                 Description = m.Province != null ? m.Province.Description : null,
-                Region = new RegionDto
+                Region = new()
                 {
                     Id = m.Province != null && m.Province.Region != null ? m.Province.Region.Id : Guid.Empty,
                     Name = m.Province != null && m.Province.Region != null ? m.Province.Region.Name : string.Empty,

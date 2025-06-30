@@ -7,9 +7,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
@@ -183,18 +180,18 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
             Description = newBarangay.Description,
             Code = newBarangay.Code,
             Area = newBarangay.Area,
-            Municipality = new MunicipalityDto
+            Municipality = new()
             {
                 Id = newBarangay.MunicipalityId,
                 Name = municipality?.Name ?? string.Empty,
                 Description = municipality?.Description,
                 IsCity = municipality?.IsCity ?? false,
-                Province = new ProvinceDto
+                Province = new()
                 {
                     Id = municipality?.ProvinceId ?? Guid.Empty,
                     Name = municipality?.Province?.Name ?? string.Empty,
                     Description = municipality?.Province?.Description,
-                    Region = new RegionDto
+                    Region = new()
                     {
                         Id = municipality?.Province?.RegionId ?? Guid.Empty,
                         Name = municipality?.Province?.Region?.Name ?? string.Empty,

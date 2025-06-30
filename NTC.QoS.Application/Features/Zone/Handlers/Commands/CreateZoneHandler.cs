@@ -2,10 +2,6 @@
 using NTC.QoS.Application.Features.Zone.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Commands;
@@ -68,23 +64,23 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
             {
                 Id = newZone.Id,
                 Name = newZone.Name,
-                Barangay = new BarangayDto
+                Barangay = new()
                 {
                     Id = newZone.BarangayId,
                     Name = newZone.Barangay?.Name ?? string.Empty,
                     Description = newZone.Barangay?.Description ?? string.Empty,
-                    Municipality = new MunicipalityDto
+                    Municipality = new()
                     {
                         Id = newZone.Barangay?.MunicipalityId ?? Guid.Empty,
                         Name = newZone.Barangay?.Municipality?.Name ?? string.Empty,
                         IsCity = newZone.Barangay?.Municipality?.IsCity ?? false,
                         Description = newZone.Barangay?.Municipality?.Description,
-                        Province = new ProvinceDto
+                        Province = new()
                         {
                             Id = newZone.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
                             Name = newZone.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                             Description = newZone.Barangay?.Municipality?.Province?.Description,
-                            Region = new RegionDto
+                            Region = new()
                             {
                                 Id = newZone.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
                                 Name = newZone.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,

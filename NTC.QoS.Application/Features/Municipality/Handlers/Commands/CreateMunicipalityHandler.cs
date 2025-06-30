@@ -7,8 +7,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
@@ -185,12 +183,12 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
                 IsCity = newMunicipality.IsCity,
                 Code = newMunicipality.Code,
                 Area = newMunicipality.Area,
-                Province = new ProvinceDto
+                Province = new()
                 {
                     Id = newMunicipality.ProvinceId,
                     Name = newMunicipality.Province?.Name ?? string.Empty,
                     Description = newMunicipality.Province?.Description,
-                    Region = new RegionDto
+                    Region = new()
                     {
                         Id = newMunicipality.Province?.RegionId ?? Guid.Empty,
                         Name = newMunicipality.Province?.Region?.Name ?? string.Empty,

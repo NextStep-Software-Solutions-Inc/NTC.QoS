@@ -2,10 +2,6 @@
 using NTC.QoS.Application.Features.Zone.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Commands;
@@ -46,23 +42,23 @@ public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler
             {
                 Id = zone.Id,
                 Name = zone.Name,
-                Barangay = new BarangayDto
+                Barangay = new()
                 {
                     Id = zone.BarangayId,
                     Name = zone.Barangay?.Name ?? string.Empty,
                     Description = zone.Barangay?.Description ?? string.Empty,
-                    Municipality = new MunicipalityDto
+                    Municipality = new()
                     {
                         Id = zone.Barangay?.MunicipalityId ?? Guid.Empty,
                         Name = zone.Barangay?.Municipality?.Name ?? string.Empty,
                         IsCity = zone.Barangay?.Municipality?.IsCity ?? false,
                         Description = zone.Barangay?.Municipality?.Description,
-                        Province = new ProvinceDto
+                        Province = new()
                         {
                             Id = zone.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
                             Name = zone.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                             Description = zone.Barangay?.Municipality?.Province?.Description,
-                            Region = new RegionDto
+                            Region = new()
                             {
                                 Id = zone.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
                                 Name = zone.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,

@@ -6,9 +6,7 @@ using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Commands;
 
@@ -201,7 +199,7 @@ public class CreateProvinceRequestHandler : IRequestHandler<CreateProvinceReques
                 Description = newProvince.Description,
                 Code = newProvince.Code,
                 Area = newProvince.Area,
-                Region = new RegionDto
+                Region = new()
                 {
                     Id = newProvince.RegionId,
                     Name = newProvince.Region?.Name ?? string.Empty,
