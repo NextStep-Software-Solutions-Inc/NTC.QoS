@@ -14,7 +14,7 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
 
     public async Task<ApiResponse<StudyDto>> Handle(CreateStudyRequest request, CancellationToken cancellationToken)
     {
-        var studyExistQuery = _repository.Query(s => s.Name == request.Study.Name && s.AreaStudyId == request.Study.AreaStudyId && !s.IsDeleted);
+        var studyExistQuery = _repository.Query(s => s.Name == request.Study.Name && s.AreaStudyId == request.Study.AreaStudyId);
         var studyExist = await _repository.FirstOrDefaultAsync(studyExistQuery, cancellationToken);
         if (studyExist is not null)
         {
@@ -31,7 +31,7 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
             };
         }
 
-        var areaStudyQuery = _areaStudyRepository.Query(a => a.Id == request.Study.AreaStudyId && !a.IsDeleted);
+        var areaStudyQuery = _areaStudyRepository.Query(a => a.Id == request.Study.AreaStudyId);
         var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
         if (areaStudy is null)
         {
