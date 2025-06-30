@@ -440,8 +440,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Boundaries)
-            .HasColumnType("geography (MultiPolygon,4326)");
-            //.HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
 
         modelBuilder.Entity<Barangay>()
             .HasIndex(b => b.Boundaries)
