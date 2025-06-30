@@ -19,7 +19,7 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
 
     public async Task<ApiResponse<StudyMunicipalityDto>> Handle(CreateStudyMunicipalityRequest request, CancellationToken cancellationToken)
     {
-        var studyMunicipalityQuery = _repository.Query(sn => !sn.IsDeleted && sn.StudyId == request.StudyMunicipality.StudyId && sn.MunicipalityId == request.StudyMunicipality.MunicipalityId);
+        var studyMunicipalityQuery = _repository.Query(sm => sm.StudyId == request.StudyMunicipality.StudyId && sm.MunicipalityId == request.StudyMunicipality.MunicipalityId);
         var studyMunicipality = await _repository.FirstOrDefaultAsync(studyMunicipalityQuery, cancellationToken);
 
         if (studyMunicipality is not null)
@@ -37,7 +37,7 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
             };
         }
 
-        var studyQuery = _studyRepository.Query(s => s.Id == request.StudyMunicipality.StudyId && !s.IsDeleted);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.StudyMunicipality.StudyId);
         var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
 
         if (study is null)
@@ -55,7 +55,7 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
             };
         }
 
-        var municipalityQuery = _municipalityRepository.Query(s => s.Id == request.StudyMunicipality.MunicipalityId && !s.IsDeleted);
+        var municipalityQuery = _municipalityRepository.Query(s => s.Id == request.StudyMunicipality.MunicipalityId);
         var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)

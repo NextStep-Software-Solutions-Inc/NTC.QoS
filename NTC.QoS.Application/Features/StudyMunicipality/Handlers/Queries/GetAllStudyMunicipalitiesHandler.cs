@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.StudyMunicipality.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
@@ -16,7 +15,7 @@ public class GetAllStudyMunicipalitiesHandler(IStudyMunicipalityRepository study
     private readonly IStudyMunicipalityRepository _studyMunicipalityRepository = studyMunicipalityRepository;
     public async Task<PaginatedResponse<StudyMunicipalityDto>> Handle(GetAllStudyMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
-        var allStudyMunicipalities = _studyMunicipalityRepository.Query(sm => !sm.IsDeleted);
+        var allStudyMunicipalities = _studyMunicipalityRepository.Query();
 
         allStudyMunicipalities = allStudyMunicipalities
             .Where(sm => !request.MunicipalityId.HasValue || sm.MunicipalityId == request.MunicipalityId.Value)
