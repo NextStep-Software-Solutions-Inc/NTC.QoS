@@ -8,18 +8,18 @@ namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 public class DeleteMunicipalityHandler(IMunicipalityRepository repository) : IRequestHandler<DeleteMunicipalityByIdRequest, ApiResponse<bool>>
 {
     private readonly IMunicipalityRepository _repository = repository;
+
     public async Task<ApiResponse<bool>> Handle(DeleteMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var municipalityQuery = _repository.Query(m => m.Id == request.Id);
         var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
         {
             return new ApiResponse<bool>
             {
-                Data = false,
                 Succeeded = false,
-                Message = "The Municipality you are trying to delete does not exist.",
+                Message = "Municipality not found.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {

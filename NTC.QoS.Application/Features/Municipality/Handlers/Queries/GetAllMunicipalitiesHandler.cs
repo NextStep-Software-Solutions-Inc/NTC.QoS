@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
@@ -14,7 +13,7 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
 
     public async Task<PaginatedResponse<MunicipalityDto>> Handle(GetAllMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
-        var allMunicipalities = _municipalityRepository.Query(m => !m.IsDeleted);
+        var allMunicipalities = _municipalityRepository.Query();
 
         allMunicipalities = allMunicipalities
             .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));

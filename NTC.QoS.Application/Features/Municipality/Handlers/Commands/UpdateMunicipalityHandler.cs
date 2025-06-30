@@ -23,7 +23,7 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
     
     public async Task<ApiResponse<MunicipalityDto>> Handle(UpdateMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var municipalityQuery = _repository.Query(m => m.Id == request.Id);
         var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
@@ -35,9 +35,10 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
                 {
                     {"Id", ["Municipality not found."] }
                 },
-                Message = "The municipality you are trying to edit does not exist."
+                Message = "Municipality not found."
             };
         }
+
         municipality.Name = request.Municipality.Name ?? municipality.Name;
         municipality.Description = request.Municipality.Description ?? municipality.Description;
         municipality.Code = request.Municipality.Code ?? municipality.Code;

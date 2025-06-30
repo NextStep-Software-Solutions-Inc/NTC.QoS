@@ -25,7 +25,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(CreateMunicipalityRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _repository.Query(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId && !m.IsDeleted);
+        var municipalityQuery = _repository.Query(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId);
         var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is not null)
@@ -43,7 +43,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
             };
         }
 
-        var provinceQuery = _provinceRepository.Query(p => p.Id == request.Municipality.ProvinceId && !p.IsDeleted);
+        var provinceQuery = _provinceRepository.Query(p => p.Id == request.Municipality.ProvinceId);
         var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
@@ -54,7 +54,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullProvince",["Province not found."]
+                        "NullProvince", ["Province not found."]
                     }
                 },
                 Message = "Province not found."
