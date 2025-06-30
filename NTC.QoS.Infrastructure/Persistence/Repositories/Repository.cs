@@ -41,7 +41,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
 
     public virtual IQueryable<TEntity> Query(Expression<Func<TEntity, bool>>? expression = null)
     {
-        var query = _context.Set<TEntity>().AsQueryable().IgnoreQueryFilters();
+        var query = _context.Set<TEntity>().AsQueryable();
 
         if (expression != null)
         {
@@ -133,5 +133,16 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         ArgumentNullException.ThrowIfNull(queryable);
         return await queryable.ExecuteDeleteAsync(cancellationToken);
+    }
+    public IQueryable<TEntity> QueryWithIgnoreQueryFilters(Expression<Func<TEntity, bool>>? expression = null)
+    {
+        var query = _context.Set<TEntity>().AsQueryable().IgnoreQueryFilters();
+
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+
+        return query;
     }
 }
