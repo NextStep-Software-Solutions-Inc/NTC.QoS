@@ -1,14 +1,12 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Zone.Requests;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Zone;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Queries;
 
@@ -18,7 +16,7 @@ public class GetZoneByIdHandler(IZoneRepository zoneRepository) : IRequestHandle
 
     public async Task<ApiResponse<ZoneDto>> Handle(GetZoneByIdRequest request, CancellationToken cancellationToken)
     {
-        var zoneQuery = _zoneRepository.Query(z => !z.IsDeleted && z.Id.Equals(request.Id));
+        var zoneQuery = _zoneRepository.Query(z => z.Id.Equals(request.Id));
         var zone = await _zoneRepository.FirstOrDefaultAsync(zoneQuery, cancellationToken);
 
         if (zone is null)

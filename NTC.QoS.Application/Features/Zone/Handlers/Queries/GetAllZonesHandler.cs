@@ -1,9 +1,6 @@
 ﻿using MediatR;
-using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Zone.Requests;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Queries;
@@ -14,7 +11,7 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
 
     public async Task<PaginatedResponse<ZoneDto>> Handle(GetAllZonesRequest request, CancellationToken cancellationToken)
     {
-        var allZonesQuery = _zoneRepository.Query(z => !z.IsDeleted);
+        var allZonesQuery = _zoneRepository.Query();
 
         if (request.BarangayId.HasValue)
         {
