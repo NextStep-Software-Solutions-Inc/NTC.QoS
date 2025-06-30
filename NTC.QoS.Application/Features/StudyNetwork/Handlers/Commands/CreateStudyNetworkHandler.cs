@@ -2,10 +2,6 @@
 using NTC.QoS.Application.Features.StudyNetwork.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
-using NTC.QoS.Domain.Models.DTOs.Network;
-using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
-using NTC.QoS.Domain.Models.DTOs.Study;
 using NTC.QoS.Domain.Models.DTOs.StudyNetwork;
 
 namespace NTC.QoS.Application.Features.StudyNetwork.Handlers.Commands;
@@ -18,9 +14,8 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
 
     public async Task<ApiResponse<StudyNetworkDto>> Handle(CreateStudyNetworkRequest request, CancellationToken cancellationToken)
     {
-        var studyNetworkQuery = _repository.Query(sn => !sn.IsDeleted && sn.StudyId == request.StudyNetwork.StudyId && sn.NetworkId == request.StudyNetwork.NetworkId);
+        var studyNetworkQuery = _repository.Query(sn => sn.StudyId == request.StudyNetwork.StudyId && sn.NetworkId == request.StudyNetwork.NetworkId);
         var studyNetwork = await _repository.FirstOrDefaultAsync(studyNetworkQuery, cancellationToken);
-
         if (studyNetwork is not null)
         {
             return new ApiResponse<StudyNetworkDto>
@@ -36,7 +31,7 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
             };
         }
 
-        var networkQuery = _networkRepository.Query(n => n.Id == request.StudyNetwork.NetworkId && !n.IsDeleted);
+        var networkQuery = _networkRepository.Query(n => n.Id == request.StudyNetwork.NetworkId);
         var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is null)
         {
@@ -53,7 +48,7 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
             };
         }
 
-        var studyQuery = _studyRepository.Query(s => s.Id == request.StudyNetwork.StudyId && !s.IsDeleted);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.StudyNetwork.StudyId);
         var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
         if (study is null)
         {
@@ -84,12 +79,12 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
             Data = new StudyNetworkDto
             {
                 Id = newStudyNetwork.Id,
-                Study = new StudyDto
+                Study = new()
                 {
                     Id = newStudyNetwork.StudyId,
                     Name = newStudyNetwork.Study?.Name ?? string.Empty,
                     Description = newStudyNetwork.Study?.Description ?? string.Empty,
-                    AreaStudy = new AreaStudyDto
+                    AreaStudy = new()
                     {
                         Id = newStudyNetwork.Study?.AreaStudy?.Id ?? Guid.Empty,
                         Name = newStudyNetwork.Study?.AreaStudy?.Name ?? string.Empty,
@@ -97,25 +92,25 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
                     },
                     StudyRadius = newStudyNetwork.Study?.StudyRadius ?? 0
                 },
-                Network = new NetworkDto
+                Network = new()
                 {
                     Id = newStudyNetwork.NetworkId,
                     Name = newStudyNetwork.Network?.Name ?? string.Empty,
                     SystemTypeName = newStudyNetwork.Network?.SystemType.ToString() ?? string.Empty,
-                    NetworkTemplate = new NetworkTemplateDto
+                    NetworkTemplate = new()
                     {
                         Id = newStudyNetwork.Network?.NetworkTemplate?.Id ?? Guid.Empty,
                         Name = newStudyNetwork.Network?.NetworkTemplate?.Name ?? string.Empty,
                         Description = newStudyNetwork.Network?.NetworkTemplate?.Description ?? string.Empty,
                         URL = newStudyNetwork.Network?.NetworkTemplate?.URL ?? string.Empty
                     },
-                    Uplink = new LinkNetworkDto
+                    UpLink = new()
                     {
                         Id = newStudyNetwork.Network?.UpLink?.Id ?? Guid.Empty,
                         Type = newStudyNetwork.Network?.UpLink?.Type.ToString() ?? string.Empty,
                         CenterFrequency = newStudyNetwork.Network?.UpLink?.CenterFrequency ?? 0
                     },
-                    DownLink = new LinkNetworkDto
+                    DownLink = new()
                     {
                         Id = newStudyNetwork.Network?.DownLink?.Id ?? Guid.Empty,
                         Type = newStudyNetwork.Network?.DownLink?.Type.ToString() ?? string.Empty,

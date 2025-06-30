@@ -11,7 +11,7 @@ public class DeleteStudyNetworkByIdHandler(IRepository<Domain.Aggregates.StudyNe
 
     public async Task<ApiResponse<bool>> Handle(DeleteStudyNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var studyNetworkQuery = _repository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var studyNetworkQuery = _repository.Query(s => s.Id == request.Id);
         var studyNetwork = await _repository.FirstOrDefaultAsync(studyNetworkQuery, cancellationToken);
         if (studyNetwork is null)
         {
