@@ -41,7 +41,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
 
     public virtual IQueryable<TEntity> Query(Expression<Func<TEntity, bool>>? expression = null)
     {
-        var query = _context.Set<TEntity>().AsQueryable().IgnoreQueryFilters();
+        var query = _context.Set<TEntity>().AsQueryable();
 
         if (expression != null)
         {

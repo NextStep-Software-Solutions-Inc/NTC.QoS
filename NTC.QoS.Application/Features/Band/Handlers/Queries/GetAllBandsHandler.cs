@@ -18,10 +18,6 @@ public class GetAllBandsHandler (IRepository<Domain.Entities.Band> repository) :
             Id = b.Id,
             Name = b.Name,
             Description = b.Description,
-            CreatedBy = b.CreatedBy,
-            CreatedDate = b.CreatedAt,
-            ModifiedBy = b.UpdatedBy,
-            ModifiedDate = b.UpdatedAt
         });
 
         return await _repository.PaginateAsync(bandDtosQuery, request.PageNumber, request.PageSize, cancellationToken);

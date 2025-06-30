@@ -44,10 +44,6 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
                     Id = link.Band.Id,
                     Name = link.Band.Name,
                     Description = link.Band.Description,
-                    CreatedBy = link.Band.CreatedBy,
-                    CreatedDate = link.Band.CreatedAt,
-                    ModifiedBy = link.Band.UpdatedBy,
-                    ModifiedDate = link.Band.UpdatedAt
                 },
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,

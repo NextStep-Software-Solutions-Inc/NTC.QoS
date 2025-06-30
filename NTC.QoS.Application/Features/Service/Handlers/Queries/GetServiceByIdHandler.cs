@@ -12,7 +12,7 @@ public class GetServiceByIdHandler(IRepository<Domain.Entities.Service> reposito
 
     public async Task<ApiResponse<ServiceDto>> Handle(GetServiceByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceQuery = _repository.Query(s => !s.IsDeleted && s.Id.Equals(request.Id));
+        var serviceQuery = _repository.Query(s => s.Id.Equals(request.Id));
         var service = await _repository.FirstOrDefaultAsync(serviceQuery, cancellationToken);
         if (service is null)
         {

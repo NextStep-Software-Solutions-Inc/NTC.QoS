@@ -26,7 +26,7 @@ public class UpdateBandByIdHandler(IRepository<Domain.Entities.Band> repository)
             };
         }
 
-        var bandQuery = _repository.Query(b => b.Id == request.Id && !b.IsDeleted);
+        var bandQuery = _repository.Query(b => b.Id == request.Id);
         var band = await _repository.FirstOrDefaultAsync(bandQuery, cancellationToken);
 
         if (band == null)

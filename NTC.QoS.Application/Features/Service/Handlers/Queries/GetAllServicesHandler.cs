@@ -13,7 +13,7 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
 
     public async Task<PaginatedResponse<ServiceDto>> Handle(GetAllServicesRequest request, CancellationToken cancellationToken)
     {
-        var allServicesQuery = _repository.Query(s => !s.IsDeleted);
+        var allServicesQuery = _repository.Query();
 
         if (request.ProviderIds is not null && request.ProviderIds.Count > 0)
         {
