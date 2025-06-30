@@ -2,7 +2,6 @@
 using NTC.QoS.Application.Features.Study.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.Study.Handlers.Commands;
@@ -66,7 +65,7 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
                 Id = study.Id,
                 Name = study.Name,
                 Description = study.Description,
-                AreaStudy = new AreaStudyDto
+                AreaStudy = new()
                 {
                     Id = study.AreaStudyId,
                     Name = study.AreaStudy?.Name ?? string.Empty,
