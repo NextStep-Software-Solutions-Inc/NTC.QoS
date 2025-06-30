@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.AreaStudy.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 
 namespace NTC.QoS.Application.Features.AreaStudy.Handlers.Queries;
