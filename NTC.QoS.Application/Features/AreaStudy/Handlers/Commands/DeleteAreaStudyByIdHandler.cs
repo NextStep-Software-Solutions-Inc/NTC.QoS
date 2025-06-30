@@ -8,9 +8,10 @@ namespace NTC.QoS.Application.Features.AreaStudy.Handlers.Commands;
 public class DeleteAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> repository) : IRequestHandler<DeleteAreaStudyByIdRequest, ApiResponse<bool>>
 {
     private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
+
     public async Task<ApiResponse<bool>> Handle(DeleteAreaStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var areaStudyQuery = _repository.Query(ap => ap.Id == request.Id && !ap.IsDeleted);
+        var areaStudyQuery = _repository.Query(ap => ap.Id == request.Id);
         var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
 
         if (areaStudy is null)

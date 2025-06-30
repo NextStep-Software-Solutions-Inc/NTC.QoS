@@ -12,7 +12,7 @@ public class GetAllAreaStudiesHandler(IRepository<Domain.Entities.AreaStudy> rep
 
     public async Task<PaginatedResponse<AreaStudyDto>> Handle(GetAllAreaStudiesRequest request, CancellationToken cancellationToken)
     {
-        var areaStudiesQuery = _repository.Query(a => !a.IsDeleted);
+        var areaStudiesQuery = _repository.Query();
 
         if (!string.IsNullOrEmpty(request.Search))
         {
