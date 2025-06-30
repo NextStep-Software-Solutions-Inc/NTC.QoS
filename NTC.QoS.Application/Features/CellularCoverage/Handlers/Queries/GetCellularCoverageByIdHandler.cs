@@ -12,8 +12,7 @@ public class GetCellularCoverageByIdHandler(ICellularCoverageRepository cellular
 
     public async Task<ApiResponse<CellularCoverageDto>> Handle(GetCellularCoverageByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellularCoverageQuery = _cellularCoverageRepository.Query(cc => !cc.IsDeleted && cc.Id.Equals(request.Id));
-
+        var cellularCoverageQuery = _cellularCoverageRepository.Query(cc => cc.Id.Equals(request.Id));
         var cellularCoverage = await _cellularCoverageRepository.FirstOrDefaultAsync(cellularCoverageQuery, cancellationToken);
         if (cellularCoverage is null)
         {
@@ -38,7 +37,7 @@ public class GetCellularCoverageByIdHandler(ICellularCoverageRepository cellular
                 Band = cellularCoverage.Network.UpLink != null ? cellularCoverage.Network.UpLink.Band.Name : string.Empty,
                 Gen = cellularCoverage.Network.SystemType != null && cellularCoverage.Network.SystemType.Technology != null ? cellularCoverage.Network.SystemType.Technology.Generation.Name : string.Empty,
                 Std = cellularCoverage.Network.SystemType != null && cellularCoverage.Network.SystemType.Technology != null ? cellularCoverage.Network.SystemType.Technology.Standard : string.Empty,
-                Provider = cellularCoverage.Network.UpLink != null ? new CCProviderDto
+                Provider = cellularCoverage.Network.UpLink != null ? new()
                 {
                     Name = cellularCoverage.Network.UpLink.ServiceProvider.Provider.Name,
                     Color = cellularCoverage.Network.UpLink.ServiceProvider.Provider.Color

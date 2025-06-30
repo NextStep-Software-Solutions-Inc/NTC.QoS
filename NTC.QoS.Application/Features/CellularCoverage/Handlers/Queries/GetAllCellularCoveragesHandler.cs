@@ -3,7 +3,6 @@ using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
 namespace NTC.QoS.Application.Features.CellularCoverage.Handlers.Queries;
@@ -14,7 +13,7 @@ public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellular
 
     public async Task<PaginatedResponse<CellularCoverageDto>> Handle(GetAllCellularCoveragesRequest request, CancellationToken cancellationToken)
     {
-        var allCellularCoveragesQuery = _cellularCoverageRepository.Query(cc => !cc.IsDeleted);
+        var allCellularCoveragesQuery = _cellularCoverageRepository.Query();
 
         Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 
@@ -35,7 +34,7 @@ public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellular
                 Band = cc.Network.UpLink != null ? cc.Network.UpLink.Band.Name : string.Empty,
                 Gen = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Generation.Name : string.Empty,
                 Std = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Standard : string.Empty,
-                Provider = cc.Network.UpLink != null ? new CCProviderDto
+                Provider = cc.Network.UpLink != null ? new()
                 {
                     Name = cc.Network.UpLink.ServiceProvider.Provider.Name,
                     Color = cc.Network.UpLink.ServiceProvider.Provider.Color
