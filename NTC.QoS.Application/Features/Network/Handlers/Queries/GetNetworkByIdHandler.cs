@@ -5,7 +5,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
-using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Queries;
 
@@ -15,7 +14,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
 
     public async Task<ApiResponse<NetworkDto>> Handle(GetNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Id);
+        var networkQuery = _networkRepository.Query(n => n.Id == request.Id);
         var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
 
         if (network is null)
@@ -37,7 +36,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
         {
             Id = network.Id,
             Name = network.Name,
-            NetworkTemplate = new NetworkTemplateDto
+            NetworkTemplate = new()
             {
                 Id = network.NetworkTemplateId,
                 Name = network.NetworkTemplate?.Name ?? string.Empty,
@@ -45,13 +44,13 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
             SystemTypeName = network.SystemType?.Name ?? string.Empty,
-            Uplink = new LinkNetworkDto
+            Uplink = new()
             {
                 Id = network.UpLinkId,
                 Type = network.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.UpLink.Type) : string.Empty,
                 CenterFrequency = network.UpLink?.CenterFrequency ?? 0,
             },
-            DownLink = new LinkNetworkDto
+            DownLink = new()
             {
                 Id = network.DownLinkId,
                 Type = network.DownLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.DownLink.Type) : string.Empty,

@@ -5,7 +5,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
-using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 
@@ -15,7 +14,7 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
     private readonly ILinkRepository _linkRepository = linkRepository;
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Name.Equals(request.Network.Name) && n.SystemTypeId == request.Network.SystemTypeId);
+        var networkQuery = _networkRepository.Query(n => n.Name.Equals(request.Network.Name) && n.SystemTypeId == request.Network.SystemTypeId);
         var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is not null)
         {
@@ -87,7 +86,7 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
             {
                 Id = newNetwork.Id,
                 Name = newNetwork.Name,
-                NetworkTemplate = new NetworkTemplateDto
+                NetworkTemplate = new()
                 {
                     Id = newNetwork.NetworkTemplateId,
                     Name = newNetwork.NetworkTemplate?.Name ?? string.Empty,
@@ -95,13 +94,13 @@ public class CreateNetworkHandler(IRepository<Domain.Aggregates.Network> network
                     URL = newNetwork.NetworkTemplate?.URL ?? string.Empty
                 },
                 SystemTypeName = newNetwork.SystemType?.Name ?? string.Empty,
-                Uplink = new LinkNetworkDto
+                Uplink = new()
                 {
                     Id = newNetwork.UpLinkId,
                     Type = newNetwork.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(newNetwork.UpLink.Type) : string.Empty,
                     CenterFrequency = newNetwork.UpLink?.CenterFrequency ?? 0,
                 },
-                DownLink = new LinkNetworkDto
+                DownLink = new()
                 {
                     Id = newNetwork.DownLinkId,
                     Type = newNetwork.DownLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(newNetwork.DownLink.Type) : string.Empty,
