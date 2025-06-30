@@ -4,7 +4,6 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.CellSector;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Commands;
@@ -23,7 +22,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
 
     public async Task<ApiResponse<SectorDto>> Handle(UpdateSectorByIdRequest request, CancellationToken cancellationToken)
     {
-        var sectorQuery = _sectorRepository.Query(s => !s.IsDeleted && s.Id == request.Id);
+        var sectorQuery = _sectorRepository.Query(s => s.Id == request.Id);
         var sector = await _sectorRepository.FirstOrDefaultAsync(sectorQuery, cancellationToken);
         if (sector is null)
         {
@@ -41,7 +40,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         }
         if (request.Sector.NetworkId.HasValue)
         {
-            var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Sector.NetworkId.Value);
+            var networkQuery = _networkRepository.Query(n => n.Id == request.Sector.NetworkId.Value);
             var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
             if (network is null)
             {
@@ -62,7 +61,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         if (request.Sector.AntennaType is not null) sector.AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
         if (request.Sector.MIMOId.HasValue)
         {
-            var mimoQuery = _mimoRepository.Query(m => !m.IsDeleted && m.Id == request.Sector.MIMOId.Value);
+            var mimoQuery = _mimoRepository.Query(m => m.Id == request.Sector.MIMOId.Value);
             var mimo = await _mimoRepository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
             if (mimo is null)
             {
@@ -82,7 +81,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         }
         if (request.Sector.CellSectorId.HasValue)
         {
-            var cellSectorQuery = _cellSectorRepository.Query(c => !c.IsDeleted && c.Id == request.Sector.CellSectorId.Value);
+            var cellSectorQuery = _cellSectorRepository.Query(c => c.Id == request.Sector.CellSectorId.Value);
             var cellSector = await _cellSectorRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
             if (cellSector is null)
             {
@@ -114,7 +113,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         if (request.Sector.TxBeamTilt.HasValue) sector.TxBeamTilt = request.Sector.TxBeamTilt.Value;
         if (request.Sector.TxAntennaPatternId.HasValue) 
         {
-            var txAntennaPatternQuery = _antennaPatternRepository.Query(a => !a.IsDeleted && a.Id == request.Sector.TxAntennaPatternId.Value);
+            var txAntennaPatternQuery = _antennaPatternRepository.Query(a => a.Id == request.Sector.TxAntennaPatternId.Value);
             var txAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(txAntennaPatternQuery, cancellationToken);
             if (txAntennaPattern is null)
             {
@@ -160,7 +159,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
             if (request.Sector.RxBeamTilt.HasValue) sector.RxBeamTilt = request.Sector.RxBeamTilt.Value;
             if (request.Sector.RxAntennaPatternId.HasValue)
             {
-                var rxAntennaPatternQuery = _antennaPatternRepository.Query(a => !a.IsDeleted && a.Id == request.Sector.RxAntennaPatternId.Value);
+                var rxAntennaPatternQuery = _antennaPatternRepository.Query(a => a.Id == request.Sector.RxAntennaPatternId.Value);
                 var rxAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(rxAntennaPatternQuery, cancellationToken);
                 if (rxAntennaPattern is null)
                 {
@@ -209,18 +208,18 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         var result = new SectorDto
         {
             Id = sector.Id,
-            Network = new NetworkSectorDto
+            Network = new()
             {
                 Name = sector.Network?.Name ?? string.Empty,
                 SystemType = sector.Network?.SystemType.ToString() ?? string.Empty,
             },
-            AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.AntennaType),
-            MIMO = new MIMOSectorDto
+            AntennaType = sector.AntennaType.ToString(),
+            MIMO = new()
             {
                 Id = sector.MIMOId ?? Guid.Empty,
                 Type = sector.MIMO?.Type.ToString() ?? string.Empty
             },
-            CellSector = new CellSectorDto
+            CellSector = new()
             {
                 Id = sector.CellSector?.Id ?? Guid.Empty,
                 Cell = new()
@@ -232,7 +231,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                     CID = sector.CellSector?.Cell?.CID ?? string.Empty,
                     LAC = sector.CellSector?.Cell?.LAC ?? string.Empty,
                 },
-                AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(sector.CellSector?.AntennaType ?? AntennaTypeEnum.Unknown),
+                AntennaType = sector.CellSector?.AntennaType.ToString() ?? AntennaTypeEnum.Unknown.ToString(),
                 AntennaHeight = sector.CellSector?.AntennaHeight ?? 0,
                 Azimuth = sector.CellSector?.Azimuth ?? 0,
                 BeamTilt = sector.CellSector?.BeamTilt ?? 0,
@@ -249,7 +248,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
             TxAntennaGain = sector.TxAntennaGain,
             TxAzimuth = sector.TxAzimuth,
             TxBeamTilt = sector.TxBeamTilt,
-            TxAntennaPattern = new AntennaPatternSectorDto
+            TxAntennaPattern = new()
             {
                 Id = sector.TxAntennaPatternId,
                 Name = sector.TxAntennaPattern?.Name ?? string.Empty,
@@ -265,7 +264,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
             RxAntennaGain = sector.RxAntennaGain,
             RxAzimuth = sector.RxAzimuth,
             RxBeamTilt = sector.RxBeamTilt,
-            RxAntennaPattern = new AntennaPatternSectorDto
+            RxAntennaPattern = new()
             {
                 Id = sector.RxAntennaPatternId,
                 Name = sector.RxAntennaPattern?.Name ?? string.Empty,
@@ -277,7 +276,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         return new ApiResponse<SectorDto>
         {
             Data = result,
-            Message = "Sector updated successfully.",
+            Message = "Sector updated successfully.",   
             Succeeded = true
         };
     }

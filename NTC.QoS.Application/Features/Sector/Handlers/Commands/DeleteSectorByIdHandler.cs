@@ -11,9 +11,8 @@ public class DeleteSectorByIdHandler(IRepository<Domain.Entities.Sector> reposit
     private readonly IRepository<Domain.Entities.Sector> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteSectorByIdRequest request, CancellationToken cancellationToken)
     {
-        var sectorQuery = _repository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var sectorQuery = _repository.Query(s => s.Id == request.Id);
         var sector = await _repository.FirstOrDefaultAsync(sectorQuery, cancellationToken);
-
         if (sector is null)
         {
             return new ApiResponse<bool>

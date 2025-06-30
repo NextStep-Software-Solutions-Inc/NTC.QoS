@@ -4,7 +4,6 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.CellSector;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Commands;
@@ -25,12 +24,12 @@ public class CreateSectorHandler(
     public async Task<ApiResponse<SectorDto>> Handle(CreateSectorRequest request, CancellationToken cancellationToken)
     {
         var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
-        var sector = _sectorRepository.Query(s => !s.IsDeleted && s.NetworkId == request.Sector.NetworkId
+        var sectorQuery = _sectorRepository.Query(s => s.NetworkId == request.Sector.NetworkId
                                                             && s.CellSectorId == request.Sector.CellSectorId
                                                             && s.AntennaType == antennaType
                                                             && s.MIMOId == request.Sector.MIMOId
                                                             && s.IsRxEqualTx == request.Sector.IsRxEqualTx);
-
+        var sector = await _sectorRepository.FirstOrDefaultAsync(sectorQuery, cancellationToken);
         if (sector is not null)
         {
             return new ApiResponse<SectorDto>
@@ -46,7 +45,8 @@ public class CreateSectorHandler(
             };
         }
 
-        var network = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Sector.NetworkId);
+        var networkQuery = _networkRepository.Query(n => n.Id == request.Sector.NetworkId);
+        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is null)
         {
             return new ApiResponse<SectorDto>
@@ -64,7 +64,8 @@ public class CreateSectorHandler(
 
         if (request.Sector.MIMOId.HasValue)
         {
-            var mimo = _mimoRepository.Query(m => m.Id == request.Sector.MIMOId.Value && !m.IsDeleted);
+            var mimoQuery = _mimoRepository.Query(m => m.Id == request.Sector.MIMOId.Value);
+            var mimo = await _mimoRepository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
             if (mimo is null)
             {
                 return new ApiResponse<SectorDto>
@@ -81,7 +82,8 @@ public class CreateSectorHandler(
             }
         }
 
-        var cellSector = _cellRepository.Query(cs => !cs.IsDeleted && cs.Id == request.Sector.CellSectorId);
+        var cellSectorQuery = _cellRepository.Query(cs => cs.Id == request.Sector.CellSectorId);
+        var cellSector = await _cellRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
         if (cellSector is null)
         {
             return new ApiResponse<SectorDto>
@@ -97,7 +99,7 @@ public class CreateSectorHandler(
             };
         }
 
-        var txAntennaPattern = _antennaPatternRepository.Query(tap => !tap.IsDeleted && tap.Id == request.Sector.TxAntennaPatternId);
+        var txAntennaPattern = _antennaPatternRepository.Query(tap => tap.Id == request.Sector.TxAntennaPatternId);
         if (txAntennaPattern is null)
         {
             return new ApiResponse<SectorDto>
@@ -121,7 +123,7 @@ public class CreateSectorHandler(
         }
         else
         {
-            var rxAntennaPattern = _antennaPatternRepository.Query(rap => !rap.IsDeleted && rap.Id == request.Sector.RxAntennaPatternId);
+            var rxAntennaPattern = _antennaPatternRepository.Query(rap => rap.Id == request.Sector.RxAntennaPatternId);
             if (rxAntennaPattern is null)
             {
                 return new ApiResponse<SectorDto>
@@ -204,19 +206,19 @@ public class CreateSectorHandler(
             Data = new SectorDto
             {
                 Id = newSector.Id,
-                Network = new NetworkSectorDto
+                Network = new()
                 {
                     Id = newSector.NetworkId,
                     Name = newSector.Network?.Name ?? string.Empty,
                     SystemType = newSector.Network?.SystemType.ToString() ?? string.Empty,
                 },
-                AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.AntennaType),
-                MIMO = newSector.MIMO != null ? new MIMOSectorDto
+                AntennaType = newSector.AntennaType.ToString(),
+                MIMO = newSector.MIMO != null ? new()
                 {
                     Id = newSector.MIMO.Id,
                     Type = newSector.MIMO.Type.ToString()
                 } : null,
-                CellSector = new CellSectorDto
+                CellSector = new()
                 {
                     Id = newSector.CellSector?.Id ?? Guid.Empty,
                     Cell = new ()
@@ -228,7 +230,7 @@ public class CreateSectorHandler(
                         CID = newSector.CellSector?.Cell?.CID ?? string.Empty,
                         LAC = newSector.CellSector?.Cell?.LAC ?? string.Empty,
                     },
-                    AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(newSector.CellSector?.AntennaType ?? AntennaTypeEnum.Unknown),
+                    AntennaType = newSector.CellSector?.AntennaType.ToString() ?? AntennaTypeEnum.Unknown.ToString(),
                     AntennaHeight = newSector.CellSector?.AntennaHeight ?? 0,
                     Azimuth = newSector.CellSector?.Azimuth ?? 0,
                     BeamTilt = newSector.CellSector?.BeamTilt ?? 0,
@@ -245,7 +247,7 @@ public class CreateSectorHandler(
                 TxAntennaGain = newSector.TxAntennaGain,
                 TxAzimuth = newSector.TxAzimuth,
                 TxBeamTilt = newSector.TxBeamTilt,
-                TxAntennaPattern = new AntennaPatternSectorDto
+                TxAntennaPattern = new()
                 {
                     Id = newSector.TxAntennaPattern?.Id ?? Guid.Empty,
                     Name = newSector.TxAntennaPattern?.Name ?? string.Empty,
@@ -261,7 +263,7 @@ public class CreateSectorHandler(
                 RxAntennaGain = newSector.RxAntennaGain,
                 RxAzimuth = newSector.RxAzimuth,
                 RxBeamTilt = newSector.RxBeamTilt,
-                RxAntennaPattern = new AntennaPatternSectorDto
+                RxAntennaPattern = new()
                 {
                     Id = newSector.RxAntennaPattern?.Id ?? Guid.Empty,
                     Name = newSector.RxAntennaPattern?.Name ?? string.Empty,
