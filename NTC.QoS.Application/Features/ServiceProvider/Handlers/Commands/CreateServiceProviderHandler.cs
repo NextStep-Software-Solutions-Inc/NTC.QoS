@@ -12,7 +12,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
 
     public async Task<ApiResponse<ServiceProviderDto>> Handle(CreateServiceProviderRequest request, CancellationToken cancellationToken)
     {
-        var serviceProviderQuery = _repository.Query(sp => sp.ServiceId == request.ServiceProvider.ServiceId
+        var serviceProviderQuery = _repository.QueryWithIgnoreQueryFilters(sp => sp.ServiceId == request.ServiceProvider.ServiceId
                                                                     && sp.ProviderId == request.ServiceProvider.ProviderId
                                                                     && sp.MNC == request.ServiceProvider.MNC
                                                                     && sp.MCC == request.ServiceProvider.MCC);

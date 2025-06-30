@@ -10,7 +10,7 @@ public class DeleteServiceProviderHandler(IRepository<Domain.Aggregates.ServiceP
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceProviderQuery = _repository.Query(sp => sp.Id == request.Id && !sp.IsDeleted);
+        var serviceProviderQuery = _repository.Query(sp => sp.Id == request.Id);
         var serviceProvider = await _repository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is null)
         {
