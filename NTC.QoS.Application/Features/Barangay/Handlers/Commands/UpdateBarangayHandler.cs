@@ -23,19 +23,18 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
     }
     public async Task<ApiResponse<BarangayDto>> Handle(UpdateBarangayByIdRequest request, CancellationToken cancellationToken)
     {
-        var barangayQuery = _barangayRepository.Query(b => b.Id == request.Id && !b.IsDeleted);
+        var barangayQuery = _barangayRepository.Query(b => b.Id == request.Id);
         var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is null)
         {
             return new ApiResponse<BarangayDto>
             {
-                Data = null,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]> 
                 { 
                     { 
-                        "NullBarangay", ["Barangay not found."]
+                        "NullBarangay", [ "Barangay not found." ]
                     } 
                 },
                 Message = "The barangay you are trying to edit does not exist."

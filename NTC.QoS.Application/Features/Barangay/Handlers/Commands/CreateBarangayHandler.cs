@@ -26,7 +26,7 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
 
     public async Task<ApiResponse<BarangayDto>> Handle(CreateBarangayRequest request, CancellationToken cancellationToken)
     {
-        var barangayQuery = _repository.Query(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId && !b.IsDeleted);
+        var barangayQuery = _repository.Query(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId);
         var barangay = await _repository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is not null)
@@ -42,7 +42,7 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
             };
         }
 
-        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Barangay.MunicipalityId && !m.IsDeleted);
+        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Barangay.MunicipalityId);
         var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
@@ -60,7 +60,7 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
 
         var newBarangay = new Domain.Entities.Barangay
         {
-            MunicipalityId = request.Barangay.MunicipalityId,
+            MunicipalityId = municipality.Id,
             Name = request.Barangay.Name,
             Description = request.Barangay.Description,
             Code = request.Barangay.Code ?? string.Empty,

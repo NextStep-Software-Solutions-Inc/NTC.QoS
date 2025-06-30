@@ -1,13 +1,11 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Barangay.Requests;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Domain.Helper;
-using NetTopologySuite.Geometries;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 
@@ -17,7 +15,7 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
 
     public async Task<ApiResponse<BarangayDto>> Handle(GetBarangayByIdRequest request, CancellationToken cancellationToken)
     {
-        var barangayQuery = _barangayRepository.Query(b => !b.IsDeleted && b.Id.Equals(request.Id));
+        var barangayQuery = _barangayRepository.Query(b => b.Id.Equals(request.Id));
         var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is null)
@@ -29,7 +27,7 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullBarangay", ["Barangay not found."]
+                        "NullBarangay", [ "Barangay not found." ]
                     }
                 }
             };
