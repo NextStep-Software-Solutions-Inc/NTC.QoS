@@ -6,6 +6,7 @@ using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
 
@@ -14,10 +15,12 @@ namespace NTC.QoS.Application.Features.Province.Handlers.Commands;
 public class CreateProvinceRequestHandler : IRequestHandler<CreateProvinceRequest, ApiResponse<ProvinceDto>>
 {
     private readonly IProvinceRepository _provinceRepository;
+    private readonly IRegionRepository _regionRepository;
 
     public CreateProvinceRequestHandler(IProvinceRepository provinceRepository, IRegionRepository regionRepository)
     {
         _provinceRepository = provinceRepository;
+        _regionRepository = regionRepository;
     }
 
     public async Task<ApiResponse<ProvinceDto>> Handle(CreateProvinceRequest request, CancellationToken cancellationToken)
@@ -58,9 +61,27 @@ public class CreateProvinceRequestHandler : IRequestHandler<CreateProvinceReques
             };
         }
 
+        var regionQuery = _provinceRepository.Query(p => p.RegionId == request.Province.RegionId);
+        var region = await _provinceRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
+
+        if (region is null)
+        {
+            return new ApiResponse<ProvinceDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullRegion", ["Region not found."]
+                    }
+                },
+                Message = "Region not found."
+            };
+        }
+
         var newProvince = new Domain.Entities.Province
         {
-            RegionId = request.Province.RegionId,
+            RegionId = region.Id,
             Name = request.Province.Name,
             Description = request.Province.Description,
             Code = request.Province.Code ?? string.Empty,
