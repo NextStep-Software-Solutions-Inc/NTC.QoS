@@ -1,27 +1,24 @@
 ﻿using MediatR;
+using NetTopologySuite.Features;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
 using NTC.QoS.Application.Features.Municipality.Requests;
-using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
 using NTC.QoS.Domain.Models.DTOs.Province;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Helper;
-using System.Text.Json;
-using NetTopologySuite.IO.Converters;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
 public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityByIdRequest, ApiResponse<MunicipalityDto>>
 {
     private readonly IMunicipalityRepository _repository;
-    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public UpdateMunicipalityByIdHandler(IMunicipalityRepository repository)
     {
         _repository = repository;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     }
     
     public async Task<ApiResponse<MunicipalityDto>> Handle(UpdateMunicipalityByIdRequest request, CancellationToken cancellationToken)
@@ -47,81 +44,104 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
         municipality.IsCity = request.Municipality.IsCity ?? municipality.IsCity;
         municipality.Area = request.Municipality.Area ?? municipality.Area;
 
-        // Process Boundaries
-        if (request.Municipality.Boundaries.HasValue)
+        MultiPolygon? boundariesGeometry = null;
+
+        if (request.Municipality.BoundariesFile != null && request.Municipality.BoundariesFile.Length > 0)
         {
-            if (request.Municipality.Boundaries.Value.ValueKind == JsonValueKind.Null)
+            try
             {
-                municipality.Boundaries = GeometryHelper.CreateMultiPolygon(Array.Empty<Polygon>());
-                municipality.Center = GeometryHelper.CreatePoint(0, 0);
-            }
-            else
-            {
+                using var streamReader = new StreamReader(request.Municipality.BoundariesFile.OpenReadStream());
+                string geoJsonString = await streamReader.ReadToEndAsync();
+
+                if (string.IsNullOrWhiteSpace(geoJsonString))
+                {
+                    throw new ArgumentException("Provided boundaries GeoJSON file is empty or contains only whitespace.");
+                }
+
+                var geoJsonReader = new GeoJsonReader();
+                Geometry? receivedGeometry = null;
+
                 try
                 {
-                    Geometry? receivedGeometry = request.Municipality.Boundaries.Value.Deserialize<Geometry>(_jsonSerializerOptions);
-
-                    if (receivedGeometry == null)
-                    {
-                        return new ApiResponse<MunicipalityDto>
-                        {
-                            Succeeded = false,
-                            Errors = new Dictionary<string, string[]>
-                            {
-                                { "InvalidBoundaries", new[] { "Provided boundaries GeoJSON is invalid or empty after deserialization." } }
-                            },
-                            Message = "Invalid boundaries provided."
-                        };
-                    }
-
-                    if (receivedGeometry is MultiPolygon multiPolygon)
-                    {
-                        municipality.Boundaries = multiPolygon;
-                    }
-                    else if (receivedGeometry is Polygon polygon)
-                    {
-                        municipality.Boundaries = GeometryHelper.CreateMultiPolygon(new[] { polygon });
-                    }
-                    else
-                    {
-                        return new ApiResponse<MunicipalityDto>
-                        {
-                            Succeeded = false,
-                            Errors = new Dictionary<string, string[]>
-                            {
-                                { "InvalidBoundariesType", new[] { $"Boundaries must be a Polygon or MultiPolygon GeoJSON. Received: {receivedGeometry.GeometryType}." } }
-                            },
-                            Message = "Invalid boundaries provided."
-                        };
-                    }
-
-                    municipality.Center = municipality.Boundaries.Centroid;
+                    var featureCollection = geoJsonReader.Read<FeatureCollection>(geoJsonString);
+                    receivedGeometry = featureCollection?
+                        .FirstOrDefault(f => f.Geometry is Polygon || f.Geometry is MultiPolygon)?
+                        .Geometry;
                 }
-                catch (JsonException ex)
+                catch (Newtonsoft.Json.JsonSerializationException)
+                {
+                    receivedGeometry = geoJsonReader.Read<Geometry>(geoJsonString);
+                }
+
+                if (receivedGeometry == null)
+                {
+                    throw new ArgumentException("Provided boundaries GeoJSON file content could not be parsed into a valid Polygon or MultiPolygon geometry.");
+                }
+
+                if (receivedGeometry is MultiPolygon multiPolygon)
+                {
+                    boundariesGeometry = multiPolygon;
+                }
+                else if (receivedGeometry is Polygon polygon)
+                {
+                    boundariesGeometry = GeometryHelper.CreateMultiPolygon(new[] { polygon });
+                }
+                else
                 {
                     return new ApiResponse<MunicipalityDto>
                     {
                         Succeeded = false,
                         Errors = new Dictionary<string, string[]>
                         {
-                            { "InvalidGeoJSON", new[] { $"Failed to parse boundaries GeoJSON: {ex.Message}" } }
+                            { "InvalidBoundariesType", new[] { $"Boundaries must be a Polygon or MultiPolygon GeoJSON. Received: {receivedGeometry.GeometryType}." } }
                         },
-                        Message = "Invalid boundaries GeoJSON format."
+                        Message = "Invalid boundaries provided."
                     };
                 }
-                catch (ArgumentException ex)
-                {
-                    return new ApiResponse<MunicipalityDto>
-                    {
-                        Succeeded = false,
-                        Errors = new Dictionary<string, string[]>
-                        {
-                            { "BoundariesError", new[] { ex.Message } }
-                        },
-                        Message = "Error processing boundaries."
-                    };
-                }
+                municipality.Boundaries = boundariesGeometry;
+                municipality.Center = municipality.Boundaries.Centroid;
             }
+            catch (Newtonsoft.Json.JsonSerializationException ex)
+            {
+                return new ApiResponse<MunicipalityDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "InvalidGeoJSONFile", new[] { $"Failed to parse boundaries GeoJSON file: {ex.Message}" } }
+                    },
+                    Message = "Invalid boundaries GeoJSON file format. Check GeoJSON syntax."
+                };
+            }
+            catch (ArgumentException ex)
+            {
+                return new ApiResponse<MunicipalityDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "BoundariesError", new[] { ex.Message } }
+                    },
+                    Message = "Error processing boundaries from file."
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<MunicipalityDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "ProcessingError", new[] { $"An unexpected error occurred during GeoJSON processing: {ex.Message}" } }
+                    },
+                    Message = "An unexpected error occurred while processing boundaries."
+                };
+            }
+        }
+        else
+        {
+            municipality.Boundaries = municipality.Boundaries;
+            municipality.Center = municipality.Center;
         }
 
         _repository.Update(municipality);

@@ -54,5 +54,14 @@ namespace NTC.QoS.Infrastructure.Helper
         {
             return networkName.ToLowerInvariant();
         }
+
+        /// <summary>
+        /// Generates a standardized cache key for Generation technology only.
+        /// Example: "4g", "5g", "lte"
+        /// </summary>
+        public static string GenerateGenerationCacheKey(string technologyStandard)
+        {
+            return technologyStandard.ToLowerInvariant();
+        }
     }
 }

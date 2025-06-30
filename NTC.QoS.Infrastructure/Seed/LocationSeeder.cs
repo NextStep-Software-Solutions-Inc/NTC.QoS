@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
@@ -20,16 +21,16 @@ public static class LocationSeeder
     /// Seeds all configured entities into the database.
     /// </summary>
     /// <param name="context">The DbContext instance.</param>
-    public static async Task SeedAllAsync(ApplicationDbContext context) // Changed to ApplicationDbContext
+    public static async Task SeedAllAsync(ApplicationDbContext context, ILogger logger)
     {
-        Console.WriteLine("Starting full database seeding process...");
+        logger.LogInformation("Starting full database seeding process...");
 
-        await SeedRegionsAsync(context);
-        await SeedProvincesAsync(context);
-        await SeedMunicipalitiesAsync(context);
-        await SeedBarangaysAsync(context);
+        await SeedRegionsAsync(context, logger);
+        await SeedProvincesAsync(context, logger);
+        await SeedMunicipalitiesAsync(context, logger);
+        await SeedBarangaysAsync(context, logger);
 
-        Console.WriteLine("Full database seeding process completed.");
+        logger.LogInformation("Full database seeding process completed.");
     }
 
     /// <summary>
@@ -37,48 +38,48 @@ public static class LocationSeeder
     /// </summary>
     /// <param name="context">The DbContext instance.</param>
     /// <param name="entityType">The type of entity to seed.</param>
-    public static async Task SeedEntityAsync(ApplicationDbContext context, LocationTypeToSeedEnum entityType) // Changed to ApplicationDbContext
+    public static async Task SeedEntityAsync(ApplicationDbContext context, LocationTypeToSeedEnum entityType, ILogger logger)
     {
-        Console.WriteLine($"Starting seeding for entity type: {entityType}...");
+        logger.LogInformation("Starting seeding for entity type: {EntityType}...", entityType);
 
         switch (entityType)
         {
             case LocationTypeToSeedEnum.All:
-                await SeedAllAsync(context);
+                await SeedAllAsync(context, logger);
                 break;
             case LocationTypeToSeedEnum.Region:
-                await SeedRegionsAsync(context);
+                await SeedRegionsAsync(context, logger);
                 break;
             case LocationTypeToSeedEnum.Province:
-                await SeedProvincesAsync(context);
+                await SeedProvincesAsync(context, logger);
                 break;
             case LocationTypeToSeedEnum.Municipality:
-                await SeedMunicipalitiesAsync(context);
+                await SeedMunicipalitiesAsync(context, logger);
                 break;
             case LocationTypeToSeedEnum.Barangay:
-                await SeedBarangaysAsync(context);
+                await SeedBarangaysAsync(context, logger);
                 break;
             default:
-                Console.WriteLine($"Unknown entity type '{entityType}'. No seeding performed.");
+                logger.LogInformation("Unknown entity type '{EntityType}'. No seeding performed.", entityType);
                 break;
         }
 
-        Console.WriteLine($"Seeding for entity type '{entityType}' completed.");
+        logger.LogInformation("Seeding for entity type '{EntityType}' completed.", entityType);
     }
 
     /// <summary>
     /// Seeds Region entities from the GeoJSON file.
     /// This logic is adapted from the previous RegionSeeder.
     /// </summary>
-    public static async Task SeedRegionsAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext dbContext
+    public static async Task SeedRegionsAsync(ApplicationDbContext dbContext, ILogger logger)
     {
-        if (await dbContext.Regions.AnyAsync()) // Use dbContext
+        if (await dbContext.Regions.AnyAsync())
         {
-            Console.WriteLine("Database already contains regions. Skipping region seeding.");
+            logger.LogInformation("Database already contains regions. Skipping region seeding.");
             return;
         }
 
-        Console.WriteLine($"Starting region seeding from {RegionGeoJsonFilePath}...");
+        logger.LogInformation("Starting region seeding from {FilePath}...", RegionGeoJsonFilePath);
 
         FeatureCollection featureCollection = new FeatureCollection();
 
@@ -86,10 +87,9 @@ public static class LocationSeeder
         {
             string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, RegionGeoJsonFilePath);
 
-            // Ensure the file exists
             if (!System.IO.File.Exists(fullGeoJsonPath))
             {
-                Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
+                logger.LogInformation("Error: GeoJSON file not found at {FilePath}. Make sure it's copied to output directory.", fullGeoJsonPath);
                 return;
             }
 
@@ -103,65 +103,14 @@ public static class LocationSeeder
 
             if (featureCollection == null || !featureCollection.Any())
             {
-                Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
+                logger.LogInformation("No features found in the GeoJSON file. Skipping seeding.");
                 return;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error reading or parsing GeoJSON file for regions: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
+            logger.LogInformation("Error reading or parsing GeoJSON file for regions: {ErrorMessage}", ex.Message);
             return;
-        }
-
-        var regionsToAdd = new List<Region>();
-
-        foreach (var feature in featureCollection)
-        {
-            if (feature?.Geometry == null || feature.Attributes == null)
-            {
-                Console.WriteLine("Skipping feature due to missing geometry or attributes.");
-                continue;
-            }
-
-            var region = new Region
-            {
-                Name = feature.Attributes["ADM1_EN"]?.ToString() ?? string.Empty,
-                Description = null,
-                Code = feature.Attributes["ADM1_PCODE"]?.ToString() ?? string.Empty,
-                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
-            };
-
-            if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
-            {
-                region.Boundaries = geoJsonMultiPolygon;
-                region.Center = geoJsonMultiPolygon.Centroid;
-            }
-            else if (feature.Geometry is Polygon geoJsonPolygon)
-            {
-                region.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
-                region.Center = geoJsonPolygon.Centroid;
-            }
-            else
-            {
-                Console.WriteLine($"Terminated '{region.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
-                return;
-            }
-
-            regionsToAdd.Add(region);
-        }
-
-        try
-        {
-            await dbContext.Regions.AddRangeAsync(regionsToAdd);
-            await dbContext.SaveChangesAsync();
-            Console.WriteLine($"Successfully seeded {regionsToAdd.Count} regions into the database.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error saving regions to database: {ex.Message}");
-            Console.WriteLine(ex.InnerException?.Message); // Log inner exception for more details
-            Console.WriteLine(ex.StackTrace);
         }
     }
 
@@ -169,25 +118,24 @@ public static class LocationSeeder
     /// Placeholder for seeding Province entities.
     /// This method will be expanded once GeoJSON format for Provinces is provided.
     /// </summary>
-    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext
+    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext, ILogger logger)
     {
-        if (await dbContext.Provinces.AnyAsync()) // Assuming you have a DbSet<Province>
+        if (await dbContext.Provinces.AnyAsync())
         {
-            Console.WriteLine("Database already contains provinces. Skipping province seeding.");
+            logger.LogInformation("Database already contains provinces. Skipping region seeding.");
             return;
         }
-        Console.WriteLine($"Starting provinces seeding from {ProvinceGeoJsonFilePath}...");
-
+        logger.LogInformation("Starting province seeding from {FilePath}...", ProvinceGeoJsonFilePath);
+        
         FeatureCollection featureCollection = new FeatureCollection();
 
         try
         {
             string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, ProvinceGeoJsonFilePath);
 
-            // Ensure the file exists
             if (!System.IO.File.Exists(fullGeoJsonPath))
             {
-                Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
+                logger.LogError("Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.", fullGeoJsonPath);
                 return;
             }
 
@@ -201,14 +149,14 @@ public static class LocationSeeder
 
             if (featureCollection == null || !featureCollection.Any())
             {
-                Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
+                logger.LogWarning("No features found in the GeoJSON file. Skipping seeding.");
                 return;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error reading or parsing GeoJSON file for provinces: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
+            logger.LogError("Error reading or parsing GeoJSON file for provinces: {ErrorMessage}", ProvinceGeoJsonFilePath);
+            logger.LogTrace(ex.StackTrace);
             return;
         }
 
@@ -220,7 +168,7 @@ public static class LocationSeeder
         {
             if (feature?.Geometry == null || feature.Attributes == null)
             {
-                Console.WriteLine("Skipping feature due to missing geometry or attributes.");
+                logger.LogInformation("Skipping feature due to missing geometry or attributes.");
                 continue;
             }
 
@@ -244,11 +192,10 @@ public static class LocationSeeder
             }
             else
             {
-                Console.WriteLine($"Terminated '{province.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
+                logger.LogInformation("Terminated '{Name}' due to unsupported geometry type: {GeometryType}", province.Name, feature.Geometry.GeometryType);
                 return;
             }
 
-            // Find the corresponding Region using ADM1_PCODE
             var regionCode = feature.Attributes["ADM1_PCODE"]?.ToString();
             if (!string.IsNullOrWhiteSpace(regionCode) && regionMap.TryGetValue(regionCode, out var regionId))
             {
@@ -256,7 +203,7 @@ public static class LocationSeeder
             }
             else
             {
-                Console.WriteLine($"Warning: Could not find Region for province '{province.Name}' with ADM1_PCODE '{regionCode}'");
+                logger.LogWarning("Warning: Could not find Region for province '{Name}' with ADM1_PCODE '{Code}'", province.Name, regionCode);
                 continue;
             }
 
@@ -267,13 +214,13 @@ public static class LocationSeeder
         {
             await dbContext.Provinces.AddRangeAsync(provincesToAdd);
             await dbContext.SaveChangesAsync();
-            Console.WriteLine($"Successfully seeded {provincesToAdd.Count} provinces into the database.");
+            logger.LogInformation("Successfully seeded {Count} provinces into the database.", provincesToAdd.Count);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving provinces to database: {ex.Message}");
-            Console.WriteLine(ex.InnerException?.Message);
-            Console.WriteLine(ex.StackTrace);
+            logger.LogError("Error saving provinces to database: {Message}", ex.Message);
+            logger.LogInformation(ex.InnerException?.Message);
+            logger.LogTrace(ex.StackTrace);
         }
     }
 
@@ -281,16 +228,16 @@ public static class LocationSeeder
     /// Placeholder for seeding Municipality entities.
     /// This method will be expanded once GeoJSON format for Municipalities is provided.
     /// </summary>
-    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext
+    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext, ILogger logger)
     {
         if (await dbContext.Municipalities.AnyAsync())
         {
-            Console.WriteLine("Database already contains municipalities. Skipping municipality seeding.");
+            logger.LogInformation("Database already contains municipalities. Skipping municipality seeding.");
             return;
         }
-        Console.WriteLine($"Starting municipalities seeding from {MunicipalityGeoJsonFilePath}...");
+        logger.LogInformation("Starting municipalities seeding from {FilePath}...", MunicipalityGeoJsonFilePath);
 
-        FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = [];
 
         try
         {
@@ -298,7 +245,7 @@ public static class LocationSeeder
 
             if (!System.IO.File.Exists(fullGeoJsonPath))
             {
-                Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
+                logger.LogError("Error: GeoJSON file not found at {FilePath}. Make sure it's copied to output directory.", fullGeoJsonPath);
                 return;
             }
 
@@ -312,14 +259,14 @@ public static class LocationSeeder
 
             if (featureCollection == null || !featureCollection.Any())
             {
-                Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
+                logger.LogInformation("No features found in the GeoJSON file. Skipping seeding.");
                 return;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error reading or parsing GeoJSON file for municipalities: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
+            logger.LogError("Error reading or parsing GeoJSON file for municipalities: {Message}", ex.Message);
+            logger.LogTrace(ex.StackTrace);
             return;
         }
 
@@ -331,7 +278,7 @@ public static class LocationSeeder
         {
             if (feature?.Geometry == null || feature.Attributes == null)
             {
-                Console.WriteLine("Skipping feature due to missing geometry or attributes.");
+                logger.LogInformation("Skipping feature due to missing geometry or attributes.");
                 continue;
             }
 
@@ -355,7 +302,7 @@ public static class LocationSeeder
             }
             else
             {
-                Console.WriteLine($"Terminated '{municipality.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
+                logger.LogInformation("Terminated '{Name}' due to unsupported geometry type: {GeometryType}", municipality.Name, feature.Geometry.GeometryType);
                 return;
             }
 
@@ -366,7 +313,7 @@ public static class LocationSeeder
             }
             else
             {
-                Console.WriteLine($"Warning: Could not find Province for municipality '{municipality.Name}' with ADM2_PCODE '{provinceCode}'");
+                logger.LogWarning("Warning: Could not find Province for municipality '{Name}' with ADM2_PCODE '{Code}'", municipality.Name, provinceCode);
                 continue;
             }
 
@@ -377,13 +324,13 @@ public static class LocationSeeder
         {
             await dbContext.Municipalities.AddRangeAsync(municipalitiesToAdd);
             await dbContext.SaveChangesAsync();
-            Console.WriteLine($"Successfully seeded {municipalitiesToAdd.Count} municipalities into the database.");
+            logger.LogInformation("Successfully seeded {Count} municipalities into the database.", municipalitiesToAdd.Count);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving municipalities to database: {ex.Message}");
-            Console.WriteLine(ex.InnerException?.Message);
-            Console.WriteLine(ex.StackTrace);
+            logger.LogError("Error saving municipalities to database: {Message}", ex.Message);
+            logger.LogInformation(ex.InnerException?.Message);
+            logger.LogTrace(ex.StackTrace);
         }
     }
 
@@ -391,14 +338,14 @@ public static class LocationSeeder
     /// Placeholder for seeding Barangay entities.
     /// This method will be expanded once GeoJSON format for Barangays is provided.
     /// </summary>
-    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext) // Changed to ApplicationDbContext
+    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext, ILogger logger)
     {
         if (await dbContext.Barangays.AnyAsync())
         {
-            Console.WriteLine("Database already contains barangays. Skipping barangay seeding.");
+            logger.LogInformation("Database already contains barangays. Skipping barangay seeding.");
             return;
         }
-        Console.WriteLine($"Starting barangays seeding from {BarangayGeoJsonFilePath}...");
+        logger.LogInformation("Starting barangays seeding from {FilePath}...", BarangayGeoJsonFilePath);
 
         FeatureCollection featureCollection = new FeatureCollection();
 
@@ -408,7 +355,7 @@ public static class LocationSeeder
 
             if (!System.IO.File.Exists(fullGeoJsonPath))
             {
-                Console.WriteLine($"Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.");
+                logger.LogError("Error: GeoJSON file not found at {Path}. Make sure it's copied to output directory.", fullGeoJsonPath);
                 return;
             }
 
@@ -422,14 +369,14 @@ public static class LocationSeeder
 
             if (featureCollection == null || !featureCollection.Any())
             {
-                Console.WriteLine("No features found in the GeoJSON file. Skipping seeding.");
+                logger.LogInformation("No features found in the GeoJSON file. Skipping seeding.");
                 return;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error reading or parsing GeoJSON file for provinces: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
+            logger.LogInformation("Error reading or parsing GeoJSON file for provinces: {Message}", ex.Message);
+            logger.LogTrace(ex.StackTrace);
             return;
         }
 
@@ -441,7 +388,7 @@ public static class LocationSeeder
         {
             if (feature?.Geometry == null || feature.Attributes == null)
             {
-                Console.WriteLine("Skipping feature due to missing geometry or attributes.");
+                logger.LogInformation("Skipping feature due to missing geometry or attributes.");
                 continue;
             }
 
@@ -465,7 +412,7 @@ public static class LocationSeeder
             }
             else
             {
-                Console.WriteLine($"Terminated '{barangay.Name}' due to unsupported geometry type: {feature.Geometry.GeometryType}");
+                logger.LogInformation("Terminated '{Name}' due to unsupported geometry type: {GeometryType}", barangay.Name, feature.Geometry.GeometryType);
                 return;
             }
 
@@ -476,7 +423,7 @@ public static class LocationSeeder
             }
             else
             {
-                Console.WriteLine($"Warning: Could not find Municipality for barangay '{barangay.Name}' with ADM3_PCODE '{municipalityCode}'");
+                logger.LogWarning("Warning: Could not find Municipality for barangay '{Name}' with ADM3_PCODE '{Code}'", barangay.Name, municipalityCode);
                 continue;
             }
             barangaysToAdd.Add(barangay);
@@ -486,13 +433,13 @@ public static class LocationSeeder
         {
             await dbContext.Barangays.AddRangeAsync(barangaysToAdd);
             await dbContext.SaveChangesAsync();
-            Console.WriteLine($"Successfully seeded {barangaysToAdd.Count} barangays into the database.");
+            logger.LogInformation("Successfully seeded {Count} barangays into the database.", barangaysToAdd.Count);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving barangays to database: {ex.Message}");
-            Console.WriteLine(ex.InnerException?.Message);
-            Console.WriteLine(ex.StackTrace);
+            logger.LogError($"Error saving barangays to database: {ex.Message}");
+            logger.LogInformation(ex.InnerException?.Message);
+            logger.LogTrace(ex.StackTrace);
         }
     }
 }

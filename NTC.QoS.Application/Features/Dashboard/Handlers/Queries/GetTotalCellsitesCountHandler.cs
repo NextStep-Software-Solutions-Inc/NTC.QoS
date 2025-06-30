@@ -17,11 +17,25 @@ public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCo
 
     public async Task<ApiResponse<CellsiteCountsDto>> Handle(GetTotalCellsitesCountRequest request, CancellationToken cancellationToken)
     {
-        var cells = _cellRepository.Query(c => !c.IsDeleted).ToList();
+        // Start with all non-deleted cells
+        var cellsQuery = _cellRepository.Query(c => !c.IsDeleted);
 
-        var verifiedCells = cells.Count(c => c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
-        var unverifiedCells = cells.Count(c => !c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
-        var totalCells = cells.Count(c => c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
+        // Apply date filters only if they are provided
+        if (request.StartDate.HasValue)
+        {
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt >= request.StartDate.Value);
+        }
+
+        if (request.EndDate.HasValue)
+        {
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt <= request.EndDate.Value);
+        }
+
+        var cells = cellsQuery.ToList();
+
+        var verifiedCells = cells.Count(c => c.IsVerified);
+        var unverifiedCells = cells.Count(c => !c.IsVerified);
+        var totalCells = cells.Count(); // Total cells after applying date filters
 
         var responseData = new CellsiteCountsDto
         {
@@ -30,11 +44,30 @@ public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCo
             TotalCells = totalCells
         };
 
+        string message;
+        if (request.StartDate.HasValue && request.EndDate.HasValue)
+        {
+            message = $"Cellsite counts between ({request.StartDate.Value}) to ({request.EndDate.Value}) retrieved successfully.";
+        }
+        else if (request.StartDate.HasValue)
+        {
+            message = $"Cellsite counts from ({request.StartDate.Value}) onwards retrieved successfully.";
+        }
+        else if (request.EndDate.HasValue)
+        {
+            message = $"Cellsite counts up to ({request.EndDate.Value}) retrieved successfully.";
+        }
+        else
+        {
+            message = "Total cellsite counts retrieved successfully (no date filter applied).";
+        }
+
+
         return await Task.FromResult(new ApiResponse<CellsiteCountsDto>
         {
             Data = responseData,
             Succeeded = true,
-            Message = $"Cellsite counts between ({request.StartDate}) to ({request.EndDate}) retrieved successfully."
+            Message = message
         });
     }
 }

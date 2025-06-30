@@ -6,6 +6,6 @@ namespace NTC.QoS.Application.Features.Dashboard.Requests;
 
 public class GetTotalCellsitesCountRequest : IRequest<ApiResponse<CellsiteCountsDto>>
 {
-    public DateTime StartDate { get; set; }
-    public DateTime EndDate { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
 }
