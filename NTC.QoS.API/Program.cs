@@ -1,14 +1,11 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Hangfire;
-using MediatR;
 using Microsoft.AspNetCore.ResponseCompression;
 using NTC.QoS.API.Extensions;
 using NTC.QoS.Application;
-using NTC.QoS.Application.Behaviors;
-using NTC.QoS.Application.Features.Dashboard.Requests;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API;
 
@@ -40,26 +37,6 @@ public class Program
         {
             option.OperationFilter<SwaggerOperationIdFilter>();
         });
-
-        // Add MediatR registration FIRST, before your custom behaviors
-        // Register MediatR and specify the assembly where your handlers/requests are.
-        // Assuming your MediatR requests and handlers are defined within the NTC.QoS.Application project.
-        builder.Services.AddMediatR(cfg =>
-        {
-            // Register services from the assembly containing your MediatR requests/handlers.
-            // Using a known request type to get the assembly reference.
-            cfg.RegisterServicesFromAssembly(typeof(GetTotalCellsitesCountRequest).Assembly);
-
-            // Register your CachingBehavior as a pipeline behavior.
-            // This order is important: behaviors are executed in the order they are registered.
-            // Typically, caching behavior goes early in the pipeline to prevent further processing on a cache hit.
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(CachingBehavior<,>));
-
-            // If you have other behaviors (e.g., validation behavior),
-            // you'd add them here as well. The order matters.
-            // Example: cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-        });
-
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
         builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
         builder.Services.AddResponseCompression(options =>

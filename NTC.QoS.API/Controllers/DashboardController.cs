@@ -177,7 +177,6 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
             memoryCache.Set(DashboardCacheKeysSet, keys, TimeSpan.FromHours(24));
         }
     }
-
     private void RemoveAllDashboardCache()
     {
         if (memoryCache.TryGetValue<HashSet<string>>(DashboardCacheKeysSet, out var keys) && keys != null)
