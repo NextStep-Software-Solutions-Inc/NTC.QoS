@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Provider.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
@@ -12,7 +11,7 @@ public class GetAllProvidersHandler(IProviderRepository providerRepository) : IR
 
     public async Task<PaginatedResponse<ProviderDto>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
     {
-        var allProvidersQuery = _providerRepository.Query(p => !p.IsDeleted);
+        var allProvidersQuery = _providerRepository.Query();
         
         allProvidersQuery = allProvidersQuery
             .Where(p =>  request.ServiceIds == null || request.ServiceIds.Count.Equals(0) || p.ServiceProviders.Any(sp => sp.Service != null && request.ServiceIds.Contains(sp.Service.Id)))
