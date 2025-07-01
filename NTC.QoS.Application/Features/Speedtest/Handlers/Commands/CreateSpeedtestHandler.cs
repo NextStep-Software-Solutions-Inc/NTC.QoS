@@ -20,7 +20,7 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
     {
         Point location = GeometryHelper.CreatePoint(x: request.Speedtest.Longitude, y: request.Speedtest.Latitude);
 
-        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Speedtest.ServiceProviderId && !sp.IsDeleted);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Speedtest.ServiceProviderId);
         var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
 
         if (serviceProvider is null)
@@ -38,7 +38,7 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             };
         }
 
-        var generationQuery = _generationRepository.Query(g => g.Id == request.Speedtest.GenerationId && !g.IsDeleted);
+        var generationQuery = _generationRepository.Query(g => g.Id == request.Speedtest.GenerationId);
         var generation = await _generationRepository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
         if (generation is null)
@@ -60,8 +60,7 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             _speedtestRepository.Query(s => s.Address == request.Speedtest.Address &&
                                             s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
                                             s.GenerationId == request.Speedtest.GenerationId &&
-                                            s.DateTime == request.Speedtest.DateTime &&
-                                            !s.IsDeleted),
+                                            s.DateTime == request.Speedtest.DateTime),
             cancellationToken);
 
         if (existingSpeedtest is not null)

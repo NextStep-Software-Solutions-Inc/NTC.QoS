@@ -11,10 +11,10 @@ public class DeleteSpeedtestsByIdsHandler(IRepository<Domain.Entities.Speedtest>
     public async Task<ApiResponse<bool>> Handle(DeleteSpeedtestsByIdsRequest request,
             CancellationToken cancellationToken)
     {
-        var speedtestToDeleteQuery = _repository.Query(st => !st.IsDeleted && request.Ids.Contains(st.Id));
-        var speedtestsToDelete = await _repository.ExecuteDeleteAsync(speedtestToDeleteQuery, cancellationToken);
+        var speedtestQuery = _repository.Query(st => request.Ids.Contains(st.Id));
+        var speedtest = await _repository.ExecuteDeleteAsync(speedtestQuery, cancellationToken);
 
-        if (speedtestsToDelete is 0)
+        if (speedtest is 0)
         {
             return new ApiResponse<bool>
             {
@@ -27,7 +27,7 @@ public class DeleteSpeedtestsByIdsHandler(IRepository<Domain.Entities.Speedtest>
         {
             Data = true,
             Succeeded = true,
-            Message = $"{speedtestsToDelete} speedtest/s record deleted successfully."
+            Message = $"{speedtest} speedtest/s record deleted successfully."
         };
     }
 }
