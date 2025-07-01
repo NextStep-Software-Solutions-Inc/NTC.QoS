@@ -6,18 +6,18 @@ using NTC.QoS.Domain.Models.DTOs.MIMO;
 
 namespace NTC.QoS.Application.Features.MIMO.Handlers.Commands;
 
-public class CreateMIMOHandler(IRepository<Domain.Entities.MIMO> repository) : IRequestHandler<CreateMIMORequest, ApiResponse<CreateMIMODto>>
+public class CreateMIMOHandler(IRepository<Domain.Entities.MIMO> repository) : IRequestHandler<CreateMIMORequest, ApiResponse<MIMODto>>
 {
     private readonly IRepository<Domain.Entities.MIMO> _repository = repository;
 
-    public async Task<ApiResponse<CreateMIMODto>> Handle(CreateMIMORequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<MIMODto>> Handle(CreateMIMORequest request, CancellationToken cancellationToken)
     {
-        var mimoQuery = _repository.Query(m => m.Type == request.MIMO.Type && !m.IsDeleted);
+        var mimoQuery = _repository.Query(m => m.Type == request.MIMO.Type);
         var mimo = await _repository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
 
         if (mimo is not null)
         {
-            return new ApiResponse<CreateMIMODto>
+            return new ApiResponse<MIMODto>
             {
                 Message = "MIMO already exists.",
                 Succeeded = false
@@ -38,10 +38,11 @@ public class CreateMIMOHandler(IRepository<Domain.Entities.MIMO> repository) : I
         _repository.Add(newMIMO);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateMIMODto>
+        return new ApiResponse<MIMODto>
         {
-            Data = new CreateMIMODto
+            Data = new MIMODto
             {
+                Id = newMIMO.Id,
                 Type = newMIMO.Type,
                 DLCoverageGain = newMIMO.DLCoverageGain,
                 ULCoverageGain = newMIMO.ULCoverageGain,
