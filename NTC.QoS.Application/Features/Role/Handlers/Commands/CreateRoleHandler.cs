@@ -12,7 +12,7 @@ public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository
 
     public async Task<ApiResponse<RoleDto>> Handle(CreateRoleRequest request, CancellationToken cancellationToken)
     {
-        var existingRoleQuery = _roleRepository.Query(r => r.Name == request.Role.Name);
+        var existingRoleQuery = _roleRepository.QueryWithIgnoreQueryFilters(r => r.Name == request.Role.Name);
         var existingRole = await _roleRepository.FirstOrDefaultAsync(existingRoleQuery, cancellationToken);
 
         if (existingRole is not null)
@@ -67,7 +67,7 @@ public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository
                 Id = newRole.Id,
                 Name = newRole.Name,
                 Key = newRole.Key,
-                Description = newRole.Description ?? string.Empty,
+                Description = newRole.Description
             },
             Succeeded = true,
             Message = "Role created successfully.",

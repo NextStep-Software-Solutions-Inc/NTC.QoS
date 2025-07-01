@@ -10,7 +10,7 @@ public class DeleteRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
     private readonly IRepository<Domain.Entities.Role> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteRoleByIdRequest request, CancellationToken cancellationToken)
     {
-        var roleQuery = _repository.Query(r => r.Id == request.Id && !r.IsDeleted);
+        var roleQuery = _repository.Query(r => r.Id == request.Id);
         var role = await _repository.FirstOrDefaultAsync(roleQuery, cancellationToken);
 
         if (role is null)
