@@ -20,7 +20,7 @@ public class CreateRegionRequestHandler : IRequestHandler<CreateRegionRequest, A
 
     public async Task<ApiResponse<RegionDto>> Handle(CreateRegionRequest request, CancellationToken cancellationToken)
     {
-        var existingRegionQuery = _repository.Query(p => p.Name == request.Region.Name && !p.IsDeleted);
+        var existingRegionQuery = _repository.Query(r => r.Name == request.Region.Name);
         var existingRegion = await _repository.FirstOrDefaultAsync(existingRegionQuery, cancellationToken);
 
         if (existingRegion is not null)

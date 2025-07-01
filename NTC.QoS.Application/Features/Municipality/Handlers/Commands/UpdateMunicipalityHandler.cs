@@ -7,8 +7,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
@@ -23,7 +21,7 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
     
     public async Task<ApiResponse<MunicipalityDto>> Handle(UpdateMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var municipalityQuery = _repository.Query(m => m.Id == request.Id);
         var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
@@ -35,9 +33,10 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
                 {
                     {"Id", ["Municipality not found."] }
                 },
-                Message = "The municipality you are trying to edit does not exist."
+                Message = "Municipality not found."
             };
         }
+
         municipality.Name = request.Municipality.Name ?? municipality.Name;
         municipality.Description = request.Municipality.Description ?? municipality.Description;
         municipality.Code = request.Municipality.Code ?? municipality.Code;
@@ -158,12 +157,12 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
                 IsCity = municipality.IsCity,
                 Code = municipality.Code ?? string.Empty,
                 Area = municipality.Area,
-                Province = new ProvinceDto
+                Province = new()
                 {
                     Id = municipality.ProvinceId,
                     Name = municipality.Province?.Name ?? string.Empty,
                     Description = municipality.Province?.Description,
-                    Region = new RegionDto
+                    Region = new()
                     {
                         Id = municipality.Province?.RegionId ?? Guid.Empty,
                         Name = municipality.Province?.Region?.Name ?? string.Empty,

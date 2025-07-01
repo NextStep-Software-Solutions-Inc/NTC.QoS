@@ -7,9 +7,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
@@ -26,7 +23,7 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
 
     public async Task<ApiResponse<BarangayDto>> Handle(CreateBarangayRequest request, CancellationToken cancellationToken)
     {
-        var barangayQuery = _repository.Query(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId && !b.IsDeleted);
+        var barangayQuery = _repository.Query(b => b.Name == request.Barangay.Name && b.MunicipalityId == request.Barangay.MunicipalityId);
         var barangay = await _repository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is not null)
@@ -42,7 +39,7 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
             };
         }
 
-        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Barangay.MunicipalityId && !m.IsDeleted);
+        var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Barangay.MunicipalityId);
         var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
@@ -60,7 +57,7 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
 
         var newBarangay = new Domain.Entities.Barangay
         {
-            MunicipalityId = request.Barangay.MunicipalityId,
+            MunicipalityId = municipality.Id,
             Name = request.Barangay.Name,
             Description = request.Barangay.Description,
             Code = request.Barangay.Code ?? string.Empty,
@@ -183,18 +180,18 @@ public class CreateBarangayHandler : IRequestHandler<CreateBarangayRequest, ApiR
             Description = newBarangay.Description,
             Code = newBarangay.Code,
             Area = newBarangay.Area,
-            Municipality = new MunicipalityDto
+            Municipality = new()
             {
                 Id = newBarangay.MunicipalityId,
                 Name = municipality?.Name ?? string.Empty,
                 Description = municipality?.Description,
                 IsCity = municipality?.IsCity ?? false,
-                Province = new ProvinceDto
+                Province = new()
                 {
                     Id = municipality?.ProvinceId ?? Guid.Empty,
                     Name = municipality?.Province?.Name ?? string.Empty,
                     Description = municipality?.Province?.Description,
-                    Region = new RegionDto
+                    Region = new()
                     {
                         Id = municipality?.Province?.RegionId ?? Guid.Empty,
                         Name = municipality?.Province?.Region?.Name ?? string.Empty,

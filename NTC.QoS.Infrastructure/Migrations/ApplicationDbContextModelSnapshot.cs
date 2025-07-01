@@ -740,7 +740,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("real");
 
                     b.Property<MultiPolygon>("Boundaries")
-                        .HasColumnType("geography (MultiPolygon,4326)");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()

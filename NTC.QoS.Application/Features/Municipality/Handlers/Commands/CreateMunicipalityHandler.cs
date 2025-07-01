@@ -7,8 +7,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Municipality.Handlers.Commands;
 
@@ -25,7 +23,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(CreateMunicipalityRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _repository.Query(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId && !m.IsDeleted);
+        var municipalityQuery = _repository.Query(m => m.Name == request.Municipality.Name && m.ProvinceId == request.Municipality.ProvinceId);
         var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is not null)
@@ -43,7 +41,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
             };
         }
 
-        var provinceQuery = _provinceRepository.Query(p => p.Id == request.Municipality.ProvinceId && !p.IsDeleted);
+        var provinceQuery = _provinceRepository.Query(p => p.Id == request.Municipality.ProvinceId);
         var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
@@ -54,7 +52,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullProvince",["Province not found."]
+                        "NullProvince", ["Province not found."]
                     }
                 },
                 Message = "Province not found."
@@ -185,12 +183,12 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
                 IsCity = newMunicipality.IsCity,
                 Code = newMunicipality.Code,
                 Area = newMunicipality.Area,
-                Province = new ProvinceDto
+                Province = new()
                 {
                     Id = newMunicipality.ProvinceId,
                     Name = newMunicipality.Province?.Name ?? string.Empty,
                     Description = newMunicipality.Province?.Description,
-                    Region = new RegionDto
+                    Region = new()
                     {
                         Id = newMunicipality.Province?.RegionId ?? Guid.Empty,
                         Name = newMunicipality.Province?.Region?.Name ?? string.Empty,

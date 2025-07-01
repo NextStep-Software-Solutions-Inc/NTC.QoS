@@ -2,11 +2,6 @@
 using NTC.QoS.Application.Features.StudyMunicipality.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Domain.Models.DTOs.Study;
 using NTC.QoS.Domain.Models.DTOs.StudyMunicipality;
 
 namespace NTC.QoS.Application.Features.StudyMunicipality.Handlers.Queries;
@@ -16,7 +11,7 @@ public class GetStudyMunicipalityByIdHandler(IStudyMunicipalityRepository studyM
     private readonly IStudyMunicipalityRepository _studyMunicipalityRepository = studyMunicipalityRepository;
     public async Task<ApiResponse<StudyMunicipalityDto>> Handle(GetStudyMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var studyMunicipalityQuery = _studyMunicipalityRepository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var studyMunicipalityQuery = _studyMunicipalityRepository.Query(sm => sm.Id == request.Id);
         var studyMunicipality = await _studyMunicipalityRepository.FirstOrDefaultAsync(studyMunicipalityQuery, cancellationToken);
 
         if (studyMunicipality is null)
@@ -39,31 +34,31 @@ public class GetStudyMunicipalityByIdHandler(IStudyMunicipalityRepository studyM
             Data = new StudyMunicipalityDto
             {
                 Id = studyMunicipality.Id,
-                Study = new StudyDto
+                Study = new()
                 {
                     Id = studyMunicipality.StudyId,
                     Name = studyMunicipality.Study?.Name ?? string.Empty,
                     Description = studyMunicipality.Study?.Description ?? string.Empty,
                     StudyRadius = studyMunicipality.Study?.StudyRadius ?? 0,
-                    AreaStudy = new AreaStudyDto
+                    AreaStudy = new()
                     {
                         Id = studyMunicipality.Study?.AreaStudyId ?? Guid.Empty,
                         Name = studyMunicipality.Study?.AreaStudy?.Name ?? string.Empty,
                         Description = studyMunicipality.Study?.Description
                     }
                 },
-                Municipality = new MunicipalityDto
+                Municipality = new()
                 {
                     Id = studyMunicipality.MunicipalityId,
                     Name = studyMunicipality.Municipality?.Name ?? string.Empty,
                     IsCity = studyMunicipality.Municipality?.IsCity ?? false,
                     Description = studyMunicipality.Municipality?.Description,
-                    Province = new ProvinceDto
+                    Province = new()
                     {
                         Id = studyMunicipality.Municipality?.ProvinceId ?? Guid.Empty,
                         Name = studyMunicipality.Municipality?.Province?.Name ?? string.Empty,
                         Description = studyMunicipality.Municipality?.Province?.Description,
-                        Region = new RegionDto
+                        Region = new()
                         {
                             Id = studyMunicipality.Municipality?.Province?.RegionId ?? Guid.Empty,
                             Name = studyMunicipality.Municipality?.Province?.Region?.Name ?? string.Empty,

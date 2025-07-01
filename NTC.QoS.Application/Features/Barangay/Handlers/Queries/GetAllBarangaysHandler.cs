@@ -1,9 +1,6 @@
 ﻿using MediatR;
-using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Barangay.Requests;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
@@ -14,7 +11,7 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
 
     public async Task<PaginatedResponse<BarangayDto>> Handle(GetAllBarangaysRequest request, CancellationToken cancellationToken)
     {
-        var allBarangaysQuery = _barangayRepository.Query(b => !b.IsDeleted);
+        var allBarangaysQuery = _barangayRepository.Query();
 
         if (request.MunicipalityIds is not null && request.MunicipalityIds.Length > 0)
         {

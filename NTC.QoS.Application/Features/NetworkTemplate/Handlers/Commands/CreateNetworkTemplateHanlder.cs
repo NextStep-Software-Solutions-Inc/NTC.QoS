@@ -9,10 +9,10 @@ namespace NTC.QoS.Application.Features.NetworkTemplate.Handlers.Commands;
 public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTemplate> repository) : IRequestHandler<CreateNetworkTemplateRequest, ApiResponse<NetworkTemplateDto>>
 {
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
+
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(CreateNetworkTemplateRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplate = _repository.Query(
-            nt => nt.Name == request.CreateNetworkTemplate.Name && !nt.IsDeleted);
+        var networkTemplate = _repository.Query(nt => nt.Name == request.CreateNetworkTemplate.Name);
         var existingNetworkTemplate = await _repository.FirstOrDefaultAsync(networkTemplate, cancellationToken);
 
         if (existingNetworkTemplate is not null)

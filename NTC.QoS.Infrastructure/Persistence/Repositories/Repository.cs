@@ -38,10 +38,9 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         return await query.ToListAsync(cancellationToken);
     }
 
-
     public virtual IQueryable<TEntity> Query(Expression<Func<TEntity, bool>>? expression = null)
     {
-        var query = _context.Set<TEntity>().AsQueryable().IgnoreQueryFilters();
+        var query = _context.Set<TEntity>().AsQueryable();
 
         if (expression != null)
         {
@@ -118,7 +117,6 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize, totalCount);
     }
 
-
     public void AddRange(IEnumerable<TEntity> entities)
     {
         _context.AddRange(entities);
@@ -134,6 +132,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         ArgumentNullException.ThrowIfNull(queryable);
         return await queryable.ExecuteDeleteAsync(cancellationToken);
     }
+
     public IQueryable<TEntity> QueryWithIgnoreQueryFilters(Expression<Func<TEntity, bool>>? expression = null)
     {
         var query = _context.Set<TEntity>().AsQueryable().IgnoreQueryFilters();

@@ -1,9 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
 
@@ -13,7 +11,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
-        var provincesQuery = _provinceRepository.Query(p => !p.IsDeleted);
+        var provincesQuery = _provinceRepository.Query();
 
         if (request.RegionId.HasValue)
         {
@@ -27,7 +25,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
             Description = p.Description,
             Code = p.Code,
             Area = p.Area,
-            Region = new RegionDto
+            Region = new()
             {
                 Id = p.Region.Id,         
                 Name = p.Region.Name,    
@@ -38,3 +36,4 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
         return await _provinceRepository.PaginateAsync(provinceDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }
+// This handler retrieves all provinces, optionally filtered by region ID, and returns a paginated response of ProvinceDto objects.

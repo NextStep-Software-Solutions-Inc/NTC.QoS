@@ -9,9 +9,10 @@ namespace NTC.QoS.Application.Features.NetworkTemplate.Handlers.Queries;
 public class GetNetworkTemplateByIdHandler(IRepository<Domain.Entities.NetworkTemplate> repository) : IRequestHandler<GetNetworkTemplateByIdRequest, ApiResponse<NetworkTemplateDto>>
 {
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
+
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(GetNetworkTemplateByIdRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id && !nt.IsDeleted);
+        var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id);
         var networkTemplateExist = await _repository.FirstOrDefaultAsync(networkTemplateExistQuery, cancellationToken);
         if (networkTemplateExist is null)
         {

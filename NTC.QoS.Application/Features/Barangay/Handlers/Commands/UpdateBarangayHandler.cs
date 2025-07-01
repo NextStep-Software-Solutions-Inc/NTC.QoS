@@ -7,9 +7,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Commands;
 
@@ -23,19 +20,18 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
     }
     public async Task<ApiResponse<BarangayDto>> Handle(UpdateBarangayByIdRequest request, CancellationToken cancellationToken)
     {
-        var barangayQuery = _barangayRepository.Query(b => b.Id == request.Id && !b.IsDeleted);
+        var barangayQuery = _barangayRepository.Query(b => b.Id == request.Id);
         var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is null)
         {
             return new ApiResponse<BarangayDto>
             {
-                Data = null,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]> 
                 { 
                     { 
-                        "NullBarangay", ["Barangay not found."]
+                        "NullBarangay", [ "Barangay not found." ]
                     } 
                 },
                 Message = "The barangay you are trying to edit does not exist."
@@ -166,16 +162,16 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
                 Description = barangay.Description,
                 Code = barangay.Code,
                 Area = barangay.Area,
-                Municipality = new MunicipalityDto
+                Municipality = new()
                 {
                     Id = barangay.MunicipalityId,
                     Name = barangay.Municipality?.Name ?? string.Empty,
                     IsCity = barangay.Municipality != null && barangay.Municipality.IsCity,
-                    Province = new ProvinceDto
+                    Province = new()
                     {
                         Id = barangay.Municipality?.ProvinceId ?? Guid.Empty,
                         Name = barangay.Municipality?.Province?.Name ?? string.Empty,
-                        Region = new RegionDto
+                        Region = new()
                         {
                             Id = barangay.Municipality?.Province?.RegionId ?? Guid.Empty,
                             Name = barangay.Municipality?.Province?.Region?.Name ?? string.Empty,

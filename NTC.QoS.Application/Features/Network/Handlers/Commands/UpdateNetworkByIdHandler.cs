@@ -5,16 +5,16 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
-using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 
 public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<UpdateNetworkByIdRequest, ApiResponse<NetworkDto>>
 {
     private readonly INetworkRepository _networkRepository = networkRepository;
+
     public async Task<ApiResponse<NetworkDto>> Handle(UpdateNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id == request.Id);
+        var networkQuery = _networkRepository.Query(n => n.Id == request.Id);
         var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (network is null)
         {
@@ -27,13 +27,13 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                         "Id", [$"Network with ID [{request.Id}] does not exist."] 
                     }
                 },
-                Message = $"Network not found."
+                Message = "Network not found."
             };
         }
 
-        if (!string.IsNullOrEmpty(request.Network.Name)) network.Name = request.Network.Name;
+        network.Name = request.Network.Name ?? network.Name;
 
-        var networkExistsQuery = _networkRepository.Query(n => !n.IsDeleted && n.Id != request.Id && n.Name == request.Network.Name);
+        var networkExistsQuery = _networkRepository.Query(n => n.Id != request.Id && n.Name == request.Network.Name);
         var networkExists = await _networkRepository.FirstOrDefaultAsync(networkExistsQuery, cancellationToken);
         if (networkExists is not null)
         {
@@ -51,7 +51,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         {
             Id = network.Id,
             Name = network.Name,
-            NetworkTemplate = new NetworkTemplateDto
+            NetworkTemplate = new()
             {
                 Id = network.NetworkTemplateId,
                 Name = network.NetworkTemplate?.Name ?? string.Empty,
@@ -59,16 +59,16 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
             SystemTypeName = network.SystemType?.Name ?? string.Empty,
-            Uplink = new LinkNetworkDto
+            UpLink = new()
             {
                 Id = network.UpLinkId,
-                Type = network.UpLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.UpLink.Type) : string.Empty,
+                Type = network.UpLink?.Type is not null ? network.UpLink.Type.ToString() : string.Empty,
                 CenterFrequency = network.UpLink?.CenterFrequency ?? 0,
             },
-            DownLink = new LinkNetworkDto
+            DownLink = new()
             {
                 Id = network.DownLinkId,
-                Type = network.DownLink?.Type is not null ? EnumHelper<LinkTypeEnum>.GetName(network.DownLink.Type) : string.Empty,
+                Type = network.DownLink?.Type is not null ? network.DownLink.Type.ToString() : string.Empty,
                 CenterFrequency = network.DownLink?.CenterFrequency ?? 0,
             }
         };

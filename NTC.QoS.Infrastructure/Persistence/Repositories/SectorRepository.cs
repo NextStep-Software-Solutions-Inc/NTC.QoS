@@ -12,6 +12,7 @@ internal sealed class SectorRepository(ApplicationDbContext context)
     {
         var query = _context.Set<Sector>()
             .Include(s => s.Network)
+                .ThenInclude(n => n.SystemType)
             .Include(s => s.MIMO)
             .Include(s => s.CellSector)
                 .ThenInclude(cs => cs.Cell)
