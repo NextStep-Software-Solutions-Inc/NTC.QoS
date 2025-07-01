@@ -9,21 +9,22 @@ using NTC.QoS.Domain.Models.DTOs.Sector;
 namespace NTC.QoS.Application.Features.Sector.Handlers.Commands;
 
 public class CreateSectorHandler(
-    IRepository<Domain.Entities.Sector> sectorRepository,
+    ISectorRepository sectorRepository,
     INetworkRepository networkRepository,
     IMIMORepository mimoRepository,
-    ICellRepository cellRepository,
+    ICellSectorRepository cellSectorRepository,
     IRepository<Domain.Entities.AntennaPattern> antennaPatternRepository) : IRequestHandler<CreateSectorRequest, ApiResponse<SectorDto>>
 {
-    private readonly IRepository<Domain.Entities.Sector> _sectorRepository = sectorRepository;
+    private readonly ISectorRepository _sectorRepository = sectorRepository;
     private readonly INetworkRepository _networkRepository = networkRepository;
     private readonly IMIMORepository _mimoRepository = mimoRepository;
-    private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly ICellSectorRepository _cellSectorRepository = cellSectorRepository;
     private readonly IRepository<Domain.Entities.AntennaPattern> _antennaPatternRepository = antennaPatternRepository;
 
     public async Task<ApiResponse<SectorDto>> Handle(CreateSectorRequest request, CancellationToken cancellationToken)
     {
         var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
+
         var sectorQuery = _sectorRepository.Query(s => s.NetworkId == request.Sector.NetworkId
                                                             && s.CellSectorId == request.Sector.CellSectorId
                                                             && s.AntennaType == antennaType
@@ -56,7 +57,7 @@ public class CreateSectorHandler(
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Network not found."]
+                        "NullNetwork", ["Network not found."]
                     }
                 },
             };
@@ -73,33 +74,34 @@ public class CreateSectorHandler(
                     Message = "MIMO does not exists.",
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
-                {
                     {
-                        "Invalid Id", ["MIMO not found."]
-                    }
-                },
+                        {
+                            "NullMIMO", ["MIMO not found."]
+                        }
+                    },
                 };
             }
         }
 
-        var cellSectorQuery = _cellRepository.Query(cs => cs.Id == request.Sector.CellSectorId);
-        var cellSector = await _cellRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
+        var cellSectorQuery = _cellSectorRepository.Query(cs => cs.Id == request.Sector.CellSectorId);
+        var cellSector = await _cellSectorRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
         if (cellSector is null)
         {
             return new ApiResponse<SectorDto>
             {
-                Message = "Cell does not exists.",
+                Message = "Cell Sector does not exists.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Cell not found."]
+                        "NullCellSector", ["Cell Sector not found."]
                     }
                 },
             };
         }
 
-        var txAntennaPattern = _antennaPatternRepository.Query(tap => tap.Id == request.Sector.TxAntennaPatternId);
+        var txAntennaPatternQuery = _antennaPatternRepository.Query(tap => tap.Id == request.Sector.TxAntennaPatternId);
+        var txAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(txAntennaPatternQuery, cancellationToken);
         if (txAntennaPattern is null)
         {
             return new ApiResponse<SectorDto>
@@ -109,7 +111,7 @@ public class CreateSectorHandler(
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Tx antenna pattern not found."]
+                        "NullTxAntennaPattern", ["Tx antenna pattern not found."]
                     }
                 },
             };
@@ -123,7 +125,8 @@ public class CreateSectorHandler(
         }
         else
         {
-            var rxAntennaPattern = _antennaPatternRepository.Query(rap => rap.Id == request.Sector.RxAntennaPatternId);
+            var rxAntennaPatternQuery = _antennaPatternRepository.Query(rap => rap.Id == request.Sector.RxAntennaPatternId);
+            var rxAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(rxAntennaPatternQuery, cancellationToken);
             if (rxAntennaPattern is null)
             {
                 return new ApiResponse<SectorDto>
@@ -131,11 +134,11 @@ public class CreateSectorHandler(
                     Message = "Rx antenna pattern does not exists.",
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
-                {
                     {
-                        "Invalid Id", ["Rx antenna pattern not found."]
-                    }
-                },
+                        {
+                            "NullRxAntennaPattern", ["Rx antenna pattern not found."]
+                        }
+                    },
                 };
             }
             AssignRxProperties(newSector, request.Sector, request.Sector.RxAntennaPatternId);
@@ -144,7 +147,11 @@ public class CreateSectorHandler(
         _sectorRepository.Add(newSector);
         await _sectorRepository.SaveChangesAsync(cancellationToken);
 
-        return CreateSectorApiResponse(newSector);
+        var sectorWithIncludes = await _sectorRepository.FirstOrDefaultAsync(
+            _sectorRepository.Query(s => s.Id == newSector.Id),
+            cancellationToken);
+
+        return CreateSectorApiResponse(sectorWithIncludes!);
     }
 
     private static Domain.Entities.Sector CreateSectorEntity(CreateSectorDto dto, Guid networkId, Guid cellId, Guid txAntennaPatternId) => new()
