@@ -8,20 +8,20 @@ namespace NTC.QoS.Application.Features.RolePermission.Handlers.Commands;
 
 public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermission> rolePermissionRepository,
                                          IRepository<Domain.Entities.Role> roleRepository,
-                                         IRepository<Domain.Entities.Permission> permissionRepository) : IRequestHandler<CreateRolePermissionRequest, ApiResponse<CreateRolePermissionDto>>
+                                         IRepository<Domain.Entities.Permission> permissionRepository) : IRequestHandler<CreateRolePermissionRequest, ApiResponse<RolePermissionDto>>
 {
     private readonly IRepository<Domain.Aggregates.RolePermission> _rolePermissionRepository = rolePermissionRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Permission> _permissionRepository = permissionRepository;
 
-    public async Task<ApiResponse<CreateRolePermissionDto>> Handle(CreateRolePermissionRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<RolePermissionDto>> Handle(CreateRolePermissionRequest request, CancellationToken cancellationToken)
     {
         var existingRolePermissionQuery = _rolePermissionRepository.Query(rp => rp.RoleId == request.RolePermission.RoleId && rp.PermissionId == request.RolePermission.PermissionId);
         var existingRolePermission = await _rolePermissionRepository.FirstOrDefaultAsync(existingRolePermissionQuery, cancellationToken);
 
         if (existingRolePermission is not null)
         {
-            return new ApiResponse<CreateRolePermissionDto>
+            return new ApiResponse<RolePermissionDto>
             {
                 Message = "Role permission already exists.",
                 Succeeded = false,
@@ -41,7 +41,7 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
 
             if (role is null)
             {
-                return new ApiResponse<CreateRolePermissionDto>
+                return new ApiResponse<RolePermissionDto>
                 {
                     Message = "Role not found.",
                     Succeeded = false,
@@ -62,7 +62,7 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
 
             if (permission is null)
             {
-                return new ApiResponse<CreateRolePermissionDto>
+                return new ApiResponse<RolePermissionDto>
                 {
                     Message = "Permission not found.",
                     Succeeded = false,
@@ -84,12 +84,24 @@ public class CreateRolePermissionHandler(IRepository<Domain.Aggregates.RolePermi
         _rolePermissionRepository.Add(newRolePermission);
         await _rolePermissionRepository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateRolePermissionDto>
+        return new ApiResponse<RolePermissionDto>
         {
-            Data = new CreateRolePermissionDto
+            Data = new RolePermissionDto
             {
-                RoleId = newRolePermission.RoleId,
-                PermissionId = newRolePermission.PermissionId
+                Role = new ()
+                {
+                    Id = newRolePermission.RoleId,
+                    Name = newRolePermission.Role?.Name ?? string.Empty,
+                    Key = newRolePermission.Role?.Key ?? string.Empty,
+                    Description = newRolePermission.Role?.Description
+                },
+                Permission = new ()
+                {
+                    Id = newRolePermission.PermissionId,
+                    Name = newRolePermission.Permission?.Name ?? string.Empty,
+                    Key = newRolePermission.Permission?.Key ?? string.Empty,
+                    Description = newRolePermission.Permission?.Description,
+                }
             },
             Message = "Role permission created successfully.",
             Succeeded = true

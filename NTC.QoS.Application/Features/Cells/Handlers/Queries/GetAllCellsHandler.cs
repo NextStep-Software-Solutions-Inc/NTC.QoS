@@ -15,7 +15,7 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
 
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        IQueryable<Cell> cellQuery = _repository.Query();
+        IQueryable<Cell>cellQuery = _repository.Query();
 
         Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 
