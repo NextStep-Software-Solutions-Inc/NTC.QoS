@@ -448,7 +448,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("RoleId");
 
                     b.HasIndex("PermissionId", "RoleId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_RolePermissions_PermissionId_RoleId_Active")
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("RolePermissions");
                 });
