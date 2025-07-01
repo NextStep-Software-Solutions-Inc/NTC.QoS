@@ -2,6 +2,6 @@
 
 public class CreateStudyNetworkDto
 {
-    public Guid StudyId { get; set; }
-    public Guid NetworkId { get; set; }
+    public required Guid StudyId { get; set; }
+    public required Guid NetworkId { get; set; }
 }

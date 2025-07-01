@@ -6,15 +6,31 @@ using NTC.QoS.Domain.Models.DTOs.CellSector;
 
 namespace NTC.QoS.Application.Features.CellSector.Handlers.Queries;
 
-public class GetCellSectorByIdHandler(IRepository<Domain.Entities.CellSector> cellSectorRepository) : IRequestHandler<GetCellSectorByIdRequest, ApiResponse<CellSectorDto>>
+public class GetCellSectorByIdHandler(ICellSectorRepository cellSectorRepository) : IRequestHandler<GetCellSectorByIdRequest, ApiResponse<CellSectorDto>>
 {
-    private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository = cellSectorRepository;
+    private readonly ICellSectorRepository _cellSectorRepository = cellSectorRepository;
 
     public async Task<ApiResponse<CellSectorDto>> Handle(GetCellSectorByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellSectorQuery = _cellSectorRepository.Query(cs => !cs.IsDeleted && cs.Id.Equals(request.Id));
+        var cellSectorQuery = _cellSectorRepository.Query(cs => cs.Id.Equals(request.Id));
+        var cellSector = await _cellSectorRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
 
-        var cellSectorDto = cellSectorQuery.Select(cellSector => new CellSectorDto
+        if (cellSector is null)
+        {
+            return new ApiResponse<CellSectorDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullCellSector", ["Cell Sector not found."]
+                    },
+                },
+                Message = "Cell Sector not found."
+            };
+        }
+
+        var cellSectorDto = new CellSectorDto
         {
             Id = cellSector.Id,
             Cell = new ()
@@ -32,13 +48,11 @@ public class GetCellSectorByIdHandler(IRepository<Domain.Entities.CellSector> ce
             AntennaHeight = cellSector.AntennaHeight,
             Azimuth = cellSector.Azimuth,
             BeamTilt = cellSector.BeamTilt
-        });
-
-        var cellSector = await _cellSectorRepository.FirstOrDefaultAsync(cellSectorDto, cancellationToken);
+        };
 
         return new ApiResponse<CellSectorDto>
         {
-            Data = cellSector,
+            Data = cellSectorDto,
             Succeeded = true,
             Message = "Cell sector retrieved successfully."
         };

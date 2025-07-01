@@ -11,7 +11,7 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
     private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
     public async Task<ApiResponse<AreaStudyDto>> Handle(UpdateAreaStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var areaStudyQuery = _repository.Query(a => a.Id == request.Id && !a.IsDeleted);
+        var areaStudyQuery = _repository.Query(a => a.Id == request.Id);
         var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
 
         if (areaStudy is null)
@@ -29,10 +29,10 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
             };
         }
 
-        if (!String.IsNullOrEmpty(request.AreaStudy.Name)) areaStudy.Name = request.AreaStudy.Name;
-        if (!String.IsNullOrEmpty(request.AreaStudy.Description)) areaStudy.Description = request.AreaStudy.Description;
+        areaStudy.Name = request.AreaStudy.Name ?? areaStudy.Name;
+        areaStudy.Description = request.AreaStudy.Description ?? areaStudy.Description;
 
-        var existingAreaStudyQuery = _repository.Query(a => a.Name == areaStudy.Name && a.Id != request.Id && !a.IsDeleted);
+        var existingAreaStudyQuery = _repository.Query(a => a.Name == areaStudy.Name && a.Id != request.Id);
         var existingAreaStudy = await _repository.FirstOrDefaultAsync(existingAreaStudyQuery, cancellationToken);
 
         if (existingAreaStudy is not null)
@@ -61,6 +61,8 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
                 Name = areaStudy.Name,
                 Description = areaStudy.Description
             },
+            Succeeded = true,
+            Message = "Area study updated successfully."
         };
     }
 }

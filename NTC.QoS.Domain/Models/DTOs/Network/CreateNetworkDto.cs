@@ -3,8 +3,8 @@
 public class CreateNetworkDto
 {
     public required string Name { get; set; }
-    public Guid NetworkTemplateId { get; set; }
-    public Guid SystemTypeId { get; set; }
-    public Guid UplinkId { get; set; }
-    public Guid DownLinkId { get; set; }
+    public required Guid NetworkTemplateId { get; set; }
+    public required Guid SystemTypeId { get; set; }
+    public required Guid UplinkId { get; set; }
+    public required Guid DownLinkId { get; set; }
 }

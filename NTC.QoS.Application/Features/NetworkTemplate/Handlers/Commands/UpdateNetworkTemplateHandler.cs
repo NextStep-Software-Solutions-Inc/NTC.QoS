@@ -1,5 +1,4 @@
 ﻿using MediatR;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using NTC.QoS.Application.Features.NetworkTemplate.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -10,9 +9,10 @@ namespace NTC.QoS.Application.Features.NetworkTemplate.Handlers.Commands;
 public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTemplate> repository) : IRequestHandler<UpdateNetworkTemplateRequest, ApiResponse<NetworkTemplateDto>>
 {
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
+
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(UpdateNetworkTemplateRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id && !nt.IsDeleted);
+        var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id);
         var networkTemplateExist = await _repository.FirstOrDefaultAsync(networkTemplateExistQuery, cancellationToken);
         
         if (networkTemplateExist is null)
@@ -28,12 +28,13 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
                 Succeeded = false
             };
         }
-        networkTemplateExist.Name = request.NetworkTemplate.Name;
-        networkTemplateExist.Description = request.NetworkTemplate.Description;
-        networkTemplateExist.URL = request.NetworkTemplate.URL;
+        networkTemplateExist.Name = request.NetworkTemplate.Name ?? networkTemplateExist.Name;
+        networkTemplateExist.Description = request.NetworkTemplate.Description ?? networkTemplateExist.Description;
+        networkTemplateExist.URL = request.NetworkTemplate.URL ?? networkTemplateExist.URL;
 
         _repository.Update(networkTemplateExist);
-        await _repository.SaveChangesAsync();
+        await _repository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<NetworkTemplateDto>
         {
             Data = new NetworkTemplateDto

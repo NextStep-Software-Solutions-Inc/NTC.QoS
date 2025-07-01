@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.AreaStudy.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 
 namespace NTC.QoS.Application.Features.AreaStudy.Handlers.Queries;
@@ -12,7 +11,7 @@ public class GetAllAreaStudiesHandler(IRepository<Domain.Entities.AreaStudy> rep
 
     public async Task<PaginatedResponse<AreaStudyDto>> Handle(GetAllAreaStudiesRequest request, CancellationToken cancellationToken)
     {
-        var areaStudiesQuery = _repository.Query(a => !a.IsDeleted);
+        var areaStudiesQuery = _repository.Query();
 
         if (!string.IsNullOrEmpty(request.Search))
         {

@@ -8,9 +8,10 @@ namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 public class DeleteNetworkByIdHandler(INetworkRepository networkRepository) : IRequestHandler<DeleteNetworkByIdRequest, ApiResponse<bool>>
 {
     private readonly INetworkRepository _networkRepository = networkRepository;
+
     public async Task<ApiResponse<bool>> Handle(DeleteNetworkByIdRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n => n.Id == request.Id && !n.IsDeleted);
+        var networkQuery = _networkRepository.Query(n => n.Id == request.Id);
         var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
 
         if (network is null)
@@ -33,7 +34,6 @@ public class DeleteNetworkByIdHandler(INetworkRepository networkRepository) : IR
 
         return new ApiResponse<bool>
         {
-            Data = true,
             Message = "Network deleted successfully.",
             Succeeded = true
         };

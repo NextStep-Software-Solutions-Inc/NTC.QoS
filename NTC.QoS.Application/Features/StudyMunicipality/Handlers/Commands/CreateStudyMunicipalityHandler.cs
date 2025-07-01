@@ -2,11 +2,6 @@
 using NTC.QoS.Application.Features.StudyMunicipality.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Domain.Models.DTOs.Study;
 using NTC.QoS.Domain.Models.DTOs.StudyMunicipality;
 
 namespace NTC.QoS.Application.Features.StudyMunicipality.Handlers.Commands;
@@ -19,7 +14,7 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
 
     public async Task<ApiResponse<StudyMunicipalityDto>> Handle(CreateStudyMunicipalityRequest request, CancellationToken cancellationToken)
     {
-        var studyMunicipalityQuery = _repository.Query(sn => !sn.IsDeleted && sn.StudyId == request.StudyMunicipality.StudyId && sn.MunicipalityId == request.StudyMunicipality.MunicipalityId);
+        var studyMunicipalityQuery = _repository.Query(sm => sm.StudyId == request.StudyMunicipality.StudyId && sm.MunicipalityId == request.StudyMunicipality.MunicipalityId);
         var studyMunicipality = await _repository.FirstOrDefaultAsync(studyMunicipalityQuery, cancellationToken);
 
         if (studyMunicipality is not null)
@@ -37,7 +32,7 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
             };
         }
 
-        var studyQuery = _studyRepository.Query(s => s.Id == request.StudyMunicipality.StudyId && !s.IsDeleted);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.StudyMunicipality.StudyId);
         var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
 
         if (study is null)
@@ -55,7 +50,7 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
             };
         }
 
-        var municipalityQuery = _municipalityRepository.Query(s => s.Id == request.StudyMunicipality.MunicipalityId && !s.IsDeleted);
+        var municipalityQuery = _municipalityRepository.Query(s => s.Id == request.StudyMunicipality.MunicipalityId);
         var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
         if (municipality is null)
@@ -87,31 +82,31 @@ public class CreateStudyMunicipalityHandler(IStudyMunicipalityRepository reposit
             Data = new StudyMunicipalityDto
             {
                 Id = newStudyMunicipality.Id,
-                Study = new StudyDto
+                Study = new()
                 {
                     Id = newStudyMunicipality.StudyId,
                     Name = newStudyMunicipality.Study?.Name ?? string.Empty,
                     Description = newStudyMunicipality.Study?.Description,
                     StudyRadius = newStudyMunicipality.Study?.StudyRadius ?? 0,
-                    AreaStudy = new AreaStudyDto
+                    AreaStudy = new()
                     {
                         Id = newStudyMunicipality.Study?.AreaStudyId ?? Guid.Empty,
                         Name = newStudyMunicipality.Study?.AreaStudy?.Name ?? string.Empty,
                         Description = newStudyMunicipality.Study?.Description ?? string.Empty
                     }
                 },
-                Municipality = new MunicipalityDto
+                Municipality = new()
                 {
                     Id = newStudyMunicipality.MunicipalityId,
                     Name = newStudyMunicipality.Municipality?.Name ?? string.Empty,
                     IsCity = newStudyMunicipality.Municipality?.IsCity ?? false,
                     Description = newStudyMunicipality.Municipality?.Description,
-                    Province = new ProvinceDto
+                    Province = new()
                     {
                         Id = newStudyMunicipality.Municipality?.ProvinceId ?? Guid.Empty,
                         Name = newStudyMunicipality.Municipality?.Province?.Name ?? string.Empty,
                         Description = newStudyMunicipality.Municipality?.Province?.Description,
-                        Region = new RegionDto
+                        Region = new()
                         {
                             Id = newStudyMunicipality.Municipality?.Province?.RegionId ?? Guid.Empty,
                             Name = newStudyMunicipality.Municipality?.Province?.Region?.Name ?? string.Empty,
