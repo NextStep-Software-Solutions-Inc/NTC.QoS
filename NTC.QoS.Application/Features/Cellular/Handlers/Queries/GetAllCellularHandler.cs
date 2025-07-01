@@ -1,11 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cellular.Requests;
-using NTC.QoS.Domain.Aggregates;
-using NTC.QoS.Domain.Entities;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Band;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.Cellular;

@@ -1,8 +1,6 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Cellular.Requests;
-using NTC.QoS.Domain.Aggregates;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
 
