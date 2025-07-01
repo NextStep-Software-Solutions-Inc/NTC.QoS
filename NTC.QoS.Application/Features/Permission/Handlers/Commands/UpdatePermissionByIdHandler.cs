@@ -27,7 +27,7 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
             };
         }
 
-        var permissionQuery = _repository.Query(p => p.Id == request.Id && !p.IsDeleted);
+        var permissionQuery = _repository.Query(p => p.Id == request.Id);
         var permission = await _repository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
         if (permission is null)
         {
@@ -46,7 +46,7 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
         if (!string.IsNullOrEmpty(request.Permission.Name))
         {
             var existingPermissionWithNameQuery = _repository.Query(
-                p => p.Name == request.Permission.Name && p.Id != request.Id && !p.IsDeleted);
+                p => p.Name == request.Permission.Name && p.Id != request.Id);
             var existingPermissionWithName = await _repository.FirstOrDefaultAsync(
                 existingPermissionWithNameQuery, cancellationToken);
 
@@ -69,7 +69,7 @@ public class UpdatePermissionByIdHandler(IRepository<Domain.Entities.Permission>
         if (!string.IsNullOrEmpty(request.Permission.Key))
         {
             var existingPermissionWithKeyQuery = _repository.Query(
-            p => p.Key == request.Permission.Key && p.Id != request.Id && !p.IsDeleted);
+            p => p.Key == request.Permission.Key && p.Id != request.Id);
             var existingPermissionWithKey = await _repository.FirstOrDefaultAsync(existingPermissionWithKeyQuery, cancellationToken);
 
             if (existingPermissionWithKey is not null)

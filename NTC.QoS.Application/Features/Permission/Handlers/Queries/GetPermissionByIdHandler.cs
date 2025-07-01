@@ -12,7 +12,7 @@ public class GetPermissionByIdHandler(IRepository<Domain.Entities.Permission> re
 
     public async Task<ApiResponse<PermissionDto>> Handle(GetPermissionByIdRequest request, CancellationToken cancellationToken)
     {
-        var permissionQuery = _repository.Query(p => !p.IsDeleted && p.Id.Equals(request.Id));
+        var permissionQuery = _repository.Query(p => p.Id.Equals(request.Id));
         var permission = await _repository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
 
         if (permission is null)

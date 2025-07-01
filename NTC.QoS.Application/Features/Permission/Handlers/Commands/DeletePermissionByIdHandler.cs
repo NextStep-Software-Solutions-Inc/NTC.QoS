@@ -10,7 +10,7 @@ public class DeletePermissionByIdHandler(IRepository<Domain.Entities.Permission>
     private readonly IRepository<Domain.Entities.Permission> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeletePermissionByIdRequest request, CancellationToken cancellationToken)
     {
-        var permissionQuery = _repository.Query(p => p.Id == request.Id && !p.IsDeleted);
+        var permissionQuery = _repository.Query(p => p.Id == request.Id);
         var permission = await _repository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
 
         if (permission is null)
