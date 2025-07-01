@@ -61,15 +61,11 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
                     Id = c.GenerationBandId,
                     Generation = new GenerationBandDto()
                     {
-                        Id = c.GenerationBand.GenerationId,
-                        Name = c.GenerationBand.Generation.Name,
-                        Description = c.GenerationBand.Generation.Description,
+                        Id = c.GenerationBand.GenerationId
                     },
                     Band = new GenerationBandDto()
                     {
-                        Id = c.GenerationBand.BandId,
-                        Name = c.GenerationBand.Band.Name,
-                        Description = c.GenerationBand.Band.Description,
+                        Id = c.GenerationBand.BandId
                     },
                 } : null,
                 Address = c.Address

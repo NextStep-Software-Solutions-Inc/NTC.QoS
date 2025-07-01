@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.GenerationBand;
 
 namespace NTC.QoS.Application.Features.GenerationBand.Requests;
 
-public class GetGenerationBandByIdRequest : IRequest<ApiResponse<GetGenerationBandDto>>
+public class GetGenerationBandByIdRequest : IRequest<ApiResponse<GenerationBandDto>>
 {
     public GetGenerationBandByIdRequest(Guid id)
     {

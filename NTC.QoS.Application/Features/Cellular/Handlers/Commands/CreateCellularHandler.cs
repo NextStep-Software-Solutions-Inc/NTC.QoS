@@ -117,14 +117,10 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
                     Generation = new GenerationBandDto()
                     {
                         Id = newCellular.GenerationBand.GenerationId,
-                        Name = newCellular.GenerationBand.Generation.Name,
-                        Description = newCellular.GenerationBand.Generation.Description,
                     },
                     Band = new GenerationBandDto()
                     {
                         Id = newCellular.GenerationBand.BandId,
-                        Name = newCellular.GenerationBand.Band.Name,
-                        Description = newCellular.GenerationBand.Band.Description,
                     },
                 } : null,
                 Address = newCellular.Address

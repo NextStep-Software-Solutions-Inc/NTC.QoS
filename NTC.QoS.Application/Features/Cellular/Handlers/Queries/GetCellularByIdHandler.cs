@@ -70,15 +70,11 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
                     Id = cellular.GenerationBandId,
                     Generation = new GenerationBandDto()
                     {
-                        Id = cellular.GenerationBand.GenerationId,
-                        Name = cellular.GenerationBand.Generation.Name,
-                        Description = cellular.GenerationBand.Generation.Description,
+                        Id = cellular.GenerationBand.GenerationId
                     },
                     Band = new GenerationBandDto()
                     {
-                        Id = cellular.GenerationBand.BandId,
-                        Name = cellular.GenerationBand.Band.Name,
-                        Description = cellular.GenerationBand.Band.Description,
+                        Id = cellular.GenerationBand.BandId
                     },
                 } : null,
                 Address = cellular.Address
