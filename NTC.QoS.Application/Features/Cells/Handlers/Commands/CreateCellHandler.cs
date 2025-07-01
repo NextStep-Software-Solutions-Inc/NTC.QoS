@@ -18,7 +18,7 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
     {
         Point location = GeometryHelper.CreatePoint(new Coordinate(y: request.Cell.Latitude, x: request.Cell.Longitude));
 
-        var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Location.Equals(location) && c.Name == request.Cell.Name);
+        var cellQuery = _cellRepository.Query(c => c.Location.Equals(location) && c.Name == request.Cell.Name);
         var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is not null)
         {
@@ -35,7 +35,7 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
             };
         }
 
-        var serviceProviderQuery = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Id == request.Cell.ServiceProviderId);
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Cell.ServiceProviderId);
         var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is null)
         {

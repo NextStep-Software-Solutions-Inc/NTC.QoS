@@ -5,7 +5,6 @@ using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
@@ -16,7 +15,7 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
 
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        IQueryable<Cell> cellQuery = _repository.Query(c => !c.IsDeleted);
+        IQueryable<Cell> cellQuery = _repository.Query();
 
         Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 
