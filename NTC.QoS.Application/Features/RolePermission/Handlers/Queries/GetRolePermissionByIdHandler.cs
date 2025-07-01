@@ -6,17 +6,17 @@ using NTC.QoS.Domain.Models.DTOs.RolePermission;
 
 namespace NTC.QoS.Application.Features.RolePermission.Handlers.Queries;
 
-public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissionRepository) : IRequestHandler<GetRolePermissionByIdRequest, ApiResponse<GetRolePermissionDto>>
+public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissionRepository) : IRequestHandler<GetRolePermissionByIdRequest, ApiResponse<RolePermissionDto>>
 {
     private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
-    public async Task<ApiResponse<GetRolePermissionDto>> Handle(GetRolePermissionByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<RolePermissionDto>> Handle(GetRolePermissionByIdRequest request, CancellationToken cancellationToken)
     {
-        var rolePermissionQuery = _rolePermissionRepository.Query(r => !r.IsDeleted && r.Id.Equals(request.Id));
+        var rolePermissionQuery = _rolePermissionRepository.Query(r => r.Id.Equals(request.Id));
         var rolePermission = await _rolePermissionRepository.FirstOrDefaultAsync(rolePermissionQuery, cancellationToken);
 
         if (rolePermission is null)
         {
-            return new ApiResponse<GetRolePermissionDto>
+            return new ApiResponse<RolePermissionDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -29,17 +29,17 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
                 Message = $"Role permission does not exist."
             };
         }
-        var result = new GetRolePermissionDto
+        var result = new RolePermissionDto
         {
             Id = rolePermission.Id,
-            Role =  new RolePermissionDto
+            Role =  new ()
             {
                 Id = rolePermission.RoleId,
                 Name = rolePermission.Role?.Name ?? string.Empty,
                 Key = rolePermission.Role?.Key ?? string.Empty,
                 Description = rolePermission.Role?.Description
             },
-            Permission = new RolePermissionDto
+            Permission = new ()
             {
                 Id = rolePermission.PermissionId,
                 Name = rolePermission.Permission?.Name ?? string.Empty,
@@ -48,7 +48,7 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
             }
         };
 
-        return new ApiResponse<GetRolePermissionDto>
+        return new ApiResponse<RolePermissionDto>
         {
             Data = result,
             Message = "Role permission retrieved successfully.",

@@ -6,18 +6,18 @@ using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
 
 namespace NTC.QoS.Application.Features.AntennaPattern.Handlers.Commands;
 
-public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.AntennaPattern> repository) : IRequestHandler<UpdateAntennaPatternByIdRequest, ApiResponse<UpdateAntennaPatternDto>>
+public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.AntennaPattern> repository) : IRequestHandler<UpdateAntennaPatternByIdRequest, ApiResponse<AntennaPatternDto>>
 {
     private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
-    public async Task<ApiResponse<UpdateAntennaPatternDto>> Handle(UpdateAntennaPatternByIdRequest request,
+    public async Task<ApiResponse<AntennaPatternDto>> Handle(UpdateAntennaPatternByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var antennaPatternQuery = _repository.Query(ap => ap.Id == request.Id && !ap.IsDeleted);
+        var antennaPatternQuery = _repository.Query(ap => ap.Id == request.Id);
         var antennaPattern = await _repository.FirstOrDefaultAsync(antennaPatternQuery, cancellationToken);
 
         if (antennaPattern is null)
         {
-            return new ApiResponse<UpdateAntennaPatternDto>
+            return new ApiResponse<AntennaPatternDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -29,19 +29,20 @@ public class UpdateAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
             };
         }
 
-        antennaPattern.Name = request.AntennaPattern.Name;
-        antennaPattern.URL = request.AntennaPattern.URL;
+        antennaPattern.Name = request.AntennaPattern.Name ?? antennaPattern.Name;
+        antennaPattern.URL = request.AntennaPattern.URL ?? antennaPattern.URL;
 
         _repository.Update(antennaPattern);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdateAntennaPatternDto>
+        return new ApiResponse<AntennaPatternDto>
         {
             Succeeded = true,
-            Data = new UpdateAntennaPatternDto
+            Data = new AntennaPatternDto
             {
-                Name = request.AntennaPattern.Name,
-                URL = request.AntennaPattern.URL
+                Id = antennaPattern.Id,
+                Name = antennaPattern.Name,
+                URL = antennaPattern.URL
             },
             Message = "Antenna Pattern updated successfully.",
         };

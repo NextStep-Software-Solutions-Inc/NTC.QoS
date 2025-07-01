@@ -73,6 +73,8 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     }
 
     [HttpGet("overview")]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
+    VaryByQueryKeys = new[] { "startDate", "endDate", "daysInPast", "regionId", "provinceId", "municipalityId", "limit" })]
     public async Task<ActionResult<ApiResponse<DashboardOverviewDto>>> GetDashboardOverview(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,

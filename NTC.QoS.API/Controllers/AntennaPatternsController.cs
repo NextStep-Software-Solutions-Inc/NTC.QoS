@@ -38,7 +38,7 @@ public class AntennaPatternsController: ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateAntennaPattern(CreateAntennaPatternDto antennaPatternDto)
+    public async Task<ActionResult<ApiResponse<AntennaPatternDto>>> CreateAntennaPattern(CreateAntennaPatternDto antennaPatternDto)
     {
         var antennaPattern = await _mediator.Send(new CreateAntennaPatternRequest
         {
@@ -48,8 +48,8 @@ public class AntennaPatternsController: ControllerBase
         return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateAntennaPatternDto>>> UpdateAntennaPatternById(Guid id, UpdateAntennaPatternDto updateAntennaPattern)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<AntennaPatternDto>>> UpdateAntennaPatternById(Guid id, UpdateAntennaPatternDto updateAntennaPattern)
     {
         var antennaPattern = await _mediator.Send(new UpdateAntennaPatternByIdRequest
         {

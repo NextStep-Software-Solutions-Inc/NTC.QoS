@@ -9,6 +9,6 @@ public class CellularDto
     public Guid Id { get; set; }
     public CellDto? Cell { get; set; }
     public ServiceProviderDto? ServiceProvider { get; set; }
-    public GetGenerationBandDto? GenerationBand { get; set; }
+    public GenerationBandDto? GenerationBand { get; set; }
     public string? Address { get; set; }
 }

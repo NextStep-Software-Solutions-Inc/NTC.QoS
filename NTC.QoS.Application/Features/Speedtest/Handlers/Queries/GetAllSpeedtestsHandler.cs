@@ -16,7 +16,7 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
 
     public async Task<PaginatedResponse<SpeedtestDto>> Handle(GetAllSpeedtestsRequest request, CancellationToken cancellationToken)
     {
-        IQueryable<Domain.Entities.Speedtest> speedtestQuery = _speedtestRepository.Query(n => !n.IsDeleted);
+        IQueryable<Domain.Entities.Speedtest> speedtestQuery = _speedtestRepository.Query();
 
         Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 

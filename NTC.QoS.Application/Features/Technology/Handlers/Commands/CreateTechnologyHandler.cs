@@ -6,27 +6,43 @@ using NTC.QoS.Domain.Models.DTOs.Technology;
 
 namespace NTC.QoS.Application.Features.Technology.Handlers.Commands;
 
-public class CreateTechnologyHandler (IRepository<Domain.Entities.Technology> repository): IRequestHandler<CreateTechnologyRequest, ApiResponse<CreateTechnologyDto>>
+public class CreateTechnologyHandler (IRepository<Domain.Entities.Technology> repository, IGenerationRepository generationRepository): IRequestHandler<CreateTechnologyRequest, ApiResponse<TechnologyDto>>
 {
     private readonly IRepository<Domain.Entities.Technology> _repository = repository;
-
-    public async Task<ApiResponse<CreateTechnologyDto>> Handle(CreateTechnologyRequest request, CancellationToken cancellationToken)
+    IGenerationRepository _generationRepository = generationRepository;
+    public async Task<ApiResponse<TechnologyDto>> Handle(CreateTechnologyRequest request, CancellationToken cancellationToken)
     {
-        var technologyQuery = _repository.Query(t => t.Standard == request.Technology.Standard && !t.IsDeleted);
+        var technologyQuery = _repository.Query(t => t.Standard == request.Technology.Standard);
         var technology = await _repository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
 
         if (technology is not null)
         {
-            return new ApiResponse<CreateTechnologyDto>
+            return new ApiResponse<TechnologyDto>
             {
                 Message = "Technology standard already exists.",
                 Succeeded = false
             };
         }
 
+        var generationQuery = _generationRepository.Query(g => g.Id == request.Technology.GenerationId);
+        var generation = await _generationRepository.FirstOrDefaultAsync(generationQuery, cancellationToken);
+
+        if (generation is null)
+        {
+            return new ApiResponse<TechnologyDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Error",  ["Generation not found."] }
+                },
+                Message = "Generation not found.",
+            };
+        }
+
         var newTechnology = new Domain.Entities.Technology
         {
-            GenerationId = request.Technology.GenerationId,
+            GenerationId = generation.Id,
             Standard = request.Technology.Standard,
             Description = request.Technology.Description,
         };
@@ -34,13 +50,19 @@ public class CreateTechnologyHandler (IRepository<Domain.Entities.Technology> re
         _repository.Add(newTechnology);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateTechnologyDto>
+        return new ApiResponse<TechnologyDto>
         {
-            Data = new CreateTechnologyDto
+            Data = new TechnologyDto()
             {
-                GenerationId = newTechnology.GenerationId,
+                Id = newTechnology.Id,
                 Standard = newTechnology.Standard,
                 Description = newTechnology.Description,
+                Generation = new()
+                {
+                    Id = newTechnology.Generation.Id,
+                    Name = newTechnology.Generation.Name,
+                    Description = newTechnology.Generation.Description
+                }
             },
             Succeeded = true,
             Message = "Technology standard created successfully.",

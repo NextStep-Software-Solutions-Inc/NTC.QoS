@@ -16,7 +16,7 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
 
     public async Task<ApiResponse<UserDto>> Handle(UpdateUserByIdRequest request, CancellationToken cancellationToken)
     {
-        var userQuery = _userRepository.Query(r => r.Id == request.Id && !r.IsDeleted);
+        var userQuery = _userRepository.Query(r => r.Id == request.Id);
         var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
         if (user is null)
         {
@@ -35,7 +35,7 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
 
         if (request.User.RoleId.HasValue)
         {
-            var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId.Value && !r.IsDeleted);
+            var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId.Value);
             var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
             if (role is null)
             {
@@ -56,7 +56,7 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
 
         if (request.User.OrganizationId.HasValue)
         {
-            var organizationQuery = _organizationRepository.Query(r => r.Id == request.User.OrganizationId.Value && !r.IsDeleted);
+            var organizationQuery = _organizationRepository.Query(r => r.Id == request.User.OrganizationId.Value);
             var organization = await _organizationRepository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
             if (organization is null)
             {
@@ -78,7 +78,6 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         if (!string.IsNullOrEmpty(request.User.AuthUserId)) user.AuthUserId = request.User.AuthUserId;
 
         var existingUserQuery = _userRepository.Query(u => u.Id != request.Id &&
-                                !u.IsDeleted &&
                                  u.RoleId == user.RoleId &&
                                  u.OrganizationId == user.OrganizationId &&
                                  u.AuthUserId == user.AuthUserId);
@@ -104,14 +103,14 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         var result = new UserDto
         {
             Id = user.Id,
-            Role = new RoleUserDto
+            Role = new ()
             {
                 Id = user.RoleId,
                 Name = user.Role?.Name ?? string.Empty,
                 Key = user.Role?.Key ?? string.Empty,
                 Description = user.Role?.Description ?? string.Empty
             },
-            Organization = new OrganizationUserDto
+            Organization = new ()
             {
                 Id = user.OrganizationId,
                 Name = user.Organization?.Name ?? string.Empty,

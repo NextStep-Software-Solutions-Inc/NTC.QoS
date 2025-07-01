@@ -12,7 +12,7 @@ public class UpdateServiceProviderHandler(IServiceProviderRepository repository)
 
     public async Task<ApiResponse<ServiceProviderDto>> Handle(UpdateServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceProviderQuery = _repository.Query(sp => sp.Id == request.Id && !sp.IsDeleted);
+        var serviceProviderQuery = _repository.Query(sp => sp.Id == request.Id);
         var serviceProvider = await _repository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is null)
         {

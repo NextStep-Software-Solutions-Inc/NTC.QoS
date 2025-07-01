@@ -46,8 +46,8 @@ public class LinksController : ControllerBase
         return link.Succeeded ? Ok(link) : BadRequest(link);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateLinkDto>>> UpdateLinkById(Guid id, UpdateLinkDto updateLink)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<LinkDto>>> UpdateLinkById(Guid id, UpdateLinkDto updateLink)
     {
         var link = await _mediator.Send(new UpdateLinkByIdRequest
         {

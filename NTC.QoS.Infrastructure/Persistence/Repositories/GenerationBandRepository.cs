@@ -44,4 +44,18 @@ internal sealed class GenerationBandRepository(ApplicationDbContext context) : R
             .Include(gb => gb.Band)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public override IQueryable<GenerationBand> Query(Expression<Func<GenerationBand, bool>>? expression = null)
+    {
+        var query = _context.Set<GenerationBand>()
+            .Include(gb => gb.Band)
+            .Include(gb => gb.Generation)
+            .AsQueryable();
+
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+        return query;
+    }
 }

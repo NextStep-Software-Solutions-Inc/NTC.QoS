@@ -2,6 +2,6 @@
 
 public class UpdateTechnologyDto
 {
-    public string Standard { get; set; } = string.Empty;
+    public string? Standard { get; set; }
     public string? Description { get; set; }
 }

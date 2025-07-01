@@ -320,7 +320,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<RolePermission>()
             .HasIndex(rp => new { rp.PermissionId, rp.RoleId })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE")
+            .HasDatabaseName("IX_RolePermissions_PermissionId_RoleId_Active");
 
         modelBuilder.Entity<MIMO>()
             .HasMany(m => m.Sectors);

@@ -1,9 +1,11 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.GenerationBand;
+﻿using NTC.QoS.Domain.Models.DTOs.Band;
+using NTC.QoS.Domain.Models.DTOs.Generation;
+
+namespace NTC.QoS.Domain.Models.DTOs.GenerationBand;
 
 public class GenerationBandDto
 {
-    //Generation or band details
     public Guid Id { get; set; }
-    public string? Name { get; set; }
-    public string? Description { get; set; }
+    public GenerationDto? Generation { get; set; }
+    public BandDto? Band { get; set; }
 }

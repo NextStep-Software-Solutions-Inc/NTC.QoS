@@ -1,12 +1,10 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cellular.Requests;
-using NTC.QoS.Domain.Aggregates;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Band;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
+using NTC.QoS.Domain.Models.DTOs.Generation;
 using NTC.QoS.Domain.Models.DTOs.GenerationBand;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 using NTC.QoS.Domain.Models.DTOs.Service;
@@ -19,7 +17,7 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
     private readonly ICellularRepository _cellularRepository = cellularRepository;
     public async Task<PaginatedResponse<CellularDto>> Handle(GetAllCellularsRequest request, CancellationToken cancellationToken)
     {
-        var allCellularsQuery = _cellularRepository.Query(c => !c.IsDeleted);
+        var allCellularsQuery = _cellularRepository.Query();
 
         allCellularsQuery = allCellularsQuery
             .Where(c => !request.CellId.HasValue || c.CellId.Equals(request.CellId.Value))
@@ -36,7 +34,6 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
                     Name = c.Cell.Name,
                     Latitude = c.Cell.Location.Coordinate.X,
                     Longitude = c.Cell.Location.Coordinate.Y,
-                    ServiceProvider = null,
                     LAC = c.Cell.LAC,
                     CID = c.Cell.CID,
                 } : null,
@@ -56,20 +53,20 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
                         Type = c.ServiceProvider.Service.Type.ToString(),
                     },
                 } : null,
-                GenerationBand = c.GenerationBand != null && c.GenerationBand.Generation != null && c.GenerationBand.Band != null ? new GetGenerationBandDto()
+                GenerationBand = c.GenerationBand != null ? new GenerationBandDto()
                 {
                     Id = c.GenerationBandId,
-                    Generation = new GenerationBandDto()
+                    Generation = new GenerationDto()
                     {
-                        Id = c.GenerationBand.GenerationId,
+                        Id = c.GenerationBand.Generation.Id,
                         Name = c.GenerationBand.Generation.Name,
-                        Description = c.GenerationBand.Generation.Description,
+                        Description = c.GenerationBand.Generation.Description
                     },
-                    Band = new GenerationBandDto()
+                    Band = new BandDto()
                     {
-                        Id = c.GenerationBand.BandId,
+                        Id = c.GenerationBand.Band.Id,
                         Name = c.GenerationBand.Band.Name,
-                        Description = c.GenerationBand.Band.Description,
+                        Description = c.GenerationBand.Band.Description
                     },
                 } : null,
                 Address = c.Address

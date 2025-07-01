@@ -3,7 +3,6 @@ using NTC.QoS.Application.Features.ServiceProvider.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
@@ -13,7 +12,7 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     public async Task<PaginatedResponse<ServiceProviderDto>> Handle(GetAllServiceProvidersRequest request, CancellationToken cancellationToken)
     {
-        var allServiceProvidersQuery = _serviceProviderRepository.Query(s => !s.IsDeleted);
+        var allServiceProvidersQuery = _serviceProviderRepository.Query();
 
         var requestedServiceTypes = request.ServiceTypes?
             .Select(st => EnumHelper<ServiceTypeEnum>.GetValue(st))

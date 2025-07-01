@@ -6,15 +6,15 @@ using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Application.Features.Generation.Handlers.Commands;
 
-public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generation> repository) : IRequestHandler<UpdateGenerationByIdRequest, ApiResponse<UpdateGenerationDto>>
+public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generation> repository) : IRequestHandler<UpdateGenerationByIdRequest, ApiResponse<GenerationDto>>
 {
     private readonly IRepository<Domain.Aggregates.Generation> _repository = repository;
-    public async Task<ApiResponse<UpdateGenerationDto>> Handle(UpdateGenerationByIdRequest request,
+    public async Task<ApiResponse<GenerationDto>> Handle(UpdateGenerationByIdRequest request,
         CancellationToken cancellationToken)
     {
         if (request.Generation == null)
         {
-            return new ApiResponse<UpdateGenerationDto>
+            return new ApiResponse<GenerationDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -31,7 +31,7 @@ public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
 
         if (generation == null)
         {
-            return new ApiResponse<UpdateGenerationDto>
+            return new ApiResponse<GenerationDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -43,21 +43,21 @@ public class UpdateGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
             };
         }
 
-        generation.Name = request.Generation.Name;
+        generation.Name = request.Generation.Name ?? generation.Name;
         generation.Description = request.Generation.Description;
 
         _repository.Update(generation);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdateGenerationDto>
+        return new ApiResponse<GenerationDto>
         {
             Succeeded = true,
-            Data = new UpdateGenerationDto
+            Data = new GenerationDto
             {
-                Name = request.Generation.Name,
+                Name = request.Generation.Name ?? string.Empty,
                 Description = request.Generation.Description
             },
-            Message = "Request successful! Your changes have been saved.",
+            Message = "Generation updated successfully.",
         };
     }
 }

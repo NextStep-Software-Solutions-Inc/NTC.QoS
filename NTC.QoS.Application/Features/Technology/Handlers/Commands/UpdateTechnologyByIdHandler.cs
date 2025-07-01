@@ -6,19 +6,19 @@ using NTC.QoS.Domain.Models.DTOs.Technology;
 
 namespace NTC.QoS.Application.Features.Technology.Handlers.Commands;
 
-public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology> repository) : IRequestHandler<UpdateTechnologyRequest, ApiResponse<UpdateTechnologyDto>>
+public class UpdateTechnologyByIdHandler(ITechnologyRepository repository) : IRequestHandler<UpdateTechnologyRequest, ApiResponse<TechnologyDto>>
 
 {
-    private readonly IRepository<Domain.Entities.Technology> _repository = repository;
-    public async Task<ApiResponse<UpdateTechnologyDto>> Handle(UpdateTechnologyRequest request,
+    private readonly ITechnologyRepository _repository = repository;
+    public async Task<ApiResponse<TechnologyDto>> Handle(UpdateTechnologyRequest request,
             CancellationToken cancellationToken)
     {
-        var technologyQuery = _repository.Query(t => t.Id == request.Id && !t.IsDeleted);
+        var technologyQuery = _repository.Query(t => t.Id == request.Id);
         var technology = await _repository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
 
         if (string.IsNullOrEmpty(request.Technology.Standard))
         {
-            return new ApiResponse<UpdateTechnologyDto>
+            return new ApiResponse<TechnologyDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -31,7 +31,7 @@ public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
         }
         if (technology is null)
         {
-            return new ApiResponse<UpdateTechnologyDto>
+            return new ApiResponse<TechnologyDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -42,21 +42,29 @@ public class UpdateTechnologyByIdHandler(IRepository<Domain.Entities.Technology>
                 Message = "The technology you are trying to edit does not exist."
             };
         }
-        technology.Standard = request.Technology.Standard;
-        technology.Description = request.Technology.Description;
+
+        technology.Standard = request.Technology.Standard ?? technology.Standard;
+        technology.Description = request.Technology.Description ?? technology.Description;
 
          _repository.Update(technology);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdateTechnologyDto>
+        return new ApiResponse<TechnologyDto>
         {
             Succeeded = true,
-            Data = new UpdateTechnologyDto()
+            Data = new TechnologyDto()
             {
-                Standard = request.Technology.Standard,
-                Description = request.Technology.Description,
+                Id = technology.Id,
+                Standard = technology.Standard,
+                Description = technology.Description,
+                Generation = new ()
+                {
+                    Id = technology.Generation.Id,
+                    Name = technology.Generation.Name,
+                    Description = technology.Generation.Description
+                }
             },
-            Message = "Request successful! Your changes have been saved.."
+            Message = "Technology updated successfully."
         };
     }
 }

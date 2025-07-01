@@ -14,7 +14,7 @@ public class UpdateRoleByIdHandler(IRepository<Domain.Entities.Role> repository)
         CancellationToken cancellationToken)
     {
 
-        var existingRoleWithNameQuery = _repository.Query(r => r.Id == request.Id && !r.IsDeleted);
+        var existingRoleWithNameQuery = _repository.Query(r => r.Id == request.Id);
         var existingRoleWithName = await _repository.FirstOrDefaultAsync(existingRoleWithNameQuery, cancellationToken);
 
         if (existingRoleWithName is null) return new ApiResponse<RoleDto>("Role not found.");

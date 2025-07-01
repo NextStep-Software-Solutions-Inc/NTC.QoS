@@ -12,7 +12,7 @@ public class GetBandByIdHandler(IRepository<Domain.Entities.Band> repository) : 
 
     public async Task<ApiResponse<BandDto>> Handle(GetBandByIdRequest request, CancellationToken cancellationToken)
     {
-        var bandQuery = _repository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var bandQuery = _repository.Query(c => c.Id.Equals(request.Id));
         var band = await _repository.FirstOrDefaultAsync(bandQuery, cancellationToken);
 
         if (band == null)
@@ -37,10 +37,6 @@ public class GetBandByIdHandler(IRepository<Domain.Entities.Band> repository) : 
                 Id = band.Id,
                 Name = band.Name,
                 Description = band.Description,
-                CreatedDate = band.CreatedAt,
-                CreatedBy = band.CreatedBy,
-                ModifiedDate = band.UpdatedAt,
-                ModifiedBy = band.UpdatedBy,
             },
         };
     }

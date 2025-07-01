@@ -12,7 +12,7 @@ public class GetGenerationByIdHandler(IRepository<Domain.Aggregates.Generation> 
 
     public async Task<ApiResponse<GenerationDto>> Handle(GetGenerationByIdRequest request, CancellationToken cancellationToken)
     {
-        var generationQuery = _repository.Query(g => !g.IsDeleted && g.Id.Equals(request.Id));
+        var generationQuery = _repository.Query(g => g.Id.Equals(request.Id));
         var generation = await _repository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
         if (generation == null)
@@ -37,10 +37,6 @@ public class GetGenerationByIdHandler(IRepository<Domain.Aggregates.Generation> 
                 Id = generation.Id,
                 Name = generation.Name,
                 Description = generation.Description,
-                CreatedDate = generation.CreatedAt,
-                CreatedBy = generation.CreatedBy,
-                ModifiedDate = generation.UpdatedAt,
-                ModifiedBy = generation.UpdatedBy,
             },
         };
     }

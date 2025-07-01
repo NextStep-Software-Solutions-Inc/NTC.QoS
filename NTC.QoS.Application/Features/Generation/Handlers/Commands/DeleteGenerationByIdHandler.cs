@@ -11,7 +11,7 @@ public class DeleteGenerationByIdHandler(IRepository<Domain.Aggregates.Generatio
     public async Task<ApiResponse<bool>> Handle(DeleteGenerationByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var generationQuery = _repository.Query(g => g.Id == request.Id && !g.IsDeleted);
+        var generationQuery = _repository.Query(g => g.Id == request.Id);
         var generation = await _repository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
         if (generation == null)

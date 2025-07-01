@@ -12,7 +12,7 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
 
     public async Task<ApiResponse<RoleDto>> Handle(GetRoleByIdRequest request, CancellationToken cancellationToken)
     {
-        var roleQuery = _repository.Query(r => !r.IsDeleted && r.Id.Equals(request.Id));
+        var roleQuery = _repository.Query(r => r.Id.Equals(request.Id));
         var role = await _repository.FirstOrDefaultAsync(roleQuery, cancellationToken);
 
         if (role is null)  return new ApiResponse<RoleDto>("Role not found.");

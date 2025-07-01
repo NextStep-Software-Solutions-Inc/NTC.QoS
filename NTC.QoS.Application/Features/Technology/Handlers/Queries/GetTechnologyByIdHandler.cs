@@ -1,9 +1,8 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Technology.Requests;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Technology;
-using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Application.Features.Technology.Handlers.Queries;
 
@@ -13,7 +12,7 @@ public class GetTechnologyByIdHandler(ITechnologyRepository technologyRepository
 
     public async Task<ApiResponse<TechnologyDto>> Handle(GetTechnologyByIdRequest request, CancellationToken cancellationToken)
     {
-        var technologyQuery = _technologyRepository.Query(t => t.Id == request.Id && !t.IsDeleted);
+        var technologyQuery = _technologyRepository.Query(t => t.Id == request.Id);
         var technology = await _technologyRepository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
         if (technology is null)
         {
@@ -33,15 +32,12 @@ public class GetTechnologyByIdHandler(ITechnologyRepository technologyRepository
                 Id = technology.Id,
                 Standard = technology.Standard,
                 Description = technology.Description,
-                GenerationId = technology.GenerationId,
-                Generation = new GenerationDto
+                Generation = new ()
                 {
-                    Name = technology.Generation?.Name ?? "Unknown"
-                },
-                CreatedBy = technology.CreatedBy,
-                CreatedDate = technology.CreatedAt,
-                ModifiedBy = technology.UpdatedBy,
-                ModifiedDate = technology.UpdatedAt
+                    Id = technology.Generation.Id,
+                    Name = technology.Generation.Name,
+                    Description = technology.Generation.Description
+                }
             }
         };
     }

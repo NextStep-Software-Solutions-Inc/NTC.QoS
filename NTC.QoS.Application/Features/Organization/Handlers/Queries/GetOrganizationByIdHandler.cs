@@ -6,18 +6,18 @@ using NTC.QoS.Domain.Models.DTOs.Organization;
 
 namespace NTC.QoS.Application.Features.Organization.Handlers.Queries;
 
-public class GetOrganizationByIdHandler(IRepository<Domain.Entities.Organization> repository) : IRequestHandler<GetOrganizationByIdRequest, ApiResponse<GetOrganizationDto>>
+public class GetOrganizationByIdHandler(IRepository<Domain.Entities.Organization> repository) : IRequestHandler<GetOrganizationByIdRequest, ApiResponse<OrganizationDto>>
 {
     private readonly IRepository<Domain.Entities.Organization> _repository = repository;
 
-    public async Task<ApiResponse<GetOrganizationDto>> Handle(GetOrganizationByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<OrganizationDto>> Handle(GetOrganizationByIdRequest request, CancellationToken cancellationToken)
     {
-        var organizationQuery = _repository.Query(o => !o.IsDeleted && o.Id.Equals(request.Id));
+        var organizationQuery = _repository.Query(o => o.Id.Equals(request.Id));
         var organization = await _repository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
 
         if (organization is null)
         {
-            return new ApiResponse<GetOrganizationDto>
+            return new ApiResponse<OrganizationDto>
             {
                 Succeeded = false,
                 Message = "Organization not found.",
@@ -28,11 +28,11 @@ public class GetOrganizationByIdHandler(IRepository<Domain.Entities.Organization
             };
         }
 
-        return new ApiResponse<GetOrganizationDto>
+        return new ApiResponse<OrganizationDto>
         {
             Succeeded = true,
             Message = "Organization retrieved successfully.",
-            Data = new GetOrganizationDto
+            Data = new OrganizationDto
             {
                 Id = organization.Id,
                 Name = organization.Name,

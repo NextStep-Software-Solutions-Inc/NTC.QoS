@@ -14,7 +14,7 @@ public class UpdateServiceByIdHandler(IRepository<Domain.Entities.Service> repos
 
     public async Task<ApiResponse<ServiceDto>> Handle(UpdateServiceByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceQuery = _repository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var serviceQuery = _repository.Query(s => s.Id == request.Id);
         var service = await _repository.FirstOrDefaultAsync(serviceQuery, cancellationToken);
         if (service is null)
         {

@@ -12,7 +12,7 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
 
     public async Task<ApiResponse<ProviderDto>> Handle(GetProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var providerQuery = _repository.Query(p => !p.IsDeleted && p.Id.Equals(request.Id));
+        var providerQuery = _repository.Query(p => p.Id.Equals(request.Id));
         var provider = await _repository.FirstOrDefaultAsync(providerQuery, cancellationToken);
 
         if (provider is null)

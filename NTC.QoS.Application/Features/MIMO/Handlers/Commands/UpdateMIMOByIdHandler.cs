@@ -2,21 +2,22 @@
 using NTC.QoS.Application.Features.MIMO.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.MIMO;
 
 namespace NTC.QoS.Application.Features.MIMO.Handlers.Commands;
 
-public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository) : IRequestHandler<UpdateMIMOByIdRequest, ApiResponse<Domain.Entities.MIMO>>
+public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository) : IRequestHandler<UpdateMIMOByIdRequest, ApiResponse<MIMODto>>
 {
     private readonly IRepository<Domain.Entities.MIMO> _repository = repository;
-    public async Task<ApiResponse<Domain.Entities.MIMO>> Handle(UpdateMIMOByIdRequest request,
+    public async Task<ApiResponse<MIMODto>> Handle(UpdateMIMOByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var mimoQuery = _repository.Query(m => m.Id == request.Id && !m.IsDeleted);
+        var mimoQuery = _repository.Query(m => m.Id == request.Id);
         var mimo = await _repository.FirstOrDefaultAsync(mimoQuery, cancellationToken);
 
         if (string.IsNullOrEmpty(request.MIMO.Type))
         {
-            return new ApiResponse<Domain.Entities.MIMO>
+            return new ApiResponse<MIMODto>
             {
                 Data = null,
                 Succeeded = false,
@@ -27,9 +28,9 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
                 Message = request.MIMO.Type + " already exists in our system. Please try a different one."
             };
         }
-        if (mimo == null)
+        if (mimo is null)
         {
-            return new ApiResponse<Domain.Entities.MIMO>
+            return new ApiResponse<MIMODto>
             {
                 Data = null,
                 Succeeded = false,
@@ -50,11 +51,22 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
 
         _repository.Update(mimo);
         await _repository.SaveChangesAsync(cancellationToken);
-        return new ApiResponse<Domain.Entities.MIMO>
+
+        return new ApiResponse<MIMODto>
         {
             Succeeded = true,
-            Data = mimo,
-            Message = "Request successful! Your changes have been saved.."
+            Data = new MIMODto
+            {
+                Id = mimo.Id,
+                Type = mimo.Type,
+                DLCoverageGain = mimo.DLCoverageGain,
+                DLInterferenceReduction = mimo.DLInterferenceReduction,
+                DLThroughput = mimo.DLThroughput,
+                ULCoverageGain = mimo.ULCoverageGain,
+                ULInterferenceReduction = mimo.ULInterferenceReduction,
+                ULThroughput = mimo.ULThroughput
+            },
+            Message = "MIMO updated successfully."
         };
     }
 }
