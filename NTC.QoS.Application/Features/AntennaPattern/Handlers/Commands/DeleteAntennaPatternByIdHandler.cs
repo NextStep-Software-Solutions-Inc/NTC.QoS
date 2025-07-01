@@ -11,7 +11,7 @@ public class DeleteAntennaPatternByIdHandler(IRepository<Domain.Entities.Antenna
     public async Task<ApiResponse<bool>> Handle(DeleteAntennaPatternByIdRequest request,
         CancellationToken cancellationToken)
     {
-        var antennaPatternQuery = _repository.Query(ap => ap.Id == request.Id && !ap.IsDeleted);
+        var antennaPatternQuery = _repository.Query(ap => ap.Id == request.Id);
         var antennaPattern = await _repository.FirstOrDefaultAsync(antennaPatternQuery, cancellationToken);
 
         if (antennaPattern is null)

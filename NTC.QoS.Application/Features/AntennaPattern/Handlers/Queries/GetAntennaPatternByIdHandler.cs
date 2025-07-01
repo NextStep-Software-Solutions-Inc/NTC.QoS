@@ -12,7 +12,7 @@ public class GetAntennaPatternByIdHandler(IRepository<Domain.Entities.AntennaPat
 
     public async Task<ApiResponse<AntennaPatternDto>> Handle(GetAntennaPatternByIdRequest request, CancellationToken cancellationToken)
     {
-        var antennaPatternQuery = _repository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var antennaPatternQuery = _repository.Query(c => c.Id.Equals(request.Id));
         var antennaPattern = await _repository.FirstOrDefaultAsync(antennaPatternQuery, cancellationToken);
 
         if (antennaPattern is null)
