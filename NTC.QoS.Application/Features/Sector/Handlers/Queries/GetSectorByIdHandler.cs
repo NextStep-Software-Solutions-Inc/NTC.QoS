@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Sector.Requests;
-using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Sector;
@@ -24,7 +23,7 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Sector not found."]
+                        "NullSector", ["Sector not found."]
                     }
                 },
             };
@@ -33,39 +32,40 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
         var result = new SectorDto
         {
             Id = sector.Id,
-            Network = new()
+            Network = sector.Network != null ? new()
             {
-                Name = sector.Network?.Name ?? string.Empty,
-                SystemType = sector.Network?.SystemType.ToString() ?? string.Empty,
-            },
+                Id = sector.Network.Id,
+                Name = sector.Network.Name ?? string.Empty,
+                SystemType = sector.Network.SystemType.ToString() ?? string.Empty,
+            } : null,
             AntennaType = sector.AntennaType.ToString(),
-            MIMO = new()
+            MIMO = sector.MIMO != null ? new()
             {
-                Id = sector.MIMOId ?? Guid.Empty,
-                Type = sector.MIMO?.Type.ToString() ?? string.Empty
-            },
-            CellSector = new()
+                Id = sector.MIMO.Id,
+                Type = sector.MIMO.Type.ToString()
+            } : null,
+            CellSector = sector.CellSector != null ? new()
             {
-                Id = sector.CellSector?.Id ?? Guid.Empty,
-                Cell = new()
+                Id = sector.CellSector.Id,
+                Cell = sector.CellSector.Cell != null ? new()
                 {
-                    Id = sector.CellSector?.Cell?.Id ?? Guid.Empty,
-                    Name = sector.CellSector?.Cell?.Name ?? string.Empty,
-                    Latitude = sector.CellSector?.Cell?.Location.Coordinate.X ?? 0,
-                    Longitude = sector.CellSector?.Cell?.Location.Coordinate.Y ?? 0,
-                    CID = sector.CellSector?.Cell?.CID ?? string.Empty,
-                    LAC = sector.CellSector?.Cell?.LAC ?? string.Empty,
-                },
-                AntennaType = sector.CellSector?.AntennaType.ToString() ?? AntennaTypeEnum.Unknown.ToString(),
-                AntennaHeight = sector.CellSector?.AntennaHeight ?? 0,
-                Azimuth = sector.CellSector?.Azimuth ?? 0,
-                BeamTilt = sector.CellSector?.BeamTilt ?? 0,
-            },
-            RadioEquipment = sector.RadioEquipment,
+                    Id = sector.CellSector.Cell.Id,
+                    Name = sector.CellSector.Cell.Name ?? string.Empty,
+                    Latitude = sector.CellSector.Cell.Location?.Coordinate.X ?? 0,
+                    Longitude = sector.CellSector.Cell.Location?.Coordinate.Y ?? 0,
+                    CID = sector.CellSector.Cell.CID ?? string.Empty,
+                    LAC = sector.CellSector.Cell.LAC ?? string.Empty,
+                } : null,
+                AntennaType = sector.CellSector.AntennaType.ToString(),
+                AntennaHeight = sector.CellSector.AntennaHeight,
+                Azimuth = sector.CellSector.Azimuth,
+                BeamTilt = sector.CellSector.BeamTilt,
+            } : null,
+            RadioEquipment = sector.RadioEquipment ?? string.Empty,
             IsRxEqualTx = sector.IsRxEqualTx,
             TxPower = sector.TxPower,
-            TxAntennaModel = sector.TxAntennaModel,
-            TxCableType = sector.TxCableType,
+            TxAntennaModel = sector.TxAntennaModel ?? string.Empty,
+            TxCableType = sector.TxCableType ?? string.Empty,
             TxCableLength = sector.TxCableLength,
             TxCableLoss = sector.TxCableLoss,
             TxAdditionalLoss = sector.TxAdditionalLoss,
@@ -73,15 +73,15 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
             TxAntennaGain = sector.TxAntennaGain,
             TxAzimuth = sector.TxAzimuth,
             TxBeamTilt = sector.TxBeamTilt,
-            TxAntennaPattern = new()
+            TxAntennaPattern = sector.TxAntennaPattern != null ? new()
             {
-                Id = sector.TxAntennaPatternId,
-                Name = sector.TxAntennaPattern?.Name ?? string.Empty,
-                URL = sector.TxAntennaPattern?.URL ?? string.Empty,
-            },
+                Id = sector.TxAntennaPattern.Id,
+                Name = sector.TxAntennaPattern.Name ?? string.Empty,
+                URL = sector.TxAntennaPattern.URL ?? string.Empty,
+            } : null,
             TxEIRP = sector.TxEIRP,
-            RxAntennaModel = sector.RxAntennaModel,
-            RxCableType = sector.RxCableType,
+            RxAntennaModel = sector.RxAntennaModel ?? string.Empty,
+            RxCableType = sector.RxCableType ?? string.Empty,
             RxCableLength = sector.RxCableLength,
             RxCableLoss = sector.RxCableLoss,
             RxAdditionalLoss = sector.RxAdditionalLoss,
@@ -89,12 +89,12 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
             RxAntennaGain = sector.RxAntennaGain,
             RxAzimuth = sector.RxAzimuth,
             RxBeamTilt = sector.RxBeamTilt,
-            RxAntennaPattern = new()
+            RxAntennaPattern = sector.RxAntennaPattern != null ? new()
             {
-                Id = sector.RxAntennaPatternId,
-                Name = sector.RxAntennaPattern?.Name ?? string.Empty,
-                URL = sector.RxAntennaPattern?.URL ?? string.Empty,
-            },
+                Id = sector.RxAntennaPattern.Id,
+                Name = sector.RxAntennaPattern.Name ?? string.Empty,
+                URL = sector.RxAntennaPattern.URL ?? string.Empty,
+            } : null,
             RxEIRP = sector.RxEIRP
         };
 

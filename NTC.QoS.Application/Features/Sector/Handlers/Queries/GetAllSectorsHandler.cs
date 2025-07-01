@@ -37,21 +37,19 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                     Id = s.MIMO.Id,
                     Type = s.MIMO.Type.ToString()
                 } : null,
-                CellSector = s.CellSector != null
-                    ? new()
+                CellSector = new()
+                {
+                    Id = s.CellSector.Id,
+                    Cell = new()
                     {
-                        Id = s.CellSector.Id,
-                        Cell = s.CellSector.Cell != null
-                            ? new()
-                            {
-                                Id = s.CellSector.Cell.Id,
-                                Name = s.CellSector.Cell.Name,
-                                Latitude = s.CellSector.Cell.Location.Coordinate.X,
-                                Longitude = s.CellSector.Cell.Location.Coordinate.Y,
-                                CID = s.CellSector.Cell.CID,
-                                LAC = s.CellSector.Cell.LAC,
-                            } : null
-                    } : null,
+                        Id = s.CellSector.Cell.Id,
+                        Name = s.CellSector.Cell.Name,
+                        Latitude = s.CellSector.Cell.Location.Coordinate.X,
+                        Longitude = s.CellSector.Cell.Location.Coordinate.Y,
+                        CID = s.CellSector.Cell.CID,
+                        LAC = s.CellSector.Cell.LAC,
+                    }
+                },
                 RadioEquipment = s.RadioEquipment,
                 IsRxEqualTx = s.IsRxEqualTx,
                 TxPower = s.TxPower,
