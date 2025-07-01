@@ -23,13 +23,10 @@ public class CreateSectorHandler(
 
     public async Task<ApiResponse<SectorDto>> Handle(CreateSectorRequest request, CancellationToken cancellationToken)
     {
-        var antennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(request.Sector.AntennaType);
-
         var sectorQuery = _sectorRepository.Query(s => s.NetworkId == request.Sector.NetworkId
-                                                            && s.CellSectorId == request.Sector.CellSectorId
-                                                            && s.AntennaType == antennaType
-                                                            && s.MIMOId == request.Sector.MIMOId
-                                                            && s.IsRxEqualTx == request.Sector.IsRxEqualTx);
+                                                    && s.CellSectorId == request.Sector.CellSectorId
+                                                    && s.MIMOId == request.Sector.MIMOId
+                                                    && s.IsRxEqualTx == request.Sector.IsRxEqualTx);
         var sector = await _sectorRepository.FirstOrDefaultAsync(sectorQuery, cancellationToken);
         if (sector is not null)
         {
@@ -117,7 +114,7 @@ public class CreateSectorHandler(
             };
         }
 
-        var newSector = CreateSectorEntity(request.Sector, request.Sector.NetworkId, request.Sector.CellSectorId, request.Sector.TxAntennaPatternId);
+        var newSector = CreateSectorEntity(request.Sector, request.Sector.NetworkId, cellSector, request.Sector.TxAntennaPatternId);
 
         if (request.Sector.IsRxEqualTx)
         {
@@ -154,12 +151,12 @@ public class CreateSectorHandler(
         return CreateSectorApiResponse(sectorWithIncludes!);
     }
 
-    private static Domain.Entities.Sector CreateSectorEntity(CreateSectorDto dto, Guid networkId, Guid cellId, Guid txAntennaPatternId) => new()
+    private static Domain.Entities.Sector CreateSectorEntity(CreateSectorDto dto, Guid networkId, Domain.Entities.CellSector cellSector, Guid txAntennaPatternId) => new()
     {
         NetworkId = networkId,
         MIMOId = dto.MIMOId,
-        CellSectorId = cellId,
-        AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(dto.AntennaType),
+        CellSectorId = cellSector.Id,
+        AntennaType = cellSector.AntennaType,
         RadioEquipment = dto.RadioEquipment,
         IsRxEqualTx = dto.IsRxEqualTx,
         TxPower = dto.TxPower,
@@ -168,10 +165,10 @@ public class CreateSectorHandler(
         TxCableLength = dto.TxCableLength,
         TxCableLoss = dto.TxCableLoss,
         TxAdditionalLoss = dto.TxAdditionalLoss,
-        TxAntennaHeight = dto.TxAntennaHeight,
+        TxAntennaHeight =cellSector.AntennaHeight,
         TxAntennaGain = dto.TxAntennaGain,
-        TxAzimuth = dto.TxAzimuth,
-        TxBeamTilt = dto.TxBeamTilt,
+        TxAzimuth = cellSector.Azimuth,
+        TxBeamTilt = cellSector.BeamTilt,
         TxAntennaPatternId = txAntennaPatternId,
         TxEIRP = dto.TxEIRP,
     };
