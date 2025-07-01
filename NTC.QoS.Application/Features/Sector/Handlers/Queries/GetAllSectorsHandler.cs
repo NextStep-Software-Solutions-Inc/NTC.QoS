@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Sector.Requests;
-using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
@@ -38,23 +37,21 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                     Id = s.MIMO.Id,
                     Type = s.MIMO.Type.ToString()
                 } : null,
-                CellSector = new()
-                {
-                    Id = s.CellSector != null ? s.CellSector.Id : Guid.Empty,
-                    Cell = new()
+                CellSector = s.CellSector != null
+                    ? new()
                     {
-                        Id = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Id : Guid.Empty,
-                        Name = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Name : string.Empty,
-                        Latitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.Coordinate.X : 0,
-                        Longitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.Coordinate.Y : 0,
-                        CID = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CID : string.Empty,
-                        LAC = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.LAC : string.Empty,
-                    },
-                    AntennaType = s.CellSector != null ? s.CellSector.AntennaType.ToString() : AntennaTypeEnum.Unknown.ToString(),
-                    AntennaHeight = s.CellSector != null ? s.CellSector.AntennaHeight : 0,
-                    Azimuth = s.CellSector != null ? s.CellSector.Azimuth : 0,
-                    BeamTilt = s.CellSector != null ? s.CellSector.BeamTilt : 0,
-                },
+                        Id = s.CellSector.Id,
+                        Cell = s.CellSector.Cell != null
+                            ? new()
+                            {
+                                Id = s.CellSector.Cell.Id,
+                                Name = s.CellSector.Cell.Name,
+                                Latitude = s.CellSector.Cell.Location.Coordinate.X,
+                                Longitude = s.CellSector.Cell.Location.Coordinate.Y,
+                                CID = s.CellSector.Cell.CID,
+                                LAC = s.CellSector.Cell.LAC,
+                            } : null
+                    } : null,
                 RadioEquipment = s.RadioEquipment,
                 IsRxEqualTx = s.IsRxEqualTx,
                 TxPower = s.TxPower,
