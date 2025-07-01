@@ -24,7 +24,6 @@ internal sealed class NetworkRepository(ApplicationDbContext context)
         }
 
         return query;
-
     }
 }
 

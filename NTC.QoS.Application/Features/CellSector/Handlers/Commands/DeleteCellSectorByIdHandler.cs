@@ -11,7 +11,7 @@ public class DeleteCellSectorByIdHandler(IRepository<Domain.Entities.CellSector>
 
     public async Task<ApiResponse<bool>> Handle(DeleteCellSectorByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellSectorQuery = _cellSectorRepository.Query(cs => !cs.IsDeleted && cs.Id == request.Id);
+        var cellSectorQuery = _cellSectorRepository.Query(cs => cs.Id == request.Id);
         var cellSector = await _cellSectorRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
         if (cellSector is null)
         {

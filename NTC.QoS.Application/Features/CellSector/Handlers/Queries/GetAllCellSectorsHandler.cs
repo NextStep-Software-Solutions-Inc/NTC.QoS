@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.CellSector.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellSector;
 
 namespace NTC.QoS.Application.Features.CellSector.Handlers.Queries;
@@ -12,9 +11,10 @@ public class GetAllCellSectorsHandler(IRepository<Domain.Entities.CellSector> ce
 
     public async Task<PaginatedResponse<CellSectorDto>> Handle(GetAllCellSectorsRequest request, CancellationToken cancellationToken)
     {
-        var cellSectorQuery = _cellSectorRepository.Query(cs => !cs.IsDeleted);
+        var cellSectorQuery = _cellSectorRepository.Query();
 
-        cellSectorQuery = cellSectorQuery.Where(cs => request.CellIds == null || (request.CellIds.Count > 0 && request.CellIds.Contains(cs.CellId)));
+        cellSectorQuery = cellSectorQuery
+            .Where(cs => request.CellIds == null || (request.CellIds.Count > 0 && request.CellIds.Contains(cs.CellId)));
 
         var cellSectorDtoQuery = cellSectorQuery
             .Select(cs => new CellSectorDto

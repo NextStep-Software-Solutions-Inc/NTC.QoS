@@ -15,7 +15,7 @@ public class CreateCellSectorHandler(IRepository<Domain.Entities.CellSector> cel
 
     public async Task<ApiResponse<CellSectorDto>> Handle(CreateCellSectorRequest request, CancellationToken cancellationToken)
     {
-        var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Id.Equals(request.CellSector.CellId));
+        var cellQuery = _cellRepository.Query(c => c.Id.Equals(request.CellSector.CellId));
         var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is null)
         {
@@ -26,7 +26,7 @@ public class CreateCellSectorHandler(IRepository<Domain.Entities.CellSector> cel
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Cell not found."]
+                        "NullCell", ["Cell not found."]
                     }
                 },
             };
