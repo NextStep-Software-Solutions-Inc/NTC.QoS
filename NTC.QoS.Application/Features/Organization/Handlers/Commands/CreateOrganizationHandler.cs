@@ -6,18 +6,18 @@ using NTC.QoS.Domain.Models.DTOs.Organization;
 
 namespace NTC.QoS.Application.Features.Organization.Handlers.Commands;
 
-public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization> repository): IRequestHandler<CreateOrganizationRequest, ApiResponse<CreateOrganizationDto>>
+public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization> repository): IRequestHandler<CreateOrganizationRequest, ApiResponse<OrganizationDto>>
 {
     private readonly IRepository<Domain.Entities.Organization> _repository = repository;
 
-    public async Task<ApiResponse<CreateOrganizationDto>> Handle(CreateOrganizationRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<OrganizationDto>> Handle(CreateOrganizationRequest request, CancellationToken cancellationToken)
     {
-        var organizationQuery = _repository.Query(o => o.Name == request.Organization.Name && !o.IsDeleted);
+        var organizationQuery = _repository.Query(o => o.Name == request.Organization.Name);
         var organization = await _repository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
 
         if (organization is not null)
         {
-            return new ApiResponse<CreateOrganizationDto>
+            return new ApiResponse<OrganizationDto>
             {
                 Succeeded = false,
                 Message = "Organization already exists."
@@ -33,10 +33,11 @@ public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization>
         _repository.Add(newOrganization);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateOrganizationDto>
+        return new ApiResponse<OrganizationDto>
         {
-            Data = new CreateOrganizationDto
+            Data = new OrganizationDto
             {
+                Id = newOrganization.Id,
                 Name = newOrganization.Name,
                 Description = newOrganization.Description,
             },

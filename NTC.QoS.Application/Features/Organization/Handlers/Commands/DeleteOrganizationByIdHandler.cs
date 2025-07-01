@@ -10,7 +10,7 @@ public class DeleteOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
     private readonly IRepository<Domain.Entities.Organization> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteOrganizationByIdRequest request, CancellationToken cancellationToken)
     {
-        var organizationQuery = _repository.Query(o => o.Id == request.Id && !o.IsDeleted);
+        var organizationQuery = _repository.Query(o => o.Id == request.Id);
         var organization = await _repository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
 
         if (organization is null)

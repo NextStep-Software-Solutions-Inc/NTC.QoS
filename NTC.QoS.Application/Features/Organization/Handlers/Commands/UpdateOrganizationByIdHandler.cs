@@ -6,16 +6,16 @@ using NTC.QoS.Domain.Models.DTOs.Organization;
 
 namespace NTC.QoS.Application.Features.Organization.Handlers.Commands;
 
-public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organization> repository) : IRequestHandler<UpdateOrganizationByIdRequest, ApiResponse<UpdateOrganizationDto>>
+public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organization> repository) : IRequestHandler<UpdateOrganizationByIdRequest, ApiResponse<OrganizationDto>>
 {
     private readonly IRepository<Domain.Entities.Organization> _repository = repository;
 
-    public async Task<ApiResponse<UpdateOrganizationDto>> Handle(UpdateOrganizationByIdRequest request,
+    public async Task<ApiResponse<OrganizationDto>> Handle(UpdateOrganizationByIdRequest request,
         CancellationToken cancellationToken)
     {
         if (request.Organization is null)
         {
-            return new ApiResponse<UpdateOrganizationDto>
+            return new ApiResponse<OrganizationDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -27,12 +27,12 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             };
         }
 
-        var organizationQuery = _repository.Query(o => o.Id == request.Id && !o.IsDeleted);
+        var organizationQuery = _repository.Query(o => o.Id == request.Id);
         var organization = await _repository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
 
         if (organization is null)
         {
-            return new ApiResponse<UpdateOrganizationDto>
+            return new ApiResponse<OrganizationDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -44,13 +44,12 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             };
         }
 
-        var existingOrganizationWithNameQuery = _repository.Query(
-            o => o.Name == request.Organization.Name && o.Id != request.Id && !o.IsDeleted);
+        var existingOrganizationWithNameQuery = _repository.Query(o => o.Name == request.Organization.Name && o.Id != request.Id);
         var existingOrganizationWithName = await _repository.FirstOrDefaultAsync(existingOrganizationWithNameQuery, cancellationToken);
 
         if (existingOrganizationWithName is not null)
         {
-            return new ApiResponse<UpdateOrganizationDto>
+            return new ApiResponse<OrganizationDto>
             {
                 Data = null,
                 Succeeded = false,
@@ -62,19 +61,20 @@ public class UpdateOrganizationByIdHandler(IRepository<Domain.Entities.Organizat
             };
         }
 
-        organization.Name = request.Organization.Name;
-        organization.Description = request.Organization.Description;
+        organization.Name = request.Organization.Name ?? organization.Name;
+        organization.Description = request.Organization.Description ?? organization.Description;
 
         _repository.Update(organization);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdateOrganizationDto>
+        return new ApiResponse<OrganizationDto>
         {
             Succeeded = true,
-            Data = new UpdateOrganizationDto
+            Data = new OrganizationDto
             {
-                Name = request.Organization.Name,
-                Description = request.Organization.Description
+                Id = organization.Id,
+                Name = organization.Name,
+                Description = organization.Description
             },
             Message = "Organization updated successfully.",
         };
