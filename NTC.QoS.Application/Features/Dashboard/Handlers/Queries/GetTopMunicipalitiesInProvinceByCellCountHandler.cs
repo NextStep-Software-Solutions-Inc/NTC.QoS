@@ -12,7 +12,7 @@ public class GetTopMunicipalitiesInProvinceByCellCountHandler(GeospatialQuerySer
 
     public async Task<ApiResponse<List<GeoEntityCellCountDto>>> Handle(GetTopMunicipalitiesInProvinceByCellCountRequest request, CancellationToken cancellationToken)
     {
-        var result = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Province, Domain.Entities.Municipality>(request.ProvinceId, "ProvinceId", request.Limit, request.StartDate, request.EndDate);
+        var result = await _geospatialQueryService.GetTopMunicipalitiesInProvinceByCellCountAsync(request.ProvinceId, request.Limit, request.StartDate, request.EndDate);
 
         return new ApiResponse<List<GeoEntityCellCountDto>>
         {

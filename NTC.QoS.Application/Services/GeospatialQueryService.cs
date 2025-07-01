@@ -15,6 +15,157 @@ public class GeospatialQueryService
         _dbContext = dbContext;
     }
 
+    public async Task<List<GeoEntityCellCountDto>> GetTopRegionsByCellCountAsync(
+    int limit,
+    DateTime? startDate = null,
+    DateTime? endDate = null)
+    {
+        var query = _dbContext.Regions
+            .Select(region => new
+            {
+                region.Id,
+                region.Name,
+                region.Code,
+                region.Boundaries,
+                EntityType = "Region"
+            });
+
+        var results = await query
+            .Select(r => new GeoEntityCellCountDto
+            {
+                Id = r.Id,
+                Name = r.Name,
+                Code = r.Code,
+                EntityType = r.EntityType,
+                CellCount = _dbContext.Cells.Count(c =>
+                    c.Location != null &&
+                    r.Boundaries != null &&
+                    c.Location.IsWithinDistance(r.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
+                )
+            })
+            .OrderByDescending(dto => dto.CellCount)
+            .Take(limit > 0 ? limit : int.MaxValue)
+            .ToListAsync();
+
+        return results;
+    }
+
+    public async Task<List<GeoEntityCellCountDto>> GetTopProvincesInRegionByCellCountAsync(
+    Guid? regionId, int limit, DateTime? startDate = null, DateTime? endDate = null)
+    {
+        var query = _dbContext.Provinces.AsQueryable();
+        if (regionId.HasValue)
+            query = query.Where(p => p.RegionId == regionId.Value);
+
+        var projected = query.Select(province => new
+        {
+            province.Id,
+            province.Name,
+            province.Code,
+            province.Boundaries,
+            EntityType = "Province"
+        });
+
+        var results = await projected
+            .Select(dto => new GeoEntityCellCountDto
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                Code = dto.Code,
+                EntityType = dto.EntityType,
+                CellCount = _dbContext.Cells.Count(c =>
+                    c.Location != null &&
+                    dto.Boundaries != null &&
+                    c.Location.IsWithinDistance(dto.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
+                )
+            })
+            .OrderByDescending(x => x.CellCount)
+            .Take(limit > 0 ? limit : int.MaxValue)
+            .ToListAsync();
+
+        return results;
+    }
+
+    public async Task<List<GeoEntityCellCountDto>> GetTopMunicipalitiesInProvinceByCellCountAsync(
+        Guid? provinceId, int limit, DateTime? startDate = null, DateTime? endDate = null)
+    {
+        var query = _dbContext.Municipalities.AsQueryable();
+        if (provinceId.HasValue)
+            query = query.Where(m => m.ProvinceId == provinceId.Value);
+
+        var projected = query.Select(municipality => new
+        {
+            municipality.Id,
+            municipality.Name,
+            municipality.Code,
+            municipality.Boundaries,
+            EntityType = "Municipality"
+        });
+
+        var results = await projected
+            .Select(dto => new GeoEntityCellCountDto
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                Code = dto.Code,
+                EntityType = dto.EntityType,
+                CellCount = _dbContext.Cells.Count(c =>
+                    c.Location != null &&
+                    dto.Boundaries != null &&
+                    c.Location.IsWithinDistance(dto.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
+                )
+            })
+            .OrderByDescending(x => x.CellCount)
+            .Take(limit > 0 ? limit : int.MaxValue)
+            .ToListAsync();
+
+        return results;
+    }
+
+    public async Task<List<GeoEntityCellCountDto>> GetTopBarangaysInMunicipalityByCellCountAsync(
+        Guid? municipalityId, int limit, DateTime? startDate = null, DateTime? endDate = null)
+    {
+        var query = _dbContext.Barangays.AsQueryable();
+        if (municipalityId.HasValue)
+            query = query.Where(b => b.MunicipalityId == municipalityId.Value);
+
+        var projected = query.Select(barangay => new
+        {
+            barangay.Id,
+            barangay.Name,
+            barangay.Code,
+            barangay.Boundaries,
+            EntityType = "Barangay"
+        });
+
+        var results = await projected
+            .Select(dto => new GeoEntityCellCountDto
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                Code = dto.Code,
+                EntityType = dto.EntityType,
+                CellCount = _dbContext.Cells.Count(c =>
+                    c.Location != null &&
+                    dto.Boundaries != null &&
+                    c.Location.IsWithinDistance(dto.Boundaries, 0) &&
+                    (startDate == null || c.CreatedAt >= startDate) &&
+                    (endDate == null || c.CreatedAt <= endDate)
+                )
+            })
+            .OrderByDescending(x => x.CellCount)
+            .Take(limit > 0 ? limit : int.MaxValue)
+            .ToListAsync();
+
+        return results;
+    }
+
     public async Task<List<GeoEntityCellCountDto>> GetTopGeoEntitiesByCellCountAsync<TEntity>(
         int limit,
         DateTime? startDate = null,

@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Dashboard.Requests;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Interfaces;
@@ -22,11 +23,17 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
 
     public async Task<ApiResponse<DashboardOverviewDto>> Handle(GetDashboardOverviewRequest request, CancellationToken cancellationToken)
     {
-        var cells = _cellRepository.Query(c => !c.IsDeleted).ToList();
+        var cellsQuery = _cellRepository.Query();
 
-        var verifiedCells = cells.Count(c => c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
-        var unverifiedCells = cells.Count(c => !c.IsVerified && c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
-        var totalCells = cells.Count(c => c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate);
+        if (request.StartDate.HasValue)
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt >= request.StartDate.Value);
+
+        if (request.EndDate.HasValue)
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt <= request.EndDate.Value);
+
+        var verifiedCells = await cellsQuery.CountAsync(c => c.IsVerified, cancellationToken);
+        var unverifiedCells = await cellsQuery.CountAsync(c => !c.IsVerified, cancellationToken);
+        var totalCells = await cellsQuery.CountAsync(cancellationToken);
 
         var cellData = new CellsiteCountsDto
         {
@@ -35,16 +42,23 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
             TotalCells = totalCells
         };
 
-        var nAPsCount = _napRepository.Query(c => !c.IsDeleted &&
-            c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
+        var nAPsQuery = _napRepository.Query();
 
-        var topRegionsByCellCount = await _geospatialQueryService.GetTopGeoEntitiesByCellCountAsync<Domain.Entities.Region>(request.Limit, request.StartDate, request.EndDate);
+        if (request.StartDate.HasValue)
+            nAPsQuery = nAPsQuery.Where(nap => nap.CreatedAt >= request.StartDate.Value);
 
-        var topProvincesInRegionByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Region, Domain.Entities.Province>(request.RegionId, "RegionId", request.Limit, request.StartDate, request.EndDate);
+        if (request.EndDate.HasValue)
+            nAPsQuery = nAPsQuery.Where(nap => nap.CreatedAt <= request.EndDate.Value);
 
-        var topMunicipalitiesInProvinceByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Province, Domain.Entities.Municipality>(request.ProvinceId, "ProvinceId", request.Limit, request.StartDate, request.EndDate);
+        var nAPsCount = await nAPsQuery.CountAsync(cancellationToken);
 
-        var topBarangaysInMunicipalityByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Municipality, Domain.Entities.Barangay>(request.MunicipalityId, "MunicipalityId", request.Limit, request.StartDate, request.EndDate);
+        var topRegionsByCellCount = await _geospatialQueryService.GetTopRegionsByCellCountAsync(request.Limit, request.StartDate, request.EndDate);
+
+        var topProvincesInRegionByCellCount = await _geospatialQueryService.GetTopProvincesInRegionByCellCountAsync(request.RegionId, request.Limit, request.StartDate, request.EndDate);
+
+        var topMunicipalitiesInProvinceByCellCount = await _geospatialQueryService.GetTopMunicipalitiesInProvinceByCellCountAsync(request.ProvinceId, request.Limit, request.StartDate, request.EndDate);
+
+        var topBarangaysInMunicipalityByCellCount = await _geospatialQueryService.GetTopBarangaysInMunicipalityByCellCountAsync(request.MunicipalityId, request.Limit, request.StartDate, request.EndDate);
 
         return await Task.FromResult(new ApiResponse<DashboardOverviewDto>
         {
