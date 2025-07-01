@@ -33,7 +33,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Sector not found."]
+                        "NullSector", ["Sector not found."]
                     }
                 },
             };
@@ -51,7 +51,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                     Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Invalid Id", ["Network not found."]
+                        "NullNetwork", ["Network not found."]
                     }
                 },
                 };
@@ -72,7 +72,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                     Errors = new Dictionary<string, string[]>
                     {
                         {
-                            "Invalid Id", ["MIMO not found."]
+                            "NullMIMO", ["MIMO not found."]
                         }
                     },
                 };
@@ -92,7 +92,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                     Errors = new Dictionary<string, string[]>
                     {
                         {
-                            "Invalid Id", ["Cell not found."]
+                            "NullCell", ["Cell not found."]
                         }
                     },
                 };
@@ -124,7 +124,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                     Errors = new Dictionary<string, string[]>
                     {
                         {
-                            "Invalid Id", ["Tx antenna pattern not found."]
+                            "NullTxAntennaPattern", ["Tx antenna pattern not found."]
                         }
                     },
                 };
@@ -170,7 +170,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
                         Errors = new Dictionary<string, string[]>
                         {
                             {
-                                "Invalid Id", ["Rx antenna pattern not found."]
+                                "NullRxAntennaPattern", ["Rx antenna pattern not found."]
                             }
                         },
                     };
