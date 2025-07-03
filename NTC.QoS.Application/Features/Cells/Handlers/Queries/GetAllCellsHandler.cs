@@ -1,7 +1,8 @@
-﻿using MediatR;
+﻿using LinqKit;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -9,19 +10,20 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
-public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
+public class GetAllCellsHandler(ICellRepository repository, IBarangayRepository barangayRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
     private readonly ICellRepository _repository = repository;
+    private readonly IBarangayRepository _barangayRepository = barangayRepository;
 
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        IQueryable<Cell>cellQuery = _repository.Query();
+        var cellQuery = _repository.Query();
 
         Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 
         if (!string.IsNullOrEmpty(request.Search))
         {
-            var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Cell>(
+            var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Domain.Aggregates.Cell>(
                request.Search,
                c => c.Name,
                c => c.Description,
@@ -38,6 +40,28 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
             .Where(c => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId))))
             .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance))
             .OrderBy(n => n.Location.Distance(locationPoint));
+
+        if (request.BarangayIds is { Count: > 0 })
+        {
+            // Fetch barangay boundaries once
+            var polygons = await _barangayRepository.Query()
+                .Where(b => request.BarangayIds.Contains(b.Id))
+                .Select(b => b.Boundaries)
+                .ToListAsync(cancellationToken);
+
+            if (polygons.Count > 0)
+            {
+                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
+
+                foreach (var polygon in polygons)
+                {
+                    var localPolygon = polygon;
+                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
+                }
+
+                cellQuery = cellQuery.Where(predicate);
+            }
+        }
 
         var cellDtoQuery = cellQuery
             .Select(cell => new CellDto

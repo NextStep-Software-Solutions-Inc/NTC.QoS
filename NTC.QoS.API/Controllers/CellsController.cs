@@ -33,6 +33,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
+        [FromQuery] List<Guid>? barangayIds = null,
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? providerIds = null,
         [FromQuery] List<Guid>? serviceIds = null,
@@ -40,7 +41,13 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         double latitude = 0,
         double distance = 180000000)
     {
-        var cacheKey = $"{CellsCachePrefix}{pageNumber}_{pageSize}_{search}_{status}_{string.Join(",", serviceProviderIds ?? [])}_{string.Join(",", providerIds ?? [])}_{string.Join(",", serviceIds ?? [])}_{longitude}_{latitude}_{distance}";
+        var cacheKey = $"{CellsCachePrefix}{pageNumber}_{pageSize}_{search}_{status}_" +
+               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", serviceProviderIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", providerIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", serviceIds ?? new List<Guid>())}_" +
+               $"{longitude}_{latitude}_{distance}";
+
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
             return Ok(cachedCells);
 
@@ -52,7 +59,8 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
             Coordinate = new(x: longitude, y: latitude),
-            Distance = distance
+            Distance = distance,
+            BarangayIds = barangayIds
         };
         var cells = await mediator.Send(request);
         if (cells.Succeeded && cells.Data != null)
