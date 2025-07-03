@@ -34,6 +34,9 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
         [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? providerIds = null,
         [FromQuery] List<Guid>? serviceIds = null,
@@ -43,6 +46,9 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     {
         var cacheKey = $"{CellsCachePrefix}{pageNumber}_{pageSize}_{search}_{status}_" +
                $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
                $"{string.Join(",", serviceProviderIds ?? new List<Guid>())}_" +
                $"{string.Join(",", providerIds ?? new List<Guid>())}_" +
                $"{string.Join(",", serviceIds ?? new List<Guid>())}_" +

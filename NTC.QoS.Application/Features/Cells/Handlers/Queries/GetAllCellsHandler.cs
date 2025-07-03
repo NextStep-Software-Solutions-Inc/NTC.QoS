@@ -10,10 +10,17 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
-public class GetAllCellsHandler(ICellRepository repository, IBarangayRepository barangayRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
+public class GetAllCellsHandler(ICellRepository repository,
+                                IBarangayRepository barangayRepository,
+                                IMunicipalityRepository municipalityRepository,
+                                IProvinceRepository provinceRepository,
+                                IRegionRepository regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
     private readonly ICellRepository _repository = repository;
     private readonly IBarangayRepository _barangayRepository = barangayRepository;
+    private readonly IMunicipalityRepository _municipalityRepository = municipalityRepository;
+    private readonly IProvinceRepository _provinceRepository = provinceRepository;
+    private readonly IRegionRepository _regionRepository = regionRepository;
 
     public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
@@ -43,10 +50,72 @@ public class GetAllCellsHandler(ICellRepository repository, IBarangayRepository 
 
         if (request.BarangayIds is { Count: > 0 })
         {
-            // Fetch barangay boundaries once
             var polygons = await _barangayRepository.Query()
                 .Where(b => request.BarangayIds.Contains(b.Id))
                 .Select(b => b.Boundaries)
+                .ToListAsync(cancellationToken);
+
+            if (polygons.Count > 0)
+            {
+                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
+
+                foreach (var polygon in polygons)
+                {
+                    var localPolygon = polygon;
+                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
+                }
+
+                cellQuery = cellQuery.Where(predicate);
+            }
+        }
+
+        if (request.MunicipalityIds is { Count: > 0 })
+        {
+            var polygons = await _municipalityRepository.Query()
+                .Where(m => request.MunicipalityIds.Contains(m.Id))
+                .Select(m => m.Boundaries)
+                .ToListAsync(cancellationToken);
+
+            if (polygons.Count > 0)
+            {
+                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
+
+                foreach (var polygon in polygons)
+                {
+                    var localPolygon = polygon;
+                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
+                }
+
+                cellQuery = cellQuery.Where(predicate);
+            }
+        }
+
+        if (request.ProvinceIds is { Count: > 0 })
+        {
+            var polygons = await _provinceRepository.Query()
+                .Where(p => request.ProvinceIds.Contains(p.Id))
+                .Select(p => p.Boundaries)
+                .ToListAsync(cancellationToken);
+
+            if (polygons.Count > 0)
+            {
+                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
+
+                foreach (var polygon in polygons)
+                {
+                    var localPolygon = polygon;
+                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
+                }
+
+                cellQuery = cellQuery.Where(predicate);
+            }
+        }
+
+        if (request.RegionIds is { Count: > 0 })
+        {
+            var polygons = await _regionRepository.Query()
+                .Where(r => request.RegionIds.Contains(r.Id))
+                .Select(r => r.Boundaries)
                 .ToListAsync(cancellationToken);
 
             if (polygons.Count > 0)
