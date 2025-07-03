@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Dashboard.Requests;
-using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
@@ -12,9 +11,9 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
 {
     private readonly ICellRepository _cellRepository;
     private readonly INAPRepository _napRepository;
-    private readonly GeospatialQueryService _geospatialQueryService;
+    private readonly IGeospatialQueryService _geospatialQueryService;
 
-    public GetDashboardOverviewHandler(ICellRepository cellRepository, INAPRepository napRepository, GeospatialQueryService geospatialQueryService)
+    public GetDashboardOverviewHandler(ICellRepository cellRepository, INAPRepository napRepository, IGeospatialQueryService geospatialQueryService)
     {
         _cellRepository = cellRepository;
         _napRepository = napRepository;

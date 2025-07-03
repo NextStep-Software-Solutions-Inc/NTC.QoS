@@ -3,16 +3,22 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 using NTC.QoS.Infrastructure.Persistence;
 using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Interfaces; // Assuming this is where IGeospatialQueryService is
 
-namespace NTC.QoS.Application.Services;
+namespace NTC.QoS.Infrastructure.Services;
 
-public class GeospatialQueryService
+public class GeospatialQueryService : IGeospatialQueryService
 {
+    // REMOVE THIS LINE:
+    // private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
+
+    // ADD THIS LINE: Inject ApplicationDbContext directly
     private readonly ApplicationDbContext _dbContext;
 
-    public GeospatialQueryService(ApplicationDbContext dbContext)
+    // Modify the constructor to inject ApplicationDbContext
+    public GeospatialQueryService(ApplicationDbContext dbContext) // Changed parameter
     {
-        _dbContext = dbContext;
+        _dbContext = dbContext; // Assign the injected DbContext
     }
 
     public async Task<List<GeoEntityCellCountDto>> GetTopRegionsByCellCountAsync(
@@ -20,7 +26,8 @@ public class GeospatialQueryService
     DateTime? startDate = null,
     DateTime? endDate = null)
     {
-        var query = _dbContext.Regions
+        // Use the injected _dbContext directly, no need for CreateDbContextAsync()
+        var query = _dbContext.Regions // Changed dbContext to _dbContext
             .Select(region => new
             {
                 region.Id,
@@ -37,7 +44,7 @@ public class GeospatialQueryService
                 Name = r.Name,
                 Code = r.Code,
                 EntityType = r.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
+                CellCount = _dbContext.Cells.Count(c => // Changed dbContext to _dbContext
                     c.Location != null &&
                     r.Boundaries != null &&
                     c.Location.IsWithinDistance(r.Boundaries, 0) &&
@@ -55,7 +62,8 @@ public class GeospatialQueryService
     public async Task<List<GeoEntityCellCountDto>> GetTopProvincesInRegionByCellCountAsync(
     Guid? regionId, int limit, DateTime? startDate = null, DateTime? endDate = null)
     {
-        var query = _dbContext.Provinces.AsQueryable();
+        // Use the injected _dbContext directly
+        var query = _dbContext.Provinces.AsQueryable(); // Changed dbContext to _dbContext
         if (regionId.HasValue)
             query = query.Where(p => p.RegionId == regionId.Value);
 
@@ -75,7 +83,7 @@ public class GeospatialQueryService
                 Name = dto.Name,
                 Code = dto.Code,
                 EntityType = dto.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
+                CellCount = _dbContext.Cells.Count(c => // Changed dbContext to _dbContext
                     c.Location != null &&
                     dto.Boundaries != null &&
                     c.Location.IsWithinDistance(dto.Boundaries, 0) &&
@@ -93,7 +101,8 @@ public class GeospatialQueryService
     public async Task<List<GeoEntityCellCountDto>> GetTopMunicipalitiesInProvinceByCellCountAsync(
         Guid? provinceId, int limit, DateTime? startDate = null, DateTime? endDate = null)
     {
-        var query = _dbContext.Municipalities.AsQueryable();
+        // Use the injected _dbContext directly
+        var query = _dbContext.Municipalities.AsQueryable(); // Changed dbContext to _dbContext
         if (provinceId.HasValue)
             query = query.Where(m => m.ProvinceId == provinceId.Value);
 
@@ -113,7 +122,7 @@ public class GeospatialQueryService
                 Name = dto.Name,
                 Code = dto.Code,
                 EntityType = dto.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
+                CellCount = _dbContext.Cells.Count(c => // Changed dbContext to _dbContext
                     c.Location != null &&
                     dto.Boundaries != null &&
                     c.Location.IsWithinDistance(dto.Boundaries, 0) &&
@@ -131,7 +140,8 @@ public class GeospatialQueryService
     public async Task<List<GeoEntityCellCountDto>> GetTopBarangaysInMunicipalityByCellCountAsync(
         Guid? municipalityId, int limit, DateTime? startDate = null, DateTime? endDate = null)
     {
-        var query = _dbContext.Barangays.AsQueryable();
+        // Use the injected _dbContext directly
+        var query = _dbContext.Barangays.AsQueryable(); // Changed dbContext to _dbContext
         if (municipalityId.HasValue)
             query = query.Where(b => b.MunicipalityId == municipalityId.Value);
 
@@ -151,7 +161,7 @@ public class GeospatialQueryService
                 Name = dto.Name,
                 Code = dto.Code,
                 EntityType = dto.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
+                CellCount = _dbContext.Cells.Count(c => // Changed dbContext to _dbContext
                     c.Location != null &&
                     dto.Boundaries != null &&
                     c.Location.IsWithinDistance(dto.Boundaries, 0) &&
@@ -172,7 +182,8 @@ public class GeospatialQueryService
         DateTime? endDate = null)
         where TEntity : BaseEntity, new()
     {
-        var query = _dbContext.Set<TEntity>()
+        // Use the injected _dbContext directly
+        var query = _dbContext.Set<TEntity>() // Changed dbContext to _dbContext
             .Select(geoEntity => new
             {
                 Id = geoEntity.Id,
@@ -189,7 +200,7 @@ public class GeospatialQueryService
                 Name = geo.Name,
                 Code = geo.Code,
                 EntityType = geo.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
+                CellCount = _dbContext.Cells.Count(c => // Changed dbContext to _dbContext
                     EF.Property<Point>(c, "Location") != null &&
                     geo.Boundaries != null &&
                     EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0) &&
@@ -213,15 +224,13 @@ public class GeospatialQueryService
         where TParent : BaseEntity
         where TChild : BaseEntity
     {
-        IQueryable<TChild> query = _dbContext.Set<TChild>();
+        // Use the injected _dbContext directly
+        IQueryable<TChild> query = _dbContext.Set<TChild>(); // Changed dbContext to _dbContext
 
         // If parentId is null, act like GetTopGeoEntitiesByCellCountAsync (no parent filtering)
         // Otherwise, filter by parentId
         if (parentId.HasValue)
         {
-            // Optional: You might still want to check if the parent actually exists,
-            // but for acting like topGeoEntities when null, this check isn't strictly necessary for the 'else' branch.
-            // If parentId is provided but doesn't exist, the Where clause will simply yield no results.
             query = query.Where(child =>
                 EF.Property<Guid>(child, parentIdPropertyName) == parentId.Value
             );
@@ -244,7 +253,7 @@ public class GeospatialQueryService
                 Name = dto.Name,
                 Code = dto.Code,
                 EntityType = dto.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
+                CellCount = _dbContext.Cells.Count(c => // Changed dbContext to _dbContext
                     EF.Property<Point>(c, "Location") != null &&
                     dto.Boundaries != null &&
                     EF.Property<Point>(c, "Location").IsWithinDistance(dto.Boundaries, 0) &&

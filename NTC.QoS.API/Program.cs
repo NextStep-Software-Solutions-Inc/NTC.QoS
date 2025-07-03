@@ -1,81 +1,85 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Hangfire;
 using Microsoft.AspNetCore.ResponseCompression;
 using NTC.QoS.API.Extensions;
 using NTC.QoS.Application;
-using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
+using NTC.QoS.Infrastructure.Persistence;
+using NTC.QoS.Infrastructure.Seed;
 
-namespace NTC.QoS.API;
+var builder = WebApplication.CreateBuilder(args);
 
-public class Program
+// Add services to the container
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddCors(options =>
 {
-    public static void Main(string[] args)
+    options.AddDefaultPolicy(corsBuilder =>
     {
-        var builder = WebApplication.CreateBuilder(args);
+        corsBuilder.AllowAnyOrigin()
+                   .AllowAnyMethod()
+                   .AllowAnyHeader();
+    });
+});
 
-        // Add services to the container.
-        builder.Services.AddHttpContextAccessor();
-        builder.Services.AddCors(options =>
-        {
-            options.AddDefaultPolicy(builder =>
-            {
-                builder.AllowAnyOrigin()
-                       .AllowAnyMethod()
-                       .AllowAnyHeader();
-            });
-        });
-        builder.Services.AddControllers()
-            .AddJsonOptions(options => 
-            {
-                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; // Set to camelCase
-                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            });
-        builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen(option =>
-        {
-            option.OperationFilter<SwaggerOperationIdFilter>();
-        });
-        builder.Services.AddApplication(builder.Configuration); // Call the Application registration
-        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
-        builder.Services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-            options.Providers.Add<GzipCompressionProvider>();
-            options.Providers.Add<BrotliCompressionProvider>();
-        });
-        builder.Services.AddMemoryCache();
-        builder.Services.AddResponseCaching();
-        builder.Services.AddScoped<GeospatialQueryService>();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
-        var app = builder.Build();
-        
-        // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseCors();
-            app.UseSwagger();
-            app.UseSwaggerUI(s =>
-            {
-                s.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
-                s.ConfigObject.AdditionalItems.Add("persistAuthorization", "true");
-                s.ConfigObject.DeepLinking = true;
-                s.ConfigObject.DisplayRequestDuration = true;
-            });
-        }
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(option =>
+{
+    option.OperationFilter<SwaggerOperationIdFilter>();
+});
 
-        app.UseHttpsRedirection();
-        app.UseResponseCompression();
-        app.UseResponseCaching();
+builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration);
 
-        app.UseAuthorization();
-        app.UseHangfireDashboard();
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<GzipCompressionProvider>();
+    options.Providers.Add<BrotliCompressionProvider>();
+});
 
-        app.ConfigureExceptionHandler(app.Logger); //Important line.
-        app.MapControllers();
+builder.Services.AddMemoryCache();
+builder.Services.AddResponseCaching();
 
-        app.Run();
-    }
+var app = builder.Build();
+
+// ✅ Async seeding logic
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await LocationSeeder.SeedAllAsync(dbContext, logger);
 }
 
+// Configure middleware
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(s =>
+    {
+        s.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+        s.ConfigObject.AdditionalItems.Add("persistAuthorization", "true");
+        s.ConfigObject.DeepLinking = true;
+        s.ConfigObject.DisplayRequestDuration = true;
+    });
+}
+
+app.UseHttpsRedirection();
+app.UseResponseCompression();
+app.UseResponseCaching();
+
+app.UseCors();
+app.UseAuthorization();
+app.UseHangfireDashboard();
+app.ConfigureExceptionHandler(app.Logger);
+
+app.MapControllers();
+
+await app.RunAsync();
