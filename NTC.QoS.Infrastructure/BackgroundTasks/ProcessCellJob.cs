@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Attributes;
@@ -9,6 +8,8 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using NTC.QoS.Infrastructure.Persistence.Repositories;
+using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -21,6 +22,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IGenerationBandRepository _generationBandRepository;
     private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
+    private readonly IBarangayRepository _barangayRepository;
 
     public ProcessCellJob(
         ILogger<ProcessCellJob> logger,
@@ -29,7 +31,8 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Entities.Cellular> cellularRepository,
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IGenerationBandRepository generationBandRepository,
-        IRepository<Domain.Entities.CellSector> cellSectorRepository
+        IRepository<Domain.Entities.CellSector> cellSectorRepository,
+        IBarangayRepository barangayRepository
         )
     {
         _logger = logger;
@@ -39,6 +42,7 @@ public class ProcessCellJob : IProcessCellJob
         _serviceProviderRepository = serviceProviderRepository;
         _generationBandRepository = generationBandRepository;
         _cellSectorRepository = cellSectorRepository;
+        _barangayRepository = barangayRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -176,7 +180,20 @@ public class ProcessCellJob : IProcessCellJob
             }
 
             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
-            string address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
+            var barangay = await _barangayRepository.FindByLocationAsync(record.Latitude, record.Longitude);
+
+            string address;
+            if (barangay != null)
+            {
+                // Compose address from resolved Barangay and related entities
+                address = $"{record.Zone}, {barangay.Name}, {barangay.Municipality.Name}, {barangay.Municipality.Province.Name}, {barangay.Municipality.Province.Region.Name}";
+            }
+            else
+            {
+                // Fallback if no Barangay found for location
+                address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
+            }
+
 
             Guid cellId = Guid.Empty;
             // The check for serviceProviderId != Guid.Empty is already handled by the `TryGetValue` above.
@@ -189,7 +206,7 @@ public class ProcessCellJob : IProcessCellJob
                 // Cell not in cache, meaning it's a new cell.
                 var cell = new Domain.Aggregates.Cell
                 {
-                    Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
+                    Name = $"Cell-{record.Provider}-{address}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
                     Group = record.Provider,
                     Address = address,
                     ServiceProviderId = serviceProviderId,
