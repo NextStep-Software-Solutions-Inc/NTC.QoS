@@ -1,8 +1,9 @@
 ﻿using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Domain.Entities;
 
-public class Region : BaseEntity
+public class Region : BaseEntity, IGeoBoundaryEntity
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }

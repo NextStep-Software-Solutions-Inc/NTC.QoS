@@ -1,10 +1,10 @@
-﻿
+﻿using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Entities;
-using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Domain.Aggregates;
 
-public class NAP : BaseEntity
+public class NAP : BaseEntity, IGeoLocatedEntity
 {
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider ServiceProvider { get; set; } = null!;

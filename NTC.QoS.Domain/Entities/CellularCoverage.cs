@@ -1,9 +1,10 @@
 ﻿using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Domain.Entities;
 
-public class CellularCoverage : BaseEntity
+public class CellularCoverage : BaseEntity, IGeoLocatedEntity
 {
     public Guid NetworkId { get; set; }
     public virtual Network Network { get; set; } = null!;

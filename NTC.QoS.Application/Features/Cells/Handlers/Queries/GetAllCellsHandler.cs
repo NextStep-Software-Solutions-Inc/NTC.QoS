@@ -1,7 +1,4 @@
-﻿using LinqKit;
-using MediatR;
-using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
+﻿using MediatR;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -10,25 +7,25 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
-public class GetAllCellsHandler(ICellRepository repository,
-                                IBarangayRepository barangayRepository,
-                                IMunicipalityRepository municipalityRepository,
-                                IProvinceRepository provinceRepository,
-                                IRegionRepository regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
+public class GetAllCellsHandler(ICellRepository cellRepository,
+    IGenericGeoRepository<Domain.Entities.Barangay> barangayRepository,
+    IGenericGeoRepository<Domain.Entities.Municipality> municipalityRepository,
+    IGenericGeoRepository<Domain.Entities.Province> provinceRepository,
+    IGenericGeoRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
-    private readonly ICellRepository _repository = repository;
-    private readonly IBarangayRepository _barangayRepository = barangayRepository;
-    private readonly IMunicipalityRepository _municipalityRepository = municipalityRepository;
-    private readonly IProvinceRepository _provinceRepository = provinceRepository;
-    private readonly IRegionRepository _regionRepository = regionRepository;
+    private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IGenericGeoRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
+    private readonly IGenericGeoRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
+    private readonly IGenericGeoRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
+    private readonly IGenericGeoRepository<Domain.Entities.Region> _regionRepository = regionRepository;
 
-    public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
+public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        var cellQuery = _repository.Query();
+        var cellQuery = _cellRepository.Query();
 
-        Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
+        var locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 
-        if (!string.IsNullOrEmpty(request.Search))
+        if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Domain.Aggregates.Cell>(
                request.Search,
@@ -42,96 +39,29 @@ public class GetAllCellsHandler(ICellRepository repository,
 
         cellQuery = cellQuery
             .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
-            .Where(c => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(c.ServiceProviderId)))
-            .Where(c => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId))))
-            .Where(c => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId))))
-            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance));
+            .Where(c => request.ServiceProviderIds == null || request.ServiceProviderIds.Contains(c.ServiceProviderId))
+            .Where(c => request.ProviderIds == null || (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId)))
+            .Where(c => request.ServiceIds == null || (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId)))
+            .Where(c => locationPoint.IsValid && c.Location.IsWithinDistance(locationPoint, request.Distance));
 
         if (request.BarangayIds is { Count: > 0 })
         {
-            var polygons = await _barangayRepository.Query()
-                .Where(b => request.BarangayIds.Contains(b.Id))
-                .Select(b => b.Boundaries)
-                .ToListAsync(cancellationToken);
-
-            if (polygons.Count > 0)
-            {
-                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
-
-                foreach (var polygon in polygons)
-                {
-                    var localPolygon = polygon;
-                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
-                }
-
-                cellQuery = cellQuery.Where(predicate);
-            }
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.BarangayIds, _barangayRepository, cellQuery, cancellationToken);
         }
-
-        if (request.MunicipalityIds is { Count: > 0 })
+        else if (request.MunicipalityIds is { Count: > 0 })
         {
-            var polygons = await _municipalityRepository.Query()
-                .Where(m => request.MunicipalityIds.Contains(m.Id))
-                .Select(m => m.Boundaries)
-                .ToListAsync(cancellationToken);
-
-            if (polygons.Count > 0)
-            {
-                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
-
-                foreach (var polygon in polygons)
-                {
-                    var localPolygon = polygon;
-                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
-                }
-
-                cellQuery = cellQuery.Where(predicate);
-            }
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.MunicipalityIds, _municipalityRepository, cellQuery, cancellationToken);
         }
-
-        if (request.ProvinceIds is { Count: > 0 })
+        else if (request.ProvinceIds is { Count: > 0 })
         {
-            var polygons = await _provinceRepository.Query()
-                .Where(p => request.ProvinceIds.Contains(p.Id))
-                .Select(p => p.Boundaries)
-                .ToListAsync(cancellationToken);
-
-            if (polygons.Count > 0)
-            {
-                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
-
-                foreach (var polygon in polygons)
-                {
-                    var localPolygon = polygon;
-                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
-                }
-
-                cellQuery = cellQuery.Where(predicate);
-            }
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.ProvinceIds, _provinceRepository, cellQuery, cancellationToken);
         }
-
-        if (request.RegionIds is { Count: > 0 })
+        else if (request.RegionIds is { Count: > 0 })
         {
-            var polygons = await _regionRepository.Query()
-                .Where(r => request.RegionIds.Contains(r.Id))
-                .Select(r => r.Boundaries)
-                .ToListAsync(cancellationToken);
-
-            if (polygons.Count > 0)
-            {
-                var predicate = PredicateBuilder.New<Domain.Aggregates.Cell>(false);
-
-                foreach (var polygon in polygons)
-                {
-                    var localPolygon = polygon;
-                    predicate = predicate.Or(c => c.Location.IsWithinDistance(localPolygon, 0));
-                }
-
-                cellQuery = cellQuery.Where(predicate);
-            }
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.RegionIds, _regionRepository, cellQuery, cancellationToken);
         }
 
-        cellQuery = cellQuery.OrderBy(n => n.Location.Distance(locationPoint));
+        cellQuery = cellQuery.OrderBy(c => c.Location.Distance(locationPoint));
 
         var cellDtoQuery = cellQuery
             .Select(cell => new CellDto
@@ -172,6 +102,6 @@ public class GetAllCellsHandler(ICellRepository repository,
                 Distance = Math.Round(cell.Location.Distance(locationPoint), 2)
             });
 
-        return await _repository.PaginateAsync(cellDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
+        return await _cellRepository.PaginateAsync(cellDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

@@ -1,8 +1,9 @@
 ﻿using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Domain.Entities;
 
-public class Barangay : BaseEntity
+public class Barangay : BaseEntity, IGeoBoundaryEntity
 {
     public Guid MunicipalityId { get; set; }
     public virtual Municipality Municipality { get; set; } = null!;

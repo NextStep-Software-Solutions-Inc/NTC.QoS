@@ -1,8 +1,9 @@
 ﻿using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Domain.Entities;
 
-public class Province : BaseEntity
+public class Province : BaseEntity, IGeoBoundaryEntity
 {
     public Guid RegionId { get; set; }
     public virtual Region Region { get; set; } = null!;
