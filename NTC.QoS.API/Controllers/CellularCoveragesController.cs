@@ -35,11 +35,21 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         [FromQuery] int pageSize = 10,
         [FromQuery] int pageNumber = 1,
         [FromQuery] List<Guid>? networkIds = null,
-        double longitude = 0,
-        double latitude = 0,
-        double distance = 1500000000)
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] double longitude = 0,
+        [FromQuery] double latitude = 0,
+        [FromQuery] double distance = 1500000000)
     {
-        var cacheKey = $"{CellularCoverageCachePrefix}{pageSize}_{pageNumber}_{string.Join(",", networkIds ?? [])}_{longitude}_{latitude}_{distance}";
+        var cacheKey = $"{CellularCoverageCachePrefix}{pageSize}_{pageNumber}_{string.Join(",", networkIds ?? [])}" +
+               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
+               $"_{longitude}_{latitude}_{distance}";
+
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellularCoverageDto>? cachedCellularCoverage))
             return Ok(cachedCellularCoverage);
 
@@ -49,7 +59,11 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
             PageNumber = pageNumber,
             NetworkIds = networkIds,
             Coordinate = new(x: longitude, y: latitude),
-            Distance = distance
+            Distance = distance,
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
         };
 
         var cellularCoverages = await mediator.Send(request);

@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
 namespace NTC.QoS.Application.Features.CellularCoverage.Requests;
@@ -12,4 +11,8 @@ public class GetAllCellularCoveragesRequest : IRequest<PaginatedResponse<Cellula
     public List<Guid>? NetworkIds { get; set; }
     public required Coordinate Coordinate { get; set; }
     public double Distance { get; set; }
+    public List<Guid>? BarangayIds { get; set; }
+    public List<Guid>? MunicipalityIds { get; set; }
+    public List<Guid>? ProvinceIds { get; set; }
+    public List<Guid>? RegionIds { get; set; }
 }
