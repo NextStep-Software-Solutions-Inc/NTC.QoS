@@ -39,16 +39,16 @@ public class NAPsController : ControllerBase
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "longitude", "latitude", "distance" })]
 
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
-        int pageSize = 10,
-        int pageNumber = 1,
-        List<Guid>? serviceProviderIds = null,
-        List<Guid>? barangayIds = null,
-        List<Guid>? municipalityIds = null,
-        List<Guid>? provinceIds = null,
-        List<Guid>? regionIds = null,
-        double longitude = 0,
-        double latitude = 0,
-        double distance = 15000000)
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] List<Guid>? serviceProviderIds = null,
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] double longitude = 0,
+        [FromQuery] double latitude = 0,
+        [FromQuery] double distance = 15000000)
     {
         var cacheKey = $"{NAPsCachePrefix}{pageSize}_{pageNumber}_" +
                $"{string.Join(",", serviceProviderIds ?? new List<Guid>())}_" +
