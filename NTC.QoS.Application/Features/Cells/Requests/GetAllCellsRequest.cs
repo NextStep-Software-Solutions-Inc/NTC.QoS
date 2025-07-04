@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Requests;
@@ -16,4 +15,8 @@ public class GetAllCellsRequest(int pageNumber, int pageSize) : IRequest<Paginat
     public List<Guid>? ServiceIds { get; set; }
     public required Coordinate Coordinate { get; set; }
     public double Distance { get; set; }
+    public List<Guid>? BarangayIds { get; set; }
+    public List<Guid>? MunicipalityIds { get; set; }
+    public List<Guid>? ProvinceIds { get; set; }
+    public List<Guid>? RegionIds { get; set; }
 }

@@ -144,4 +144,14 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
 
         return query;
     }
+
+    public IQueryable<TEntity> QueryAsNoTracking(Expression<Func<TEntity, bool>>? expression = null)
+    {
+        var query = _context.Set<TEntity>().AsNoTracking().AsQueryable();
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+        return query;
+    }
 }

@@ -1,10 +1,11 @@
 ﻿using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Domain.Entities;
 
-public class Speedtest : BaseEntity
+public class Speedtest : BaseEntity, IGeoLocatedEntity
 {
     public string Address { get; set; } = string.Empty;
     public Guid ServiceProviderId { get; set; }

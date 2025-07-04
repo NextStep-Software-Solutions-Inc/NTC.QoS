@@ -1,27 +1,34 @@
 ﻿using MediatR;
-using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
-public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
+public class GetAllCellsHandler(ICellRepository cellRepository,
+    IRepository<Domain.Entities.Barangay> barangayRepository,
+    IRepository<Domain.Entities.Municipality> municipalityRepository,
+    IRepository<Domain.Entities.Province> provinceRepository,
+    IRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
-    private readonly ICellRepository _repository = repository;
+    private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
+    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
+    private readonly IRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
+    private readonly IRepository<Domain.Entities.Region> _regionRepository = regionRepository;
 
-    public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
+public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
-        IQueryable<Cell>cellQuery = _repository.Query();
+        var cellQuery = _cellRepository.Query();
 
-        Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
+        var locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
 
-        if (!string.IsNullOrEmpty(request.Search))
+        if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Cell>(
+            var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Domain.Aggregates.Cell>(
                request.Search,
                c => c.Name,
                c => c.Description,
@@ -33,11 +40,29 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
 
         cellQuery = cellQuery
             .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
-            .Where(c => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(c.ServiceProviderId)))
-            .Where(c => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId))))
-            .Where(c => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId))))
-            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance))
-            .OrderBy(n => n.Location.Distance(locationPoint));
+            .Where(c => request.ServiceProviderIds == null || request.ServiceProviderIds.Contains(c.ServiceProviderId))
+            .Where(c => request.ProviderIds == null || (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId)))
+            .Where(c => request.ServiceIds == null || (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId)))
+            .Where(c => locationPoint.IsValid && c.Location.IsWithinDistance(locationPoint, request.Distance));
+
+        if (request.BarangayIds is { Count: > 0 })
+        {
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.BarangayIds, _barangayRepository, cellQuery, cancellationToken);
+        }
+        else if (request.MunicipalityIds is { Count: > 0 })
+        {
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.MunicipalityIds, _municipalityRepository, cellQuery, cancellationToken);
+        }
+        else if (request.ProvinceIds is { Count: > 0 })
+        {
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.ProvinceIds, _provinceRepository, cellQuery, cancellationToken);
+        }
+        else if (request.RegionIds is { Count: > 0 })
+        {
+            cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.RegionIds, _regionRepository, cellQuery, cancellationToken);
+        }
+
+        cellQuery = cellQuery.OrderBy(c => c.Location.Distance(locationPoint));
 
         var cellDtoQuery = cellQuery
             .Select(cell => new CellDto
@@ -78,6 +103,6 @@ public class GetAllCellsHandler(ICellRepository repository) : IRequestHandler<Ge
                 Distance = Math.Round(cell.Location.Distance(locationPoint), 2)
             });
 
-        return await _repository.PaginateAsync(cellDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
+        return await _cellRepository.PaginateAsync(cellDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

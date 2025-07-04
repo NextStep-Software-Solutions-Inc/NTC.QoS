@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Attributes;
@@ -9,6 +8,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -176,7 +176,7 @@ public class ProcessCellJob : IProcessCellJob
             }
 
             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
-            string address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
+            var address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
 
             Guid cellId = Guid.Empty;
             // The check for serviceProviderId != Guid.Empty is already handled by the `TryGetValue` above.
@@ -189,7 +189,7 @@ public class ProcessCellJob : IProcessCellJob
                 // Cell not in cache, meaning it's a new cell.
                 var cell = new Domain.Aggregates.Cell
                 {
-                    Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
+                    Name = $"Cell-{record.Provider}-{address}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
                     Group = record.Provider,
                     Address = address,
                     ServiceProviderId = serviceProviderId,

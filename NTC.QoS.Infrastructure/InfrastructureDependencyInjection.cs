@@ -70,7 +70,6 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
         services.AddScoped<ICellSectorRepository, CellSectorRepository>();
 
-
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
 
         // Register all Jobs here
