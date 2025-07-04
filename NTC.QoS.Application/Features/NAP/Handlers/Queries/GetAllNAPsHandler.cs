@@ -56,7 +56,7 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository,
             ISPColor = n.ServiceProvider.Provider.Color,
             Lat = n.Location.Coordinate.Y,
             Lng = n.Location.Coordinate.X,
-            Dist = 0
+            Dist = Math.Round(n.Location.Distance(locationPoint), 2)
         });
 
         return await _NAPRepository.PaginateAsync(NAPsDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
