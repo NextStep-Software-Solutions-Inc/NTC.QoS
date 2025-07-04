@@ -3,7 +3,7 @@ using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Interfaces;
 using System.Linq.Expressions;
 
-namespace NTC.QoS.Domain.Helper.Spatial;
+namespace NTC.QoS.Infrastructure.Helper;
 
 public static class SpatialFilterBuilder
 {

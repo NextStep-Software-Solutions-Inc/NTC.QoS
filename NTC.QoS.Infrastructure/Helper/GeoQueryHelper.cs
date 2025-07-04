@@ -1,21 +1,23 @@
-﻿using Microsoft.EntityFrameworkCore;
-using NTC.QoS.Domain.Helper.Spatial;
+﻿using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
+
+namespace NTC.QoS.Infrastructure.Helper;
 
 public static class GeoQueryHelper
 {
     public static async Task<IQueryable<TSource>> ApplyBoundaryFilterAsync<TSource, TBoundary>(
         List<Guid> ids,
-        IGenericGeoRepository<TBoundary> repository,
+        IRepository<TBoundary> repository,
         IQueryable<TSource> query,
         CancellationToken cancellationToken)
         where TSource : IGeoLocatedEntity
-        where TBoundary : class, IGeoBoundaryEntity
+        where TBoundary : BaseEntity, IGeoBoundaryEntity
     {
-        var multipolygons = await repository.Query()
+        var multipolygonsQuery = repository.Query()
             .Where(entity => ids.Contains(entity.Id) && entity.Boundaries != null)
-            .Select(entity => entity.Boundaries!)
-            .ToListAsync(cancellationToken);
+            .Select(entity => entity.Boundaries!);
+
+        var multipolygons = await repository.ToListAsync(multipolygonsQuery, cancellationToken);
 
         if (multipolygons.Count == 0)
             return query;

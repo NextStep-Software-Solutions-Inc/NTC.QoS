@@ -4,20 +4,21 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
 public class GetAllCellsHandler(ICellRepository cellRepository,
-    IGenericGeoRepository<Domain.Entities.Barangay> barangayRepository,
-    IGenericGeoRepository<Domain.Entities.Municipality> municipalityRepository,
-    IGenericGeoRepository<Domain.Entities.Province> provinceRepository,
-    IGenericGeoRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
+    IRepository<Domain.Entities.Barangay> barangayRepository,
+    IRepository<Domain.Entities.Municipality> municipalityRepository,
+    IRepository<Domain.Entities.Province> provinceRepository,
+    IRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
-    private readonly IGenericGeoRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
-    private readonly IGenericGeoRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
-    private readonly IGenericGeoRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
-    private readonly IGenericGeoRepository<Domain.Entities.Region> _regionRepository = regionRepository;
+    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
+    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
+    private readonly IRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
+    private readonly IRepository<Domain.Entities.Region> _regionRepository = regionRepository;
 
 public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
