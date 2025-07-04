@@ -14,14 +14,27 @@ public class CreateNAPHandler(INAPRepository repository) : IRequestHandler<Creat
 
     public async Task<ApiResponse<NAPDto>> Handle(CreateNAPRequest request, CancellationToken cancellationToken)
     {
-        Point location = GeometryHelper.CreatePoint(x: request.NAP.Latitude, y: request.NAP.Longitude);
+        Point location = GeometryHelper.CreatePoint(x: request.NAP.Longitude, y: request.NAP.Latitude);
+
+        var napQuery = _repository.Query()
+            .Where(n => n.Location == location && n.ServiceProviderId == request.NAP.ServiceProviderId);
+        var nap = await _repository.FirstOrDefaultAsync(napQuery, cancellationToken);
+
+        if (nap is not null)
+        {
+            return new ApiResponse<NAPDto>
+            {
+                Message = "NAP already exists.",
+                Succeeded = false
+            };
+        }
 
         var NAP = new Domain.Aggregates.NAP
         {
             ServiceProviderId = request.NAP.ServiceProviderId,
             Location = location,
             Address = request.NAP.Address,
-            IsFileUploaded = request.NAP.IsFileUploaded,
+            IsFileUploaded = false,
         };
 
         _repository.Add(NAP);
