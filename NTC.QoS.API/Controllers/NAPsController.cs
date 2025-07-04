@@ -36,22 +36,38 @@ public class NAPsController : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "serviceProviderId", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "longitude", "latitude", "distance" })]
+
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
         int pageSize = 10,
         int pageNumber = 1,
-        Guid? serviceProviderId = null,
+        List<Guid>? serviceProviderIds = null,
+        List<Guid>? barangayIds = null,
+        List<Guid>? municipalityIds = null,
+        List<Guid>? provinceIds = null,
+        List<Guid>? regionIds = null,
         double longitude = 0,
         double latitude = 0,
         double distance = 15000000)
     {
-        var cacheKey = $"{NAPsCachePrefix}{pageSize}_{pageNumber}_{serviceProviderId}_{longitude}_{latitude}_{distance}";
+        var cacheKey = $"{NAPsCachePrefix}{pageSize}_{pageNumber}_" +
+               $"{string.Join(",", serviceProviderIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
+               $"_{longitude}_{latitude}_{distance}";
+
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
             return Ok(cachedNAPs);
 
         var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
         {
-            ServiceProviderId = serviceProviderId,
+            ServiceProviderIds = serviceProviderIds,
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
             Coordinate = new(x: longitude, y: latitude),
             Distance = distance
         });
