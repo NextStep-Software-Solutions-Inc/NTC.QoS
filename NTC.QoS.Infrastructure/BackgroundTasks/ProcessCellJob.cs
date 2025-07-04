@@ -8,7 +8,6 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
-using NTC.QoS.Infrastructure.Persistence.Repositories;
 using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
@@ -22,7 +21,6 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IGenerationBandRepository _generationBandRepository;
     private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
-    private readonly IBarangayRepository _barangayRepository;
 
     public ProcessCellJob(
         ILogger<ProcessCellJob> logger,
@@ -31,8 +29,7 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Entities.Cellular> cellularRepository,
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IGenerationBandRepository generationBandRepository,
-        IRepository<Domain.Entities.CellSector> cellSectorRepository,
-        IBarangayRepository barangayRepository
+        IRepository<Domain.Entities.CellSector> cellSectorRepository
         )
     {
         _logger = logger;
@@ -42,7 +39,6 @@ public class ProcessCellJob : IProcessCellJob
         _serviceProviderRepository = serviceProviderRepository;
         _generationBandRepository = generationBandRepository;
         _cellSectorRepository = cellSectorRepository;
-        _barangayRepository = barangayRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
