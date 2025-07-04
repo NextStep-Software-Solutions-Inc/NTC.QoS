@@ -66,7 +66,10 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
             ServiceIds = serviceIds,
             Coordinate = new(x: longitude, y: latitude),
             Distance = distance,
-            BarangayIds = barangayIds
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds
         };
         var cells = await mediator.Send(request);
         if (cells.Succeeded && cells.Data != null)
