@@ -45,8 +45,7 @@ public class GetAllCellsHandler(ICellRepository repository,
             .Where(c => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(c.ServiceProviderId)))
             .Where(c => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId))))
             .Where(c => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId))))
-            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance))
-            .OrderBy(n => n.Location.Distance(locationPoint));
+            .Where(n => locationPoint.IsValid && n.Location.IsWithinDistance(locationPoint, request.Distance));
 
         if (request.BarangayIds is { Count: > 0 })
         {
@@ -131,6 +130,8 @@ public class GetAllCellsHandler(ICellRepository repository,
                 cellQuery = cellQuery.Where(predicate);
             }
         }
+
+        cellQuery = cellQuery.OrderBy(n => n.Location.Distance(locationPoint));
 
         var cellDtoQuery = cellQuery
             .Select(cell => new CellDto
