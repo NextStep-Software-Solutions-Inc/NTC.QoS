@@ -180,20 +180,7 @@ public class ProcessCellJob : IProcessCellJob
             }
 
             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
-            var barangay = await _barangayRepository.FindByLocationAsync(record.Latitude, record.Longitude);
-
-            string address;
-            if (barangay != null)
-            {
-                // Compose address from resolved Barangay and related entities
-                address = $"{record.Zone}, {barangay.Name}, {barangay.Municipality.Name}, {barangay.Municipality.Province.Name}, {barangay.Municipality.Province.Region.Name}";
-            }
-            else
-            {
-                // Fallback if no Barangay found for location
-                address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
-            }
-
+            var address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
 
             Guid cellId = Guid.Empty;
             // The check for serviceProviderId != Guid.Empty is already handled by the `TryGetValue` above.
