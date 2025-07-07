@@ -4,15 +4,22 @@ using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
+using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
-public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) : IRequestHandler<GetAllSpeedtestsRequest, PaginatedResponse<SpeedtestDto>>
+public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository,
+    IRepository<Domain.Entities.Barangay> barangayRepository,
+    IRepository<Domain.Entities.Municipality> municipalityRepository,
+    IRepository<Domain.Entities.Province> provinceRepository,
+    IRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllSpeedtestsRequest, PaginatedResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
+    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
+    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
+    private readonly IRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
+    private readonly IRepository<Domain.Entities.Region> _regionRepository = regionRepository;
 
     public async Task<PaginatedResponse<SpeedtestDto>> Handle(GetAllSpeedtestsRequest request, CancellationToken cancellationToken)
     {
@@ -38,8 +45,25 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
             .Where(s => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (s.ServiceProvider != null && request.ServiceIds.Contains(s.ServiceProvider.ServiceId))))
             .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && request.GenerationIds.Contains(s.GenerationId)))
             .Where(s => request.SignalQuality == null || s.SignalQuality == EnumHelper<SignalQualityEnum>.ParseUserInput(request.SignalQuality))
-            .Where(s => locationPoint.IsValid && s.Location.IsWithinDistance(locationPoint, request.Distance))
-            .OrderBy(s => s.Location.Distance(locationPoint));
+            .Where(s => locationPoint.IsValid && s.Location.IsWithinDistance(locationPoint, request.Distance));
+
+        if (request.BarangayIds is { Count: > 0 })
+        {
+            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.BarangayIds, _barangayRepository, speedtestQuery, cancellationToken);
+        }
+        else if (request.MunicipalityIds is { Count: > 0 })
+        {
+            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.MunicipalityIds, _municipalityRepository, speedtestQuery, cancellationToken);
+        }
+        else if (request.ProvinceIds is { Count: > 0 })
+        {
+            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.ProvinceIds, _provinceRepository, speedtestQuery, cancellationToken);
+        }
+        else if (request.RegionIds is { Count: > 0 })
+        {
+            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.RegionIds, _regionRepository, speedtestQuery, cancellationToken);
+        }
+        speedtestQuery = speedtestQuery.OrderBy(s => s.Location.Distance(locationPoint));
 
         var speedtestDtos = speedtestQuery.Select(s => new SpeedtestDto
         {

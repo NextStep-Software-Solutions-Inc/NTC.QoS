@@ -32,6 +32,10 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? cellIds = null,
         [FromQuery] List<Guid>? generationIds = null,
@@ -42,13 +46,23 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         double latitude = 0,
         double distance = 15000000)
     {
-        var cacheKey = $"{SpeedtestsCachePrefix}{pageNumber}_{pageSize}_{search}_{string.Join(",", serviceProviderIds ?? [])}_{string.Join(",", cellIds ?? [])}_{string.Join(",", generationIds ?? [])}_{string.Join(",", providerIds ?? [])}_{string.Join(",", serviceIds ?? [])}_{signalQuality}_{longitude}_{latitude}_{distance}";
+        var cacheKey = $"{SpeedtestsCachePrefix}{pageNumber}_{pageSize}_{search}_{string.Join(",", serviceProviderIds ?? [])}_" +
+            $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
+            $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
+            $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
+            $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
+            $"_{string.Join(",", cellIds ?? [])}_{string.Join(",", generationIds ?? [])}_{string.Join(",", providerIds ?? [])}" + 
+            $"_{string.Join(",", serviceIds ?? [])}_{signalQuality}_{longitude}_{latitude}_{distance}";
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
             return Ok(cachedSpeedtests);
 
         var request = new GetAllSpeedtestsRequest(pageNumber, pageSize)
         {
             Search = search,
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
             ServiceProviderIds = serviceProviderIds,
             CellIds = cellIds,
             GenerationIds = generationIds,
