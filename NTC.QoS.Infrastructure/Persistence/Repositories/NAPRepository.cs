@@ -12,8 +12,7 @@ internal sealed class NAPRepository(ApplicationDbContext context) : Repository<N
         var query = _context.Set<NAP>()
             .Include(c => c.ServiceProvider)
                 .ThenInclude(sp => sp!.Provider)
-                .ThenInclude(sp => sp!.Service)
-            .AsQueryable();
+                .ThenInclude(sp => sp!.Service);
 
         if (expression != null)
         {
