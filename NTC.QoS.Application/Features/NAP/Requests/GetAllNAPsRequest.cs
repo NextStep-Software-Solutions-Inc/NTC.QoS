@@ -9,7 +9,11 @@ public class GetAllNAPsRequest(int pageSize, int pageNumber) : IRequest<Paginate
 {
     public int PageSize { get; set; } = pageSize;
     public int PageNumber { get; set; } = pageNumber;
-    public Guid? ServiceProviderId { get; set; }
+    public List<Guid>? ServiceProviderIds { get; set; }
     public required Coordinate Coordinate { get; set; }
     public double Distance { get; set; }
+    public List<Guid>? BarangayIds { get; set; }
+    public List<Guid>? MunicipalityIds { get; set; }
+    public List<Guid>? ProvinceIds { get; set; }
+    public List<Guid>? RegionIds { get; set; }
 }
