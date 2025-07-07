@@ -30,6 +30,7 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
                 ISPColor = nap.ServiceProvider.Provider.Color,
                 Lat = nap.Location.Coordinate.Y,
                 Lng = nap.Location.Coordinate.X,
+                Dist = 0,
             }
         };
     }
