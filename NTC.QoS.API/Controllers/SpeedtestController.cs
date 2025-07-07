@@ -46,7 +46,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         double latitude = 0,
         double distance = 15000000)
     {
-        var cacheKey = $"{SpeedtestsCachePrefix}{pageNumber}_{pageSize}_{search}_{string.Join(",", serviceProviderIds ?? [])}" +
+        var cacheKey = $"{SpeedtestsCachePrefix}{pageNumber}_{pageSize}_{search}_{string.Join(",", serviceProviderIds ?? [])}_" +
             $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
             $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
             $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
