@@ -17,7 +17,7 @@ public class CreateNAPHandler(INAPRepository repository) : IRequestHandler<Creat
         Point location = GeometryHelper.CreatePoint(x: request.NAP.Longitude, y: request.NAP.Latitude);
 
         var napQuery = _repository.Query()
-            .Where(n => n.Location == location && n.ServiceProviderId == request.NAP.ServiceProviderId);
+            .Where(n => n.Location.Equals(location) && n.ServiceProviderId == request.NAP.ServiceProviderId);
         var nap = await _repository.FirstOrDefaultAsync(napQuery, cancellationToken);
 
         if (nap is not null)
