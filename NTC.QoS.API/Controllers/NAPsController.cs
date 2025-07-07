@@ -36,7 +36,7 @@ public class NAPsController : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
 
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
         [FromQuery] int pageSize = 10,
