@@ -34,7 +34,7 @@ public class CreateNAPHandler(INAPRepository repository) : IRequestHandler<Creat
             ServiceProviderId = request.NAP.ServiceProviderId,
             Location = location,
             Address = request.NAP.Address,
-            IsFileUploaded = false,
+            IsFileUploaded = request.NAP.IsFileUploaded,
         };
 
         _repository.Add(NAP);
