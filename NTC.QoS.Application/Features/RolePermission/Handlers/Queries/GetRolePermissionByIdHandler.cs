@@ -11,7 +11,7 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
     private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
     public async Task<ApiResponse<RolePermissionDto>> Handle(GetRolePermissionByIdRequest request, CancellationToken cancellationToken)
     {
-        var rolePermissionQuery = _rolePermissionRepository.Query(r => r.Id.Equals(request.Id));
+        var rolePermissionQuery = _rolePermissionRepository.Query(r => r.Id == request.Id);
         var rolePermission = await _rolePermissionRepository.FirstOrDefaultAsync(rolePermissionQuery, cancellationToken);
 
         if (rolePermission is null)
@@ -23,7 +23,7 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
                 Errors = new Dictionary<string, string[]>
                 {
                     { 
-                        "Id", [$"Role permission with ID [{request.Id}] not found."]
+                        "Id", [$"Role permission not found."]
                     }
                 },
                 Message = $"Role permission does not exist."
