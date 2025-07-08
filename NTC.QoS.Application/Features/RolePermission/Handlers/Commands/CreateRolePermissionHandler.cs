@@ -12,6 +12,10 @@ public class CreateRolePermissionHandler(
     IRepository<Domain.Entities.Permission> permissionRepository)
     : IRequestHandler<CreateRolePermissionRequest, ApiResponse<RolePermissionDto>>
 {
+    private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
+    private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
+    private readonly IRepository<Domain.Entities.Permission> _permissionRepository = permissionRepository;
+
     public async Task<ApiResponse<RolePermissionDto>> Handle(CreateRolePermissionRequest request, CancellationToken cancellationToken)
     {
         if (request.RolePermission.RoleId == Guid.Empty)
@@ -40,11 +44,11 @@ public class CreateRolePermissionHandler(
             };
         }
 
-        var existingQuery = rolePermissionRepository.Query(rp =>
+        var existingQuery = _rolePermissionRepository.QueryWithIgnoreQueryFilters(rp =>
             rp.RoleId == request.RolePermission.RoleId &&
             rp.PermissionId == request.RolePermission.PermissionId);
 
-        var existing = await rolePermissionRepository.FirstOrDefaultAsync(existingQuery, cancellationToken);
+        var existing = await _rolePermissionRepository.FirstOrDefaultAsync(existingQuery, cancellationToken);
 
         if (existing is not null)
         {
@@ -52,8 +56,8 @@ public class CreateRolePermissionHandler(
             {
                 existing.IsDeleted = false;
 
-                rolePermissionRepository.Update(existing);
-                await rolePermissionRepository.SaveChangesAsync(cancellationToken);
+                _rolePermissionRepository.Update(existing);
+                await _rolePermissionRepository.SaveChangesAsync(cancellationToken);
 
                 return new ApiResponse<RolePermissionDto>
                 {
@@ -93,8 +97,8 @@ public class CreateRolePermissionHandler(
             }
         }
 
-        var roleQuery = roleRepository.Query(r => r.Id == request.RolePermission.RoleId);
-        var role = await roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
+        var roleQuery = _roleRepository.Query(r => r.Id == request.RolePermission.RoleId);
+        var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
         if (role is null)
         {
             return new ApiResponse<RolePermissionDto>
@@ -108,8 +112,8 @@ public class CreateRolePermissionHandler(
             };
         }
 
-        var permissionQuery = permissionRepository.Query(p => p.Id == request.RolePermission.PermissionId);
-        var permission = await permissionRepository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
+        var permissionQuery = _permissionRepository.Query(p => p.Id == request.RolePermission.PermissionId);
+        var permission = await _permissionRepository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
         if (permission is null)
         {
             return new ApiResponse<RolePermissionDto>
@@ -129,8 +133,8 @@ public class CreateRolePermissionHandler(
             PermissionId = request.RolePermission.PermissionId,
         };
 
-        await rolePermissionRepository.AddAsync(newRolePermission, cancellationToken);
-        await rolePermissionRepository.SaveChangesAsync(cancellationToken);
+        await _rolePermissionRepository.AddAsync(newRolePermission, cancellationToken);
+        await _rolePermissionRepository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<RolePermissionDto>
         {
