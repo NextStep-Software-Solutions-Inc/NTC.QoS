@@ -871,7 +871,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid?>("BarangayId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("CellId")
+                    b.Property<Guid?>("CellId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CellSectorId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -915,6 +918,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("BarangayId");
 
                     b.HasIndex("CellId");
+
+                    b.HasIndex("CellSectorId");
 
                     b.HasIndex("FileId");
 
@@ -2348,9 +2353,13 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .WithMany("Cellulars")
                         .HasForeignKey("BarangayId");
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Cell", "Cell")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Cell", null)
                         .WithMany("Cellulars")
-                        .HasForeignKey("CellId")
+                        .HasForeignKey("CellId");
+
+                    b.HasOne("NTC.QoS.Domain.Entities.CellSector", "CellSector")
+                        .WithMany("Cellulars")
+                        .HasForeignKey("CellSectorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2370,7 +2379,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Cell");
+                    b.Navigation("CellSector");
 
                     b.Navigation("GenerationBand");
 
@@ -2625,6 +2634,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.CellSector", b =>
                 {
+                    b.Navigation("Cellulars");
+
                     b.Navigation("Sectors");
                 });
 

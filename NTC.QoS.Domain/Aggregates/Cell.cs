@@ -25,5 +25,4 @@ public class Cell : BaseEntity, IGeoLocatedEntity
     public bool IsFileUploaded { get; set; }
 
     public virtual List<CellSector> CellSectors { get; set; } = [];
-    public virtual List<Cellular> Cellulars { get; set; } = [];
 }

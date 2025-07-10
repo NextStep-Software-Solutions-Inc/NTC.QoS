@@ -4,8 +4,8 @@ namespace NTC.QoS.Domain.Entities;
 
 public class Cellular : BaseEntity
 {
-    public Guid CellId { get; set; }
-    public virtual Cell? Cell { get; set; }
+    public Guid CellSectorId { get; set; }
+    public virtual CellSector? CellSector { get; set; }
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider? ServiceProvider { get; set; }
     public Guid GenerationBandId { get; set; }
