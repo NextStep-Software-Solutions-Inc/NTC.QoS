@@ -12,4 +12,5 @@ public class CellSector : BaseEntity
     public decimal Azimuth { get; set; }
     public decimal BeamTilt { get; set; }
     public virtual List<Sector> Sectors { get; set; } = [];
+    public virtual List<Cellular> Cellulars { get; set; } = [];
 }

@@ -15,7 +15,5 @@ public class Barangay : BaseEntity, IGeoBoundaryEntity
     public float Area { get; set; } = 0f;
 
     public virtual List<Speedtest> Speedtests { get; set; } = new();
-    public virtual List<Cellular> Cellulars { get; set; } = new();
     public virtual List<Zone> Zones { get; set; } = new();
-
 }

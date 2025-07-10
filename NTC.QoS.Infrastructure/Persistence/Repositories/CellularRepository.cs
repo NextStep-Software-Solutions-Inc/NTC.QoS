@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
+
 internal sealed class CellularRepository(ApplicationDbContext context) : Repository<Cellular>(context), ICellularRepository
 {
     public override IQueryable<Cellular> Query(Expression<Func<Cellular, bool>>? expression = null)
@@ -17,7 +18,8 @@ internal sealed class CellularRepository(ApplicationDbContext context) : Reposit
                 .ThenInclude(sp => sp!.Provider)
             .Include(c => c.ServiceProvider)
                 .ThenInclude(sp => sp!.Service)
-            .Include(c => c.Cell)
+            .Include(c => c.CellSector)
+                .ThenInclude(cs => cs!.Cell)
             .AsQueryable();
 
         if (expression != null)

@@ -1,28 +1,22 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Band;
-using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
-using NTC.QoS.Domain.Models.DTOs.Generation;
-using NTC.QoS.Domain.Models.DTOs.GenerationBand;
-using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Models.DTOs.Service;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.Cellular.Handlers.Commands;
 
-public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellularRepository, ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository, IGenerationBandRepository generationBandRepository) : IRequestHandler<CreateCellularRequest, ApiResponse<CellularDto>>
+public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellularRepository, ICellSectorRepository cellSectorRepository, IServiceProviderRepository serviceProviderRepository, IGenerationBandRepository generationBandRepository) : IRequestHandler<CreateCellularRequest, ApiResponse<CellularDto>>
 {
     private readonly IRepository<Domain.Entities.Cellular> _cellularRepository = cellularRepository;
-    private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly ICellSectorRepository _cellSectorRepository = cellSectorRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationBandRepository _generationBandRepository = generationBandRepository;
 
     public async Task<ApiResponse<CellularDto>> Handle(CreateCellularRequest request, CancellationToken cancellationToken)
     {
-        var cellularQuery = _cellularRepository.Query(c => c.CellId == request.Cellular.CellId
+        var cellularQuery = _cellularRepository.Query(c => c.CellSectorId == request.Cellular.CellSectorId
             && c.ServiceProviderId == request.Cellular.ServiceProviderId
             && c.GenerationBandId == request.Cellular.GenerationBandId
         );
@@ -36,13 +30,13 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
             };
         }
 
-        var cellQuery = _cellRepository.Query(c => c.Id == request.Cellular.CellId);
-        var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
-        if (cell is null)
+        var cellSectorQuery = _cellSectorRepository.Query(c => c.Id == request.Cellular.CellSectorId);
+        var cellSector = await _cellSectorRepository.FirstOrDefaultAsync(cellSectorQuery, cancellationToken);
+        if (cellSector is null)
         {
             return new ApiResponse<CellularDto>
             {
-                Message = "Cell not found.",
+                Message = "Cell Sector not found.",
                 Succeeded = false
             };
         }
@@ -71,7 +65,7 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
 
         var newCellular = new Domain.Entities.Cellular
         {
-            CellId = cell.Id,
+            CellSectorId = cellSector.Id,
             ServiceProviderId = serviceProvider.Id,
             GenerationBandId = generationBand.Id,
             Address = request.Cellular.Address,
@@ -86,41 +80,50 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
             {
                 Id = newCellular.Id,
                 Address = newCellular.Address,
-                Cell = newCellular.Cell != null ? new CellDto()
+                CellSector = newCellular.CellSector != null ? new()
                 {
-                    Id = newCellular.CellId,
-                    Name = newCellular.Cell.Name,
-                    Latitude = newCellular.Cell.Location.Coordinate.X,
-                    Longitude = newCellular.Cell.Location.Coordinate.Y,
-                    LAC = newCellular.Cell.LAC,
-                    CID = newCellular.Cell.CID,
+                    Id = newCellular.CellSectorId,
+                    Cell = new()
+                    {
+                        Id = newCellular.CellSector.Cell.Id,
+                        Name = newCellular.CellSector.Cell.Name,
+                        Description = newCellular.CellSector.Cell.Description,
+                        Longitude = newCellular.CellSector.Cell.Location.Coordinate.X,
+                        Latitude = newCellular.CellSector.Cell.Location.Coordinate.Y,
+                        LAC = newCellular.CellSector.Cell.LAC,
+                        CID = newCellular.CellSector.Cell.CID,
+                    },
+                    AntennaType = newCellular.CellSector.AntennaType.ToString(),
+                    AntennaHeight = newCellular.CellSector.AntennaHeight,
+                    Azimuth = newCellular.CellSector.Azimuth,
+                    BeamTilt = newCellular.CellSector.BeamTilt
                 } : null,
-                ServiceProvider = newCellular.ServiceProvider != null && newCellular.ServiceProvider.Provider != null && newCellular.ServiceProvider.Service != null ? new ServiceProviderDto()
+                ServiceProvider = newCellular.ServiceProvider != null && newCellular.ServiceProvider.Provider != null && newCellular.ServiceProvider.Service != null ? new()
                 {
                     Id = newCellular.ServiceProviderId,
-                    Provider = new ProviderDto()
+                    Provider = new()
                     {
                         Id = newCellular.ServiceProvider.ProviderId,
                         Name = newCellular.ServiceProvider.Provider.Name,
                         Color = newCellular.ServiceProvider.Provider.Color,
                     },
-                    Service = new ServiceDto()
+                    Service = new()
                     {
                         Id = newCellular.ServiceProvider.ServiceId,
                         Name = newCellular.ServiceProvider.Service.Name,
                         Type = newCellular.ServiceProvider.Service.Type.ToString(),
                     },
                 } : null,
-                GenerationBand = newCellular.GenerationBand != null ? new GenerationBandDto()
+                GenerationBand = newCellular.GenerationBand != null ? new()
                 {
                     Id = newCellular.GenerationBandId,
-                    Generation = new GenerationDto()
+                    Generation = new()
                     {
                         Id = newCellular.GenerationBand.Generation.Id,
                         Name = newCellular.GenerationBand.Generation.Name,
                         Description = newCellular.GenerationBand.Generation.Description
                     },
-                    Band = new BandDto()
+                    Band = new()
                     {
                         Id = newCellular.GenerationBand.Band.Id,
                         Name = newCellular.GenerationBand.Band.Name,

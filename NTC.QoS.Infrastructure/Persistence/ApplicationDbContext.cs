@@ -261,9 +261,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMethod("GIST");
 
         modelBuilder.Entity<Cellular>()
-            .HasOne(c => c.Cell)
+            .HasOne(c => c.CellSector)
             .WithMany(cl => cl.Cellulars)
-            .HasForeignKey(c => c.CellId);
+            .HasForeignKey(c => c.CellSectorId);
 
         modelBuilder.Entity<Cellular>()
             .HasOne(c => c.ServiceProvider)
@@ -459,6 +459,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(b => b.Center)
             .HasDatabaseName("IX_Barangay_Center")
             .HasMethod("GIST");
+
+        modelBuilder.Entity<CellSector>()
+            .HasMany(cs => cs.Cellulars);
 
         base.OnModelCreating(modelBuilder);
     }
