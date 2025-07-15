@@ -19,7 +19,7 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
         }
 
         var zoneDtosQuery = allZonesQuery
-            .OrderBy(z => z.CreatedAt)
+            .OrderBy(z => z.Name)
             .Select(z => new ZoneDto
             {
                 Id = z.Id,

@@ -18,7 +18,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
             provincesQuery = provincesQuery.Where(p => p.RegionId == request.RegionId.Value);
         }
 
-        var provinceDtosQuery = provincesQuery.Select(static p => new ProvinceDto
+        var provinceDtosQuery = provincesQuery.OrderBy(p => p.Name).Select(static p => new ProvinceDto
         {
             Id = p.Id,
             Name = p.Name,
@@ -36,4 +36,3 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
         return await _provinceRepository.PaginateAsync(provinceDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }
-// This handler retrieves all provinces, optionally filtered by region ID, and returns a paginated response of ProvinceDto objects.

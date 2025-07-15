@@ -24,7 +24,7 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
             .Where(b => request.Province == null || b.Municipality.Province.Name.ToLower().Contains(request.Province.ToLower()));
 
         var barangayDtosQuery = allBarangaysQuery
-            .OrderBy(b => b.CreatedAt)
+            .OrderBy(b => b.Name)
             .Select(b => new BarangayDto {
                 Id = b.Id,
                 Name = b.Name,
