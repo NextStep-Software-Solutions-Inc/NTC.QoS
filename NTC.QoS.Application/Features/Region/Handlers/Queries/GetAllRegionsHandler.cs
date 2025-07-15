@@ -13,7 +13,7 @@ public class GetAllRegionsHandler(IRegionRepository repository) : IRequestHandle
     {
         var allRegions = _repository.Query();
 
-        var regionDtos = allRegions.Select(r => new RegionDto
+        var regionDtos = allRegions.OrderBy(r => r.Name).Select(r => new RegionDto
         {
             Id = r.Id,
             Name = r.Name,
