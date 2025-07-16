@@ -39,8 +39,8 @@ public class GetSystemTypeByIdHandler(IRepository<Domain.Entities.SystemType> re
                     Generation = new()
                     {
                         Id = systemType.Technology.GenerationId,
-                        Name
-
+                        Name = systemType.Technology.Generation.Name,
+                        Description = systemType.Technology.Generation.Description,
                     }
                 } : null
             },
