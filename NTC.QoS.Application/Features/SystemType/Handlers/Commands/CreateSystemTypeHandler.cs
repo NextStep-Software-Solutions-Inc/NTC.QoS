@@ -50,15 +50,16 @@ public class CreateSystemTypeHandler(ISystemTypeRepository systemTypeRepository,
             {
                 Id = newSystemType.Id,
                 Name = newSystemType.Name,
-                Technology = new() 
-                { 
-                    Id = technology.Id,
-                    Standard = technology.Standard,
-                    Description = technology.Description ?? string.Empty,
-                    Generation = new() 
+                Technology = new()
+                {
+                    Id = newSystemType.TechnologyId,
+                    Standard = newSystemType.Technology?.Standard ?? string.Empty,
+                    Description = newSystemType.Technology?.Description,
+                    Generation = new()
                     {
-                        Id = technology.GenerationId,
-                        Name = technology.Generation?.Name ?? string.Empty
+                        Id = newSystemType.Technology?.GenerationId ?? Guid.Empty,
+                        Name = newSystemType.Technology?.Generation?.Name ?? string.Empty,
+                        Description = newSystemType.Technology?.Generation?.Description,
                     }
                 }
             },
