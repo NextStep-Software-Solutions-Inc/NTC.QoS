@@ -34,7 +34,7 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
         study.Description = request.Study.Description ?? study.Description;
         study.StudyRadius = request.Study.StudyRadius ?? study.StudyRadius;
 
-        var studyExistQuery = _studyRepository.Query(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && s.Description == study.Description);
+        var studyExistQuery = _studyRepository.Query(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && s.Description == study.Description && s.StudyRadius == study.StudyRadius);
         var studyExist = await _studyRepository.FirstOrDefaultAsync(studyExistQuery, cancellationToken);
         if (studyExist is not null)
         {
