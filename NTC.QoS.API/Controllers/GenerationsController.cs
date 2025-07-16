@@ -68,7 +68,7 @@ public class GenerationsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Aggregates.Generation>>> DeleteGenerationById(Guid id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteGenerationById(Guid id)
     {
         var generation = await _mediator.Send(new DeleteGenerationByIdRequest(id));
 
