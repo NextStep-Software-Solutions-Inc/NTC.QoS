@@ -117,7 +117,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Band>()
             .HasIndex(b => b.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Band>()
             .HasMany(b => b.Links);
