@@ -90,7 +90,7 @@ public class NAPsController : ControllerBase
     }
 
     [HttpDelete]
-    public async Task<ActionResult<ApiResponse<Domain.Aggregates.NAP>>> DeleteNAPsByIds([Required][FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteNAPsByIds([Required][FromQuery] List<Guid> ids)
     {
         var NAP = await _mediator.Send(new DeleteNAPsByIdsRequest { Ids = ids });
         if (NAP.Succeeded)

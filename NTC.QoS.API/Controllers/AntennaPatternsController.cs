@@ -61,7 +61,7 @@ public class AntennaPatternsController: ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.AntennaPattern>>> DeleteAntennaPatternById(Guid id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteAntennaPatternById(Guid id)
     {
         var antennaPattern = await _mediator.Send(new DeleteAntennaPatternByIdRequest(id));
 

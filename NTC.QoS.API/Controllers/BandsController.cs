@@ -62,7 +62,7 @@ public class BandsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.Band>>> DeleteBandById(Guid id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteBandById(Guid id)
     {
         var band = await _mediator.Send(new DeleteBandByIdRequest(id));
 
