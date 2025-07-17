@@ -7,6 +7,5 @@ public class GetAllSystemTypesRequest(int pageSize, int pageNumber, List<Guid>? 
 {
     public int PageNumber { get; set; } = pageNumber;
     public int PageSize { get; set; } = pageSize;
-    public string? Search { get; set; }
     public List<Guid>? TechnologyIds { get; set; } = technologyIds;
 }

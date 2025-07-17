@@ -22,7 +22,7 @@ public class UpdateSystemTypeByIdHandler(ISystemTypeRepository repository) : IRe
                 {
                     { "SystemType", ["SystemType data is required."] }
                 },
-                Message = "The request does not contain band update data.",
+                Message = "The request does not contain system type update data.",
             };
         }
 
