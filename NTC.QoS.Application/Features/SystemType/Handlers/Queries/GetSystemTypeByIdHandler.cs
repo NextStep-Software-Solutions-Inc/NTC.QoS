@@ -6,10 +6,10 @@ using NTC.QoS.Domain.Models.DTOs.SystemType;
 
 namespace NTC.QoS.Application.Features.SystemType.Handlers.Queries;
 
-public class GetSystemTypeByIdHandler(IRepository<Domain.Entities.SystemType> repository)
+public class GetSystemTypeByIdHandler(ISystemTypeRepository repository)
     : IRequestHandler<GetSystemTypeByIdRequest, ApiResponse<SystemTypeDto>>
 {
-    private readonly IRepository<Domain.Entities.SystemType> _repository = repository;
+    private readonly ISystemTypeRepository _repository = repository;
 
     public async Task<ApiResponse<SystemTypeDto>> Handle(GetSystemTypeByIdRequest request, CancellationToken cancellationToken)
     {

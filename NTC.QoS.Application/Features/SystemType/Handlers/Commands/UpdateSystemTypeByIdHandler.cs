@@ -6,9 +6,9 @@ using NTC.QoS.Domain.Models.DTOs.SystemType;
 
 namespace NTC.QoS.Application.Features.SystemType.Handlers.Commands;
 
-public class UpdateSystemTypeByIdHandler(IRepository<Domain.Entities.SystemType> repository) : IRequestHandler<UpdateSystemTypeByIdRequest, ApiResponse<SystemTypeDto>>
+public class UpdateSystemTypeByIdHandler(ISystemTypeRepository repository) : IRequestHandler<UpdateSystemTypeByIdRequest, ApiResponse<SystemTypeDto>>
 {
-    private readonly IRepository<Domain.Entities.SystemType> _repository = repository;
+    private readonly ISystemTypeRepository _repository = repository;
     public async Task<ApiResponse<SystemTypeDto>> Handle(UpdateSystemTypeByIdRequest request,
         CancellationToken cancellationToken)
     {
@@ -55,20 +55,20 @@ public class UpdateSystemTypeByIdHandler(IRepository<Domain.Entities.SystemType>
             {
                 Id = systemType.Id,
                 Name = systemType.Name,
-                Technology = new()
+                Technology = systemType.Technology != null ? new()
                 {
-                    Id = systemType.TechnologyId,
-                    Standard = systemType.Technology?.Standard ?? string.Empty,
-                    Description = systemType.Technology?.Description,
+                    Id = systemType.Technology.Id,
+                    Standard = systemType.Technology.Standard,
+                    Description = systemType.Technology.Description,
                     Generation = new()
                     {
-                        Id = systemType.Technology?.GenerationId ?? Guid.Empty,
-                        Name = systemType.Technology?.Generation?.Name ?? string.Empty,
-                        Description = systemType.Technology?.Generation?.Description,
+                        Id = systemType.Technology.GenerationId,
+                        Name = systemType.Technology.Generation.Name,
+                        Description = systemType.Technology.Generation.Description,
                     }
-                }
+                } : null
             },
-            Message = "Updated successfully.",
+            Message = "System type updated successfully.",
         };
     }
 }

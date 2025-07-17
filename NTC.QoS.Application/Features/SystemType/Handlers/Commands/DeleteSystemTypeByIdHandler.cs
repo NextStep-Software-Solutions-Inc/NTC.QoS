@@ -34,7 +34,7 @@ public class DeleteSystemTypeByIdHandler(IRepository<Domain.Entities.SystemType>
         {
             Succeeded = true,
             Data = true,
-            Message = "System Type deleted successfully."
+            Message = "System type deleted successfully."
         };
     }
 }

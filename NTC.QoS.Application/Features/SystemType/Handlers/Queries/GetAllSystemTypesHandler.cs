@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.SystemType.Requests;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.SystemType;
 
@@ -22,9 +23,9 @@ public class GetAllSystemTypesHandler(ISystemTypeRepository repository)
             {
                 Id = st.Id,
                 Name = st.Name,
-                Technology = new()
+                Technology = st.Technology != null ? new()
                 {
-                    Id = st.TechnologyId,
+                    Id = st.Technology.Id,
                     Standard = st.Technology.Standard,
                     Description = st.Technology.Description,
                     Generation = new()
@@ -33,7 +34,7 @@ public class GetAllSystemTypesHandler(ISystemTypeRepository repository)
                         Name = st.Technology.Generation.Name,
                         Description = st.Technology.Generation.Description,
                     }
-                }
+                } : null
             });
 
         return await _repository.PaginateAsync(query, request.PageNumber, request.PageSize, cancellationToken);
