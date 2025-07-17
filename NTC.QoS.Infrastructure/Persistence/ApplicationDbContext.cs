@@ -101,7 +101,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Technology>()
             .HasIndex(t => t.Standard)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Technology>()
             .HasOne(t => t.Generation)

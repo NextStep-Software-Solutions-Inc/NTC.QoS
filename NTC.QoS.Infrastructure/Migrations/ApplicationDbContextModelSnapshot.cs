@@ -868,12 +868,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("BarangayId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CellId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("CellSectorId")
                         .HasColumnType("uuid");
 
@@ -914,10 +908,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("BarangayId");
-
-                    b.HasIndex("CellId");
 
                     b.HasIndex("CellSectorId");
 
@@ -1993,7 +1983,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("GenerationId");
 
                     b.HasIndex("Standard")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Technologies");
                 });
@@ -2349,14 +2340,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
-                        .WithMany("Cellulars")
-                        .HasForeignKey("BarangayId");
-
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Cell", null)
-                        .WithMany("Cellulars")
-                        .HasForeignKey("CellId");
-
                     b.HasOne("NTC.QoS.Domain.Entities.CellSector", "CellSector")
                         .WithMany("Cellulars")
                         .HasForeignKey("CellSectorId")
@@ -2557,8 +2540,6 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
                 {
                     b.Navigation("CellSectors");
-
-                    b.Navigation("Cellulars");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Generation", b =>
@@ -2625,8 +2606,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
                 {
-                    b.Navigation("Cellulars");
-
                     b.Navigation("Speedtests");
 
                     b.Navigation("Zones");
