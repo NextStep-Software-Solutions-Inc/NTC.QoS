@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace NTC.QoS.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("speedtests", Name = "speedtests")]
 public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase

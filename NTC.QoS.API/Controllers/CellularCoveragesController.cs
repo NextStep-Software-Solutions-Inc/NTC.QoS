@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace NTC.QoS.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("cellular-coverages", Name = "cellular-coverages")]
 public class CellularCoveragesController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase

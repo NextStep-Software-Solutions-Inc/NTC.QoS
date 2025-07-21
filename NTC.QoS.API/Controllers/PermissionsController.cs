@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Permission.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("permissions", Name = "permissions")]
+[Authorize]
+
 public class PermissionsController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;

@@ -1,12 +1,16 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.AreaStudy.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 
 namespace NTC.QoS.API.Controllers;
+
 [ApiController]
 [Route("area-studies", Name = "area-studies")]
+[Authorize]
+
 public class AreaStudiesController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;

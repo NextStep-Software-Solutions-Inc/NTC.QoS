@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Enums;
@@ -9,6 +10,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("files", Name = "files")]
+[Authorize]
+
 public class FilesController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;

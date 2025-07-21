@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Zone.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -6,9 +7,10 @@ using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.API.Controllers;
 
-
 [ApiController]
 [Route("zones", Name = "zones")]
+[Authorize]
+
 public class ZonesController : ControllerBase
 {
     private readonly IMediator _mediator;
