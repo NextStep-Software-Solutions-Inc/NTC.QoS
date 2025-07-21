@@ -18,7 +18,7 @@ namespace NTC.QoS.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.4")
+                .HasAnnotation("ProductVersion", "9.0.6")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
@@ -448,7 +448,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("RoleId");
 
                     b.HasIndex("PermissionId", "RoleId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_RolePermissions_PermissionId_RoleId_Active")
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("RolePermissions");
                 });
@@ -725,7 +727,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Bands");
                 });
@@ -735,6 +738,24 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -771,6 +792,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Barangay_Boundaries");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Barangay_Center");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
                     b.HasIndex("MunicipalityId");
 
@@ -838,10 +869,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("BarangayId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CellId")
+                    b.Property<Guid>("CellSectorId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -882,9 +910,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BarangayId");
-
-                    b.HasIndex("CellId");
+                    b.HasIndex("CellSectorId");
 
                     b.HasIndex("FileId");
 
@@ -1074,6 +1100,24 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1112,6 +1156,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Municipality_Boundaries");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Municipality_Center");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
                     b.HasIndex("ProvinceId");
 
@@ -1310,6 +1364,24 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1346,6 +1418,16 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Province_Boundaries");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Province_Center");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
+
                     b.HasIndex("RegionId");
 
                     b.ToTable("Provinces");
@@ -1356,6 +1438,24 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<float>("Area")
+                        .HasColumnType("real");
+
+                    b.Property<MultiPolygon>("Boundaries")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+
+                    b.Property<Point>("Center")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geography (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1389,6 +1489,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Boundaries")
+                        .HasDatabaseName("IX_Region_Boundaries");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Boundaries"), "GIST");
+
+                    b.HasIndex("Center")
+                        .HasDatabaseName("IX_Region_Center");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
                     b.ToTable("Regions");
                 });
@@ -1874,7 +1984,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("GenerationId");
 
                     b.HasIndex("Standard")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Technologies");
                 });
@@ -2230,13 +2341,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
+                    b.HasOne("NTC.QoS.Domain.Entities.CellSector", "CellSector")
                         .WithMany("Cellulars")
-                        .HasForeignKey("BarangayId");
-
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Cell", "Cell")
-                        .WithMany("Cellulars")
-                        .HasForeignKey("CellId")
+                        .HasForeignKey("CellSectorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2256,7 +2363,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Cell");
+                    b.Navigation("CellSector");
 
                     b.Navigation("GenerationBand");
 
@@ -2277,7 +2384,7 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Province", "Province")
-                        .WithMany()
+                        .WithMany("Municipalities")
                         .HasForeignKey("ProvinceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2290,7 +2397,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
                         .WithMany("Provinces")
                         .HasForeignKey("RegionId")
-                        .OnDelete(DeleteBehavior.NoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Region");
@@ -2434,8 +2541,6 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
                 {
                     b.Navigation("CellSectors");
-
-                    b.Navigation("Cellulars");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Generation", b =>
@@ -2502,8 +2607,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
                 {
-                    b.Navigation("Cellulars");
-
                     b.Navigation("Speedtests");
 
                     b.Navigation("Zones");
@@ -2511,6 +2614,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.CellSector", b =>
                 {
+                    b.Navigation("Cellulars");
+
                     b.Navigation("Sectors");
                 });
 
@@ -2555,6 +2660,11 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Provider", b =>
                 {
                     b.Navigation("ServiceProviders");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Province", b =>
+                {
+                    b.Navigation("Municipalities");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Region", b =>

@@ -2,6 +2,6 @@
 
 public class MIMOSectorDto
 {
-    public required Guid Id { get; set; }
-    public required string Type { get; set; }
+    public Guid Id { get; set; }
+    public string Type { get; set; } = string.Empty;
 }

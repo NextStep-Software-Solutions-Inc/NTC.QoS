@@ -12,7 +12,8 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
 
     public async Task<ApiResponse<UserDto>> Handle(GetUserByIdRequest request, CancellationToken cancellationToken)
     {
-        var user = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var userQuery = _repository.Query(u => u.Id.Equals(request.Id));
+        var user = await _repository.FirstOrDefaultAsync(userQuery, cancellationToken);
         if (user is null)
         {
             return new ApiResponse<UserDto>
@@ -35,14 +36,14 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
             Data = new UserDto
             {
                 Id = user.Id,
-                Role = new RoleUserDto
+                Role = new ()
                 {
                     Id = user.RoleId,
                     Name = user.Role?.Name ?? string.Empty,
                     Key = user.Role?.Key ?? string.Empty,
                     Description = user.Role?.Description ?? string.Empty
                 },
-                Organization = new OrganizationUserDto
+                Organization = new ()
                 {
                     Id = user.OrganizationId,
                     Name = user.Organization?.Name ?? string.Empty,

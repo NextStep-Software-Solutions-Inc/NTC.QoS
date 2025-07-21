@@ -3,8 +3,6 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Aggregates;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
@@ -14,7 +12,8 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(GetSpeedtestByIdRequest request, CancellationToken cancellationToken)
     {
-        var speedtest = await _speedtestRepository.GetByIdAsync(request.Id, cancellationToken);
+        var speedtestQuery = _speedtestRepository.Query(sp => sp.Id == request.Id);
+        var speedtest = await _speedtestRepository.FirstOrDefaultAsync(speedtestQuery, cancellationToken);
 
         if (speedtest is null)
         {

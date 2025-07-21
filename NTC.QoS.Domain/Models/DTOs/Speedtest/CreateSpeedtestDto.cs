@@ -1,4 +1,5 @@
-﻿using NTC.QoS.Domain.Enums;
+﻿using System.Transactions;
+using NTC.QoS.Domain.Enums;
 
 namespace NTC.QoS.Domain.Models.DTOs.Speedtest;
 
@@ -13,8 +14,8 @@ public class CreateSpeedtestDto
     public decimal RSSI { get; set; }
     public decimal UploadSpeed { get; set; }
     public decimal DownloadSpeed { get; set; }
-    public required string CoorLatitude { get; set; }
-    public required string CoorLongitude { get; set; } 
+    public required double Latitude { get; set; }
+    public required double Longitude { get; set; } 
     public required string PhoneModel { get; set; } 
     public required string MCC { get; set; } 
     public required string MNC { get; set; } 

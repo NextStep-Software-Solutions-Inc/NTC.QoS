@@ -1,8 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
-using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -10,39 +10,26 @@ internal sealed class LinkRepository(ApplicationDbContext context) : Repository<
 {
     public async Task<bool> ValidateLinkTypesAsync(Guid linkId, LinkTypeEnum expectedType, CancellationToken cancellationToken = default)
     {
-        
-
         var link = await _context.Set<Link>()
             .AsNoTracking()
             .FirstOrDefaultAsync(l => EF.Property<Guid>(l, "Id") == linkId && l.Type == expectedType && !l.IsDeleted, cancellationToken);
-
         return link is not null;
     }
 
-    public override async Task<Link?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public override IQueryable<Link> Query(Expression<Func<Link, bool>>? expression = null)
     {
         var query = _context.Set<Link>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Service)
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(l => l.Band);
-        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
-    }
+            .Include(l => l.Band)
+            .Include(l => l.ServiceProvider)
+                .ThenInclude(sp => sp.Provider)
+            .Include(l => l.ServiceProvider)
+                .ThenInclude(sp => sp.Service)
+            .AsQueryable();
 
-    public override async Task<List<Link>> ListAsync(
-        Expression<Func<Link, bool>>? expression = null,
-        CancellationToken cancellationToken = default)
-    {
-        IQueryable<Link> query = _context.Set<Link>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Service)
-            .Include(l => l.ServiceProvider).ThenInclude(sp => sp!.Provider)
-            .Include(l => l.Band);
-
-        if (expression is not null)
+        if (expression != null)
         {
             query = query.Where(expression);
         }
-        return await query.ToListAsync(cancellationToken);
+        return query;
     }
 }

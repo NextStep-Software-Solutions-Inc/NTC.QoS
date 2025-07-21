@@ -1,20 +1,17 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Sector.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Sector;
-using NTC.QoS.Domain.Models.DTOs.CellSector;
 
 namespace NTC.QoS.Application.Features.Sector.Handlers.Queries;
 
 public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequestHandler<GetAllSectorsRequest, PaginatedResponse<SectorDto>>
 {
     private readonly ISectorRepository _sectorRepository = sectorRepository;
+
     public async Task<PaginatedResponse<SectorDto>> Handle(GetAllSectorsRequest request, CancellationToken cancellationToken)
     {
-        var allSectorsQuery = _sectorRepository.Query(s => !s.IsDeleted);
+        var allSectorsQuery = _sectorRepository.Query();
 
         allSectorsQuery = allSectorsQuery
             .Where(s => !request.NetworkId.HasValue || s.NetworkId == request.NetworkId)
@@ -32,30 +29,26 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                 {
                     Id = s.Network.Id,
                     Name = s.Network.Name,
-                    SystemType = s.Network.SystemType.ToString(),
+                    SystemType = s.Network.SystemType.ToString()!,
                 },
-                AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(s.AntennaType),
+                AntennaType = s.AntennaType.ToString(),
                 MIMO = s.MIMO != null ? new()
                 {
                     Id = s.MIMO.Id,
                     Type = s.MIMO.Type.ToString()
                 } : null,
-                CellSector = new CellSectorDto
+                CellSector = new()
                 {
-                    Id = s.CellSector != null ? s.CellSector.Id : Guid.Empty,
+                    Id = s.CellSector.Id,
                     Cell = new()
                     {
-                        Id = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Id : Guid.Empty,
-                        Name = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Name : string.Empty,
-                        Latitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.X : 0,
-                        Longitude = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.Location.Y : 0,
-                        CID = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.CID : string.Empty,
-                        LAC = s.CellSector != null && s.CellSector.Cell != null ? s.CellSector.Cell.LAC : string.Empty,
-                    },
-                    AntennaType = EnumHelper<AntennaTypeEnum>.GetDescription(s.CellSector != null ? s.CellSector.AntennaType : AntennaTypeEnum.Unknown),
-                    AntennaHeight = s.CellSector != null ? s.CellSector.AntennaHeight : 0,
-                    Azimuth = s.CellSector != null ? s.CellSector.Azimuth : 0,
-                    BeamTilt = s.CellSector != null ? s.CellSector.BeamTilt : 0,
+                        Id = s.CellSector.Cell.Id,
+                        Name = s.CellSector.Cell.Name,
+                        Latitude = s.CellSector.Cell.Location.Coordinate.X,
+                        Longitude = s.CellSector.Cell.Location.Coordinate.Y,
+                        CID = s.CellSector.Cell.CID,
+                        LAC = s.CellSector.Cell.LAC,
+                    }
                 },
                 RadioEquipment = s.RadioEquipment,
                 IsRxEqualTx = s.IsRxEqualTx,
@@ -95,6 +88,5 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
             });
 
         return await _sectorRepository.PaginateAsync(allSectorDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
-
     }
 }

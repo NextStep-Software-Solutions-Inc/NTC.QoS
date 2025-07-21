@@ -10,7 +10,9 @@ public class DeleteLinkHandler(IRepository<Domain.Aggregates.Link> repository) :
     private readonly IRepository<Domain.Aggregates.Link> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteLinkByIdRequest request, CancellationToken cancellationToken)
     {
-        var link = await _repository.FindAsync(l => l.Id == request.Id && !l.IsDeleted, cancellationToken);
+        var linkQuery = _repository.Query(l => l.Id == request.Id);
+        var link = await _repository.FirstOrDefaultAsync(linkQuery, cancellationToken);
+
         if (link is null)
         {
             return new ApiResponse<bool>

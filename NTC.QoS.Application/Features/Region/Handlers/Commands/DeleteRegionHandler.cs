@@ -11,7 +11,8 @@ public class DeleteRegionHandler(IRegionRepository repository) : IRequestHandler
 
     public async Task<ApiResponse<bool>> Handle(DeleteRegionRequest request, CancellationToken cancellationToken)
     {
-        var region = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var regionQuery = _repository.Query(r => r.Id == request.Id);
+        var region = await _repository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
         if (region is null)
         {
@@ -34,7 +35,7 @@ public class DeleteRegionHandler(IRegionRepository repository) : IRequestHandler
         return new ApiResponse<bool>
         {
             Succeeded = true,
-            Message = $"{region.Name} is successfully deleted.",
+            Message = $"{region.Name} deleted successfully.",
             Data = true
         };
     }

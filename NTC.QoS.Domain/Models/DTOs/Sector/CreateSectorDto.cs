@@ -3,7 +3,6 @@
 public class CreateSectorDto
 {
     public required Guid NetworkId { get; set; }
-    public required string AntennaType { get; set; }
     public Guid? MIMOId { get; set; }
     public required Guid CellSectorId { get; set; }
     public required string RadioEquipment { get; set; }
@@ -14,10 +13,7 @@ public class CreateSectorDto
     public required decimal TxCableLength { get; set; }
     public required decimal TxCableLoss { get; set; }
     public required decimal TxAdditionalLoss { get; set; }
-    public required decimal TxAntennaHeight { get; set; }
     public required decimal TxAntennaGain { get; set; }
-    public required decimal TxAzimuth { get; set; }
-    public required decimal TxBeamTilt { get; set; }
     public required Guid TxAntennaPatternId { get; set; }
     public required decimal TxEIRP { get; set; }
     public string? RxAntennaModel { get; set; }

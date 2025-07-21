@@ -39,7 +39,7 @@ public class MIMOsController : ControllerBase
         return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
     }
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateMIMODto>>> Post(CreateMIMODto mimoDto)
+    public async Task<ActionResult<ApiResponse<MIMODto>>> Post(CreateMIMODto mimoDto)
     {
         var mimo = await _mediator.Send(new CreateMIMORequest(mimoDto));
         return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
@@ -55,7 +55,7 @@ public class MIMOsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.MIMO>>> UpdateMIMOById(Guid id, UpdateMIMODto updateMIMO)
+    public async Task<ActionResult<ApiResponse<MIMODto>>> UpdateMIMOById(Guid id, UpdateMIMODto updateMIMO)
     {
         var mimo = await _mediator.Send(new UpdateMIMOByIdRequest(id, new UpdateMIMODto
         {

@@ -2,10 +2,6 @@
 using NTC.QoS.Application.Features.Zone.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Barangay;
-using NTC.QoS.Domain.Models.DTOs.Municipality;
-using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Commands;
@@ -17,7 +13,8 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
 
     public async Task<ApiResponse<ZoneDto>> Handle(CreateZoneRequest request, CancellationToken cancellationToken)
     {
-        var zone = await _repository.FindAsync(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId && !z.IsDeleted, cancellationToken);
+        var zoneQuery = _repository.Query(z => z.Name == request.Zone.Name && z.BarangayId == request.Zone.BarangayId);
+        var zone = await _repository.FirstOrDefaultAsync(zoneQuery, cancellationToken);
 
         if (zone is not null)
         {
@@ -34,8 +31,9 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
             };
         }
 
-        var barangay = await _barangayRepository.GetByIdAsync(request.Zone.BarangayId, cancellationToken);
-        
+        var barangayQuery = _barangayRepository.Query(z => z.Id == request.Zone.BarangayId);
+        var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
+
         if (barangay is null)
         {
             return new ApiResponse<ZoneDto>
@@ -44,7 +42,7 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullBarangay", ["Barangay does not exist."]
+                        "NullBarangay", [ "Barangay not found." ]
                     }
                 },
                 Message = "Barangay not found."
@@ -66,30 +64,32 @@ public class CreateZoneHandler(IZoneRepository repository, IBarangayRepository b
             {
                 Id = newZone.Id,
                 Name = newZone.Name,
-                Barangay = new BarangayDto
+                Barangay = new()
                 {
                     Id = newZone.BarangayId,
                     Name = newZone.Barangay?.Name ?? string.Empty,
                     Description = newZone.Barangay?.Description ?? string.Empty,
-                    Municipality = new MunicipalityDto
+                    Municipality = new()
                     {
                         Id = newZone.Barangay?.MunicipalityId ?? Guid.Empty,
                         Name = newZone.Barangay?.Municipality?.Name ?? string.Empty,
                         IsCity = newZone.Barangay?.Municipality?.IsCity ?? false,
                         Description = newZone.Barangay?.Municipality?.Description,
-                        Province = new ProvinceDto
+                        Province = new()
                         {
                             Id = newZone.Barangay?.Municipality?.ProvinceId ?? Guid.Empty,
                             Name = newZone.Barangay?.Municipality?.Province?.Name ?? string.Empty,
                             Description = newZone.Barangay?.Municipality?.Province?.Description,
-                            Region = new RegionDto
+                            Region = new()
                             {
                                 Id = newZone.Barangay?.Municipality?.Province?.Region?.Id ?? Guid.Empty,
                                 Name = newZone.Barangay?.Municipality?.Province?.Region?.Name ?? string.Empty,
                                 Description = newZone.Barangay?.Municipality?.Province?.Region?.Description,
                             }
                         }
-                    }
+                    },
+                    Code = newZone.Barangay?.Code ?? string.Empty,
+                    Area = newZone.Barangay?.Area ?? 0f
                 }
             },
             Message = "Zone created successfully.",

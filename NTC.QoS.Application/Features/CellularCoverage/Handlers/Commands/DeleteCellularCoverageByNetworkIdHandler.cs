@@ -11,7 +11,7 @@ public class DeleteCellularCoverageByNetworkIdHandler(IRepository<Domain.Entitie
 
     public async Task<ApiResponse<bool>> Handle(DeleteCellularCoverageByNetworkIdRequest request, CancellationToken cancellationToken)
     {
-        var cellularCoveragesToDeleteQuery = _cellularCoverageRepository.Query(cs => !cs.IsDeleted && cs.NetworkId == request.NetworkId);
+        var cellularCoveragesToDeleteQuery = _cellularCoverageRepository.Query(cs => cs.NetworkId == request.NetworkId);
         var cellularCoveragesToDelete = await _cellularCoverageRepository.ExecuteDeleteAsync(cellularCoveragesToDeleteQuery, cancellationToken);
         
         if (cellularCoveragesToDelete is 0)

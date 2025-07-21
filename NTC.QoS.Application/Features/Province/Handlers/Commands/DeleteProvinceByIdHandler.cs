@@ -11,7 +11,8 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
     public async Task<ApiResponse<bool>> Handle(DeleteProvinceByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var province = await _repository.FindAsync(p => p.Id == request.Id && !p.IsDeleted, cancellationToken);
+        var provinceQuery = _repository.Query(p => p.Id == request.Id);
+        var province = await _repository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
         if (province is null)
         {
@@ -20,11 +21,11 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                      {
-                        "NullProvince", [ "Province not found."] 
+                    {
+                        "NullProvince", [ "The province you are trying to delete does not exist."] 
                     }
                 },
-                Message = "The province you are trying to delete does not exist."
+                Message = "Province not found."
             };
         }
 
@@ -35,7 +36,8 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
         {
             Data = true,
             Succeeded = true,
-            Message = $"Province '{province.Name}' has been successfully deleted."
+            Message = $"Province '{province.Name}' deleted successfully."
         };
     }
 }
+// This handler deletes a province by its ID. It first checks if the province exists, and if it does, it deletes it and returns a success message.

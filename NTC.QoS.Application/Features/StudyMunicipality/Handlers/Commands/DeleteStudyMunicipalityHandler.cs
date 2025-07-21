@@ -10,7 +10,8 @@ public class DeleteStudyMunicipalityHandler(IRepository<Domain.Aggregates.StudyM
     private readonly IRepository<Domain.Aggregates.StudyMunicipality> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteStudyMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var studyMunicipality = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var studyMunicipalityQuery = _repository.Query(sm => sm.Id == request.Id);
+        var studyMunicipality = await _repository.FirstOrDefaultAsync(studyMunicipalityQuery, cancellationToken);
 
         if (studyMunicipality is null)
         {

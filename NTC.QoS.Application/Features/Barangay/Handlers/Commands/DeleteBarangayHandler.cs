@@ -10,7 +10,8 @@ public class DeleteBarangayHandler(IBarangayRepository repository) : IRequestHan
     private readonly IBarangayRepository _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteBarangayByIdRequest request, CancellationToken cancellationToken)
     {
-        var barangay = await _repository.FindAsync(b => b.Id == request.Id && !b.IsDeleted, cancellationToken);
+        var barangayQuery = _repository.Query(b => b.Id == request.Id);
+        var barangay = await _repository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
 
         if (barangay is null)
         {
@@ -18,11 +19,11 @@ public class DeleteBarangayHandler(IBarangayRepository repository) : IRequestHan
             {
                 Data = false,
                 Succeeded = false,
-                Message = "The Municipality you are trying to delete does not exist.",
+                Message = "The Barangay you are trying to delete does not exist.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullBarangay", ["Barangay not found."]
+                        "NullBarangay", [ "Barangay not found." ]
                     }
                 }
 

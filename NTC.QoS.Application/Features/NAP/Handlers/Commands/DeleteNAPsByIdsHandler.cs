@@ -10,10 +10,10 @@ public class DeleteNAPsByIdsHandler(IRepository<Domain.Aggregates.NAP> repositor
     private readonly IRepository<Domain.Aggregates.NAP> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteNAPsByIdsRequest request, CancellationToken cancellationToken)
     {
-        var NAPsToDeleteQuery = _repository.Query(n => !n.IsDeleted && request.Ids.Contains(n.Id));
+        var NAPsToDeleteQuery = _repository.Query(n => request.Ids.Contains(n.Id));
         var NAPsDeletedCount = await _repository.ExecuteDeleteAsync(NAPsToDeleteQuery, cancellationToken);
 
-        if (NAPsDeletedCount == 0)
+        if (NAPsDeletedCount is 0)
         {
             return new ApiResponse<bool>
             {

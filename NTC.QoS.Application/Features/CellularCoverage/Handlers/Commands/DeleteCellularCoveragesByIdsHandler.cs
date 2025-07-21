@@ -10,7 +10,7 @@ public class DeleteCellularCoveragesByIdsHandler(IRepository<Domain.Entities.Cel
     private readonly IRepository<Domain.Entities.CellularCoverage> _repository = repository;
     public async Task<ApiResponse<bool>> Handle(DeleteCellularCoveragesByIdsRequest request, CancellationToken cancellationToken)
     {
-        var cellularCoveragesToDeleteQuery = _repository.Query(cc => !cc.IsDeleted && request.Ids.Contains(cc.Id));
+        var cellularCoveragesToDeleteQuery = _repository.Query(cc => request.Ids.Contains(cc.Id));
         var cellularCoveragesDeletedCount = await _repository.ExecuteDeleteAsync(cellularCoveragesToDeleteQuery, cancellationToken);
 
         if (cellularCoveragesDeletedCount == 0)

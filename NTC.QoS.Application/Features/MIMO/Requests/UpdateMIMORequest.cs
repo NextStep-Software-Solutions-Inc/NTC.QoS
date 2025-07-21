@@ -4,14 +4,13 @@ using NTC.QoS.Domain.Models.DTOs.MIMO;
 
 namespace NTC.QoS.Application.Features.MIMO.Requests;
 
-public class UpdateMIMOByIdRequest : IRequest<ApiResponse<Domain.Entities.MIMO>>
+public class UpdateMIMOByIdRequest : IRequest<ApiResponse<MIMODto>>
 {
     public Guid Id { get; set; }
     public UpdateMIMODto MIMO { get; set; } = null!;
-
-    public UpdateMIMOByIdRequest(Guid id, UpdateMIMODto provider)
+    public UpdateMIMOByIdRequest(Guid id, UpdateMIMODto mimo)
     {
         Id = id;
-        MIMO = provider;
+        MIMO = mimo;
     }
 }

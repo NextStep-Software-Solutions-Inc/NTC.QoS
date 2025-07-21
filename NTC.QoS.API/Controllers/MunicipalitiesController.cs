@@ -21,7 +21,7 @@ public class MunicipalitiesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> CreateMunicipality(CreateMunicipalityDto createMunicipality)
+    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> CreateMunicipality([FromForm] CreateMunicipalityDto createMunicipality)
     {
         var municipality = await _mediator.Send(new CreateMunicipalityRequest
         {
@@ -43,6 +43,7 @@ public class MunicipalitiesController : ControllerBase
         var municipalities = await _mediator.Send(request);
         return municipalities.Succeeded ? Ok(municipalities) : BadRequest(municipalities);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<MunicipalityDto>>> GetMunicipalityById(Guid id)
     {
@@ -51,15 +52,10 @@ public class MunicipalitiesController : ControllerBase
         return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> UpdateMunicipalityById(Guid id, UpdateMunicipalityDto updateMunicipality)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<MunicipalityDto>>> UpdateMunicipalityById(Guid id, [FromForm] UpdateMunicipalityDto updateMunicipality)
     {
-        var municipality = await _mediator.Send(new UpdateMunicipalityByIdRequest(id, new UpdateMunicipalityDto
-        {
-            Name = updateMunicipality.Name,
-            Description = updateMunicipality.Description,
-            IsCity = updateMunicipality.IsCity,
-        }));
+        var municipality = await _mediator.Send(new UpdateMunicipalityByIdRequest(id, updateMunicipality));
         return municipality.Succeeded ? Ok(municipality) : BadRequest(municipality);
     }
 

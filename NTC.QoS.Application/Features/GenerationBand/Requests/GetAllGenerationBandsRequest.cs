@@ -1,10 +1,9 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.GenerationBand;
 
 namespace NTC.QoS.Application.Features.GenerationBand.Requests;
 
-public class GetAllGenerationBandsRequest : IRequest<PaginatedResponse<GetGenerationBandDto>>
+public class GetAllGenerationBandsRequest : IRequest<PaginatedResponse<GenerationBandDto>>
 {
     public GetAllGenerationBandsRequest(int pageSize, int pageNumber)
     {

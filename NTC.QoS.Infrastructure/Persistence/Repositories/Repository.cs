@@ -20,7 +20,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     [Obsolete("GetByIdAsync is deprecated. Use the Query method with appropriate filters instead then call FirstOrDefaultAsync().")]
     public virtual async Task<TEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted")); 
+        var query = _context.Set<TEntity>(); 
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
@@ -28,7 +28,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     [Obsolete("ListAsync is deprecated. Use the Query method with appropriate filters instead then call ToListAsync or PaginateAsync.")]
     public virtual async Task<List<TEntity>> ListAsync(Expression<Func<TEntity, bool>> expression, CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<TEntity>().Where(e => !EF.Property<bool>(e, "IsDeleted"));
+        var query = _context.Set<TEntity>().AsQueryable();
 
         if (expression != null)
         {
@@ -37,7 +37,6 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
 
         return await query.ToListAsync(cancellationToken);
     }
-
 
     public virtual IQueryable<TEntity> Query(Expression<Func<TEntity, bool>>? expression = null)
     {
@@ -107,16 +106,15 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         {
             throw new ArgumentOutOfRangeException(nameof(pageNumber), "Page number must be at least 1.");
         }
+
         var totalCount = await queryable.CountAsync(cancellationToken);
+
         var paginatedData = await queryable
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize)
-        {
-            TotalRows = totalCount,
-        };
+        return new PaginatedResponse<TResult>(paginatedData, pageNumber, pageSize, totalCount);
     }
 
     public void AddRange(IEnumerable<TEntity> entities)
@@ -133,5 +131,27 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
     {
         ArgumentNullException.ThrowIfNull(queryable);
         return await queryable.ExecuteDeleteAsync(cancellationToken);
+    }
+
+    public IQueryable<TEntity> QueryWithIgnoreQueryFilters(Expression<Func<TEntity, bool>>? expression = null)
+    {
+        var query = _context.Set<TEntity>().AsQueryable().IgnoreQueryFilters();
+
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+
+        return query;
+    }
+
+    public IQueryable<TEntity> QueryAsNoTracking(Expression<Func<TEntity, bool>>? expression = null)
+    {
+        var query = _context.Set<TEntity>().AsNoTracking().AsQueryable();
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+        return query;
     }
 }

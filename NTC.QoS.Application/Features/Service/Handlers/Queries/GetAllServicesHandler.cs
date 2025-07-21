@@ -3,7 +3,6 @@ using NTC.QoS.Application.Features.Service.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
 namespace NTC.QoS.Application.Features.Service.Handlers.Queries;
@@ -14,7 +13,7 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
 
     public async Task<PaginatedResponse<ServiceDto>> Handle(GetAllServicesRequest request, CancellationToken cancellationToken)
     {
-        var allServicesQuery = _repository.Query(s => !s.IsDeleted);
+        var allServicesQuery = _repository.Query();
 
         if (request.ProviderIds is not null && request.ProviderIds.Count > 0)
         {

@@ -1,33 +1,28 @@
 ﻿using MediatR;
+using NetTopologySuite.Features;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
+using NTC.QoS.Application.Features.Region.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Region;
-using NTC.QoS.Application.Features.Region.Requests;
 
 namespace NTC.QoS.Application.Features.Region.Handlers.Commands;
 
-public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestHandler<UpdateRegionRequest, ApiResponse<RegionDto>>
+public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiResponse<RegionDto>>
 {
-    private readonly IRegionRepository _regionRepository = regionRepository;
+    private readonly IRegionRepository _regionRepository;
+
+    public UpdateRegionHandler(IRegionRepository regionRepository)
+    {
+        _regionRepository = regionRepository;
+    }
 
     public async Task<ApiResponse<RegionDto>> Handle(UpdateRegionRequest request, CancellationToken cancellationToken)
     {
-        var region = await _regionRepository.FindAsync(r => r.Id == request.Id && !r.IsDeleted, cancellationToken);
-
-        if (request.Region is null || string.IsNullOrEmpty(request.Region.Name?.Trim()))
-        {
-            return new ApiResponse<RegionDto>
-            {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-        {
-            {
-                "Name", ["Region name is required."]
-            }
-        },
-                Message = "Region name cannot be empty."
-            };
-        }
+        var regionQuery = _regionRepository.Query(r => r.Id == request.Id);
+        var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
         if (region is null)
         {
@@ -44,14 +39,116 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
             };
         }
 
-        region.Name = request.Region.Name.Trim();
-        region.Description = request.Region.Description;
+        region.Name = request.Region.Name ?? region.Name;
+        region.Description = request.Region.Description ?? region.Description;
+        region.Code = request.Region.Code ?? region.Code;
+        region.Area = request.Region.Area ?? region.Area;
 
-        var existingRegion = await _regionRepository.FindAsync(
+        MultiPolygon? boundariesGeometry = null;
+
+        if (request.Region.BoundariesFile != null && request.Region.BoundariesFile.Length > 0)
+        {
+            try
+            {
+                using var streamReader = new StreamReader(request.Region.BoundariesFile.OpenReadStream());
+                string geoJsonString = await streamReader.ReadToEndAsync(cancellationToken);
+
+                if (string.IsNullOrWhiteSpace(geoJsonString))
+                {
+                    throw new ArgumentException("Provided boundaries GeoJSON file is empty or contains only whitespace.");
+                }
+
+                var geoJsonReader = new GeoJsonReader();
+                Geometry? receivedGeometry = null;
+
+                try
+                {
+                    var featureCollection = geoJsonReader.Read<FeatureCollection>(geoJsonString);
+                    receivedGeometry = featureCollection?
+                        .FirstOrDefault(f => f.Geometry is Polygon || f.Geometry is MultiPolygon)?
+                        .Geometry;
+                }
+                catch (Newtonsoft.Json.JsonSerializationException)
+                {
+                    receivedGeometry = geoJsonReader.Read<Geometry>(geoJsonString);
+                }
+
+                if (receivedGeometry == null)
+                {
+                    throw new ArgumentException("Provided boundaries GeoJSON file content could not be parsed into a valid Polygon or MultiPolygon geometry.");
+                }
+
+                if (receivedGeometry is MultiPolygon multiPolygon)
+                {
+                    boundariesGeometry = multiPolygon;
+                }
+                else if (receivedGeometry is Polygon polygon)
+                {
+                    boundariesGeometry = GeometryHelper.CreateMultiPolygon([polygon]);
+                }
+                else
+                {
+                    return new ApiResponse<RegionDto>
+                    {
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            { "InvalidBoundariesType", new[] { $"Boundaries must be a Polygon or MultiPolygon GeoJSON. Received: {receivedGeometry.GeometryType}." } }
+                        },
+                        Message = "Invalid boundaries provided."
+                    };
+                }
+
+                region.Boundaries = boundariesGeometry;
+                region.Center = region.Boundaries.Centroid;
+            }
+            catch (Newtonsoft.Json.JsonSerializationException ex)
+            {
+                return new ApiResponse<RegionDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "InvalidGeoJSONFile", new[] { $"Failed to parse boundaries GeoJSON file: {ex.Message}" } }
+                    },
+                    Message = "Invalid boundaries GeoJSON file format. Check GeoJSON syntax."
+                };
+            }
+            catch (ArgumentException ex)
+            {
+                return new ApiResponse<RegionDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "BoundariesError", new[] { ex.Message } }
+                    },
+                    Message = "Error processing boundaries from file."
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<RegionDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "ProcessingError", new[] { $"An unexpected error occurred during GeoJSON processing: {ex.Message}" } }
+                    },
+                    Message = "An unexpected error occurred while processing boundaries."
+                };
+            }
+        }
+        else
+        {
+            region.Boundaries = region.Boundaries;
+            region.Center = region.Center;
+        }
+
+        var existingRegionQuery = _regionRepository.Query(
             r => r.Name == region.Name
-                 && r.Id != request.Id
-                 && !r.IsDeleted,
-            cancellationToken);
+                 && r.Id != request.Id);
+        var existingRegion = await _regionRepository.FirstOrDefaultAsync(existingRegionQuery, cancellationToken);
 
         if (existingRegion is not null)
         {
@@ -75,7 +172,9 @@ public class UpdateRegionHandler(IRegionRepository regionRepository) : IRequestH
         {
             Id = region.Id,
             Name = region.Name,
-            Description = region.Description
+            Description = region.Description,
+            Code = region.Code,
+            Area = region.Area,
         };
 
         return new ApiResponse<RegionDto>

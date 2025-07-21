@@ -5,7 +5,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
@@ -15,52 +14,61 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
     public async Task<ApiResponse<CellDto>> Handle(GetCellByIdRequest request, CancellationToken cancellationToken)
     {
         var cellQuery = _cellRepository.Query(c => c.Id.Equals(request.Id));
-
-        var cellDtoQuery = cellQuery.Select(cell => new CellDto
+        var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
+        if (cell is null)
         {
-            Id = cell.Id,
-            Name = cell.Name,
-            Group = cell.Group,
-            Description = cell.Description ?? string.Empty,
-            Address = cell.Address ?? string.Empty,
-            ServiceProvider = new()
+            return new ApiResponse<CellDto>
             {
-                Id = cell.ServiceProviderId,
-                Service = new()
+                Succeeded = false,
+                Message = "Cell not found.",
+                Errors = new Dictionary<string, string[]>
                 {
-                    Id = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Id : Guid.Empty,
-                    Name = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Name : string.Empty,
-                    Type = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Type.ToString() : string.Empty
-                },
-                Provider = new()
-                {
-                    Id = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Id : Guid.Empty,
-                    Name = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Name : string.Empty,
-                    Description = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Description : null,
-                    LicenseNumber = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.LicenseNumber : null,
-                    Color = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Color : string.Empty
+                    { "Id", ["Cell with the specified ID does not exist."] }
                 }
-            },
-            CID = cell.CID,
-            LAC = cell.LAC,
-            TAC = cell.TAC,
-            SiteId = cell.SiteId,
-            TowerType = cell.TowerType,
-            Elevation = cell.Elevation,
-            Latitude = cell.Location.Coordinate.Y,
-            Longitude = cell.Location.Coordinate.X,
-            IsVerified = cell.IsVerified,
-            IsFileUploaded = cell.IsFileUploaded,
-            Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)
-        });
-
-        var cell = await _cellRepository.FirstOrDefaultAsync(cellDtoQuery, cancellationToken);
+            };
+        }
 
         return new ApiResponse<CellDto>
         {
-            Data = cell,
             Succeeded = true,
-            Message = "Cell retrieved successfully."
+            Message = "Cell retrieved successfully.",
+            Data = new CellDto
+            {
+                Id = cell.Id,
+                Name = cell.Name,
+                Group = cell.Group,
+                Description = cell.Description,
+                Address = cell.Address,
+                ServiceProvider = new()
+                {
+                    Id = cell.ServiceProviderId,
+                    Service = new()
+                    {
+                        Id = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Id : Guid.Empty,
+                        Name = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Name : string.Empty,
+                        Type = cell.ServiceProvider != null && cell.ServiceProvider.Service != null ? cell.ServiceProvider.Service.Type.ToString() : string.Empty
+                    },
+                    Provider = new()
+                    {
+                        Id = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Id : Guid.Empty,
+                        Name = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Name : string.Empty,
+                        Description = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Description : null,
+                        LicenseNumber = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.LicenseNumber : null,
+                        Color = cell.ServiceProvider != null && cell.ServiceProvider.Provider != null ? cell.ServiceProvider.Provider.Color : string.Empty
+                    }
+                },
+                CID = cell.CID,
+                LAC = cell.LAC,
+                TAC = cell.TAC,
+                SiteId = cell.SiteId,
+                TowerType = cell.TowerType,
+                Elevation = cell.Elevation,
+                Latitude = cell.Location.Coordinate.Y,
+                Longitude = cell.Location.Coordinate.X,
+                IsVerified = cell.IsVerified,
+                IsFileUploaded = cell.IsFileUploaded,
+                Status = EnumHelper<CellStatusEnum>.GetName(cell.Status),
+            }
         };
     }
 }

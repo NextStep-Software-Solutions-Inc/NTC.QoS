@@ -15,7 +15,7 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
 
     public async Task<ApiResponse<CellDto>> Handle(UpdateCellByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellQuery = _cellRepository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var cellQuery = _cellRepository.Query(c => c.Id.Equals(request.Id));
         var cell = await _cellRepository.FirstOrDefaultAsync(cellQuery, cancellationToken);
         if (cell is null)
         {

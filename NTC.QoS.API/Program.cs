@@ -1,10 +1,11 @@
-using NTC.QoS.Application;
-using NTC.QoS.Infrastructure;
-using System.Text.Json.Serialization;
 using System.Text.Json;
-using NTC.QoS.API.Extensions;
+using System.Text.Json.Serialization;
 using Hangfire;
 using Microsoft.AspNetCore.ResponseCompression;
+using NTC.QoS.API.Extensions;
+using NTC.QoS.Application;
+using NTC.QoS.Application.Services;
+using NTC.QoS.Infrastructure;
 using Clerk.Net.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -114,6 +115,7 @@ public class Program
         });
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
+        builder.Services.AddScoped<GeospatialQueryService>();
 
         var app = builder.Build();
         

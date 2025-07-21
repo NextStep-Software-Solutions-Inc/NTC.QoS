@@ -2,7 +2,6 @@
 using NTC.QoS.Application.Features.Study.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.Study.Handlers.Commands;
@@ -14,7 +13,8 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
 
     public async Task<ApiResponse<StudyDto>> Handle(UpdateStudyRequest request, CancellationToken cancellationToken)
     {
-        var study = await _studyRepository.GetByIdAsync(request.Id, cancellationToken);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.Id);
+        var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
         if (study is null)
         {
             return new ApiResponse<StudyDto>
@@ -30,30 +30,12 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
             };
         }
 
-        if(!String.IsNullOrEmpty(request.Study.Name)) study.Name = request.Study.Name;
-        if (request.Study.AreaStudyId.HasValue)
-        {
-            var areaStudy = await _areaStudyRepository.GetByIdAsync(request.Study.AreaStudyId.Value, cancellationToken);
-            if (areaStudy is null)
-            {
-                return new ApiResponse<StudyDto>
-                {
-                    Message = "Area study not found.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        {
-                            "AreaStudyId", [$"Area study with ID [{request.Study.AreaStudyId}] does not exist."]
-                        }
-                    },
-                    Succeeded = false
-                };
-            }
-            study.AreaStudyId = areaStudy.Id;
-        }
-        if (!String.IsNullOrEmpty(request.Study.Description)) study.Description = request.Study.Description;
-        if (request.Study.StudyRadius.HasValue) study.StudyRadius = request.Study.StudyRadius.Value;
+        study.Name = request.Study.Name ?? study.Name;
+        study.Description = request.Study.Description ?? study.Description;
+        study.StudyRadius = request.Study.StudyRadius ?? study.StudyRadius;
 
-        var studyExist = await _studyRepository.FindAsync(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && !s.IsDeleted, cancellationToken);
+        var studyExistQuery = _studyRepository.Query(s => s.Name == study.Name && s.AreaStudyId == study.AreaStudyId && s.Description == study.Description && s.StudyRadius == study.StudyRadius && s.Id != study.Id);
+        var studyExist = await _studyRepository.FirstOrDefaultAsync(studyExistQuery, cancellationToken);
         if (studyExist is not null)
         {
             return new ApiResponse<StudyDto>
@@ -79,7 +61,7 @@ public class UpdateStudyByIdHandler(IStudyRepository studyRepository, IRepositor
                 Id = study.Id,
                 Name = study.Name,
                 Description = study.Description,
-                AreaStudy = new AreaStudyDto
+                AreaStudy = new()
                 {
                     Id = study.AreaStudyId,
                     Name = study.AreaStudy?.Name ?? string.Empty,

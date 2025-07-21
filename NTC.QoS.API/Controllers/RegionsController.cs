@@ -21,7 +21,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<RegionDto>>> Post(CreateRegionDto regionDto)
+    public async Task<ActionResult<ApiResponse<RegionDto>>> CreateRegion([FromForm] CreateRegionDto regionDto)
     {
         var region = await _mediator.Send(new CreateRegionRequest
         {
@@ -53,15 +53,10 @@ public class RegionsController : ControllerBase
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> Put(Guid id, UpdateRegionDto updateRegionDto)
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> UpdateRegionById(Guid id, [FromForm] UpdateRegionDto updateRegionDto)
     {
-        var region = await _mediator.Send(new UpdateRegionRequest
-        {
-            Id = id,
-            Region = updateRegionDto
-        });
-
+        var region = await _mediator.Send(new UpdateRegionRequest{ Id = id, Region = updateRegionDto });
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 

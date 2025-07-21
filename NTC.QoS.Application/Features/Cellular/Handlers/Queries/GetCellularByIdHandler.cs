@@ -1,13 +1,8 @@
 ﻿using MediatR;
+using NTC.QoS.Application.Features.Cellular.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Application.Features.Cellular.Requests;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
-using NTC.QoS.Domain.Models.DTOs.Cell;
-using NTC.QoS.Domain.Models.DTOs.GenerationBand;
-using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Models.DTOs.Service;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.Cellular.Handlers.Queries;
 
@@ -17,7 +12,7 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
 
     public async Task<ApiResponse<CellularDto>> Handle(GetCellularByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellularQuery = _cellularRepository.Query(c => !c.IsDeleted && c.Id.Equals(request.Id));
+        var cellularQuery = _cellularRepository.Query(c => c.Id.Equals(request.Id));
         var cellular = await _cellularRepository.FirstOrDefaultAsync(cellularQuery, cancellationToken);
         if (cellular is null)
         {
@@ -39,46 +34,54 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
             Data = new CellularDto
             {
                 Id = cellular.Id,
-                Cell = cellular.Cell != null ? new CellDto()
+                CellSector = cellular.CellSector != null ? new()
                 {
-                    Id = cellular.CellId,
-                    Name = cellular.Cell.Name,
-                    Latitude = cellular.Cell.Location.X,
-                    Longitude = cellular.Cell.Location.Y,
-                    ServiceProvider = null,
-                    LAC = cellular.Cell.LAC,
-                    CID = cellular.Cell.CID,
+                    Id = cellular.CellSectorId,
+                    Cell = new()
+                    {
+                        Id = cellular.CellSector.Cell.Id,
+                        Name = cellular.CellSector.Cell.Name,
+                        Description = cellular.CellSector.Cell.Description,
+                        Longitude = cellular.CellSector.Cell.Location.Coordinate.X,
+                        Latitude = cellular.CellSector.Cell.Location.Coordinate.Y,
+                        LAC = cellular.CellSector.Cell.LAC,
+                        CID = cellular.CellSector.Cell.CID,
+                    },
+                    AntennaType = cellular.CellSector.AntennaType.ToString(),
+                    AntennaHeight = cellular.CellSector.AntennaHeight,
+                    Azimuth = cellular.CellSector.Azimuth,
+                    BeamTilt = cellular.CellSector.BeamTilt
                 } : null,
-                ServiceProvider = cellular.ServiceProvider != null && cellular.ServiceProvider.Provider != null && cellular.ServiceProvider.Service != null ? new ServiceProviderDto()
+                ServiceProvider = cellular.ServiceProvider != null && cellular.ServiceProvider.Provider != null && cellular.ServiceProvider.Service != null ? new()
                 {
                     Id = cellular.ServiceProviderId,
-                    Provider = new ProviderDto()
+                    Provider = new()
                     {
                         Id = cellular.ServiceProvider.ProviderId,
                         Name = cellular.ServiceProvider.Provider.Name,
                         Color = cellular.ServiceProvider.Provider.Color,
                     },
-                    Service = new ServiceDto()
+                    Service = new()
                     {
                         Id = cellular.ServiceProvider.ServiceId,
                         Name = cellular.ServiceProvider.Service.Name,
                         Type = cellular.ServiceProvider.Service.Type.ToString(),
                     },
                 } : null,
-                GenerationBand = cellular.GenerationBand != null ? new GetGenerationBandDto()
+                GenerationBand = cellular.GenerationBand != null ? new()
                 {
                     Id = cellular.GenerationBandId,
-                    Generation = new GenerationBandDto()
+                    Generation = new()
                     {
-                        Id = cellular.GenerationBand.GenerationId,
+                        Id = cellular.GenerationBand.Generation.Id,
                         Name = cellular.GenerationBand.Generation.Name,
-                        Description = cellular.GenerationBand.Generation.Description,
+                        Description = cellular.GenerationBand.Generation.Description
                     },
-                    Band = new GenerationBandDto()
+                    Band = new()
                     {
-                        Id = cellular.GenerationBand.BandId,
+                        Id = cellular.GenerationBand.Band.Id,
                         Name = cellular.GenerationBand.Band.Name,
-                        Description = cellular.GenerationBand.Band.Description,
+                        Description = cellular.GenerationBand.Band.Description
                     },
                 } : null,
                 Address = cellular.Address

@@ -21,7 +21,7 @@ public class GenerationBandsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<CreateGenerationBandDto>>> CreateGenerationBand(CreateGenerationBandDto generationBandDto)
+    public async Task<ActionResult<ApiResponse<GenerationBandDto>>> CreateGenerationBand(CreateGenerationBandDto generationBandDto)
     {
         var generationBand = await _mediator.Send(new CreateGenerationBandRequest
         {

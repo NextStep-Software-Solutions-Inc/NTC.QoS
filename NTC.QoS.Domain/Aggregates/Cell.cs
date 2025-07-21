@@ -1,10 +1,11 @@
 ﻿using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Domain.Aggregates;
 
-public class Cell : BaseEntity
+public class Cell : BaseEntity, IGeoLocatedEntity
 {
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider ServiceProvider { get; set; } = null!;
@@ -22,6 +23,6 @@ public class Cell : BaseEntity
     public bool IsVerified { get; set; }
     public CellStatusEnum Status { get; set; } = CellStatusEnum.Unknown;
     public bool IsFileUploaded { get; set; }
+
     public virtual List<CellSector> CellSectors { get; set; } = [];
-    public virtual List<Cellular> Cellulars { get; set; } = [];
 }

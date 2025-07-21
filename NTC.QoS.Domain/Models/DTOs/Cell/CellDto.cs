@@ -1,5 +1,4 @@
 ﻿using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
-using System.Drawing;
 
 namespace NTC.QoS.Domain.Models.DTOs.Cell;
 
@@ -22,5 +21,5 @@ public class CellDto
     public bool IsVerified { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool IsFileUploaded { get; set; }
-    public object Distance { get; set; }
+    public double Distance { get; set; }
 }

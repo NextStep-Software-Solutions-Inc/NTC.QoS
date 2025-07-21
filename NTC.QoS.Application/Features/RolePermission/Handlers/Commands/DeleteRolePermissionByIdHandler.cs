@@ -10,7 +10,9 @@ public class DeleteRolePermissionByIdHandler(IRolePermissionRepository rolePermi
     private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
     public async Task<ApiResponse<bool>> Handle(DeleteRolePermissionByIdRequest request, CancellationToken cancellationToken)
     {
-        var rolePermission = await _rolePermissionRepository.FindAsync(rp => rp.Id == request.Id && !rp.IsDeleted, cancellationToken);
+        var rolePermissionQuery = _rolePermissionRepository.Query(rp => rp.Id == request.Id);
+        var rolePermission = await _rolePermissionRepository.FirstOrDefaultAsync(rolePermissionQuery, cancellationToken);
+
         if (rolePermission is null)
         {
             return new ApiResponse<bool>

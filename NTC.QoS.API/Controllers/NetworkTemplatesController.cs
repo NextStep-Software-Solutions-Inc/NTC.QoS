@@ -18,6 +18,14 @@ public class NetworkTemplatesController : ControllerBase
     {
         _mediator = mediator;
     }
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<NetworkTemplateDto>>> CreateNetworkTemplate(CreateNetworkTemplateDto createNetworkTemplate)
+    {
+        var networkTemplate = await _mediator.Send(new CreateNetworkTemplateRequest(createNetworkTemplate));
+        return networkTemplate.Succeeded ? Ok(networkTemplate) : BadRequest(networkTemplate);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<NetworkTemplateDto>>> GetAllNetworkTemplates(string? search, int pageSize = 10, int pageNumber = 1)
     {
@@ -29,16 +37,17 @@ public class NetworkTemplatesController : ControllerBase
         });
         return Ok(result);
     }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<NetworkTemplateDto>>> GetNetworkTemplateById(Guid id)
     {
-        Guid Id = id;
-        var request = new GetNetworkTemplateByIdRequest(Id);
+        var request = new GetNetworkTemplateByIdRequest(id);
         var networkTemplate = await _mediator.Send(request);
         return networkTemplate.Succeeded ? Ok(networkTemplate) : BadRequest(networkTemplate);
     }
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<Domain.Entities.NetworkTemplate>>> UpdateNetworkTemplateById(Guid id, UpdateNetworkTemplateDto updateNetworkTemplate)
+
+    [HttpPatch("{id}")]
+    public async Task<ActionResult<ApiResponse<NetworkTemplateDto>>> UpdateNetworkTemplateById(Guid id, UpdateNetworkTemplateDto updateNetworkTemplate)
     {
         var networkTemplate = await _mediator.Send(new UpdateNetworkTemplateRequest(id, new UpdateNetworkTemplateDto
         {
@@ -48,17 +57,12 @@ public class NetworkTemplatesController : ControllerBase
         }));
         return networkTemplate.Succeeded ? Ok(networkTemplate) : BadRequest(networkTemplate);
     }
+
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteNetworkTemplateById(Guid id)
     {
         var networkTemplate = await _mediator.Send(new DeleteNetworkTemplateByIdRequest(id));
 
-        return networkTemplate.Succeeded ? Ok(networkTemplate) : BadRequest(networkTemplate);
-    }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<NetworkTemplateDto>>> Post(CreateNetworkTemplateDto createNetworkTemplate)
-    {
-        var networkTemplate = await _mediator.Send(new CreateNetworkTemplateRequest(createNetworkTemplate));
         return networkTemplate.Succeeded ? Ok(networkTemplate) : BadRequest(networkTemplate);
     }
 }

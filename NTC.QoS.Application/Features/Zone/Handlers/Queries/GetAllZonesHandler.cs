@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Zone.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
 namespace NTC.QoS.Application.Features.Zone.Handlers.Queries;
@@ -12,7 +11,7 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
 
     public async Task<PaginatedResponse<ZoneDto>> Handle(GetAllZonesRequest request, CancellationToken cancellationToken)
     {
-        var allZonesQuery = _zoneRepository.Query(z => !z.IsDeleted);
+        var allZonesQuery = _zoneRepository.Query();
 
         if (request.BarangayId.HasValue)
         {
@@ -20,7 +19,7 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
         }
 
         var zoneDtosQuery = allZonesQuery
-            .OrderBy(z => z.CreatedAt)
+            .OrderBy(z => z.Name)
             .Select(z => new ZoneDto
             {
                 Id = z.Id,
@@ -48,11 +47,12 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
                                 Description = z.Barangay.Municipality.Province.Region.Description,
                             }
                         }
-                    }
+                    },
+                    Code = z.Barangay.Code ?? string.Empty,
+                    Area = z.Barangay.Area
                 }
             });
 
         return await _zoneRepository.PaginateAsync(zoneDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
-
     }
 }

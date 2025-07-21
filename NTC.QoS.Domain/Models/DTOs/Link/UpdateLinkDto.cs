@@ -2,10 +2,9 @@
 
 public class UpdateLinkDto
 {
-    public required string Type { get; set; }
-    public decimal CenterFrequency { get; set; }
-    public decimal LowerFrequency { get; set; }
-    public decimal UpperFrequency { get; set; }
-    public decimal RxThreshold { get; set; }
-    public Guid BandId { get; set; }
+    public string? Type { get; set; }
+    public decimal? CenterFrequency { get; set; }
+    public decimal? LowerFrequency { get; set; }
+    public decimal? UpperFrequency { get; set; }
+    public decimal? RxThreshold { get; set; }
 }

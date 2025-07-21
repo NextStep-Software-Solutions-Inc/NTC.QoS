@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.AntennaPattern.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
 
 namespace NTC.QoS.Application.Features.AntennaPattern.Handlers.Queries;
@@ -11,7 +10,7 @@ public class GetAllAntennaPatternsHandler (IRepository<Domain.Entities.AntennaPa
     private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
     public async Task<PaginatedResponse<AntennaPatternDto>> Handle(GetAllAntennaPatternsRequest request, CancellationToken cancellationToken)
     {
-        var allAntennaPatternsQuery = _repository.Query(ap => !ap.IsDeleted).OrderBy(ap => ap.CreatedAt);
+        var allAntennaPatternsQuery = _repository.Query().OrderBy(ap => ap.CreatedAt);
 
         var antennaPatternDtosQuery = allAntennaPatternsQuery.Select(ap => new AntennaPatternDto
         {

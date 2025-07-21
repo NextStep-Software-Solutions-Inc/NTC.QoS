@@ -23,21 +23,23 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<SectorDto>>> GetAllSectors(int pageSize = 10,
+    public async Task<ActionResult<PaginatedResponse<SectorDto>>> GetAllSectors(
                                                 int pageNumber = 1,
+                                                int pageSize = 10,
                                                 Guid? networkId = null,
                                                 Guid? mimoId = null,
                                                 Guid? cellSectorId = null,
                                                 Guid? txAntennaPatternId = null,
                                                 Guid? rxAntennaPatternId = null)
     {
-        var sectors = await _mediator.Send(new GetAllSectorsRequest(pageSize,
-                                                                    pageNumber,
+        var sectors = await _mediator.Send(new GetAllSectorsRequest(pageNumber,
+                                                                    pageSize,
                                                                     networkId,
                                                                     mimoId,
                                                                     cellSectorId,
                                                                     txAntennaPatternId,
-                                                                    rxAntennaPatternId));
+                                                                    rxAntennaPatternId)
+        );
        
         return sectors.Succeeded ? Ok(sectors) : BadRequest(sectors);
     }

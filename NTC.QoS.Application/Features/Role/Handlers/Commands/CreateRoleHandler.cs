@@ -12,9 +12,44 @@ public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository
 
     public async Task<ApiResponse<RoleDto>> Handle(CreateRoleRequest request, CancellationToken cancellationToken)
     {
-        var role = await _roleRepository.FindAsync(r => r.Name == request.Role.Name && !r.IsDeleted, cancellationToken);
-        if (role is not null) return new ApiResponse<RoleDto>("Role already exists.");
-                
+        var existingRoleQuery = _roleRepository.QueryWithIgnoreQueryFilters(r => r.Name == request.Role.Name);
+        var existingRole = await _roleRepository.FirstOrDefaultAsync(existingRoleQuery, cancellationToken);
+
+        if (existingRole is not null)
+        {
+            if (existingRole.IsDeleted)
+            {
+                existingRole.IsDeleted = false;
+                _roleRepository.Update(existingRole);
+                await _roleRepository.SaveChangesAsync(cancellationToken);
+
+                return new ApiResponse<RoleDto>
+                {
+                    Data = new RoleDto
+                    {
+                        Id = existingRole.Id,
+                        Name = existingRole.Name,
+                        Key = existingRole.Key,
+                        Description = existingRole.Description ?? string.Empty,
+                    },
+                    Succeeded = true,
+                    Message = "Role restored successfully."
+                };
+            }
+            else 
+            {
+                return new ApiResponse<RoleDto>
+                {
+                    Message = "Role already exists.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "Duplicate", ["Role with the same name already exists."] }
+                    }
+                };
+            }
+        }
+
         var newRole = new Domain.Entities.Role
         {
             Name = request.Role.Name,
@@ -32,7 +67,7 @@ public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository
                 Id = newRole.Id,
                 Name = newRole.Name,
                 Key = newRole.Key,
-                Description = newRole.Description ?? string.Empty,
+                Description = newRole.Description
             },
             Succeeded = true,
             Message = "Role created successfully.",

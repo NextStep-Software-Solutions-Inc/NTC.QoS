@@ -1,11 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.StudyNetwork.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
-using NTC.QoS.Domain.Models.DTOs.Network;
-using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
-using NTC.QoS.Domain.Models.DTOs.Study;
 using NTC.QoS.Domain.Models.DTOs.StudyNetwork;
 
 namespace NTC.QoS.Application.Features.StudyNetwork.Handlers.Queries;
@@ -16,17 +11,17 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
 
     public async Task<PaginatedResponse<StudyNetworkDto>> Handle(GetAllStudyNetworksRequest request, CancellationToken cancellationToken)
     {
-        var allStudyNetworks = await _repository.ListAsync(sn => !sn.IsDeleted, cancellationToken);
+        var allStudyNetworks = _repository.Query();
         if (allStudyNetworks is null)
         {
-            return new PaginatedResponse<StudyNetworkDto>([], request.PageNumber, request.PageSize)
+            return new PaginatedResponse<StudyNetworkDto>([], request.PageNumber, request.PageSize, 0)
             {
                 Succeeded = false,
                 Message = "No records found.",
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullStudyNetworks", ["No study networks found."]
+                        "NullStudyNetworks", new[] { "No study networks found." }
                     }
                 }
             };
@@ -34,62 +29,57 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
 
         if (request.StudyIds is not null && request.StudyIds.Count > 0)
         {
-            allStudyNetworks = [.. allStudyNetworks.Where(sn => request.StudyIds.Contains(sn.StudyId))];
+            allStudyNetworks = allStudyNetworks.Where(sn => request.StudyIds.Contains(sn.StudyId));
         }
 
         if (request.NetworkIds is not null && request.NetworkIds.Count > 0)
         {
-            allStudyNetworks = [.. allStudyNetworks.Where(sn => request.NetworkIds.Contains(sn.NetworkId))];
+            allStudyNetworks = allStudyNetworks.Where(sn => request.NetworkIds.Contains(sn.NetworkId));
         }
 
         var studyNetworkDtos = allStudyNetworks.Select(sn => new StudyNetworkDto
         {
             Id = sn.Id,
-            Study = new StudyDto
+            Study = new()
             {
                 Id = sn.StudyId,
-                Name = sn.Study?.Name ?? string.Empty,
-                Description = sn.Study?.Description ?? string.Empty,
-                AreaStudy = new AreaStudyDto
+                Name = sn.Study != null ? sn.Study.Name : string.Empty,
+                Description = sn.Study != null ? sn.Study.Description : string.Empty,
+                AreaStudy = new()
                 {
-                    Id = sn.Study?.AreaStudy?.Id ?? Guid.Empty,
-                    Name = sn.Study?.AreaStudy?.Name ?? string.Empty,
-                    Description = sn.Study?.AreaStudy?.Description ?? string.Empty,
+                    Id = sn.Study != null && sn.Study.AreaStudy != null ? sn.Study.AreaStudy.Id : Guid.Empty,
+                    Name = sn.Study != null && sn.Study.AreaStudy != null ? sn.Study.AreaStudy.Name : string.Empty,
+                    Description = sn.Study != null && sn.Study.AreaStudy != null ? sn.Study.AreaStudy.Description : string.Empty,
                 },
-                StudyRadius = sn.Study?.StudyRadius ?? 0
+                StudyRadius = sn.Study != null ? sn.Study.StudyRadius : 0
             },
-            Network = new NetworkDto
+            Network = new()
             {
                 Id = sn.NetworkId,
-                Name = sn.Network?.Name ?? string.Empty,
-                SystemTypeName = sn.Network?.SystemType.ToString() ?? string.Empty,
-                NetworkTemplate = new NetworkTemplateDto
+                Name = sn.Network != null ? sn.Network.Name : string.Empty,
+                SystemTypeName = sn.Network != null && sn.Network.SystemType != null ? sn.Network.SystemType.Name : string.Empty,
+                NetworkTemplate = new()
                 {
-                    Id = sn.Network?.NetworkTemplate?.Id ?? Guid.Empty,
-                    Name = sn.Network?.NetworkTemplate?.Name ?? string.Empty,
-                    Description = sn.Network?.NetworkTemplate?.Description ?? string.Empty,
-                    URL = sn.Network?.NetworkTemplate?.URL ?? string.Empty
+                    Id = sn.Network != null && sn.Network.NetworkTemplate != null ? sn.Network.NetworkTemplate.Id : Guid.Empty,
+                    Name = sn.Network != null && sn.Network.NetworkTemplate != null ? sn.Network.NetworkTemplate.Name : string.Empty,
+                    Description = sn.Network != null && sn.Network.NetworkTemplate != null ? sn.Network.NetworkTemplate.Description : string.Empty,
+                    URL = sn.Network != null && sn.Network.NetworkTemplate != null ? sn.Network.NetworkTemplate.URL : string.Empty
                 },
-                Uplink = new LinkNetworkDto
+                UpLink = new()
                 {
-                    Id = sn.Network?.UpLink?.Id ?? Guid.Empty,
-                    Type = sn.Network?.UpLink?.Type.ToString() ?? string.Empty,
-                    CenterFrequency = sn.Network?.UpLink?.CenterFrequency ?? 0
+                    Id = sn.Network != null && sn.Network.UpLink != null ? sn.Network.UpLink.Id : Guid.Empty,
+                    Type = sn.Network != null && sn.Network.UpLink != null ? sn.Network.UpLink.Type.ToString() : string.Empty,
+                    CenterFrequency = sn.Network != null && sn.Network.UpLink != null ? sn.Network.UpLink.CenterFrequency : 0
                 },
-                DownLink = new LinkNetworkDto
+                DownLink = new()
                 {
-                    Id = sn.Network?.DownLink?.Id ?? Guid.Empty,
-                    Type = sn.Network?.DownLink?.Type.ToString() ?? string.Empty,
-                    CenterFrequency = sn.Network?.DownLink?.CenterFrequency ?? 0
+                    Id = sn.Network != null && sn.Network.DownLink != null ? sn.Network.DownLink.Id : Guid.Empty,
+                    Type = sn.Network != null && sn.Network.DownLink != null ? sn.Network.DownLink.Type.ToString() : string.Empty,
+                    CenterFrequency = sn.Network != null && sn.Network.DownLink != null ? sn.Network.DownLink.CenterFrequency : 0
                 }
             }
-        }).ToList();
+        });
 
-        return new PaginatedResponse<StudyNetworkDto>(studyNetworkDtos, request.PageNumber, request.PageSize)
-        {
-            Data = studyNetworkDtos,
-            Succeeded = true,
-            Message = "Study networks retrieved successfully."
-        };
+        return await _repository.PaginateAsync(studyNetworkDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

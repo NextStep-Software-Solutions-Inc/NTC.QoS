@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Attributes;
@@ -9,6 +8,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -44,7 +44,7 @@ public class ProcessCellJob : IProcessCellJob
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
         // --- Step 1: Initial File Status Update ---
-        var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id.Equals(parameters.Id));
+        var fileQuery = _fileRepository.Query(f => f.Id.Equals(parameters.Id));
         var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
 
         if (file == null)
@@ -58,33 +58,33 @@ public class ProcessCellJob : IProcessCellJob
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
+        // --- Step 2 ---
         var cellSectorList = new List<Domain.Entities.CellSector>();
         var cellularToAdd = new List<Domain.Entities.Cellular>();
         var cellularToDelete = new List<Domain.Entities.Cellular>();
+        var cellSectorsCreatedForCellId = new Dictionary<Guid, List<Guid>>();
 
         // IMPORTANT: Declare cellsToAdd list here, BEFORE the main loop,
         // so it can accumulate new cells across all records.
         var cellsToAdd = new List<Domain.Aggregates.Cell>();
 
-        //Step 3: Pre-load Static/Reference Data for Performance
+        // --- Step 3: Pre-load Static/Reference Data for Performance ---
         _logger.LogInformation("Pre-loading reference data.");
 
         // Pre-load all wireless service providers
         var serviceProviderCache = await _serviceProviderRepository
-            .Query(sp => !sp.IsDeleted && sp.Service.Type == ServiceTypeEnum.Wireless)
+            .Query(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
             .Select(sp => new { sp.Id, sp.Provider.Name })
             .ToDictionaryAsync( // 1. Fetches data AND populates the dictionary in one go
                  sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless), 
                  sp => sp.Id,                                          
                  token
             );
-
         _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
 
         // Pre-load all generation bands
-        // Corrected pre-loading of generation bands
         var generationBandCache = await _generationBandRepository
-            .Query(gb => !gb.IsDeleted)
+            .Query()
             .Select(gb => new
             {
                 gb.Id,
@@ -96,30 +96,37 @@ public class ProcessCellJob : IProcessCellJob
                 gb => gb.Id,                    
                 token
             );
-
         _logger.LogInformation("Pre-loaded {Count} generation bands.", generationBandCache.Count);
 
         var providerIds = serviceProviderCache.Values.ToList();
 
         var cellCache = await _cellRepository
-            .Query(c => !c.IsDeleted && providerIds.Contains(c.ServiceProviderId))
+            .Query(c => providerIds.Contains(c.ServiceProviderId))
             .ToDictionaryAsync(
                 c => CacheKeyGenerator.GenerateCellCacheKey(c.ServiceProviderId, c.TowerType, c.Location),
                 c => c.Id,
                 token
             );
-
         _logger.LogInformation("Pre-loaded {Count} existing cells.", cellCache.Count);
+
+        var cellSectorCache = await _cellSectorRepository
+            .Query()
+            .GroupBy(cs => cs.CellId)
+            .ToDictionaryAsync(
+                g => g.Key,
+                g => g.Select(cs => cs.Id).ToList(),
+                token
+            );
+        _logger.LogInformation("Pre-loaded {Count} cell sectors mapped to cells.", cellSectorCache.Count);
 
         // Pre-load existing Cellular records for efficient in-memory checks.
         var cellularLookup = await _cellularRepository
-            .Query(c => !c.IsDeleted && serviceProviderCache.Values.Contains(c.ServiceProviderId))
+            .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
             .ToDictionaryAsync(
-                c => (c.CellId, c.ServiceProviderId, c.GenerationBandId),
+                c => (c.CellSectorId, c.ServiceProviderId, c.GenerationBandId),
                 c => c,
                 token
             );
-
         _logger.LogInformation("Pre-loaded {Count} existing cellular records.", cellularLookup.Count);
 
 
@@ -176,7 +183,7 @@ public class ProcessCellJob : IProcessCellJob
             }
 
             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
-            string address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
+            var address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
 
             Guid cellId = Guid.Empty;
             // The check for serviceProviderId != Guid.Empty is already handled by the `TryGetValue` above.
@@ -189,7 +196,7 @@ public class ProcessCellJob : IProcessCellJob
                 // Cell not in cache, meaning it's a new cell.
                 var cell = new Domain.Aggregates.Cell
                 {
-                    Name = $"Cell-{record.Provider}-{record.Zone}-{record.Municipality}-{record.Region}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
+                    Name = $"Cell-{record.Provider}-{address}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
                     Group = record.Provider,
                     Address = address,
                     ServiceProviderId = serviceProviderId,
@@ -232,6 +239,12 @@ public class ProcessCellJob : IProcessCellJob
                                 BeamTilt = decimalBeamTilt,
                             };
                             cellSectorList.Add(cellSector);
+
+                            // Track sectors by cell
+                            if (!cellSectorsCreatedForCellId.ContainsKey(cellId))
+                                cellSectorsCreatedForCellId[cellId] = new List<Guid>();
+
+                            cellSectorsCreatedForCellId[cellId].Add(cellSector.Id); // Save the sector Id for later use
                         }
                         else
                         {
@@ -284,18 +297,42 @@ public class ProcessCellJob : IProcessCellJob
                     {
                         if (isBandActiveInExcel)
                         {
-                            var newCellular = new Domain.Entities.Cellular
+                            if (cellSectorCache.TryGetValue(cellId, out var allSectorIds))
                             {
-                                CellId = cellId,
-                                ServiceProviderId = serviceProviderId,
-                                GenerationBandId = generationBandId,
-                                Address = address,
-                                IsFileUploaded = true
-                            };
-                            cellularToAdd.Add(newCellular);
-                            // Add to in-memory lookup immediately to prevent duplicate additions
-                            cellularLookup[(newCellular.CellId, newCellular.ServiceProviderId, newCellular.GenerationBandId)] = newCellular;
-                            _logger.LogInformation("Marked Cellular record for addition: CellId: {CellId}, Generation: {Generation}, Band: {Band}", cellId, propInfo.Generation, propInfo.Band);
+                                _logger.LogInformation("Found {SectorCount} sector(s) for CellId: {CellId}", allSectorIds.Count, cellId);
+
+                                foreach (var sectorId in allSectorIds)
+                                {
+                                    var key = (sectorId, serviceProviderId, generationBandId);
+                                    if (!cellularLookup.ContainsKey(key))
+                                    {
+                                        var newCellular = new Domain.Entities.Cellular
+                                        {
+                                            CellSectorId = sectorId,
+                                            ServiceProviderId = serviceProviderId,
+                                            GenerationBandId = generationBandId,
+                                            Address = address,
+                                            IsFileUploaded = true
+                                        };
+                                        cellularToAdd.Add(newCellular);
+                                        cellularLookup[key] = newCellular;
+
+                                        _logger.LogInformation(
+                                            "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Generation: {Generation}, Band: {Band}",
+                                            sectorId, propInfo.Generation, propInfo.Band);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogInformation(
+                                            "Skipped existing Cellular record: CellSectorId: {CellSectorId}, Generation: {Generation}, Band: {Band}",
+                                            sectorId, propInfo.Generation, propInfo.Band);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogWarning("No cell sectors found for new cell {CellId}. Skipping cellular creation for this cell.", cellId);
+                            }
                         }
                     }
                 }

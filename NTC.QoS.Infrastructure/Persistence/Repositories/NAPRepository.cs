@@ -4,7 +4,22 @@ using NTC.QoS.Domain.Interfaces;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
+
 internal sealed class NAPRepository(ApplicationDbContext context) : Repository<NAP>(context), INAPRepository
 {
+    public override IQueryable<NAP> Query(Expression<Func<NAP, bool>>? expression = null)
+    {
+        var query = _context.Set<NAP>()
+            .Include(c => c.ServiceProvider)
+                .ThenInclude(sp => sp!.Provider)
+            .Include(c => c.ServiceProvider)
+                .ThenInclude(sp => sp!.Service)
+            .AsQueryable();
 
+        if (expression != null)
+        {
+            query = query.Where(expression);
+        }
+        return query;
+    }
 }

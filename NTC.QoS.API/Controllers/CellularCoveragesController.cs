@@ -5,68 +5,128 @@ using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace NTC.QoS.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("cellular-coverages", Name = "cellular-coverages")]
-[Authorize]
-
-public class CellularCoveragesController(IMediator mediator) : ControllerBase
+public class CellularCoveragesController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
-    private readonly IMediator _mediator = mediator;
+    private const string CellularCoverageCachePrefix = "cellularCoverage_";
+    private const string CellularCoverageCacheKeysSet = "cellularCoverage_cache_keys";
 
     [HttpPost]
     public async Task<ActionResult<ApiResponse<CellularCoverageDto>>> CreateCellularCoverage(CreateCellularCoverageDto cellularCoverage)
     {
-        var request = new CreateCellularCoverageRequest
+        var request = await mediator.Send(new CreateCellularCoverageRequest
         {
             CellularCoverage = cellularCoverage
-        };
-        var result = await _mediator.Send(request);
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        });
+        if (!request.Succeeded || request.Data == null)
+            return BadRequest(request.Data == null ? "Cell Coverage creation failed, no data returned." : request);
+
+        RemoveAllCellularCoverageCache();
+        return CreatedAtAction(nameof(GetCellularCoverageById), new { id = request.Data.Id }, request);
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages([FromQuery] int pageSize = 10,
-                                                                                    [FromQuery] int pageNumber = 1,
-                                                                                    [FromQuery] List<Guid>? networkIds = null,
-                                                                                    double longitude = 0,
-                                                                                    double latitude = 0,
-                                                                                    double distance = 1500000000)
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
+    public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] List<Guid>? networkIds = null,
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] double longitude = 0,
+        [FromQuery] double latitude = 0,
+        [FromQuery] double distance = 1500000000)
     {
-        var result = await _mediator.Send(new GetAllCellularCoveragesRequest
+        var cacheKey = $"{CellularCoverageCachePrefix}{pageSize}_{pageNumber}_{string.Join(",", networkIds ?? [])}" +
+               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
+               $"_{longitude}_{latitude}_{distance}";
+
+        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellularCoverageDto>? cachedCellularCoverage))
+            return Ok(cachedCellularCoverage);
+
+        var request = new GetAllCellularCoveragesRequest
         {
             PageSize = pageSize,
             PageNumber = pageNumber,
             NetworkIds = networkIds,
-            Coordinate = new (x: longitude, y: latitude),
-            Distance = distance
-        });
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+            Coordinate = new(x: longitude, y: latitude),
+            Distance = distance,
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
+        };
+
+        var cellularCoverages = await mediator.Send(request);
+        if (cellularCoverages.Succeeded && cellularCoverages.Data != null)
+        {
+            memoryCache.Set(cacheKey, cellularCoverages, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
+        return cellularCoverages.Succeeded ? Ok(cellularCoverages) : BadRequest(cellularCoverages);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<CellularCoverageDto>>> GetCellularCoverageById(Guid id)
     {
-        var result = await _mediator.Send(new GetCellularCoverageByIdRequest(id));
-        return result.Succeeded ? Ok(result) : NotFound(result);
+        var cellularCoverage = await mediator.Send(new GetCellularCoverageByIdRequest(id));
+        return cellularCoverage.Succeeded ? Ok(cellularCoverage) : NotFound(cellularCoverage);
     }
 
     [HttpDelete("networks/{networkId}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoverageByNetworkId(Guid networkId)
     {
-        var result = await _mediator.Send(new DeleteCellularCoverageByNetworkIdRequest
+        var result = await mediator.Send(new DeleteCellularCoverageByNetworkIdRequest
         {
             NetworkId = networkId
         });
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+
+        if (!result.Succeeded)
+            return BadRequest(result);
+
+        RemoveAllCellularCoverageCache();
+        return Ok(result);
     }
 
     [HttpDelete]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoveragesByIds([Required] [FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularCoveragesByIds([Required][FromQuery] List<Guid> ids)
     {
-        var result = await _mediator.Send(new DeleteCellularCoveragesByIdsRequest { Ids = ids });
-        return result.Succeeded ? Ok(result) : NotFound(result);
+        var cellularCoverages = await mediator.Send(new DeleteCellularCoveragesByIdsRequest { Ids = ids });
+        if (!cellularCoverages.Succeeded)
+            return BadRequest(cellularCoverages);
+
+        RemoveAllCellularCoverageCache();
+        return Ok(cellularCoverages);
+    }
+
+    private void TrackCacheKey(string key)
+    {
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellularCoverageCacheKeysSet, _ => new HashSet<string>());
+        if (keys != null)
+        {
+            keys.Add(key);
+            memoryCache.Set(CellularCoverageCacheKeysSet, keys, TimeSpan.FromHours(1));
+        }
+    }
+
+    private void RemoveAllCellularCoverageCache()
+    {
+        if (memoryCache.TryGetValue<HashSet<string>>(CellularCoverageCacheKeysSet, out var keys) && keys != null)
+        {
+            foreach (var key in keys)
+                memoryCache.Remove(key);
+            memoryCache.Remove(CellularCoverageCacheKeysSet);
+        }
     }
 }

@@ -1,10 +1,11 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.RolePermission;
+﻿using NTC.QoS.Domain.Models.DTOs.Permission;
+using NTC.QoS.Domain.Models.DTOs.Role;
+
+namespace NTC.QoS.Domain.Models.DTOs.RolePermission;
 
 public class RolePermissionDto
 {
-    //Role or Permission details
     public Guid Id { get; set; }
-    public required string Name { get; set; }
-    public required string Key { get; set; }
-    public string? Description { get; set; }
+    public PermissionDto? Permission { get; set; }
+    public RoleDto? Role { get; set; }
 }

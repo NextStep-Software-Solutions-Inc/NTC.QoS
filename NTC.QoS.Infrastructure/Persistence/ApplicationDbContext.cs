@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Helper;
+using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence;
 
@@ -50,11 +51,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
+        
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-
         modelBuilder.HasPostgresExtension("postgis");
+
+        foreach ( var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if(typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                var parameter = Expression.Parameter(entityType.ClrType, "entity");
+                var property = Expression.Property(parameter, nameof(BaseEntity.IsDeleted));
+                var notDeletedExpression = Expression.Not(property);
+                var lambda = Expression.Lambda(notDeletedExpression, parameter);
+
+                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(lambda);
+            }
+        }
 
         // ... any entity configuration ...
         modelBuilder.Entity<Provider>()
@@ -87,7 +101,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Technology>()
             .HasIndex(t => t.Standard)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Technology>()
             .HasOne(t => t.Generation)
@@ -102,7 +117,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Band>()
             .HasIndex(b => b.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Band>()
             .HasMany(b => b.Links);
@@ -247,9 +263,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMethod("GIST");
 
         modelBuilder.Entity<Cellular>()
-            .HasOne(c => c.Cell)
+            .HasOne(c => c.CellSector)
             .WithMany(cl => cl.Cellulars)
-            .HasForeignKey(c => c.CellId);
+            .HasForeignKey(c => c.CellSectorId);
 
         modelBuilder.Entity<Cellular>()
             .HasOne(c => c.ServiceProvider)
@@ -264,8 +280,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Province>()
             .HasOne(p => p.Region)
             .WithMany(r => r.Provinces)
-            .HasForeignKey(p => p.RegionId)
-            .OnDelete(DeleteBehavior.NoAction);
+            .HasForeignKey(p => p.RegionId);
+
+        modelBuilder.Entity<Province>()
+            .HasMany(p => p.Municipalities);
 
         modelBuilder.Entity<Region>()
             .HasMany(r => r.Provinces);
@@ -304,7 +322,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<RolePermission>()
             .HasIndex(rp => new { rp.PermissionId, rp.RoleId })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE")
+            .HasDatabaseName("IX_RolePermissions_PermissionId_RoleId_Active");
 
         modelBuilder.Entity<MIMO>()
             .HasMany(m => m.Sectors);
@@ -361,6 +381,89 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(t => t.SystemTypes)
             .WithOne(st => st.Technology)
             .HasForeignKey(st => st.TechnologyId);
+
+        modelBuilder.Entity<Region>()
+            .Property(r => r.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+
+        modelBuilder.Entity<Region>()
+            .HasIndex(r => r.Boundaries)
+            .HasDatabaseName("IX_Region_Boundaries")
+            .HasMethod("GIST");
+        
+        modelBuilder.Entity<Region>()
+            .Property(r => r.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Region>()
+            .HasIndex(r => r.Center)
+            .HasDatabaseName("IX_Region_Center")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Province>()
+            .Property(p => p.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+
+        modelBuilder.Entity<Province>()
+            .HasIndex(p => p.Boundaries)
+            .HasDatabaseName("IX_Province_Boundaries")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Province>()
+            .Property(p => p.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Province>()
+            .HasIndex(p => p.Center)
+            .HasDatabaseName("IX_Province_Center")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Municipality>()
+            .Property(m => m.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+
+        modelBuilder.Entity<Municipality>()
+            .HasIndex(m => m.Boundaries)
+            .HasDatabaseName("IX_Municipality_Boundaries")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Municipality>()
+            .Property(m => m.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Municipality>()
+            .HasIndex(m => m.Center)
+            .HasDatabaseName("IX_Municipality_Center")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Barangay>()
+            .Property(b => b.Boundaries)
+            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+
+        modelBuilder.Entity<Barangay>()
+            .HasIndex(b => b.Boundaries)
+            .HasDatabaseName("IX_Barangay_Boundaries")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<Barangay>()
+            .Property(b => b.Center)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<Barangay>()
+            .HasIndex(b => b.Center)
+            .HasDatabaseName("IX_Barangay_Center")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<CellSector>()
+            .HasMany(cs => cs.Cellulars);
 
         base.OnModelCreating(modelBuilder);
     }

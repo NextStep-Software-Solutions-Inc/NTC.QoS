@@ -1,7 +1,5 @@
 ﻿using MediatR;
 using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 namespace NTC.QoS.Application.Features.Speedtest.Requests;
@@ -12,6 +10,10 @@ public class GetAllSpeedtestsRequest(int pageNumber, int pageSize) : IRequest<Pa
     public int PageSize { get; set; } = pageSize;
     public string? Search { get; set; }
     public string? Address { get; set; }
+    public List<Guid>? BarangayIds { get; set; }
+    public List<Guid>? MunicipalityIds { get; set; }
+    public List<Guid>? ProvinceIds { get; set; }
+    public List<Guid>? RegionIds { get; set; }
     public List<Guid>? ServiceProviderIds { get; set; }
     public List<Guid>? CellIds { get; set; }
     public List<Guid>? GenerationIds { get; set; }

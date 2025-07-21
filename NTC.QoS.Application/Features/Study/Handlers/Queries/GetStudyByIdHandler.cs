@@ -2,7 +2,6 @@
 using NTC.QoS.Application.Features.Study.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.AreaStudy;
 using NTC.QoS.Domain.Models.DTOs.Study;
 
 namespace NTC.QoS.Application.Features.Study.Handlers.Queries;
@@ -13,7 +12,8 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
 
     public async Task<ApiResponse<StudyDto>> Handle(GetStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var study = await _studyRepository.GetByIdAsync(request.Id, cancellationToken);
+        var studyQuery = _studyRepository.Query(s => s.Id == request.Id && !s.IsDeleted);
+        var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
         if (study is null)
         {
             return new ApiResponse<StudyDto>
@@ -34,7 +34,7 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
             Id = study.Id,
             Name = study.Name,
             Description = study.Description,
-            AreaStudy = new AreaStudyDto
+            AreaStudy = new()
             {
                 Id = study.AreaStudyId,
                 Name = study.AreaStudy?.Name ?? string.Empty,

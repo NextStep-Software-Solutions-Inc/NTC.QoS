@@ -8,19 +8,20 @@ using NTC.QoS.Domain.Models.DTOs.Link;
 
 namespace NTC.QoS.Application.Features.Link.Handlers.Commands;
 
-public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repository) : IRequestHandler<UpdateLinkByIdRequest, ApiResponse<UpdateLinkDto>>
+public class UpdateLinkByIdHandler(ILinkRepository repository) : IRequestHandler<UpdateLinkByIdRequest, ApiResponse<LinkDto>>
 {
-    private readonly IRepository<Domain.Aggregates.Link> _repository = repository;
-    public async Task<ApiResponse<UpdateLinkDto>> Handle(UpdateLinkByIdRequest request,
+    private readonly ILinkRepository _repository = repository;
+
+    public async Task<ApiResponse<LinkDto>> Handle(UpdateLinkByIdRequest request,
             CancellationToken cancellationToken)
     {
-        var link = await _repository.FindAsync(l => l.Id == request.Id && !l.IsDeleted, cancellationToken);
+        var linkQuery = _repository.Query(l => l.Id == request.Id);
+        var link = await _repository.FirstOrDefaultAsync(linkQuery, cancellationToken);
 
         if (link is null)
         {
-            return new ApiResponse<UpdateLinkDto>
+            return new ApiResponse<LinkDto>
             {
-                Data = null,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
@@ -29,33 +30,53 @@ public class UpdateLinkByIdHandler(IRepository<Domain.Aggregates.Link> repositor
                 Message = "The link you are trying to edit does not exist."
             };
         }
-        link.Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type);
-        link.BandId = request.Link.BandId;
-        link.CenterFrequency = request.Link.CenterFrequency;
-        link.LowerFrequency = request.Link.LowerFrequency;
-        link.UpperFrequency = request.Link.UpperFrequency;
-        link.RxThreshold = request.Link.RxThreshold;    
+
+        if(!string.IsNullOrEmpty(request.Link.Type)) link.Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type);
+        link.CenterFrequency = request.Link.CenterFrequency ?? link.CenterFrequency;
+        link.LowerFrequency = request.Link.LowerFrequency ?? link.LowerFrequency;
+        link.UpperFrequency = request.Link.UpperFrequency ?? link.UpperFrequency;
+        link.RxThreshold = request.Link.RxThreshold ?? link.RxThreshold;
 
         _repository.Update(link);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<UpdateLinkDto>
+        return new ApiResponse<LinkDto>
         {
             Succeeded = true,
-            Errors = new Dictionary<string, string[]>
+            Data = new LinkDto()
             {
-                { "Link", ["Link data is required."]   }
-            },
-            Data = new UpdateLinkDto()
-            {
-                Type = EnumHelper<LinkTypeEnum>.GetDescription(link.Type),
-                BandId = link.BandId,
+                Id = link.Id,
+                Type = link.Type.ToString(),
+                ServiceProvider = new()
+                {
+                    Id = link.ServiceProviderId,
+                    Provider = new()
+                    {
+                        Id = link.ServiceProvider.Provider.Id,
+                        Name = link.ServiceProvider.Provider.Name,
+                        Description = link.ServiceProvider.Provider.Description,
+                        Color = link.ServiceProvider.Provider.Color,
+                        LicenseNumber = link.ServiceProvider.Provider.LicenseNumber
+                    },
+                    Service = new()
+                    {
+                        Id = link.ServiceProvider.ServiceId,
+                        Name = link.ServiceProvider.Service.Name,
+                        Type = link.ServiceProvider.Service.Type.ToString(),
+                    }
+                },
+                Band = new()
+                {
+                    Id = link.Band.Id,
+                    Name = link.Band.Name,
+                    Description = link.Band.Description,
+                },
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,
                 UpperFrequency = link.UpperFrequency,
                 RxThreshold = link.RxThreshold
             },
-            Message = "Request successful! Your changes have been saved."
+            Message = "Link updated successfully."
         };
     }
 }

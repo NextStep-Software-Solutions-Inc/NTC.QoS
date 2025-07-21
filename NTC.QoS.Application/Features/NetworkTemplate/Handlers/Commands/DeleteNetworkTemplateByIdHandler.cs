@@ -8,14 +8,16 @@ namespace NTC.QoS.Application.Features.NetworkTemplate.Handlers.Commands;
 public class DeleteNetworkTemplateByIdHandler(IRepository<Domain.Entities.NetworkTemplate> repository) : IRequestHandler<DeleteNetworkTemplateByIdRequest, ApiResponse<bool>>
 {
     private readonly IRepository<Domain.Entities.NetworkTemplate> _repository = repository;
+
     public async Task<ApiResponse<bool>> Handle(DeleteNetworkTemplateByIdRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplateExist = await _repository.FindAsync(nt => nt.Id == request.Id && !nt.IsDeleted, cancellationToken);
+        var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id);
+        var networkTemplateExist = await _repository.FirstOrDefaultAsync(networkTemplateExistQuery, cancellationToken);
+
         if (networkTemplateExist is null)
         {
             return new ApiResponse<bool>
             {
-                Data = false,
                 Succeeded = false,
                 Message = $"Network Template Id [{request.Id}] not found.",
                 Errors = new Dictionary<string, string[]>
@@ -24,14 +26,14 @@ public class DeleteNetworkTemplateByIdHandler(IRepository<Domain.Entities.Networ
                 }
             };
         }
-        networkTemplateExist.IsDeleted = true;
-        _repository.Update(networkTemplateExist);
-        await _repository.SaveChangesAsync();
+        _repository.Delete(networkTemplateExist);
+        await _repository.SaveChangesAsync(cancellationToken);
+
         return new ApiResponse<bool>
         {
             Data = true,
             Succeeded = true,
-            Message = $"Network template deleted successfully."
+            Message = "Network template deleted successfully."
         };
     }
 }

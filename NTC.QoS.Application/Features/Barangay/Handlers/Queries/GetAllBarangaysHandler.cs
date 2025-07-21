@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Barangay.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
@@ -12,7 +11,7 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
 
     public async Task<PaginatedResponse<BarangayDto>> Handle(GetAllBarangaysRequest request, CancellationToken cancellationToken)
     {
-        var allBarangaysQuery = _barangayRepository.Query(b => !b.IsDeleted);
+        var allBarangaysQuery = _barangayRepository.Query();
 
         if (request.MunicipalityIds is not null && request.MunicipalityIds.Length > 0)
         {
@@ -25,7 +24,7 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
             .Where(b => request.Province == null || b.Municipality.Province.Name.ToLower().Contains(request.Province.ToLower()));
 
         var barangayDtosQuery = allBarangaysQuery
-            .OrderBy(b => b.CreatedAt)
+            .OrderBy(b => b.Name)
             .Select(b => new BarangayDto {
                 Id = b.Id,
                 Name = b.Name,
@@ -48,7 +47,9 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
                             Description = b.Municipality.Province.Region.Description
                         }
                     }
-                }
+                },
+                Code = b.Code ?? string.Empty,
+                Area = b.Area,
             });
 
         return await _barangayRepository.PaginateAsync(barangayDtosQuery, request.PageNumber, request.PageSize, cancellationToken);

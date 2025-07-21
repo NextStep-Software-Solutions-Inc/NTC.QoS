@@ -6,17 +6,18 @@ using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Application.Features.Generation.Handlers.Commands;
 
-public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> repository): IRequestHandler<CreateGenerationRequest, ApiResponse<CreateGenerationDto>>
+public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> repository): IRequestHandler<CreateGenerationRequest, ApiResponse<GenerationDto>>
 {
     private readonly IRepository<Domain.Aggregates.Generation> _repository = repository;
 
-    public async Task<ApiResponse<CreateGenerationDto>> Handle(CreateGenerationRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<GenerationDto>> Handle(CreateGenerationRequest request, CancellationToken cancellationToken)
     {
-        var generation = await _repository.FindAsync(g => g.Name == request.Generation.Name && !g.IsDeleted, cancellationToken);
+        var generationQuery = _repository.Query(g => g.Name == request.Generation.Name);
+        var generation = await _repository.FirstOrDefaultAsync(generationQuery, cancellationToken);
 
-        if (generation != null)
+        if (generation is not null)
         {
-            return new ApiResponse<CreateGenerationDto>
+            return new ApiResponse<GenerationDto>
             {
                 Succeeded = false,
                 Message = "Generation already exists."
@@ -32,10 +33,11 @@ public class CreateGenerationHandler (IRepository<Domain.Aggregates.Generation> 
         _repository.Add(newGeneration);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateGenerationDto>
+        return new ApiResponse<GenerationDto>
         {
-            Data = new CreateGenerationDto
+            Data = new GenerationDto
             {
+                Id = newGeneration.Id,
                 Name = newGeneration.Name,
                 Description = newGeneration.Description,
             },

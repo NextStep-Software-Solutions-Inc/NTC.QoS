@@ -39,22 +39,38 @@ public class NAPsController : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "serviceProviderId", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
+
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
-        int pageSize = 10,
-        int pageNumber = 1,
-        Guid? serviceProviderId = null,
-        double longitude = 0,
-        double latitude = 0,
-        double distance = 15000000)
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] List<Guid>? serviceProviderIds = null,
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] double longitude = 0,
+        [FromQuery] double latitude = 0,
+        [FromQuery] double distance = 15000000)
     {
-        var cacheKey = $"{NAPsCachePrefix}{pageSize}_{pageNumber}_{serviceProviderId}_{longitude}_{latitude}_{distance}";
+        var cacheKey = $"{NAPsCachePrefix}{pageSize}_{pageNumber}_" +
+               $"{string.Join(",", serviceProviderIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
+               $"_{longitude}_{latitude}_{distance}";
+
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
             return Ok(cachedNAPs);
 
         var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
         {
-            ServiceProviderId = serviceProviderId,
+            ServiceProviderIds = serviceProviderIds,
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
             Coordinate = new(x: longitude, y: latitude),
             Distance = distance
         });
@@ -77,7 +93,7 @@ public class NAPsController : ControllerBase
     }
 
     [HttpDelete]
-    public async Task<ActionResult<ApiResponse<Domain.Aggregates.NAP>>> DeleteNAPsByIds([Required][FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteNAPsByIds([Required][FromQuery] List<Guid> ids)
     {
         var NAP = await _mediator.Send(new DeleteNAPsByIdsRequest { Ids = ids });
         if (NAP.Succeeded)

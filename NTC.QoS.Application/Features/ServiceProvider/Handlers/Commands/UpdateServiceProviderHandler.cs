@@ -12,7 +12,8 @@ public class UpdateServiceProviderHandler(IServiceProviderRepository repository)
 
     public async Task<ApiResponse<ServiceProviderDto>> Handle(UpdateServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceProvider = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var serviceProviderQuery = _repository.Query(sp => sp.Id == request.Id);
+        var serviceProvider = await _repository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is null)
         {
             return new ApiResponse<ServiceProviderDto>
@@ -29,11 +30,11 @@ public class UpdateServiceProviderHandler(IServiceProviderRepository repository)
         serviceProvider.MNC = request.ServiceProvider.MNC;
         serviceProvider.MCC = request.ServiceProvider.MCC;
 
-        var serviceProviderExists = await _repository.FindAsync(sp => sp.ServiceId == serviceProvider.ServiceId
+        var serviceProviderExistsQuery = _repository.Query(sp => sp.ServiceId == serviceProvider.ServiceId
                                                                     && sp.ProviderId == serviceProvider.ProviderId
                                                                     && sp.MNC == serviceProvider.MNC
-                                                                    && sp.MCC == serviceProvider.MCC,
-                                                                    cancellationToken);
+                                                                    && sp.MCC == serviceProvider.MCC);
+        var serviceProviderExists = await _repository.FirstOrDefaultAsync(serviceProviderExistsQuery, cancellationToken);
         if (serviceProviderExists is not null)
         {
             return new ApiResponse<ServiceProviderDto>

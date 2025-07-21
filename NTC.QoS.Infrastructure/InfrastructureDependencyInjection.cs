@@ -3,12 +3,13 @@ using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.BackgroundTasks;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
+using NTC.QoS.Infrastructure.Seed;
 using NTC.QoS.Infrastructure.Services;
-using NetTopologySuite.Geometries; // For Point
 
 namespace NTC.QoS.Infrastructure;
 
@@ -83,7 +84,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
         services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
-
+        services.AddScoped<ICellSectorRepository, CellSectorRepository>();
 
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
 
@@ -93,6 +94,15 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
+
+        Task.Run(async () =>
+        {
+            using var scope = services.BuildServiceProvider().CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger>(); 
+
+            await LocationSeeder.SeedAllAsync(dbContext, logger);
+        });
 
         return services;
     }

@@ -8,17 +8,37 @@ using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
 namespace NTC.QoS.Application.Features.CellularCoverage.Handlers.Commands;
 
-public class CreateCellularCoverageHandler(ICellularCoverageRepository cellularCoverageRepository) : IRequestHandler<CreateCellularCoverageRequest, ApiResponse<CellularCoverageDto>>
+public class CreateCellularCoverageHandler(
+    ICellularCoverageRepository cellularCoverageRepository,
+    IRepository<Domain.Aggregates.Network> networkRepository) : IRequestHandler<CreateCellularCoverageRequest, ApiResponse<CellularCoverageDto>>
 {
     private readonly ICellularCoverageRepository _cellularCoverageRepository = cellularCoverageRepository;
+    private readonly IRepository<Domain.Aggregates.Network> _networkRepository = networkRepository;
 
     public async Task<ApiResponse<CellularCoverageDto>> Handle(CreateCellularCoverageRequest request, CancellationToken cancellationToken)
     {
         Point location = GeometryHelper.CreatePoint(new Coordinate(y: request.CellularCoverage.Latitude, x: request.CellularCoverage.Longitude));
 
+        var networkQuery = _networkRepository.Query(p => p.Id == request.CellularCoverage.NetworkId);
+        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
+        if (network is null)
+        {
+            return new ApiResponse<CellularCoverageDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "NullNetwork", ["Network not found."]
+                    }
+                },
+                Message = "Network not found."
+            };
+        }
+
         var newCellularCoverage = new Domain.Entities.CellularCoverage
         {
-            NetworkId = request.CellularCoverage.NetworkId,
+            NetworkId = network.Id,
             Location = location,
             Strength = request.CellularCoverage.Strength,
             Address = request.CellularCoverage.Address,
@@ -30,16 +50,17 @@ public class CreateCellularCoverageHandler(ICellularCoverageRepository cellularC
 
         return new ApiResponse<CellularCoverageDto>
         {
-            Data = new ()
+            Data = new CellularCoverageDto
             {
                 Id = newCellularCoverage.Id,
+                NetworkId = newCellularCoverage.NetworkId,
                 Lat = newCellularCoverage.Location.Coordinate.Y,
                 Lng = newCellularCoverage.Location.Coordinate.X,
                 Strength = newCellularCoverage.Strength,
-                Band = newCellularCoverage.Network.UpLink != null ? newCellularCoverage.Network.UpLink.Band.Name : string.Empty,
-                Gen = newCellularCoverage.Network.SystemType != null && newCellularCoverage.Network.SystemType.Technology != null ? newCellularCoverage.Network.SystemType.Technology.Generation.Name : string.Empty,
-                Std = newCellularCoverage.Network.SystemType != null && newCellularCoverage .Network.SystemType.Technology != null ? newCellularCoverage.Network.SystemType.Technology.Standard : string.Empty,
-                Provider = newCellularCoverage.Network.UpLink != null ? new CCProviderDto
+                Band = newCellularCoverage.Network?.UpLink?.Band?.Name ?? string.Empty,
+                Gen = newCellularCoverage.Network?.SystemType?.Technology?.Generation?.Name ?? string.Empty,
+                Std = newCellularCoverage.Network?.SystemType?.Technology?.Standard ?? string.Empty,
+                Provider = newCellularCoverage.Network?.UpLink?.ServiceProvider?.Provider != null ? new()
                 {
                     Name = newCellularCoverage.Network.UpLink.ServiceProvider.Provider.Name,
                     Color = newCellularCoverage.Network.UpLink.ServiceProvider.Provider.Color

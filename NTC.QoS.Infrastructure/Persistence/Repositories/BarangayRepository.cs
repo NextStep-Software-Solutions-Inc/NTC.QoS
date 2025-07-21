@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using System.Linq.Expressions;
 
@@ -7,37 +9,31 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class BarangayRepository(ApplicationDbContext context) : Repository<Barangay>(context), IBarangayRepository
 {
-    public override async Task<Barangay?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public override IQueryable<Barangay> Query(Expression<Func<Barangay, bool>>? expression = null)
     {
-        var query = _context.Set<Barangay>().Where(e => !EF.Property<bool>(e, "IsDeleted"))
+        var query = _context.Set<Barangay>()
             .Include(b => b.Municipality)
-                .ThenInclude(m => m!.Province)
-                    .ThenInclude(p => p!.Region);
-
-        return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
-    }
-    public override async Task<List<Barangay>> ListAsync(
-        Expression<Func<Barangay, bool>>? expression = null,
-        CancellationToken cancellationToken = default)
-    {
-        IQueryable<Barangay> query = _context.Set<Barangay>()
-            .Where(e => !EF.Property<bool>(e, "IsDeleted"))
-            .Include(b => b.Municipality)
-                .ThenInclude(m => m!.Province)
-                    .ThenInclude(p => p!.Region);
+                .ThenInclude(m => m.Province)
+                    .ThenInclude(p => p.Region)
+            .AsQueryable();
 
         if (expression != null)
         {
             query = query.Where(expression);
         }
 
-        return await query.ToListAsync(cancellationToken);
+        return query;
     }
-    public override async Task<Barangay?> FindAsync(Expression<Func<Barangay, bool>> expression, CancellationToken cancellationToken = default)
-    {
-        var query = _context.Set<Barangay>().Where(expression)
-            .Include(b => b.Municipality).ThenInclude(m => m!.Province).ThenInclude(p => p!.Region);
 
-        return await query.FirstOrDefaultAsync(cancellationToken);
+    public async Task<Barangay?> FindByLocationAsync(double latitude, double longitude)
+    {
+        var point = GeometryHelper.CreatePoint(new Coordinate(longitude, latitude));
+
+        return await _context.Set<Barangay>()
+            .Include(b => b.Municipality)
+                .ThenInclude(m => m.Province)
+                    .ThenInclude(p => p.Region)
+            .Where(b => b.Boundaries != null && b.Boundaries.Contains(point))
+            .FirstOrDefaultAsync();
     }
 }

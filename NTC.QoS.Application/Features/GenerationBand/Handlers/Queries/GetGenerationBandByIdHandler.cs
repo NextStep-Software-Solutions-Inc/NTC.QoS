@@ -6,17 +6,18 @@ using NTC.QoS.Domain.Models.DTOs.GenerationBand;
 
 namespace NTC.QoS.Application.Features.GenerationBand.Handlers.Queries;
 
-public class GetGenerationBandByIdHandler(IGenerationBandRepository repository) : IRequestHandler<GetGenerationBandByIdRequest, ApiResponse<GetGenerationBandDto>>
+public class GetGenerationBandByIdHandler(IGenerationBandRepository repository) : IRequestHandler<GetGenerationBandByIdRequest, ApiResponse<GenerationBandDto>>
 {
     private readonly IGenerationBandRepository _repository = repository;
 
-    public async Task<ApiResponse<GetGenerationBandDto>> Handle(GetGenerationBandByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<GenerationBandDto>> Handle(GetGenerationBandByIdRequest request, CancellationToken cancellationToken)
     {
-        var generationBand = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        var generationBandQuery = _repository.Query(gb => gb.Id.Equals(request.Id));
+        var generationBand = await _repository.FirstOrDefaultAsync(generationBandQuery, cancellationToken);
 
         if (generationBand is null)
         {
-            return new ApiResponse<GetGenerationBandDto>
+            return new ApiResponse<GenerationBandDto>
             {
                 Succeeded = false,
                 Message = "Generation band not found.",
@@ -27,23 +28,23 @@ public class GetGenerationBandByIdHandler(IGenerationBandRepository repository) 
             };
         }
 
-        return new ApiResponse<GetGenerationBandDto>
+        return new ApiResponse<GenerationBandDto>
         {
             Succeeded = true,
             Message = "Generation band retrieved successfully",
-            Data = new GetGenerationBandDto
+            Data = new GenerationBandDto
             {
                 Id = generationBand.Id,
-                Generation = new GenerationBandDto
+                Generation = new ()
                 {
                     Id = generationBand.GenerationId,
-                    Name = generationBand.Generation?.Name,
+                    Name = generationBand.Generation.Name,
                     Description = generationBand.Generation?.Description,
                 },
-                Band = new GenerationBandDto
+                Band = new ()
                 {
                     Id = generationBand.BandId,
-                    Name = generationBand.Band?.Name,
+                    Name = generationBand.Band.Name,
                     Description = generationBand.Band?.Description,
                 },
             },

@@ -6,17 +6,18 @@ using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
 
 namespace NTC.QoS.Application.Features.AntennaPattern.Handlers.Commands;
 
-public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPattern> repository): IRequestHandler<CreateAntennaPatternRequest, ApiResponse<CreateAntennaPatternDto>>
+public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPattern> repository): IRequestHandler<CreateAntennaPatternRequest, ApiResponse<AntennaPatternDto>>
 {
     private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
 
-    public async Task<ApiResponse<CreateAntennaPatternDto>> Handle(CreateAntennaPatternRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<AntennaPatternDto>> Handle(CreateAntennaPatternRequest request, CancellationToken cancellationToken)
     {
-        var antennaPattern = await _repository.FindAsync(ap => ap.Name == request.AntennaPattern.Name && !ap.IsDeleted, cancellationToken);
+        var antennaPatternQuery = _repository.Query(ap => ap.Name == request.AntennaPattern.Name);
+        var antennaPattern = await _repository.FirstOrDefaultAsync(antennaPatternQuery, cancellationToken);
 
         if (antennaPattern is not null)
         {
-            return new ApiResponse<CreateAntennaPatternDto>
+            return new ApiResponse<AntennaPatternDto>
             {
                 Message = "Antenna pattern already exists.",
                 Succeeded = false
@@ -32,10 +33,11 @@ public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPat
         _repository.Add(newAntennaPattern);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return new ApiResponse<CreateAntennaPatternDto>
+        return new ApiResponse<AntennaPatternDto>
         {
-            Data = new CreateAntennaPatternDto
+            Data = new AntennaPatternDto
             {
+                Id = newAntennaPattern.Id,
                 Name = newAntennaPattern.Name,
                 URL = newAntennaPattern.URL,
             },

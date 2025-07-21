@@ -13,7 +13,7 @@ public class CreateSystemTypeHandler(ISystemTypeRepository systemTypeRepository,
 
     public async Task<ApiResponse<SystemTypeDto>> Handle(CreateSystemTypeRequest request, CancellationToken cancellationToken)
     {
-        var systemTypeQuery = _systemTypeRepository.Query(st => !st.IsDeleted && st.Name == request.SystemType.Name && st.TechnologyId == request.SystemType.TechnologyId);
+        var systemTypeQuery = _systemTypeRepository.Query(st => st.Name == request.SystemType.Name && st.TechnologyId == request.SystemType.TechnologyId);
         var systemType = await _systemTypeRepository.FirstOrDefaultAsync(systemTypeQuery, cancellationToken);
         if (systemType is not null)
         {
@@ -24,7 +24,7 @@ public class CreateSystemTypeHandler(ISystemTypeRepository systemTypeRepository,
             };
         }
 
-        var technologyQuery = _technologyRepository.Query(t => !t.IsDeleted && t.Id == request.SystemType.TechnologyId);
+        var technologyQuery = _technologyRepository.Query(t => t.Id == request.SystemType.TechnologyId);
         var technology = await _technologyRepository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
         if (technology is null)
         {
@@ -50,17 +50,18 @@ public class CreateSystemTypeHandler(ISystemTypeRepository systemTypeRepository,
             {
                 Id = newSystemType.Id,
                 Name = newSystemType.Name,
-                Technology = new() 
-                { 
-                    Id = technology.Id,
-                    Standard = technology.Standard,
-                    Description = technology.Description ?? string.Empty,
-                    Generation = new() 
+                Technology = newSystemType.Technology != null ? new()
+                {
+                    Id = newSystemType.Technology.Id,
+                    Standard = newSystemType.Technology.Standard,
+                    Description = newSystemType.Technology.Description,
+                    Generation = new()
                     {
-                        Id = technology.GenerationId,
-                        Name = technology.Generation?.Name ?? string.Empty
+                        Id = newSystemType.Technology.GenerationId,
+                        Name = newSystemType.Technology.Generation.Name,
+                        Description = newSystemType.Technology.Generation.Description,
                     }
-                }
+                } : null
             },
             Message = "System type created successfully.",
             Succeeded = true

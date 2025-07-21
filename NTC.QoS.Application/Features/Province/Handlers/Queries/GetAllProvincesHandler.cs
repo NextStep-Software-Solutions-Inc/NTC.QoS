@@ -1,9 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Province;
-using NTC.QoS.Domain.Models.DTOs.Region;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
 
@@ -13,38 +11,28 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
-        var allProvinces = await _provinceRepository.ListAsync(p => !p.IsDeleted, cancellationToken);
+        var provincesQuery = _provinceRepository.Query();
 
-        var provinceDtos = allProvinces.Select(p => new ProvinceDto
+        if (request.RegionId.HasValue)
+        {
+            provincesQuery = provincesQuery.Where(p => p.RegionId == request.RegionId.Value);
+        }
+
+        var provinceDtosQuery = provincesQuery.OrderBy(p => p.Name).Select(static p => new ProvinceDto
         {
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
-            Region = new RegionDto
+            Code = p.Code,
+            Area = p.Area,
+            Region = new()
             {
-                Id = p.RegionId,
-                Name = p.Region?.Name ?? string.Empty,
-                Description = p.Region?.Description,
+                Id = p.Region.Id,         
+                Name = p.Region.Name,    
+                Description = p.Region.Description,
             }
-        }).ToList();
+        });
 
-        provinceDtos = [.. provinceDtos.Where(p => !request.RegionId.HasValue || p.Region?.Id == request.RegionId.Value)];
-
-        if (provinceDtos.Count is 0)
-        {
-            return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize)
-            {
-                Data = provinceDtos,
-                Message = "No records found.",
-                Succeeded = true
-            };
-        }
-
-        return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize)
-        {
-            Data = provinceDtos,
-            Message = "Provinces retrieved successfully.",
-            Succeeded = true
-        };
+        return await _provinceRepository.PaginateAsync(provinceDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }
