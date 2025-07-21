@@ -116,6 +116,7 @@ public class Program
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
         builder.Services.AddScoped<GeospatialQueryService>();
+        builder.Services.AddHostedService<NTC.QoS.API.Services.PublicCachePurgeService>();
 
         var app = builder.Build();
         
