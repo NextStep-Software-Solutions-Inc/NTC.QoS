@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.SystemType.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("system-types", Name = "system-types")]
+[Authorize]
+
 public class SystemTypesController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;

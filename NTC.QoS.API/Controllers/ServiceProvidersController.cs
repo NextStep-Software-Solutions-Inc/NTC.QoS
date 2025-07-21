@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.ServiceProvider.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,7 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("service-providers", Name = "service-providers")]
+[Authorize]
 
 public class ServiceProvidersController(IMediator mediator) : ControllerBase
 {

@@ -72,8 +72,8 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
 
         var newUser = new Domain.Entities.User
         {
-            RoleId = role.Id,
-            OrganizationId = organization.Id,
+            RoleId = request.User.RoleId,
+            OrganizationId = request.User.OrganizationId,
             AuthUserId = request.User.AuthUserId
         };
 

@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Cells.Requests;
@@ -10,6 +11,9 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("cells", Name = "cells")]
+[Authorize]
+
+
 public class CellsController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
     private const string CellsCachePrefix = "cells_";

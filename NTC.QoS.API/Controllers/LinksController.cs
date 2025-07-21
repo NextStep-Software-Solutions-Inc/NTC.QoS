@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Link.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("links", Name = "links")]
+[Authorize]
+
 public class LinksController : ControllerBase
 {
     private readonly IMediator _mediator;
