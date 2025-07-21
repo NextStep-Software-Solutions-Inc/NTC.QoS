@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Hangfire;
 using Microsoft.AspNetCore.ResponseCompression;
 using NTC.QoS.API.Extensions;
 using NTC.QoS.Application;
@@ -11,6 +10,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using Microsoft.OpenApi.Models;
+using NTC.QoS.API.Filters;
+using Hangfire;
 
 namespace NTC.QoS.API;
 
@@ -104,6 +105,8 @@ public class Program
                     Array.Empty<string>()
                 }
             });
+            options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
+            options.OperationFilter<SwaggerOperationIdFilter>();
         });
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
         builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration

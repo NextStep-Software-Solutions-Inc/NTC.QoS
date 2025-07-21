@@ -2,7 +2,7 @@
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace NTC.QoS.API.Extensions;
+namespace NTC.QoS.API.Filters;
 
 public class SwaggerOperationIdFilter : IOperationFilter
 {
