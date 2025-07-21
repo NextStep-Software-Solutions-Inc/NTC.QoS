@@ -38,50 +38,19 @@ public class NAPsController : ControllerBase
         return BadRequest(NAP);
     }
 
+    [HttpGet("public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
+    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllPublicNAPs([FromQuery] CellsQueryParams query)
+    {
+        return await GetAllNAPs(query);
+    }
+
     [HttpGet]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
-
-    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
-        [FromQuery] int pageSize = 10,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] List<Guid>? serviceProviderIds = null,
-        [FromQuery] List<Guid>? barangayIds = null,
-        [FromQuery] List<Guid>? municipalityIds = null,
-        [FromQuery] List<Guid>? provinceIds = null,
-        [FromQuery] List<Guid>? regionIds = null,
-        [FromQuery] double longitude = 0,
-        [FromQuery] double latitude = 0,
-        [FromQuery] double distance = 15000000)
+    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllInternalNAPs([FromQuery] CellsQueryParams query)
     {
-        var cacheKey = $"{NAPsCachePrefix}{pageSize}_{pageNumber}_" +
-               $"{string.Join(",", serviceProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
-               $"_{longitude}_{latitude}_{distance}";
-
-        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
-            return Ok(cachedNAPs);
-
-        var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
-        {
-            ServiceProviderIds = serviceProviderIds,
-            BarangayIds = barangayIds,
-            MunicipalityIds = municipalityIds,
-            ProvinceIds = provinceIds,
-            RegionIds = regionIds,
-            Coordinate = new(x: longitude, y: latitude),
-            Distance = distance
-        });
-
-        if (NAP.Succeeded && NAP.Data != null)
-        {
-            _memoryCache.Set(cacheKey, NAP, TimeSpan.FromHours(1));
-            TrackCacheKey(cacheKey);
-        }
-
-        return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
+        return await GetAllNAPs(query);
     }
 
     [HttpGet("{id}")]
@@ -104,7 +73,38 @@ public class NAPsController : ControllerBase
         return BadRequest(NAP);
     }
 
+    private async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(CellsQueryParams query)
+    {
+        var cacheKey = $"{NAPsCachePrefix}{query.PageSize}_{query.PageNumber}_" +
+               $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+               $"_{query.Longitude}_{query.Latitude}_{query.Distance}";
 
+        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
+            return Ok(cachedNAPs);
+
+        var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: query.PageSize, pageNumber: query.PageNumber)
+        {
+            ServiceProviderIds = query.ServiceProviderIds,
+            BarangayIds = query.BarangayIds,
+            MunicipalityIds = query.MunicipalityIds,
+            ProvinceIds = query.ProvinceIds,
+            RegionIds = query.RegionIds,
+            Coordinate = new(x: query.Longitude, y: query.Latitude),
+            Distance = query.Distance
+        });
+
+        if (NAP.Succeeded && NAP.Data != null)
+        {
+            _memoryCache.Set(cacheKey, NAP, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
+
+        return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
+    }
     private void TrackCacheKey(string key)
     {
         var keys = _memoryCache.GetOrCreate<HashSet<string>>(NAPsCacheKeysSet, _ => new HashSet<string>());
@@ -124,5 +124,26 @@ public class NAPsController : ControllerBase
             _memoryCache.Remove(NAPsCacheKeysSet);
         }
     }
+
+
+    public sealed class CellsQueryParams
+    {
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
+        public string? Search { get; set; }
+        public string? Status { get; set; }
+        public List<Guid>? ServiceProviderIds { get; set; }
+        public List<Guid>? ProviderIds { get; set; }
+        public List<Guid>? ServiceIds { get; set; }
+        public double Longitude { get; set; } = 0;
+        public double Latitude { get; set; } = 0;
+        public double Distance { get; set; } = 15000000;
+        public List<Guid>? BarangayIds { get; set; }
+        public List<Guid>? MunicipalityIds { get; set; }
+        public List<Guid>? ProvinceIds { get; set; }
+        public List<Guid>? RegionIds { get; set; }
+    }
+
+
 
 }

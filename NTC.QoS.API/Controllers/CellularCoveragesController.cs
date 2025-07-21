@@ -31,50 +31,19 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         return CreatedAtAction(nameof(GetCellularCoverageById), new { id = request.Data.Id }, request);
     }
 
+    [HttpGet("public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
+    public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllPublicCellularCoverages([FromQuery] CellularCoverageQueryParams query)
+    {
+        return await GetAllCellularCoverages(query);
+    }
+
     [HttpGet]
     [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(
-        [FromQuery] int pageSize = 10,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] List<Guid>? networkIds = null,
-        [FromQuery] List<Guid>? barangayIds = null,
-        [FromQuery] List<Guid>? municipalityIds = null,
-        [FromQuery] List<Guid>? provinceIds = null,
-        [FromQuery] List<Guid>? regionIds = null,
-        [FromQuery] double longitude = 0,
-        [FromQuery] double latitude = 0,
-        [FromQuery] double distance = 1500000000)
+    public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllInternalCellularCoverages([FromQuery] CellularCoverageQueryParams query)
     {
-        var cacheKey = $"{CellularCoverageCachePrefix}{pageSize}_{pageNumber}_{string.Join(",", networkIds ?? [])}" +
-               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
-               $"_{longitude}_{latitude}_{distance}";
-
-        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellularCoverageDto>? cachedCellularCoverage))
-            return Ok(cachedCellularCoverage);
-
-        var request = new GetAllCellularCoveragesRequest
-        {
-            PageSize = pageSize,
-            PageNumber = pageNumber,
-            NetworkIds = networkIds,
-            Coordinate = new(x: longitude, y: latitude),
-            Distance = distance,
-            BarangayIds = barangayIds,
-            MunicipalityIds = municipalityIds,
-            ProvinceIds = provinceIds,
-            RegionIds = regionIds,
-        };
-
-        var cellularCoverages = await mediator.Send(request);
-        if (cellularCoverages.Succeeded && cellularCoverages.Data != null)
-        {
-            memoryCache.Set(cacheKey, cellularCoverages, TimeSpan.FromHours(1));
-            TrackCacheKey(cacheKey);
-        }
-        return cellularCoverages.Succeeded ? Ok(cellularCoverages) : BadRequest(cellularCoverages);
+        return await GetAllCellularCoverages(query);
     }
 
     [HttpGet("{id}")]
@@ -110,6 +79,39 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         return Ok(cellularCoverages);
     }
 
+    private async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(CellularCoverageQueryParams query)
+    {
+        var cacheKey = $"{CellularCoverageCachePrefix}{query.PageSize}_{query.PageNumber}_{string.Join(",", query.NetworkIds ?? [])}" +
+               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+               $"_{query.Longitude}_{query.Latitude}_{query.Distance}";
+
+        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellularCoverageDto>? cachedCellularCoverage))
+            return Ok(cachedCellularCoverage);
+
+        var request = new GetAllCellularCoveragesRequest
+        {
+            PageSize = query.PageSize,
+            PageNumber = query.PageNumber,
+            NetworkIds = query.NetworkIds,
+            Coordinate = new(x: query.Longitude, y: query.Latitude),
+            Distance = query.Distance,
+            BarangayIds = query.BarangayIds,
+            MunicipalityIds = query.MunicipalityIds,
+            ProvinceIds = query.ProvinceIds,
+            RegionIds = query.RegionIds,
+        };
+
+        var cellularCoverages = await mediator.Send(request);
+        if (cellularCoverages.Succeeded && cellularCoverages.Data != null)
+        {
+            memoryCache.Set(cacheKey, cellularCoverages, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
+        return cellularCoverages.Succeeded ? Ok(cellularCoverages) : BadRequest(cellularCoverages);
+    }
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(CellularCoverageCacheKeysSet, _ => new HashSet<string>());
@@ -128,5 +130,19 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
                 memoryCache.Remove(key);
             memoryCache.Remove(CellularCoverageCacheKeysSet);
         }
+    }
+
+    public sealed class CellularCoverageQueryParams
+    {
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
+        public List<Guid>? NetworkIds { get; set; }
+        public List<Guid>? BarangayIds { get; set; }
+        public List<Guid>? MunicipalityIds { get; set; }
+        public List<Guid>? ProvinceIds { get; set; }
+        public List<Guid>? RegionIds { get; set; }
+        public double Longitude { get; set; } = 0;
+        public double Latitude { get; set; } = 0;
+        public double Distance { get; set; } = 1500000000;
     }
 }

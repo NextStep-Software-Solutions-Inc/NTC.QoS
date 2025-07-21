@@ -13,7 +13,6 @@ namespace NTC.QoS.API.Controllers;
 [Route("cells", Name = "cells")]
 [Authorize]
 
-
 public class CellsController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
     private const string CellsCachePrefix = "cells_";
@@ -30,59 +29,18 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return CreatedAtAction(nameof(GetCellById), new { id = cell.Data.Id }, cell);
     }
 
+    [HttpGet("public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
+    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] CellsQueryParams query)
+    {
+        return await GetAllCells(query);
+    }
     [HttpGet]
     [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string? search = null,
-        [FromQuery] string? status = null,
-        [FromQuery] List<Guid>? barangayIds = null,
-        [FromQuery] List<Guid>? municipalityIds = null,
-        [FromQuery] List<Guid>? provinceIds = null,
-        [FromQuery] List<Guid>? regionIds = null,
-        [FromQuery] List<Guid>? serviceProviderIds = null,
-        [FromQuery] List<Guid>? providerIds = null,
-        [FromQuery] List<Guid>? serviceIds = null,
-        double longitude = 0,
-        double latitude = 0,
-        double distance = 180000000)
+    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] CellsQueryParams query)
     {
-        var cacheKey = $"{CellsCachePrefix}{pageNumber}_{pageSize}_{search}_{status}_" +
-               $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", serviceProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", providerIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", serviceIds ?? new List<Guid>())}_" +
-               $"{longitude}_{latitude}_{distance}";
-
-        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
-            return Ok(cachedCells);
-
-        var request = new GetAllCellsRequest(pageNumber, pageSize)
-        {
-            Search = search,
-            Status = status,
-            ServiceProviderIds = serviceProviderIds,
-            ProviderIds = providerIds,
-            ServiceIds = serviceIds,
-            Coordinate = new(x: longitude, y: latitude),
-            Distance = distance,
-            BarangayIds = barangayIds,
-            MunicipalityIds = municipalityIds,
-            ProvinceIds = provinceIds,
-            RegionIds = regionIds
-        };
-        var cells = await mediator.Send(request);
-        if (cells.Succeeded && cells.Data != null)
-        {
-            memoryCache.Set(cacheKey, cells, TimeSpan.FromHours(1));
-            TrackCacheKey(cacheKey);
-        }
-
-        return cells.Succeeded ? Ok(cells) : BadRequest(cells);
+        return await GetAllCells(query);
     }
 
     [HttpGet("{id}")]
@@ -124,7 +82,45 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         RemoveAllCellsCache();
         return Ok(cells);
     }
+    
+    private async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(CellsQueryParams query)
+    {
+        var cacheKey = $"{CellsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{query.Status}_" +
+               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ProviderIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ServiceIds ?? new List<Guid>())}_" +
+               $"{query.Longitude}_{query.Latitude}_{query.Distance}";
 
+        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
+            return Ok(cachedCells);
+
+        var request = new GetAllCellsRequest(query.PageNumber, query.PageSize)
+        {
+            Search = query.Search,
+            Status = query.Status,
+            ServiceProviderIds = query.ServiceProviderIds,
+            ProviderIds = query.ProviderIds,
+            ServiceIds = query.ServiceIds,
+            Coordinate = new(x: query.Longitude, y: query.Latitude),
+            Distance = query.Distance,
+            BarangayIds = query.BarangayIds,
+            MunicipalityIds = query.MunicipalityIds,
+            ProvinceIds = query.ProvinceIds,
+            RegionIds = query.RegionIds
+        };
+        var cells = await mediator.Send(request);
+        if (cells.Succeeded && cells.Data != null)
+        {
+            memoryCache.Set(cacheKey, cells, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
+
+        return cells.Succeeded ? Ok(cells) : BadRequest(cells);
+    }
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(CellsCacheKeysSet, _ => new HashSet<string>());
@@ -144,4 +140,24 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
             memoryCache.Remove(CellsCacheKeysSet);
         }
     }
+
+    public sealed class CellsQueryParams
+    {
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
+        public string? Search { get; set; }
+        public string? Status { get; set; }
+        public List<Guid>? BarangayIds { get; set; }
+        public List<Guid>? MunicipalityIds { get; set; }
+        public List<Guid>? ProvinceIds { get; set; }
+        public List<Guid>? RegionIds { get; set; }
+        public List<Guid>? ServiceProviderIds { get; set; }
+        public List<Guid>? ProviderIds { get; set; }
+        public List<Guid>? ServiceIds { get; set; }
+        public double Longitude { get; set; } = 0;
+        public double Latitude { get; set; } = 0;
+        public double Distance { get; set; } = 180000000;
+    }
+    
 }
+

@@ -28,59 +28,19 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         return CreatedAtAction(nameof(GetSpeedtestById), new { id = speedtest.Data.Id }, speedtest);
     }
 
+    [HttpGet("public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
+    public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllPublicSpeedtests([FromQuery] SpeedtestsQueryParams query)
+    {
+        return await GetAllSpeedtests(query);
+    }
+
     [HttpGet]
     [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string? search = null,
-        [FromQuery] List<Guid>? barangayIds = null,
-        [FromQuery] List<Guid>? municipalityIds = null,
-        [FromQuery] List<Guid>? provinceIds = null,
-        [FromQuery] List<Guid>? regionIds = null,
-        [FromQuery] List<Guid>? serviceProviderIds = null,
-        [FromQuery] List<Guid>? cellIds = null,
-        [FromQuery] List<Guid>? generationIds = null,
-        [FromQuery] List<Guid>? providerIds = null,
-        [FromQuery] List<Guid>? serviceIds = null,
-        string? signalQuality = null,
-        double longitude = 0,
-        double latitude = 0,
-        double distance = 15000000)
+    public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllInternalSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
-        var cacheKey = $"{SpeedtestsCachePrefix}{pageNumber}_{pageSize}_{search}_{string.Join(",", serviceProviderIds ?? [])}_" +
-            $"{string.Join(",", barangayIds ?? new List<Guid>())}_" +
-            $"{string.Join(",", municipalityIds ?? new List<Guid>())}_" +
-            $"{string.Join(",", provinceIds ?? new List<Guid>())}_" +
-            $"{string.Join(",", regionIds ?? new List<Guid>())}_" +
-            $"_{string.Join(",", cellIds ?? [])}_{string.Join(",", generationIds ?? [])}_{string.Join(",", providerIds ?? [])}" + 
-            $"_{string.Join(",", serviceIds ?? [])}_{signalQuality}_{longitude}_{latitude}_{distance}";
-        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
-            return Ok(cachedSpeedtests);
-
-        var request = new GetAllSpeedtestsRequest(pageNumber, pageSize)
-        {
-            Search = search,
-            BarangayIds = barangayIds,
-            MunicipalityIds = municipalityIds,
-            ProvinceIds = provinceIds,
-            RegionIds = regionIds,
-            ServiceProviderIds = serviceProviderIds,
-            CellIds = cellIds,
-            GenerationIds = generationIds,
-            ProviderIds = providerIds,
-            ServiceIds = serviceIds,
-            SignalQuality = signalQuality,
-            Coordinate = new(x: longitude, y: latitude),
-            Distance = distance
-        };
-        var speedtests = await mediator.Send(request);
-        if (speedtests.Succeeded && speedtests.Data != null)
-        {
-            memoryCache.Set(cacheKey, speedtests, TimeSpan.FromHours(1));
-            TrackCacheKey(cacheKey);
-        }
-        return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
+        return await GetAllSpeedtests(query);
     }
 
     [HttpGet("{id}")]
@@ -100,7 +60,42 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         RemoveAllSpeedtestsCache();
         return Ok(speedtests);
     }
+    private async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(SpeedtestsQueryParams query)
+    {
+        var cacheKey = $"{SpeedtestsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+            $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
+            $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
+            $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
+            $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+            $"_{string.Join(",", query.CellIds ?? [])}_{string.Join(",", query.GenerationIds ?? [])}_{string.Join(",", query.ProviderIds ?? [])}" +
+            $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.Longitude}_{query.Latitude}_{query.Distance}";
+        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
+            return Ok(cachedSpeedtests);
 
+        var request = new GetAllSpeedtestsRequest(query.PageNumber, query.PageSize)
+        {
+            Search = query.Search,
+            BarangayIds = query.BarangayIds,
+            MunicipalityIds = query.MunicipalityIds,
+            ProvinceIds = query.ProvinceIds,
+            RegionIds = query.RegionIds,
+            ServiceProviderIds = query.ServiceProviderIds,
+            CellIds = query.CellIds,
+            GenerationIds = query.GenerationIds,
+            ProviderIds = query.ProviderIds,
+            ServiceIds = query.ServiceIds,
+            SignalQuality = query.SignalQuality,
+            Coordinate = new(x: query.Longitude, y: query.Latitude),
+            Distance = query.Distance
+        };
+        var speedtests = await mediator.Send(request);
+        if (speedtests.Succeeded && speedtests.Data != null)
+        {
+            memoryCache.Set(cacheKey, speedtests, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
+        return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
+    }
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(SpeedtestsCacheKeysSet, _ => new HashSet<string>());
@@ -119,5 +114,26 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
                 memoryCache.Remove(key);
             memoryCache.Remove(SpeedtestsCacheKeysSet);
         }
+    }
+
+    public sealed class SpeedtestsQueryParams
+    {
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
+        public string? Search { get; set; }
+        public string? Status { get; set; }
+        public List<Guid>? BarangayIds { get; set; }
+        public List<Guid>? MunicipalityIds { get; set; }
+        public List<Guid>? ProvinceIds { get; set; }
+        public List<Guid>? RegionIds { get; set; }
+        public List<Guid>? ServiceProviderIds { get; set; }
+        public List<Guid>? ProviderIds { get; set; }
+        public List<Guid>? ServiceIds { get; set; }
+        public List<Guid>? CellIds { get; set; }
+        public List<Guid>? GenerationIds { get; set; }
+        public string? SignalQuality { get; set; }
+        public double Longitude { get; set; } = 0;
+        public double Latitude { get; set; } = 0;
+        public double Distance { get; set; } = 15000000;
     }
 }
