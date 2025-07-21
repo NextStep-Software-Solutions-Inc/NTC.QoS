@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Caching.Memory;
+using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -134,15 +135,34 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
 
     public sealed class CellularCoverageQueryParams
     {
+        [JsonPropertyName("pageNumber")]
         public int PageNumber { get; set; } = 1;
+
+        [JsonPropertyName("pageSize")]
         public int PageSize { get; set; } = 10;
+
+        [JsonPropertyName("networkIds")]
         public List<Guid>? NetworkIds { get; set; }
+
+        [JsonPropertyName("barangayIds")]
         public List<Guid>? BarangayIds { get; set; }
+
+        [JsonPropertyName("municipalityIds")]
         public List<Guid>? MunicipalityIds { get; set; }
+
+        [JsonPropertyName("provinceIds")]
         public List<Guid>? ProvinceIds { get; set; }
+
+        [JsonPropertyName("regionIds")]
         public List<Guid>? RegionIds { get; set; }
+
+        [JsonPropertyName("longitude")]
         public double Longitude { get; set; } = 0;
+
+        [JsonPropertyName("latitude")]
         public double Latitude { get; set; } = 0;
+        
+        [JsonPropertyName("distance")]
         public double Distance { get; set; } = 1500000000;
     }
 }

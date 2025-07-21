@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -128,22 +129,33 @@ public class NAPsController : ControllerBase
 
     public sealed class CellsQueryParams
     {
+        [JsonPropertyName("pageNumber")]
         public int PageNumber { get; set; } = 1;
+        [JsonPropertyName("pageSize")]
         public int PageSize { get; set; } = 10;
+        [JsonPropertyName("search")]
         public string? Search { get; set; }
+        [JsonPropertyName("status")]
         public string? Status { get; set; }
+        [JsonPropertyName("serviceProviderIds")]
         public List<Guid>? ServiceProviderIds { get; set; }
+        [JsonPropertyName("providerIds")]
         public List<Guid>? ProviderIds { get; set; }
+        [JsonPropertyName("serviceIds")]
         public List<Guid>? ServiceIds { get; set; }
+        [JsonPropertyName("longitude")]
         public double Longitude { get; set; } = 0;
+        [JsonPropertyName("latitude")]
         public double Latitude { get; set; } = 0;
+        [JsonPropertyName("distance")]
         public double Distance { get; set; } = 15000000;
+        [JsonPropertyName("barangayIds")]
         public List<Guid>? BarangayIds { get; set; }
+        [JsonPropertyName("municipalityIds")]
         public List<Guid>? MunicipalityIds { get; set; }
+        [JsonPropertyName("provinceIds")]
         public List<Guid>? ProvinceIds { get; set; }
+        [JsonPropertyName("regionIds")]
         public List<Guid>? RegionIds { get; set; }
     }
-
-
-
 }
