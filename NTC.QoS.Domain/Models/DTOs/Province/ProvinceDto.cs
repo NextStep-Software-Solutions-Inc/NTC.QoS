@@ -10,4 +10,6 @@ public class ProvinceDto
     public RegionDto? Region { get; set; }
     public string? Code { get; set; } = string.Empty;
     public float? Area { get; set; } = 0f;
+    public int MunicipalityCount { get; set; }
+    public int BarangayCount { get; set; }
 }
