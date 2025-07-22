@@ -5,11 +5,10 @@ using NTC.QoS.Domain.Models.DTOs.Province;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
 
-public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICellRepository cellRepository, INAPRepository napRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
+public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICellRepository cellRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
 {
     private readonly IProvinceRepository _provinceRepository = provinceRepository;
     private readonly ICellRepository _cellRepository = cellRepository;
-    private readonly INAPRepository _napRepository = napRepository;
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
@@ -21,7 +20,6 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
         }
 
         var allCellsQuery = _cellRepository.Query();
-        var allNAPsQuery = _napRepository.Query();
 
         var provinceDtosQuery = provincesQuery
             .OrderBy(p => p.Name)
@@ -44,12 +42,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
                     ? allCellsQuery
                         .Where(cell => p.Boundaries.Intersects(cell.Location))
                         .Select(cell => cell.ServiceProviderId)
-                        .Concat( // <--- Merge with ServiceProviderIds from NAPs
-                            allNAPsQuery
-                                .Where(nap => p.Boundaries.Intersects(nap.Location))
-                                .Select(nap => nap.ServiceProviderId)
-                        )
-                        .Distinct() // <--- Get distinct IDs from the combined list
+                        .Distinct()
                         .Count()
                     : 0
             }); 
