@@ -12,4 +12,5 @@ public class ProvinceDto
     public float? Area { get; set; } = 0f;
     public int MunicipalityCount { get; set; }
     public int BarangayCount { get; set; }
+    public int ISPCount { get; set; }
 }

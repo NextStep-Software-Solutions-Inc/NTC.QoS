@@ -11,6 +11,8 @@ internal sealed class ProvinceRepository(ApplicationDbContext context) : Reposit
     {
         var query = _context.Set<Province>()
             .Include(p => p.Region)
+            .Include(p => p.Municipalities)
+                .ThenInclude(m => m.Barangays)
             .AsQueryable();
 
         if (expression != null)
