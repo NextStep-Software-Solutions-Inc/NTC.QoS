@@ -5,10 +5,11 @@ using NTC.QoS.Domain.Models.DTOs.Province;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
 
-public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICellRepository cellRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
+public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICellRepository cellRepository, INAPRepository nAPRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
 {
     private readonly IProvinceRepository _provinceRepository = provinceRepository;
     private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly INAPRepository _nAPRepository = nAPRepository;
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
@@ -20,6 +21,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
         }
 
         var allCellsQuery = _cellRepository.Query();
+        var allNAPsQuery = _nAPRepository.Query();
 
         var provinceDtosQuery = provincesQuery
             .OrderBy(p => p.Name)
@@ -37,12 +39,17 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
                     Description = p.Region.Description,
                 },
                 MunicipalityCount = p.Municipalities.Count(),
-                BarangayCount = p.Municipalities.Sum(m => m.Barangays.Count()),
+                BarangayCount = p.Municipalities.Sum(m => m.Barangays.Count),
                 ISPCount = p.Boundaries != null
                     ? allCellsQuery
                         .Where(cell => p.Boundaries.Intersects(cell.Location))
                         .Select(cell => cell.ServiceProviderId)
-                        .Distinct()
+                        .Concat( // <--- Merge with ServiceProviderIds from NAPs
+                            allNAPsQuery
+                                .Where(nap => p.Boundaries.Intersects(nap.Location))
+                                .Select(nap => nap.ServiceProviderId)
+                        )
+                        .Distinct() // <--- Get distinct IDs from the combined list
                         .Count()
                     : 0
             }); 
