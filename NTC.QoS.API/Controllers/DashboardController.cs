@@ -170,6 +170,14 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return Ok(result);
     }
 
+    [HttpGet("clear-cache")]
+    public ActionResult<bool> PurgeDashboardCache()
+    {
+        RemoveAllDashboardCache();
+
+        return Ok(true);
+    }
+
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => new HashSet<string>());
