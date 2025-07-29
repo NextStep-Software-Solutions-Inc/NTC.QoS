@@ -8,10 +8,10 @@ using NTC.QoS.Domain.Models.DTOs.Link;
 
 namespace NTC.QoS.Application.Features.Link.Handlers.Commands;
 
-public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepository, IBandRepository bandRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateLinkRequest, ApiResponse<LinkDto>>
+public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepository, ITechnologyBandRepository technologyBandRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateLinkRequest, ApiResponse<LinkDto>>
 {
     private readonly IRepository<Domain.Aggregates.Link> _linkRepository = linkRepository;
-    private readonly IBandRepository _bandRepository = bandRepository;
+    private readonly ITechnologyBandRepository _technologyBandRepository = technologyBandRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
 
     public async Task<ApiResponse<LinkDto>> Handle(CreateLinkRequest request, CancellationToken cancellationToken)
@@ -23,25 +23,25 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
             LowerFrequency = request.Link.LowerFrequency,
             UpperFrequency = request.Link.UpperFrequency,
             RxThreshold = request.Link.RxThreshold,
-            BandId = request.Link.BandId,
+            TechnologyBandId = request.Link.TechnologyBandId,
             ServiceProviderId = request.Link.ServiceProviderId,
         };
         _linkRepository.Add(newLink);
         await _linkRepository.SaveChangesAsync(cancellationToken);
 
-        var bandQuery = _bandRepository.Query(b => b.Id == request.Link.BandId);
-        var band = await _bandRepository.FirstOrDefaultAsync(bandQuery, cancellationToken);
+        var technologyBandQuery = _technologyBandRepository.Query(tb => tb.Id == request.Link.TechnologyBandId);
+        var technologyBand = await _technologyBandRepository.FirstOrDefaultAsync(technologyBandQuery, cancellationToken);
 
-        if (band is null)
+        if (technologyBand is null)
         {
             return new ApiResponse<LinkDto>
             {
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Error",  ["Band not found."] }
+                    {"Error",  ["Technology Band not found."] }
                 },
-                Message = "Band not found.",
+                Message = "Technology Band not found.",
             };
         }
 
@@ -87,11 +87,26 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
                         Type = newLink.ServiceProvider.Service.Type.ToString(),
                     }
                 },
-                Band = new()
+                TechnologyBand = new()
                 {
-                    Id = newLink.Band.Id,
-                    Name = newLink.Band.Name,
-                    Description = newLink.Band.Description,
+                    Id = newLink.TechnologyBand.Id,
+                    Band = new()
+                    {
+                        Id = newLink.TechnologyBand.Band.Id,
+                        Name = newLink.TechnologyBand.Band.Name,
+                        Description = newLink.TechnologyBand.Band.Description
+                    },
+                    Technology = new()
+                    {
+                        Id = newLink.TechnologyBand.Technology.Id,
+                        Standard = newLink.TechnologyBand.Technology.Standard,
+                        Description = newLink.TechnologyBand.Technology.Description,
+                        Generation = new()
+                        {
+                            Id = newLink.TechnologyBand.Technology.Generation.Id,
+                            Name = newLink.TechnologyBand.Technology.Generation.Name
+                        }
+                    }
                 },
                 CenterFrequency = newLink.CenterFrequency,
                 LowerFrequency = newLink.LowerFrequency,

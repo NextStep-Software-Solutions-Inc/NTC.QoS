@@ -15,6 +15,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Provider> Providers { get; set; } // Your entities
     public DbSet<Cell> Cells { get; set; }
     public DbSet<GenerationBand> GenerationBands { get; set; }
+    public DbSet<TechnologyBand> TechnologyBands { get; set; }
     public DbSet<Link> Links { get; set; }
     public DbSet<NAP> NAPs { get; set; }
     public DbSet<Network> Networks { get; set; }
@@ -121,10 +122,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Band>()
-            .HasMany(b => b.Links);
+            .HasMany(b => b.TechnologyBands);
 
         modelBuilder.Entity<Band>()
-            .HasMany(g => g.GenerationBands);
+            .HasMany(g => g.TechnologyBands);
 
         modelBuilder.Entity<GenerationBand>()
             .HasOne(gb => gb.Band)
@@ -136,15 +137,30 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(g => g.GenerationBands)
             .HasForeignKey(gb => gb.GenerationId);
 
+        modelBuilder.Entity<TechnologyBand>()
+            .HasOne(tb => tb.Band)
+            .WithMany(b => b.TechnologyBands)
+            .HasForeignKey(tb => tb.BandId);
+
+        modelBuilder.Entity<TechnologyBand>()
+            .HasOne(tb => tb.Technology)
+            .WithMany(t => t.TechnologyBands)
+            .HasForeignKey(tb => tb.TechnologyId);
+
+        modelBuilder.Entity<TechnologyBand>()
+            .HasIndex(tb => new { tb.TechnologyId, tb.BandId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
         modelBuilder.Entity<Link>()
             .HasOne(l => l.ServiceProvider)
             .WithMany(sp => sp.Links)
             .HasForeignKey(l => l.ServiceProviderId);
 
         modelBuilder.Entity<Link>()
-            .HasOne(l => l.Band)
-            .WithMany(b => b.Links)
-            .HasForeignKey(l => l.BandId);
+            .HasOne(l => l.TechnologyBand)
+            .WithMany(tb => tb.Links)
+            .HasForeignKey(l => l.TechnologyBandId);
 
         modelBuilder.Entity<Network>()
             .HasOne(n => n.NetworkTemplate)

@@ -7,6 +7,6 @@ public class CreateLinkDto
     public decimal LowerFrequency { get; set; }
     public decimal UpperFrequency { get; set; }
     public decimal RxThreshold { get; set; }
-    public Guid BandId { get; set; }
+    public Guid TechnologyBandId { get; set; }
     public Guid ServiceProviderId { get; set; }
 }

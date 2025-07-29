@@ -37,17 +37,31 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
                         Type = link.ServiceProvider.Service.Type.ToString(),
                     }
                 },
-                Band = new()
+                TechnologyBand = new()
                 {
-                    Id = link.Band.Id,
-                    Name = link.Band.Name,
-                    Description = link.Band.Description,
+                    Id = link.TechnologyBand.Id,
+                    Band = new()
+                    {
+                        Id = link.TechnologyBand.Band.Id,
+                        Name = link.TechnologyBand.Band.Name,
+                        Description = link.TechnologyBand.Band.Description
+                    },
+                    Technology = new()
+                    {
+                        Id = link.TechnologyBand.Technology.Id,
+                        Standard = link.TechnologyBand.Technology.Standard,
+                        Description = link.TechnologyBand.Technology.Description,
+                        Generation = new()
+                        {
+                            Id = link.TechnologyBand.Technology.Generation.Id,
+                            Name = link.TechnologyBand.Technology.Generation.Name
+                        }
+                    }
                 },
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,
                 UpperFrequency = link.UpperFrequency,
                 RxThreshold = link.RxThreshold,
-
             });
 
         var link = await _linkRepository.FirstOrDefaultAsync(linkDtoQuery, cancellationToken);
