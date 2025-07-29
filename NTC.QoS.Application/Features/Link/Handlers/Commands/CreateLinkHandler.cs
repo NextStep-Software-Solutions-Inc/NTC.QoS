@@ -16,6 +16,30 @@ public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepositor
 
     public async Task<ApiResponse<LinkDto>> Handle(CreateLinkRequest request, CancellationToken cancellationToken)
     {
+        var duplicateQuery = _linkRepository.Query(l =>
+        l.TechnologyBandId == request.Link.TechnologyBandId &&
+        l.ServiceProviderId == request.Link.ServiceProviderId &&
+        l.Type == EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type) &&
+        l.CenterFrequency == request.Link.CenterFrequency &&
+        l.LowerFrequency == request.Link.LowerFrequency &&
+        l.UpperFrequency == request.Link.UpperFrequency &&
+        l.RxThreshold == request.Link.RxThreshold
+        );
+
+        var existingLink = await _linkRepository.FirstOrDefaultAsync(duplicateQuery, cancellationToken);
+        if (existingLink is not null)
+        {
+            return new ApiResponse<LinkDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Duplicate", new[] { "A link with the same attributes already exists." } }
+                },
+                Message = "Duplicate link detected."
+            };
+        }
+
         var newLink = new Domain.Aggregates.Link
         {
             Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type),
