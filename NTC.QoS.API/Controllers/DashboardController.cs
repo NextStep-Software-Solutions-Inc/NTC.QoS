@@ -72,6 +72,26 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return Ok(result);
     }
 
+    [HttpGet("wireless-coverage")]
+    public async Task<ActionResult<ApiResponse<WirelessCoverageResponseDto>>> GetWirelessCoverage(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] Guid? regionId,
+        [FromQuery] int? daysInPast)
+    {
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
+
+        var request = new GetWirelessCoverageRequest 
+        { 
+            StartDate = finalStartDate, 
+            EndDate = finalEndDate,
+            RegionId = regionId
+        };
+        
+        var result = await mediator.Send(request);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpGet("overview")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
     VaryByQueryKeys = new[] { "startDate", "endDate", "daysInPast", "regionId", "provinceId", "municipalityId", "limit" })]
@@ -161,6 +181,13 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
             {
                 MunicipalityId = municipalityId,
                 Limit = limit
+            }),
+
+            WirelessCoverage = await mediator.Send(new GetWirelessCoverageRequest
+            {
+                StartDate = finalStartDate,
+                EndDate = finalEndDate,
+                RegionId = regionId
             }),
         };
 
