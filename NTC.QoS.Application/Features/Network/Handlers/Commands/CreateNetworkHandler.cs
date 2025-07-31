@@ -4,7 +4,6 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
-using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 using Microsoft.EntityFrameworkCore;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
@@ -24,13 +23,19 @@ public class CreateNetworkHandler(
 
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n => n.Name.Equals(request.Network.Name) && n.SystemTypeId == request.Network.SystemTypeId);
+        var networkQuery = _networkRepository.Query(n => 
+            n.Name.Equals(request.Network.Name) && 
+            n.SystemTypeId == request.Network.SystemTypeId &&
+            n.ServiceProviderId == request.Network.ServiceProviderId &&
+            n.NetworkTemplateId == request.Network.NetworkTemplateId &&
+            n.UpLinkId == request.Network.UplinkId &&
+            n.DownLinkId == request.Network.DownLinkId);
         var existingNetwork = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (existingNetwork is not null)
         {
             return new ApiResponse<NetworkDto>
             {
-                Message = "Network with the same name and system type already exists.",
+                Message = "A network with identical configuration already exists.",
                 Errors = new Dictionary<string, string[]>
                 {
                     { "Duplicate", ["Network already exists."] }
