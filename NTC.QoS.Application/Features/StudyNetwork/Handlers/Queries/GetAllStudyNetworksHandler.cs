@@ -65,6 +65,25 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
                     Description = sn.Network != null && sn.Network.NetworkTemplate != null ? sn.Network.NetworkTemplate.Description : string.Empty,
                     URL = sn.Network != null && sn.Network.NetworkTemplate != null ? sn.Network.NetworkTemplate.URL : string.Empty
                 },
+                ServiceProvider = new()
+                {
+                    Id = sn.Network != null && sn.Network.ServiceProvider != null ? sn.Network.ServiceProvider.Id : Guid.Empty,
+                    MNC = sn.Network != null && sn.Network.ServiceProvider != null ? sn.Network.ServiceProvider.MNC : string.Empty,
+                    MCC = sn.Network != null && sn.Network.ServiceProvider != null ? sn.Network.ServiceProvider.MCC : string.Empty,
+                    Provider = new()
+                    {
+                        Id = sn.Network != null && sn.Network.ServiceProvider != null ? sn.Network.ServiceProvider.ProviderId : Guid.Empty,
+                        Name = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Provider != null ? sn.Network.ServiceProvider.Provider.Name : string.Empty,
+                        Description = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Provider != null ? sn.Network.ServiceProvider.Provider.Description : null,
+                        Color = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Provider != null ? sn.Network.ServiceProvider.Provider.Color : string.Empty
+                    },
+                    Service = new()
+                    {
+                        Id = sn.Network != null && sn.Network.ServiceProvider != null ? sn.Network.ServiceProvider.ServiceId : Guid.Empty,
+                        Name = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Service != null ? sn.Network.ServiceProvider.Service.Name : string.Empty,
+                        Type = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Service != null ? sn.Network.ServiceProvider.Service.Type.ToString() : string.Empty
+                    }
+                },
                 UpLink = new()
                 {
                     Id = sn.Network != null && sn.Network.UpLink != null ? sn.Network.UpLink.Id : Guid.Empty,
@@ -79,7 +98,6 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
                 }
             }
         });
-
         return await _repository.PaginateAsync(studyNetworkDtos, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

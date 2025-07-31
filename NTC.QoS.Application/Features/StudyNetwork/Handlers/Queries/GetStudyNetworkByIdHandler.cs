@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.StudyNetwork;
 
 namespace NTC.QoS.Application.Features.StudyNetwork.Handlers.Queries;
 
-public class GetStudyNetworkrByIdHandler(IStudyNetworkRepository repository) : IRequestHandler<GetStudyNetworkByIdRequest, ApiResponse<StudyNetworkDto>>
+public class GetStudyNetworkByIdHandler(IStudyNetworkRepository repository) : IRequestHandler<GetStudyNetworkByIdRequest, ApiResponse<StudyNetworkDto>>
 {
     private readonly IStudyNetworkRepository _repository = repository;
 
@@ -60,6 +60,25 @@ public class GetStudyNetworkrByIdHandler(IStudyNetworkRepository repository) : I
                         Name = studyNetwork.Network?.NetworkTemplate?.Name ?? string.Empty,
                         Description = studyNetwork.Network?.NetworkTemplate?.Description ?? string.Empty,
                         URL = studyNetwork.Network?.NetworkTemplate?.URL ?? string.Empty
+                    },
+                    ServiceProvider = new()
+                    {
+                        Id = studyNetwork.Network?.ServiceProvider?.Id ?? Guid.Empty,
+                        MNC = studyNetwork.Network?.ServiceProvider?.MNC ?? string.Empty,
+                        MCC = studyNetwork.Network?.ServiceProvider?.MCC ?? string.Empty,
+                        Provider = new()
+                        {
+                            Id = studyNetwork.Network?.ServiceProvider?.ProviderId ?? Guid.Empty,
+                            Name = studyNetwork.Network?.ServiceProvider?.Provider?.Name ?? string.Empty,
+                            Description = studyNetwork.Network?.ServiceProvider?.Provider?.Description,
+                            Color = studyNetwork.Network?.ServiceProvider?.Provider?.Color ?? string.Empty
+                        },
+                        Service = new()
+                        {
+                            Id = studyNetwork.Network?.ServiceProvider?.ServiceId ?? Guid.Empty,
+                            Name = studyNetwork.Network?.ServiceProvider?.Service?.Name ?? string.Empty,
+                            Type = studyNetwork.Network?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                        }
                     },
                     UpLink = new()
                     {

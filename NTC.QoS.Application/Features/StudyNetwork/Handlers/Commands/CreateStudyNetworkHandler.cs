@@ -96,13 +96,32 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
                 {
                     Id = newStudyNetwork.NetworkId,
                     Name = newStudyNetwork.Network?.Name ?? string.Empty,
-                    SystemTypeName = newStudyNetwork.Network?.SystemType.ToString() ?? string.Empty,
+                    SystemTypeName = newStudyNetwork.Network?.SystemType?.Name ?? string.Empty,
                     NetworkTemplate = new()
                     {
                         Id = newStudyNetwork.Network?.NetworkTemplate?.Id ?? Guid.Empty,
                         Name = newStudyNetwork.Network?.NetworkTemplate?.Name ?? string.Empty,
                         Description = newStudyNetwork.Network?.NetworkTemplate?.Description ?? string.Empty,
                         URL = newStudyNetwork.Network?.NetworkTemplate?.URL ?? string.Empty
+                    },
+                    ServiceProvider = new()
+                    {
+                        Id = newStudyNetwork.Network?.ServiceProvider?.Id ?? Guid.Empty,
+                        MNC = newStudyNetwork.Network?.ServiceProvider?.MNC ?? string.Empty,
+                        MCC = newStudyNetwork.Network?.ServiceProvider?.MCC ?? string.Empty,
+                        Provider = new()
+                        {
+                            Id = newStudyNetwork.Network?.ServiceProvider?.ProviderId ?? Guid.Empty,
+                            Name = newStudyNetwork.Network?.ServiceProvider?.Provider?.Name ?? string.Empty,
+                            Description = newStudyNetwork.Network?.ServiceProvider?.Provider?.Description,
+                            Color = newStudyNetwork.Network?.ServiceProvider?.Provider?.Color ?? string.Empty
+                        },
+                        Service = new()
+                        {
+                            Id = newStudyNetwork.Network?.ServiceProvider?.ServiceId ?? Guid.Empty,
+                            Name = newStudyNetwork.Network?.ServiceProvider?.Service?.Name ?? string.Empty,
+                            Type = newStudyNetwork.Network?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                        }
                     },
                     UpLink = new()
                     {

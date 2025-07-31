@@ -1,25 +1,19 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.TechnologyBand.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.TechnologyBand;
 using NTC.QoS.Domain.Models.DTOs.Band;
 using NTC.QoS.Domain.Models.DTOs.Technology;
 
 namespace NTC.QoS.Application.Features.TechnologyBand.Handlers.Queries;
 
-public class GetAllTechnologyBandsHandler(IRepository<Domain.Aggregates.TechnologyBand> repository) : IRequestHandler<GetAllTechnologyBandsRequest, PaginatedResponse<TechnologyBandDto>>
+public class GetAllTechnologyBandsHandler(ITechnologyBandRepository repository) : IRequestHandler<GetAllTechnologyBandsRequest, PaginatedResponse<TechnologyBandDto>>
 {
-    private readonly IRepository<Domain.Aggregates.TechnologyBand> _repository = repository;
+    private readonly ITechnologyBandRepository _repository = repository;
 
     public async Task<PaginatedResponse<TechnologyBandDto>> Handle(GetAllTechnologyBandsRequest request, CancellationToken cancellationToken)
     {
-        var query = _repository.Query()
-            .Include(tb => tb.Band)
-            .Include(tb => tb.Technology)
-            .ThenInclude(t => t.Generation)
-            .AsQueryable();
+        var query = _repository.Query();
 
         if (request.Technologies is not null && request.Technologies.Count is not 0)
         {
@@ -53,7 +47,6 @@ public class GetAllTechnologyBandsHandler(IRepository<Domain.Aggregates.Technolo
                 }
             }
         });
-
         return await _repository.PaginateAsync(dtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

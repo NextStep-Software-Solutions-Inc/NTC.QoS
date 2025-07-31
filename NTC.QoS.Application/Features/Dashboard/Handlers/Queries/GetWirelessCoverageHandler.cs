@@ -13,31 +13,19 @@ public class GetWirelessCoverageHandler(GeospatialQueryService geospatialQuerySe
 
     public async Task<ApiResponse<WirelessCoverageResponseDto>> Handle(GetWirelessCoverageRequest request, CancellationToken cancellationToken)
     {
-        try
-        {
-            var result = await _geospatialQueryService.GetWirelessCoverageAsync(
-                request.StartDate,
-                request.EndDate,
-                request.RegionId);
+        // Default to overall Philippines coverage if no region is specified
+        var result = await _geospatialQueryService.GetWirelessCoverageAsync(
+            request.StartDate,
+            request.EndDate,
+            request.RegionId);
 
-            return new ApiResponse<WirelessCoverageResponseDto>
-            {
-                Succeeded = true,
-                Message = "Wireless coverage data retrieved successfully.",
-                Data = result
-            };
-        }
-        catch (Exception ex)
+        return new ApiResponse<WirelessCoverageResponseDto>
         {
-            return new ApiResponse<WirelessCoverageResponseDto>
-            {
-                Succeeded = false,
-                Message = "Failed to retrieve wireless coverage data.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "Error", new[] { ex.Message } }
-                }
-            };
-        }
+            Succeeded = true,
+            Message = request.RegionId.HasValue 
+                ? "Regional wireless coverage data retrieved successfully." 
+                : "Overall wireless coverage data retrieved successfully.",
+            Data = result
+        };
     }
 }

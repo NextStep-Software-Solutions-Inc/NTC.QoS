@@ -87,7 +87,7 @@ public class CreateTechnologyBandHandler(
             return new ApiResponse<TechnologyBandDto>
             {
                 Succeeded = false,
-                Message = "Technology Band combination already exists."
+                Message = "Technology Band already exists."
             };
         }
 

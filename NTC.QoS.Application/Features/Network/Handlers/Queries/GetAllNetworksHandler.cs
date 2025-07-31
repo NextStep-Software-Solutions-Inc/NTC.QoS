@@ -41,7 +41,26 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
                 Id = n.DownLinkId,
                 Type = n.DownLink.Type.ToString(),
                 CenterFrequency = n.DownLink.CenterFrequency,
-            }
+            },
+            ServiceProvider = new()
+            {
+                Id = n.ServiceProvider.Id,
+                MNC = n.ServiceProvider.MNC,
+                MCC = n.ServiceProvider.MCC,
+                Provider = new()
+                {
+                    Id = n.ServiceProvider.ProviderId,
+                    Name = n.ServiceProvider.Provider.Name,
+                    Description = n.ServiceProvider.Provider.Description,
+                    Color = n.ServiceProvider.Provider.Color
+                },
+                Service = new()
+                {
+                    Id = n.ServiceProvider.ServiceId,
+                    Name = n.ServiceProvider.Service.Name,
+                    Type = n.ServiceProvider.Service.Type.ToString()
+                }
+            },
         });
 
         return await _networkRepository.PaginateAsync(networkDtos, request.PageNumber, request.PageSize, cancellationToken);

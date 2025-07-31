@@ -16,6 +16,10 @@ internal sealed class NetworkRepository(ApplicationDbContext context)
             .Include(n => n.SystemType)
             .Include(n => n.UpLink)
             .Include(n => n.DownLink)
+            .Include(n => n.ServiceProvider)
+                .ThenInclude(sp => sp.Provider)
+            .Include(n => n.ServiceProvider)
+                .ThenInclude(sp => sp.Service)
             .AsQueryable();
 
         if (expression != null)

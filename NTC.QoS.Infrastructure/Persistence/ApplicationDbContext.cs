@@ -393,6 +393,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(st => st.Networks)
             .HasForeignKey(n => n.SystemTypeId);
 
+        modelBuilder.Entity<Network>()
+            .HasOne(n => n.ServiceProvider)
+            .WithMany(sp => sp.Networks)
+            .HasForeignKey(n => n.ServiceProviderId);
+
         modelBuilder.Entity<Technology>()
             .HasMany(t => t.SystemTypes)
             .WithOne(st => st.Technology)

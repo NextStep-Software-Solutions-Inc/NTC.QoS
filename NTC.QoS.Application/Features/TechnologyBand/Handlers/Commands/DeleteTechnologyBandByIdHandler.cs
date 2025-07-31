@@ -5,10 +5,10 @@ using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.TechnologyBand.Handlers.Commands;
 
-public class DeleteTechnologyBandByIdHandler(IRepository<Domain.Aggregates.TechnologyBand> repository)
+public class DeleteTechnologyBandByIdHandler(ITechnologyBandRepository repository)
     : IRequestHandler<DeleteTechnologyBandByIdRequest, ApiResponse<bool>>
 {
-    private readonly IRepository<Domain.Aggregates.TechnologyBand> _repository = repository;
+    private readonly ITechnologyBandRepository _repository = repository;
 
     public async Task<ApiResponse<bool>> Handle(DeleteTechnologyBandByIdRequest request, CancellationToken cancellationToken)
     {

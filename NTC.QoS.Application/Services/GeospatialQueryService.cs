@@ -190,73 +190,76 @@ public class GeospatialQueryService
 
         result.OverallCoverage = overallCoverage;
 
-        // Calculate coverage per region
+        // Only calculate detailed region coverage if a specific region is requested
         var regionsCoverage = new List<RegionWirelessCoverageDto>();
         
-        foreach (var region in regions)
+        if (regionId.HasValue)
         {
-            var regionCoverage = new RegionWirelessCoverageDto
+            foreach (var region in regions)
             {
-                RegionId = region.Id,
-                RegionName = region.Name,
-                RegionCode = region.Code,
-                TechnologiesCoverage = new List<RegionTechnologyCoverageDto>()
-            };
-
-            var coveredTechnologiesCount = 0;
-
-            foreach (var technology in technologies)
-            {
-                // Get coverage data for this technology in this region
-                var coveragePoints = new List<Domain.Entities.CellularCoverage>();
-                
-                foreach (var systemType in technology.SystemTypes)
+                var regionCoverage = new RegionWirelessCoverageDto
                 {
-                    foreach (var network in systemType.Networks)
+                    RegionId = region.Id,
+                    RegionName = region.Name,
+                    RegionCode = region.Code,
+                    TechnologiesCoverage = new List<RegionTechnologyCoverageDto>()
+                };
+
+                var coveredTechnologiesCount = 0;
+
+                foreach (var technology in technologies)
+                {
+                    // Get coverage data for this technology in this region
+                    var coveragePoints = new List<Domain.Entities.CellularCoverage>();
+                    
+                    foreach (var systemType in technology.SystemTypes)
                     {
-                        var networkCoveragePoints = await _dbContext.CellularCoverages
-                            .Where(cc => cc.NetworkId == network.Id &&
-                                        cc.Strength >= MinimumSignalStrength &&
-                                        region.Boundaries != null &&
-                                        cc.Location != null &&
-                                        cc.Location.IsWithinDistance(region.Boundaries, 0) &&
-                                        (startDate == null || cc.CreatedAt >= startDate) &&
-                                        (endDate == null || cc.CreatedAt <= endDate))
-                            .ToListAsync();
-                        
-                        coveragePoints.AddRange(networkCoveragePoints);
+                        foreach (var network in systemType.Networks)
+                        {
+                            var networkCoveragePoints = await _dbContext.CellularCoverages
+                                .Where(cc => cc.NetworkId == network.Id &&
+                                            cc.Strength >= MinimumSignalStrength &&
+                                            region.Boundaries != null &&
+                                            cc.Location != null &&
+                                            cc.Location.IsWithinDistance(region.Boundaries, 0) &&
+                                            (startDate == null || cc.CreatedAt >= startDate) &&
+                                            (endDate == null || cc.CreatedAt <= endDate))
+                                .ToListAsync();
+                            
+                            coveragePoints.AddRange(networkCoveragePoints);
+                        }
                     }
+
+                    var hasCoverage = coveragePoints.Any();
+                    var averageSignalStrength = hasCoverage ? coveragePoints.Average(cp => cp.Strength) : 0;
+                    
+                    // Calculate coverage percentage based on signal strength quality
+                    var coveragePercentage = 0m;
+                    if (hasCoverage)
+                    {
+                        // Simple quality-based percentage: stronger signals = higher percentage
+                        var normalizedStrength = Math.Max(0, (averageSignalStrength - MinimumSignalStrength) / (-50m - MinimumSignalStrength));
+                        coveragePercentage = Math.Min(100, Math.Max(10, normalizedStrength * 100)); // 10-100% range
+                    }
+
+                    if (hasCoverage)
+                        coveredTechnologiesCount++;
+
+                    regionCoverage.TechnologiesCoverage.Add(new RegionTechnologyCoverageDto
+                    {
+                        Technology = $"{technology.Generation.Name} - {technology.Standard}",
+                        CoveragePercentage = Math.Round(coveragePercentage, 2),
+                        AverageSignalStrength = Math.Round(averageSignalStrength, 2),
+                        CoveragePointsCount = coveragePoints.Count
+                    });
                 }
 
-                var hasCoverage = coveragePoints.Any();
-                var averageSignalStrength = hasCoverage ? coveragePoints.Average(cp => cp.Strength) : 0;
-                
-                // Calculate coverage percentage based on signal strength quality
-                var coveragePercentage = 0m;
-                if (hasCoverage)
-                {
-                    // Simple quality-based percentage: stronger signals = higher percentage
-                    var normalizedStrength = Math.Max(0, (averageSignalStrength - MinimumSignalStrength) / (-50m - MinimumSignalStrength));
-                    coveragePercentage = Math.Min(100, Math.Max(10, normalizedStrength * 100)); // 10-100% range
-                }
+                regionCoverage.OverallCoveragePercentage = technologies.Count > 0 
+                    ? Math.Round((decimal)coveredTechnologiesCount / technologies.Count * 100, 2) 
+                    : 0;
 
-                if (hasCoverage)
-                    coveredTechnologiesCount++;
-
-                regionCoverage.TechnologiesCoverage.Add(new RegionTechnologyCoverageDto
-                {
-                    Technology = $"{technology.Generation.Name} - {technology.Standard}",
-                    CoveragePercentage = Math.Round(coveragePercentage, 2),
-                    AverageSignalStrength = Math.Round(averageSignalStrength, 2),
-                    CoveragePointsCount = coveragePoints.Count
-                });
+                regionsCoverage.Add(regionCoverage);
             }
-
-            regionCoverage.OverallCoveragePercentage = technologies.Count > 0 
-                ? Math.Round((decimal)coveredTechnologiesCount / technologies.Count * 100, 2) 
-                : 0;
-
-            regionsCoverage.Add(regionCoverage);
         }
 
         result.RegionsCoverage = regionsCoverage;

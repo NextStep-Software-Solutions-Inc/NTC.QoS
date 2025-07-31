@@ -381,6 +381,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("NetworkTemplateId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("ServiceProviderId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("SystemTypeId")
                         .HasColumnType("uuid");
 
@@ -399,6 +402,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("DownLinkId");
 
                     b.HasIndex("NetworkTemplateId");
+
+                    b.HasIndex("ServiceProviderId");
 
                     b.HasIndex("SystemTypeId");
 
@@ -2267,6 +2272,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
+                        .WithMany()
+                        .HasForeignKey("ServiceProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("NTC.QoS.Domain.Entities.SystemType", "SystemType")
                         .WithMany("Networks")
                         .HasForeignKey("SystemTypeId")
@@ -2282,6 +2293,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("DownLink");
 
                     b.Navigation("NetworkTemplate");
+
+                    b.Navigation("ServiceProvider");
 
                     b.Navigation("SystemType");
 
