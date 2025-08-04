@@ -19,6 +19,17 @@ public class TechnologyBandsController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<IActionResult> Post(CreateTechnologyBandDto technologyBandDto)
+    {
+        var technologyBand = await _mediator.Send(new CreateTechnologyBandRequest
+        {
+            TechnologyBand = technologyBandDto
+        });
+
+        return technologyBand.Succeeded ? Ok(technologyBand) : BadRequest(technologyBand);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<TechnologyBandDto>>> GetAllTechnologyBands(
         int pageSize = 10, 
@@ -42,17 +53,6 @@ public class TechnologyBandsController : ControllerBase
     {
         var request = new GetTechnologyBandByIdRequest(id);
         var technologyBand = await _mediator.Send(request);
-        return technologyBand.Succeeded ? Ok(technologyBand) : BadRequest(technologyBand);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Post(CreateTechnologyBandDto technologyBandDto)
-    {
-        var technologyBand = await _mediator.Send(new CreateTechnologyBandRequest
-        {
-            TechnologyBand = technologyBandDto
-        });
-
         return technologyBand.Succeeded ? Ok(technologyBand) : BadRequest(technologyBand);
     }
 

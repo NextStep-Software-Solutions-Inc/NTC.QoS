@@ -20,6 +20,17 @@ public class AntennaPatternsController: ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<AntennaPatternDto>>> CreateAntennaPattern(CreateAntennaPatternDto antennaPatternDto)
+    {
+        var antennaPattern = await _mediator.Send(new CreateAntennaPatternRequest
+        {
+            AntennaPattern = antennaPatternDto
+        });
+
+        return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<AntennaPatternDto>>> GetAllAntennaPatterns(int pageSize = 10, int pageNumber = 1)
     {
@@ -37,17 +48,6 @@ public class AntennaPatternsController: ControllerBase
     {
         var request = new GetAntennaPatternByIdRequest(id);
         var antennaPattern = await _mediator.Send(request);
-        return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<AntennaPatternDto>>> CreateAntennaPattern(CreateAntennaPatternDto antennaPatternDto)
-    {
-        var antennaPattern = await _mediator.Send(new CreateAntennaPatternRequest
-        {
-            AntennaPattern = antennaPatternDto
-        });
-
         return antennaPattern.Succeeded ? Ok(antennaPattern) : BadRequest(antennaPattern);
     }
 

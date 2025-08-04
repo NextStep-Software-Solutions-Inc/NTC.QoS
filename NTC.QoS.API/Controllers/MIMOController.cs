@@ -20,6 +20,13 @@ public class MIMOsController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<MIMODto>>> Post(CreateMIMODto mimoDto)
+    {
+        var mimo = await _mediator.Send(new CreateMIMORequest(mimoDto));
+        return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<MIMODto>>> GetAllMIMOs(int pageSize = 10, int pageNumber = 1)
     {
@@ -38,21 +45,6 @@ public class MIMOsController : ControllerBase
         var mimo = await _mediator.Send(request);
         return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
     }
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<MIMODto>>> Post(CreateMIMODto mimoDto)
-    {
-        var mimo = await _mediator.Send(new CreateMIMORequest(mimoDto));
-        return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
-    {
-        var request = new DeleteMIMOByIdRequest(id);
-        var mimo = await _mediator.Send(request);
-
-        return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
-    }
 
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<MIMODto>>> UpdateMIMOById(Guid id, UpdateMIMODto updateMIMO)
@@ -67,6 +59,15 @@ public class MIMOsController : ControllerBase
             DLThroughput = updateMIMO.DLInterferenceReduction,
             ULThroughput = updateMIMO.ULThroughput,
         }));
+        return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
+    {
+        var request = new DeleteMIMOByIdRequest(id);
+        var mimo = await _mediator.Send(request);
+
         return mimo.Succeeded ? Ok(mimo) : BadRequest(mimo);
     }
 }
