@@ -161,7 +161,13 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
             {
                 MunicipalityId = municipalityId,
                 Limit = limit
-            })
+            }),
+            WirelessCoverage = await mediator.Send(new GetWirelessCoverageRequest
+            {
+                StartDate = finalStartDate,
+                EndDate = finalEndDate,
+                RegionId = regionId
+            }),
         };
 
         memoryCache.Set(cacheKey, result, TimeSpan.FromHours(24));
