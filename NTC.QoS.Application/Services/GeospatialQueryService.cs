@@ -245,7 +245,6 @@ public class GeospatialQueryService
                 Technology = $"{technology.Value.TechnologyName} - {technology.Value.TechnologyStandard}",
                 CoveragePercentage = Math.Round(coveragePercentage, 2),
                 CoverageCount = regionsWithCoverage.Count,
-                TotalRegionCount = regions.Count
             });
         }
 

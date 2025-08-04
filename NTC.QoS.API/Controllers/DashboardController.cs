@@ -58,6 +58,20 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return Ok(result);
     }
 
+    [HttpGet("provinces/top-by-cell-count/region-id")]
+    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopProvincesInRegionByCellCount(
+       [FromQuery] DateTime? startDate,
+       [FromQuery] DateTime? endDate,
+       [FromQuery] Guid regionId,
+       [FromQuery] int limit = 0)
+    {
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger);
+
+        var query = new GetTopProvincesInRegionByCellCountRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, Limit = limit };
+        var result = await mediator.Send(query);
+        return Ok(result);
+    }
+
     [HttpGet("wireless-coverage")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
     VaryByQueryKeys = new[] { "startDate", "endDate", "regionId", "daysInPast" })]
@@ -95,22 +109,6 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
 
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
-
-    [HttpGet("provinces/top-by-cell-count/region-id")]
-    public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopProvincesInRegionByCellCount(
-       [FromQuery] DateTime? startDate,
-       [FromQuery] DateTime? endDate,
-       [FromQuery] Guid regionId,
-       [FromQuery] int limit = 0)
-    {
-        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger);
-
-        var query = new GetTopProvincesInRegionByCellCountRequest { StartDate = finalStartDate, EndDate = finalEndDate, RegionId = regionId, Limit = limit };
-        var result = await mediator.Send(query);
-        return Ok(result);
-    }
-
-
 
     [HttpGet("overview")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
