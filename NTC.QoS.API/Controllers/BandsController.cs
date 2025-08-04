@@ -20,6 +20,17 @@ public class BandsController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<IActionResult> Post(CreateBandDto bandDto)
+    {
+        var band = await _mediator.Send(new CreateBandRequest
+        {
+            Band = bandDto
+        });
+
+        return band.Succeeded ? Ok(band) : BadRequest(band);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<BandDto>>> GetAllBands(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? technologies = default)
     {
@@ -38,17 +49,6 @@ public class BandsController : ControllerBase
     {
         var request = new GetBandByIdRequest(id);
         var band = await _mediator.Send(request);
-        return band.Succeeded ? Ok(band) : BadRequest(band);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Post(CreateBandDto bandDto)
-    {
-        var band = await _mediator.Send(new CreateBandRequest
-        {
-            Band = bandDto
-        });
-
         return band.Succeeded ? Ok(band) : BadRequest(band);
     }
 

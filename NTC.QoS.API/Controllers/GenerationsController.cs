@@ -20,6 +20,17 @@ public class GenerationsController : ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<IActionResult> CreateGeneration(CreateGenerationDto generationDto)
+    {
+        var generation = await _mediator.Send(new CreateGenerationRequest
+        {
+            Generation = generationDto
+        });
+
+        return generation.Succeeded ? Ok(generation) : BadRequest(generation);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<GenerationDto>>> GetAllGenerations(int pageSize = 10,
                                                                                         int pageNumber = 1,
@@ -44,17 +55,6 @@ public class GenerationsController : ControllerBase
     {
         var request = new GetGenerationByIdRequest(id);
         var generation = await _mediator.Send(request);
-        return generation.Succeeded ? Ok(generation) : BadRequest(generation);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> CreateGeneration(CreateGenerationDto generationDto)
-    {
-        var generation = await _mediator.Send(new CreateGenerationRequest
-        {
-            Generation = generationDto
-        });
-
         return generation.Succeeded ? Ok(generation) : BadRequest(generation);
     }
 

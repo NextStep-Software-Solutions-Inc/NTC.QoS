@@ -1,7 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Link.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Link;
 
@@ -20,9 +18,9 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
             allLinksQuery = allLinksQuery.Where(l => l.ServiceProviderId == request.ServiceProviderId.Value);
         }
 
-        if (request.BandId.HasValue)
+        if (request.TechnologyBandId.HasValue)
         {
-            allLinksQuery = allLinksQuery.Where(l => l.BandId == request.BandId.Value);
+            allLinksQuery = allLinksQuery.Where(l => l.TechnologyBandId == request.TechnologyBandId.Value);
         }
 
         var linkDtosQuery = allLinksQuery
@@ -51,11 +49,25 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
                         Type = l.ServiceProvider.Service.Type.ToString(),
                     }
                 },
-                Band = new()
+                TechnologyBand = new()
                 {
-                    Id = l.Band.Id,
-                    Name = l.Band.Name,
-                    Description = l.Band.Description
+                    Id = l.TechnologyBand.Id,
+                    Band = new()
+                    {
+                        Id = l.TechnologyBand.Band.Id,
+                        Name = l.TechnologyBand.Band.Name,
+                        Description = l.TechnologyBand.Band.Description
+                    },
+                    Technology = new()
+                    {
+                        Id = l.TechnologyBand.Technology.Id,
+                        Standard = l.TechnologyBand.Technology.Standard,
+                        Generation = new()
+                        {
+                            Id = l.TechnologyBand.Technology.Generation.Id,
+                            Name = l.TechnologyBand.Technology.Generation.Name
+                        }
+                    }
                 },
                 CenterFrequency = l.CenterFrequency,
                 LowerFrequency = l.LowerFrequency,

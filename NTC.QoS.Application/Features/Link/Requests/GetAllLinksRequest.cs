@@ -16,7 +16,5 @@ public class GetAllLinksRequest : IRequest<PaginatedResponse<LinkDto>>
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
     public Guid? ServiceProviderId { get; set; }
-    public Guid? BandId { get; set; }
+    public Guid? TechnologyBandId { get; set; }
 }
-
-

@@ -10,6 +10,8 @@ public class Network : BaseEntity
     public string Name { get; set; } = string.Empty;
     public Guid SystemTypeId { get; set; }
     public virtual SystemType SystemType { get; set; } = null!;
+    public Guid ServiceProviderId { get; set; }
+    public virtual ServiceProvider ServiceProvider { get; set; } = null!;
     public Guid UpLinkId { get; set; }
     public virtual Link UpLink { get; set; } = null!;
     public Guid DownLinkId { get; set; }

@@ -31,12 +31,19 @@ public class LinksController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<LinkDto>>> GetAllLinks(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<LinkDto>>> GetAllLinks(
+        [FromQuery] Guid? serviceProviderId = null,
+        [FromQuery] Guid? technologyBandId = null,
+        int pageSize = 10, 
+        int pageNumber = 1
+    )
     {
         var result = await _mediator.Send(new GetAllLinksRequest
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize,
+            ServiceProviderId = serviceProviderId,
+            TechnologyBandId = technologyBandId,
         });
         return Ok(result);
     }

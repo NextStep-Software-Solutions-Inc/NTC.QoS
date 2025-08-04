@@ -161,7 +161,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
             {
                 MunicipalityId = municipalityId,
                 Limit = limit
-            }),
+            })
         };
 
         memoryCache.Set(cacheKey, result, TimeSpan.FromHours(24));

@@ -1,7 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Network.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
@@ -70,9 +68,28 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                 Id = network.DownLinkId,
                 Type = network.DownLink?.Type is not null ? network.DownLink.Type.ToString() : string.Empty,
                 CenterFrequency = network.DownLink?.CenterFrequency ?? 0,
-            }
+            },
+            ServiceProvider = new()
+            {
+                Id = network.ServiceProviderId,
+                MNC = network.ServiceProvider?.MNC ?? string.Empty,
+                MCC = network.ServiceProvider?.MCC ?? string.Empty,
+                Provider = new()
+                {
+                    Id = network.ServiceProvider?.ProviderId ?? Guid.Empty,
+                    Name = network.ServiceProvider?.Provider?.Name ?? string.Empty,
+                    Color = network.ServiceProvider?.Provider?.Color ?? string.Empty,
+                    Description = network.ServiceProvider?.Provider?.Description ?? string.Empty,
+                    LicenseNumber = network.ServiceProvider?.Provider?.LicenseNumber ?? string.Empty
+                },
+                Service = new()
+                {
+                    Id = network.ServiceProvider?.ServiceId ?? Guid.Empty,
+                    Name = network.ServiceProvider?.Service?.Name ?? string.Empty,
+                    Type = network.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                }
+            },
         };
-
         return new ApiResponse<NetworkDto>
         {
             Data = result,

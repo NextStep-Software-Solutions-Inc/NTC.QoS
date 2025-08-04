@@ -16,7 +16,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<NetworkDto>>> CreateNetwork(CreateNetworkDto createNetwork)
+    public async Task<ActionResult<ApiResponse<NetworkDto>>> CreateNetwork([FromBody] CreateNetworkDto createNetwork)
     {
         var network = await _mediator.Send(new CreateNetworkRequest(createNetwork));
         return network.Succeeded ? Ok(network) : BadRequest(network);

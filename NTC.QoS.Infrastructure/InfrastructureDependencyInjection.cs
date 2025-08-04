@@ -85,6 +85,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
         services.AddScoped<ICellSectorRepository, CellSectorRepository>();
+        services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
 
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
 

@@ -20,6 +20,17 @@ public class TechnologiesController: ControllerBase
         _mediator = mediator;
     }
 
+    [HttpPost]
+    public async Task<IActionResult> CreateTechnology(CreateTechnologyDto technologyDto)
+    {
+        var technology = await _mediator.Send(new CreateTechnologyRequest
+        {
+            Technology = technologyDto
+        });
+
+        return technology.Succeeded ? Ok(technology) : BadRequest(technology);
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<TechnologyDto>>> GetAllTechnologies(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? generationIds = null)
     {
@@ -38,17 +49,6 @@ public class TechnologiesController: ControllerBase
     {
         var request = new GetTechnologyByIdRequest(id);
         var technology = await _mediator.Send(request);
-        return technology.Succeeded ? Ok(technology) : BadRequest(technology);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> CreateTechnology(CreateTechnologyDto technologyDto)
-    {
-        var technology = await _mediator.Send(new CreateTechnologyRequest
-        {
-            Technology = technologyDto
-        });
-
         return technology.Succeeded ? Ok(technology) : BadRequest(technology);
     }
 

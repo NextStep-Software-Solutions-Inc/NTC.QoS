@@ -45,15 +45,34 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
             UpLink = new()
             {
                 Id = network.UpLinkId,
-                Type = network.UpLink?.Type is not null ? network.UpLink.Type.ToString() : string.Empty,
+                Type = network.UpLink?.Type.ToString() ?? string.Empty,
                 CenterFrequency = network.UpLink?.CenterFrequency ?? 0,
             },
             DownLink = new()
             {
                 Id = network.DownLinkId,
-                Type = network.DownLink?.Type is not null ? network.DownLink.Type.ToString() : string.Empty,
+                Type = network.DownLink?.Type.ToString() ?? string.Empty,
                 CenterFrequency = network.DownLink?.CenterFrequency ?? 0,
-            }
+            },
+            ServiceProvider = new()
+            {
+                Id = network.ServiceProvider?.Id ?? Guid.Empty,
+                MNC = network.ServiceProvider?.MNC ?? string.Empty,
+                MCC = network.ServiceProvider?.MCC ?? string.Empty,
+                Provider = new()
+                {
+                    Id = network.ServiceProvider?.ProviderId ?? Guid.Empty,
+                    Name = network.ServiceProvider?.Provider?.Name ?? string.Empty,
+                    Description = network.ServiceProvider?.Provider?.Description,
+                    Color = network.ServiceProvider?.Provider?.Color ?? string.Empty
+                },
+                Service = new()
+                {
+                    Id = network.ServiceProvider?.ServiceId ?? Guid.Empty,
+                    Name = network.ServiceProvider?.Service?.Name ?? string.Empty,
+                    Type = network.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                }
+            },
         };
 
         return new ApiResponse<NetworkDto>

@@ -10,4 +10,5 @@ public class DashboardAggregateDTO
     public ApiResponse<List<GeoEntityCellCountDto>>? TopProvincesInRegionByCellCount { get; set; }
     public ApiResponse<List<GeoEntityCellCountDto>>? TopMunicipalitiesInProvinceByCellCount { get; set; }
     public ApiResponse<List<GeoEntityCellCountDto>>? TopBarangaysInMunicipalityByCellCount { get; set; }
+    public ApiResponse<WirelessCoverageResponseDto>? WirelessCoverage { get; set; }
 }
