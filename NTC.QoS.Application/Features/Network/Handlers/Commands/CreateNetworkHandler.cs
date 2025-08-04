@@ -89,6 +89,19 @@ public class CreateNetworkHandler(
             };
         }
 
+        if (serviceProvider.Service?.Type != ServiceTypeEnum.Wireless)
+        {
+            return new ApiResponse<NetworkDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "InvalidServiceProvider", ["Service Provider must be of type Wireless for network creation."] }
+                },
+                Message = "Service Provider must be of type Wireless for network creation."
+            };
+        }
+
         var errorMessages = new List<string>();
 
         var uplinkQuery = _linkRepository.Query(l => l.Id == request.Network.UplinkId)

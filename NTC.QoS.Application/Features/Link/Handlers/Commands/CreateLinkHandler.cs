@@ -40,6 +40,53 @@ public class CreateLinkHandler(ILinkRepository linkRepository, ITechnologyBandRe
             };
         }
 
+        // Validate TechnologyBand exists
+        var technologyBandQuery = _technologyBandRepository.Query(tb => tb.Id == request.Link.TechnologyBandId);
+        var technologyBand = await _technologyBandRepository.FirstOrDefaultAsync(technologyBandQuery, cancellationToken);
+
+        if (technologyBand is null)
+        {
+            return new ApiResponse<LinkDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"NullTechnologyBand",  ["Technology Band not found."] }
+                },
+                Message = "Technology Band not found.",
+            };
+        }
+
+        // Validate ServiceProvider exists and is wireless
+        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Link.ServiceProviderId);
+        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
+
+        if (serviceProvider is null)
+        {
+            return new ApiResponse<LinkDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"NullServiceProvider",  ["Service Provider not found."] }
+                },
+                Message = "Service Provider not found.",
+            };
+        }
+
+        if (serviceProvider.Service?.Type != ServiceTypeEnum.Wireless)
+        {
+            return new ApiResponse<LinkDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "InvalidServiceProvider", ["Service Provider must be of type Wireless for link creation."] }
+                },
+                Message = "Service Provider must be of type Wireless for link creation."
+            };
+        }
+
         var newLink = new Domain.Aggregates.Link
         {
             Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type),
@@ -52,38 +99,6 @@ public class CreateLinkHandler(ILinkRepository linkRepository, ITechnologyBandRe
         };
         _linkRepository.Add(newLink);
         await _linkRepository.SaveChangesAsync(cancellationToken);
-
-        var technologyBandQuery = _technologyBandRepository.Query(tb => tb.Id == request.Link.TechnologyBandId);
-        var technologyBand = await _technologyBandRepository.FirstOrDefaultAsync(technologyBandQuery, cancellationToken);
-
-        if (technologyBand is null)
-        {
-            return new ApiResponse<LinkDto>
-            {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {"Error",  ["Technology Band not found."] }
-                },
-                Message = "Technology Band not found.",
-            };
-        }
-
-        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id == request.Link.ServiceProviderId);
-        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
-
-        if (serviceProvider is null)
-        {
-            return new ApiResponse<LinkDto>
-            {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {"Error",  ["Service Provider not found."] }
-                },
-                Message = "Service Provider not found.",
-            };
-        }
 
         return new ApiResponse<LinkDto>
         {
