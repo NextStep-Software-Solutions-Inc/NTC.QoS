@@ -117,73 +117,133 @@ public class GeospatialQueryService
         // Define minimum signal strength threshold for usable coverage (e.g., -100 dBm)
         const decimal MinimumSignalStrength = -100m;
         
-        // Get all technologies with their generations and system types
-        var technologiesQuery = _dbContext.Technologies
-            .Include(t => t.Generation)
-            .Include(t => t.SystemTypes)
-                .ThenInclude(st => st.Networks)
-                    .ThenInclude(n => n.CellularCoverages)
-            .Where(t => !t.IsDeleted);
-
-        var technologies = await technologiesQuery.ToListAsync();
-
-        // Get all regions or specific region
+        // Get all regions or specific region first (lightweight query)
         var regionsQuery = _dbContext.Regions.AsQueryable();
         if (regionId.HasValue)
         {
             regionsQuery = regionsQuery.Where(r => r.Id == regionId.Value);
         }
-        var regions = await regionsQuery.Where(r => !r.IsDeleted).ToListAsync();
+        var regions = await regionsQuery
+            .Where(r => !r.IsDeleted)
+            .Select(r => new { r.Id, r.Name, r.Code, r.Boundaries })
+            .ToListAsync();
+
+        // Early return if no regions found
+        if (!regions.Any())
+        {
+            return new WirelessCoverageResponseDto 
+            { 
+                OverallCoverage = new List<WirelessCoverageDto>(),
+                RegionsCoverage = new List<RegionWirelessCoverageDto>()
+            };
+        }
+
+        // Get technologies with all their bands consolidated (more efficient)
+        var technologies = await _dbContext.Technologies
+            .Include(t => t.Generation)
+            .Include(t => t.TechnologyBands)
+                .ThenInclude(tb => tb.Band)
+            .Where(t => !t.IsDeleted)
+            .ToDictionaryAsync(t => t.Id, t => new
+            {
+                t.Id,
+                TechnologyName = t.Generation.Name,
+                TechnologyStandard = t.Standard,
+                TechnologyBandIds = t.TechnologyBands.Where(tb => !tb.IsDeleted && !tb.Band.IsDeleted).Select(tb => tb.Id).ToList()
+            });
+
+        // Get all networks with their technology band information (single query)
+        var networksWithTechBands = await _dbContext.Networks
+            .Include(n => n.UpLink)
+            .Include(n => n.DownLink)
+            .Where(n => !n.IsDeleted)
+            .ToDictionaryAsync(n => n.Id, n => new
+            {
+                n.Id,
+                UpLinkTechBandId = n.UpLink.TechnologyBandId,
+                DownLinkTechBandId = n.DownLink.TechnologyBandId
+            });
+
+        // Pre-calculate coverage data with a single optimized query
+        var regionIds = regions.Select(r => r.Id).ToList();
+        var networkIds = networksWithTechBands.Keys.ToList();
+        
+        var coverageData = await _dbContext.CellularCoverages
+            .Where(cc => networkIds.Contains(cc.NetworkId) &&
+                        cc.Strength >= MinimumSignalStrength &&
+                        (startDate == null || cc.CreatedAt >= startDate) &&
+                        (endDate == null || cc.CreatedAt <= endDate))
+            .Join(_dbContext.Regions.Where(r => regionIds.Contains(r.Id)),
+                  cc => true,
+                  r => true,
+                  (cc, r) => new { cc, r })
+            .Where(x => x.r.Boundaries != null && 
+                       x.cc.Location != null &&
+                       x.cc.Location.IsWithinDistance(x.r.Boundaries, 0))
+            .Select(x => new
+            {
+                x.cc.NetworkId,
+                RegionId = x.r.Id,
+                x.cc.Strength
+            })
+            .ToListAsync();
 
         var result = new WirelessCoverageResponseDto();
 
-        // Calculate overall coverage for each technology
+        // Build lookup tables for efficient processing - map networks to technologies
+        var networkToTechnologies = new Dictionary<Guid, List<Guid>>();
+        foreach (var network in networksWithTechBands)
+        {
+            var networkTechnologies = new HashSet<Guid>();
+            
+            // Find technologies that contain the network's uplink and downlink technology bands
+            foreach (var technology in technologies.Values)
+            {
+                if (technology.TechnologyBandIds.Contains(network.Value.UpLinkTechBandId) ||
+                    technology.TechnologyBandIds.Contains(network.Value.DownLinkTechBandId))
+                {
+                    networkTechnologies.Add(technology.Id);
+                }
+            }
+            
+            networkToTechnologies[network.Key] = networkTechnologies.ToList();
+        }
+
+        // Group coverage data for efficient lookups using ToDictionary
+        var coverageByRegionAndNetwork = coverageData
+            .GroupBy(cd => new { cd.RegionId, cd.NetworkId })
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Calculate overall coverage for each technology (consolidated by technology, not band)
         var overallCoverage = new List<WirelessCoverageDto>();
         
         foreach (var technology in technologies)
         {
-            var coverageCount = 0;
+            var regionsWithCoverage = new HashSet<Guid>();
             
-            // Count regions that have adequate cellular coverage for this technology
+            // Find all networks that use this technology (any of its bands)
+            var networksForThisTechnology = networkToTechnologies
+                .Where(kvp => kvp.Value.Contains(technology.Key))
+                .Select(kvp => kvp.Key)
+                .ToList();
+            
+            // Check which regions have coverage for this technology
             foreach (var region in regions)
             {
-                // Check if any networks of this technology have adequate coverage in this region
-                var hasCoverage = false;
+                var hasRegionCoverage = networksForThisTechnology.Any(networkId =>
+                    coverageByRegionAndNetwork.ContainsKey(new { RegionId = region.Id, NetworkId = networkId }));
                 
-                foreach (var systemType in technology.SystemTypes)
-                {
-                    foreach (var network in systemType.Networks)
-                    {
-                        var networkHasAdequateCoverage = await _dbContext.CellularCoverages
-                            .Where(cc => cc.NetworkId == network.Id &&
-                                        cc.Strength >= MinimumSignalStrength && // Use signal strength threshold
-                                        region.Boundaries != null &&
-                                        cc.Location != null &&
-                                        cc.Location.IsWithinDistance(region.Boundaries, 0) &&
-                                        (startDate == null || cc.CreatedAt >= startDate) &&
-                                        (endDate == null || cc.CreatedAt <= endDate))
-                            .AnyAsync();
-                        
-                        if (networkHasAdequateCoverage)
-                        {
-                            hasCoverage = true;
-                            break;
-                        }
-                    }
-                    if (hasCoverage) break;
-                }
-                
-                if (hasCoverage)
-                    coverageCount++;
+                if (hasRegionCoverage)
+                    regionsWithCoverage.Add(region.Id);
             }
 
-            var coveragePercentage = regions.Count > 0 ? (decimal)coverageCount / regions.Count * 100 : 0;
+            var coveragePercentage = regions.Count > 0 ? (decimal)regionsWithCoverage.Count / regions.Count * 100 : 0;
             
             overallCoverage.Add(new WirelessCoverageDto
             {
-                Technology = $"{technology.Generation.Name} - {technology.Standard}",
+                Technology = $"{technology.Value.TechnologyName} - {technology.Value.TechnologyStandard}",
                 CoveragePercentage = Math.Round(coveragePercentage, 2),
-                CoverageCount = coverageCount,
+                CoverageCount = regionsWithCoverage.Count,
                 TotalRegionCount = regions.Count
             });
         }
@@ -209,29 +269,20 @@ public class GeospatialQueryService
 
                 foreach (var technology in technologies)
                 {
-                    // Get coverage data for this technology in this region
-                    var coveragePoints = new List<Domain.Entities.CellularCoverage>();
-                    
-                    foreach (var systemType in technology.SystemTypes)
-                    {
-                        foreach (var network in systemType.Networks)
-                        {
-                            var networkCoveragePoints = await _dbContext.CellularCoverages
-                                .Where(cc => cc.NetworkId == network.Id &&
-                                            cc.Strength >= MinimumSignalStrength &&
-                                            region.Boundaries != null &&
-                                            cc.Location != null &&
-                                            cc.Location.IsWithinDistance(region.Boundaries, 0) &&
-                                            (startDate == null || cc.CreatedAt >= startDate) &&
-                                            (endDate == null || cc.CreatedAt <= endDate))
-                                .ToListAsync();
-                            
-                            coveragePoints.AddRange(networkCoveragePoints);
-                        }
-                    }
+                    // Find networks that use this technology and have coverage in this region
+                    var networksForThisTechnology = networkToTechnologies
+                        .Where(kvp => kvp.Value.Contains(technology.Key))
+                        .Select(kvp => kvp.Key)
+                        .ToList();
 
-                    var hasCoverage = coveragePoints.Any();
-                    var averageSignalStrength = hasCoverage ? coveragePoints.Average(cp => cp.Strength) : 0;
+                    // Get coverage points for this technology in this region
+                    var coveragePointsForRegion = coverageData
+                        .Where(cd => cd.RegionId == region.Id && 
+                                    networksForThisTechnology.Contains(cd.NetworkId))
+                        .ToList();
+
+                    var hasCoverage = coveragePointsForRegion.Any();
+                    var averageSignalStrength = hasCoverage ? coveragePointsForRegion.Average(cp => cp.Strength) : 0;
                     
                     // Calculate coverage percentage based on signal strength quality
                     var coveragePercentage = 0m;
@@ -247,10 +298,10 @@ public class GeospatialQueryService
 
                     regionCoverage.TechnologiesCoverage.Add(new RegionTechnologyCoverageDto
                     {
-                        Technology = $"{technology.Generation.Name} - {technology.Standard}",
+                        Technology = $"{technology.Value.TechnologyName} - {technology.Value.TechnologyStandard}",
                         CoveragePercentage = Math.Round(coveragePercentage, 2),
                         AverageSignalStrength = Math.Round(averageSignalStrength, 2),
-                        CoveragePointsCount = coveragePoints.Count
+                        CoveragePointsCount = coveragePointsForRegion.Count
                     });
                 }
 

@@ -73,6 +73,8 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     }
 
     [HttpGet("wireless-coverage")]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "startDate", "endDate", "regionId", "daysInPast" })]
     public async Task<ActionResult<ApiResponse<WirelessCoverageResponseDto>>> GetWirelessCoverage(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
@@ -80,6 +82,14 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         [FromQuery] int? daysInPast)
     {
         var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
+
+        var cacheKey = $"{DashboardCachePrefix}wireless_coverage_{finalStartDate:yyyyMMdd}_{finalEndDate:yyyyMMdd}_{regionId}";
+
+        if (memoryCache.TryGetValue(cacheKey, out ApiResponse<WirelessCoverageResponseDto>? cachedResult))
+        {
+            _logger.LogInformation("Cache HIT: {CacheKey}", cacheKey);
+            return Ok(cachedResult);
+        }
 
         var request = new GetWirelessCoverageRequest 
         { 
@@ -89,6 +99,14 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         };
         
         var result = await mediator.Send(request);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            memoryCache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
+            TrackCacheKey(cacheKey);
+            _logger.LogInformation("Cache SET: {CacheKey}", cacheKey);
+        }
+
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
