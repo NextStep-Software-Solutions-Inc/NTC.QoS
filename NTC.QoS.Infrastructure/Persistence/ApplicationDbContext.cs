@@ -124,9 +124,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Band>()
             .HasMany(b => b.TechnologyBands);
 
-        modelBuilder.Entity<Band>()
-            .HasMany(g => g.TechnologyBands);
-
         modelBuilder.Entity<GenerationBand>()
             .HasOne(gb => gb.Band)
             .WithMany(b => b.GenerationBands)

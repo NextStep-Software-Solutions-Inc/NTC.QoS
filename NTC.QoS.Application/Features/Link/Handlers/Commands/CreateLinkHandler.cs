@@ -8,9 +8,9 @@ using NTC.QoS.Domain.Models.DTOs.Link;
 
 namespace NTC.QoS.Application.Features.Link.Handlers.Commands;
 
-public class CreateLinkHandler(IRepository<Domain.Aggregates.Link> linkRepository, ITechnologyBandRepository technologyBandRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateLinkRequest, ApiResponse<LinkDto>>
+public class CreateLinkHandler(ILinkRepository linkRepository, ITechnologyBandRepository technologyBandRepository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateLinkRequest, ApiResponse<LinkDto>>
 {
-    private readonly IRepository<Domain.Aggregates.Link> _linkRepository = linkRepository;
+    private readonly ILinkRepository _linkRepository = linkRepository;
     private readonly ITechnologyBandRepository _technologyBandRepository = technologyBandRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
 
