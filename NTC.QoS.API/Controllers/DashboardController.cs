@@ -17,6 +17,13 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     private const string DashboardCachePrefix = "dashboards_";
     private const string DashboardCacheKeysSet = "dashboard_cache_keys";
 
+    [HttpPost("area-broadband-info")]
+    public async Task<ActionResult<ApiResponse<AreaBroadbandInfoDto>>> GetAreaBroadbandInfo([FromBody] AreaBroadbandInfoRequestDto areaEnvelope)
+    {
+        var result = await mediator.Send(new GetAreaBroadbandInfoRequest { AreaEnvelope = areaEnvelope });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpGet("cell-counts")]
     public async Task<ActionResult<ApiResponse<int>>> GetTotalCellsitesCount(
         [FromQuery] DateTime? startDate,
