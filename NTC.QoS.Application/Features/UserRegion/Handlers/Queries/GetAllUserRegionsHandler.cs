@@ -20,6 +20,11 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
             query = query.Where(ur => request.UserIds.Contains(ur.UserId));
         }
 
+        if (request.AuthUserIds is not null && request.AuthUserIds.Count > 0)
+        {
+            query = query.Where(ur => request.AuthUserIds.Contains(ur.User.AuthUserId));
+        }
+
         if (request.RegionIds is not null && request.RegionIds.Count > 0)
         {
             query = query.Where(ur => request.RegionIds.Contains(ur.RegionId));

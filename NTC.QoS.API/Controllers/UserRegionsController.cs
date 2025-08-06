@@ -26,6 +26,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
         [FromQuery] int pageSize = 10,
         [FromQuery] int pageNumber = 1,
         [FromQuery] List<Guid>? userIds = null,
+        [FromQuery] List<string>? authUserIds = null,
         [FromQuery] List<Guid>? regionIds = null,
         [FromQuery] List<string>? statuses = null)
     {
@@ -34,6 +35,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
             PageSize = pageSize,
             PageNumber = pageNumber,
             UserIds = userIds,
+            AuthUserIds = authUserIds,
             RegionIds = regionIds,
             Statuses = statuses
         });
