@@ -16,8 +16,8 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
     {
         var userRegionQuery = _userRegionRepository.Query(ur => ur.Id == request.Id);
         var userRegion = await _userRegionRepository.FirstOrDefaultAsync(userRegionQuery, cancellationToken);
-
-        if (userRegion == null)
+        
+        if (userRegion is null)
         {
             return new ApiResponse<UserRegionDto>
             {
@@ -33,7 +33,7 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
         if (!string.IsNullOrEmpty(request.UserRegion.Status))
         {
             var parsedStatus = EnumHelper<UserRegionStatus>.ParseUserInput(request.UserRegion.Status);
-            if (parsedStatus != UserRegionStatus.Unknown)
+            if (parsedStatus != default)
             {
                 userRegion.Status = parsedStatus.ToString();
             }
@@ -60,7 +60,7 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
             Data = new UserRegionDto
             {
                 Id = userRegion.Id,
-                Status = userRegion.Status,
+                Status = userRegion.Status.ToString(),
                 User = userRegion.User != null ? new()
                 {
                     Id = userRegion.User.Id,

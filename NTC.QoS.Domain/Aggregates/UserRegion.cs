@@ -9,5 +9,5 @@ public class UserRegion : BaseEntity
     public virtual User User { get; set; } = null!;
     public Guid RegionId { get; set; }
     public virtual Region Region { get; set; } = null!;
-    public string Status { get; set; } = UserRegionStatus.Unknown.ToString();
+    public string Status { get; set; } = UserRegionStatus.Pending.ToString();
 }

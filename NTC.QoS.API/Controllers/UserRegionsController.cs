@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.UserRegion.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
 

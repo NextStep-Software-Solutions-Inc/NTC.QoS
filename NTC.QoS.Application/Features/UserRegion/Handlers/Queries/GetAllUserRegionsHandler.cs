@@ -2,7 +2,6 @@ using MediatR;
 using NTC.QoS.Application.Features.UserRegion.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Enums;
 
@@ -44,11 +43,7 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
             }
         }
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var userRegions = await query
-            .Skip((request.PageNumber - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .Select(ur => new UserRegionDto
+        var userRegions = query.Select(ur => new UserRegionDto
             {
                 Id = ur.Id,
                 Status = ur.Status,
@@ -77,9 +72,8 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
                     Code = ur.Region.Code,
                     Description = ur.Region.Description ?? string.Empty
                 } : null
-            })
-            .ToListAsync(cancellationToken);
+            });
 
-        return new PaginatedResponse<UserRegionDto>(userRegions, totalCount, request.PageNumber, request.PageSize);
+        return await _userRegionRepository.PaginateAsync(userRegions, request.PageNumber, request.PageSize, cancellationToken);
     }
 }
