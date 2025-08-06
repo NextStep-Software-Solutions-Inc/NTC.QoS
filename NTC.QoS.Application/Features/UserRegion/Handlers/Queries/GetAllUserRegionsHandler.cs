@@ -43,7 +43,9 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
             }
         }
 
-        var userRegions = query.Select(ur => new UserRegionDto
+        var userRegions = query
+        .DistinctBy(ur => ur.RegionId)
+        .Select(ur => new UserRegionDto
             {
                 Id = ur.Id,
                 Status = ur.Status,
