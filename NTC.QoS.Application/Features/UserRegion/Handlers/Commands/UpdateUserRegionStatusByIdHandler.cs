@@ -22,10 +22,10 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
             return new ApiResponse<UserRegionDto>
             {
                 Succeeded = false,
-                Message = "UserRegion not found",
+                Message = "User Region not found",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "UserRegion", ["UserRegion with the specified ID does not exist."] }
+                    { "UserRegion", ["User Region with the specified ID does not exist."] }
                 }
             };
         }
@@ -33,22 +33,7 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
         if (!string.IsNullOrEmpty(request.UserRegion.Status))
         {
             var parsedStatus = EnumHelper<UserRegionStatus>.ParseUserInput(request.UserRegion.Status);
-            if (parsedStatus != default)
-            {
-                userRegion.Status = parsedStatus.ToString();
-            }
-            else
-            {
-                return new ApiResponse<UserRegionDto>
-                {
-                    Succeeded = false,
-                    Message = "Invalid status value",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "Status", ["Invalid status value provided."] }
-                    }
-                };
-            }
+            userRegion.Status = parsedStatus.ToString();
         }
 
         await _userRegionRepository.SaveChangesAsync(cancellationToken);
@@ -56,11 +41,11 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
         return new ApiResponse<UserRegionDto>
         {
             Succeeded = true,
-            Message = "UserRegion updated successfully",
+            Message = "User Region updated successfully",
             Data = new UserRegionDto
             {
                 Id = userRegion.Id,
-                Status = userRegion.Status.ToString(),
+                Status = userRegion.Status,
                 User = userRegion.User != null ? new()
                 {
                     Id = userRegion.User.Id,
