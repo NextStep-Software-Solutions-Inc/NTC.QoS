@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.UserRegion.Requests;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,6 +9,7 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("user-regions", Name = "user-regions")]
+[Authorize]
 public class UserRegionsController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
