@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
+using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -57,15 +58,8 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             }
 
             // Validate latitude and longitude ranges for practical map usage
-            // Philippines coordinates roughly: Latitude 4°-21°N, Longitude 116°-127°E
-            // Adding buffer for nearby areas and map selections
-            const double MinLatitude = -5.0;   // Allow some buffer south (covers Indonesia border areas)
-            const double MaxLatitude = 25.0;   // Allow buffer north (covers Taiwan/southern China)
-            const double MinLongitude = 110.0; // Allow buffer west (covers Vietnam/Malaysia)
-            const double MaxLongitude = 135.0; // Allow buffer east (covers Palau/western Pacific)
-
-            if (bbox.MinLatitude < MinLatitude || bbox.MaxLatitude > MaxLatitude || 
-                bbox.MinLongitude < MinLongitude || bbox.MaxLongitude > MaxLongitude)
+            if (!GeoSpatialConstants.IsWithinSupportedRegion(bbox.MinLatitude, bbox.MinLongitude) ||
+                !GeoSpatialConstants.IsWithinSupportedRegion(bbox.MaxLatitude, bbox.MaxLongitude))
             {
                 return new ApiResponse<AreaBroadbandInfoDto>
                 {
@@ -73,19 +67,16 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                     Message = "Coordinates are outside the supported region.",
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "BoundingBox", [$"Coordinates must be within the Asia-Pacific region. Latitude: {MinLatitude} to {MaxLatitude}, Longitude: {MinLongitude} to {MaxLongitude}"] }
+                        { "BoundingBox", [GeoSpatialConstants.CoordinateRangeErrorMessage] }
                     }
                 };
             }
 
             // Additional validation for reasonable bounding box size (prevent extremely large areas)
-            const double MaxLatitudeDiff = 10.0; // Maximum ~1100 km north-south
-            const double MaxLongitudeDiff = 15.0; // Maximum ~1300-1600 km east-west (varies by latitude)
-            
             var latDiff = bbox.MaxLatitude - bbox.MinLatitude;
             var lonDiff = bbox.MaxLongitude - bbox.MinLongitude;
             
-            if (latDiff > MaxLatitudeDiff || lonDiff > MaxLongitudeDiff)
+            if (latDiff > GeoSpatialConstants.MaxLatitudeDifference || lonDiff > GeoSpatialConstants.MaxLongitudeDifference)
             {
                 return new ApiResponse<AreaBroadbandInfoDto>
                 {
@@ -93,7 +84,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                     Message = "Selected area is too large for analysis.",
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "BoundingBox", [$"Maximum area size: {MaxLatitudeDiff}° latitude × {MaxLongitudeDiff}° longitude. Current: {latDiff:F2}° × {lonDiff:F2}°"] }
+                        { "BoundingBox", [GeoSpatialConstants.GetAreaSizeErrorMessage(latDiff, lonDiff)] }
                     }
                 };
             }
@@ -102,10 +93,10 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             var envelope = CreatePolygonFromBoundingBox(bbox);
 
             // 3. Apply envelope filter to queries using the helper
-            var cellQuery = _cellRepository.Query();
+            var cellQuery = _cellRepository.Query(c => !c.IsDeleted);
             cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, cellQuery);
 
-            var napQuery = _napRepository.Query();
+            var napQuery = _napRepository.Query(n => !n.IsDeleted);
             napQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, napQuery);
 
             // 4. Execute queries and get results with related data
@@ -213,9 +204,9 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         var lonDiff = bbox.MaxLongitude - bbox.MinLongitude;
         var avgLat = (bbox.MinLatitude + bbox.MaxLatitude) / 2;
         
-        // Convert degrees to km (rough approximation)
-        var latKm = latDiff * 111.32; // 1 degree latitude ≈ 111.32 km
-        var lonKm = lonDiff * 111.32 * Math.Cos(avgLat * Math.PI / 180); // longitude varies by latitude
+        // Convert degrees to km using geospatial constants
+        var latKm = latDiff * GeoSpatialConstants.KilometersPerDegreeLatitude;
+        var lonKm = lonDiff * GeoSpatialConstants.GetKilometersPerDegreeLongitude(avgLat);
         var areaKm2 = Math.Abs(latKm * lonKm);
 
         return new AreaEnvelopeInfoDto

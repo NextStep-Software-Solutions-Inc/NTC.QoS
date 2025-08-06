@@ -53,6 +53,12 @@ public static class SpatialFilterBuilder
     /// <summary>
     /// Builds a predicate for spatial filtering using multiple geometry envelopes.
     /// Combines both intersection and within-boundary checks for multiple envelopes using the same pattern as boundaries.
+    ///
+    /// Behavior:
+    /// - If envelopes collection is null or empty, returns a predicate that matches no entities (false)
+    /// - If envelopes collection contains only null values, returns a predicate that matches no entities (false)
+    /// - If envelopes collection contains valid geometries, returns a predicate that matches entities within any of the envelopes
+    /// - Uses single enumeration for efficiency to avoid multiple iterations over the collection
     /// </summary>
     /// <typeparam name="T">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <param name="envelopes">Collection of geometry envelopes to filter by</param>
@@ -62,13 +68,20 @@ public static class SpatialFilterBuilder
     {
         var predicate = PredicateBuilder.New<T>(false);
 
-        foreach (var envelope in envelopes)
+        // Materialize the collection once to avoid multiple enumeration
+        // Filter out null values during materialization
+        var envelopeList = envelopes?.Where(e => e != null).ToList();
+
+        if (envelopeList == null || envelopeList.Count == 0)
         {
-            if (envelope != null)
-            {
-                // Use the same pattern as BuildWithinBoundariesPredicate for consistency
-                predicate = predicate.Or(entity => entity.Location.IsWithinDistance(envelope, 0));
-            }
+            // Return a predicate that matches no entities when collection is empty or contains only nulls
+            return predicate;
+        }
+
+        foreach (var envelope in envelopeList)
+        {
+            // Use the same pattern as BuildWithinBoundariesPredicate for consistency
+            predicate = predicate.Or(entity => entity.Location.IsWithinDistance(envelope, 0));
         }
 
         return predicate;

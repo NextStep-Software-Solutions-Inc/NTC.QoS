@@ -63,6 +63,7 @@ public static class GeoQueryHelper
     /// <summary>
     /// Applies comprehensive spatial filtering using multiple geometry envelopes.
     /// Includes entities that are contained within OR intersect with ANY of the provided envelopes.
+    /// Uses single enumeration for efficiency.
     /// </summary>
     /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <param name="envelopes">Collection of geometry envelopes to filter by</param>
@@ -73,10 +74,13 @@ public static class GeoQueryHelper
         IQueryable<TSource> query)
         where TSource : IGeoLocatedEntity
     {
-        if (envelopes == null || !envelopes.Any())
+        // Use single enumeration approach for efficiency
+        var envelopeList = envelopes?.Where(e => e != null).ToList();
+        
+        if (envelopeList == null || envelopeList.Count == 0)
             return query;
 
-        var predicate = SpatialFilterBuilder.BuildMultipleEnvelopePredicate<TSource>(envelopes);
+        var predicate = SpatialFilterBuilder.BuildMultipleEnvelopePredicate<TSource>(envelopeList);
         return query.Where(predicate);
     }
 
