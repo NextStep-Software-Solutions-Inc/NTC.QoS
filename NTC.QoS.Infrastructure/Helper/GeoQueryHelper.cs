@@ -6,6 +6,17 @@ namespace NTC.QoS.Infrastructure.Helper;
 
 public static class GeoQueryHelper
 {
+    /// <summary>
+    /// Applies spatial filtering based on administrative boundary entities (Region, Province, Municipality, Barangay).
+    /// Uses boundary polygons from database entities for comprehensive spatial filtering.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <typeparam name="TBoundary">The boundary entity type (Region, Province, Municipality, Barangay)</typeparam>
+    /// <param name="ids">List of boundary entity IDs to filter by</param>
+    /// <param name="repository">Repository for the boundary entities</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Filtered queryable</returns>
     public static async Task<IQueryable<TSource>> ApplyBoundaryFilterAsync<TSource, TBoundary>(
         List<Guid> ids,
         IRepository<TBoundary> repository,
@@ -28,8 +39,10 @@ public static class GeoQueryHelper
     }
 
     /// <summary>
-    /// Applies a spatial filter to the query using an arbitrary geometry envelope (polygon or multipolygon).
-    /// Filters entities whose Location is contained within the provided envelope.
+    /// Applies comprehensive spatial filtering using an arbitrary geometry envelope.
+    /// Includes entities that are contained within OR intersect with the envelope.
+    /// This is the RECOMMENDED method for most envelope-based filtering scenarios.
+    /// Uses the same spatial logic as boundary filtering for consistency.
     /// </summary>
     /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <param name="envelope">The geometry envelope (Polygon, MultiPolygon, etc.) to filter by</param>
@@ -43,19 +56,66 @@ public static class GeoQueryHelper
         if (envelope == null)
             return query;
 
-        // Use Contains for strict inclusion within the envelope
-        return query.Where(entity => envelope.Contains(entity.Location));
+        var predicate = SpatialFilterBuilder.BuildComprehensiveEnvelopePredicate<TSource>(envelope);
+        return query.Where(predicate);
     }
 
     /// <summary>
-    /// Applies a spatial filter to the query using an arbitrary geometry envelope with intersection.
-    /// Filters entities whose Location intersects with the provided envelope.
+    /// Applies comprehensive spatial filtering using multiple geometry envelopes.
+    /// Includes entities that are contained within OR intersect with ANY of the provided envelopes.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <param name="envelopes">Collection of geometry envelopes to filter by</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable</returns>
+    public static IQueryable<TSource> ApplyMultipleEnvelopeFilter<TSource>(
+        IEnumerable<Geometry> envelopes,
+        IQueryable<TSource> query)
+        where TSource : IGeoLocatedEntity
+    {
+        if (envelopes == null || !envelopes.Any())
+            return query;
+
+        var predicate = SpatialFilterBuilder.BuildMultipleEnvelopePredicate<TSource>(envelopes);
+        return query.Where(predicate);
+    }
+
+    /// <summary>
+    /// Applies spatial filtering with distance tolerance using a geometry envelope.
+    /// Includes entities within the envelope OR within the specified distance from the envelope boundary.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <param name="envelope">The geometry envelope to filter by</param>
+    /// <param name="distanceToleranceMeters">Distance tolerance in meters for proximity check</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable</returns>
+    public static IQueryable<TSource> ApplyEnvelopeWithDistanceFilter<TSource>(
+        Geometry envelope,
+        double distanceToleranceMeters,
+        IQueryable<TSource> query)
+        where TSource : IGeoLocatedEntity
+    {
+        if (envelope == null)
+            return query;
+
+        var predicate = SpatialFilterBuilder.BuildEnvelopeWithDistancePredicate<TSource>(envelope, distanceToleranceMeters);
+        return query.Where(predicate);
+    }
+
+    // ============================================================================
+    // SPECIALIZED FILTERING METHODS (Use only when specific behavior is needed)
+    // ============================================================================
+
+    /// <summary>
+    /// Applies STRICT containment filtering - only entities completely within the envelope.
+    /// ⚠️  Use this only when you specifically need strict containment (excludes boundary intersections).
+    /// For most use cases, prefer ApplyEnvelopeFilter() which is more comprehensive.
     /// </summary>
     /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <param name="envelope">The geometry envelope to filter by</param>
     /// <param name="query">The queryable to filter</param>
-    /// <returns>Filtered queryable</returns>
-    public static IQueryable<TSource> ApplyEnvelopeIntersectionFilter<TSource>(
+    /// <returns>Filtered queryable with strict containment</returns>
+    public static IQueryable<TSource> ApplyStrictContainmentFilter<TSource>(
         Geometry envelope,
         IQueryable<TSource> query)
         where TSource : IGeoLocatedEntity
@@ -63,7 +123,28 @@ public static class GeoQueryHelper
         if (envelope == null)
             return query;
 
-        // Use Intersects for entities that touch or overlap the envelope
-        return query.Where(entity => envelope.Intersects(entity.Location));
+        var predicate = SpatialFilterBuilder.BuildStrictContainmentPredicate<TSource>(envelope);
+        return query.Where(predicate);
+    }
+
+    /// <summary>
+    /// Applies INTERSECTION-ONLY filtering - only entities that intersect with the envelope boundary.
+    /// ⚠️  Use this only when you specifically need intersection detection (excludes contained entities).
+    /// For most use cases, prefer ApplyEnvelopeFilter() which is more comprehensive.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <param name="envelope">The geometry envelope to filter by</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable with intersection-only</returns>
+    public static IQueryable<TSource> ApplyIntersectionOnlyFilter<TSource>(
+        Geometry envelope,
+        IQueryable<TSource> query)
+        where TSource : IGeoLocatedEntity
+    {
+        if (envelope == null)
+            return query;
+
+        var predicate = SpatialFilterBuilder.BuildIntersectionPredicate<TSource>(envelope);
+        return query.Where(predicate);
     }
 }

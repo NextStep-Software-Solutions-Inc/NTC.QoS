@@ -1,6 +1,6 @@
 using NTC.QoS.Domain.Enums;
 
-namespace NTC.QoS.Domain.Models.DTOs.Dashboard;
+namespace NTC.QoS.Domain.Models.DTOs.Analytics;
 
 public class AreaBroadbandInfoDto
 {
