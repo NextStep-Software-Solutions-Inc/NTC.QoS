@@ -16,12 +16,7 @@ public class DeleteUserRegionByIdHandler(IUserRegionRepository userRegionReposit
 
         if (userRegion is null)
         {
-            return new ApiResponse<bool>
-            {
-                Data = false,
-                Succeeded = false,
-                Message = "User region not found."
-            };
+            return new ApiResponse<bool>("User region not found.");
         }
 
         _userRegionRepository.Delete(userRegion);

@@ -47,33 +47,33 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
             {
                 Id = ur.Id,
                 Status = ur.Status,
-                User = ur.User != null ? new()
+                User = new()
                 {
                     Id = ur.User.Id,
                     AuthUserId = ur.User.AuthUserId,
-                    Role = ur.User.Role != null ? new()
+                    Role = new()
                     {
                         Id = ur.User.RoleId,
                         Name = ur.User.Role.Name,
                         Key = ur.User.Role.Key,
-                        Description = ur.User.Role.Description ?? string.Empty
-                    } : null,
-                    Organization = ur.User.Organization != null ? new()
+                        Description = ur.User.Role.Description
+                    },
+                    Organization = new()
                     {
                         Id = ur.User.OrganizationId,
                         Name = ur.User.Organization.Name,
-                        Description = ur.User.Organization.Description ?? string.Empty
-                    } : null
-                } : null,
-                Region = ur.Region != null ? new()
+                        Description = ur.User.Organization.Description
+                    }
+                },
+                Region = new()
                 {
                     Id = ur.Region.Id,
                     Name = ur.Region.Name,
                     Code = ur.Region.Code,
-                    Description = ur.Region.Description ?? string.Empty
-                } : null
+                    Description = ur.Region.Description
+                }
             });
 
-        return await _userRegionRepository.PaginateAsync(userRegions, request.PageNumber, request.PageSize, cancellationToken);
+        return await _userRegionRepository.PaginateAsync(userRegions, pageNumber: request.PageNumber, pageSize: request.PageSize, cancellationToken);
     }
 }

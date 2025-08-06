@@ -24,15 +24,7 @@ public class CreateUserRegionHandler(
         
         if (existingUserRegion is not null)
         {
-            return new ApiResponse<UserRegionDto>
-            {
-                Succeeded = false,
-                Message = "User region already exists.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "Duplicate", ["User is already associated with this region."] }
-                }
-            };
+            return new ApiResponse<UserRegionDto>("User region already exists for the specified user and region.");
         }
 
         var userQuery = _userRepository.Query(u => u.Id == request.UserRegion.UserId);
@@ -40,15 +32,7 @@ public class CreateUserRegionHandler(
         
         if (user is null)
         {
-            return new ApiResponse<UserRegionDto>
-            {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "NullUser", ["User not found."] }
-                },
-                Message = "User not found."
-            };
+            return new ApiResponse<UserRegionDto>("User not found.");
         }
 
         var regionQuery = _regionRepository.Query(r => r.Id == request.UserRegion.RegionId);
@@ -56,15 +40,7 @@ public class CreateUserRegionHandler(
         
         if (region is null)
         {
-            return new ApiResponse<UserRegionDto>
-            {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "NullRegion", ["Region not found."] }
-                },
-                Message = "Region not found."
-            };
+            return new ApiResponse<UserRegionDto>("Region not found.");
         }
 
         var newUserRegion = new Domain.Aggregates.UserRegion
@@ -89,15 +65,15 @@ public class CreateUserRegionHandler(
                     Role = new()
                     {
                         Id = user.RoleId,
-                        Name = user.Role?.Name ?? string.Empty,
-                        Key = user.Role?.Key ?? string.Empty,
-                        Description = user.Role?.Description ?? string.Empty
+                        Name = user.Role.Name,
+                        Key = user.Role.Key,
+                        Description = user.Role.Description
                     },
                     Organization = new()
                     {
                         Id = user.OrganizationId,
-                        Name = user.Organization?.Name ?? string.Empty,
-                        Description = user.Organization?.Description ?? string.Empty
+                        Name = user.Organization.Name ,
+                        Description = user.Organization.Description
                     }
                 },
                 Region = new()
@@ -105,7 +81,7 @@ public class CreateUserRegionHandler(
                     Id = region.Id,
                     Name = region.Name,
                     Code = region.Code,
-                    Description = region.Description ?? string.Empty
+                    Description = region.Description
                 }
             },
             Succeeded = true,
