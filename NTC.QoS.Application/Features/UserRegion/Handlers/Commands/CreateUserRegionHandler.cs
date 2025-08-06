@@ -1,5 +1,7 @@
 using MediatR;
 using NTC.QoS.Application.Features.UserRegion.Requests;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
@@ -17,7 +19,6 @@ public class CreateUserRegionHandler(
 
     public async Task<ApiResponse<UserRegionDto>> Handle(CreateUserRegionRequest request, CancellationToken cancellationToken)
     {
-        // Check for duplicate
         var existingUserRegionQuery = _userRegionRepository.Query(ur => 
             ur.UserId == request.UserRegion.UserId && 
             ur.RegionId == request.UserRegion.RegionId);
@@ -36,7 +37,6 @@ public class CreateUserRegionHandler(
             };
         }
 
-        // Validate User exists
         var userQuery = _userRepository.Query(u => u.Id == request.UserRegion.UserId);
         var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
         
@@ -53,7 +53,6 @@ public class CreateUserRegionHandler(
             };
         }
 
-        // Validate Region exists
         var regionQuery = _regionRepository.Query(r => r.Id == request.UserRegion.RegionId);
         var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
         
@@ -74,7 +73,7 @@ public class CreateUserRegionHandler(
         {
             UserId = request.UserRegion.UserId,
             RegionId = request.UserRegion.RegionId,
-            Status = request.UserRegion.Status
+            Status = EnumHelper<UserRegionStatus>.ParseUserInput(request.UserRegion.Status).ToString()
         };
 
         _userRegionRepository.Add(newUserRegion);

@@ -3,53 +3,60 @@ using NTC.QoS.Application.Features.UserRegion.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
+using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Enums;
 
 namespace NTC.QoS.Application.Features.UserRegion.Handlers.Commands;
 
-public class UpdateUserRegionByIdHandler(IUserRegionRepository userRegionRepository) : IRequestHandler<UpdateUserRegionByIdRequest, ApiResponse<UserRegionDto>>
+public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionRepository) : IRequestHandler<UpdateUserRegionStatusByIdRequest, ApiResponse<UserRegionDto>>
 {
     private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
 
-    public async Task<ApiResponse<UserRegionDto>> Handle(UpdateUserRegionByIdRequest request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<UserRegionDto>> Handle(UpdateUserRegionStatusByIdRequest request, CancellationToken cancellationToken)
     {
-        if (request.UserRegion is null)
-        {
-            return new ApiResponse<UserRegionDto>
-            {
-                Data = null,
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "UserRegion", ["User region data is required."] }
-                },
-                Message = "The request does not contain user region update data."
-            };
-        }
-
         var userRegionQuery = _userRegionRepository.Query(ur => ur.Id == request.Id);
         var userRegion = await _userRegionRepository.FirstOrDefaultAsync(userRegionQuery, cancellationToken);
 
-        if (userRegion is null)
+        if (userRegion == null)
         {
             return new ApiResponse<UserRegionDto>
             {
-                Data = null,
                 Succeeded = false,
+                Message = "UserRegion not found",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "UserRegion", ["User region with the specified ID does not exist."] }
-                },
-                Message = "User region not found."
+                    { "UserRegion", ["UserRegion with the specified ID does not exist."] }
+                }
             };
         }
 
-        userRegion.Status = request.UserRegion.Status;
+        if (!string.IsNullOrEmpty(request.UserRegion.Status))
+        {
+            var parsedStatus = EnumHelper<UserRegionStatus>.ParseUserInput(request.UserRegion.Status);
+            if (parsedStatus != UserRegionStatus.Unknown)
+            {
+                userRegion.Status = parsedStatus.ToString();
+            }
+            else
+            {
+                return new ApiResponse<UserRegionDto>
+                {
+                    Succeeded = false,
+                    Message = "Invalid status value",
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "Status", ["Invalid status value provided."] }
+                    }
+                };
+            }
+        }
 
-        _userRegionRepository.Update(userRegion);
         await _userRegionRepository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<UserRegionDto>
         {
+            Succeeded = true,
+            Message = "UserRegion updated successfully",
             Data = new UserRegionDto
             {
                 Id = userRegion.Id,
@@ -81,9 +88,7 @@ public class UpdateUserRegionByIdHandler(IUserRegionRepository userRegionReposit
                     Code = userRegion.Region.Code,
                     Description = userRegion.Region.Description ?? string.Empty
                 } : null
-            },
-            Succeeded = true,
-            Message = "User region updated successfully."
+            }
         };
     }
 }

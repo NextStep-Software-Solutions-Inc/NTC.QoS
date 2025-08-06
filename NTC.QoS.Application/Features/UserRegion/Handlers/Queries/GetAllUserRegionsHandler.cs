@@ -2,18 +2,20 @@ using MediatR;
 using NTC.QoS.Application.Features.UserRegion.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
+using Microsoft.EntityFrameworkCore;
+using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Enums;
 
 namespace NTC.QoS.Application.Features.UserRegion.Handlers.Queries;
 
 public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository) : IRequestHandler<GetAllUserRegionsRequest, PaginatedResponse<UserRegionDto>>
 {
     private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
-
+    
     public async Task<PaginatedResponse<UserRegionDto>> Handle(GetAllUserRegionsRequest request, CancellationToken cancellationToken)
     {
         var query = _userRegionRepository.Query();
 
-        // Apply filters
         if (request.UserIds is not null && request.UserIds.Count > 0)
         {
             query = query.Where(ur => request.UserIds.Contains(ur.UserId));
@@ -26,11 +28,26 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
 
         if (request.Statuses is not null && request.Statuses.Count > 0)
         {
-            query = query.Where(ur => request.Statuses.Contains(ur.Status));
+            var validStatusStrings = new List<string>();
+            foreach (var statusString in request.Statuses)
+            {
+                var parsedStatus = EnumHelper<UserRegionStatus>.ParseUserInput(statusString);
+                if (parsedStatus != UserRegionStatus.Unknown)
+                {
+                    validStatusStrings.Add(parsedStatus.ToString());
+                }
+            }
+
+            if (validStatusStrings.Count > 0)
+            {
+                query = query.Where(ur => validStatusStrings.Contains(ur.Status));
+            }
         }
 
-        var userRegionDtosQuery = query
-            .OrderBy(ur => ur.CreatedAt)
+        var totalCount = await query.CountAsync(cancellationToken);
+        var userRegions = await query
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
             .Select(ur => new UserRegionDto
             {
                 Id = ur.Id,
@@ -62,8 +79,9 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
                     Code = ur.Region.Code,
                     Description = ur.Region.Description ?? string.Empty
                 } : null
-            });
+            })
+            .ToListAsync(cancellationToken);
 
-        return await _userRegionRepository.PaginateAsync(userRegionDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
+        return new PaginatedResponse<UserRegionDto>(userRegions, totalCount, request.PageNumber, request.PageSize);
     }
 }

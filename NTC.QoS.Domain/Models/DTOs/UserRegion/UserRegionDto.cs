@@ -1,3 +1,6 @@
+using NTC.QoS.Domain.Models.DTOs.Region;
+using NTC.QoS.Domain.Models.DTOs.User;
+
 namespace NTC.QoS.Domain.Models.DTOs.UserRegion;
 
 public class UserRegionDto
@@ -6,8 +9,6 @@ public class UserRegionDto
     public Guid UserId { get; set; }
     public Guid RegionId { get; set; }
     public string Status { get; set; } = string.Empty;
-    
-    // Navigation properties
-    public User.UserDto? User { get; set; }
-    public Region.RegionDto? Region { get; set; }
+    public UserDto? User { get; set; }
+    public RegionDto? Region { get; set; }
 }
