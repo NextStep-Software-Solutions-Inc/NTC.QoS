@@ -60,8 +60,6 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
             Data = new UserRegionDto
             {
                 Id = userRegion.Id,
-                UserId = userRegion.UserId,
-                RegionId = userRegion.RegionId,
                 Status = userRegion.Status,
                 User = userRegion.User != null ? new()
                 {

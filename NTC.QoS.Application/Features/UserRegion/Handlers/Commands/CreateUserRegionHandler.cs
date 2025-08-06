@@ -73,7 +73,6 @@ public class CreateUserRegionHandler(
         {
             UserId = request.UserRegion.UserId,
             RegionId = request.UserRegion.RegionId,
-            Status = EnumHelper<UserRegionStatus>.ParseUserInput(request.UserRegion.Status).ToString()
         };
 
         _userRegionRepository.Add(newUserRegion);
@@ -84,8 +83,6 @@ public class CreateUserRegionHandler(
             Data = new UserRegionDto
             {
                 Id = newUserRegion.Id,
-                UserId = newUserRegion.UserId,
-                RegionId = newUserRegion.RegionId,
                 Status = newUserRegion.Status,
                 User = new()
                 {

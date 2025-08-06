@@ -51,8 +51,6 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
             .Select(ur => new UserRegionDto
             {
                 Id = ur.Id,
-                UserId = ur.UserId,
-                RegionId = ur.RegionId,
                 Status = ur.Status,
                 User = ur.User != null ? new()
                 {

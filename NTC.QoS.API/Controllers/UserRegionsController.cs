@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.UserRegion.Requests;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
 
@@ -16,7 +17,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> CreateUserRegion(CreateUserRegionDto createUserRegion)
     {
         var userRegion = await _mediator.Send(new CreateUserRegionRequest { UserRegion = createUserRegion });
-        return Ok(userRegion);
+        return userRegion.Succeeded ? Ok(userRegion) : BadRequest(userRegion);
     }
 
     [HttpGet]
@@ -42,20 +43,20 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> GetUserRegionById(Guid id)
     {
         var userRegion = await _mediator.Send(new GetUserRegionByIdRequest(id));
-        return Ok(userRegion);
+        return userRegion.Succeeded ? Ok(userRegion) : BadRequest(userRegion);
     }
 
     [HttpPut("{id}/status")]
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> UpdateUserRegionStatus(Guid id, UpdateUserRegionStatusDto updateUserRegion)
     {
         var userRegion = await _mediator.Send(new UpdateUserRegionStatusByIdRequest(id, updateUserRegion));
-        return Ok(userRegion);
+        return userRegion.Succeeded ? Ok(userRegion) : BadRequest(userRegion);
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteUserRegion(Guid id)
     {
         var result = await _mediator.Send(new DeleteUserRegionByIdRequest(id));
-        return Ok(result);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 }
