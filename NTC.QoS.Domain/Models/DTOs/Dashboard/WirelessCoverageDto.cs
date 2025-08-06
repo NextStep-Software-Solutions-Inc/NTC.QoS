@@ -5,7 +5,6 @@ public class WirelessCoverageDto
     public string Technology { get; set; } = string.Empty;
     public decimal CoveragePercentage { get; set; }
     public int CoverageCount { get; set; }
-    public int TotalRegionCount { get; set; }
 }
 
 public class RegionTechnologyCoverageDto

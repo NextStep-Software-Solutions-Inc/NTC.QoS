@@ -3,6 +3,8 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 using NTC.QoS.Infrastructure.Persistence;
 using NetTopologySuite.Geometries;
+using MediatR;
+using NTC.QoS.Domain.Models.DTOs.Dashboard;
 
 namespace NTC.QoS.Application.Services;
 

@@ -26,9 +26,10 @@ public class UsersController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<UserDto>>> GetAllUsers(int pageSize = 10,
                                                                          int pageNumber = 1,
                                                                          Guid? roleId = null,
-                                                                         Guid? organizationId = null)
+                                                                         Guid? organizationId = null,
+                                                                         [FromQuery] List<Guid>? regionIds = null)
     {
-        var users = await _mediator.Send(new GetAllUsersRequest(pageSize, pageNumber, roleId, organizationId));
+        var users = await _mediator.Send(new GetAllUsersRequest(pageSize, pageNumber, roleId, organizationId, regionIds));
         return users.Succeeded ? Ok(users) : BadRequest(users);
     }
 

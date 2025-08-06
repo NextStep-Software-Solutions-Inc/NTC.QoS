@@ -651,6 +651,55 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("TechnologyBands");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.UserRegion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("RegionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegionId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserRegions");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2273,7 +2322,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
-                        .WithMany()
+                        .WithMany("Networks")
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2394,6 +2443,25 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Band");
 
                     b.Navigation("Technology");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.UserRegion", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
+                        .WithMany("UserRegions")
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.User", "User")
+                        .WithMany("UserRegions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Region");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
@@ -2662,6 +2730,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Navigation("NAPs");
 
+                    b.Navigation("Networks");
+
                     b.Navigation("Speedtests");
                 });
 
@@ -2754,6 +2824,8 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Region", b =>
                 {
                     b.Navigation("Provinces");
+
+                    b.Navigation("UserRegions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Role", b =>
@@ -2785,6 +2857,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("SystemTypes");
 
                     b.Navigation("TechnologyBands");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>
+                {
+                    b.Navigation("UserRegions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.UserType", b =>
