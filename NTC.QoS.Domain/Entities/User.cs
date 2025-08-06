@@ -1,4 +1,6 @@
-﻿namespace NTC.QoS.Domain.Entities;
+﻿using NTC.QoS.Domain.Aggregates;
+
+namespace NTC.QoS.Domain.Entities;
 
 public class User : BaseEntity
 {
@@ -7,4 +9,5 @@ public class User : BaseEntity
     public Guid OrganizationId { get; set; }
     public virtual Organization? Organization { get; set; }
     public string AuthUserId { get; set; } = string.Empty;
+    public virtual List<UserRegion> UserRegions { get; set; } = new();
 }

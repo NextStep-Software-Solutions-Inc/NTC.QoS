@@ -48,7 +48,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CellSector> CellSectors { get; set; }
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
-
+    public DbSet<UserRegion> UserRegions { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
@@ -482,6 +482,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<CellSector>()
             .HasMany(cs => cs.Cellulars);
+
+        modelBuilder.Entity<UserRegion>()
+            .HasOne(ur => ur.User)
+            .WithMany(u => u.UserRegions)
+            .HasForeignKey(ur => ur.UserId);
+
+        modelBuilder.Entity<UserRegion>()
+            .HasOne(ur => ur.Region)
+            .WithMany(r => r.UserRegions)
+            .HasForeignKey(ur => ur.RegionId);
 
         base.OnModelCreating(modelBuilder);
     }
