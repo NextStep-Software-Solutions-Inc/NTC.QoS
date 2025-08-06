@@ -27,79 +27,20 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
     {
         try
         {
-            // 1. Validate bounding box
-            if (request.BoundingBox == null)
-            {
-                return new ApiResponse<AreaBroadbandInfoDto>
-                {
-                    Succeeded = false,
-                    Message = "Bounding box is required.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "BoundingBox", ["Bounding box cannot be null."] }
-                    }
-                };
-            }
-
+            // Validation is now handled by FluentValidation pipeline
             var bbox = request.BoundingBox;
 
-            // Validate bounding box coordinates
-            if (bbox.MinLatitude >= bbox.MaxLatitude || bbox.MinLongitude >= bbox.MaxLongitude)
-            {
-                return new ApiResponse<AreaBroadbandInfoDto>
-                {
-                    Succeeded = false,
-                    Message = "Invalid bounding box coordinates.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "BoundingBox", ["Min coordinates must be less than max coordinates."] }
-                    }
-                };
-            }
-
-            // Validate latitude and longitude ranges for practical map usage
-            if (!GeoSpatialConstants.IsWithinSupportedRegion(bbox.MinLatitude, bbox.MinLongitude) ||
-                !GeoSpatialConstants.IsWithinSupportedRegion(bbox.MaxLatitude, bbox.MaxLongitude))
-            {
-                return new ApiResponse<AreaBroadbandInfoDto>
-                {
-                    Succeeded = false,
-                    Message = "Coordinates are outside the supported region.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "BoundingBox", [GeoSpatialConstants.CoordinateRangeErrorMessage] }
-                    }
-                };
-            }
-
-            // Additional validation for reasonable bounding box size (prevent extremely large areas)
-            var latDiff = bbox.MaxLatitude - bbox.MinLatitude;
-            var lonDiff = bbox.MaxLongitude - bbox.MinLongitude;
-            
-            if (latDiff > GeoSpatialConstants.MaxLatitudeDifference || lonDiff > GeoSpatialConstants.MaxLongitudeDifference)
-            {
-                return new ApiResponse<AreaBroadbandInfoDto>
-                {
-                    Succeeded = false,
-                    Message = "Selected area is too large for analysis.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "BoundingBox", [GeoSpatialConstants.GetAreaSizeErrorMessage(latDiff, lonDiff)] }
-                    }
-                };
-            }
-
-            // 2. Create polygon from bounding box
+            // Create polygon from bounding box
             var envelope = CreatePolygonFromBoundingBox(bbox);
 
-            // 3. Apply envelope filter to queries using the helper
+            // Apply envelope filter to queries using the helper
             var cellQuery = _cellRepository.Query(c => !c.IsDeleted);
             cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, cellQuery);
 
             var napQuery = _napRepository.Query(n => !n.IsDeleted);
             napQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, napQuery);
 
-            // 4. Execute queries and get results with related data
+            // Execute queries and get results with related data
             var cellsWithProvider = await _cellRepository.ToListAsync(
                 cellQuery.Select(c => new
                 {
@@ -130,7 +71,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 }),
                 cancellationToken);
 
-            // 5. Group by service provider and calculate counts
+            // Group by service provider and calculate counts
             var allProviders = cellsWithProvider.Select(c => c.ServiceProvider)
                 .Concat(napsWithProvider.Select(n => n.ServiceProvider))
                 .GroupBy(sp => sp.Id)
@@ -149,10 +90,10 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             .OrderByDescending(sp => sp.TotalAssets)
             .ToList();
 
-            // 6. Calculate envelope information
+            // Calculate envelope information
             var envelopeInfo = CalculateEnvelopeInfo(envelope, bbox);
 
-            // 7. Build response
+            // Build response
             var result = new AreaBroadbandInfoDto
             {
                 CellCount = cellsWithProvider.Count,
