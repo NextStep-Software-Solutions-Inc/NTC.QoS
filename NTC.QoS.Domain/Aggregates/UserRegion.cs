@@ -8,4 +8,5 @@ public class UserRegion : BaseEntity
     public virtual User User { get; set; } = null!;
     public Guid RegionId { get; set; }
     public virtual Region Region { get; set; } = null!;
+    public string Status { get; set; } = string.Empty;
 }

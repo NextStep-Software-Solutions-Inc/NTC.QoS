@@ -677,6 +677,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("RegionId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
