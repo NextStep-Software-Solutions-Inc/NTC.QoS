@@ -25,6 +25,11 @@ public class ProcessCellJob : IProcessCellJob
     private readonly ITechnologyRepository _technologyRepository;
     private readonly IBandRepository _bandRepository;
 
+    // Default values for frequency and bandwidth when not specified
+    private const decimal DEFAULT_DL_CENTER_FREQ = 0;
+    private const decimal DEFAULT_UL_CENTER_FREQ = 0;
+    private const decimal DEFAULT_BANDWIDTH = 20; // 20 MHz default bandwidth
+
     public ProcessCellJob(
         ILogger<ProcessCellJob> logger,
         IRepository<Domain.Entities.File> fileRepository,
@@ -343,15 +348,35 @@ public class ProcessCellJob : IProcessCellJob
                     {
                         if (parseResult.IsActive)
                         {
-                            if (cellSectorCache.TryGetValue(cellId, out var allSectorIds))
+                            // Get all sector IDs for this cell (both existing and newly created)
+                            var allSectorIds = new List<Guid>();
+                            
+                            // Add existing sectors from cache
+                            if (cellSectorCache.TryGetValue(cellId, out var existingSectorIds))
                             {
-                                _logger.LogInformation("Found {SectorCount} sector(s) for CellId: {CellId}", allSectorIds.Count, cellId);
+                                allSectorIds.AddRange(existingSectorIds);
+                            }
+                            
+                            // Add newly created sectors for this cell
+                            if (cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectorIds))
+                            {
+                                allSectorIds.AddRange(newSectorIds);
+                            }
+
+                            if (allSectorIds.Count > 0)
+                            {
+                                _logger.LogInformation("Found {SectorCount} total sector(s) for CellId: {CellId} ({ExistingCount} existing, {NewCount} new)", 
+                                    allSectorIds.Count, cellId, existingSectorIds?.Count ?? 0, newSectorIds?.Count ?? 0);
 
                                 foreach (var sectorId in allSectorIds)
                                 {
                                     var key = (sectorId, serviceProviderId, technologyId, bandId);
                                     if (!cellularLookup.ContainsKey(key))
                                     {
+                                        // Apply default values when TRUE is set but no frequency data provided
+                                        var dlCenterFreq = parseResult.DLCenterFreq ?? GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band);
+                                        var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
+
                                         var newCellular = new Domain.Entities.Cellular
                                         {
                                             CellSectorId = sectorId,
@@ -360,15 +385,10 @@ public class ProcessCellJob : IProcessCellJob
                                             BandId = bandId,
                                             Address = address,
                                             IsFileUploaded = true,
-                                            DLCenterFreq = parseResult.DLCenterFreq ?? 0,
-                                            Bandwidth = parseResult.Bandwidth ?? 0
+                                            DLCenterFreq = dlCenterFreq,
+                                            Bandwidth = bandwidth,
+                                            ULCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band)
                                         };
-
-                                        // Calculate UL center frequency if DL is provided
-                                        if (parseResult.DLCenterFreq.HasValue)
-                                        {
-                                            newCellular.ULCenterFreq = CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band);
-                                        }
 
                                         cellularToAdd.Add(newCellular);
                                         cellularLookup[key] = newCellular;
@@ -387,53 +407,18 @@ public class ProcessCellJob : IProcessCellJob
                             }
                             else
                             {
-                                // Check if we have sectors from new cells created in this batch
-                                if (cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectorIds))
-                                {
-                                    _logger.LogInformation("Found {SectorCount} newly created sector(s) for CellId: {CellId}", newSectorIds.Count, cellId);
-
-                                    foreach (var sectorId in newSectorIds)
-                                    {
-                                        var key = (sectorId, serviceProviderId, technologyId, bandId);
-                                        if (!cellularLookup.ContainsKey(key))
-                                        {
-                                            var newCellular = new Domain.Entities.Cellular
-                                            {
-                                                CellSectorId = sectorId,
-                                                ServiceProviderId = serviceProviderId,
-                                                TechnologyId = technologyId,
-                                                BandId = bandId,
-                                                Address = address,
-                                                IsFileUploaded = true,
-                                                DLCenterFreq = parseResult.DLCenterFreq ?? 0,
-                                                Bandwidth = parseResult.Bandwidth ?? 0
-                                            };
-
-                                            // Calculate UL center frequency if DL is provided
-                                            if (parseResult.DLCenterFreq.HasValue)
-                                            {
-                                                newCellular.ULCenterFreq = CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band);
-                                            }
-
-                                            cellularToAdd.Add(newCellular);
-                                            cellularLookup[key] = newCellular;
-
-                                            _logger.LogInformation(
-                                                "Marked Cellular record for addition (new cell): CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, DLCenterFreq: {DLCenterFreq}, ULCenterFreq: {ULCenterFreq}, Bandwidth: {Bandwidth}",
-                                                sectorId, propInfo.Technology, propInfo.Band, newCellular.DLCenterFreq, newCellular.ULCenterFreq, newCellular.Bandwidth);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    _logger.LogWarning("No cell sectors found for cell {CellId}. Skipping cellular creation for this cell.", cellId);
-                                }
+                                _logger.LogWarning("No cell sectors found for cell {CellId}. Skipping cellular creation for this cell.", cellId);
                             }
                         }
                     }
                 }
             }
         }
+
+        // --- Step 5.5: Validate All Cell Sectors Have Cellular Entities ---
+        _logger.LogInformation("Validating cell sector to cellular entity completeness...");
+        await ValidateAndCreateMissingCellularEntities(cellularToAdd, cellularLookup, cellSectorCache, cellSectorsCreatedForCellId, 
+            serviceProviderCache, technologyCache, bandCache, token);
 
         // --- Step 6: Batch Save All Accumulated Changes ---
 
@@ -455,6 +440,14 @@ public class ProcessCellJob : IProcessCellJob
             _cellSectorRepository.AddRange(cellSectorList);
             await _cellSectorRepository.SaveChangesAsync(token);
             _logger.LogInformation("{Count} sector records saved successfully (batched).", cellSectorList.Count);
+            
+            // Update cellSectorCache with newly created sectors
+            foreach (var sector in cellSectorList)
+            {
+                if (!cellSectorCache.ContainsKey(sector.CellId))
+                    cellSectorCache[sector.CellId] = new List<Guid>();
+                cellSectorCache[sector.CellId].Add(sector.Id);
+            }
         }
         else
         {
@@ -487,6 +480,138 @@ public class ProcessCellJob : IProcessCellJob
         await _fileRepository.SaveChangesAsync(token);
 
         _logger.LogInformation("Processing completed.");
+    }
+
+    /// <summary>
+    /// Validates that all cell sectors have corresponding cellular entities for all active technology/band combinations
+    /// and creates missing ones if needed.
+    /// </summary>
+    private async Task ValidateAndCreateMissingCellularEntities(
+        List<Domain.Entities.Cellular> cellularToAdd,
+        Dictionary<(Guid CellSectorId, Guid ServiceProviderId, Guid TechnologyId, Guid BandId), Domain.Entities.Cellular> cellularLookup,
+        Dictionary<Guid, List<Guid>> cellSectorCache,
+        Dictionary<Guid, List<Guid>> cellSectorsCreatedForCellId,
+        Dictionary<string, Guid> serviceProviderCache,
+        Dictionary<string, Guid> technologyCache,
+        Dictionary<string, Guid> bandCache,
+        CancellationToken token)
+    {
+        var missingCellularCount = 0;
+
+        // Get all cell sectors (existing + newly created)
+        var allCellSectors = new Dictionary<Guid, List<Guid>>();
+        
+        // Add existing sectors
+        foreach (var kvp in cellSectorCache)
+        {
+            allCellSectors[kvp.Key] = new List<Guid>(kvp.Value);
+        }
+        
+        // Add newly created sectors
+        foreach (var kvp in cellSectorsCreatedForCellId)
+        {
+            if (!allCellSectors.ContainsKey(kvp.Key))
+                allCellSectors[kvp.Key] = new List<Guid>();
+            allCellSectors[kvp.Key].AddRange(kvp.Value);
+        }
+
+        // Get all cells for wireless service providers
+        var cellsWithProviders = await _cellRepository
+            .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
+            .Select(c => new { c.Id, c.ServiceProviderId })
+            .ToListAsync(token);
+
+        foreach (var cell in cellsWithProviders)
+        {
+            if (!allCellSectors.TryGetValue(cell.Id, out var sectorIds) || sectorIds.Count == 0)
+                continue;
+
+            foreach (var sectorId in sectorIds)
+            {
+                // Check each technology/band combination
+                foreach (var techId in technologyCache.Values)
+                {
+                    foreach (var bandId in bandCache.Values)
+                    {
+                        var key = (sectorId, cell.ServiceProviderId, techId, bandId);
+                        
+                        // If no cellular entity exists for this combination, create one with default values
+                        if (!cellularLookup.ContainsKey(key))
+                        {
+                            var technology = technologyCache.FirstOrDefault(x => x.Value == techId).Key ?? "Unknown";
+                            var band = bandCache.FirstOrDefault(x => x.Value == bandId).Key ?? "Unknown";
+                            
+                            var newCellular = new Domain.Entities.Cellular
+                            {
+                                CellSectorId = sectorId,
+                                ServiceProviderId = cell.ServiceProviderId,
+                                TechnologyId = techId,
+                                BandId = bandId,
+                                Address = "", // Will be updated if needed
+                                IsFileUploaded = false, // Mark as system-created, not file-uploaded
+                                DLCenterFreq = GetDefaultDLCenterFreq(technology, band),
+                                Bandwidth = GetDefaultBandwidth(technology, band)
+                            };
+                            
+                            newCellular.ULCenterFreq = CalculateULCenterFreq(newCellular.DLCenterFreq, technology, band);
+                            
+                            cellularToAdd.Add(newCellular);
+                            cellularLookup[key] = newCellular;
+                            missingCellularCount++;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (missingCellularCount > 0)
+        {
+            _logger.LogInformation("Created {Count} missing cellular entities to ensure completeness.", missingCellularCount);
+        }
+    }
+
+    /// <summary>
+    /// Gets default DL center frequency based on technology and band when not specified in Excel
+    /// </summary>
+    private static decimal GetDefaultDLCenterFreq(string technology, string band)
+    {
+        // Return technology and band specific default frequencies or fallback to 0
+        return (technology.ToUpperInvariant(), band) switch
+        {
+            ("GSM", "Band 8") => 947.5m,    // 900 MHz GSM center
+            ("GSM", "Band 3") => 1842.5m,   // 1800 MHz GSM center
+            ("WCDMA", "Band 5") => 869m,    // 850 MHz WCDMA center
+            ("WCDMA", "Band 8") => 950m,    // 900 MHz WCDMA center
+            ("WCDMA", "Band 1") => 2140m,   // 2100 MHz WCDMA center
+            ("LTE-FDD", "Band 28") => 758m, // 700 MHz LTE center
+            ("LTE-FDD", "Band 5") => 869m,  // 850 MHz LTE center
+            ("LTE-FDD", "Band 8") => 950m,  // 900 MHz LTE center
+            ("LTE-FDD", "Band 3") => 1842.5m, // 1800 MHz LTE center
+            ("LTE-FDD", "Band 1") => 2140m, // 2100 MHz LTE center
+            ("LTE-TDD", "Band 40") => 2300m, // 2300 MHz TDD center
+            ("LTE-TDD", "Band 41") => 2500m, // 2500 MHz TDD center
+            ("LTE-TDD", "Band 38") => 2600m, // 2600 MHz TDD center
+            ("NR", "Band 78") => 3500m,     // 3500 MHz NR center
+            ("NR", "Band 38") => 2600m,     // 2600 MHz NR center
+            _ => DEFAULT_DL_CENTER_FREQ      // Fallback to 0
+        };
+    }
+
+    /// <summary>
+    /// Gets default bandwidth based on technology and band when not specified in Excel
+    /// </summary>
+    private static decimal GetDefaultBandwidth(string technology, string band)
+    {
+        // Return technology-specific default bandwidths
+        return technology.ToUpperInvariant() switch
+        {
+            "GSM" => 0.2m,      // 200 kHz
+            "WCDMA" => 5m,      // 5 MHz
+            "LTE-FDD" => 20m,   // 20 MHz
+            "LTE-TDD" => 20m,   // 20 MHz
+            "NR" => 100m,       // 100 MHz for 5G
+            _ => DEFAULT_BANDWIDTH // 20 MHz default
+        };
     }
 
     void ReportProgress(string message)
@@ -531,6 +656,7 @@ public class ProcessCellJob : IProcessCellJob
         if (stringValue.Equals("TRUE", StringComparison.OrdinalIgnoreCase) || stringValue == "1")
         {
             result.IsActive = true;
+            // When TRUE but no frequency data, we'll use defaults in the calling code
             return result;
         }
 
