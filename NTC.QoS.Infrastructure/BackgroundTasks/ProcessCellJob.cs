@@ -21,6 +21,8 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IGenerationBandRepository _generationBandRepository;
     private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
+    private readonly ITechnologyRepository _technologyRepository;
+    private readonly IBandRepository _bandRepository;
 
     public ProcessCellJob(
         ILogger<ProcessCellJob> logger,
@@ -29,7 +31,9 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Entities.Cellular> cellularRepository,
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IGenerationBandRepository generationBandRepository,
-        IRepository<Domain.Entities.CellSector> cellSectorRepository
+        IRepository<Domain.Entities.CellSector> cellSectorRepository,
+        ITechnologyRepository technologyRepository,
+        IBandRepository bandRepository
         )
     {
         _logger = logger;
@@ -39,6 +43,8 @@ public class ProcessCellJob : IProcessCellJob
         _serviceProviderRepository = serviceProviderRepository;
         _generationBandRepository = generationBandRepository;
         _cellSectorRepository = cellSectorRepository;
+        _technologyRepository = technologyRepository;
+        _bandRepository = bandRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -82,21 +88,34 @@ public class ProcessCellJob : IProcessCellJob
             );
         _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
 
-        // Pre-load all generation bands
-        var generationBandCache = await _generationBandRepository
+        // Pre-load 
+        var technologyCache = await _technologyRepository
             .Query()
-            .Select(gb => new
+            .Select(t => new
             {
-                gb.Id,
-                Generation = gb.Generation.Name, 
-                Band = gb.Band.Name            
+                t.Id,
+                Technology = t.Standard
             })
             .ToDictionaryAsync(
-                gb => CacheKeyGenerator.GenerateGenerationBandCacheKey(gb.Generation, gb.Band),
-                gb => gb.Id,                    
+                t => CacheKeyGenerator.GenerateTechnologyCacheKey(t.Technology),
+                t => t.Id,
                 token
             );
-        _logger.LogInformation("Pre-loaded {Count} generation bands.", generationBandCache.Count);
+        _logger.LogInformation("Pre-loaded {Count} technologies.", technologyCache.Count);
+
+        var bandCache = await _bandRepository
+            .Query()
+            .Select(b => new
+            {
+                b.Id,
+                Band = b.Name
+            })
+            .ToDictionaryAsync(
+                b => CacheKeyGenerator.GenerateTechnologyCacheKey(b.Band),
+                b => b.Id,
+                token
+            );
+        _logger.LogInformation("Pre-loaded {Count} technologies.", bandCache.Count);
 
         var providerIds = serviceProviderCache.Values.ToList();
 
@@ -123,7 +142,7 @@ public class ProcessCellJob : IProcessCellJob
         var cellularLookup = await _cellularRepository
             .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
             .ToDictionaryAsync(
-                c => (c.CellSectorId, c.ServiceProviderId, c.GenerationBandId),
+                c => (c.CellSectorId, c.ServiceProviderId, c.TechnologyId, c.BandId),
                 c => c,
                 token
             );
@@ -148,16 +167,16 @@ public class ProcessCellJob : IProcessCellJob
             return;
         }
 
-        var bandGenerationProperties = typeof(CellRecord).GetProperties()
+        var bandTechnologyProperties = typeof(CellRecord).GetProperties()
             .Where(p => p.PropertyType == typeof(bool))
             .Select(property => new
             {
                 Property = property,
                 HeaderAttribute = property.GetCustomAttribute<ExcelHeaderAttribute>(),
                 Band = GetBandFromPropertyName(property.Name),
-                Generation = GetGenerationFromPropertyName(property.Name)
+                Technology = GetTechnologyFromPropertyName(property.Name)
             })
-            .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Generation))
+            .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
             .ToList();
 
         // --- Step 5: Main Loop for Processing Each Cell Record ---
@@ -268,15 +287,22 @@ public class ProcessCellJob : IProcessCellJob
             }
 
             // --- Cellular Data Processing ---
-            if (cellId != Guid.Empty) // Should always be true if we got cellId
-            {
-                foreach (var propInfo in bandGenerationProperties)
+            if (cellId != Guid.Empty // Should always be true if we got cellId
+            ){
+                foreach (var propInfo in bandTechnologyProperties)
                 {
-                    var generationBandCacheKey = CacheKeyGenerator.GenerateGenerationBandCacheKey(propInfo.Generation, propInfo.Band);
-
-                    if (!generationBandCache.TryGetValue(generationBandCacheKey, out var generationBandId))
+                    var technologyCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(propInfo.Technology);
+                    if (!technologyCache.TryGetValue(technologyCacheKey, out var technologyId))
                     {
-                        _logger.LogWarning("Generation Band not found in pre-loaded cache: Generation: {Generation}, Band: {Band}. Terminating process.", propInfo.Generation, propInfo.Band);
+                        _logger.LogWarning("Technology not found in pre-loaded cache: {Technology}. Terminating process.", propInfo.Technology);
+                        await TerminateProcess(file, token);
+                        return;
+                    }
+
+                    var bandCacheKey = CacheKeyGenerator.GenerateBandCacheKey(propInfo.Band);
+                    if (!bandCache.TryGetValue(bandCacheKey, out var bandId))
+                    {
+                        _logger.LogWarning("Band not found in pre-loaded cache: {Band}. Terminating process.", propInfo.Band);
                         await TerminateProcess(file, token);
                         return;
                     }
@@ -285,12 +311,17 @@ public class ProcessCellJob : IProcessCellJob
                     var value = propInfo.Property.GetValue(record);
                     bool isBandActiveInExcel = value is not null && (bool)value;
 
-                    if (cellularLookup.TryGetValue((cellId, serviceProviderId, generationBandId), out var existingCellular))
+                    if (cellularLookup.TryGetValue((cellId, serviceProviderId, technologyId, bandId), out var existingCellular))
                     {
                         if (!isBandActiveInExcel)
                         {
                             cellularToDelete.Add(existingCellular);
-                            _logger.LogInformation("Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Generation: {Generation}, Band: {Band}", existingCellular.Id, cellId, propInfo.Generation, propInfo.Band);
+                            _logger.LogInformation(
+                                "Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Technology: {Technology}, Band: {Band}",
+                                existingCellular.Id,
+                                cellId,
+                                propInfo.Technology,
+                                propInfo.Band);
                         }
                     }
                     else
@@ -303,14 +334,15 @@ public class ProcessCellJob : IProcessCellJob
 
                                 foreach (var sectorId in allSectorIds)
                                 {
-                                    var key = (sectorId, serviceProviderId, generationBandId);
+                                    var key = (sectorId, serviceProviderId, technologyId, bandId);
                                     if (!cellularLookup.ContainsKey(key))
                                     {
                                         var newCellular = new Domain.Entities.Cellular
                                         {
                                             CellSectorId = sectorId,
                                             ServiceProviderId = serviceProviderId,
-                                            GenerationBandId = generationBandId,
+                                            TechnologyId = technologyId,
+                                            BandId = bandId,
                                             Address = address,
                                             IsFileUploaded = true
                                         };
@@ -318,14 +350,14 @@ public class ProcessCellJob : IProcessCellJob
                                         cellularLookup[key] = newCellular;
 
                                         _logger.LogInformation(
-                                            "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Generation: {Generation}, Band: {Band}",
-                                            sectorId, propInfo.Generation, propInfo.Band);
+                                            "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}",
+                                            sectorId, propInfo.Technology, propInfo.Band);
                                     }
                                     else
                                     {
                                         _logger.LogInformation(
-                                            "Skipped existing Cellular record: CellSectorId: {CellSectorId}, Generation: {Generation}, Band: {Band}",
-                                            sectorId, propInfo.Generation, propInfo.Band);
+                                            "Skipped existing Cellular record: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}",
+                                            sectorId, propInfo.Technology, propInfo.Band);
                                     }
                                 }
                             }
@@ -352,7 +384,6 @@ public class ProcessCellJob : IProcessCellJob
         {
             _logger.LogInformation("No new cells to add (batched).");
         }
-
 
         // Batch add new cell sectors
         if (cellSectorList.Count != 0)
@@ -428,6 +459,16 @@ public class ProcessCellJob : IProcessCellJob
         if (propertyName.StartsWith("Wcdma")) return "3G";
         if (propertyName.StartsWith("FddLte") || propertyName.StartsWith("TddLte")) return "4G";
         if (propertyName.StartsWith("Nr")) return "5G";
+        return string.Empty;
+    }
+
+    private static string GetTechnologyFromPropertyName(string propertyName)
+    {
+        if (propertyName.StartsWith("Gsm")) return "GSM";
+        if (propertyName.StartsWith("Wcdma")) return "WCDMA";
+        if (propertyName.StartsWith("FddLte")) return "LTE-FDD";
+        if (propertyName.StartsWith("TddLte")) return "LTE-TDD";
+        if (propertyName.StartsWith("Nr")) return "NR";
         return string.Empty;
     }
 }

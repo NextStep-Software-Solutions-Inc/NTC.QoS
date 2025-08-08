@@ -286,18 +286,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(c => c.ServiceProviderId);
 
         modelBuilder.Entity<Cellular>()
-            .HasOne(c => c.GenerationBand)
-            .WithMany(gb => gb.Cellulars)
-            .HasForeignKey(c => c.GenerationBandId);
-
-        modelBuilder.Entity<Cellular>()
             .HasOne(c => c.Technology)
-            .WithMany(gb => gb.Cellulars)
+            .WithMany(t => t.Cellulars)
             .HasForeignKey(c => c.TechnologyId);
 
         modelBuilder.Entity<Cellular>()
             .HasOne(c => c.Band)
-            .WithMany(gb => gb.Cellulars)
+            .WithMany(b => b.Cellulars)
             .HasForeignKey(c => c.BandId);
 
         modelBuilder.Entity<Province>()

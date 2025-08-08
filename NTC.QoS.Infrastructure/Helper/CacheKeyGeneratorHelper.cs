@@ -19,18 +19,27 @@ namespace NTC.QoS.Infrastructure.Helper
         }
 
         /// <summary>
-        /// Generates a standardized cache key for Generation Bands.
-        /// Format: (Generation, Band) tuple.
+        /// Generates a standardized cache key for Technology.
+        /// Format: Lowercase technology standard.
+        /// This is the preferred method for caching individual Technology entities.
         /// </summary>
-        /// <param name="generation">The generation name (e.g., "4G").</param>
-        /// <param name="band">The band name (e.g., "Band 3").</param>
-        /// <returns>A tuple representing the generation band cache key.</returns>
-        public static (string Generation, string Band) GenerateGenerationBandCacheKey(string generation, string band)
+        /// <param name="technologyStandard">The technology standard (e.g., "LTE", "GSM", "WCDMA").</param>
+        /// <returns>A standardized lowercase cache key for the technology.</returns>
+        public static string GenerateTechnologyCacheKey(string technologyStandard)
         {
-            // This reflects your existing logic for this key.
-            // You might add .Trim() or .ToLowerInvariant() here if future consistency demands it,
-            // but for now, matching the current tuple formation is key.
-            return (generation, band);
+            return technologyStandard.ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Generates a standardized cache key for Band.
+        /// Format: Lowercase band name.
+        /// This is the preferred method for caching individual Band entities.
+        /// </summary>
+        /// <param name="bandName">The band name (e.g., "Band 3", "Band 28").</param>
+        /// <returns>A standardized lowercase cache key for the band.</returns>
+        public static string GenerateBandCacheKey(string bandName)
+        {
+            return bandName.ToLowerInvariant();
         }
 
         /// <summary>

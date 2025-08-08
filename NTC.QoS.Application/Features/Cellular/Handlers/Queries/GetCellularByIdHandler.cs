@@ -68,21 +68,17 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
                         Type = cellular.ServiceProvider.Service.Type.ToString(),
                     },
                 } : null,
-                GenerationBand = cellular.GenerationBand != null ? new()
+                Technology = cellular.Technology != null ? new()
                 {
-                    Id = cellular.GenerationBandId,
-                    Generation = new()
-                    {
-                        Id = cellular.GenerationBand.Generation.Id,
-                        Name = cellular.GenerationBand.Generation.Name,
-                        Description = cellular.GenerationBand.Generation.Description
-                    },
-                    Band = new()
-                    {
-                        Id = cellular.GenerationBand.Band.Id,
-                        Name = cellular.GenerationBand.Band.Name,
-                        Description = cellular.GenerationBand.Band.Description
-                    },
+                    Id = cellular.TechnologyId,
+                    Standard = cellular.Technology.Standard,
+                    Description = cellular.Technology.Description
+                } : null,
+                Band = cellular.Band != null ? new()
+                {
+                    Id = cellular.BandId,
+                    Name = cellular.Band.Name,
+                    Description = cellular.Band.Description
                 } : null,
                 Address = cellular.Address
             }

@@ -1,24 +1,30 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Cellular.Requests;
-using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
 
 namespace NTC.QoS.Application.Features.Cellular.Handlers.Commands;
 
-public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellularRepository, ICellSectorRepository cellSectorRepository, IServiceProviderRepository serviceProviderRepository, IGenerationBandRepository generationBandRepository) : IRequestHandler<CreateCellularRequest, ApiResponse<CellularDto>>
+public class CreateCellularHandler(
+    IRepository<Domain.Entities.Cellular> cellularRepository,
+    ICellSectorRepository cellSectorRepository,
+    IServiceProviderRepository serviceProviderRepository,
+    ITechnologyRepository technologyRepository,
+    IBandRepository bandRepository) : IRequestHandler<CreateCellularRequest, ApiResponse<CellularDto>>
 {
     private readonly IRepository<Domain.Entities.Cellular> _cellularRepository = cellularRepository;
     private readonly ICellSectorRepository _cellSectorRepository = cellSectorRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
-    private readonly IGenerationBandRepository _generationBandRepository = generationBandRepository;
+    private readonly ITechnologyRepository _technologyRepository = technologyRepository;
+    private readonly IBandRepository _bandRepository = bandRepository;
 
     public async Task<ApiResponse<CellularDto>> Handle(CreateCellularRequest request, CancellationToken cancellationToken)
     {
         var cellularQuery = _cellularRepository.Query(c => c.CellSectorId == request.Cellular.CellSectorId
             && c.ServiceProviderId == request.Cellular.ServiceProviderId
-            && c.GenerationBandId == request.Cellular.GenerationBandId
+            && c.TechnologyId == request.Cellular.TechnologyId
+            && c.BandId == request.Cellular.BandId
         );
         var existingCellular = await _cellularRepository.FirstOrDefaultAsync(cellularQuery, cancellationToken);
         if (existingCellular is null)
@@ -52,13 +58,13 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
             };
         }
 
-        var generationBandQuery = _generationBandRepository.Query(gb => gb.Id == request.Cellular.GenerationBandId);
-        var generationBand = await _generationBandRepository.FirstOrDefaultAsync(generationBandQuery, cancellationToken);
-        if (generationBand is null)
+        var technologyQuery = _technologyRepository.Query(t => t.Id == request.Cellular.TechnologyId);
+        var technology = await _technologyRepository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
+        if (technology is null)
         {
             return new ApiResponse<CellularDto>
             {
-                Message = "Generation band not found.",
+                Message = "Technology not found.",
                 Succeeded = false
             };
         }
@@ -67,7 +73,8 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
         {
             CellSectorId = cellSector.Id,
             ServiceProviderId = serviceProvider.Id,
-            GenerationBandId = generationBand.Id,
+            TechnologyId = technology.Id,
+            BandId = request.Cellular.BandId,
             Address = request.Cellular.Address,
         };
 
@@ -114,21 +121,17 @@ public class CreateCellularHandler(IRepository<Domain.Entities.Cellular> cellula
                         Type = newCellular.ServiceProvider.Service.Type.ToString(),
                     },
                 } : null,
-                GenerationBand = newCellular.GenerationBand != null ? new()
+                Technology = newCellular.Technology != null ? new()
                 {
-                    Id = newCellular.GenerationBandId,
-                    Generation = new()
-                    {
-                        Id = newCellular.GenerationBand.Generation.Id,
-                        Name = newCellular.GenerationBand.Generation.Name,
-                        Description = newCellular.GenerationBand.Generation.Description
-                    },
-                    Band = new()
-                    {
-                        Id = newCellular.GenerationBand.Band.Id,
-                        Name = newCellular.GenerationBand.Band.Name,
-                        Description = newCellular.GenerationBand.Band.Description
-                    },
+                    Id = newCellular.TechnologyId,
+                    Standard = newCellular.Technology.Standard,
+                    Description = newCellular.Technology.Description
+                } : null,
+                Band = newCellular.Band != null ? new()
+                {
+                    Id = newCellular.BandId,
+                    Name = newCellular.Band.Name,
+                    Description = newCellular.Band.Description
                 } : null
             },
             Message = "Cellular record created successfully.",
