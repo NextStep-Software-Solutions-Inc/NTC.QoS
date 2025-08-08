@@ -106,7 +106,7 @@ public class CreateNetworkHandler(
 
         var uplinkQuery = _linkRepository.Query(l => l.Id == request.Network.UplinkId)
             .Include(l => l.ServiceProvider)
-            .Include(l => l.TechnologyBand);
+            .Include(l => l.Band);
         var uplink = await _linkRepository.FirstOrDefaultAsync(uplinkQuery, cancellationToken);
 
         if (uplink is null)
@@ -128,7 +128,7 @@ public class CreateNetworkHandler(
 
         var downlinkQuery = _linkRepository.Query(l => l.Id == request.Network.DownLinkId)
             .Include(l => l.ServiceProvider)
-            .Include(l => l.TechnologyBand);
+            .Include(l => l.Band);
         var downlink = await _linkRepository.FirstOrDefaultAsync(downlinkQuery, cancellationToken);
 
         if (downlink is null)
@@ -150,9 +150,9 @@ public class CreateNetworkHandler(
 
         if (uplink is not null && downlink is not null)
         {
-            if (uplink.TechnologyBandId != downlink.TechnologyBandId)
+            if (uplink.Band != downlink.Band)
             {
-                errorMessages.Add("Uplink and downlink must have the same technology band.");
+                errorMessages.Add("Uplink and downlink must have the same band.");
             }
         }
 

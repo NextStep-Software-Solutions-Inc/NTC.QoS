@@ -226,6 +226,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("CenterFrequency")
                         .HasColumnType("numeric");
 
@@ -255,7 +258,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("TechnologyBandId")
+                    b.Property<Guid?>("TechnologyBandId")
                         .HasColumnType("uuid");
 
                     b.Property<int>("Type")
@@ -272,6 +275,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("numeric");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BandId");
 
                     b.HasIndex("ServiceProviderId");
 
@@ -2016,6 +2021,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("GenerationId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -2034,6 +2042,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GenerationId");
 
                     b.HasIndex("TechnologyId");
 
@@ -2271,21 +2281,25 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Link", b =>
                 {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany("Links")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
                         .WithMany("Links")
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.TechnologyBand", "TechnologyBand")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.TechnologyBand", null)
                         .WithMany("Links")
-                        .HasForeignKey("TechnologyBandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TechnologyBandId");
+
+                    b.Navigation("Band");
 
                     b.Navigation("ServiceProvider");
-
-                    b.Navigation("TechnologyBand");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.NAP", b =>
@@ -2631,11 +2645,19 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.SystemType", b =>
                 {
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
+                        .WithMany("SystemTypes")
+                        .HasForeignKey("GenerationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
                         .WithMany("SystemTypes")
                         .HasForeignKey("TechnologyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Generation");
 
                     b.Navigation("Technology");
                 });
@@ -2696,6 +2718,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Navigation("Speedtests");
 
+                    b.Navigation("SystemTypes");
+
                     b.Navigation("Technologies");
                 });
 
@@ -2755,6 +2779,8 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Band", b =>
                 {
                     b.Navigation("GenerationBands");
+
+                    b.Navigation("Links");
 
                     b.Navigation("TechnologyBands");
                 });

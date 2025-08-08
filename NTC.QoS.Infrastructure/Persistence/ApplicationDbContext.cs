@@ -155,9 +155,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(l => l.ServiceProviderId);
 
         modelBuilder.Entity<Link>()
-            .HasOne(l => l.TechnologyBand)
-            .WithMany(tb => tb.Links)
-            .HasForeignKey(l => l.TechnologyBandId);
+            .HasOne(l => l.Band)
+            .WithMany(b => b.Links)
+            .HasForeignKey(l => l.BandId);
 
         modelBuilder.Entity<Network>()
             .HasOne(n => n.NetworkTemplate)
@@ -492,6 +492,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(ur => ur.Region)
             .WithMany(r => r.UserRegions)
             .HasForeignKey(ur => ur.RegionId);
+
+        modelBuilder.Entity<SystemType>()
+            .HasOne(st => st.Generation)
+            .WithMany(g => g.SystemTypes)
+            .HasForeignKey(st => st.GenerationId);
 
         base.OnModelCreating(modelBuilder);
     }

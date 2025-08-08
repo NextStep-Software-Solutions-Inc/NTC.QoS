@@ -9,4 +9,5 @@ public class Generation : BaseEntity
     public virtual List<Technology> Technologies { get; set; } = new();
     public virtual List<GenerationBand> GenerationBands { get; set; } = new();
     public virtual List<Speedtest> Speedtests { get; set; } = new();
+    public virtual List<SystemType> SystemTypes { get; set; } = new();
 }
