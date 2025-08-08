@@ -43,8 +43,9 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository,
             .Where(s => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(s.ServiceProviderId)))
             .Where(s => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (s.ServiceProvider != null && request.ProviderIds.Contains(s.ServiceProvider.ProviderId))))
             .Where(s => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (s.ServiceProvider != null && request.ServiceIds.Contains(s.ServiceProvider.ServiceId))))
-            .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && request.GenerationIds.Contains(s.GenerationId)))
-            .Where(s => request.SignalQuality == null || s.SignalQuality == EnumHelper<SignalQualityEnum>.ParseUserInput(request.SignalQuality))
+            .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && s.GenerationId.HasValue && request.GenerationIds.Contains(s.GenerationId.Value)))
+            .Where(s => request.TechnologyIds == null || (request.TechnologyIds.Count > 0 && s.TechnologyId.HasValue && request.TechnologyIds.Contains(s.TechnologyId.Value)))
+            .Where(s => string.IsNullOrEmpty(request.SignalQuality) || s.SignalQuality == request.SignalQuality)
             .Where(s => locationPoint.IsValid && s.Location.IsWithinDistance(locationPoint, request.Distance));
 
         if (request.BarangayIds is { Count: > 0 })
@@ -71,7 +72,7 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository,
             DateTime = s.DateTime,
             Ping = s.Ping,
             Jitter = s.Jitter,
-            RSSI = s.RSSI,
+            RSSI = s.RSSI ?? 0,
             SignalQuality = s.SignalQuality,
             UploadSpeed = s.UploadSpeed,
             DownloadSpeed = s.DownloadSpeed,
@@ -100,14 +101,27 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository,
                     Color = s.ServiceProvider.Provider.Color
                 },
             },
-            Generation = new()
+            Generation = s.Generation != null ? new()
             {
-                Id = s.GenerationId,
+                Id = s.GenerationId ?? Guid.Empty,
                 Name = s.Generation.Name,
                 Description = s.Generation.Description
-            },
+            } : null,
+            Technology = s.Technology != null ? new()
+            {
+                Id = s.Technology.Id,
+                Standard = s.Technology.Standard,
+                Description = s.Technology.Description,
+                Generation = s.Technology.Generation != null ? new()
+                {
+                    Id = s.Technology.Generation.Id,
+                    Name = s.Technology.Generation.Name,
+                    Description = s.Technology.Generation.Description
+                } : null
+            } : null,
             Address = s.Address,
             IsFileUploaded = s.IsFileUploaded,
+            IsFixedBroadband = s.IsFixedBroadband,
             Distance = Math.Round(s.Location.Distance(locationPoint), 2)
         });
 

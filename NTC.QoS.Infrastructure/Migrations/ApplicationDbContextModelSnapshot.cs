@@ -1886,13 +1886,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid?>("FileId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("GenerationId")
+                    b.Property<Guid?>("GenerationId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsFileUploaded")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFixedBroadband")
                         .HasColumnType("boolean");
 
                     b.Property<decimal>("Jitter")
@@ -1919,18 +1922,21 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<decimal>("Ping")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RSSI")
+                    b.Property<decimal?>("RSSI")
                         .HasColumnType("numeric");
 
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("SignalQuality")
-                        .HasColumnType("integer");
+                    b.Property<string>("SignalQuality")
+                        .HasColumnType("text");
 
                     b.Property<string>("TAC")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("TechnologyId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1956,6 +1962,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
                     b.HasIndex("ServiceProviderId");
+
+                    b.HasIndex("TechnologyId");
 
                     b.ToTable("Speedtests");
                 });
@@ -2624,9 +2632,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.Generation", "Generation")
                         .WithMany("Speedtests")
-                        .HasForeignKey("GenerationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("GenerationId");
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
                         .WithMany("Speedtests")
@@ -2634,9 +2640,15 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
+                        .WithMany()
+                        .HasForeignKey("TechnologyId");
+
                     b.Navigation("Generation");
 
                     b.Navigation("ServiceProvider");
+
+                    b.Navigation("Technology");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Study", b =>

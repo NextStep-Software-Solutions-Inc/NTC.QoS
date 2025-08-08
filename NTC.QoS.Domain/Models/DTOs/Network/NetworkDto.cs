@@ -7,7 +7,7 @@ public class NetworkDto
 {
     public required Guid Id { get; set; }
     public required string Name { get; set; }
-    public required NetworkTemplateDto NetworkTemplate { get; set; }
+    public NetworkTemplateDto? NetworkTemplate { get; set; }
     public required string SystemTypeName { get; set; }
     public required ServiceProviderDto ServiceProvider { get; set; }
     public decimal ULCenterFreq { get; set; }

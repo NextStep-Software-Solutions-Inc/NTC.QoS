@@ -130,7 +130,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     UploadSpeed = record.Upload,
                     DownloadSpeed = record.Download,
                     RSSI = record.RSSI,
-                    SignalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality),
+                    SignalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString(),
                     Location = location,
                     PhoneModel = record.PhoneModel,
                     CellIdentifier = record.CellIdentifier,

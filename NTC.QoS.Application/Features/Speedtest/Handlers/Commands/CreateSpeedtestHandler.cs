@@ -1,6 +1,8 @@
-﻿using MediatR;
+﻿using DocumentFormat.OpenXml.Office.Word;
+using MediatR;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -8,13 +10,16 @@ using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Commands;
 
-public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
-                                    IServiceProviderRepository serviceProviderRepository,
-                                    IGenerationRepository generationRepository) : IRequestHandler<CreateSpeedtestRequest, ApiResponse<SpeedtestDto>>
+public class CreateSpeedtestHandler(
+    ISpeedtestRepository speedtestRepository,
+    IServiceProviderRepository serviceProviderRepository,
+    IGenerationRepository generationRepository,
+    ITechnologyRepository technologyRepository) : IRequestHandler<CreateSpeedtestRequest, ApiResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationRepository _generationRepository = generationRepository;
+    private readonly ITechnologyRepository _technologyRepository = technologyRepository;
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(CreateSpeedtestRequest request, CancellationToken cancellationToken)
     {
@@ -38,28 +43,62 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             };
         }
 
-        var generationQuery = _generationRepository.Query(g => g.Id == request.Speedtest.GenerationId);
-        var generation = await _generationRepository.FirstOrDefaultAsync(generationQuery, cancellationToken);
-
-        if (generation is null)
+        Domain.Aggregates.Generation? generation = null;
+        if (request.Speedtest.GenerationId.HasValue)
         {
-            return new ApiResponse<SpeedtestDto>
+            var generationQuery = _generationRepository.Query(g => g.Id == request.Speedtest.GenerationId.Value);
+            generation = await _generationRepository.FirstOrDefaultAsync(generationQuery, cancellationToken);
+
+            if (generation is null)
             {
-                Message = "Generation does not exist.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
+                return new ApiResponse<SpeedtestDto>
                 {
+                    Message = "Generation does not exist.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
                     {
-                        "NullGeneration", ["Generation not found."]
+                        {
+                            "NullGeneration", ["Generation not found."]
+                        }
                     }
-                }
-            };
+                };
+            }
+        }
+
+        Domain.Entities.Technology? technology = null;
+        if (request.Speedtest.TechnologyId.HasValue)
+        {
+            var technologyQuery = _technologyRepository.Query(t => t.Id == request.Speedtest.TechnologyId.Value);
+            technology = await _technologyRepository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
+
+            if (technology is null)
+            {
+                return new ApiResponse<SpeedtestDto>
+                {
+                    Message = "Technology does not exist.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        {
+                            "NullTechnology", ["Technology not found."]
+                        }
+                    }
+                };
+            }
+        }
+
+        string? validatedSignalQuality = null;
+        if (!string.IsNullOrEmpty(request.Speedtest.SignalQuality))
+        {
+            var signalQualityEnum = EnumHelper<SignalQualityEnum>.ParseUserInput(request.Speedtest.SignalQuality);
+            validatedSignalQuality = signalQualityEnum.ToString();
         }
 
         var existingSpeedtest = await _speedtestRepository.FirstOrDefaultAsync(
             _speedtestRepository.Query(s => s.Address == request.Speedtest.Address &&
                                             s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
                                             s.GenerationId == request.Speedtest.GenerationId &&
+                                            s.TechnologyId == request.Speedtest.TechnologyId &&
                                             s.DateTime == request.Speedtest.DateTime),
             cancellationToken);
 
@@ -82,7 +121,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
         {
             Address = request.Speedtest.Address,
             ServiceProviderId = serviceProvider.Id,
-            GenerationId = generation.Id,
+            GenerationId = request.Speedtest.GenerationId,
+            TechnologyId = request.Speedtest.TechnologyId,
             DateTime = request.Speedtest.DateTime,
             Ping = request.Speedtest.Ping,
             Jitter = request.Speedtest.Jitter,
@@ -93,8 +133,9 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             MCC = request.Speedtest.MCC,
             MNC = request.Speedtest.MNC,
             TAC = request.Speedtest.TAC,
-            SignalQuality = request.Speedtest.SignalQuality,
+            SignalQuality = validatedSignalQuality,
             CellIdentifier = request.Speedtest.CellIdentifier,
+            IsFixedBroadband = request.Speedtest.IsFixedBroadband,
             Location = location
         };
 
@@ -106,34 +147,34 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
             Data = new SpeedtestDto
             {
                 Id = newSpeedtest.Id,
-                ServiceProvider = new ()
+                ServiceProvider = new()
                 {
-                    Id = newSpeedtest!.ServiceProviderId,
+                    Id = serviceProvider.Id,
                     Service = new()
                     {
-                        Id = newSpeedtest.ServiceProvider?.Service?.Id ?? Guid.Empty,
-                        Name = newSpeedtest.ServiceProvider?.Service?.Name ?? string.Empty,
-                        Type = newSpeedtest.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                        Id = serviceProvider.ServiceId,
+                        Name = serviceProvider.Service?.Name ?? string.Empty,
+                        Type = serviceProvider.Service?.Type.ToString() ?? string.Empty
                     },
                     Provider = new()
                     {
-                        Id = newSpeedtest.ServiceProvider?.Provider?.Id ?? Guid.Empty,
-                        Name = newSpeedtest.ServiceProvider?.Provider?.Name ?? string.Empty,
-                        Description = newSpeedtest.ServiceProvider?.Provider?.Description,
-                        LicenseNumber = newSpeedtest.ServiceProvider?.Provider?.LicenseNumber,
-                        Color = newSpeedtest.ServiceProvider?.Provider?.Color ?? string.Empty
+                        Id = serviceProvider.ProviderId,
+                        Name = serviceProvider.Provider?.Name ?? string.Empty,
+                        Description = serviceProvider.Provider?.Description,
+                        LicenseNumber = serviceProvider.Provider?.LicenseNumber,
+                        Color = serviceProvider.Provider?.Color ?? string.Empty
                     }
                 },
-                Generation = new()
+                Generation = generation is not null ? new()
                 {
-                    Id = newSpeedtest.GenerationId,
-                    Name = newSpeedtest.Generation?.Name ?? string.Empty,
-                    Description = newSpeedtest.Generation?.Description,
-                },
+                    Id = generation.Id,
+                    Name = generation.Name,
+                    Description = generation.Description,
+                } : null,
                 DateTime = newSpeedtest.DateTime,
                 Ping = newSpeedtest.Ping,
                 Jitter = newSpeedtest.Jitter,
-                RSSI = newSpeedtest.RSSI,
+                RSSI = newSpeedtest.RSSI ?? 0,
                 UploadSpeed = newSpeedtest.UploadSpeed,
                 DownloadSpeed = newSpeedtest.DownloadSpeed,
                 Latitude = newSpeedtest.Location.Coordinate.Y,
@@ -145,7 +186,8 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository,
                 SignalQuality = newSpeedtest.SignalQuality,
                 CellIdentifier = newSpeedtest.CellIdentifier,
                 Distance = 0,
-                Address = newSpeedtest.Address ?? string.Empty,
+                Address = newSpeedtest.Address,
+                IsFixedBroadband = newSpeedtest.IsFixedBroadband,
             },
             Message = "Speedtest created successfully.",
             Succeeded = true

@@ -52,16 +52,28 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                         Color = speedtest.ServiceProvider?.Provider?.Color ?? string.Empty
                     }
                 },
-                Generation = new()
+                Generation = speedtest.Generation != null ? new()
                 {
-                    Id = speedtest.GenerationId,
-                    Name = speedtest.Generation?.Name ?? string.Empty,
-                    Description = speedtest.Generation?.Description,
-                },
+                    Id = speedtest.GenerationId ?? Guid.Empty,
+                    Name = speedtest.Generation.Name,
+                    Description = speedtest.Generation.Description,
+                } : null,
+                Technology = speedtest.Technology != null ? new()
+            {
+                Id = speedtest.Technology.Id,
+                Standard = speedtest.Technology.Standard,
+                Description = speedtest.Technology.Description,
+                Generation = speedtest.Technology.Generation != null ? new()
+                {
+                    Id = speedtest.Technology.Generation.Id,
+                    Name = speedtest.Technology.Generation.Name,
+                    Description = speedtest.Technology.Generation.Description
+                } : null
+            } : null,
                 DateTime = speedtest.DateTime,
                 Ping = speedtest.Ping,
                 Jitter = speedtest.Jitter,
-                RSSI = speedtest.RSSI,
+                RSSI = speedtest.RSSI ?? 0,
                 UploadSpeed = speedtest.UploadSpeed,
                 DownloadSpeed = speedtest.DownloadSpeed,
                 Latitude = speedtest.Location.Coordinate.Y,
@@ -73,7 +85,8 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                 SignalQuality = speedtest.SignalQuality,
                 CellIdentifier = speedtest.CellIdentifier,
                 Address = speedtest.Address ?? string.Empty,
-                Distance = Math.Round(speedtest.Location.Distance(speedtest.Location), 2)
+                Distance = Math.Round(speedtest.Location.Distance(speedtest.Location), 2),
+                IsFixedBroadband = speedtest.IsFixedBroadband,
             }
         };
     }
