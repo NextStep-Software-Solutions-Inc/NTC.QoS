@@ -2310,10 +2310,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.TechnologyBand", null)
-                        .WithMany("Links")
-                        .HasForeignKey("TechnologyBandId");
-
                     b.Navigation("Band");
 
                     b.Navigation("ServiceProvider");
