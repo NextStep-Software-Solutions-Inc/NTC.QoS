@@ -8,4 +8,5 @@ public class Band : BaseEntity
     public string? Description { get; set; }
     public virtual List<TechnologyBand> TechnologyBands { get; set; } = new();
     public virtual List<GenerationBand> GenerationBands { get; set; } = new();
+    public virtual List<Cellular> Cellulars { get; set; } = new();
 }

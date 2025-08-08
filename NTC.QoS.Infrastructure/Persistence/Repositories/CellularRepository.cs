@@ -20,6 +20,8 @@ internal sealed class CellularRepository(ApplicationDbContext context) : Reposit
                 .ThenInclude(sp => sp!.Service)
             .Include(c => c.CellSector)
                 .ThenInclude(cs => cs!.Cell)
+            .Include(c => c.Technology)
+            .Include(c => c.Band)
             .AsQueryable();
 
         if (expression != null)
