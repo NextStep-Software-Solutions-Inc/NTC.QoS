@@ -73,7 +73,7 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                 DateTime = speedtest.DateTime,
                 Ping = speedtest.Ping,
                 Jitter = speedtest.Jitter,
-                RSSI = speedtest.RSSI ?? 0,
+                RSSI = speedtest.RSSI,
                 UploadSpeed = speedtest.UploadSpeed,
                 DownloadSpeed = speedtest.DownloadSpeed,
                 Latitude = speedtest.Location.Coordinate.Y,

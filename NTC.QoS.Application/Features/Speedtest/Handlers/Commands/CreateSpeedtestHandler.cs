@@ -173,7 +173,7 @@ public class CreateSpeedtestHandler(
                 DateTime = newSpeedtest.DateTime,
                 Ping = newSpeedtest.Ping,
                 Jitter = newSpeedtest.Jitter,
-                RSSI = newSpeedtest.RSSI ?? 0,
+                RSSI = newSpeedtest.RSSI,
                 UploadSpeed = newSpeedtest.UploadSpeed,
                 DownloadSpeed = newSpeedtest.DownloadSpeed,
                 Latitude = newSpeedtest.Location.Coordinate.Y,

@@ -16,7 +16,7 @@ public class SpeedtestDto
     public DateTime DateTime { get; set; }
     public decimal Ping { get; set; }
     public decimal Jitter { get; set; }
-    public decimal RSSI { get; set; }
+    public decimal? RSSI { get; set; }
     public decimal UploadSpeed { get; set; }
     public decimal DownloadSpeed { get; set; }
     public required string PhoneModel { get; set; }
