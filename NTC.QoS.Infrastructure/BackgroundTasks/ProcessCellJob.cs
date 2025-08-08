@@ -9,6 +9,7 @@ using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -111,11 +112,11 @@ public class ProcessCellJob : IProcessCellJob
                 Band = b.Name
             })
             .ToDictionaryAsync(
-                b => CacheKeyGenerator.GenerateTechnologyCacheKey(b.Band),
+                b => CacheKeyGenerator.GenerateBandCacheKey(b.Band), // Fixed: use GenerateBandCacheKey instead of GenerateTechnologyCacheKey
                 b => b.Id,
                 token
             );
-        _logger.LogInformation("Pre-loaded {Count} technologies.", bandCache.Count);
+        _logger.LogInformation("Pre-loaded {Count} bands.", bandCache.Count); // Fixed: log message for bands
 
         var providerIds = serviceProviderCache.Values.ToList();
 
@@ -168,7 +169,7 @@ public class ProcessCellJob : IProcessCellJob
         }
 
         var bandTechnologyProperties = typeof(CellRecord).GetProperties()
-            .Where(p => p.PropertyType == typeof(bool))
+            .Where(p => p.PropertyType == typeof(string)) // Changed to string since we updated CellRecord
             .Select(property => new
             {
                 Property = property,
@@ -307,13 +308,13 @@ public class ProcessCellJob : IProcessCellJob
                         return;
                     }
 
-                    // Check for existing cellular record in-memory (using the pre-loaded lookup)
+                    // Parse the new column format
                     var value = propInfo.Property.GetValue(record);
-                    bool isBandActiveInExcel = value is not null && (bool)value;
-
+                    var parseResult = ParseBandTechnologyValue(value, propInfo.Technology, propInfo.Band, actualRowNumber);
+                    
                     if (cellularLookup.TryGetValue((cellId, serviceProviderId, technologyId, bandId), out var existingCellular))
                     {
-                        if (!isBandActiveInExcel)
+                        if (!parseResult.IsActive)
                         {
                             cellularToDelete.Add(existingCellular);
                             _logger.LogInformation(
@@ -323,10 +324,24 @@ public class ProcessCellJob : IProcessCellJob
                                 propInfo.Technology,
                                 propInfo.Band);
                         }
+                        else
+                        {
+                            // Update existing cellular with new frequency data if provided
+                            if (parseResult.DLCenterFreq.HasValue)
+                            {
+                                existingCellular.DLCenterFreq = parseResult.DLCenterFreq.Value;
+                                existingCellular.ULCenterFreq = CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band);
+                            }
+                            if (parseResult.Bandwidth.HasValue)
+                            {
+                                existingCellular.Bandwidth = parseResult.Bandwidth.Value;
+                            }
+                            _cellularRepository.Update(existingCellular);
+                        }
                     }
                     else
                     {
-                        if (isBandActiveInExcel)
+                        if (parseResult.IsActive)
                         {
                             if (cellSectorCache.TryGetValue(cellId, out var allSectorIds))
                             {
@@ -344,14 +359,23 @@ public class ProcessCellJob : IProcessCellJob
                                             TechnologyId = technologyId,
                                             BandId = bandId,
                                             Address = address,
-                                            IsFileUploaded = true
+                                            IsFileUploaded = true,
+                                            DLCenterFreq = parseResult.DLCenterFreq ?? 0,
+                                            Bandwidth = parseResult.Bandwidth ?? 0
                                         };
+
+                                        // Calculate UL center frequency if DL is provided
+                                        if (parseResult.DLCenterFreq.HasValue)
+                                        {
+                                            newCellular.ULCenterFreq = CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band);
+                                        }
+
                                         cellularToAdd.Add(newCellular);
                                         cellularLookup[key] = newCellular;
 
                                         _logger.LogInformation(
-                                            "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}",
-                                            sectorId, propInfo.Technology, propInfo.Band);
+                                            "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, DLCenterFreq: {DLCenterFreq}, ULCenterFreq: {ULCenterFreq}, Bandwidth: {Bandwidth}",
+                                            sectorId, propInfo.Technology, propInfo.Band, newCellular.DLCenterFreq, newCellular.ULCenterFreq, newCellular.Bandwidth);
                                     }
                                     else
                                     {
@@ -363,7 +387,47 @@ public class ProcessCellJob : IProcessCellJob
                             }
                             else
                             {
-                                _logger.LogWarning("No cell sectors found for new cell {CellId}. Skipping cellular creation for this cell.", cellId);
+                                // Check if we have sectors from new cells created in this batch
+                                if (cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectorIds))
+                                {
+                                    _logger.LogInformation("Found {SectorCount} newly created sector(s) for CellId: {CellId}", newSectorIds.Count, cellId);
+
+                                    foreach (var sectorId in newSectorIds)
+                                    {
+                                        var key = (sectorId, serviceProviderId, technologyId, bandId);
+                                        if (!cellularLookup.ContainsKey(key))
+                                        {
+                                            var newCellular = new Domain.Entities.Cellular
+                                            {
+                                                CellSectorId = sectorId,
+                                                ServiceProviderId = serviceProviderId,
+                                                TechnologyId = technologyId,
+                                                BandId = bandId,
+                                                Address = address,
+                                                IsFileUploaded = true,
+                                                DLCenterFreq = parseResult.DLCenterFreq ?? 0,
+                                                Bandwidth = parseResult.Bandwidth ?? 0
+                                            };
+
+                                            // Calculate UL center frequency if DL is provided
+                                            if (parseResult.DLCenterFreq.HasValue)
+                                            {
+                                                newCellular.ULCenterFreq = CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band);
+                                            }
+
+                                            cellularToAdd.Add(newCellular);
+                                            cellularLookup[key] = newCellular;
+
+                                            _logger.LogInformation(
+                                                "Marked Cellular record for addition (new cell): CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, DLCenterFreq: {DLCenterFreq}, ULCenterFreq: {ULCenterFreq}, Bandwidth: {Bandwidth}",
+                                                sectorId, propInfo.Technology, propInfo.Band, newCellular.DLCenterFreq, newCellular.ULCenterFreq, newCellular.Bandwidth);
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("No cell sectors found for cell {CellId}. Skipping cellular creation for this cell.", cellId);
+                                }
                             }
                         }
                     }
@@ -438,6 +502,174 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("Process terminated due to error in runtime");
     }
 
+    /// <summary>
+    /// Parses the band/technology column value which can be:
+    /// - Empty/null (defaults to false)
+    /// - "TRUE"/"FALSE" (boolean values)
+    /// - "CF: {decimal}, BW: {decimal}" format (active with frequency data)
+    /// </summary>
+    private BandTechnologyParseResult ParseBandTechnologyValue(object? value, string technology, string band, int rowNumber)
+    {
+        var result = new BandTechnologyParseResult();
+
+        if (value == null)
+        {
+            result.IsActive = false;
+            return result;
+        }
+
+        var stringValue = value.ToString()?.Trim() ?? string.Empty;
+
+        // Handle empty values (default to false)
+        if (string.IsNullOrEmpty(stringValue))
+        {
+            result.IsActive = false;
+            return result;
+        }
+
+        // Handle boolean values
+        if (stringValue.Equals("TRUE", StringComparison.OrdinalIgnoreCase) || stringValue == "1")
+        {
+            result.IsActive = true;
+            return result;
+        }
+
+        if (stringValue.Equals("FALSE", StringComparison.OrdinalIgnoreCase) || stringValue == "0")
+        {
+            result.IsActive = false;
+            return result;
+        }
+
+        // Handle frequency format: CF: {decimal}, BW: {decimal} (without square brackets)
+        var pattern = @"CF:\s*([0-9]*\.?[0-9]+),\s*BW:\s*([0-9]*\.?[0-9]+)";
+        var match = Regex.Match(stringValue, pattern, RegexOptions.IgnoreCase);
+
+        if (match.Success)
+        {
+            result.IsActive = true;
+            
+            if (decimal.TryParse(match.Groups[1].Value, out var dlCenterFreq))
+            {
+                result.DLCenterFreq = dlCenterFreq;
+            }
+            else
+            {
+                _logger.LogWarning("Could not parse DL Center Frequency '{DLFreq}' for {Technology} {Band} in row {RowNumber}", 
+                    match.Groups[1].Value, technology, band, rowNumber);
+            }
+
+            if (decimal.TryParse(match.Groups[2].Value, out var bandwidth))
+            {
+                result.Bandwidth = bandwidth;
+            }
+            else
+            {
+                _logger.LogWarning("Could not parse Bandwidth '{Bandwidth}' for {Technology} {Band} in row {RowNumber}", 
+                    match.Groups[2].Value, technology, band, rowNumber);
+            }
+
+            return result;
+        }
+
+        // If none of the above patterns match, log a warning and default to false
+        _logger.LogWarning("Could not parse band/technology value '{Value}' for {Technology} {Band} in row {RowNumber}. Defaulting to false.", 
+            stringValue, technology, band, rowNumber);
+        
+        result.IsActive = false;
+        return result;
+    }
+
+    /// <summary>
+    /// Calculates the UL (Uplink) center frequency based on DL (Downlink) center frequency,
+    /// technology type, and band specifications.
+    /// </summary>
+    private decimal CalculateULCenterFreq(decimal dlCenterFreq, string technology, string band)
+    {
+        // For TDD technologies (like TDD-LTE, NR-TDD), UL and DL use the same frequency
+        if (technology.Contains("TDD", StringComparison.OrdinalIgnoreCase) || 
+            (technology.Equals("NR", StringComparison.OrdinalIgnoreCase) && IsTDDBand(band)))
+        {
+            return dlCenterFreq;
+        }
+
+        // For FDD technologies, calculate based on band-specific duplex spacing
+        return technology.ToUpperInvariant() switch
+        {
+            "GSM" => CalculateGsmULFreq(dlCenterFreq, band),
+            "WCDMA" => CalculateWcdmaULFreq(dlCenterFreq, band),
+            "LTE-FDD" => CalculateLteFddULFreq(dlCenterFreq, band),
+            "NR" => CalculateNrFddULFreq(dlCenterFreq, band),
+            _ => dlCenterFreq // Default to DL frequency if technology is unknown
+        };
+    }
+
+    /// <summary>
+    /// Determines if a band is TDD-based for NR technology
+    /// </summary>
+    private static bool IsTDDBand(string band)
+    {
+        // Common TDD bands for NR
+        var tddBands = new[] { "Band 38", "Band 40", "Band 41", "Band 42", "Band 78" };
+        return tddBands.Contains(band, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Calculates GSM UL frequency based on DL frequency and band
+    /// </summary>
+    private static decimal CalculateGsmULFreq(decimal dlCenterFreq, string band)
+    {
+        return band switch
+        {
+            "Band 8" => dlCenterFreq - 45, // 900 MHz band (DL: 935-960, UL: 890-915)
+            "Band 3" => dlCenterFreq - 95, // 1800 MHz band (DL: 1805-1880, UL: 1710-1785)
+            _ => dlCenterFreq - 45 // Default GSM duplex spacing
+        };
+    }
+
+    /// <summary>
+    /// Calculates WCDMA UL frequency based on DL frequency and band
+    /// </summary>
+    private static decimal CalculateWcdmaULFreq(decimal dlCenterFreq, string band)
+    {
+        return band switch
+        {
+            "Band 5" => dlCenterFreq - 45,  // 850 MHz band
+            "Band 8" => dlCenterFreq - 45,  // 900 MHz band
+            "Band 1" => dlCenterFreq - 190, // 2100 MHz band
+            _ => dlCenterFreq - 190 // Default WCDMA duplex spacing
+        };
+    }
+
+    /// <summary>
+    /// Calculates LTE FDD UL frequency based on DL frequency and band
+    /// </summary>
+    private static decimal CalculateLteFddULFreq(decimal dlCenterFreq, string band)
+    {
+        return band switch
+        {
+            "Band 28" => dlCenterFreq - 55,  // 700 MHz band
+            "Band 5" => dlCenterFreq - 45,   // 850 MHz band
+            "Band 8" => dlCenterFreq - 45,   // 900 MHz band
+            "Band 3" => dlCenterFreq - 95,   // 1800 MHz band
+            "Band 1" => dlCenterFreq - 190,  // 2100 MHz band
+            _ => dlCenterFreq - 45 // Default LTE FDD duplex spacing
+        };
+    }
+
+    /// <summary>
+    /// Calculates NR FDD UL frequency based on DL frequency and band
+    /// </summary>
+    private static decimal CalculateNrFddULFreq(decimal dlCenterFreq, string band)
+    {
+        return band switch
+        {
+            "Band 28" => dlCenterFreq - 55,  // 700 MHz band
+            "Band 1" => dlCenterFreq - 190,  // 2100 MHz band
+            "Band 3" => dlCenterFreq - 95,   // 1800 MHz band
+            _ => dlCenterFreq - 45 // Default NR FDD duplex spacing
+        };
+    }
+
     private static string GetBandFromPropertyName(string propertyName)
     {
         if (propertyName.Contains("700")) return "Band 28";
@@ -470,5 +702,15 @@ public class ProcessCellJob : IProcessCellJob
         if (propertyName.StartsWith("TddLte")) return "LTE-TDD";
         if (propertyName.StartsWith("Nr")) return "NR";
         return string.Empty;
+    }
+
+    /// <summary>
+    /// Result structure for parsing band/technology column values
+    /// </summary>
+    private class BandTechnologyParseResult
+    {
+        public bool IsActive { get; set; }
+        public decimal? DLCenterFreq { get; set; }
+        public decimal? Bandwidth { get; set; }
     }
 }

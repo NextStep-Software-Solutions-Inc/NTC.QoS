@@ -56,7 +56,13 @@ public class CellExcelHelper
                     {
                         try
                         {
-                            if (property.PropertyType == typeof(bool))
+                            // Handle string properties (including band/technology columns)
+                            if (property.PropertyType == typeof(string))
+                            {
+                                property.SetValue(obj, cellValue ?? string.Empty);
+                            }
+                            // Handle legacy bool parsing (for backward compatibility)
+                            else if (property.PropertyType == typeof(bool))
                             {
                                 if (cellValue.Equals("TRUE", StringComparison.OrdinalIgnoreCase) || cellValue == "1")
                                     property.SetValue(obj, true);
@@ -73,7 +79,7 @@ public class CellExcelHelper
                         }
                         catch (Exception ex)
                         {
-                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}'.", ex);
+                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at row {row}, column {col}.", ex);
                         }
                     }
                 }
