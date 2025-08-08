@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.Office.Word;
-using MediatR;
+﻿using MediatR;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Enums;

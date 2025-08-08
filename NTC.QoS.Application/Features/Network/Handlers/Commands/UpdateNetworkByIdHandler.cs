@@ -54,7 +54,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
             Name = network.Name,
             NetworkTemplate = new()
             {
-                Id = network.NetworkTemplate.Id,
+                Id = network.NetworkTemplate?.Id ?? Guid.Empty,
                 Name = network.NetworkTemplate?.Name ?? string.Empty,
                 Description = network.NetworkTemplate?.Description ?? string.Empty,
                 URL = network.NetworkTemplate?.URL ?? string.Empty

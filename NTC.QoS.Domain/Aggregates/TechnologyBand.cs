@@ -8,5 +8,4 @@ public class TechnologyBand : BaseEntity
     public virtual Band Band { get; set; } = null!;
     public Guid TechnologyId { get; set; }
     public virtual Technology Technology { get; set; } = null!;
-    public virtual List<Link> Links { get; set; } = [];
 }

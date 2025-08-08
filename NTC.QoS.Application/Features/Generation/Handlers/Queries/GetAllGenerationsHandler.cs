@@ -1,7 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Generation.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Application.Features.Generation.Handlers.Queries;
@@ -14,9 +13,9 @@ public class GetAllGenerationsHandler (IRepository<Domain.Aggregates.Generation>
         var generationQuery = _repository.Query();
 
         generationQuery = generationQuery
-            .Where(g => request.ProviderIds == null || g.GenerationBands.Any(gb => gb.Band.TechnologyBands.Any(tb => tb.Links.Any(l => request.ProviderIds.Contains(l.ServiceProvider.ProviderId)))))
-            .Where(g => request.ServiceIds == null || g.GenerationBands.Any(gb => gb.Band.TechnologyBands.Any(tb => tb.Links.Any(l => request.ServiceIds.Contains(l.ServiceProvider.ServiceId)))))
-            .Where(g => request.ServiceProviderIds == null || g.GenerationBands.Any(gb => gb.Band.TechnologyBands.Any(tb => tb.Links.Any(l => request.ServiceProviderIds.Contains(l.ServiceProviderId)))));
+            .Where(g => request.ProviderIds == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.ProviderIds.Contains(l.ServiceProvider.ProviderId))))
+            .Where(g => request.ServiceIds == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.ServiceIds.Contains(l.ServiceProvider.ServiceId))))
+            .Where(g => request.ServiceProviderIds == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.ServiceProviderIds.Contains(l.ServiceProviderId))));
 
         var generationDtosQuery = generationQuery.Select(g => new GenerationDto
         {

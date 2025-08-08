@@ -150,7 +150,7 @@ public class CreateNetworkHandler(
 
         if (uplink is not null && downlink is not null)
         {
-            if (uplink.Band != downlink.Band)
+            if (uplink.BandId != downlink.BandId)
             {
                 errorMessages.Add("Uplink and downlink must have the same band.");
             }
@@ -193,7 +193,7 @@ public class CreateNetworkHandler(
                 Name = newNetwork.Name,
                 NetworkTemplate = new()
                 {
-                    Id = newNetwork.NetworkTemplate.Id,
+                    Id = networkTemplate.Id,
                     Name = networkTemplate.Name,
                     Description = networkTemplate.Description,
                     URL = networkTemplate.URL
