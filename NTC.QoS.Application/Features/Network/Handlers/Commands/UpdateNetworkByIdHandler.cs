@@ -30,6 +30,9 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         }
 
         network.Name = request.Network.Name ?? network.Name;
+        network.ULCenterFreq = request.Network.ULCenterFreq ?? network.ULCenterFreq;
+        network.DLCenterFreq = request.Network.DLCenterFreq ?? network.DLCenterFreq;
+        network.Bandwidth = request.Network.Bandwidth ?? network.Bandwidth;
 
         var networkExistsQuery = _networkRepository.Query(n => n.Id != request.Id && n.Name == request.Network.Name);
         var networkExists = await _networkRepository.FirstOrDefaultAsync(networkExistsQuery, cancellationToken);
@@ -51,7 +54,7 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
             Name = network.Name,
             NetworkTemplate = new()
             {
-                Id = network.NetworkTemplateId,
+                Id = network.NetworkTemplate.Id,
                 Name = network.NetworkTemplate?.Name ?? string.Empty,
                 Description = network.NetworkTemplate?.Description ?? string.Empty,
                 URL = network.NetworkTemplate?.URL ?? string.Empty
@@ -89,6 +92,9 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                     Type = network.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                 }
             },
+            ULCenterFreq = network.ULCenterFreq,
+            DLCenterFreq = network.DLCenterFreq,
+            Bandwidth = network.Bandwidth,
         };
         return new ApiResponse<NetworkDto>
         {

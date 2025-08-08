@@ -36,7 +36,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
             Name = network.Name,
             NetworkTemplate = new()
             {
-                Id = network.NetworkTemplateId,
+                Id = network.NetworkTemplate.Id,
                 Name = network.NetworkTemplate?.Name ?? string.Empty,
                 Description = network.NetworkTemplate?.Description ?? string.Empty,
                 URL = network.NetworkTemplate?.URL ?? string.Empty
@@ -73,6 +73,9 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                     Type = network.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                 }
             },
+            ULCenterFreq = network.ULCenterFreq,
+            DLCenterFreq = network.DLCenterFreq,
+            Bandwidth = network.Bandwidth,
         };
 
         return new ApiResponse<NetworkDto>

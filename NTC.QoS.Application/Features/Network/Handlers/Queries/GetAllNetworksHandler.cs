@@ -24,7 +24,7 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
             Name = n.Name,
             NetworkTemplate = new()
             {
-                Id = n.NetworkTemplateId,
+                Id = n.NetworkTemplate.Id,
                 Name = n.NetworkTemplate.Name,
                 Description = n.NetworkTemplate.Description,
                 URL = n.NetworkTemplate.URL

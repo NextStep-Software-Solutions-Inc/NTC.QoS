@@ -359,12 +359,18 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("Bandwidth")
+                        .HasColumnType("numeric");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<decimal>("DLCenterFreq")
+                        .HasColumnType("numeric");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
@@ -383,7 +389,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("NetworkTemplateId")
+                    b.Property<Guid?>("NetworkTemplateId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ServiceProviderId")
@@ -391,6 +397,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<Guid>("SystemTypeId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("ULCenterFreq")
+                        .HasColumnType("numeric");
 
                     b.Property<Guid>("UpLinkId")
                         .HasColumnType("uuid");
@@ -2331,9 +2340,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Entities.NetworkTemplate", "NetworkTemplate")
                         .WithMany("Networks")
-                        .HasForeignKey("NetworkTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("NetworkTemplateId");
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
                         .WithMany("Networks")

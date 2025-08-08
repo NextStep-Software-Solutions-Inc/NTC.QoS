@@ -172,11 +172,14 @@ public class CreateNetworkHandler(
         var newNetwork = new Domain.Aggregates.Network
         {
             Name = request.Network.Name,
-            NetworkTemplateId = networkTemplate.Id,
+            NetworkTemplateId = request.Network.NetworkTemplateId,
             SystemTypeId = systemType.Id,
             ServiceProviderId = serviceProvider.Id,
             UpLinkId = request.Network.UplinkId,
-            DownLinkId = request.Network.DownLinkId
+            DownLinkId = request.Network.DownLinkId,
+            ULCenterFreq = request.Network.ULCenterFreq,
+            DLCenterFreq = request.Network.DLCenterFreq,
+            Bandwidth = request.Network.Bandwidth,
         };
 
         _networkRepository.Add(newNetwork);
@@ -190,7 +193,7 @@ public class CreateNetworkHandler(
                 Name = newNetwork.Name,
                 NetworkTemplate = new()
                 {
-                    Id = newNetwork.NetworkTemplateId,
+                    Id = newNetwork.NetworkTemplate.Id,
                     Name = networkTemplate.Name,
                     Description = networkTemplate.Description,
                     URL = networkTemplate.URL
@@ -226,7 +229,10 @@ public class CreateNetworkHandler(
                     Id = newNetwork.DownLinkId,
                     Type = downlink?.Type.ToString() ?? string.Empty,
                     CenterFrequency = downlink?.CenterFrequency ?? 0,
-                }
+                },
+                ULCenterFreq = newNetwork.ULCenterFreq,
+                DLCenterFreq = newNetwork.DLCenterFreq,
+                Bandwidth = newNetwork.Bandwidth,
             },
             Succeeded = true,
             Message = "Network created successfully."

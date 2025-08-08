@@ -38,7 +38,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
         return network.Succeeded ? Ok(network) : BadRequest(network);
     }
 
-    [HttpPut("{id}")]
+    [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<NetworkDto>>> UpdateNetworkById(Guid id, UpdateNetworkDto updateNetwork)
     {
         var network = await _mediator.Send(new UpdateNetworkByIdRequest(id, updateNetwork));
