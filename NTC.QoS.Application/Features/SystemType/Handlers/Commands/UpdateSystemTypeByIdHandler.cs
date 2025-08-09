@@ -12,7 +12,7 @@ public class UpdateSystemTypeByIdHandler(ISystemTypeRepository repository) : IRe
     public async Task<ApiResponse<SystemTypeDto>> Handle(UpdateSystemTypeByIdRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.SystemType == null)
+        if (request.SystemType is null)
         {
             return new ApiResponse<SystemTypeDto>
             {
@@ -20,7 +20,7 @@ public class UpdateSystemTypeByIdHandler(ISystemTypeRepository repository) : IRe
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "SystemType", ["SystemType data is required."] }
+                    { "SystemType", ["System Type data is required."] }
                 },
                 Message = "The request does not contain system type update data.",
             };
@@ -29,7 +29,7 @@ public class UpdateSystemTypeByIdHandler(ISystemTypeRepository repository) : IRe
         var systemTypeQuery = _repository.Query(st => st.Id == request.Id);
         var systemType = await _repository.FirstOrDefaultAsync(systemTypeQuery, cancellationToken);
 
-        if (systemType == null)
+        if (systemType is null)
         {
             return new ApiResponse<SystemTypeDto>
             {
@@ -37,7 +37,7 @@ public class UpdateSystemTypeByIdHandler(ISystemTypeRepository repository) : IRe
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Id", ["SystemType not found."] }
+                    { "Id", ["System Type not found."] }
                 },
                 Message = "The system type you are trying to edit does not exist.",
             };

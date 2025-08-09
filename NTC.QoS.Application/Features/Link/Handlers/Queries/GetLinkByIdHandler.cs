@@ -12,9 +12,7 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
 
     public async Task<ApiResponse<LinkDto>> Handle(GetLinkByIdRequest request, CancellationToken cancellationToken)
     {
-        var linkQuery = _linkRepository.Query(l=> l.Id.Equals(request.Id));
-
-        var linkDtoQuery = linkQuery
+        var linkDtoQuery = _linkRepository.Query(l => l.Id == request.Id)
             .Select(link => new LinkDto
             {
                 Id = link.Id,
@@ -37,26 +35,11 @@ public class GetLinkByIdHandler(ILinkRepository linkRepository) : IRequestHandle
                         Type = link.ServiceProvider.Service.Type.ToString(),
                     }
                 },
-                TechnologyBand = new()
+                Band = new()
                 {
-                    Id = link.TechnologyBand.Id,
-                    Band = new()
-                    {
-                        Id = link.TechnologyBand.Band.Id,
-                        Name = link.TechnologyBand.Band.Name,
-                        Description = link.TechnologyBand.Band.Description
-                    },
-                    Technology = new()
-                    {
-                        Id = link.TechnologyBand.Technology.Id,
-                        Standard = link.TechnologyBand.Technology.Standard,
-                        Description = link.TechnologyBand.Technology.Description,
-                        Generation = new()
-                        {
-                            Id = link.TechnologyBand.Technology.Generation.Id,
-                            Name = link.TechnologyBand.Technology.Generation.Name
-                        }
-                    }
+                    Id = link.Band.Id,
+                    Name = link.Band.Name,
+                    Description = link.Band.Description
                 },
                 CenterFrequency = link.CenterFrequency,
                 LowerFrequency = link.LowerFrequency,

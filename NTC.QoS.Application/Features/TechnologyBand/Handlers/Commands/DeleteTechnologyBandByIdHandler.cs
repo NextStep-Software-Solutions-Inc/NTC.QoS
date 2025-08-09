@@ -24,18 +24,6 @@ public class DeleteTechnologyBandByIdHandler(ITechnologyBandRepository repositor
             };
         }
 
-        var linksQuery = _repository.Query(tb => tb.Id == request.Id).SelectMany(tb => tb.Links);
-        var hasLinks = await _repository.ToListAsync(linksQuery, cancellationToken);
-
-        if (hasLinks.Count is not 0)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Message = "Cannot delete Technology Band. It is being used by existing Links."
-            };
-        }
-
         _repository.Delete(technologyBand);
         await _repository.SaveChangesAsync(cancellationToken);
 

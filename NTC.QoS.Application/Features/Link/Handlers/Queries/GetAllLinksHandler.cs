@@ -13,14 +13,14 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
     {
         var allLinksQuery = _linkRepository.Query();
 
-        if (request.ServiceProviderId.HasValue)
+        if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
         {
-            allLinksQuery = allLinksQuery.Where(l => l.ServiceProviderId == request.ServiceProviderId.Value);
+            allLinksQuery = allLinksQuery.Where(l => request.ServiceProviderIds.Contains(l.ServiceProviderId));
         }
 
-        if (request.TechnologyBandId.HasValue)
+        if (request.BandIds != null && request.BandIds.Count > 0)
         {
-            allLinksQuery = allLinksQuery.Where(l => l.TechnologyBandId == request.TechnologyBandId.Value);
+            allLinksQuery = allLinksQuery.Where(l => request.BandIds.Contains(l.BandId));
         }
 
         var linkDtosQuery = allLinksQuery
@@ -49,25 +49,11 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
                         Type = l.ServiceProvider.Service.Type.ToString(),
                     }
                 },
-                TechnologyBand = new()
+                Band = new()
                 {
-                    Id = l.TechnologyBand.Id,
-                    Band = new()
-                    {
-                        Id = l.TechnologyBand.Band.Id,
-                        Name = l.TechnologyBand.Band.Name,
-                        Description = l.TechnologyBand.Band.Description
-                    },
-                    Technology = new()
-                    {
-                        Id = l.TechnologyBand.Technology.Id,
-                        Standard = l.TechnologyBand.Technology.Standard,
-                        Generation = new()
-                        {
-                            Id = l.TechnologyBand.Technology.Generation.Id,
-                            Name = l.TechnologyBand.Technology.Generation.Name
-                        }
-                    }
+                    Id = l.Band.Id,
+                    Name = l.Band.Name,
+                    Description = l.Band.Description
                 },
                 CenterFrequency = l.CenterFrequency,
                 LowerFrequency = l.LowerFrequency,

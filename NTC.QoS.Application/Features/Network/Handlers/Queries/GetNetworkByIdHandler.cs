@@ -36,7 +36,7 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
             Name = network.Name,
             NetworkTemplate = new()
             {
-                Id = network.NetworkTemplateId,
+                Id = network.NetworkTemplateId ?? Guid.Empty,
                 Name = network.NetworkTemplate?.Name ?? string.Empty,
                 Description = network.NetworkTemplate?.Description ?? string.Empty,
                 URL = network.NetworkTemplate?.URL ?? string.Empty
@@ -45,34 +45,37 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
             UpLink = new()
             {
                 Id = network.UpLinkId,
-                Type = network.UpLink?.Type.ToString() ?? string.Empty,
-                CenterFrequency = network.UpLink?.CenterFrequency ?? 0,
+                Type = network.UpLink.Type.ToString(),
+                CenterFrequency = network.UpLink.CenterFrequency,
             },
             DownLink = new()
             {
                 Id = network.DownLinkId,
-                Type = network.DownLink?.Type.ToString() ?? string.Empty,
-                CenterFrequency = network.DownLink?.CenterFrequency ?? 0,
+                Type = network.DownLink.Type.ToString(),
+                CenterFrequency = network.DownLink.CenterFrequency,
             },
             ServiceProvider = new()
             {
-                Id = network.ServiceProvider?.Id ?? Guid.Empty,
-                MNC = network.ServiceProvider?.MNC ?? string.Empty,
-                MCC = network.ServiceProvider?.MCC ?? string.Empty,
+                Id = network.ServiceProvider.Id,
+                MNC = network.ServiceProvider.MNC,
+                MCC = network.ServiceProvider.MCC,
                 Provider = new()
                 {
-                    Id = network.ServiceProvider?.ProviderId ?? Guid.Empty,
-                    Name = network.ServiceProvider?.Provider?.Name ?? string.Empty,
-                    Description = network.ServiceProvider?.Provider?.Description,
-                    Color = network.ServiceProvider?.Provider?.Color ?? string.Empty
+                    Id = network.ServiceProvider.ProviderId,
+                    Name = network.ServiceProvider.Provider?.Name ?? string.Empty,
+                    Description = network.ServiceProvider.Provider?.Description,
+                    Color = network.ServiceProvider.Provider?.Color ?? string.Empty
                 },
                 Service = new()
                 {
-                    Id = network.ServiceProvider?.ServiceId ?? Guid.Empty,
-                    Name = network.ServiceProvider?.Service?.Name ?? string.Empty,
-                    Type = network.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
+                    Id = network.ServiceProvider.ServiceId,
+                    Name = network.ServiceProvider.Service?.Name ?? string.Empty,
+                    Type = network.ServiceProvider.Service?.Type.ToString() ?? string.Empty
                 }
             },
+            ULCenterFreq = network.ULCenterFreq,
+            DLCenterFreq = network.DLCenterFreq,
+            Bandwidth = network.Bandwidth
         };
 
         return new ApiResponse<NetworkDto>
