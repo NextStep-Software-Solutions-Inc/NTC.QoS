@@ -32,8 +32,8 @@ public class LinksController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<LinkDto>>> GetAllLinks(
-        [FromQuery] Guid? serviceProviderId = null,
-        [FromQuery] Guid? technologyBandId = null,
+        [FromQuery] List<Guid>? serviceProviderIds = null,
+        [FromQuery] List<Guid>? bandIds = null,
         int pageSize = 10, 
         int pageNumber = 1
     )
@@ -42,8 +42,8 @@ public class LinksController : ControllerBase
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
-            ServiceProviderId = serviceProviderId,
-            TechnologyBandId = technologyBandId,
+            ServiceProviderIds = serviceProviderIds,
+            BandIds = bandIds,
         });
         return Ok(result);
     }

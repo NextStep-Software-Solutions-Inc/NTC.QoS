@@ -15,7 +15,15 @@ public class GetAllSystemTypesHandler(ISystemTypeRepository repository)
     {
         var systemTypeQuery = _repository.Query();
 
-        systemTypeQuery = systemTypeQuery.Where(st => request.TechnologyIds == null || request.TechnologyIds.Contains(st.TechnologyId));
+        if (request.TechnologyIds != null && request.TechnologyIds.Count > 0)
+        {
+            systemTypeQuery = systemTypeQuery.Where(st => request.TechnologyIds.Contains(st.TechnologyId));
+        }
+
+        if (request.GenerationIds != null && request.GenerationIds.Count > 0)
+        {
+            systemTypeQuery = systemTypeQuery.Where(st => request.GenerationIds.Contains(st.GenerationId));
+        }
 
         var query = systemTypeQuery
             .OrderBy(st => st.Name)
@@ -34,6 +42,12 @@ public class GetAllSystemTypesHandler(ISystemTypeRepository repository)
                         Name = st.Technology.Generation.Name,
                         Description = st.Technology.Generation.Description,
                     }
+                } : null,
+                Generation = st.Generation != null ? new()
+                {
+                    Id = st.Generation.Id,
+                    Name = st.Generation.Name,
+                    Description = st.Generation.Description
                 } : null
             });
 

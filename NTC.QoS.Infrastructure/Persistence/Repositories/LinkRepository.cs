@@ -19,11 +19,7 @@ internal sealed class LinkRepository(ApplicationDbContext context) : Repository<
     public override IQueryable<Link> Query(Expression<Func<Link, bool>>? expression = null)
     {
         var query = _context.Set<Link>()
-            .Include(l => l.TechnologyBand)
-                .ThenInclude(tb => tb.Band)
-            .Include(l => l.TechnologyBand)
-                .ThenInclude(tb => tb.Technology)
-                    .ThenInclude(t => t.Generation)
+            .Include(l => l.Band)
             .Include(l => l.ServiceProvider)
                 .ThenInclude(sp => sp.Provider)
             .Include(l => l.ServiceProvider)

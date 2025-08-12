@@ -22,9 +22,9 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
         {
             Id = n.Id,
             Name = n.Name,
-            NetworkTemplate = new()
+            NetworkTemplate = n.NetworkTemplate == null ? null : new()
             {
-                Id = n.NetworkTemplateId,
+                Id = n.NetworkTemplate.Id,
                 Name = n.NetworkTemplate.Name,
                 Description = n.NetworkTemplate.Description,
                 URL = n.NetworkTemplate.URL

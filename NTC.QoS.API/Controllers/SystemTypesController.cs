@@ -27,9 +27,10 @@ public class SystemTypesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<PaginatedResponse<SystemTypeDto>>> GetAllSystemTypes(
         int pageSize = 10,
         int pageNumber = 1,
-        [FromQuery] List<Guid>? technologyIds = null)
+        [FromQuery] List<Guid>? technologyIds = null,
+        [FromQuery] List<Guid>? generationIds = null)
     {
-        var systemType = await _mediator.Send(new GetAllSystemTypesRequest(pageSize, pageNumber, technologyIds));
+        var systemType = await _mediator.Send(new GetAllSystemTypesRequest(pageSize, pageNumber, technologyIds, generationIds));
         return systemType.Succeeded ? Ok(systemType) : BadRequest(systemType);
     }
 

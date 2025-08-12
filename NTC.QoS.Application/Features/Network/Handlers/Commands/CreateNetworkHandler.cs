@@ -106,7 +106,7 @@ public class CreateNetworkHandler(
 
         var uplinkQuery = _linkRepository.Query(l => l.Id == request.Network.UplinkId)
             .Include(l => l.ServiceProvider)
-            .Include(l => l.TechnologyBand);
+            .Include(l => l.Band);
         var uplink = await _linkRepository.FirstOrDefaultAsync(uplinkQuery, cancellationToken);
 
         if (uplink is null)
@@ -128,7 +128,7 @@ public class CreateNetworkHandler(
 
         var downlinkQuery = _linkRepository.Query(l => l.Id == request.Network.DownLinkId)
             .Include(l => l.ServiceProvider)
-            .Include(l => l.TechnologyBand);
+            .Include(l => l.Band);
         var downlink = await _linkRepository.FirstOrDefaultAsync(downlinkQuery, cancellationToken);
 
         if (downlink is null)
@@ -150,9 +150,9 @@ public class CreateNetworkHandler(
 
         if (uplink is not null && downlink is not null)
         {
-            if (uplink.TechnologyBandId != downlink.TechnologyBandId)
+            if (uplink.BandId != downlink.BandId)
             {
-                errorMessages.Add("Uplink and downlink must have the same technology band.");
+                errorMessages.Add("Uplink and downlink must have the same band.");
             }
         }
 
@@ -172,11 +172,14 @@ public class CreateNetworkHandler(
         var newNetwork = new Domain.Aggregates.Network
         {
             Name = request.Network.Name,
-            NetworkTemplateId = networkTemplate.Id,
+            NetworkTemplateId = request.Network.NetworkTemplateId,
             SystemTypeId = systemType.Id,
             ServiceProviderId = serviceProvider.Id,
             UpLinkId = request.Network.UplinkId,
-            DownLinkId = request.Network.DownLinkId
+            DownLinkId = request.Network.DownLinkId,
+            ULCenterFreq = request.Network.ULCenterFreq,
+            DLCenterFreq = request.Network.DLCenterFreq,
+            Bandwidth = request.Network.Bandwidth,
         };
 
         _networkRepository.Add(newNetwork);
@@ -190,7 +193,7 @@ public class CreateNetworkHandler(
                 Name = newNetwork.Name,
                 NetworkTemplate = new()
                 {
-                    Id = newNetwork.NetworkTemplateId,
+                    Id = networkTemplate.Id,
                     Name = networkTemplate.Name,
                     Description = networkTemplate.Description,
                     URL = networkTemplate.URL
@@ -226,7 +229,10 @@ public class CreateNetworkHandler(
                     Id = newNetwork.DownLinkId,
                     Type = downlink?.Type.ToString() ?? string.Empty,
                     CenterFrequency = downlink?.CenterFrequency ?? 0,
-                }
+                },
+                ULCenterFreq = newNetwork.ULCenterFreq,
+                DLCenterFreq = newNetwork.DLCenterFreq,
+                Bandwidth = newNetwork.Bandwidth,
             },
             Succeeded = true,
             Message = "Network created successfully."

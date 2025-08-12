@@ -17,6 +17,7 @@ public class GetAllSpeedtestsRequest(int pageNumber, int pageSize) : IRequest<Pa
     public List<Guid>? ServiceProviderIds { get; set; }
     public List<Guid>? CellIds { get; set; }
     public List<Guid>? GenerationIds { get; set; }
+    public List<Guid>? TechnologyIds { get; set; }
     public List<Guid>? ProviderIds { get; set; }
     public List<Guid>? ServiceIds { get; set; }
     public string? SignalQuality { get; set; }

@@ -42,6 +42,12 @@ public class GetSystemTypeByIdHandler(ISystemTypeRepository repository)
                         Name = systemType.Technology.Generation.Name,
                         Description = systemType.Technology.Generation.Description,
                     }
+                } : null,
+                Generation = systemType.Generation != null ? new()
+                {
+                    Id = systemType.Generation.Id,
+                    Name = systemType.Generation.Name,
+                    Description = systemType.Generation.Description
                 } : null
             },
             Succeeded = true
