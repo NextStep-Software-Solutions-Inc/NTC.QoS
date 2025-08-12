@@ -167,7 +167,7 @@ public class ProcessCellJob : IProcessCellJob
                 var municipalityName = nameParts[2];
                 
                 // Create a cache key based on naming convention
-                var networkKey = GenerateNetworkCacheKey(network.ServiceProviderId, municipalityName, network.TechnologyId, Guid.Empty);
+                var networkKey = CacheKeyGenerator.GenerateNetworkCacheKey(network.ServiceProviderId, municipalityName, network.TechnologyId, Guid.Empty);
                 if (!networkCache.ContainsKey(networkKey))
                 {
                     networkCache[networkKey] = network.Id;
@@ -1041,14 +1041,6 @@ public class ProcessCellJob : IProcessCellJob
     }
 
     /// <summary>
-    /// Generates a cache key for Network based on ServiceProvider + Municipality + Technology + Band
-    /// </summary>
-    private static string GenerateNetworkCacheKey(Guid serviceProviderId, string municipalityName, Guid technologyId, Guid bandId)
-    {
-        return $"Network-{serviceProviderId}_{municipalityName}_{technologyId}_{bandId}";
-    }
-
-    /// <summary>
     /// Gets municipality by location using spatial intersection
     /// </summary>
     private async Task<(Guid? Id, string Name)> GetMunicipalityByLocationAsync(Point location, CancellationToken token)
@@ -1095,7 +1087,7 @@ public class ProcessCellJob : IProcessCellJob
         decimal bandwidth,
         CancellationToken token)
     {
-        var networkCacheKey = GenerateNetworkCacheKey(serviceProviderId, municipalityName, technologyId, bandId);
+        var networkCacheKey = CacheKeyGenerator.GenerateNetworkCacheKey(serviceProviderId, municipalityName, technologyId, bandId);
         
         // Check if network already exists in cache
         if (networkCache.TryGetValue(networkCacheKey, out var existingNetworkId))
