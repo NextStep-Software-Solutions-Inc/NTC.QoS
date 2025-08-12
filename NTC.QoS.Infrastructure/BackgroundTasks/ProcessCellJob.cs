@@ -24,6 +24,10 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
     private readonly ITechnologyRepository _technologyRepository;
     private readonly IBandRepository _bandRepository;
+    private readonly INetworkRepository _networkRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly ILinkRepository _linkRepository;
+    private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository;
 
     // Default values for frequency and bandwidth when not specified
     private const decimal DEFAULT_DL_CENTER_FREQ = 0;
@@ -39,7 +43,11 @@ public class ProcessCellJob : IProcessCellJob
         IGenerationBandRepository generationBandRepository,
         IRepository<Domain.Entities.CellSector> cellSectorRepository,
         ITechnologyRepository technologyRepository,
-        IBandRepository bandRepository
+        IBandRepository bandRepository,
+        INetworkRepository networkRepository,
+        IMunicipalityRepository municipalityRepository,
+        ILinkRepository linkRepository,
+        IRepository<Domain.Entities.SystemType> systemTypeRepository
         )
     {
         _logger = logger;
@@ -51,6 +59,10 @@ public class ProcessCellJob : IProcessCellJob
         _cellSectorRepository = cellSectorRepository;
         _technologyRepository = technologyRepository;
         _bandRepository = bandRepository;
+        _networkRepository = networkRepository;
+        _municipalityRepository = municipalityRepository;
+        _linkRepository = linkRepository;
+        _systemTypeRepository = systemTypeRepository;
     }
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -75,6 +87,8 @@ public class ProcessCellJob : IProcessCellJob
         var cellularToAdd = new List<Domain.Entities.Cellular>();
         var cellularToDelete = new List<Domain.Entities.Cellular>();
         var cellSectorsCreatedForCellId = new Dictionary<Guid, List<Guid>>();
+        var networkCache = new Dictionary<string, Guid>();
+        var networksToAdd = new List<Domain.Aggregates.Network>();
 
         // IMPORTANT: Declare cellsToAdd list here, BEFORE the main loop,
         // so it can accumulate new cells across all records.
@@ -135,7 +149,52 @@ public class ProcessCellJob : IProcessCellJob
             bandCache.Count, 
             string.Join(", ", bandList.Select(b => $"'{b.Band}' -> '{CacheKeyGenerator.GenerateBandCacheKey(b.Band)}'")));
 
+        // Pre-load existing networks to avoid duplicates
+        var existingNetworks = await _networkRepository
+            .Query(n => serviceProviderCache.Values.Contains(n.ServiceProviderId))
+            .Include(n => n.SystemType)
+            .Select(n => new { n.Id, n.Name, n.ServiceProviderId, n.SystemType.TechnologyId })
+            .ToListAsync(token);
+
+        foreach (var network in existingNetworks)
+        {
+            // Try to extract municipality, technology, and band from network name if following our naming convention
+            var nameParts = network.Name.Split('-');
+            if (nameParts.Length >= 3)
+            {
+                var techName = nameParts[0];
+                var bandName = nameParts[1]; 
+                var municipalityName = nameParts[2];
+                
+                // Create a cache key based on naming convention
+                var networkKey = GenerateNetworkCacheKey(network.ServiceProviderId, municipalityName, network.TechnologyId, Guid.Empty);
+                if (!networkCache.ContainsKey(networkKey))
+                {
+                    networkCache[networkKey] = network.Id;
+                }
+            }
+        }
+
+        _logger.LogInformation("Pre-loaded {Count} existing networks.", networkCache.Count);
+
+        // Pre-load existing links to optimize network creation
+        var linkCache = new Dictionary<string, Guid>();
         var providerIds = serviceProviderCache.Values.ToList();
+        var existingLinks = await _linkRepository
+            .Query(l => providerIds.Contains(l.ServiceProviderId))
+            .Select(l => new { l.Id, l.ServiceProviderId, l.BandId, l.Type })
+            .ToListAsync(token);
+
+        foreach (var link in existingLinks)
+        {
+            var linkKey = $"{link.ServiceProviderId}_{link.BandId}_{link.Type}";
+            if (!linkCache.ContainsKey(linkKey))
+            {
+                linkCache[linkKey] = link.Id;
+            }
+        }
+
+        _logger.LogInformation("Pre-loaded {Count} existing links.", linkCache.Count);
 
         // Fix: Handle duplicate cell cache keys gracefully by loading cells first, then building dictionary manually
         var cellList = await _cellRepository
@@ -440,6 +499,35 @@ public class ProcessCellJob : IProcessCellJob
                                         // Apply default values when TRUE is set but no frequency data provided
                                         var dlCenterFreq = parseResult.DLCenterFreq ?? GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band);
                                         var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
+                                        var ulCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band);
+
+                                        // Get municipality for this cell's location
+                                        var (municipalityId, municipalityName) = await GetMunicipalityByLocationAsync(location, token);
+                                        
+                                        // Get or create network for this combination
+                                        var networkId = await GetOrCreateNetworkAsync(
+                                            serviceProviderId, 
+                                            municipalityName,
+                                            technologyId, 
+                                            bandId,
+                                            networkCache,
+                                            networksToAdd,
+                                            technologyCache,
+                                            bandCache,
+                                            linkCache,
+                                            dlCenterFreq,
+                                            ulCenterFreq,
+                                            bandwidth,
+                                            token);
+
+                                        // Only create cellular if we have a valid network (links exist)
+                                        if (networkId == Guid.Empty)
+                                        {
+                                            _logger.LogWarning(
+                                                "Cannot create Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} because required uplink/downlink not found for ServiceProvider: {ServiceProviderId}",
+                                                sectorId, propInfo.Technology, propInfo.Band, serviceProviderId);
+                                            continue; // Skip this cellular record
+                                        }
 
                                         var newCellular = new Domain.Entities.Cellular
                                         {
@@ -447,19 +535,20 @@ public class ProcessCellJob : IProcessCellJob
                                             ServiceProviderId = serviceProviderId,
                                             TechnologyId = technologyId,
                                             BandId = bandId,
+                                            NetworkId = networkId,
                                             Address = address,
                                             IsFileUploaded = true,
                                             DLCenterFreq = dlCenterFreq,
                                             Bandwidth = bandwidth,
-                                            ULCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band)
+                                            ULCenterFreq = ulCenterFreq
                                         };
 
                                         cellularToAdd.Add(newCellular);
                                         cellularLookup[key] = newCellular;
 
                                         _logger.LogInformation(
-                                            "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, DLCenterFreq: {DLCenterFreq}, ULCenterFreq: {ULCenterFreq}, Bandwidth: {Bandwidth}",
-                                            sectorId, propInfo.Technology, propInfo.Band, newCellular.DLCenterFreq, newCellular.ULCenterFreq, newCellular.Bandwidth);
+                                            "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, NetworkId: {NetworkId}, Municipality: {Municipality}, DLCenterFreq: {DLCenterFreq}, ULCenterFreq: {ULCenterFreq}, Bandwidth: {Bandwidth}",
+                                            sectorId, propInfo.Technology, propInfo.Band, networkId, municipalityName, newCellular.DLCenterFreq, newCellular.ULCenterFreq, newCellular.Bandwidth);
                                     }
                                     else
                                     {
@@ -482,9 +571,21 @@ public class ProcessCellJob : IProcessCellJob
         // --- Step 5.5: Validate All Cell Sectors Have Cellular Entities ---
         _logger.LogInformation("Validating cell sector to cellular entity completeness...");
         await ValidateAndCreateMissingCellularEntities(cellularToAdd, cellularLookup, cellSectorCache, cellSectorsCreatedForCellId, 
-            serviceProviderCache, technologyCache, bandCache, token);
+            serviceProviderCache, technologyCache, bandCache, linkCache, token);
 
         // --- Step 6: Batch Save All Accumulated Changes ---
+
+        // Batch add new networks (before cellular records since they depend on networks)
+        if (networksToAdd.Count != 0)
+        {
+            _networkRepository.AddRange(networksToAdd);
+            await _networkRepository.SaveChangesAsync(token);
+            _logger.LogInformation("{Count} new networks saved successfully (batched).", networksToAdd.Count);
+        }
+        else
+        {
+            _logger.LogInformation("No new networks to add (batched).");
+        }
 
         // Batch add new cells
         if (cellsToAdd.Count != 0) // Corrected: Check if the list contains items
@@ -558,6 +659,7 @@ public class ProcessCellJob : IProcessCellJob
         Dictionary<string, Guid> serviceProviderCache,
         Dictionary<string, Guid> technologyCache,
         Dictionary<string, Guid> bandCache,
+        Dictionary<string, Guid> linkCache,
         CancellationToken token)
     {
         var missingCellularCount = 0;
@@ -608,19 +710,49 @@ public class ProcessCellJob : IProcessCellJob
                             // Only create cellular entities for valid technology/band combinations
                             if (technology != "Unknown" && band != "Unknown")
                             {
+                                // For missing cellular entities, we'll use a default network or create one
+                                // Since we don't have location context here, we'll use a default municipality
+                                var defaultDLCenterFreq = GetDefaultDLCenterFreq(technology, band);
+                                var defaultBandwidth = GetDefaultBandwidth(technology, band);
+                                var defaultULCenterFreq = CalculateULCenterFreq(defaultDLCenterFreq, technology, band);
+
+                                var defaultNetworkId = await GetOrCreateNetworkAsync(
+                                    cell.ServiceProviderId,
+                                    "Default", // Default municipality for system-created entities
+                                    techId,
+                                    bandId,
+                                    new Dictionary<string, Guid>(), // Empty cache since this is for missing entities
+                                    cellularToAdd.Count > 0 ? new List<Domain.Aggregates.Network>() : new List<Domain.Aggregates.Network>(), // Create new list to avoid modifying existing
+                                    technologyCache,
+                                    bandCache,
+                                    linkCache,
+                                    defaultDLCenterFreq,
+                                    defaultULCenterFreq,
+                                    defaultBandwidth,
+                                    token);
+
+                                // Only create cellular if we have a valid network (links exist)
+                                if (defaultNetworkId == Guid.Empty)
+                                {
+                                    _logger.LogWarning(
+                                        "Cannot create missing Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} because required uplink/downlink not found for ServiceProvider: {ServiceProviderId}",
+                                        sectorId, technology, band, cell.ServiceProviderId);
+                                    continue; // Skip this cellular record
+                                }
+
                                 var newCellular = new Domain.Entities.Cellular
                                 {
                                     CellSectorId = sectorId,
                                     ServiceProviderId = cell.ServiceProviderId,
                                     TechnologyId = techId,
                                     BandId = bandId,
+                                    NetworkId = defaultNetworkId,
                                     Address = "", // Will be updated if needed
                                     IsFileUploaded = false, // Mark as system-created, not file-uploaded
-                                    DLCenterFreq = GetDefaultDLCenterFreq(technology, band),
-                                    Bandwidth = GetDefaultBandwidth(technology, band)
+                                    DLCenterFreq = defaultDLCenterFreq,
+                                    Bandwidth = defaultBandwidth,
+                                    ULCenterFreq = defaultULCenterFreq
                                 };
-                                
-                                newCellular.ULCenterFreq = CalculateULCenterFreq(newCellular.DLCenterFreq, technology, band);
                                 
                                 cellularToAdd.Add(newCellular);
                                 cellularLookup[key] = newCellular;
@@ -906,5 +1038,141 @@ public class ProcessCellJob : IProcessCellJob
         public bool IsActive { get; set; }
         public decimal? DLCenterFreq { get; set; }
         public decimal? Bandwidth { get; set; }
+    }
+
+    /// <summary>
+    /// Generates a cache key for Network based on ServiceProvider + Municipality + Technology + Band
+    /// </summary>
+    private static string GenerateNetworkCacheKey(Guid serviceProviderId, string municipalityName, Guid technologyId, Guid bandId)
+    {
+        return $"Network-{serviceProviderId}_{municipalityName}_{technologyId}_{bandId}";
+    }
+
+    /// <summary>
+    /// Gets municipality by location using spatial intersection
+    /// </summary>
+    private async Task<(Guid? Id, string Name)> GetMunicipalityByLocationAsync(Point location, CancellationToken token)
+    {
+        try
+        {
+            var municipality = await _municipalityRepository
+                .Query(m => m.Boundaries != null && m.Boundaries.Intersects(location))
+                .Select(m => new { m.Id, m.Name })
+                .FirstOrDefaultAsync(token);
+
+            if (municipality != null)
+            {
+                _logger.LogDebug("Found municipality: {MunicipalityName} for location: {Location}", 
+                    municipality.Name, location);
+                return (municipality.Id, municipality.Name);
+            }
+
+            _logger.LogWarning("No municipality found for location: {Location}", location);
+            return (null, "Unknown");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error looking up municipality for location: {Location}", location);
+            return (null, "Unknown");
+        }
+    }
+
+    /// <summary>
+    /// Gets or creates a Network for the given combination of ServiceProvider + Municipality + Technology + Band
+    /// </summary>
+    private async Task<Guid> GetOrCreateNetworkAsync(
+        Guid serviceProviderId, 
+        string municipalityName,
+        Guid technologyId, 
+        Guid bandId,
+        Dictionary<string, Guid> networkCache,
+        List<Domain.Aggregates.Network> networksToAdd,
+        Dictionary<string, Guid> technologyCache,
+        Dictionary<string, Guid> bandCache,
+        Dictionary<string, Guid> linkCache,
+        decimal dlCenterFreq,
+        decimal ulCenterFreq,
+        decimal bandwidth,
+        CancellationToken token)
+    {
+        var networkCacheKey = GenerateNetworkCacheKey(serviceProviderId, municipalityName, technologyId, bandId);
+        
+        // Check if network already exists in cache
+        if (networkCache.TryGetValue(networkCacheKey, out var existingNetworkId))
+        {
+            return existingNetworkId;
+        }
+
+        // Create technology and band name strings for queries and naming
+        var technologyName = technologyCache.FirstOrDefault(x => x.Value == technologyId).Key ?? "Unknown";
+        var bandName = bandCache.FirstOrDefault(x => x.Value == bandId).Key ?? "Unknown";
+
+        // Check if network already exists in database
+        var networkNamePattern = $"{technologyName}-{bandName}-{municipalityName}";
+        var existingNetwork = await _networkRepository
+            .Query(n => n.ServiceProviderId == serviceProviderId && 
+                       n.Name.StartsWith(networkNamePattern))
+            .FirstOrDefaultAsync(token);
+
+        if (existingNetwork != null)
+        {
+            networkCache[networkCacheKey] = existingNetwork.Id;
+            return existingNetwork.Id;
+        }
+
+        // Get or create SystemType for this technology
+        var systemType = await _systemTypeRepository
+            .Query(st => st.TechnologyId == technologyId)
+            .FirstOrDefaultAsync(token);
+
+        if (systemType == null)
+        {
+            // Create a default SystemType if it doesn't exist
+            systemType = new Domain.Entities.SystemType
+            {
+                TechnologyId = technologyId,
+                Name = $"{technologyName} System",
+                GenerationId = Guid.NewGuid() // You might want to lookup actual generation
+            };
+            _systemTypeRepository.Add(systemType);
+            await _systemTypeRepository.SaveChangesAsync(token);
+        }
+
+        // Look up existing uplink and downlink using pre-loaded cache
+        var uplinkKey = $"{serviceProviderId}_{bandId}_{LinkTypeEnum.Uplink}";
+        var downlinkKey = $"{serviceProviderId}_{bandId}_{LinkTypeEnum.Downlink}";
+
+        if (!linkCache.TryGetValue(uplinkKey, out var uplinkId) || 
+            !linkCache.TryGetValue(downlinkKey, out var downlinkId))
+        {
+            _logger.LogWarning(
+                "Required links not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. " +
+                "Uplink exists: {UplinkExists}, Downlink exists: {DownlinkExists}. " +
+                "Cannot create network without existing links.",
+                serviceProviderId, bandId, linkCache.ContainsKey(uplinkKey), linkCache.ContainsKey(downlinkKey));
+
+            return Guid.Empty;
+        }
+
+        var network = new Domain.Aggregates.Network
+        {
+            Name = $"{technologyName}-{bandName}-{municipalityName}",
+            ServiceProviderId = serviceProviderId,
+            SystemTypeId = systemType.Id,
+            UpLinkId = uplinkId,
+            DownLinkId = downlinkId,
+            ULCenterFreq = ulCenterFreq,
+            DLCenterFreq = dlCenterFreq,
+            Bandwidth = bandwidth
+        };
+
+        networksToAdd.Add(network);
+        networkCache[networkCacheKey] = network.Id;
+
+        _logger.LogInformation(
+            "Created new Network: {NetworkName} for ServiceProvider: {ServiceProviderId}, Municipality: {MunicipalityName}, Technology: {Technology}, Band: {Band}, UplinkId: {UplinkId}, DownlinkId: {DownlinkId}",
+            network.Name, serviceProviderId, municipalityName, technologyName, bandName, uplinkId, downlinkId);
+
+        return network.Id;
     }
 }

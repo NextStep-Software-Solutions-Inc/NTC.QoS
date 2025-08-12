@@ -12,6 +12,8 @@ public class Cellular : BaseEntity
     public virtual Technology? Technology { get; set; }
     public Guid BandId { get; set; }
     public virtual Band? Band { get; set; }
+    public Guid NetworkId { get; set; }
+    public virtual Network? Network { get; set; }
     public decimal DLCenterFreq { get; set; }
     public decimal ULCenterFreq { get; set; }
     public decimal Bandwidth { get; set; }

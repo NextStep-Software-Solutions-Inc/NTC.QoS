@@ -62,11 +62,6 @@ namespace NTC.QoS.Infrastructure.Helper
             return $"Cell-{serviceProviderId}_{normalizedTowerType}_{location.Coordinate.X}_{location.Coordinate.Y}";
         }
 
-        public static string GenerateNetworkCacheKey(string networkName)
-        {
-            return networkName.ToLowerInvariant();
-        }
-
         /// <summary>
         /// Generates a standardized cache key for Generation technology only.
         /// Example: "4g", "5g", "lte"
@@ -74,6 +69,31 @@ namespace NTC.QoS.Infrastructure.Helper
         public static string GenerateGenerationCacheKey(string technologyStandard)
         {
             return technologyStandard.ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Generates a standardized cache key for Networks based on ServiceProvider + Municipality + Technology + Band.
+        /// Format: "Network-ServiceProviderId_MunicipalityName_TechnologyId_BandId"
+        /// </summary>
+        /// <param name="serviceProviderId">The GUID of the service provider.</param>
+        /// <param name="municipalityName">The name of the municipality.</param>
+        /// <param name="technologyId">The GUID of the technology.</param>
+        /// <param name="bandId">The GUID of the band.</param>
+        /// <returns>The standardized cache key for the network.</returns>
+        public static string GenerateNetworkCacheKey(Guid serviceProviderId, string municipalityName, Guid technologyId, Guid bandId)
+        {
+            return $"Network-{serviceProviderId}_{municipalityName}_{technologyId}_{bandId}";
+        }
+
+        /// <summary>
+        /// Generates a simple cache key for Network based on name (for backward compatibility).
+        /// Format: Lowercase network name.
+        /// </summary>
+        /// <param name="networkName">The name of the network.</param>
+        /// <returns>A standardized lowercase cache key for the network.</returns>
+        public static string GenerateSimpleNetworkCacheKey(string networkName)
+        {
+            return networkName.ToLowerInvariant();
         }
     }
 }
