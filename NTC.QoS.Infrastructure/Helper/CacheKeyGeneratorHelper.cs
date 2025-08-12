@@ -47,16 +47,19 @@ namespace NTC.QoS.Infrastructure.Helper
         /// Format: "Cell-ServiceProviderId_TowerType_Longitude_Latitude" (case-sensitive as per current usage).
         /// </summary>
         /// <param name="serviceProviderId">The GUID of the service provider.</param>
-        /// <param name="towerType">The tower type (e.g., "Macro").</param>
+        /// <param name="towerType">The tower type (e.g., "Macro"). Null/empty values are normalized to "Unknown".</param>
         /// <param name="location">The NetTopologySuite Point object for the cell's location.</param>
         /// <returns>The standardized cache key for the cell.</returns>
         public static string GenerateCellCacheKey(Guid serviceProviderId, string towerType, Point location)
         {
+            // Normalize TowerType to handle null and empty strings consistently
+            var normalizedTowerType = string.IsNullOrWhiteSpace(towerType) ? "Unknown" : towerType;
+            
             // This directly reflects your existing logic for this key.
             // Note: Your current code uses c.Location.Coordinate.X and c.Location.Coordinate.Y.
             // Ensure `location.Coordinate.X` and `location.Coordinate.Y` yield the same precision/format
             // as what's stored in the database for `c.Location.Coordinate.X` and `c.Location.Coordinate.Y`.
-            return $"Cell-{serviceProviderId}_{towerType}_{location.Coordinate.X}_{location.Coordinate.Y}";
+            return $"Cell-{serviceProviderId}_{normalizedTowerType}_{location.Coordinate.X}_{location.Coordinate.Y}";
         }
 
         public static string GenerateNetworkCacheKey(string networkName)

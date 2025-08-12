@@ -125,14 +125,35 @@ public class ProcessCellJob : IProcessCellJob
 
         var providerIds = serviceProviderCache.Values.ToList();
 
-        var cellCache = await _cellRepository
+        // Fix: Handle duplicate cell cache keys gracefully by loading cells first, then building dictionary manually
+        var cellList = await _cellRepository
             .Query(c => providerIds.Contains(c.ServiceProviderId))
-            .ToDictionaryAsync(
-                c => CacheKeyGenerator.GenerateCellCacheKey(c.ServiceProviderId, c.TowerType, c.Location),
-                c => c.Id,
-                token
-            );
-        _logger.LogInformation("Pre-loaded {Count} existing cells.", cellCache.Count);
+            .ToListAsync(token);
+
+        // Build cache manually to handle duplicates gracefully
+        var cellCache = new Dictionary<string, Guid>();
+        var duplicateCount = 0;
+
+        foreach (var cell in cellList)
+        {
+            // Normalize TowerType to handle nulls and empty strings consistently
+            var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
+            var key = CacheKeyGenerator.GenerateCellCacheKey(cell.ServiceProviderId, normalizedTowerType, cell.Location);
+            
+            if (!cellCache.ContainsKey(key))
+            {
+                cellCache[key] = cell.Id;
+            }
+            else
+            {
+                duplicateCount++;
+                _logger.LogWarning("Duplicate cell cache key found: {Key}. Cell ID {CellId} skipped in favor of existing Cell ID {ExistingCellId}. Consider cleaning up duplicate location data.",
+                    key, cell.Id, cellCache[key]);
+            }
+        }
+
+        _logger.LogInformation("Pre-loaded {Count} existing cells ({DuplicateCount} duplicates handled, {TotalCells} total).", 
+            cellCache.Count, duplicateCount, cellList.Count);
 
         var cellSectorCache = await _cellSectorRepository
             .Query()
@@ -214,7 +235,8 @@ public class ProcessCellJob : IProcessCellJob
             // The check for serviceProviderId != Guid.Empty is already handled by the `TryGetValue` above.
             // If we reach here, serviceProviderId is valid.
 
-            var cellCacheKey = CacheKeyGenerator.GenerateCellCacheKey(serviceProviderId, record.TowerType, location);
+            var cellCacheKey = CacheKeyGenerator.GenerateCellCacheKey(serviceProviderId, 
+                string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType, location);
 
             if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
             {
@@ -225,7 +247,7 @@ public class ProcessCellJob : IProcessCellJob
                     Group = record.Provider,
                     Address = address,
                     ServiceProviderId = serviceProviderId,
-                    TowerType = record.TowerType,
+                    TowerType = string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType,
                     Location = location,
                     IsFileUploaded = true,
                 };
