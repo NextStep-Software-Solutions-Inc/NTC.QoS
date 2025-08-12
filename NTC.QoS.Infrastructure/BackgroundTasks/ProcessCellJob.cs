@@ -94,34 +94,46 @@ public class ProcessCellJob : IProcessCellJob
             );
         _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
 
-        // Pre-load 
-        var technologyCache = await _technologyRepository
+        // Pre-load technologies with additional logging
+        var technologyList = await _technologyRepository
             .Query()
             .Select(t => new
             {
                 t.Id,
                 Technology = t.Standard
             })
-            .ToDictionaryAsync(
-                t => CacheKeyGenerator.GenerateTechnologyCacheKey(t.Technology),
-                t => t.Id,
-                token
-            );
-        _logger.LogInformation("Pre-loaded {Count} technologies.", technologyCache.Count);
+            .ToListAsync(token);
 
-        var bandCache = await _bandRepository
+        var technologyCache = new Dictionary<string, Guid>();
+        foreach (var tech in technologyList)
+        {
+            var key = CacheKeyGenerator.GenerateTechnologyCacheKey(tech.Technology);
+            technologyCache[key] = tech.Id;
+        }
+
+        _logger.LogInformation("Pre-loaded {Count} technologies: {Technologies}", 
+            technologyCache.Count, 
+            string.Join(", ", technologyList.Select(t => $"'{t.Technology}' -> '{CacheKeyGenerator.GenerateTechnologyCacheKey(t.Technology)}'")));
+
+        var bandList = await _bandRepository
             .Query()
             .Select(b => new
             {
                 b.Id,
                 Band = b.Name
             })
-            .ToDictionaryAsync(
-                b => CacheKeyGenerator.GenerateBandCacheKey(b.Band), // Fixed: use GenerateBandCacheKey instead of GenerateTechnologyCacheKey
-                b => b.Id,
-                token
-            );
-        _logger.LogInformation("Pre-loaded {Count} bands.", bandCache.Count); // Fixed: log message for bands
+            .ToListAsync(token);
+
+        var bandCache = new Dictionary<string, Guid>();
+        foreach (var band in bandList)
+        {
+            var key = CacheKeyGenerator.GenerateBandCacheKey(band.Band);
+            bandCache[key] = band.Id;
+        }
+
+        _logger.LogInformation("Pre-loaded {Count} bands: {Bands}", 
+            bandCache.Count, 
+            string.Join(", ", bandList.Select(b => $"'{b.Band}' -> '{CacheKeyGenerator.GenerateBandCacheKey(b.Band)}'")));
 
         var providerIds = serviceProviderCache.Values.ToList();
 
@@ -206,6 +218,10 @@ public class ProcessCellJob : IProcessCellJob
             .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
             .ToList();
 
+        // Log the extracted band/technology mappings for debugging
+        _logger.LogInformation("Extracted {Count} band/technology properties from Excel: {Properties}", 
+            bandTechnologyProperties.Count,
+            string.Join(", ", bandTechnologyProperties.Select(p => $"{p.Property.Name} -> {p.Technology}/{p.Band}")));
         // --- Step 5: Main Loop for Processing Each Cell Record ---
         for (int recordIndex = 0; recordIndex < cellRecords.Count; recordIndex++)
         {
@@ -322,17 +338,43 @@ public class ProcessCellJob : IProcessCellJob
                     var technologyCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(propInfo.Technology);
                     if (!technologyCache.TryGetValue(technologyCacheKey, out var technologyId))
                     {
-                        _logger.LogWarning("Technology not found in pre-loaded cache: {Technology}. Terminating process.", propInfo.Technology);
-                        await TerminateProcess(file, token);
-                        return;
+                        // Handle specific technology mappings for missing technologies
+                        string? alternativeTechnology = propInfo.Technology.ToUpperInvariant() switch
+                        {
+                            "GSM" => "EDGE", // Map GSM to EDGE if GSM is not available
+                            "WCDMA" => "HSPAP", // Map WCDMA to HSPAP if WCDMA is not available  
+                            _ => null
+                        };
+
+                        if (alternativeTechnology != null)
+                        {
+                            var alternativeCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(alternativeTechnology);
+                            if (technologyCache.TryGetValue(alternativeCacheKey, out technologyId))
+                            {
+                                _logger.LogInformation("Technology '{Technology}' not found, using alternative '{Alternative}' for Excel row {RowNumber}", 
+                                    propInfo.Technology, alternativeTechnology, actualRowNumber);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Technology '{Technology}' and alternative '{Alternative}' not found. Skipping this technology/band combination for Excel row {RowNumber}. Available technologies: {AvailableTechnologies}", 
+                                    propInfo.Technology, alternativeTechnology, actualRowNumber, string.Join(", ", technologyCache.Keys));
+                                continue; // Skip this technology instead of terminating the entire process
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Technology '{Technology}' not found and no alternative mapping available. Skipping this technology/band combination for Excel row {RowNumber}. Available technologies: {AvailableTechnologies}", 
+                                propInfo.Technology, actualRowNumber, string.Join(", ", technologyCache.Keys));
+                            continue; // Skip this technology instead of terminating the entire process
+                        }
                     }
 
                     var bandCacheKey = CacheKeyGenerator.GenerateBandCacheKey(propInfo.Band);
                     if (!bandCache.TryGetValue(bandCacheKey, out var bandId))
                     {
-                        _logger.LogWarning("Band not found in pre-loaded cache: {Band}. Terminating process.", propInfo.Band);
-                        await TerminateProcess(file, token);
-                        return;
+                        _logger.LogWarning("Band '{Band}' not found in pre-loaded cache. Skipping this technology/band combination for Excel row {RowNumber}. Available bands: {AvailableBands}", 
+                            propInfo.Band, actualRowNumber, string.Join(", ", bandCache.Keys));
+                        continue; // Skip this band instead of terminating the entire process
                     }
 
                     // Parse the new column format
@@ -563,23 +605,27 @@ public class ProcessCellJob : IProcessCellJob
                             var technology = technologyCache.FirstOrDefault(x => x.Value == techId).Key ?? "Unknown";
                             var band = bandCache.FirstOrDefault(x => x.Value == bandId).Key ?? "Unknown";
                             
-                            var newCellular = new Domain.Entities.Cellular
+                            // Only create cellular entities for valid technology/band combinations
+                            if (technology != "Unknown" && band != "Unknown")
                             {
-                                CellSectorId = sectorId,
-                                ServiceProviderId = cell.ServiceProviderId,
-                                TechnologyId = techId,
-                                BandId = bandId,
-                                Address = "", // Will be updated if needed
-                                IsFileUploaded = false, // Mark as system-created, not file-uploaded
-                                DLCenterFreq = GetDefaultDLCenterFreq(technology, band),
-                                Bandwidth = GetDefaultBandwidth(technology, band)
-                            };
-                            
-                            newCellular.ULCenterFreq = CalculateULCenterFreq(newCellular.DLCenterFreq, technology, band);
-                            
-                            cellularToAdd.Add(newCellular);
-                            cellularLookup[key] = newCellular;
-                            missingCellularCount++;
+                                var newCellular = new Domain.Entities.Cellular
+                                {
+                                    CellSectorId = sectorId,
+                                    ServiceProviderId = cell.ServiceProviderId,
+                                    TechnologyId = techId,
+                                    BandId = bandId,
+                                    Address = "", // Will be updated if needed
+                                    IsFileUploaded = false, // Mark as system-created, not file-uploaded
+                                    DLCenterFreq = GetDefaultDLCenterFreq(technology, band),
+                                    Bandwidth = GetDefaultBandwidth(technology, band)
+                                };
+                                
+                                newCellular.ULCenterFreq = CalculateULCenterFreq(newCellular.DLCenterFreq, technology, band);
+                                
+                                cellularToAdd.Add(newCellular);
+                                cellularLookup[key] = newCellular;
+                                missingCellularCount++;
+                            }
                         }
                     }
                 }
