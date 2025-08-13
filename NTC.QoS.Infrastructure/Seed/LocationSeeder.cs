@@ -256,19 +256,20 @@ public static class LocationSeeder
                     regionCode
                 );
             }
+            provincesToAdd.Add(province);
+        }
 
-            try
-            {
-                await dbContext.Provinces.AddRangeAsync(provincesToAdd);
-                await dbContext.SaveChangesAsync();
-                logger.LogInformation("Successfully seeded {Count} provinces into the database.", provincesToAdd.Count);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError("Error saving provinces to database: {Message}", ex.Message);
-                logger.LogInformation(ex.InnerException?.Message);
-                logger.LogTrace(ex.StackTrace);
-            }
+        try
+        {
+            await dbContext.Provinces.AddRangeAsync(provincesToAdd);
+            await dbContext.SaveChangesAsync();
+            logger.LogInformation("Successfully seeded {Count} provinces into the database.", provincesToAdd.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Error saving provinces to database: {Message}", ex.Message);
+            logger.LogInformation(ex.InnerException?.Message);
+            logger.LogTrace(ex.StackTrace);
         }
     }
 
