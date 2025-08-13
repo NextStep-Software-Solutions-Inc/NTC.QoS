@@ -760,17 +760,17 @@ public class ProcessCellJob : IProcessCellJob
 
         foreach (var cell in cellsWithProviders)
         {
-            if (!allCellSectors.TryGetValue(cell.Id, out var sectorIds) || sectorIds.Count == 0)
+            if (!allCellSectors.TryGetValue(cell.Id, out var cellSectorIds) || cellSectorIds.Count == 0)
                 continue;
 
-            foreach (var sectorId in sectorIds)
+            foreach (var cellSectorId in cellSectorIds)
             {
                 // Check each technology/band combination
                 foreach (var techId in technologyCache.Values)
                 {
                     foreach (var bandId in bandCache.Values)
                     {
-                        var key = (sectorId, cell.ServiceProviderId, techId, bandId);
+                        var key = (cellSectorId, cell.ServiceProviderId, techId, bandId);
                         
                         // If no cellular entity exists for this combination, create one with default values
                         if (!cellularLookup.ContainsKey(key))
@@ -807,13 +807,13 @@ public class ProcessCellJob : IProcessCellJob
                                 {
                                     _logger.LogWarning(
                                         "Cannot create missing Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} because required uplink/downlink not found for ServiceProvider: {ServiceProviderId}",
-                                        sectorId, technology, band, cell.ServiceProviderId);
+                                        cellSectorId, technology, band, cell.ServiceProviderId);
                                     continue; // Skip this cellular record
                                 }
 
                                 var newCellular = new Domain.Entities.Cellular
                                 {
-                                    CellSectorId = sectorId,
+                                    CellSectorId = cellSectorId,
                                     ServiceProviderId = cell.ServiceProviderId,
                                     TechnologyId = techId,
                                     BandId = bandId,
