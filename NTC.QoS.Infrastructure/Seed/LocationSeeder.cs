@@ -116,7 +116,7 @@ public static class LocationSeeder
         // save the regions 
         var regionsToAdd = new List<Region>();
         foreach (var feature in featureCollection)
-{
+        {
             if (feature?.Geometry == null || feature.Attributes == null)
             {
                 logger.LogInformation("Skipping feature due to missing geometry or attributes.");
@@ -155,7 +155,7 @@ public static class LocationSeeder
         await dbContext.Regions.AddRangeAsync(regionsToAdd);
         await dbContext.SaveChangesAsync();
 
-        logger.LogInformation("Region seeding completed.");
+        logger.LogInformation("Region seeding completed with {Count} regions added.", regionsToAdd.Count);
     }
 
     /// <summary>
@@ -170,7 +170,7 @@ public static class LocationSeeder
             return;
         }
         logger.LogInformation("Starting province seeding from {FilePath}...", ProvinceGeoJsonFilePath);
-        
+
         FeatureCollection featureCollection = new FeatureCollection();
 
         try
@@ -204,7 +204,7 @@ public static class LocationSeeder
             return;
         }
 
-        var regionMap = await dbContext.Regions.ToDictionaryAsync(r => r.Code, r => r.Id);
+        var regionMap = await dbContext.Regions.Select(r => new { r.Code, r.Id }).ToDictionaryAsync(r => r.Code, r => r.Id);
 
         var provincesToAdd = new List<Province>();
 
@@ -224,20 +224,23 @@ public static class LocationSeeder
                 Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
             };
 
-            if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
+            switch (feature.Geometry)
             {
-                province.Boundaries = geoJsonMultiPolygon;
-                province.Center = geoJsonMultiPolygon.Centroid;
-            }
-            else if (feature.Geometry is Polygon geoJsonPolygon)
-            {
-                province.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
-                province.Center = geoJsonPolygon.Centroid;
-            }
-            else
-            {
-                logger.LogInformation("Terminated '{Name}' due to unsupported geometry type: {GeometryType}", province.Name, feature.Geometry.GeometryType);
-                return;
+                case MultiPolygon geoJsonMultiPolygon:
+                    province.Boundaries = geoJsonMultiPolygon;
+                    province.Center = geoJsonMultiPolygon.Centroid;
+                    break;
+                case Polygon geoJsonPolygon:
+                    province.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
+                    province.Center = geoJsonPolygon.Centroid;
+                    break;
+                default:
+                    logger.LogInformation(
+                        "Terminated '{Name}' due to unsupported geometry type: {GeometryType}",
+                        province.Name,
+                        feature.Geometry.GeometryType
+                    );
+                    return;
             }
 
             var regionCode = feature.Attributes["ADM1_PCODE"]?.ToString();
@@ -247,24 +250,25 @@ public static class LocationSeeder
             }
             else
             {
-                logger.LogWarning("Warning: Could not find Region for province '{Name}' with ADM1_PCODE '{Code}'", province.Name, regionCode);
-                continue;
+                logger.LogWarning(
+                    "Warning: Could not find Region for province '{Name}' with ADM1_PCODE '{Code}'",
+                    province.Name,
+                    regionCode
+                );
             }
 
-            provincesToAdd.Add(province);
-        }
-
-        try
-        {
-            await dbContext.Provinces.AddRangeAsync(provincesToAdd);
-            await dbContext.SaveChangesAsync();
-            logger.LogInformation("Successfully seeded {Count} provinces into the database.", provincesToAdd.Count);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError("Error saving provinces to database: {Message}", ex.Message);
-            logger.LogInformation(ex.InnerException?.Message);
-            logger.LogTrace(ex.StackTrace);
+            try
+            {
+                await dbContext.Provinces.AddRangeAsync(provincesToAdd);
+                await dbContext.SaveChangesAsync();
+                logger.LogInformation("Successfully seeded {Count} provinces into the database.", provincesToAdd.Count);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError("Error saving provinces to database: {Message}", ex.Message);
+                logger.LogInformation(ex.InnerException?.Message);
+                logger.LogTrace(ex.StackTrace);
+            }
         }
     }
 
@@ -314,11 +318,11 @@ public static class LocationSeeder
             return;
         }
 
-        var provinceMap = await dbContext.Provinces.ToDictionaryAsync(p => p.Code, p => p.Id);
+        var provinceMap = await dbContext.Provinces.Select(p => new { p.Code, p.Id }).ToDictionaryAsync(p => p.Code, p => p.Id);
 
         var municipalitiesToAdd = new List<Municipality>();
 
-        foreach (var feature in featureCollection)
+       foreach (var feature in featureCollection)
         {
             if (feature?.Geometry == null || feature.Attributes == null)
             {
@@ -334,20 +338,23 @@ public static class LocationSeeder
                 Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
             };
 
-            if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
+            switch (feature.Geometry)
             {
-                municipality.Boundaries = geoJsonMultiPolygon;
-                municipality.Center = geoJsonMultiPolygon.Centroid;
-            }
-            else if (feature.Geometry is Polygon geoJsonPolygon)
-            {
-                municipality.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
-                municipality.Center = geoJsonPolygon.Centroid;  
-            }
-            else
-            {
-                logger.LogInformation("Terminated '{Name}' due to unsupported geometry type: {GeometryType}", municipality.Name, feature.Geometry.GeometryType);
-                return;
+                case MultiPolygon geoJsonMultiPolygon:
+                    municipality.Boundaries = geoJsonMultiPolygon;
+                    municipality.Center = geoJsonMultiPolygon.Centroid;
+                    break;
+                case Polygon geoJsonPolygon:
+                    municipality.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
+                    municipality.Center = geoJsonPolygon.Centroid;
+                    break;
+                default:
+                    logger.LogInformation(
+                        "Terminated '{Name}' due to unsupported geometry type: {GeometryType}",
+                        municipality.Name,
+                        feature.Geometry.GeometryType
+                    );
+                    continue;
             }
 
             var provinceCode = feature.Attributes["ADM2_PCODE"]?.ToString();
@@ -357,7 +364,11 @@ public static class LocationSeeder
             }
             else
             {
-                logger.LogWarning("Warning: Could not find Province for municipality '{Name}' with ADM2_PCODE '{Code}'", municipality.Name, provinceCode);
+                logger.LogWarning(
+                    "Warning: Could not find Province for municipality '{Name}' with ADM2_PCODE '{Code}'",
+                    municipality.Name,
+                    provinceCode
+                );
                 continue;
             }
 
@@ -424,7 +435,7 @@ public static class LocationSeeder
             return;
         }
 
-        var municipalityMap = await dbContext.Municipalities.ToDictionaryAsync(m => m.Code, m => m.Id);
+        var municipalityMap = await dbContext.Municipalities.Select(m => new { m.Code, m.Id }).ToDictionaryAsync(m => m.Code, m => m.Id);
 
         var barangaysToAdd = new List<Barangay>();
 
@@ -444,20 +455,23 @@ public static class LocationSeeder
                 Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
             };
 
-            if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
+            switch (feature.Geometry)
             {
-                barangay.Boundaries = geoJsonMultiPolygon;
-                barangay.Center = geoJsonMultiPolygon.Centroid;
-            }
-            else if (feature.Geometry is Polygon geoJsonPolygon)
-            {
-                barangay.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
-                barangay.Center = geoJsonPolygon.Centroid;
-            }
-            else
-            {
-                logger.LogInformation("Terminated '{Name}' due to unsupported geometry type: {GeometryType}", barangay.Name, feature.Geometry.GeometryType);
-                return;
+                case MultiPolygon geoJsonMultiPolygon:
+                    barangay.Boundaries = geoJsonMultiPolygon;
+                    barangay.Center = geoJsonMultiPolygon.Centroid;
+                    break;
+                case Polygon geoJsonPolygon:
+                    barangay.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
+                    barangay.Center = geoJsonPolygon.Centroid;
+                    break;
+                default:
+                    logger.LogInformation(
+                        "Terminated '{Name}' due to unsupported geometry type: {GeometryType}",
+                        barangay.Name,
+                        feature.Geometry.GeometryType
+                    );
+                    continue;
             }
 
             var municipalityCode = feature.Attributes["ADM3_PCODE"]?.ToString();
@@ -467,9 +481,14 @@ public static class LocationSeeder
             }
             else
             {
-                logger.LogWarning("Warning: Could not find Municipality for barangay '{Name}' with ADM3_PCODE '{Code}'", barangay.Name, municipalityCode);
+                logger.LogWarning(
+                    "Warning: Could not find Municipality for barangay '{Name}' with ADM3_PCODE '{Code}'",
+                    barangay.Name,
+                    municipalityCode
+                );
                 continue;
             }
+
             barangaysToAdd.Add(barangay);
         }
 
@@ -481,7 +500,7 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogError($"Error saving barangays to database: {ex.Message}");
+            logger.LogError("Error saving barangays to database: {Message}", ex.Message);
             logger.LogInformation(ex.InnerException?.Message);
             logger.LogTrace(ex.StackTrace);
         }
