@@ -427,25 +427,37 @@ public class ProcessCellJob : IProcessCellJob
                             }
                             else
                             {
-                                _logger.LogWarning("Technology '{Technology}' and alternative '{Alternative}' not found. Skipping this technology/band combination for Excel row {RowNumber}. Available technologies: {AvailableTechnologies}", 
+                                _logger.LogError("CRITICAL ERROR: Technology '{Technology}' and alternative '{Alternative}' not found in database. " +
+                                    "Processing terminated at Excel row {RowNumber}. " +
+                                    "Please add the required Technology to the database before processing this file. " +
+                                    "Available technologies: {AvailableTechnologies}", 
                                     propInfo.Technology, alternativeTechnology, actualRowNumber, string.Join(", ", technologyCache.Keys));
-                                continue; // Skip this technology instead of terminating the entire process
+                                await TerminateProcess(file, token);
+                                return;
                             }
                         }
                         else
                         {
-                            _logger.LogWarning("Technology '{Technology}' not found and no alternative mapping available. Skipping this technology/band combination for Excel row {RowNumber}. Available technologies: {AvailableTechnologies}", 
+                            _logger.LogError("CRITICAL ERROR: Technology '{Technology}' not found in database and no alternative mapping available. " +
+                                "Processing terminated at Excel row {RowNumber}. " +
+                                "Please add the required Technology to the database before processing this file. " +
+                                "Available technologies: {AvailableTechnologies}", 
                                 propInfo.Technology, actualRowNumber, string.Join(", ", technologyCache.Keys));
-                            continue; // Skip this technology instead of terminating the entire process
+                            await TerminateProcess(file, token);
+                            return;
                         }
                     }
 
                     var bandCacheKey = CacheKeyGenerator.GenerateBandCacheKey(propInfo.Band);
                     if (!bandCache.TryGetValue(bandCacheKey, out var bandId))
                     {
-                        _logger.LogWarning("Band '{Band}' not found in pre-loaded cache. Skipping this technology/band combination for Excel row {RowNumber}. Available bands: {AvailableBands}", 
+                        _logger.LogError("CRITICAL ERROR: Band '{Band}' not found in database. " +
+                            "Processing terminated at Excel row {RowNumber}. " +
+                            "Please add the required Band to the database before processing this file. " +
+                            "Available bands: {AvailableBands}", 
                             propInfo.Band, actualRowNumber, string.Join(", ", bandCache.Keys));
-                        continue; // Skip this band instead of terminating the entire process
+                        await TerminateProcess(file, token);
+                        return;
                     }
 
                     // Parse the new column format
@@ -523,9 +535,13 @@ public class ProcessCellJob : IProcessCellJob
                                 }
                                 else
                                 {
-                                    _logger.LogWarning(
-                                        "Could not update NetworkId for existing Cellular record: CellularId: {CellularId}, Technology: {Technology}, Band: {Band} - required dependencies not found",
-                                        existingCellular.Id, propInfo.Technology, propInfo.Band);
+                                    _logger.LogError(
+                                        "CRITICAL ERROR: Could not update NetworkId for existing Cellular record: CellularId: {CellularId}, Technology: {Technology}, Band: {Band}. " +
+                                        "Required network dependencies (SystemType, Links) are missing. " +
+                                        "Processing terminated at Excel row {RowNumber}. Please ensure all required dependencies exist in database.",
+                                        existingCellular.Id, propInfo.Technology, propInfo.Band, actualRowNumber);
+                                    await TerminateProcess(file, token);
+                                    return;
                                 }
                             }
                             
@@ -588,10 +604,13 @@ public class ProcessCellJob : IProcessCellJob
                                         // Only create cellular if we have a valid network (links exist)
                                         if (networkId == Guid.Empty)
                                         {
-                                            _logger.LogWarning(
-                                                "Cannot create Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} because required uplink/downlink not found for ServiceProvider: {ServiceProviderId}",
-                                                sectorId, propInfo.Technology, propInfo.Band, serviceProviderId);
-                                            continue; // Skip this cellular record
+                                            _logger.LogError(
+                                                "CRITICAL ERROR: Cannot create Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} " +
+                                                "because required network dependencies (SystemType, Links) are missing for ServiceProvider: {ServiceProviderId}. " +
+                                                "Processing terminated at Excel row {RowNumber}. Please ensure all required dependencies exist in database.",
+                                                sectorId, propInfo.Technology, propInfo.Band, serviceProviderId, actualRowNumber);
+                                            await TerminateProcess(file, token);
+                                            return;
                                         }
 
                                         var newCellular = new Domain.Entities.Cellular
@@ -715,6 +734,15 @@ public class ProcessCellJob : IProcessCellJob
             _logger.LogInformation("Updated NetworkId for {Count} existing Cellular records that previously had empty NetworkId.", networkIdUpdatesCount);
         }
 
+        _logger.LogInformation("Processing completed successfully. " +
+            "If you encounter termination errors in future runs, ensure the following dependencies exist in the database:");
+        _logger.LogInformation("1. Technologies: Required for all technology/band combinations in your Excel file");
+        _logger.LogInformation("2. Bands: Required for all technology/band combinations in your Excel file");
+        _logger.LogInformation("3. SystemTypes: Required for each Technology to create Networks");
+        _logger.LogInformation("4. Links (Uplink/Downlink): Required for each ServiceProvider/Band combination to create Networks");
+        _logger.LogInformation("Current database contains - Technologies: {TechCount}, Bands: {BandCount}, Networks: {NetworkCount}, Links: {LinkCount}",
+            technologyCache.Count, bandCache.Count, networkCache.Count, linkCache.Count);
+
         _logger.LogInformation("Processing completed.");
     }
 
@@ -805,10 +833,15 @@ public class ProcessCellJob : IProcessCellJob
                                 // Only create cellular if we have a valid network (links exist)
                                 if (defaultNetworkId == Guid.Empty)
                                 {
-                                    _logger.LogWarning(
-                                        "Cannot create missing Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} because required uplink/downlink not found for ServiceProvider: {ServiceProviderId}",
+                                    _logger.LogError(
+                                        "CRITICAL ERROR: Cannot create missing Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} " +
+                                        "because required network dependencies (SystemType, Links) are missing for ServiceProvider: {ServiceProviderId}. " +
+                                        "Processing cannot complete without all required dependencies. Please ensure all dependencies exist in database.",
                                         cellSectorId, technology, band, cell.ServiceProviderId);
-                                    continue; // Skip this cellular record
+                                    
+                                    // For the validation phase, we'll skip this specific record but continue processing
+                                    // The main processing loop will catch and terminate on critical missing dependencies
+                                    continue; 
                                 }
 
                                 var newCellular = new Domain.Entities.Cellular
@@ -895,7 +928,17 @@ public class ProcessCellJob : IProcessCellJob
         file.Status = FileStatusEnum.Failed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Process terminated due to error in runtime");
+        
+        _logger.LogError("=== PROCESSING TERMINATED DUE TO MISSING DEPENDENCIES ===");
+        _logger.LogError("File processing has been terminated because required database entities are missing.");
+        _logger.LogError("Please ensure the following entities exist in your database before re-uploading the file:");
+        _logger.LogError("1. SERVICE PROVIDERS: All providers mentioned in your Excel file must exist as 'Wireless' service providers");
+        _logger.LogError("2. TECHNOLOGIES: All technologies (GSM, WCDMA, LTE-FDD, LTE-TDD, NR, etc.) must exist in the Technologies table");
+        _logger.LogError("3. BANDS: All bands (Band 28, Band 5, Band 8, Band 3, etc.) must exist in the Bands table");
+        _logger.LogError("4. SYSTEM TYPES: Each technology must have a corresponding SystemType entry");
+        _logger.LogError("5. LINKS: Each ServiceProvider + Band combination must have both Uplink and Downlink entries");
+        _logger.LogError("Contact your system administrator to add the missing entities before re-processing this file.");
+        _logger.LogError("======================================================");
     }
 
     /// <summary>
@@ -1232,10 +1275,10 @@ public class ProcessCellJob : IProcessCellJob
             var technologyInfo = technology != null ? $"{technology.Standard} (Generation: {technology.Generation?.Name})" : "Unknown";
 
             _logger.LogError(
-                "SystemType not found for Technology: {TechnologyInfo}. " +
+                "CRITICAL ERROR: SystemType not found for Technology: {TechnologyInfo}. " +
                 "Cannot create network without existing SystemType. " +
-                "Please ensure SystemType exists in database for ServiceProvider: {ServiceProviderId}, " +
-                "Municipality: {MunicipalityName}, Technology: {Technology}, Band: {Band}",
+                "Processing terminated. Please ensure SystemType exists in database for " +
+                "ServiceProvider: {ServiceProviderId}, Municipality: {MunicipalityName}, Technology: {Technology}, Band: {Band}",
                 technologyInfo, serviceProviderId, municipalityName, technologyName, bandName);
 
             return Guid.Empty;
@@ -1248,10 +1291,11 @@ public class ProcessCellJob : IProcessCellJob
         if (!linkCache.TryGetValue(uplinkKey, out var uplinkId) || 
             !linkCache.TryGetValue(downlinkKey, out var downlinkId))
         {
-            _logger.LogWarning(
-                "Required links not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. " +
+            _logger.LogError(
+                "CRITICAL ERROR: Required links not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. " +
                 "Uplink exists: {UplinkExists}, Downlink exists: {DownlinkExists}. " +
-                "Cannot create network without existing links.",
+                "Cannot create network without existing uplink and downlink. " +
+                "Processing terminated. Please ensure both uplink and downlink Links exist in database.",
                 serviceProviderId, bandId, linkCache.ContainsKey(uplinkKey), linkCache.ContainsKey(downlinkKey));
 
             return Guid.Empty;
