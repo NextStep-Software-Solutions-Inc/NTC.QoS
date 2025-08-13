@@ -10,6 +10,7 @@ using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using GeoQueryHelper = NTC.QoS.Infrastructure.Helper.GeoQueryHelper;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -195,6 +196,14 @@ public class ProcessCellJob : IProcessCellJob
         }
 
         _logger.LogInformation("Pre-loaded {Count} existing links.", linkCache.Count);
+
+        // Pre-load municipalities with boundaries for spatial queries optimization
+        var municipalitiesWithBoundaries = await _municipalityRepository
+            .Query(m => m.Boundaries != null)
+            .Select(m => new { m.Id, m.Name, m.Boundaries })
+            .ToListAsync(token);
+        
+        _logger.LogInformation("Pre-loaded {Count} municipalities with boundaries for spatial queries.", municipalitiesWithBoundaries.Count);
 
         // Fix: Handle duplicate cell cache keys gracefully by loading cells first, then building dictionary manually
         var cellList = await _cellRepository
@@ -501,8 +510,8 @@ public class ProcessCellJob : IProcessCellJob
                                         var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
                                         var ulCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band);
 
-                                        // Get municipality for this cell's location
-                                        var (municipalityId, municipalityName) = await GetMunicipalityByLocationAsync(location, token);
+                                        // Get municipality for this cell's location using pre-loaded data
+                                        var (municipalityId, municipalityName) = GetMunicipalityByLocationOptimized(location, municipalitiesWithBoundaries);
                                         
                                         // Get or create network for this combination
                                         var networkId = await GetOrCreateNetworkAsync(
@@ -722,7 +731,7 @@ public class ProcessCellJob : IProcessCellJob
                                     techId,
                                     bandId,
                                     new Dictionary<string, Guid>(), // Empty cache since this is for missing entities
-                                    cellularToAdd.Count > 0 ? new List<Domain.Aggregates.Network>() : new List<Domain.Aggregates.Network>(), // Create new list to avoid modifying existing
+                                    new List<Domain.Aggregates.Network>(), // Create new list to avoid modifying existing
                                     technologyCache,
                                     bandCache,
                                     linkCache,
@@ -1041,26 +1050,59 @@ public class ProcessCellJob : IProcessCellJob
     }
 
     /// <summary>
-    /// Gets municipality by location using spatial intersection
+    /// Gets municipality by location using pre-loaded municipality data for better performance
+    /// </summary>
+    private (Guid? Id, string Name) GetMunicipalityByLocationOptimized(
+        Point location, 
+        IEnumerable<dynamic> municipalitiesWithBoundaries)
+    {
+        try
+        {
+            if (location?.IsValid != true)
+            {
+                return (null, "Unknown");
+            }
+
+            var municipality = municipalitiesWithBoundaries
+                .FirstOrDefault(m => m.Boundaries?.Intersects(location) == true);
+
+            if (municipality != null)
+            {
+                _logger.LogDebug("Found municipality: {MunicipalityName} for location: {Location}", 
+                    (string)municipality.Name, location);
+                return ((Guid)municipality.Id, (string)municipality.Name);
+            }
+
+            _logger.LogWarning("No municipality found for location: {Location}", location);
+            return (null, "Unknown");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error looking up municipality for location: {Location}", location);
+            return (null, "Unknown");
+        }
+    }
+
+    /// <summary>
+    /// Gets municipality by location using spatial intersection via GeoQueryHelper
     /// </summary>
     private async Task<(Guid? Id, string Name)> GetMunicipalityByLocationAsync(Point location, CancellationToken token)
     {
         try
         {
-            var municipality = await _municipalityRepository
-                .Query(m => m.Boundaries != null && m.Boundaries.Intersects(location))
-                .Select(m => new { m.Id, m.Name })
-                .FirstOrDefaultAsync(token);
-
-            if (municipality != null)
+            var result = await GeoQueryHelper.FindMunicipalityByLocationAsync(location, _municipalityRepository, token);
+            
+            if (result.Id.HasValue)
             {
                 _logger.LogDebug("Found municipality: {MunicipalityName} for location: {Location}", 
-                    municipality.Name, location);
-                return (municipality.Id, municipality.Name);
+                    result.Name, location);
+            }
+            else
+            {
+                _logger.LogWarning("No municipality found for location: {Location}", location);
             }
 
-            _logger.LogWarning("No municipality found for location: {Location}", location);
-            return (null, "Unknown");
+            return result;
         }
         catch (Exception ex)
         {
