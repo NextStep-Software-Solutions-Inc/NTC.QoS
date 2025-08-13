@@ -112,6 +112,50 @@ public static class LocationSeeder
             logger.LogInformation("Error reading or parsing GeoJSON file for regions: {ErrorMessage}", ex.Message);
             return;
         }
+
+        // save the regions 
+        var regionsToAdd = new List<Region>();
+        foreach (var feature in featureCollection)
+{
+            if (feature?.Geometry == null || feature.Attributes == null)
+            {
+                logger.LogInformation("Skipping feature due to missing geometry or attributes.");
+                continue;
+            }
+
+            var region = new Region
+            {
+                Name = feature.Attributes["ADM1_EN"]?.ToString() ?? string.Empty,
+                Description = null,
+                Code = feature.Attributes["ADM1_PCODE"]?.ToString() ?? string.Empty
+            };
+
+            switch (feature.Geometry)
+            {
+                case MultiPolygon geoJsonMultiPolygon:
+                    region.Boundaries = geoJsonMultiPolygon;
+                    region.Center = geoJsonMultiPolygon.Centroid;
+                    break;
+                case Polygon geoJsonPolygon:
+                    region.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
+                    region.Center = geoJsonPolygon.Centroid;
+                    break;
+                default:
+                    logger.LogInformation(
+                        "Terminated '{Name}' due to unsupported geometry type: {GeometryType}",
+                        region.Name,
+                        feature.Geometry.GeometryType
+                    );
+                    return;
+            }
+
+            regionsToAdd.Add(region);
+        }
+
+        await dbContext.Regions.AddRangeAsync(regionsToAdd);
+        await dbContext.SaveChangesAsync();
+
+        logger.LogInformation("Region seeding completed.");
     }
 
     /// <summary>

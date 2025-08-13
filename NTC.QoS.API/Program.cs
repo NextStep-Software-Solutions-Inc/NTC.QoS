@@ -12,12 +12,13 @@ using System.Security.Claims;
 using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Filters;
 using Hangfire;
+using System.Threading.Tasks;
 
 namespace NTC.QoS.API;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -109,7 +110,7 @@ public class Program
             options.OperationFilter<SwaggerOperationIdFilter>();
         });
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
-        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+        await builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
         builder.Services.AddResponseCompression(options =>
         {
             options.EnableForHttps = true;
