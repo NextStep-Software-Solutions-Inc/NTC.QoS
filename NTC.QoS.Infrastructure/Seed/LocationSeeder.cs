@@ -7,6 +7,7 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Infrastructure.Persistence;
+using EFCore.BulkExtensions;
 
 namespace NTC.QoS.Infrastructure.Seed;
 
@@ -152,7 +153,7 @@ public static class LocationSeeder
             regionsToAdd.Add(region);
         }
 
-        await dbContext.Regions.AddRangeAsync(regionsToAdd);
+        await dbContext.BulkInsertAsync(regionsToAdd);
         await dbContext.SaveChangesAsync();
 
         logger.LogInformation("Region seeding completed with {Count} regions added.", regionsToAdd.Count);
@@ -261,7 +262,7 @@ public static class LocationSeeder
 
         try
         {
-            await dbContext.Provinces.AddRangeAsync(provincesToAdd);
+            await dbContext.BulkInsertAsync(provincesToAdd);
             await dbContext.SaveChangesAsync();
             logger.LogInformation("Successfully seeded {Count} provinces into the database.", provincesToAdd.Count);
         }
@@ -378,7 +379,7 @@ public static class LocationSeeder
 
         try
         {
-            await dbContext.Municipalities.AddRangeAsync(municipalitiesToAdd);
+            await dbContext.BulkInsertAsync(municipalitiesToAdd);
             await dbContext.SaveChangesAsync();
             logger.LogInformation("Successfully seeded {Count} municipalities into the database.", municipalitiesToAdd.Count);
         }
@@ -495,7 +496,7 @@ public static class LocationSeeder
 
         try
         {
-            await dbContext.Barangays.AddRangeAsync(barangaysToAdd);
+            await dbContext.BulkInsertAsync(barangaysToAdd);
             await dbContext.SaveChangesAsync();
             logger.LogInformation("Successfully seeded {Count} barangays into the database.", barangaysToAdd.Count);
         }
