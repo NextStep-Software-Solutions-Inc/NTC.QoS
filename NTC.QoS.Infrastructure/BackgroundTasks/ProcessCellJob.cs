@@ -95,6 +95,9 @@ public class ProcessCellJob : IProcessCellJob
         // so it can accumulate new cells across all records.
         var cellsToAdd = new List<Domain.Aggregates.Cell>();
 
+        // Track the number of NetworkId updates for existing Cellular entities
+        var networkIdUpdatesCount = 0;
+
         // --- Step 3: Pre-load Static/Reference Data for Performance ---
         _logger.LogInformation("Pre-loading reference data.");
 
@@ -463,6 +466,9 @@ public class ProcessCellJob : IProcessCellJob
                         }
                         else
                         {
+                            // Check if NetworkId needs to be updated (for existing records with empty NetworkId)
+                            bool needsNetworkUpdate = existingCellular.NetworkId == Guid.Empty;
+                            
                             // Update existing cellular with new frequency data if provided
                             if (parseResult.DLCenterFreq.HasValue)
                             {
@@ -473,6 +479,56 @@ public class ProcessCellJob : IProcessCellJob
                             {
                                 existingCellular.Bandwidth = parseResult.Bandwidth.Value;
                             }
+                            
+                            // Update NetworkId if it's empty
+                            if (needsNetworkUpdate)
+                            {
+                                // Get municipality for this cell's location using pre-loaded data
+                                var (municipalityId, municipalityName) = GetMunicipalityByLocationOptimized(location, municipalitiesWithBoundaries);
+                                
+                                // Determine frequency values, preferring new data, then existing data, then defaults
+                                var dlCenterFreq = parseResult.DLCenterFreq ?? 
+                                    (existingCellular.DLCenterFreq != 0 ? existingCellular.DLCenterFreq : GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band));
+                                
+                                var ulCenterFreq = parseResult.DLCenterFreq.HasValue ? 
+                                    CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band) :
+                                    (existingCellular.ULCenterFreq != 0 ? existingCellular.ULCenterFreq : CalculateULCenterFreq(GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band), propInfo.Technology, propInfo.Band));
+                                
+                                var bandwidth = parseResult.Bandwidth ?? 
+                                    (existingCellular.Bandwidth != 0 ? existingCellular.Bandwidth : GetDefaultBandwidth(propInfo.Technology, propInfo.Band));
+                                
+                                // Get or create network for this combination
+                                var networkId = await GetOrCreateNetworkAsync(
+                                    serviceProviderId, 
+                                    municipalityName,
+                                    technologyId, 
+                                    bandId,
+                                    networkCache,
+                                    networksToAdd,
+                                    technologyCache,
+                                    bandCache,
+                                    linkCache,
+                                    dlCenterFreq,
+                                    ulCenterFreq,
+                                    bandwidth,
+                                    token);
+                                
+                                if (networkId != Guid.Empty)
+                                {
+                                    existingCellular.NetworkId = networkId;
+                                    networkIdUpdatesCount++;
+                                    _logger.LogInformation(
+                                        "Updated existing Cellular record with NetworkId: CellularId: {CellularId}, Technology: {Technology}, Band: {Band}, NetworkId: {NetworkId}, Municipality: {Municipality}",
+                                        existingCellular.Id, propInfo.Technology, propInfo.Band, networkId, municipalityName);
+                                }
+                                else
+                                {
+                                    _logger.LogWarning(
+                                        "Could not update NetworkId for existing Cellular record: CellularId: {CellularId}, Technology: {Technology}, Band: {Band} - required dependencies not found",
+                                        existingCellular.Id, propInfo.Technology, propInfo.Band);
+                                }
+                            }
+                            
                             _cellularRepository.Update(existingCellular);
                         }
                     }
@@ -652,6 +708,12 @@ public class ProcessCellJob : IProcessCellJob
         file.Status = FileStatusEnum.Success;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Log summary of NetworkId updates
+        if (networkIdUpdatesCount > 0)
+        {
+            _logger.LogInformation("Updated NetworkId for {Count} existing Cellular records that previously had empty NetworkId.", networkIdUpdatesCount);
+        }
 
         _logger.LogInformation("Processing completed.");
     }
