@@ -258,9 +258,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("TechnologyBandId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
@@ -279,8 +276,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("BandId");
 
                     b.HasIndex("ServiceProviderId");
-
-                    b.HasIndex("TechnologyBandId");
 
                     b.ToTable("Links");
                 });
@@ -2772,11 +2767,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Networks");
 
                     b.Navigation("Speedtests");
-                });
-
-            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.TechnologyBand", b =>
-                {
-                    b.Navigation("Links");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>

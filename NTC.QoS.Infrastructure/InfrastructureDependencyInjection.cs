@@ -15,10 +15,12 @@ namespace NTC.QoS.Infrastructure;
 
 public static class InfrastructureDependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static async Task<IServiceCollection> AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
         var hangfireConnectionString = configuration.GetConnectionString("HangfireConnection");
+
+        services.AddLogging();
 
         services.AddHttpClient<IClerkUserService, ClerkUserService>(client =>
         {
@@ -97,12 +99,14 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
 
-        Task.Run(async () =>
+        await Task.Run(async () =>
         {
             using var scope = services.BuildServiceProvider().CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger>(); 
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
 
+            // migrate first
+            await dbContext.Database.MigrateAsync();
             await LocationSeeder.SeedAllAsync(dbContext, logger);
         });
 
