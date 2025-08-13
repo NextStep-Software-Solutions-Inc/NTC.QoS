@@ -97,14 +97,8 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
 
-        Task.Run(async () =>
-        {
-            using var scope = services.BuildServiceProvider().CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger>(); 
-
-            await LocationSeeder.SeedAllAsync(dbContext, logger);
-        });
+        // Register database seeding service (optional alternative to Program.cs approach)
+        // services.AddHostedService<DatabaseSeedingService>();
 
         return services;
     }

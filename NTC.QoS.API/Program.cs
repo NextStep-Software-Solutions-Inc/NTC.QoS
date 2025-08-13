@@ -12,12 +12,14 @@ using System.Security.Claims;
 using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Filters;
 using Hangfire;
+using NTC.QoS.Infrastructure.Persistence;
+using NTC.QoS.Infrastructure.Seed;
 
 namespace NTC.QoS.API;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -122,6 +124,9 @@ public class Program
 
         var app = builder.Build();
         
+        // Seed database after app is built but before it runs
+        await SeedDatabaseAsync(app);
+        
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
@@ -149,6 +154,38 @@ public class Program
         app.MapControllers();
 
         app.Run();
+    }
+
+    /// <summary>
+    /// Seeds the database with location data if needed
+    /// </summary>
+    private static async Task SeedDatabaseAsync(WebApplication app)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+            logger.LogInformation("Starting database seeding process...");
+            
+            // Ensure database is created
+            await dbContext.Database.EnsureCreatedAsync();
+            
+            // Run the seeding
+            await LocationSeeder.SeedAllAsync(dbContext, logger);
+            
+            logger.LogInformation("Database seeding completed successfully.");
+        }
+        catch (Exception ex)
+        {
+            // Use Console.WriteLine since we might not have a logger available in case of early failures
+            Console.WriteLine($"An error occurred while seeding the database: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            
+            // Re-throw to prevent the application from starting with an incomplete database
+            throw;
+        }
     }
 }
 

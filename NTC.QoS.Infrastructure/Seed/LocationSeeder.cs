@@ -86,10 +86,11 @@ public static class LocationSeeder
         try
         {
             string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, RegionGeoJsonFilePath);
+            logger.LogInformation("Looking for GeoJSON file at: {FullPath}", fullGeoJsonPath);
 
             if (!System.IO.File.Exists(fullGeoJsonPath))
             {
-                logger.LogInformation("Error: GeoJSON file not found at {FilePath}. Make sure it's copied to output directory.", fullGeoJsonPath);
+                logger.LogWarning("GeoJSON file not found at {FilePath}. Make sure it's copied to output directory.", fullGeoJsonPath);
                 return;
             }
 
@@ -109,8 +110,60 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogInformation("Error reading or parsing GeoJSON file for regions: {ErrorMessage}", ex.Message);
+            logger.LogError(ex, "Error reading or parsing GeoJSON file for regions: {ErrorMessage}", ex.Message);
             return;
+        }
+
+        // TODO: Implement region processing logic here
+        logger.LogInformation("Region seeding placeholder - processing not yet implemented for {Count} features", featureCollection.Count);
+
+        var regionsToAdd = new List<Region>();
+
+        foreach (var feature in featureCollection)
+        {
+            if (feature?.Geometry == null || feature.Attributes == null)
+            {
+                logger.LogInformation("Skipping feature due to missing geometry or attributes.");
+                continue;
+            }
+
+            var region = new Region
+            {
+                Name = feature.Attributes["ADM1_EN"]?.ToString() ?? string.Empty,
+                Description = null,
+                Code = feature.Attributes["ADM1_PCODE"]?.ToString() ?? string.Empty,
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
+            };
+
+            if (feature.Geometry is MultiPolygon geoJsonMultiPolygon)
+            {
+                region.Boundaries = geoJsonMultiPolygon;
+                region.Center = geoJsonMultiPolygon.Centroid;
+            }
+            else if (feature.Geometry is Polygon geoJsonPolygon)
+            {
+                region.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
+                region.Center = geoJsonPolygon.Centroid;
+            }
+            else
+            {
+                logger.LogInformation("Skipped region '{Name}' due to unsupported geometry type: {GeometryType}", region.Name, feature.Geometry.GeometryType);
+                continue;
+            }
+
+            regionsToAdd.Add(region);
+        }
+
+        try
+        {
+            await dbContext.Regions.AddRangeAsync(regionsToAdd);
+            await dbContext.SaveChangesAsync();
+            logger.LogInformation("Successfully seeded {Count} regions into the database.", regionsToAdd.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error saving regions to database: {Message}", ex.Message);
+            logger.LogTrace(ex.StackTrace);
         }
     }
 
@@ -122,7 +175,7 @@ public static class LocationSeeder
     {
         if (await dbContext.Provinces.AnyAsync())
         {
-            logger.LogInformation("Database already contains provinces. Skipping region seeding.");
+            logger.LogInformation("Database already contains provinces. Skipping province seeding.");
             return;
         }
         logger.LogInformation("Starting province seeding from {FilePath}...", ProvinceGeoJsonFilePath);
@@ -155,8 +208,7 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogError("Error reading or parsing GeoJSON file for provinces: {ErrorMessage}", ProvinceGeoJsonFilePath);
-            logger.LogTrace(ex.StackTrace);
+            logger.LogError(ex, "Error reading or parsing GeoJSON file for provinces: {ErrorMessage}", ex.Message);
             return;
         }
 
@@ -375,8 +427,7 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogInformation("Error reading or parsing GeoJSON file for provinces: {Message}", ex.Message);
-            logger.LogTrace(ex.StackTrace);
+            logger.LogError(ex, "Error reading or parsing GeoJSON file for barangays: {ErrorMessage}", ex.Message);
             return;
         }
 
