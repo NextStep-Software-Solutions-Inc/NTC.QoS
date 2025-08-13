@@ -1112,22 +1112,29 @@ public class ProcessCellJob : IProcessCellJob
             return existingNetwork.Id;
         }
 
-        // Get or create SystemType for this technology
+        // Lookup existing SystemType for this technology - DO NOT CREATE if missing
         var systemType = await _systemTypeRepository
             .Query(st => st.TechnologyId == technologyId)
             .FirstOrDefaultAsync(token);
 
         if (systemType == null)
         {
-            // Create a default SystemType if it doesn't exist
-            systemType = new Domain.Entities.SystemType
-            {
-                TechnologyId = technologyId,
-                Name = $"{technologyName} System",
-                GenerationId = Guid.NewGuid() // You might want to lookup actual generation
-            };
-            _systemTypeRepository.Add(systemType);
-            await _systemTypeRepository.SaveChangesAsync(token);
+            // Look up the technology to get its generation for proper error reporting
+            var technology = await _technologyRepository
+                .Query(t => t.Id == technologyId)
+                .Include(t => t.Generation)
+                .FirstOrDefaultAsync(token);
+
+            var technologyInfo = technology != null ? $"{technology.Standard} (Generation: {technology.Generation?.Name})" : "Unknown";
+
+            _logger.LogError(
+                "SystemType not found for Technology: {TechnologyInfo}. " +
+                "Cannot create network without existing SystemType. " +
+                "Please ensure SystemType exists in database for ServiceProvider: {ServiceProviderId}, " +
+                "Municipality: {MunicipalityName}, Technology: {Technology}, Band: {Band}",
+                technologyInfo, serviceProviderId, municipalityName, technologyName, bandName);
+
+            return Guid.Empty;
         }
 
         // Look up existing uplink and downlink using pre-loaded cache
