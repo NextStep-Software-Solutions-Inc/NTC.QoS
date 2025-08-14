@@ -409,42 +409,73 @@ public class ProcessCellJob : IProcessCellJob
                     var technologyCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(propInfo.Technology);
                     if (!technologyCache.TryGetValue(technologyCacheKey, out var technologyId))
                     {
-                        // Handle specific technology mappings for missing technologies
-                        string? alternativeTechnology = propInfo.Technology.ToUpperInvariant() switch
+                        // Try flexible lookup for TDD/FDD technologies by checking for keywords
+                        if (propInfo.Technology.Contains("TDD", StringComparison.OrdinalIgnoreCase))
                         {
-                            "GSM" => "EDGE", // Map GSM to EDGE if GSM is not available
-                            "WCDMA" => "HSPAP", // Map WCDMA to HSPAP if WCDMA is not available  
-                            _ => null
-                        };
-
-                        if (alternativeTechnology != null)
-                        {
-                            var alternativeCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(alternativeTechnology);
-                            if (technologyCache.TryGetValue(alternativeCacheKey, out technologyId))
+                            // Look for any technology containing "TDD"
+                            var tddTechnology = technologyCache.FirstOrDefault(kvp => 
+                                kvp.Key.Contains("tdd", StringComparison.OrdinalIgnoreCase));
+                            if (tddTechnology.Key != null)
                             {
-                                _logger.LogInformation("Technology '{Technology}' not found, using alternative '{Alternative}' for Excel row {RowNumber}", 
-                                    propInfo.Technology, alternativeTechnology, actualRowNumber);
+                                technologyId = tddTechnology.Value;
+                                _logger.LogInformation("Technology '{Technology}' not found, using TDD technology '{FoundTechnology}' for Excel row {RowNumber}", 
+                                    propInfo.Technology, tddTechnology.Key, actualRowNumber);
+                            }
+                        }
+                        else if (propInfo.Technology.Contains("FDD", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Look for any technology containing "FDD"
+                            var fddTechnology = technologyCache.FirstOrDefault(kvp => 
+                                kvp.Key.Contains("fdd", StringComparison.OrdinalIgnoreCase));
+                            if (fddTechnology.Key != null)
+                            {
+                                technologyId = fddTechnology.Value;
+                                _logger.LogInformation("Technology '{Technology}' not found, using FDD technology '{FoundTechnology}' for Excel row {RowNumber}", 
+                                    propInfo.Technology, fddTechnology.Key, actualRowNumber);
+                            }
+                        }
+
+                        // If still not found, try existing alternative mappings
+                        if (technologyId == Guid.Empty)
+                        {
+                            string? alternativeTechnology = propInfo.Technology.ToUpperInvariant() switch
+                            {
+                                "GSM" => "EDGE", // Map GSM to EDGE if GSM is not available
+                                "WCDMA" => "HSPAP", // Map WCDMA to HSPAP if WCDMA is not available
+                                "FDD-LTE" => "LTE", // Try LTE as alternative for FDD-LTE
+                                "TDD-LTE" => "LTE", // Try LTE as alternative for TDD-LTE
+                                _ => null
+                            };
+
+                            if (alternativeTechnology != null)
+                            {
+                                var alternativeCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(alternativeTechnology);
+                                if (technologyCache.TryGetValue(alternativeCacheKey, out technologyId))
+                                {
+                                    _logger.LogInformation("Technology '{Technology}' not found, using alternative '{Alternative}' for Excel row {RowNumber}", 
+                                        propInfo.Technology, alternativeTechnology, actualRowNumber);
+                                }
+                                else
+                                {
+                                    _logger.LogError("CRITICAL ERROR: Technology '{Technology}' and alternative '{Alternative}' not found in database. " +
+                                        "Processing terminated at Excel row {RowNumber}. " +
+                                        "Please add the required Technology to the database before processing this file. " +
+                                        "Available technologies: {AvailableTechnologies}", 
+                                        propInfo.Technology, alternativeTechnology, actualRowNumber, string.Join(", ", technologyCache.Keys));
+                                    await TerminateProcess(file, token);
+                                    return;
+                                }
                             }
                             else
                             {
-                                _logger.LogError("CRITICAL ERROR: Technology '{Technology}' and alternative '{Alternative}' not found in database. " +
+                                _logger.LogError("CRITICAL ERROR: Technology '{Technology}' not found in database and no alternative mapping available. " +
                                     "Processing terminated at Excel row {RowNumber}. " +
                                     "Please add the required Technology to the database before processing this file. " +
                                     "Available technologies: {AvailableTechnologies}", 
-                                    propInfo.Technology, alternativeTechnology, actualRowNumber, string.Join(", ", technologyCache.Keys));
+                                    propInfo.Technology, actualRowNumber, string.Join(", ", technologyCache.Keys));
                                 await TerminateProcess(file, token);
                                 return;
                             }
-                        }
-                        else
-                        {
-                            _logger.LogError("CRITICAL ERROR: Technology '{Technology}' not found in database and no alternative mapping available. " +
-                                "Processing terminated at Excel row {RowNumber}. " +
-                                "Please add the required Technology to the database before processing this file. " +
-                                "Available technologies: {AvailableTechnologies}", 
-                                propInfo.Technology, actualRowNumber, string.Join(", ", technologyCache.Keys));
-                            await TerminateProcess(file, token);
-                            return;
                         }
                     }
 
@@ -554,7 +585,7 @@ public class ProcessCellJob : IProcessCellJob
                         {
                             // Get all sector IDs for this cell (both existing and newly created)
                             var allSectorIds = new List<Guid>();
-                            
+                        
                             // Add existing sectors from cache
                             if (cellSectorCache.TryGetValue(cellId, out var existingSectorIds))
                             {
@@ -882,25 +913,69 @@ public class ProcessCellJob : IProcessCellJob
         // Return technology and band specific default frequencies or fallback to 0
         return (technology.ToUpperInvariant(), band) switch
         {
-            ("GSM", "Band 8") => 947.5m,    // 900 MHz GSM center
-            ("GSM", "Band 3") => 1842.5m,   // 1800 MHz GSM center
-            ("WCDMA", "Band 5") => 869m,    // 850 MHz WCDMA center
-            ("WCDMA", "Band 8") => 950m,    // 900 MHz WCDMA center
-            ("WCDMA", "Band 1") => 2140m,   // 2100 MHz WCDMA center
-            ("LTE-FDD", "Band 28") => 758m, // 700 MHz LTE center
-            ("LTE-FDD", "Band 5") => 869m,  // 850 MHz LTE center
-            ("LTE-FDD", "Band 8") => 950m,  // 900 MHz LTE center
-            ("LTE-FDD", "Band 3") => 1842.5m, // 1800 MHz LTE center
-            ("LTE-FDD", "Band 1") => 2140m, // 2100 MHz LTE center
-            ("LTE-TDD", "Band 40") => 2300m, // 2300 MHz TDD center
-            ("LTE-TDD", "Band 41") => 2500m, // 2500 MHz TDD center
-            ("LTE-TDD", "Band 38") => 2600m, // 2600 MHz TDD center
-            ("NR", "Band 78") => 3500m,     // 3500 MHz NR center
-            ("NR", "Band 38") => 2600m,     // 2600 MHz NR center
-            _ => DEFAULT_DL_CENTER_FREQ      // Fallback to 0
+            ("GSM", "Band 8") => 947.5m,     // 900 MHz GSM center
+            ("GSM", "Band 3") => 1842.5m,    // 1800 MHz GSM center
+            ("EDGE", "Band 8") => 947.5m,    // 900 MHz EDGE (GSM-based)
+            ("EDGE", "Band 3") => 1842.5m,   // 1800 MHz EDGE (GSM-based)
+            ("WCDMA", "Band 5") => 869m,     // 850 MHz WCDMA center
+            ("WCDMA", "Band 8") => 950m,     // 900 MHz WCDMA center
+            ("WCDMA", "Band 1") => 2140m,    // 2100 MHz WCDMA center
+            ("HSPAP", "Band 5") => 869m,     // 850 MHz HSPAP (WCDMA-based)
+            ("HSPAP", "Band 8") => 950m,     // 900 MHz HSPAP (WCDMA-based)
+            ("HSPAP", "Band 1") => 2140m,    // 2100 MHz HSPAP (WCDMA-based)
+            ("FDD-LTE", "Band 28") => 758m,  // 700 MHz LTE center
+            ("FDD-LTE", "Band 5") => 869m,   // 850 MHz LTE center
+            ("FDD-LTE", "Band 8") => 950m,   // 900 MHz LTE center
+            ("FDD-LTE", "Band 3") => 1842.5m, // 1800 MHz LTE center
+            ("FDD-LTE", "Band 1") => 2140m,  // 2100 MHz LTE center
+            ("LTE", "Band 28") => 758m,      // 700 MHz LTE center (generic LTE)
+            ("LTE", "Band 5") => 869m,       // 850 MHz LTE center (generic LTE)
+            ("LTE", "Band 8") => 950m,       // 900 MHz LTE center (generic LTE)
+            ("LTE", "Band 3") => 1842.5m,    // 1800 MHz LTE center (generic LTE)
+            ("LTE", "Band 1") => 2140m,      // 2100 MHz LTE center (generic LTE)
+            ("TDD-LTE", "Band 40") => 2300m, // 2300 MHz TDD center
+            ("TDD-LTE", "Band 41") => 2500m, // 2500 MHz TDD center
+            ("TDD-LTE", "Band 38") => 2600m, // 2600 MHz TDD center
+            ("NR", "Band 78") => 3500m,      // 3500 MHz NR center
+            ("NR", "Band 38") => 2600m,      // 2600 MHz NR center
+            // Handle flexible TDD/FDD matching
+            var (tech, bandName) when tech.Contains("TDD") => GetTDDDefaultFreq(bandName),
+            var (tech, bandName) when tech.Contains("FDD") => GetFDDDefaultFreq(bandName),
+            _ => DEFAULT_DL_CENTER_FREQ       // Fallback to 0
         };
     }
 
+    /// <summary>
+    /// Gets default frequency for any TDD technology based on band
+    /// </summary>
+    private static decimal GetTDDDefaultFreq(string band)
+    {
+        return band switch
+        {
+            "Band 40" => 2300m, // 2300 MHz TDD center
+            "Band 41" => 2500m, // 2500 MHz TDD center
+            "Band 38" => 2600m, // 2600 MHz TDD center
+            "Band 42" => 3400m, // 3400 MHz TDD center
+            "Band 78" => 3500m, // 3500 MHz TDD center
+            _ => DEFAULT_DL_CENTER_FREQ
+        };
+    }
+
+    /// <summary>
+    /// Gets default frequency for any FDD technology based on band
+    /// </summary>
+    private static decimal GetFDDDefaultFreq(string band)
+    {
+        return band switch
+        {
+            "Band 28" => 758m,   // 700 MHz FDD center
+            "Band 5" => 869m,    // 850 MHz FDD center
+            "Band 8" => 950m,    // 900 MHz FDD center
+            "Band 3" => 1842.5m, // 1800 MHz FDD center
+            "Band 1" => 2140m,   // 2100 MHz FDD center
+            _ => DEFAULT_DL_CENTER_FREQ
+        };
+    }
     /// <summary>
     /// Gets default bandwidth based on technology and band when not specified in Excel
     /// </summary>
@@ -909,11 +984,17 @@ public class ProcessCellJob : IProcessCellJob
         // Return technology-specific default bandwidths
         return technology.ToUpperInvariant() switch
         {
-            "GSM" => 0.2m,      // 200 kHz
-            "WCDMA" => 5m,      // 5 MHz
-            "LTE-FDD" => 20m,   // 20 MHz
-            "LTE-TDD" => 20m,   // 20 MHz
-            "NR" => 100m,       // 100 MHz for 5G
+            "GSM" => 0.2m,       // 200 kHz
+            "EDGE" => 0.2m,      // 200 kHz (GSM-based)
+            "WCDMA" => 5m,       // 5 MHz
+            "HSPAP" => 5m,       // 5 MHz (WCDMA-based)
+            "FDD-LTE" => 20m,    // 20 MHz
+            "TDD-LTE" => 20m,    // 20 MHz
+            "LTE" => 20m,        // 20 MHz (generic LTE)
+            "NR" => 100m,        // 100 MHz for 5G
+            // Handle flexible TDD/FDD matching
+            var tech when tech.Contains("TDD") => 20m,  // Default TDD bandwidth
+            var tech when tech.Contains("FDD") => 20m,  // Default FDD bandwidth
             _ => DEFAULT_BANDWIDTH // 20 MHz default
         };
     }
@@ -1036,8 +1117,12 @@ public class ProcessCellJob : IProcessCellJob
         return technology.ToUpperInvariant() switch
         {
             "GSM" => CalculateGsmULFreq(dlCenterFreq, band),
+            "EDGE" => CalculateGsmULFreq(dlCenterFreq, band), // EDGE uses GSM frequency plan
             "WCDMA" => CalculateWcdmaULFreq(dlCenterFreq, band),
-            "LTE-FDD" => CalculateLteFddULFreq(dlCenterFreq, band),
+            "HSPAP" => CalculateWcdmaULFreq(dlCenterFreq, band), // HSPAP uses WCDMA frequency plan
+            "FDD-LTE" => CalculateLteFddULFreq(dlCenterFreq, band),
+            "LTE" => CalculateLteFddULFreq(dlCenterFreq, band), // Default LTE to FDD calculation
+            "TDD-LTE" => dlCenterFreq, // TDD uses same frequency for UL and DL
             "NR" => CalculateNrFddULFreq(dlCenterFreq, band),
             _ => dlCenterFreq // Default to DL frequency if technology is unknown
         };
@@ -1138,8 +1223,8 @@ public class ProcessCellJob : IProcessCellJob
     {
         if (propertyName.StartsWith("Gsm")) return "GSM";
         if (propertyName.StartsWith("Wcdma")) return "WCDMA";
-        if (propertyName.StartsWith("FddLte")) return "LTE-FDD";
-        if (propertyName.StartsWith("TddLte")) return "LTE-TDD";
+        if (propertyName.StartsWith("FddLte")) return "FDD-LTE"; // Match database convention
+        if (propertyName.StartsWith("TddLte")) return "TDD-LTE"; // Match database convention
         if (propertyName.StartsWith("Nr")) return "NR";
         return string.Empty;
     }
@@ -1288,17 +1373,28 @@ public class ProcessCellJob : IProcessCellJob
         var uplinkKey = $"{serviceProviderId}_{bandId}_{LinkTypeEnum.Uplink}";
         var downlinkKey = $"{serviceProviderId}_{bandId}_{LinkTypeEnum.Downlink}";
 
-        if (!linkCache.TryGetValue(uplinkKey, out var uplinkId) || 
-            !linkCache.TryGetValue(downlinkKey, out var downlinkId))
-        {
-            _logger.LogError(
-                "CRITICAL ERROR: Required links not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. " +
-                "Uplink exists: {UplinkExists}, Downlink exists: {DownlinkExists}. " +
-                "Cannot create network without existing uplink and downlink. " +
-                "Processing terminated. Please ensure both uplink and downlink Links exist in database.",
-                serviceProviderId, bandId, linkCache.ContainsKey(uplinkKey), linkCache.ContainsKey(downlinkKey));
+        // Default to Guid.Empty if links are not found (instead of terminating)
+        var uplinkId = Guid.Empty;
+        var downlinkId = Guid.Empty;
 
-            return Guid.Empty;
+        if (linkCache.TryGetValue(uplinkKey, out var foundUplinkId))
+        {
+            uplinkId = foundUplinkId;
+            _logger.LogDebug("Found uplink for ServiceProvider: {ServiceProviderId}, Band: {BandId}", serviceProviderId, bandId);
+        }
+        else
+        {
+            _logger.LogWarning("Uplink not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. Using Guid.Empty as default.", serviceProviderId, bandId);
+        }
+
+        if (linkCache.TryGetValue(downlinkKey, out var foundDownlinkId))
+        {
+            downlinkId = foundDownlinkId;
+            _logger.LogDebug("Found downlink for ServiceProvider: {ServiceProviderId}, Band: {BandId}", serviceProviderId, bandId);
+        }
+        else
+        {
+            _logger.LogWarning("Downlink not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. Using Guid.Empty as default.", serviceProviderId, bandId);
         }
 
         var network = new Domain.Aggregates.Network
@@ -1306,8 +1402,8 @@ public class ProcessCellJob : IProcessCellJob
             Name = $"{technologyName}-{bandName}-{municipalityName}",
             ServiceProviderId = serviceProviderId,
             SystemTypeId = systemType.Id,
-            UpLinkId = uplinkId,
-            DownLinkId = downlinkId,
+            UpLinkId = uplinkId, // Will be Guid.Empty if not found
+            DownLinkId = downlinkId, // Will be Guid.Empty if not found
             ULCenterFreq = ulCenterFreq,
             DLCenterFreq = dlCenterFreq,
             Bandwidth = bandwidth
@@ -1318,7 +1414,9 @@ public class ProcessCellJob : IProcessCellJob
 
         _logger.LogInformation(
             "Created new Network: {NetworkName} for ServiceProvider: {ServiceProviderId}, Municipality: {MunicipalityName}, Technology: {Technology}, Band: {Band}, UplinkId: {UplinkId}, DownlinkId: {DownlinkId}",
-            network.Name, serviceProviderId, municipalityName, technologyName, bandName, uplinkId, downlinkId);
+            network.Name, serviceProviderId, municipalityName, technologyName, bandName, 
+            uplinkId == Guid.Empty ? "None (Guid.Empty)" : uplinkId.ToString(), 
+            downlinkId == Guid.Empty ? "None (Guid.Empty)" : downlinkId.ToString());
 
         return network.Id;
     }
