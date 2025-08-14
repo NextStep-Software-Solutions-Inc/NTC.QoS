@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -34,21 +35,16 @@ public class ProcessNAPJob : IProcessNAPJob
         var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id.Equals(parameters.Id));
         var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
 
-        if (file == null)
+        if (file is null)
         {
             var message = "File not found";
             _logger.LogError(message);
             throw new Exception(message);
         }
-        ;
 
         file.Status = FileStatusEnum.Processing;
-
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
-
-        var serviceProviderCache = new Dictionary<string, Guid>();
-        var NAPList = new List<Domain.Aggregates.NAP>();
 
         using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
         _logger.LogInformation($"Processing file: {parameters.Path}");
@@ -61,102 +57,179 @@ public class ProcessNAPJob : IProcessNAPJob
         if (napRecords.Count is 0)
         {
             _logger.LogInformation("The Excel is empty.");
+            file.Status = FileStatusEnum.Success;
+            _fileRepository.Update(file);
+            await _fileRepository.SaveChangesAsync(token);
+            return;
         }
 
-        // Preload existing NAPs for duplicate checking
-        var existingNAPs = await _NAPRepository
-            .ToListAsync(_NAPRepository.QueryAsNoTracking(nap => !nap.IsDeleted), token);
+        _logger.LogInformation($"Total records to process: {napRecords.Count}");
 
-        foreach (var record in napRecords)
+        // Preload all service providers
+        var ProviderNames = napRecords.Select(r => r.Provider).Distinct().ToList();
+        _logger.LogInformation($"Preloading {ProviderNames.Count} unique service providers from NAP data...");
+
+        var serviceProvidersFromData = await _serviceProviderRepository
+            .Query(sp => !sp.IsDeleted && sp.Provider != null)
+            .Include(sp => sp.Provider)
+            .ToListAsync(token);
+
+        // Create lookup dictionary for exact matching
+        var serviceProviderLookup = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        
+        foreach (var sp in serviceProvidersFromData)
         {
-            _logger.LogInformation($"Processing record: {record}");
-
-            ReportProgress($"Processing record: {record.Provider}, {record.Municipality} {record.Province} ({record.Latitude},{record.Longitude})");
-
-            if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
+            if (sp.Provider?.Name != null)
             {
-                var serviceProviderQuery = _serviceProviderRepository
-                    .Query(sp => !sp.IsDeleted)
-                    .Where(sp => sp.Provider.Name.Equals(record.Provider));
-
-                var serviceProviderNameQuery = serviceProviderQuery.Select(sp => new
-                {
-                    sp.Id,
-                    ProviderName = sp.Provider.Name,
-                    ServiceName = sp.Service.Name,
-                });
-                var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderNameQuery, cancellationToken: token);
-
-                if (serviceProvider is null)
-                {
-                    _logger.LogWarning($"Service Provider not found: {record.Provider}");
-                    await TerminateProcess(file, token);
-                    return;
-                }
-                else
-                {
-                    serviceProviderId = serviceProvider.Id;
-                    serviceProviderCache[record.Provider] = serviceProviderId;
-                }
+                serviceProviderLookup[sp.Provider.Name] = sp.Id;
             }
+        }
 
-            if (serviceProviderId != Guid.Empty)
+        _logger.LogInformation($"Preloaded {serviceProviderLookup.Count} service providers");
+
+        var missingProviders = ProviderNames.Where(name => !serviceProviderLookup.ContainsKey(name)).ToList();
+        if (missingProviders.Count != 0)
+        {
+            _logger.LogWarning($"Missing service providers from database:");
+            foreach (var missing in missingProviders)
             {
-                double latitude, longitude;
-                try
+                _logger.LogWarning($"  - '{missing}'");
+            }
+            _logger.LogWarning($"Available service providers in database:");
+            foreach (var available in serviceProviderLookup.Keys.Take(10))
+            {
+                _logger.LogWarning($"  - '{available}'");
+            }
+        }
+
+        // Duplicate check - Preload existing NAPs for the providers in this file
+        _logger.LogInformation("Preloading existing NAPs for duplicate checking...");
+        
+        var validProviderIds = serviceProviderLookup.Values.ToList();
+        var existingNAPs = await _NAPRepository
+            .ToListAsync(_NAPRepository.QueryAsNoTracking(nap => 
+                !nap.IsDeleted && 
+                validProviderIds.Contains(nap.ServiceProviderId)), token);
+
+        // Create efficient lookup for existing NAPs
+        var existingNAPKeys = existingNAPs
+            .Select(n => $"{n.ServiceProviderId}|{n.Address}|{n.Location.X:F6}|{n.Location.Y:F6}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        _logger.LogInformation($"Preloaded {existingNAPs.Count} existing NAP records for duplicate checking");
+
+        // Batch processing
+        const int batchSize = 5000;
+        var totalBatches = (int)Math.Ceiling((double)napRecords.Count / batchSize);
+        var totalProcessed = 0;
+        var totalSuccessful = 0;
+        var totalDuplicates = 0;
+
+        var processedRecords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        _logger.LogInformation($"Processing {napRecords.Count} records in {totalBatches} batches of {batchSize}");        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
+        {
+            var batch = napRecords.Skip(batchIndex * batchSize).Take(batchSize).ToList();
+            var batchNAPs = new List<Domain.Aggregates.NAP>();
+
+            _logger.LogInformation($"Processing batch {batchIndex + 1}/{totalBatches} ({batch.Count} records)");
+
+            foreach (var record in batch)
+            {
+                totalProcessed++;
+
+            try
+            {
+                if (!serviceProviderLookup.TryGetValue(record.Provider, out var serviceProviderId))
                 {
-                    latitude = record.Latitude;
-                    longitude = record.Longitude;
+                    _logger.LogWarning("Service Provider not found in preloaded data: {Provider}. Skipping record.", record.Provider);
+                    continue;
                 }
-                catch (Exception ex)
+
+                // Validate coordinates
+                if (record.Latitude < -90 || record.Latitude > 90 || 
+                    record.Longitude < -180 || record.Longitude > 180)
                 {
-                    _logger.LogWarning($"Invalid latitude/longitude for record: {record.Provider}, {record.Municipality} {record.Province}. Error: {ex.Message}");
+                    _logger.LogWarning($"Invalid coordinates for record: {record.Provider}, {record.Municipality} {record.Province} ({record.Latitude},{record.Longitude})");
                     continue;
                 }
 
                 var address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
-                var location = GeometryHelper.CreatePoint(new NetTopologySuite.Geometries.Coordinate(y: latitude, x: longitude));
+                var location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
 
-                // Check for duplicate: ServiceProviderId + Address + Location
-                bool isDuplicate = existingNAPs.Any(n =>
-                    n.ServiceProviderId == serviceProviderId &&
-                    n.Address.Equals(address, StringComparison.OrdinalIgnoreCase) &&
-                    n.Location.X == location.X &&
-                    n.Location.Y == location.Y);
-
-                if (isDuplicate)
+                var recordKey = $"{record.Provider}|{record.Barangay}|{record.Municipality}|{record.Region}|{record.Province}|{record.Latitude:F6}|{record.Longitude:F6}";
+                var dbKey = $"{serviceProviderId}|{address}|{record.Longitude:F6}|{record.Latitude:F6}";
+                
+                // Check against existing database records
+                if (existingNAPKeys.Contains(dbKey))
                 {
-                    _logger.LogInformation($"Duplicate NAP found for Provider: {record.Provider}, Address: {address}, Location: ({latitude},{longitude}). Skipping.");
+                    totalDuplicates++;
+                    _logger.LogInformation($"Duplicate skipped: {record.Provider}, {record.Municipality}, {record.Province} ({record.Latitude},{record.Longitude})");
+                    continue;
+                }
+                
+                // Check against records processed in this session
+                if (processedRecords.Contains(recordKey))
+                {
+                    totalDuplicates++;
+                    _logger.LogInformation($"Duplicate skipped: {record.Provider}, {record.Municipality}, {record.Province} ({record.Latitude},{record.Longitude})");
                     continue;
                 }
 
+                // Add to processed set to prevent future duplicates in this session
+                processedRecords.Add(recordKey);
+                // Also add to database keys to prevent duplicates in later batches
+                existingNAPKeys.Add(dbKey);
                 var nap = new Domain.Aggregates.NAP
+                    {
+                        ServiceProviderId = serviceProviderId,
+                        Address = address,
+                        Location = location,
+                    };
+
+                    batchNAPs.Add(nap);
+                    totalSuccessful++;
+                }
+                catch (Exception ex)
                 {
-                    ServiceProviderId = serviceProviderId,
-                    Address = address,
-                    Location = location,
-                    IsFileUploaded = true,
-                };
-                NAPList.Add(nap);
+                    _logger.LogWarning($"Error processing record {totalProcessed}: {record.Provider}, {record.Municipality} {record.Province}. Error: {ex.Message}");
+                    continue;
+                }
+
+                // Report progress every 1000 records
+                if (totalProcessed % 1000 == 0)
+                {
+                    ReportProgress($"Processed {totalProcessed}/{napRecords.Count} records ({(double)totalProcessed / napRecords.Count * 100:F1}%)");
+                }
             }
+
+            // Batch save to database
+            if (batchNAPs.Count > 0)
+            {
+                try
+                {
+                    _NAPRepository.AddRange(batchNAPs);
+                    await _NAPRepository.SaveChangesAsync(token);
+                    _logger.LogInformation($"Batch {batchIndex + 1}: Successfully saved {batchNAPs.Count} NAP records to database");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error saving batch {batchIndex + 1} to database: {ex.Message}");
+                    await TerminateProcess(file, token);
+                    return;
+                }
+            }
+
+            ReportProgress($"Completed batch {batchIndex + 1}/{totalBatches}");
         }
 
-        if (NAPList.Count > 0)
-        {
-            _NAPRepository.AddRange(NAPList);
-            await _NAPRepository.SaveChangesAsync(token);
-            _logger.LogInformation($"Added {NAPList.Count} new NAP records.");
-        }
-        else
-        {
-            _logger.LogInformation("No new NAP records to add.");
-        }
+        _logger.LogInformation($"Processing completed: {totalSuccessful}/{napRecords.Count} records successfully processed, {totalDuplicates} duplicates skipped");
 
         file.Status = FileStatusEnum.Success;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
-        _logger.LogInformation("Processing completed");
+        _logger.LogInformation("Processing completed successfully");
     }
     void ReportProgress(string message)
     {
