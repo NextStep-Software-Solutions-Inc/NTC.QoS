@@ -125,7 +125,7 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
 
     public async Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
-        await _context.BulkInsertAsync(entities.ToList(), cancellationToken: cancellationToken);
+        await _context.BulkInsertAsync(entities, cancellationToken: cancellationToken);
     }
 
     public void RemoveRange(IEnumerable<TEntity> entities)

@@ -88,7 +88,7 @@ public class ProcessNAPJob : IProcessNAPJob
         _logger.LogInformation($"Preloaded {serviceProviderLookup.Count} service providers");
 
         var missingProviders = ProviderNames.Where(name => !serviceProviderLookup.ContainsKey(name)).ToList();
-        if (missingProviders.Count != 0)
+        if (missingProviders.Any())
         {
             _logger.LogWarning($"Missing service providers from database:");
             foreach (var missing in missingProviders)
@@ -127,7 +127,8 @@ public class ProcessNAPJob : IProcessNAPJob
 
         var processedRecords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        _logger.LogInformation($"Processing {napRecords.Count} records in {totalBatches} batches of {batchSize}");        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
+        _logger.LogInformation($"Processing {napRecords.Count} records in {totalBatches} batches of {batchSize}");        
+        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
             var batch = napRecords.Skip(batchIndex * batchSize).Take(batchSize).ToList();
             var batchNAPs = new List<Domain.Aggregates.NAP>();
