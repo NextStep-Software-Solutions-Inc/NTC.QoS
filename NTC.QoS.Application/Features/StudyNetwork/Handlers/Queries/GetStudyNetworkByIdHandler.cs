@@ -79,18 +79,6 @@ public class GetStudyNetworkByIdHandler(IStudyNetworkRepository repository) : IR
                             Name = studyNetwork.Network?.ServiceProvider?.Service?.Name ?? string.Empty,
                             Type = studyNetwork.Network?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                         }
-                    },
-                    UpLink = new()
-                    {
-                        Id = studyNetwork.Network?.UpLink?.Id ?? Guid.Empty,
-                        Type = studyNetwork.Network?.UpLink?.Type.ToString() ?? string.Empty,
-                        CenterFrequency = studyNetwork.Network?.UpLink?.CenterFrequency ?? 0
-                    },
-                    DownLink = new()
-                    {
-                        Id = studyNetwork.Network?.DownLink?.Id ?? Guid.Empty,
-                        Type = studyNetwork.Network?.DownLink?.Type.ToString() ?? string.Empty,
-                        CenterFrequency = studyNetwork.Network?.DownLink?.CenterFrequency ?? 0
                     }
                 }
             }

@@ -57,14 +57,8 @@ public class CreateCellularCoverageHandler(
                 Lat = newCellularCoverage.Location.Coordinate.Y,
                 Lng = newCellularCoverage.Location.Coordinate.X,
                 Strength = newCellularCoverage.Strength,
-                Band = newCellularCoverage.Network?.UpLink?.Band?.Name ?? string.Empty,
                 Gen = newCellularCoverage.Network?.SystemType?.Technology?.Generation?.Name ?? string.Empty,
                 Std = newCellularCoverage.Network?.SystemType?.Technology?.Standard ?? string.Empty,
-                Provider = newCellularCoverage.Network?.UpLink?.ServiceProvider?.Provider != null ? new()
-                {
-                    Name = newCellularCoverage.Network.UpLink.ServiceProvider.Provider.Name,
-                    Color = newCellularCoverage.Network.UpLink.ServiceProvider.Provider.Color
-                } : null
             },
             Message = "Cellular coverage created successfully.",
             Succeeded = true

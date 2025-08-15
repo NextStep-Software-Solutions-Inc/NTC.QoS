@@ -34,14 +34,8 @@ public class GetCellularCoverageByIdHandler(ICellularCoverageRepository cellular
                 Lat = cellularCoverage.Location.Coordinate.Y,
                 Lng = cellularCoverage.Location.Coordinate.X,
                 Strength = cellularCoverage.Strength,
-                Band = cellularCoverage.Network.UpLink != null ? cellularCoverage.Network.UpLink.Band.Name : string.Empty,
                 Gen = cellularCoverage.Network.SystemType != null && cellularCoverage.Network.SystemType.Technology != null ? cellularCoverage.Network.SystemType.Technology.Generation.Name : string.Empty,
                 Std = cellularCoverage.Network.SystemType != null && cellularCoverage.Network.SystemType.Technology != null ? cellularCoverage.Network.SystemType.Technology.Standard : string.Empty,
-                Provider = cellularCoverage.Network.UpLink != null ? new()
-                {
-                    Name = cellularCoverage.Network.UpLink.ServiceProvider.Provider.Name,
-                    Color = cellularCoverage.Network.UpLink.ServiceProvider.Provider.Color
-                } : null
             }
         };
     }

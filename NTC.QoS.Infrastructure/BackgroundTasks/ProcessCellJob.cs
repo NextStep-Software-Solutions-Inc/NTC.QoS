@@ -316,6 +316,27 @@ public class ProcessCellJob : IProcessCellJob
             }
 
             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
+            
+            // TEMPORARY FIX: Swap coordinates if they appear to be in wrong order
+            // This handles Excel files where Lat/Long columns are swapped
+            var actualLatitude = record.Latitude;
+            var actualLongitude = record.Longitude;
+            
+            // If "latitude" is >50 (typical longitude range) and "longitude" is <50 (typical latitude range),
+            // then the coordinates are likely swapped in the Excel file
+            if (record.Latitude > 50 && record.Longitude < 50)
+            {
+                actualLatitude = record.Longitude;
+                actualLongitude = record.Latitude;
+                _logger.LogWarning("Detected swapped coordinates in Excel row {RowNumber}. " +
+                    "Original: Lat={OriginalLat}, Lon={OriginalLon}. " +
+                    "Corrected: Lat={CorrectedLat}, Lon={CorrectedLon}", 
+                    recordIndex + 4, record.Latitude, record.Longitude, actualLatitude, actualLongitude);
+            }
+
+            // Create location with corrected coordinates
+            location = GeometryHelper.CreatePoint(new Coordinate(y: actualLatitude, x: actualLongitude));
+
             var address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
 
             Guid cellId = Guid.Empty;
@@ -583,7 +604,7 @@ public class ProcessCellJob : IProcessCellJob
                     {
                         if (parseResult.IsActive)
                         {
-                            // Get all sector IDs for this cell (both existing and newly created)
+                            // Get all sector ID's for this cell (both existing and newly created)
                             var allSectorIds = new List<Guid>();
                         
                             // Add existing sectors from cache
@@ -686,15 +707,14 @@ public class ProcessCellJob : IProcessCellJob
         // --- Step 5.5: Validate All Cell Sectors Have Cellular Entities ---
         _logger.LogInformation("Validating cell sector to cellular entity completeness...");
         await ValidateAndCreateMissingCellularEntities(cellularToAdd, cellularLookup, cellSectorCache, cellSectorsCreatedForCellId, 
-            serviceProviderCache, technologyCache, bandCache, linkCache, token);
+            serviceProviderCache, technologyCache, bandCache, linkCache, networkCache, networksToAdd, token);
 
         // --- Step 6: Batch Save All Accumulated Changes ---
 
         // Batch add new networks (before cellular records since they depend on networks)
         if (networksToAdd.Count != 0)
         {
-            _networkRepository.AddRange(networksToAdd);
-            await _networkRepository.SaveChangesAsync(token);
+            await _networkRepository.BulkInsertAsync(networksToAdd, token);
             _logger.LogInformation("{Count} new networks saved successfully (batched).", networksToAdd.Count);
         }
         else
@@ -705,8 +725,7 @@ public class ProcessCellJob : IProcessCellJob
         // Batch add new cells
         if (cellsToAdd.Count != 0) // Corrected: Check if the list contains items
         {
-            _cellRepository.AddRange(cellsToAdd); // Add all new cells to EF Core's change tracker
-            await _cellRepository.SaveChangesAsync(token); // Save all new cells in one batch
+            await _cellRepository.BulkInsertAsync(cellsToAdd, token); // Add all new cells to EF Core's change tracker
             _logger.LogInformation("{Count} new cells saved successfully (batched).", cellsToAdd.Count);
         }
         else
@@ -717,8 +736,7 @@ public class ProcessCellJob : IProcessCellJob
         // Batch add new cell sectors
         if (cellSectorList.Count != 0)
         {
-            _cellSectorRepository.AddRange(cellSectorList);
-            await _cellSectorRepository.SaveChangesAsync(token);
+            await _cellSectorRepository.BulkInsertAsync(cellSectorList, token);
             _logger.LogInformation("{Count} sector records saved successfully (batched).", cellSectorList.Count);
             
             // Update cellSectorCache with newly created sectors
@@ -737,8 +755,7 @@ public class ProcessCellJob : IProcessCellJob
         // Batch add new cellular entries
         if (cellularToAdd.Count != 0)
         {
-            _cellularRepository.AddRange(cellularToAdd);
-            await _cellularRepository.SaveChangesAsync(token);
+            await _cellularRepository.BulkInsertAsync(cellularToAdd, token);
             _logger.LogInformation("{Count} cellular records saved successfully (batched).", cellularToAdd.Count);
         }
         else
@@ -749,8 +766,7 @@ public class ProcessCellJob : IProcessCellJob
         // Batch delete cellular entries
         if (cellularToDelete.Count != 0)
         {
-            _cellularRepository.RemoveRange(cellularToDelete);
-            await _cellularRepository.SaveChangesAsync(token);
+            await _cellularRepository.BulkDeleteAsync(cellularToDelete);
             _logger.LogInformation("{Count} cellular records deleted successfully (batched).", cellularToDelete.Count);
         }
 
@@ -790,9 +806,13 @@ public class ProcessCellJob : IProcessCellJob
         Dictionary<string, Guid> technologyCache,
         Dictionary<string, Guid> bandCache,
         Dictionary<string, Guid> linkCache,
+        Dictionary<string, Guid> networkCache,
+        List<Domain.Aggregates.Network> networksToAdd,
         CancellationToken token)
     {
         var missingCellularCount = 0;
+        var skippedDuetoMissingLocation = 0;
+        var skippedDuetoMissingNetworkDependencies = 0;
 
         // Get all cell sectors (existing + newly created)
         var allCellSectors = new Dictionary<Guid, List<Guid>>();
@@ -811,16 +831,35 @@ public class ProcessCellJob : IProcessCellJob
             allCellSectors[kvp.Key].AddRange(kvp.Value);
         }
 
-        // Get all cells for wireless service providers
+        // Get all cells for wireless service providers WITH LOCATION and ADDRESS data
         var cellsWithProviders = await _cellRepository
             .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
-            .Select(c => new { c.Id, c.ServiceProviderId })
+            .Select(c => new { c.Id, c.ServiceProviderId, c.Location, c.Address })
+            .ToListAsync(token);
+
+        // Pre-load municipalities with boundaries for efficient lookup
+        var municipalitiesWithBoundaries = await _municipalityRepository
+            .Query(m => m.Boundaries != null)
+            .Select(m => new { m.Id, m.Name, m.Boundaries })
             .ToListAsync(token);
 
         foreach (var cell in cellsWithProviders)
         {
             if (!allCellSectors.TryGetValue(cell.Id, out var cellSectorIds) || cellSectorIds.Count == 0)
                 continue;
+
+            // Get municipality for this cell's location
+            var (municipalityId, municipalityName) = GetMunicipalityByLocationOptimized(cell.Location, municipalitiesWithBoundaries);
+            
+            // Skip cells that don't have a valid municipality mapping
+            if (string.IsNullOrEmpty(municipalityName) || municipalityName == "Unknown")
+            {
+                skippedDuetoMissingLocation++;
+                _logger.LogWarning("Skipping cellular validation for Cell {CellId} because no municipality could be determined for location: {Location}. " +
+                    "This cell's sectors will not have complete cellular entities. Consider updating municipality boundaries or cell location data.",
+                    cell.Id, cell.Location);
+                continue;
+            }
 
             foreach (var cellSectorId in cellSectorIds)
             {
@@ -840,19 +879,19 @@ public class ProcessCellJob : IProcessCellJob
                             // Only create cellular entities for valid technology/band combinations
                             if (technology != "Unknown" && band != "Unknown")
                             {
-                                // For missing cellular entities, we'll use a default network or create one
-                                // Since we don't have location context here, we'll use a default municipality
+                                // Use the actual cell's municipality for network creation
                                 var defaultDLCenterFreq = GetDefaultDLCenterFreq(technology, band);
                                 var defaultBandwidth = GetDefaultBandwidth(technology, band);
                                 var defaultULCenterFreq = CalculateULCenterFreq(defaultDLCenterFreq, technology, band);
 
+                                // Use the SHARED networkCache and networksToAdd lists to ensure consistency
                                 var defaultNetworkId = await GetOrCreateNetworkAsync(
                                     cell.ServiceProviderId,
-                                    "Default", // Default municipality for system-created entities
+                                    municipalityName, // Use the actual municipality from the cell's location
                                     techId,
                                     bandId,
-                                    new Dictionary<string, Guid>(), // Empty cache since this is for missing entities
-                                    new List<Domain.Aggregates.Network>(), // Create new list to avoid modifying existing
+                                    networkCache, // Use the shared cache
+                                    networksToAdd, // Use the shared list
                                     technologyCache,
                                     bandCache,
                                     linkCache,
@@ -864,14 +903,15 @@ public class ProcessCellJob : IProcessCellJob
                                 // Only create cellular if we have a valid network (links exist)
                                 if (defaultNetworkId == Guid.Empty)
                                 {
-                                    _logger.LogError(
-                                        "CRITICAL ERROR: Cannot create missing Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} " +
-                                        "because required network dependencies (SystemType, Links) are missing for ServiceProvider: {ServiceProviderId}. " +
-                                        "Processing cannot complete without all required dependencies. Please ensure all dependencies exist in database.",
-                                        cellSectorId, technology, band, cell.ServiceProviderId);
+                                    skippedDuetoMissingNetworkDependencies++;
+                                    _logger.LogWarning(
+                                        "Skipping creation of missing Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} " +
+                                        "because required network dependencies (SystemType, Links) are missing for ServiceProvider: {ServiceProviderId}, Municipality: {Municipality}. " +
+                                        "This cellular entity will be skipped to avoid foreign key constraint violations. " +
+                                        "To ensure complete data coverage, please add the required dependencies to the database.",
+                                        cellSectorId, technology, band, cell.ServiceProviderId, municipalityName);
                                     
-                                    // For the validation phase, we'll skip this specific record but continue processing
-                                    // The main processing loop will catch and terminate on critical missing dependencies
+                                    // Skip this specific record but continue processing others
                                     continue; 
                                 }
 
@@ -882,7 +922,7 @@ public class ProcessCellJob : IProcessCellJob
                                     TechnologyId = techId,
                                     BandId = bandId,
                                     NetworkId = defaultNetworkId,
-                                    Address = "", // Will be updated if needed
+                                    Address = cell.Address ?? "", // Use the cell's actual address
                                     IsFileUploaded = false, // Mark as system-created, not file-uploaded
                                     DLCenterFreq = defaultDLCenterFreq,
                                     Bandwidth = defaultBandwidth,
@@ -892,6 +932,9 @@ public class ProcessCellJob : IProcessCellJob
                                 cellularToAdd.Add(newCellular);
                                 cellularLookup[key] = newCellular;
                                 missingCellularCount++;
+                                
+                                _logger.LogDebug("Created missing Cellular entity for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, Municipality: {Municipality}, NetworkId: {NetworkId}",
+                                    cellSectorId, technology, band, municipalityName, defaultNetworkId);
                             }
                         }
                     }
@@ -899,9 +942,34 @@ public class ProcessCellJob : IProcessCellJob
             }
         }
 
+        // Log comprehensive summary report
+        _logger.LogInformation("=== CELLULAR VALIDATION SUMMARY ===");
+        _logger.LogInformation("Total cells processed: {TotalCells}", cellsWithProviders.Count);
+        _logger.LogInformation("Missing cellular entities created: {CreatedCount}", missingCellularCount);
+        _logger.LogInformation("Cells skipped due to missing municipality: {SkippedLocationCount}", skippedDuetoMissingLocation);
+        _logger.LogInformation("Cellular entities skipped due to missing network dependencies: {SkippedDependencyCount}", skippedDuetoMissingNetworkDependencies);
+        
+        if (skippedDuetoMissingLocation > 0)
+        {
+            _logger.LogWarning("WARNING: {SkippedLocationCount} cells could not be processed due to missing municipality mapping. " +
+                "These cells may have incomplete data. " +
+                "Consider updating municipality boundaries or cell location data for complete coverage.",
+                skippedDuetoMissingLocation);
+        }
+        
+        if (skippedDuetoMissingNetworkDependencies > 0)
+        {
+            _logger.LogWarning("WARNING: {SkippedDependencyCount} cellular entities were not created due to missing network dependencies. " +
+                "This prevents foreign key constraint violations but may result in incomplete data. " +
+                "To ensure complete coverage, please add the required SystemTypes and Links to the database.",
+                skippedDuetoMissingNetworkDependencies);
+        }
+        
+        _logger.LogInformation("====================================");
+
         if (missingCellularCount > 0)
         {
-            _logger.LogInformation("Created {Count} missing cellular entities to ensure completeness.", missingCellularCount);
+            _logger.LogInformation("Successfully validated and created {Count} missing cellular entities to ensure data completeness.", missingCellularCount);
         }
     }
 
@@ -996,6 +1064,34 @@ public class ProcessCellJob : IProcessCellJob
             var tech when tech.Contains("TDD") => 20m,  // Default TDD bandwidth
             var tech when tech.Contains("FDD") => 20m,  // Default FDD bandwidth
             _ => DEFAULT_BANDWIDTH // 20 MHz default
+        };
+    }
+
+    /// <summary>
+    /// Calculates the frequency range for a link based on center frequency and bandwidth
+    /// </summary>
+    private static (decimal LowerFreq, decimal UpperFreq) CalculateLinkFrequencyRange(decimal centerFreq, decimal bandwidth)
+    {
+        var halfBandwidth = bandwidth / 2;
+        return (centerFreq - halfBandwidth, centerFreq + halfBandwidth);
+    }
+
+    /// <summary>
+    /// Gets default RxThreshold based on technology type
+    /// </summary>
+    private static decimal GetDefaultRxThreshold(string technology)
+    {
+        return technology.ToUpperInvariant() switch
+        {
+            "GSM" => -110m,      // GSM typically has lower sensitivity
+            "EDGE" => -110m,     // EDGE similar to GSM
+            "WCDMA" => -105m,    // WCDMA better sensitivity
+            "HSPAP" => -105m,    // HSPAP similar to WCDMA
+            "FDD-LTE" => -100m,  // LTE good sensitivity
+            "TDD-LTE" => -100m,  // TDD-LTE similar to FDD-LTE
+            "LTE" => -100m,      // Generic LTE
+            "NR" => -95m,        // 5G NR best sensitivity
+            _ => -100m           // Default fallback
         };
     }
 
@@ -1231,7 +1327,7 @@ public class ProcessCellJob : IProcessCellJob
 
     /// <summary>
     /// Result structure for parsing band/technology column values
-    /// </summary>
+    /// </summary>      
     private class BandTechnologyParseResult
     {
         public bool IsActive { get; set; }
@@ -1265,34 +1361,6 @@ public class ProcessCellJob : IProcessCellJob
 
             _logger.LogWarning("No municipality found for location: {Location}", location);
             return (null, "Unknown");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error looking up municipality for location: {Location}", location);
-            return (null, "Unknown");
-        }
-    }
-
-    /// <summary>
-    /// Gets municipality by location using spatial intersection via GeoQueryHelper
-    /// </summary>
-    private async Task<(Guid? Id, string Name)> GetMunicipalityByLocationAsync(Point location, CancellationToken token)
-    {
-        try
-        {
-            var result = await GeoQueryHelper.FindMunicipalityByLocationAsync(location, _municipalityRepository, token);
-            
-            if (result.Id.HasValue)
-            {
-                _logger.LogDebug("Found municipality: {MunicipalityName} for location: {Location}", 
-                    result.Name, location);
-            }
-            else
-            {
-                _logger.LogWarning("No municipality found for location: {Location}", location);
-            }
-
-            return result;
         }
         catch (Exception ex)
         {
@@ -1369,41 +1437,12 @@ public class ProcessCellJob : IProcessCellJob
             return Guid.Empty;
         }
 
-        // Look up existing uplink and downlink using pre-loaded cache
-        var uplinkKey = $"{serviceProviderId}_{bandId}_{LinkTypeEnum.Uplink}";
-        var downlinkKey = $"{serviceProviderId}_{bandId}_{LinkTypeEnum.Downlink}";
-
-        // Default to Guid.Empty if links are not found (instead of terminating)
-        var uplinkId = Guid.Empty;
-        var downlinkId = Guid.Empty;
-
-        if (linkCache.TryGetValue(uplinkKey, out var foundUplinkId))
-        {
-            uplinkId = foundUplinkId;
-            _logger.LogDebug("Found uplink for ServiceProvider: {ServiceProviderId}, Band: {BandId}", serviceProviderId, bandId);
-        }
-        else
-        {
-            _logger.LogWarning("Uplink not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. Using Guid.Empty as default.", serviceProviderId, bandId);
-        }
-
-        if (linkCache.TryGetValue(downlinkKey, out var foundDownlinkId))
-        {
-            downlinkId = foundDownlinkId;
-            _logger.LogDebug("Found downlink for ServiceProvider: {ServiceProviderId}, Band: {BandId}", serviceProviderId, bandId);
-        }
-        else
-        {
-            _logger.LogWarning("Downlink not found for ServiceProvider: {ServiceProviderId}, Band: {BandId}. Using Guid.Empty as default.", serviceProviderId, bandId);
-        }
-
+        // Create network with calculated frequencies and bandwidth directly
         var network = new Domain.Aggregates.Network
         {
             Name = $"{technologyName}-{bandName}-{municipalityName}",
             ServiceProviderId = serviceProviderId,
             SystemTypeId = systemType.Id,
-            UpLinkId = uplinkId, // Will be Guid.Empty if not found
-            DownLinkId = downlinkId, // Will be Guid.Empty if not found
             ULCenterFreq = ulCenterFreq,
             DLCenterFreq = dlCenterFreq,
             Bandwidth = bandwidth
@@ -1413,10 +1452,9 @@ public class ProcessCellJob : IProcessCellJob
         networkCache[networkCacheKey] = network.Id;
 
         _logger.LogInformation(
-            "Created new Network: {NetworkName} for ServiceProvider: {ServiceProviderId}, Municipality: {MunicipalityName}, Technology: {Technology}, Band: {Band}, UplinkId: {UplinkId}, DownlinkId: {DownlinkId}",
-            network.Name, serviceProviderId, municipalityName, technologyName, bandName, 
-            uplinkId == Guid.Empty ? "None (Guid.Empty)" : uplinkId.ToString(), 
-            downlinkId == Guid.Empty ? "None (Guid.Empty)" : downlinkId.ToString());
+            "Created new Network: {NetworkName} for ServiceProvider: {ServiceProviderId}, Municipality: {MunicipalityName}, Technology: {Technology}, Band: {Band}, " +
+            "ULCenterFreq: {ULCenterFreq} MHz, DLCenterFreq: {DLCenterFreq} MHz, Bandwidth: {Bandwidth} MHz",
+            network.Name, serviceProviderId, municipalityName, technologyName, bandName, ulCenterFreq, dlCenterFreq, bandwidth);
 
         return network.Id;
     }

@@ -12,10 +12,6 @@ public class Network : BaseEntity
     public virtual SystemType SystemType { get; set; } = null!;
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider ServiceProvider { get; set; } = null!;
-    public Guid UpLinkId { get; set; }
-    public virtual Link UpLink { get; set; } = null!;
-    public Guid DownLinkId { get; set; }
-    public virtual Link DownLink { get; set; } = null!;
     public decimal ULCenterFreq { get; set; }
     public decimal DLCenterFreq { get; set; }
     public decimal Bandwidth { get; set; }

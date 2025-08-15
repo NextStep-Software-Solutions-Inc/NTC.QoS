@@ -164,16 +164,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(nt => nt.Networks)
             .HasForeignKey(n => n.NetworkTemplateId);
 
-        modelBuilder.Entity<Network>()
-            .HasOne(n => n.UpLink)
-            .WithMany(l => l.UpLinks)
-            .HasForeignKey(n => n.UpLinkId);
-
-        modelBuilder.Entity<Network>()
-            .HasOne(n => n.DownLink)
-            .WithMany(l => l.DownLinks)
-            .HasForeignKey(n => n.DownLinkId);
-
         modelBuilder.Entity<AreaStudy>()
             .HasIndex(p => p.Name)
             .IsUnique();

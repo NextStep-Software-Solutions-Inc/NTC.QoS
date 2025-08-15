@@ -60,18 +60,6 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
             SystemTypeName = network.SystemType?.Name ?? string.Empty,
-            UpLink = new()
-            {
-                Id = network.UpLinkId,
-                Type = network.UpLink?.Type is not null ? network.UpLink.Type.ToString() : string.Empty,
-                CenterFrequency = network.UpLink?.CenterFrequency ?? 0,
-            },
-            DownLink = new()
-            {
-                Id = network.DownLinkId,
-                Type = network.DownLink?.Type is not null ? network.DownLink.Type.ToString() : string.Empty,
-                CenterFrequency = network.DownLink?.CenterFrequency ?? 0,
-            },
             ServiceProvider = new()
             {
                 Id = network.ServiceProviderId,

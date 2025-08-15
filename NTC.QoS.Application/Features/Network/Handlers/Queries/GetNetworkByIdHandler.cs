@@ -42,18 +42,6 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 URL = network.NetworkTemplate?.URL ?? string.Empty
             },
             SystemTypeName = network.SystemType?.Name ?? string.Empty,
-            UpLink = new()
-            {
-                Id = network.UpLinkId,
-                Type = network.UpLink.Type.ToString(),
-                CenterFrequency = network.UpLink.CenterFrequency,
-            },
-            DownLink = new()
-            {
-                Id = network.DownLinkId,
-                Type = network.DownLink.Type.ToString(),
-                CenterFrequency = network.DownLink.CenterFrequency,
-            },
             ServiceProvider = new()
             {
                 Id = network.ServiceProvider.Id,

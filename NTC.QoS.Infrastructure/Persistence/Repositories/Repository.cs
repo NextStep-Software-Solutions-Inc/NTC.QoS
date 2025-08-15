@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using EFCore.BulkExtensions;
+using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -122,9 +123,19 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         _context.AddRange(entities);
     }
 
+    public async Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    {
+        await _context.BulkInsertAsync(entities, cancellationToken: cancellationToken);
+    }
+
     public void RemoveRange(IEnumerable<TEntity> entities)
     {
         _context.RemoveRange(entities);
+    }
+
+    public async Task BulkDeleteAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    {
+        await _context.BulkDeleteAsync(entities, cancellationToken: cancellationToken);
     }
 
     public async Task<int> ExecuteDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default) 

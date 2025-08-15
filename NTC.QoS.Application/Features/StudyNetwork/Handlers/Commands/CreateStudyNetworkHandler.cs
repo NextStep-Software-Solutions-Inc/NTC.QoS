@@ -122,18 +122,6 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
                             Name = newStudyNetwork.Network?.ServiceProvider?.Service?.Name ?? string.Empty,
                             Type = newStudyNetwork.Network?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                         }
-                    },
-                    UpLink = new()
-                    {
-                        Id = newStudyNetwork.Network?.UpLink?.Id ?? Guid.Empty,
-                        Type = newStudyNetwork.Network?.UpLink?.Type.ToString() ?? string.Empty,
-                        CenterFrequency = newStudyNetwork.Network?.UpLink?.CenterFrequency ?? 0
-                    },
-                    DownLink = new()
-                    {
-                        Id = newStudyNetwork.Network?.DownLink?.Id ?? Guid.Empty,
-                        Type = newStudyNetwork.Network?.DownLink?.Type.ToString() ?? string.Empty,
-                        CenterFrequency = newStudyNetwork.Network?.DownLink?.CenterFrequency ?? 0
                     }
                 }
             },
