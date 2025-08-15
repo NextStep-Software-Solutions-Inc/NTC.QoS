@@ -33,13 +33,14 @@ public class ProcessNAPJob : IProcessNAPJob
     {
         var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id.Equals(parameters.Id));
         var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
-        
-        if(file == null)
+
+        if (file == null)
         {
             var message = "File not found";
             _logger.LogError(message);
             throw new Exception(message);
-        };
+        }
+        ;
 
         file.Status = FileStatusEnum.Processing;
 
@@ -47,20 +48,9 @@ public class ProcessNAPJob : IProcessNAPJob
         await _fileRepository.SaveChangesAsync(token);
 
         var serviceProviderCache = new Dictionary<string, Guid>();
-        var provinceCache = new Dictionary<string, Guid>();
-        var municipalityCache = new Dictionary<string, Guid>();
-        var zoneCache = new Dictionary<string, Guid>();
         var NAPList = new List<Domain.Aggregates.NAP>();
-        // Implement the logic to process the NAP file here
-        // For example, you might want to read the file, validate its contents, and save it to the database
-        // Return a success response
-
-        // Perform the processing logic here
 
         using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
-        // Read the file and process its contents
-        // For example, you might want to parse the file and save its contents to the database
-        // Return a success response
         _logger.LogInformation($"Processing file: {parameters.Path}");
 
         fileStream.Position = 0;
@@ -73,17 +63,18 @@ public class ProcessNAPJob : IProcessNAPJob
             _logger.LogInformation("The Excel is empty.");
         }
 
+        // Preload existing NAPs for duplicate checking
+        var existingNAPs = await _NAPRepository
+            .ToListAsync(_NAPRepository.QueryAsNoTracking(nap => !nap.IsDeleted), token);
+
         foreach (var record in napRecords)
         {
-            // Process each record
             _logger.LogInformation($"Processing record: {record}");
 
             ReportProgress($"Processing record: {record.Provider}, {record.Municipality} {record.Province} ({record.Latitude},{record.Longitude})");
 
-            // Check if the Service Provider exists in the cache
             if (!serviceProviderCache.TryGetValue(record.Provider, out var serviceProviderId))
             {
-                // If not, fetch it from the database and add it to the cache
                 var serviceProviderQuery = _serviceProviderRepository
                     .Query(sp => !sp.IsDeleted)
                     .Where(sp => sp.Provider.Name.Equals(record.Provider));
@@ -101,7 +92,6 @@ public class ProcessNAPJob : IProcessNAPJob
                     _logger.LogWarning($"Service Provider not found: {record.Provider}");
                     await TerminateProcess(file, token);
                     return;
-
                 }
                 else
                 {
@@ -110,38 +100,66 @@ public class ProcessNAPJob : IProcessNAPJob
                 }
             }
 
-            // Check if all Ids are valid and present
             if (serviceProviderId != Guid.Empty)
             {
-                Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
-                // Create a new NAP entity
+                double latitude, longitude;
+                try
+                {
+                    latitude = record.Latitude;
+                    longitude = record.Longitude;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Invalid latitude/longitude for record: {record.Provider}, {record.Municipality} {record.Province}. Error: {ex.Message}");
+                    continue;
+                }
+
+                var address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
+                var location = GeometryHelper.CreatePoint(new NetTopologySuite.Geometries.Coordinate(y: latitude, x: longitude));
+
+                // Check for duplicate: ServiceProviderId + Address + Location
+                bool isDuplicate = existingNAPs.Any(n =>
+                    n.ServiceProviderId == serviceProviderId &&
+                    n.Address.Equals(address, StringComparison.OrdinalIgnoreCase) &&
+                    n.Location.X == location.X &&
+                    n.Location.Y == location.Y);
+
+                if (isDuplicate)
+                {
+                    _logger.LogInformation($"Duplicate NAP found for Provider: {record.Provider}, Address: {address}, Location: ({latitude},{longitude}). Skipping.");
+                    continue;
+                }
+
                 var nap = new Domain.Aggregates.NAP
                 {
                     ServiceProviderId = serviceProviderId,
-                    Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
+                    Address = address,
                     Location = location,
                     IsFileUploaded = true,
                 };
                 NAPList.Add(nap);
             }
-
         }
-        // Add the NAP entities to the repository
-        _NAPRepository.AddRange(NAPList);
+
+        if (NAPList.Count > 0)
+        {
+            _NAPRepository.AddRange(NAPList);
+            await _NAPRepository.SaveChangesAsync(token);
+            _logger.LogInformation($"Added {NAPList.Count} new NAP records.");
+        }
+        else
+        {
+            _logger.LogInformation("No new NAP records to add.");
+        }
 
         file.Status = FileStatusEnum.Success;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
-        await _NAPRepository.SaveChangesAsync(token);
 
         _logger.LogInformation("Processing completed");
-
     }
-
     void ReportProgress(string message)
     {
-        // Implement the logic to report progress here
-        // For example, you might want to log the progress or update a progress bar in the UI
         _logger.LogInformation(message);
     }
 
@@ -149,10 +167,8 @@ public class ProcessNAPJob : IProcessNAPJob
     {
         file.Status = FileStatusEnum.Failed;
         _fileRepository.Update(file);
-
         await _fileRepository.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Process terminated due to error in runtime");
+        _logger.LogInformation("Process terminated due to error in runtime.");
     }
 }
 

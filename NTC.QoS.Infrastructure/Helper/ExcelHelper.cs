@@ -61,12 +61,17 @@ public static class ExcelHelper
                     {
                         try
                         {
+                            // Add logging here
+                            Console.WriteLine($"[ExcelHelper] Row: {row}, Col: {col}, Header: '{header}', Property: '{property.Name}', Value: '{cellValue}'");
+
                             var convertedValue = Convert.ChangeType(cellValue, property.PropertyType);
                             property.SetValue(obj, convertedValue);
                         }
                         catch (Exception ex)
                         {
-                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}'.", ex);
+                            // Add detailed logging before throwing
+                            Console.WriteLine($"[ExcelHelper][ERROR] Failed to convert value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at Row {row}, Col {col} (Header: '{header}'). Exception: {ex.Message}");
+                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at Row {row}, Col {col} (Header: '{header}').", ex);
                         }
                     }
                 }
