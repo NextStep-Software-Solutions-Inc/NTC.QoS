@@ -208,13 +208,12 @@ public class ProcessNAPJob : IProcessNAPJob
             {
                 try
                 {
-                    _NAPRepository.AddRange(batchNAPs);
-                    await _NAPRepository.SaveChangesAsync(token);
-                    _logger.LogInformation($"Batch {batchIndex + 1}: Successfully saved {batchNAPs.Count} NAP records to database");
+                    await _NAPRepository.BulkInsertAsync(batchNAPs, token);
+                    _logger.LogInformation($"Batch {batchIndex + 1}: Successfully bulk inserted {batchNAPs.Count} NAP records to database");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"Error saving batch {batchIndex + 1} to database: {ex.Message}");
+                    _logger.LogError($"Error bulk inserting batch {batchIndex + 1} to database: {ex.Message}");
                     await TerminateProcess(file, token);
                     return;
                 }
