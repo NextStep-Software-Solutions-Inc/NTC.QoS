@@ -79,4 +79,4 @@ jobs:
             docker rm ${{ env.CONTAINER_NAME}} || true
             docker image rm ${{ env.IMAGE_NAME }}:dev || true
             docker pull ${{ env.IMAGE_NAME }}:dev
-            docker run --restart unless-stopped -d -p 91:${{ env.CONTAINER_PORT }} --name ${{ env.CONTAINER_NAME}} ${{ env.IMAGE_NAME }}:dev
+            docker run --restart unless-stopped -d --cpus="0.5" -p 91:${{ env.CONTAINER_PORT }} --name ${{ env.CONTAINER_NAME}} ${{ env.IMAGE_NAME }}:dev
