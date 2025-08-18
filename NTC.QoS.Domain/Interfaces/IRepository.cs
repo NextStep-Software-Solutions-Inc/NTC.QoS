@@ -30,6 +30,5 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     Task<int> ExecuteDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
     IQueryable<TEntity> QueryWithIgnoreQueryFilters(Expression<Func<TEntity, bool>>? expression = null);
     IQueryable<TEntity> QueryAsNoTracking(Expression<Func<TEntity, bool>>? expression = null);
-    Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
     Task BulkDeleteAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
 }
