@@ -8,6 +8,7 @@ public class AreaBroadbandInfoDto
     public int NAPCount { get; set; }
     public List<ServiceProviderAreaInfoDto> ServiceProviders { get; set; } = new();
     public AreaEnvelopeInfoDto EnvelopeInfo { get; set; } = new();
+    public List<MunicipalityAreaInfoDto> Municipalities { get; set; } = new();
 }
 
 public class ServiceProviderAreaInfoDto
@@ -16,6 +17,15 @@ public class ServiceProviderAreaInfoDto
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = string.Empty;
     public ServiceTypeEnum ServiceType { get; set; }
+    public int CellCount { get; set; }
+    public int NAPCount { get; set; }
+    public int TotalAssets => CellCount + NAPCount;
+}
+
+public class MunicipalityAreaInfoDto
+{
+    public Guid? Id { get; set; }
+    public string Name { get; set; } = string.Empty;
     public int CellCount { get; set; }
     public int NAPCount { get; set; }
     public int TotalAssets => CellCount + NAPCount;
