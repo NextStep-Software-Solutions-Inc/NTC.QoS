@@ -30,18 +30,6 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
                 URL = n.NetworkTemplate.URL
             },
             SystemTypeName = n.SystemType.Name,
-            UpLink = new()
-            {
-                Id = n.UpLinkId,
-                Type = n.UpLink.Type.ToString(),
-                CenterFrequency = n.UpLink.CenterFrequency
-            },
-            DownLink = new()
-            {
-                Id = n.DownLinkId,
-                Type = n.DownLink.Type.ToString(),
-                CenterFrequency = n.DownLink.CenterFrequency,
-            },
             ServiceProvider = new()
             {
                 Id = n.ServiceProvider.Id,

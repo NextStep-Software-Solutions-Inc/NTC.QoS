@@ -1,5 +1,4 @@
 ﻿using NTC.QoS.Domain.Entities;
-using NTC.QoS.Domain.Models.DTOs;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Domain.Interfaces;
@@ -31,4 +30,5 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     Task<int> ExecuteDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
     IQueryable<TEntity> QueryWithIgnoreQueryFilters(Expression<Func<TEntity, bool>>? expression = null);
     IQueryable<TEntity> QueryAsNoTracking(Expression<Func<TEntity, bool>>? expression = null);
+    Task BulkDeleteAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
 }

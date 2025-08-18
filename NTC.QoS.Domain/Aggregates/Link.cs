@@ -14,6 +14,5 @@ public class Link : BaseEntity
     public decimal LowerFrequency { get; set; }
     public decimal UpperFrequency { get; set; }
     public decimal RxThreshold { get; set; }
-    public virtual List<Network> UpLinks { get; set; } = new();
-    public virtual List<Network> DownLinks { get; set; } = new();
+    public bool IsFromUploadedFile { get; set; } = false;
 }

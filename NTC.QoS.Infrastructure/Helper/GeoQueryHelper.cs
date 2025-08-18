@@ -151,4 +151,93 @@ public static class GeoQueryHelper
         var predicate = SpatialFilterBuilder.BuildIntersectionPredicate<TSource>(envelope);
         return query.Where(predicate);
     }
+
+    /// <summary>
+    /// Finds the municipality that contains the given location point using spatial intersection.
+    /// Optimized for point-in-polygon queries with proper error handling.
+    /// </summary>
+    /// <param name="location">The point to search for</param>
+    /// <param name="municipalityRepository">Repository for municipality entities</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Tuple containing municipality ID and name, or null ID with "Unknown" name if not found</returns>
+    public static async Task<(Guid? Id, string Name)> FindMunicipalityByLocationAsync(
+        Point location,
+        IMunicipalityRepository municipalityRepository,
+        CancellationToken cancellationToken = default)
+    {
+        if (location?.IsValid != true)
+        {
+            return (null, "Unknown");
+        }
+
+        try
+        {
+            // Use spatial intersection to find municipalities that contain the point
+            var municipalityQuery = municipalityRepository
+                .Query(m => m.Boundaries != null && m.Boundaries.Intersects(location))
+                .Select(m => new { m.Id, m.Name });
+
+            var municipality = await municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
+
+            return municipality != null 
+                ? (municipality.Id, municipality.Name)
+                : (null, "Unknown");
+        }
+        catch (Exception)
+        {
+            // Return unknown on any spatial query errors
+            return (null, "Unknown");
+        }
+    }
+
+    /// <summary>
+    /// Finds the municipalities that contain any of the given location points using spatial intersection.
+    /// Optimized for batch point-in-polygon queries.
+    /// </summary>
+    /// <param name="locations">The points to search for</param>
+    /// <param name="municipalityRepository">Repository for municipality entities</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping each location to its municipality info</returns>
+    public static async Task<Dictionary<Point, (Guid? Id, string Name)>> FindMunicipalitiesByLocationsAsync(
+        IEnumerable<Point> locations,
+        IMunicipalityRepository municipalityRepository,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<Point, (Guid? Id, string Name)>();
+        var validLocations = locations?.Where(l => l?.IsValid == true).ToList();
+
+        if (validLocations?.Count == 0)
+        {
+            return result;
+        }
+
+        try
+        {
+            // Get all municipalities with boundaries
+            var municipalitiesQuery = municipalityRepository
+                .Query(m => m.Boundaries != null)
+                .Select(m => new { m.Id, m.Name, m.Boundaries });
+
+            var municipalities = await municipalityRepository.ToListAsync(municipalitiesQuery, cancellationToken);
+
+            // Check each location against all municipalities
+            foreach (var location in validLocations)
+            {
+                var municipality = municipalities.FirstOrDefault(m => m.Boundaries?.Intersects(location) == true);
+                result[location] = municipality != null 
+                    ? (municipality.Id, municipality.Name)
+                    : (null, "Unknown");
+            }
+        }
+        catch (Exception)
+        {
+            // Return unknown for all locations on any errors
+            foreach (var location in validLocations)
+            {
+                result[location] = (null, "Unknown");
+            }
+        }
+
+        return result;
+    }
 }

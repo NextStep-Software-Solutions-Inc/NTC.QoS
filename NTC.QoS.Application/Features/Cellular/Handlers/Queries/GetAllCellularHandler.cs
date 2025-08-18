@@ -16,7 +16,9 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
             .Where(c => !request.CellSectorId.HasValue || c.CellSectorId.Equals(request.CellSectorId.Value))
             .Where(c => !request.CellId.HasValue || c.CellSector != null && c.CellSector.CellId.Equals(request.CellId.Value))
             .Where(c => !request.ServiceProviderId.HasValue || c.ServiceProviderId.Equals(request.ServiceProviderId.Value))
-            .Where(c => !request.GenerationBandId.HasValue || c.GenerationBandId.Equals(request.GenerationBandId.Value));
+            .Where(c => !request.TechnologyId.HasValue || c.TechnologyId.Equals(request.TechnologyId.Value))
+            .Where(c => !request.BandId.HasValue || c.BandId.Equals(request.BandId.Value));
+
 
         var cellularDtosQuery = allCellularsQuery
             .Select(c => new CellularDto
@@ -55,21 +57,17 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
                         Type = c.ServiceProvider.Service.Type.ToString(),
                     },
                 } : null,
-                GenerationBand = c.GenerationBand != null ? new()
+                Technology = c.Technology != null ? new()
                 {
-                    Id = c.GenerationBandId,
-                    Generation = new()
-                    {
-                        Id = c.GenerationBand.Generation.Id,
-                        Name = c.GenerationBand.Generation.Name,
-                        Description = c.GenerationBand.Generation.Description
-                    },
-                    Band = new()
-                    {
-                        Id = c.GenerationBand.Band.Id,
-                        Name = c.GenerationBand.Band.Name,
-                        Description = c.GenerationBand.Band.Description
-                    },
+                    Id = c.TechnologyId,
+                    Standard = c.Technology.Standard,
+                    Description = c.Technology.Description
+                } : null,
+                Band = c.Band != null ? new()
+                {
+                    Id = c.BandId,
+                    Name = c.Band.Name,
+                    Description = c.Band.Description
                 } : null,
                 Address = c.Address
             });

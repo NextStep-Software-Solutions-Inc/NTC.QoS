@@ -133,6 +133,11 @@ public class Repository<TEntity>(ApplicationDbContext context) : IRepository<TEn
         _context.RemoveRange(entities);
     }
 
+    public async Task BulkDeleteAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    {
+        await _context.BulkDeleteAsync(entities, cancellationToken: cancellationToken);
+    }
+
     public async Task<int> ExecuteDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default) 
     {
         ArgumentNullException.ThrowIfNull(queryable);

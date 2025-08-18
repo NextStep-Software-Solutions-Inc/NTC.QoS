@@ -10,16 +10,14 @@ internal sealed class CellularRepository(ApplicationDbContext context) : Reposit
     public override IQueryable<Cellular> Query(Expression<Func<Cellular, bool>>? expression = null)
     {
         var query = _context.Set<Cellular>()
-            .Include(c => c.GenerationBand)
-                .ThenInclude(gb => gb!.Band)
-            .Include(c => c.GenerationBand)
-                .ThenInclude(gb => gb!.Generation)
             .Include(c => c.ServiceProvider)
                 .ThenInclude(sp => sp!.Provider)
             .Include(c => c.ServiceProvider)
                 .ThenInclude(sp => sp!.Service)
             .Include(c => c.CellSector)
                 .ThenInclude(cs => cs!.Cell)
+            .Include(c => c.Technology)
+            .Include(c => c.Band)
             .AsQueryable();
 
         if (expression != null)

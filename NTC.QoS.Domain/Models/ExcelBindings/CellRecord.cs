@@ -29,49 +29,49 @@ public record CellRecord
     public double Longitude { get; set; }
 
     [ExcelHeader("900")]
-    public bool Gsm900 { get; set; }
+    public string Gsm900 { get; set; } = string.Empty;
 
     [ExcelHeader("1800")]
-    public bool Gsm1800 { get; set; }
+    public string Gsm1800 { get; set; } = string.Empty;
 
     [ExcelHeader("850")]
-    public bool Wcdma850 { get; set; }
+    public string Wcdma850 { get; set; } = string.Empty;
 
     [ExcelHeader("900")]
-    public bool Wcdma900 { get; set; }
+    public string Wcdma900 { get; set; } = string.Empty;
 
     [ExcelHeader("2100")]
-    public bool Wcdma2100 { get; set; }
+    public string Wcdma2100 { get; set; } = string.Empty;
 
     [ExcelHeader("700")]
-    public bool FddLte700 { get; set; }
+    public string FddLte700 { get; set; } = string.Empty;
 
     [ExcelHeader("850")]
-    public bool FddLte850 { get; set; }
+    public string FddLte850 { get; set; } = string.Empty;
 
     [ExcelHeader("900")]
-    public bool FddLte900 { get; set; }
+    public string FddLte900 { get; set; } = string.Empty;
 
     [ExcelHeader("1800")]
-    public bool FddLte1800 { get; set; }
+    public string FddLte1800 { get; set; } = string.Empty;
 
     [ExcelHeader("2100")]
-    public bool FddLte2100 { get; set; }
+    public string FddLte2100 { get; set; } = string.Empty;
 
     [ExcelHeader("2300")]
-    public bool TddLte2300 { get; set; }
+    public string TddLte2300 { get; set; } = string.Empty;
 
     [ExcelHeader("2500")]
-    public bool TddLte2500 { get; set; }
+    public string TddLte2500 { get; set; } = string.Empty;
 
     [ExcelHeader("2600")]
-    public bool TddLte2600 { get; set; }
+    public string TddLte2600 { get; set; } = string.Empty;
 
     [ExcelHeader("2600")]
-    public bool Nr2600 { get; set; }
+    public string Nr2600 { get; set; } = string.Empty;
 
     [ExcelHeader("3500")]
-    public bool Nr3500 { get; set; }
+    public string Nr3500 { get; set; } = string.Empty;
 
     [ExcelHeader("Tower Type")]
     public string TowerType { get; set; } = string.Empty;

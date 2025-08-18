@@ -11,12 +11,6 @@ internal sealed class CellularCoverageRepository(ApplicationDbContext context) :
     {
         var query = _context.Set<CellularCoverage>()
             .Include(cc => cc.Network)
-                .ThenInclude(n => n.UpLink)
-                    .ThenInclude(u => u.Band)
-            .Include(cc => cc.Network)
-                .ThenInclude(n => n.UpLink)
-                    .ThenInclude(u => u.ServiceProvider)
-                        .ThenInclude(sp => sp.Provider)
             .AsQueryable();
 
         if (expression != null)

@@ -12,8 +12,6 @@ internal sealed class StudyNetworkRepository(ApplicationDbContext context) : Rep
         var query = _context.Set<StudyNetwork>()
             .Include(sn => sn.Study).ThenInclude(s => s!.AreaStudy)
             .Include(sn => sn.Network).ThenInclude(n => n!.NetworkTemplate)
-            .Include(sn => sn.Network).ThenInclude(n => n!.UpLink)
-            .Include(sn => sn.Network).ThenInclude(n => n!.DownLink)
             .AsQueryable();
 
         if (expression != null)

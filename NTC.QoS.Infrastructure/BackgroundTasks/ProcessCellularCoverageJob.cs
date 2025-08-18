@@ -54,7 +54,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
             .Query(n => !n.IsDeleted)
             .Select(n => new { n.Id, n.Name })
             .ToDictionaryAsync(
-                n => CacheKeyGenerator.GenerateNetworkCacheKey(n.Name),
+                n => CacheKeyGenerator.GenerateSimpleNetworkCacheKey(n.Name),
                 n => n.Id,
                 token
             );
@@ -94,7 +94,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 else
                 {
                     networkId = network.Id;
-                    networkCache[CacheKeyGenerator.GenerateNetworkCacheKey(record.Network)] = networkId;
+                    networkCache[CacheKeyGenerator.GenerateSimpleNetworkCacheKey(record.Network)] = networkId;
                     _logger.LogInformation("Network {Network} found with ID {NetworkId}", record.Network, networkId);
                 }
             }

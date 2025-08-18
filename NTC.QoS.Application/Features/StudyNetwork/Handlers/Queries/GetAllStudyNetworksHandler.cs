@@ -83,18 +83,6 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
                         Name = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Service != null ? sn.Network.ServiceProvider.Service.Name : string.Empty,
                         Type = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Service != null ? sn.Network.ServiceProvider.Service.Type.ToString() : string.Empty
                     }
-                },
-                UpLink = new()
-                {
-                    Id = sn.Network != null && sn.Network.UpLink != null ? sn.Network.UpLink.Id : Guid.Empty,
-                    Type = sn.Network != null && sn.Network.UpLink != null ? sn.Network.UpLink.Type.ToString() : string.Empty,
-                    CenterFrequency = sn.Network != null && sn.Network.UpLink != null ? sn.Network.UpLink.CenterFrequency : 0
-                },
-                DownLink = new()
-                {
-                    Id = sn.Network != null && sn.Network.DownLink != null ? sn.Network.DownLink.Id : Guid.Empty,
-                    Type = sn.Network != null && sn.Network.DownLink != null ? sn.Network.DownLink.Type.ToString() : string.Empty,
-                    CenterFrequency = sn.Network != null && sn.Network.DownLink != null ? sn.Network.DownLink.CenterFrequency : 0
                 }
             }
         });

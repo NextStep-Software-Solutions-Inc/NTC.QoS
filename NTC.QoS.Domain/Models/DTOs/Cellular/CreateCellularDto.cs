@@ -4,6 +4,7 @@ public class CreateCellularDto
 {
     public Guid CellSectorId { get; set; }
     public Guid ServiceProviderId { get; set; }
-    public Guid GenerationBandId { get; set; }
+    public Guid TechnologyId { get; set; }
+    public Guid BandId { get; set; }
     public string? Address { get; set; }
 }

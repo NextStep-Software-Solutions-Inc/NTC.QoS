@@ -249,6 +249,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsFromUploadedFile")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("LowerFrequency")
                         .HasColumnType("numeric");
 
@@ -374,9 +377,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("DownLinkId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -396,9 +396,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<decimal>("ULCenterFreq")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid>("UpLinkId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -408,15 +405,11 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DownLinkId");
-
                     b.HasIndex("NetworkTemplateId");
 
                     b.HasIndex("ServiceProviderId");
 
                     b.HasIndex("SystemTypeId");
-
-                    b.HasIndex("UpLinkId");
 
                     b.ToTable("Networks");
                 });
@@ -979,6 +972,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Bandwidth")
+                        .HasColumnType("numeric");
+
                     b.Property<Guid>("CellSectorId")
                         .HasColumnType("uuid");
 
@@ -988,6 +987,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<decimal>("DLCenterFreq")
+                        .HasColumnType("numeric");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
@@ -999,17 +1001,23 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid?>("FileId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("GenerationBandId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsFileUploaded")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid>("NetworkId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
+
+                    b.Property<Guid>("TechnologyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ULCenterFreq")
+                        .HasColumnType("numeric");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1020,13 +1028,17 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BandId");
+
                     b.HasIndex("CellSectorId");
 
                     b.HasIndex("FileId");
 
-                    b.HasIndex("GenerationBandId");
+                    b.HasIndex("NetworkId");
 
                     b.HasIndex("ServiceProviderId");
+
+                    b.HasIndex("TechnologyId");
 
                     b.ToTable("Cellulars");
                 });
@@ -2331,12 +2343,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "DownLink")
-                        .WithMany("DownLinks")
-                        .HasForeignKey("DownLinkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("NTC.QoS.Domain.Entities.NetworkTemplate", "NetworkTemplate")
                         .WithMany("Networks")
                         .HasForeignKey("NetworkTemplateId");
@@ -2353,21 +2359,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "UpLink")
-                        .WithMany("UpLinks")
-                        .HasForeignKey("UpLinkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DownLink");
-
                     b.Navigation("NetworkTemplate");
 
                     b.Navigation("ServiceProvider");
 
                     b.Navigation("SystemType");
-
-                    b.Navigation("UpLink");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.RolePermission", b =>
@@ -2508,6 +2504,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
                 {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany("Cellulars")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("NTC.QoS.Domain.Entities.CellSector", "CellSector")
                         .WithMany("Cellulars")
                         .HasForeignKey("CellSectorId")
@@ -2518,9 +2520,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .WithMany("Cellulars")
                         .HasForeignKey("FileId");
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.GenerationBand", "GenerationBand")
-                        .WithMany("Cellulars")
-                        .HasForeignKey("GenerationBandId")
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
+                        .WithMany()
+                        .HasForeignKey("NetworkId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2530,11 +2532,21 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
+                        .WithMany("Cellulars")
+                        .HasForeignKey("TechnologyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
                     b.Navigation("CellSector");
 
-                    b.Navigation("GenerationBand");
+                    b.Navigation("Network");
 
                     b.Navigation("ServiceProvider");
+
+                    b.Navigation("Technology");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverage", b =>
@@ -2733,18 +2745,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Technologies");
                 });
 
-            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
-                {
-                    b.Navigation("Cellulars");
-                });
-
-            modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Link", b =>
-                {
-                    b.Navigation("DownLinks");
-
-                    b.Navigation("UpLinks");
-                });
-
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
                 {
                     b.Navigation("CellularCoverages");
@@ -2783,6 +2783,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Band", b =>
                 {
+                    b.Navigation("Cellulars");
+
                     b.Navigation("GenerationBands");
 
                     b.Navigation("Links");
@@ -2885,6 +2887,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Technology", b =>
                 {
+                    b.Navigation("Cellulars");
+
                     b.Navigation("SystemTypes");
 
                     b.Navigation("TechnologyBands");

@@ -9,4 +9,5 @@ public class Technology : BaseEntity
     public string? Description { get; set; }
     public virtual List<SystemType> SystemTypes { get; set; } = new();
     public virtual List<TechnologyBand> TechnologyBands { get; set; } = new();
+    public virtual List<Cellular> Cellulars { get; set; } = new();
 }

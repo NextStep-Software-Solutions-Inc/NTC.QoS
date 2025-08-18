@@ -27,9 +27,7 @@ public class CreateNetworkHandler(
             n.Name.Equals(request.Network.Name) && 
             n.SystemTypeId == request.Network.SystemTypeId &&
             n.ServiceProviderId == request.Network.ServiceProviderId &&
-            n.NetworkTemplateId == request.Network.NetworkTemplateId &&
-            n.UpLinkId == request.Network.UplinkId &&
-            n.DownLinkId == request.Network.DownLinkId);
+            n.NetworkTemplateId == request.Network.NetworkTemplateId);
         var existingNetwork = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (existingNetwork is not null)
         {
@@ -175,8 +173,6 @@ public class CreateNetworkHandler(
             NetworkTemplateId = request.Network.NetworkTemplateId,
             SystemTypeId = systemType.Id,
             ServiceProviderId = serviceProvider.Id,
-            UpLinkId = request.Network.UplinkId,
-            DownLinkId = request.Network.DownLinkId,
             ULCenterFreq = request.Network.ULCenterFreq,
             DLCenterFreq = request.Network.DLCenterFreq,
             Bandwidth = request.Network.Bandwidth,
@@ -217,18 +213,6 @@ public class CreateNetworkHandler(
                         Name = serviceProvider.Service?.Name ?? string.Empty,
                         Type = serviceProvider.Service?.Type.ToString() ?? string.Empty
                     }
-                },
-                UpLink = new()
-                {
-                    Id = newNetwork.UpLinkId,
-                    Type = uplink?.Type.ToString() ?? string.Empty,
-                    CenterFrequency = uplink?.CenterFrequency ?? 0,
-                },
-                DownLink = new()
-                {
-                    Id = newNetwork.DownLinkId,
-                    Type = downlink?.Type.ToString() ?? string.Empty,
-                    CenterFrequency = downlink?.CenterFrequency ?? 0,
                 },
                 ULCenterFreq = newNetwork.ULCenterFreq,
                 DLCenterFreq = newNetwork.DLCenterFreq,
