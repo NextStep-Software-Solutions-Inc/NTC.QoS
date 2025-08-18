@@ -21,6 +21,7 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     void Add(TEntity entity);
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
     void AddRange(IEnumerable<TEntity> entities);
+    Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
     void RemoveRange(IEnumerable<TEntity> entities);
     void Update(TEntity entity);
     void Delete(TEntity entity);

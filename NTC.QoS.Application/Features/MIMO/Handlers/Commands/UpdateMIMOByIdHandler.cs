@@ -25,7 +25,7 @@ public class UpdateMIMOByIdHandler(IRepository<Domain.Entities.MIMO> repository)
                 {
                     { "Type", new[] { "MIMO type is required." } }
                 },
-                Message = request.MIMO.Type + " already exists in our system. Please try a different one."
+                Message = "MIMO type is required."
             };
         }
         if (mimo is null)

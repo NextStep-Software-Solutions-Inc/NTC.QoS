@@ -59,10 +59,10 @@ public class CreateProvinceRequestHandler : IRequestHandler<CreateProvinceReques
             };
         }
 
-        var regionQuery = _provinceRepository.Query(p => p.RegionId == request.Province.RegionId);
-        var region = await _provinceRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
+        var provinceQuery = _provinceRepository.Query(p => p.RegionId == request.Province.RegionId);
+        var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
 
-        if (region is null)
+        if (province is null)
         {
             return new ApiResponse<ProvinceDto>
             {
@@ -79,7 +79,7 @@ public class CreateProvinceRequestHandler : IRequestHandler<CreateProvinceReques
 
         var newProvince = new Domain.Entities.Province
         {
-            RegionId = region.Id,
+            RegionId = request.Province.RegionId,
             Name = request.Province.Name,
             Description = request.Province.Description,
             Code = request.Province.Code ?? string.Empty,

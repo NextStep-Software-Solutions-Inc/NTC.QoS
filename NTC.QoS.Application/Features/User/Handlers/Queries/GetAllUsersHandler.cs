@@ -27,6 +27,10 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
         {
             query = query.Where(u => u.UserRegions.Any(ur => request.RegionIds.Contains(ur.RegionId)));
         }
+        if (request.AuthUserIds is not null && request.AuthUserIds.Count > 0)
+        {
+            query = query.Where(u => request.AuthUserIds.Contains(u.AuthUserId));
+        }
 
         var userDtosQuery = query.Select(u => new UserDto
         {

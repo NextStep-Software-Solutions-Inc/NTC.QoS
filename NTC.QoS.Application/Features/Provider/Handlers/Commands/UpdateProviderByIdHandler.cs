@@ -37,7 +37,7 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                         "NullProvider", [ "Provider not found."]
                     }
                 },
-                Message = "The provider you are trying to delete does not exist."
+                Message = "The provider you are trying to update does not exist."
             };
         }
         provider.Name = request.Provider.Name ?? provider.Name;

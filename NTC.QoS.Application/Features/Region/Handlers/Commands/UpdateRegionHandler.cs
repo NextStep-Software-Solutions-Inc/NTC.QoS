@@ -141,10 +141,8 @@ public class UpdateRegionHandler : IRequestHandler<UpdateRegionRequest, ApiRespo
         }
         else
         {
-            region.Boundaries = region.Boundaries;
-            region.Center = region.Center;
+            // No boundaries file provided; keep existing boundaries and center.
         }
-
         var existingRegionQuery = _regionRepository.Query(
             r => r.Name == region.Name
                  && r.Id != request.Id);

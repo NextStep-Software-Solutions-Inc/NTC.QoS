@@ -27,9 +27,10 @@ public class UsersController(IMediator mediator) : ControllerBase
                                                                          int pageNumber = 1,
                                                                          Guid? roleId = null,
                                                                          Guid? organizationId = null,
+                                                                         [FromQuery] List<string>? authUserIds = null,
                                                                          [FromQuery] List<Guid>? regionIds = null)
     {
-        var users = await _mediator.Send(new GetAllUsersRequest(pageSize, pageNumber, roleId, organizationId, regionIds));
+        var users = await _mediator.Send(new GetAllUsersRequest(pageSize, pageNumber, roleId, organizationId, authUserIds, regionIds));
         return users.Succeeded ? Ok(users) : BadRequest(users);
     }
 
@@ -37,6 +38,13 @@ public class UsersController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<UserDto>>> GetUserById(Guid id)
     {
         var user = await _mediator.Send(new GetUserByIdRequest(id));
+        return user.Succeeded ? Ok(user) : BadRequest(user);
+    }
+
+    [HttpGet("auth-user/{authUserId}")]
+    public async Task<ActionResult<ApiResponse<UserDto>>> GetUserByAuthUserId(string authUserId)
+    {
+        var user = await _mediator.Send(new GetUserByAuthUserIdRequest(authUserId));
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
 
