@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using EFCore.BulkExtensions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
@@ -7,7 +8,6 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Infrastructure.Persistence;
-using EFCore.BulkExtensions;
 
 namespace NTC.QoS.Infrastructure.Seed;
 
