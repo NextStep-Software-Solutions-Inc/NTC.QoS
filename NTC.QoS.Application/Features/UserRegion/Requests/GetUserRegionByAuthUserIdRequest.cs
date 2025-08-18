@@ -4,7 +4,12 @@ using NTC.QoS.Domain.Models.DTOs.UserRegion;
 
 namespace NTC.QoS.Application.Features.UserRegion.Requests;
 
-public record GetUserRegionByAuthUserIdRequest(string AuthUserId) : IRequest<ApiResponse<UserRegionDto>>
+public class GetUserRegionByAuthUserIdRequest : IRequest<ApiResponse<UserRegionDto>>
 {
-    public string AuthUserId { get; set; } = AuthUserId;
+    public string AuthUserId { get; set; }
+
+    public GetUserRegionByAuthUserIdRequest(string authUserId)
+    {
+        AuthUserId = authUserId;
+    }
 }

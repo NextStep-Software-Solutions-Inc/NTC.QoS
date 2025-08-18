@@ -160,10 +160,8 @@ public class UpdateProvinceByIdHandler : IRequestHandler<UpdateProvinceRequest, 
         }
         else
         {
-            province.Boundaries = province.Boundaries;
-            province.Center = province.Center;
+            // No boundaries file provided; keep existing boundaries and center.
         }
-
         _repository.Update(province);
         await _repository.SaveChangesAsync(cancellationToken);
 

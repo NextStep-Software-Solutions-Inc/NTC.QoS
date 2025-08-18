@@ -139,10 +139,8 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
         }
         else
         {
-            municipality.Boundaries = municipality.Boundaries;
-            municipality.Center = municipality.Center;
+            // No boundaries file provided; keep existing boundaries and center.
         }
-
         _repository.Update(municipality);
         await _repository.SaveChangesAsync(cancellationToken);
 

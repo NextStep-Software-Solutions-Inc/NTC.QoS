@@ -44,7 +44,7 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
                 Description = networkTemplateExist.Description,
                 URL = networkTemplateExist.URL
             },
-            Message = "Network template retrieved successfully.",
+            Message = "Network template updated successfully.",
             Succeeded = true
         };
     }

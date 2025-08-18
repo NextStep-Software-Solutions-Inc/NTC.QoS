@@ -40,4 +40,3 @@ public class DeleteProvinceByIdHandler(IRepository<Domain.Entities.Province> rep
         };
     }
 }
-// This handler deletes a province by its ID. It first checks if the province exists, and if it does, it deletes it and returns a success message.
