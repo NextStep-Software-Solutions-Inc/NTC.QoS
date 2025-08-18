@@ -10,4 +10,5 @@ public record GetAllUserRegionsRequest : IRequest<PaginatedResponse<UserRegionDt
     public List<Guid>? UserIds { get; set; } 
     public List<Guid>? RegionIds { get; set; }
     public List<string>? Statuses { get; set; }
+    public List<string>? AuthUserIds { get; set; }
 }

@@ -27,6 +27,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] List<Guid>? userIds = null,
         [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] List<string>? authUserIds = null,
         [FromQuery] List<string>? statuses = null)
     {
         var userRegions = await _mediator.Send(new GetAllUserRegionsRequest 
@@ -35,6 +36,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
             PageNumber = pageNumber,
             UserIds = userIds,
             RegionIds = regionIds,
+            AuthUserIds = authUserIds,
             Statuses = statuses
         });
         return Ok(userRegions);
@@ -44,6 +46,13 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> GetUserRegionById(Guid id)
     {
         var userRegion = await _mediator.Send(new GetUserRegionByIdRequest(id));
+        return userRegion.Succeeded ? Ok(userRegion) : BadRequest(userRegion);
+    }
+
+    [HttpGet("auth-user/{authUserId}")]
+    public async Task<ActionResult<ApiResponse<UserRegionDto>>> GetUserRegionByAuthUserId(string authUserId)
+    {
+        var userRegion = await _mediator.Send(new GetUserRegionByAuthUserIdRequest(authUserId));
         return userRegion.Succeeded ? Ok(userRegion) : BadRequest(userRegion);
     }
 
