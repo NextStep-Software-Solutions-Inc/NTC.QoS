@@ -170,42 +170,37 @@ public class ProcessCellJob : IProcessCellJob
                 var bandName = nameParts[1]; 
                 var municipalityName = nameParts[2];
                 
-                // Create a cache key based on naming convention
-                var networkKey = CacheKeyGenerator.GenerateNetworkCacheKey(network.ServiceProviderId, municipalityName, network.TechnologyId, Guid.Empty);
-                if (!networkCache.ContainsKey(networkKey))
+                // Look up the actual band ID from the cache
+                var bandCacheKey = CacheKeyGenerator.GenerateBandCacheKey(bandName);
+                if (bandCache.TryGetValue(bandCacheKey, out var bandId))
                 {
-                    networkCache[networkKey] = network.Id;
+                    // Create a cache key with the correct band ID
+                    var networkKey = CacheKeyGenerator.GenerateNetworkCacheKey(network.ServiceProviderId, municipalityName, network.TechnologyId, bandId);
+                    if (!networkCache.ContainsKey(networkKey))
+                    {
+                        networkCache[networkKey] = network.Id;
+                        _logger.LogDebug("Cached existing network: {NetworkName} with key: {NetworkKey}", network.Name, networkKey);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Could not find band '{BandName}' in cache for existing network '{NetworkName}'. Network will not be cached.", bandName, network.Name);
                 }
             }
-        }
-
-        _logger.LogInformation("Pre-loaded {Count} existing networks.", networkCache.Count);
-
-        // Pre-load existing links to optimize network creation
-        var linkCache = new Dictionary<string, Guid>();
-        var providerIds = serviceProviderCache.Values.ToList();
-        var existingLinks = await _linkRepository
-            .Query(l => providerIds.Contains(l.ServiceProviderId))
-            .Select(l => new { l.Id, l.ServiceProviderId, l.BandId, l.Type })
-            .ToListAsync(token);
-
-        foreach (var link in existingLinks)
-        {
-            var linkKey = $"{link.ServiceProviderId}_{link.BandId}_{link.Type}";
-            if (!linkCache.ContainsKey(linkKey))
+            else
             {
-                linkCache[linkKey] = link.Id;
+                _logger.LogWarning("Network name '{NetworkName}' does not follow expected naming convention 'Technology-Band-Municipality'. Network will not be cached.", network.Name);
             }
         }
+        _logger.LogInformation("Pre-loaded {Count} existing networks.", networkCache.Count);
 
-        _logger.LogInformation("Pre-loaded {Count} existing links.", linkCache.Count);
+        var providerIds = serviceProviderCache.Values.ToList();
 
         // Pre-load municipalities with boundaries for spatial queries optimization
         var municipalitiesWithBoundaries = await _municipalityRepository
             .Query(m => m.Boundaries != null)
             .Select(m => new { m.Id, m.Name, m.Boundaries })
             .ToListAsync(token);
-        
         _logger.LogInformation("Pre-loaded {Count} municipalities with boundaries for spatial queries.", municipalitiesWithBoundaries.Count);
 
         // Fix: Handle duplicate cell cache keys gracefully by loading cells first, then building dictionary manually
@@ -223,7 +218,7 @@ public class ProcessCellJob : IProcessCellJob
             var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
             var key = CacheKeyGenerator.GenerateCellCacheKey(cell.ServiceProviderId, normalizedTowerType, cell.Location);
             
-            if (!cellCache.ContainsKey(key))
+            if (!cellCache.TryGetValue(key, out Guid value))
             {
                 cellCache[key] = cell.Id;
             }
@@ -231,7 +226,7 @@ public class ProcessCellJob : IProcessCellJob
             {
                 duplicateCount++;
                 _logger.LogWarning("Duplicate cell cache key found: {Key}. Cell ID {CellId} skipped in favor of existing Cell ID {ExistingCellId}. Consider cleaning up duplicate location data.",
-                    key, cell.Id, cellCache[key]);
+                    key, cell.Id, value);
             }
         }
 
@@ -293,6 +288,7 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("Extracted {Count} band/technology properties from Excel: {Properties}", 
             bandTechnologyProperties.Count,
             string.Join(", ", bandTechnologyProperties.Select(p => $"{p.Property.Name} -> {p.Technology}/{p.Band}")));
+        
         // --- Step 5: Main Loop for Processing Each Cell Record ---
         for (int recordIndex = 0; recordIndex < cellRecords.Count; recordIndex++)
         {
@@ -463,8 +459,8 @@ public class ProcessCellJob : IProcessCellJob
                             {
                                 "GSM" => "EDGE", // Map GSM to EDGE if GSM is not available
                                 "WCDMA" => "HSPAP", // Map WCDMA to HSPAP if WCDMA is not available
-                                "FDD-LTE" => "LTE", // Try LTE as alternative for FDD-LTE
-                                "TDD-LTE" => "LTE", // Try LTE as alternative for TDD-LTE
+                                "FDDLTE" => "LTE", // Try LTE as alternative for FDDLTE
+                                "TDDLTE" => "LTE", // Try LTE as alternative for TDDLTE
                                 _ => null
                             };
 
@@ -571,7 +567,6 @@ public class ProcessCellJob : IProcessCellJob
                                     networksToAdd,
                                     technologyCache,
                                     bandCache,
-                                    linkCache,
                                     dlCenterFreq,
                                     ulCenterFreq,
                                     bandwidth,
@@ -647,7 +642,6 @@ public class ProcessCellJob : IProcessCellJob
                                             networksToAdd,
                                             technologyCache,
                                             bandCache,
-                                            linkCache,
                                             dlCenterFreq,
                                             ulCenterFreq,
                                             bandwidth,
@@ -707,7 +701,7 @@ public class ProcessCellJob : IProcessCellJob
         // --- Step 5.5: Validate All Cell Sectors Have Cellular Entities ---
         _logger.LogInformation("Validating cell sector to cellular entity completeness...");
         await ValidateAndCreateMissingCellularEntities(cellularToAdd, cellularLookup, cellSectorCache, cellSectorsCreatedForCellId, 
-            serviceProviderCache, technologyCache, bandCache, linkCache, networkCache, networksToAdd, token);
+            serviceProviderCache, technologyCache, bandCache, networkCache, networksToAdd, token);
 
         // --- Step 6: Batch Save All Accumulated Changes ---
 
@@ -787,8 +781,8 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("2. Bands: Required for all technology/band combinations in your Excel file");
         _logger.LogInformation("3. SystemTypes: Required for each Technology to create Networks");
         _logger.LogInformation("4. Links (Uplink/Downlink): Required for each ServiceProvider/Band combination to create Networks");
-        _logger.LogInformation("Current database contains - Technologies: {TechCount}, Bands: {BandCount}, Networks: {NetworkCount}, Links: {LinkCount}",
-            technologyCache.Count, bandCache.Count, networkCache.Count, linkCache.Count);
+        _logger.LogInformation("Current database contains - Technologies: {TechCount}, Bands: {BandCount}, Networks: {NetworkCount}",
+            technologyCache.Count, bandCache.Count, networkCache.Count);
 
         _logger.LogInformation("Processing completed.");
     }
@@ -805,7 +799,6 @@ public class ProcessCellJob : IProcessCellJob
         Dictionary<string, Guid> serviceProviderCache,
         Dictionary<string, Guid> technologyCache,
         Dictionary<string, Guid> bandCache,
-        Dictionary<string, Guid> linkCache,
         Dictionary<string, Guid> networkCache,
         List<Domain.Aggregates.Network> networksToAdd,
         CancellationToken token)
@@ -894,7 +887,6 @@ public class ProcessCellJob : IProcessCellJob
                                     networksToAdd, // Use the shared list
                                     technologyCache,
                                     bandCache,
-                                    linkCache,
                                     defaultDLCenterFreq,
                                     defaultULCenterFreq,
                                     defaultBandwidth,
@@ -991,19 +983,19 @@ public class ProcessCellJob : IProcessCellJob
             ("HSPAP", "Band 5") => 869m,     // 850 MHz HSPAP (WCDMA-based)
             ("HSPAP", "Band 8") => 950m,     // 900 MHz HSPAP (WCDMA-based)
             ("HSPAP", "Band 1") => 2140m,    // 2100 MHz HSPAP (WCDMA-based)
-            ("FDD-LTE", "Band 28") => 758m,  // 700 MHz LTE center
-            ("FDD-LTE", "Band 5") => 869m,   // 850 MHz LTE center
-            ("FDD-LTE", "Band 8") => 950m,   // 900 MHz LTE center
-            ("FDD-LTE", "Band 3") => 1842.5m, // 1800 MHz LTE center
-            ("FDD-LTE", "Band 1") => 2140m,  // 2100 MHz LTE center
+            ("FDDLTE", "Band 28") => 758m,  // 700 MHz LTE center
+            ("FDDLTE", "Band 5") => 869m,   // 850 MHz LTE center
+            ("FDDLTE", "Band 8") => 950m,   // 900 MHz LTE center
+            ("FDDLTE", "Band 3") => 1842.5m, // 1800 MHz LTE center
+            ("FDDLTE", "Band 1") => 2140m,  // 2100 MHz LTE center
             ("LTE", "Band 28") => 758m,      // 700 MHz LTE center (generic LTE)
             ("LTE", "Band 5") => 869m,       // 850 MHz LTE center (generic LTE)
             ("LTE", "Band 8") => 950m,       // 900 MHz LTE center (generic LTE)
             ("LTE", "Band 3") => 1842.5m,    // 1800 MHz LTE center (generic LTE)
             ("LTE", "Band 1") => 2140m,      // 2100 MHz LTE center (generic LTE)
-            ("TDD-LTE", "Band 40") => 2300m, // 2300 MHz TDD center
-            ("TDD-LTE", "Band 41") => 2500m, // 2500 MHz TDD center
-            ("TDD-LTE", "Band 38") => 2600m, // 2600 MHz TDD center
+            ("TDDLTE", "Band 40") => 2300m, // 2300 MHz TDD center
+            ("TDDLTE", "Band 41") => 2500m, // 2500 MHz TDD center
+            ("TDDLTE", "Band 38") => 2600m, // 2600 MHz TDD center
             ("NR", "Band 78") => 3500m,      // 3500 MHz NR center
             ("NR", "Band 38") => 2600m,      // 2600 MHz NR center
             // Handle flexible TDD/FDD matching
@@ -1056,8 +1048,8 @@ public class ProcessCellJob : IProcessCellJob
             "EDGE" => 0.2m,      // 200 kHz (GSM-based)
             "WCDMA" => 5m,       // 5 MHz
             "HSPAP" => 5m,       // 5 MHz (WCDMA-based)
-            "FDD-LTE" => 20m,    // 20 MHz
-            "TDD-LTE" => 20m,    // 20 MHz
+            "FDDLTE" => 20m,    // 20 MHz
+            "TDDLTE" => 20m,    // 20 MHz
             "LTE" => 20m,        // 20 MHz (generic LTE)
             "NR" => 100m,        // 100 MHz for 5G
             // Handle flexible TDD/FDD matching
@@ -1087,8 +1079,8 @@ public class ProcessCellJob : IProcessCellJob
             "EDGE" => -110m,     // EDGE similar to GSM
             "WCDMA" => -105m,    // WCDMA better sensitivity
             "HSPAP" => -105m,    // HSPAP similar to WCDMA
-            "FDD-LTE" => -100m,  // LTE good sensitivity
-            "TDD-LTE" => -100m,  // TDD-LTE similar to FDD-LTE
+            "FDDLTE" => -100m,  // LTE good sensitivity
+            "TDDLTE" => -100m,  // TDD-LTE similar to FDDLTE
             "LTE" => -100m,      // Generic LTE
             "NR" => -95m,        // 5G NR best sensitivity
             _ => -100m           // Default fallback
@@ -1216,9 +1208,9 @@ public class ProcessCellJob : IProcessCellJob
             "EDGE" => CalculateGsmULFreq(dlCenterFreq, band), // EDGE uses GSM frequency plan
             "WCDMA" => CalculateWcdmaULFreq(dlCenterFreq, band),
             "HSPAP" => CalculateWcdmaULFreq(dlCenterFreq, band), // HSPAP uses WCDMA frequency plan
-            "FDD-LTE" => CalculateLteFddULFreq(dlCenterFreq, band),
+            "FDDLTE" => CalculateLteFddULFreq(dlCenterFreq, band),
             "LTE" => CalculateLteFddULFreq(dlCenterFreq, band), // Default LTE to FDD calculation
-            "TDD-LTE" => dlCenterFreq, // TDD uses same frequency for UL and DL
+            "TDDLTE" => dlCenterFreq, // TDD uses same frequency for UL and DL
             "NR" => CalculateNrFddULFreq(dlCenterFreq, band),
             _ => dlCenterFreq // Default to DL frequency if technology is unknown
         };
@@ -1319,8 +1311,8 @@ public class ProcessCellJob : IProcessCellJob
     {
         if (propertyName.StartsWith("Gsm")) return "GSM";
         if (propertyName.StartsWith("Wcdma")) return "WCDMA";
-        if (propertyName.StartsWith("FddLte")) return "FDD-LTE"; // Match database convention
-        if (propertyName.StartsWith("TddLte")) return "TDD-LTE"; // Match database convention
+        if (propertyName.StartsWith("FddLte")) return "FDDLTE"; // Match database convention
+        if (propertyName.StartsWith("TddLte")) return "TDDLTE"; // Match database convention
         if (propertyName.StartsWith("Nr")) return "NR";
         return string.Empty;
     }
@@ -1381,7 +1373,6 @@ public class ProcessCellJob : IProcessCellJob
         List<Domain.Aggregates.Network> networksToAdd,
         Dictionary<string, Guid> technologyCache,
         Dictionary<string, Guid> bandCache,
-        Dictionary<string, Guid> linkCache,
         decimal dlCenterFreq,
         decimal ulCenterFreq,
         decimal bandwidth,
