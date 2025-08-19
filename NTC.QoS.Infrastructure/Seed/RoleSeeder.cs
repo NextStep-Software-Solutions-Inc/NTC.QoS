@@ -32,9 +32,11 @@ public static class RoleSeeder
         var existingCount = await context.Roles.AsNoTracking().CountAsync();
         if (existingCount > 0)
         {
-            logger.LogInformation("Roles already exist in database ({Count} roles found). Skipping role seeding.", existingCount);
-            return;
-        }
+            var rolesExist = await context.Roles.AsNoTracking().AnyAsync();
+            if (rolesExist)
+            {
+                logger.LogInformation("Roles already exist in database. Skipping role seeding.");
+            }
 
         logger.LogInformation("Creating hardcoded roles...");
 
