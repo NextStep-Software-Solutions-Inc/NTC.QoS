@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
-using EFCore.BulkExtensions;
+using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Infrastructure.Seed;
 
@@ -66,61 +66,13 @@ public static class OrganizationSeeder
                 }
             };
 
-            await BulkInsertWithRetry(context, organizations.ToList(), "organizations", logger);
+            await SeederUtility.BulkInsertWithRetry(context, organizations.ToList(), "organizations", logger);
             logger.LogInformation("Successfully seeded {Count} organizations into the database.", organizations.Length);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error during organization seeding: {Message}", ex.Message);
             throw;
-        }
-    }
-
-    // Bulk inserts entities with retry logic for better reliability.
-    private static async Task BulkInsertWithRetry<T>(ApplicationDbContext dbContext, List<T> entities,
-        string entityType, ILogger logger, int maxRetries = 3, int batchSize = 1000) where T : class
-    {
-        if (!entities.Any())
-        {
-            logger.LogWarning("No {EntityType} to insert.", entityType);
-            return;
-        }
-
-        for (int retry = 0; retry < maxRetries; retry++)
-        {
-            try
-            {
-                logger.LogInformation("Inserting {Count} {EntityType} (attempt {Attempt}/{MaxAttempts})...",
-                    entities.Count, entityType, retry + 1, maxRetries);
-
-                for (int i = 0; i < entities.Count; i += batchSize)
-                {
-                    var batch = entities.Skip(i).Take(batchSize).ToList();
-                    await dbContext.BulkInsertAsync(batch);
-
-                    if (batch.Count == batchSize)
-                    {
-                        logger.LogInformation("Inserted batch {BatchStart}-{BatchEnd} of {Total} {EntityType}",
-                            i + 1, i + batch.Count, entities.Count, entityType);
-                    }
-                }
-
-                await dbContext.SaveChangesAsync();
-                logger.LogInformation("Successfully seeded {Count} {EntityType} into the database.", entities.Count, entityType);
-                return;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error saving {EntityType} to database (attempt {Attempt}/{MaxAttempts}): {Message}",
-                    entityType, retry + 1, maxRetries, ex.Message);
-
-                if (retry == maxRetries - 1)
-                {
-                    throw;
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retry))); // Exponential backoff
-            }
         }
     }
 }
