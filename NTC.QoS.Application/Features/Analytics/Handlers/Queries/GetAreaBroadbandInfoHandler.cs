@@ -272,42 +272,6 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         };
     }
 
-    private static AreaSummaryDto BuildSummaryAnalytics<T1, T2>(
-    List<T1> cellsWithProvider,
-    List<T2> napsWithProvider,
-    List<ServiceProviderAreaInfoDto> serviceProviders,
-    List<MunicipalityAreaInfoDto> municipalities,
-    AreaEnvelopeInfoDto envelopeInfo)
-    {
-        var totalAssets = cellsWithProvider.Count + napsWithProvider.Count;
-
-        return new AreaSummaryDto
-        {
-            TotalCells = cellsWithProvider.Count,
-            TotalNaps = napsWithProvider.Count,
-            TotalAssets = totalAssets,
-            CoverageAreaKm2 = envelopeInfo.AreaSizeKm2,
-            ServiceProviderCount = serviceProviders.Count,
-            MunicipalityCount = municipalities.Count,
-            AssetDensityPerKm2 = envelopeInfo.AreaSizeKm2 > 0
-                ? Math.Round((double)totalAssets / envelopeInfo.AreaSizeKm2, 6)
-                : 0
-        };
-    }
-
-    private static GeographicAnalysisDto BuildGeographicAnalysis(
-        List<MunicipalityAreaInfoDto> municipalities,
-        BoundingBoxDto bbox)
-    {
-        var heatMap = CategorizeMunicipalitiesByDensity(municipalities);
-
-        return new GeographicAnalysisDto
-        {
-            BoundingBox = bbox,
-            CoverageHeatMap = heatMap
-        };
-    }
-
     private static CoverageHeatMapDto CategorizeMunicipalitiesByDensity(List<MunicipalityAreaInfoDto> municipalities)
     {
         if (municipalities.Count == 0)
