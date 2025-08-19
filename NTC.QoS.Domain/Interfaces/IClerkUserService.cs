@@ -13,8 +13,8 @@ public class UserMetadataPayload
     // If the metadata can truly be arbitrary, you might consider using
     // `IDictionary<string, object>` or `JsonElement` for more controlled deserialization,
     // but `object` is acceptable if you're directly serializing a dynamic object.
-    public object PublicMetadata { get; set; }
-    public object PrivateMetadata { get; set; }
+    public object? PublicMetadata { get; set; }
+    public object? PrivateMetadata { get; set; }
 }
 
 public interface IClerkUserService
