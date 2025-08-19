@@ -12,4 +12,6 @@ public class GetAllServiceProvidersRequest : IRequest<PaginatedResponse<ServiceP
     public List<Guid>? ProviderIds { get; set; }
     public List<Guid>? ServiceIds { get; set; }
     public List<string>? ServiceTypes { get; set; }
+    public List<string>? Areas { get; set; }
+    public List<string>? Regions { get; set; }
 }

@@ -27,7 +27,9 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
                                                                                                   int pageNumber = 1,
                                                                                                   [FromQuery] List<Guid>? providerIds = null,
                                                                                                   [FromQuery] List<Guid>? serviceIds = null,
-                                                                                                  [FromQuery] List<string>? serviceTypes = null)
+                                                                                                  [FromQuery] List<string>? serviceTypes = null,
+                                                                                                  [FromQuery] List<string>? areas = null,
+                                                                                                  [FromQuery] List<string>? regions = null)
     {
         var serviceProviders = await _mediator.Send(new GetAllServiceProvidersRequest
         {
@@ -35,7 +37,9 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
             PageNumber = pageNumber, 
             ProviderIds = providerIds, 
             ServiceIds = serviceIds,
-            ServiceTypes = serviceTypes
+            ServiceTypes = serviceTypes,
+            Areas = areas,
+            Regions = regions
         });
         return serviceProviders.Succeeded ? Ok(serviceProviders) : BadRequest(serviceProviders);
     }
