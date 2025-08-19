@@ -153,6 +153,222 @@ public static class GeoQueryHelper
     }
 
     /// <summary>
+    /// Gets the center point of a municipality entity.
+    /// Returns the pre-calculated center point from the entity's Center property.
+    /// </summary>
+    /// <param name="entityId">ID of the municipality entity</param>
+    /// <param name="repository">Repository for the municipality entity</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The center point of the entity, or null if entity not found</returns>
+    public static async Task<Point?> GetMunicipalityCenterAsync(
+        Guid entityId,
+        IRepository<Municipality> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var centerQuery = repository.Query(e => e.Id == entityId)
+            .Select(e => e.Center);
+
+        return await repository.FirstOrDefaultAsync(centerQuery, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the center point of a province entity.
+    /// Returns the pre-calculated center point from the entity's Center property.
+    /// </summary>
+    /// <param name="entityId">ID of the province entity</param>
+    /// <param name="repository">Repository for the province entity</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The center point of the entity, or null if entity not found</returns>
+    public static async Task<Point?> GetProvinceCenterAsync(
+        Guid entityId,
+        IRepository<Province> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var centerQuery = repository.Query(e => e.Id == entityId)
+            .Select(e => e.Center);
+
+        return await repository.FirstOrDefaultAsync(centerQuery, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the center point of a region entity.
+    /// Returns the pre-calculated center point from the entity's Center property.
+    /// </summary>
+    /// <param name="entityId">ID of the region entity</param>
+    /// <param name="repository">Repository for the region entity</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The center point of the entity, or null if entity not found</returns>
+    public static async Task<Point?> GetRegionCenterAsync(
+        Guid entityId,
+        IRepository<Region> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var centerQuery = repository.Query(e => e.Id == entityId)
+            .Select(e => e.Center);
+
+        return await repository.FirstOrDefaultAsync(centerQuery, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the center point of a barangay entity.
+    /// Returns the pre-calculated center point from the entity's Center property.
+    /// </summary>
+    /// <param name="entityId">ID of the barangay entity</param>
+    /// <param name="repository">Repository for the barangay entity</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The center point of the entity, or null if entity not found</returns>
+    public static async Task<Point?> GetBarangayCenterAsync(
+        Guid entityId,
+        IRepository<Barangay> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var centerQuery = repository.Query(e => e.Id == entityId)
+            .Select(e => e.Center);
+
+        return await repository.FirstOrDefaultAsync(centerQuery, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the center points of multiple municipality entities.
+    /// Returns a dictionary mapping entity IDs to their center points.
+    /// </summary>
+    /// <param name="entityIds">List of municipality entity IDs</param>
+    /// <param name="repository">Repository for the municipality entities</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping entity IDs to their center points</returns>
+    public static async Task<Dictionary<Guid, Point>> GetMunicipalityCentersAsync(
+        IEnumerable<Guid> entityIds,
+        IRepository<Municipality> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = entityIds?.ToList();
+        if (idList == null || idList.Count == 0)
+            return new Dictionary<Guid, Point>();
+
+        var centersQuery = repository.Query(e => idList.Contains(e.Id))
+            .Select(e => new { e.Id, e.Center })
+            .Where(x => x.Center != null);
+
+        var results = await repository.ToListAsync(centersQuery, cancellationToken);
+        
+        return results.ToDictionary(x => x.Id, x => x.Center);
+    }
+
+    /// <summary>
+    /// Gets the center points of multiple province entities.
+    /// Returns a dictionary mapping entity IDs to their center points.
+    /// </summary>
+    /// <param name="entityIds">List of province entity IDs</param>
+    /// <param name="repository">Repository for the province entities</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping entity IDs to their center points</returns>
+    public static async Task<Dictionary<Guid, Point>> GetProvinceCentersAsync(
+        IEnumerable<Guid> entityIds,
+        IRepository<Province> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = entityIds?.ToList();
+        if (idList == null || idList.Count == 0)
+            return new Dictionary<Guid, Point>();
+
+        var centersQuery = repository.Query(e => idList.Contains(e.Id))
+            .Select(e => new { e.Id, e.Center })
+            .Where(x => x.Center != null);
+
+        var results = await repository.ToListAsync(centersQuery, cancellationToken);
+        
+        return results.ToDictionary(x => x.Id, x => x.Center);
+    }
+
+    /// <summary>
+    /// Gets the center points of multiple region entities.
+    /// Returns a dictionary mapping entity IDs to their center points.
+    /// </summary>
+    /// <param name="entityIds">List of region entity IDs</param>
+    /// <param name="repository">Repository for the region entities</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping entity IDs to their center points</returns>
+    public static async Task<Dictionary<Guid, Point>> GetRegionCentersAsync(
+        IEnumerable<Guid> entityIds,
+        IRepository<Region> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = entityIds?.ToList();
+        if (idList == null || idList.Count == 0)
+            return new Dictionary<Guid, Point>();
+
+        var centersQuery = repository.Query(e => idList.Contains(e.Id))
+            .Select(e => new { e.Id, e.Center })
+            .Where(x => x.Center != null);
+
+        var results = await repository.ToListAsync(centersQuery, cancellationToken);
+        
+        return results.ToDictionary(x => x.Id, x => x.Center);
+    }
+
+    /// <summary>
+    /// Gets the center points of multiple barangay entities.
+    /// Returns a dictionary mapping entity IDs to their center points.
+    /// </summary>
+    /// <param name="entityIds">List of barangay entity IDs</param>
+    /// <param name="repository">Repository for the barangay entities</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping entity IDs to their center points</returns>
+    public static async Task<Dictionary<Guid, Point>> GetBarangayCentersAsync(
+        IEnumerable<Guid> entityIds,
+        IRepository<Barangay> repository,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = entityIds?.ToList();
+        if (idList == null || idList.Count == 0)
+            return new Dictionary<Guid, Point>();
+
+        var centersQuery = repository.Query(e => idList.Contains(e.Id))
+            .Select(e => new { e.Id, e.Center })
+            .Where(x => x.Center != null);
+
+        var results = await repository.ToListAsync(centersQuery, cancellationToken);
+        
+        return results.ToDictionary(x => x.Id, x => x.Center);
+    }
+
+    /// <summary>
+    /// Calculates the centroid of a geometry envelope.
+    /// This is useful for getting the center point of arbitrary geometries.
+    /// </summary>
+    /// <param name="geometry">The geometry to calculate centroid for</param>
+    /// <returns>The centroid point of the geometry, or null if geometry is invalid</returns>
+    public static Point? GetGeometryCentroid(Geometry? geometry)
+    {
+        if (geometry?.IsValid != true)
+            return null;
+
+        try
+        {
+            return geometry.Centroid;
+        }
+        catch (Exception)
+        {
+            // Return null on any centroid calculation errors
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Calculates the centroids of multiple geometry envelopes.
+    /// Returns a list of centroid points in the same order as input geometries.
+    /// </summary>
+    /// <param name="geometries">Collection of geometries to calculate centroids for</param>
+    /// <returns>List of centroid points (null for invalid geometries)</returns>
+    public static List<Point?> GetGeometryCentroids(IEnumerable<Geometry> geometries)
+    {
+        if (geometries == null)
+            return new List<Point?>();
+
+        return geometries.Select(GetGeometryCentroid).ToList();
+    }
+
+    /// <summary>
     /// Finds the municipality that contains the given location point using spatial intersection.
     /// Optimized for point-in-polygon queries with proper error handling.
     /// </summary>
@@ -221,21 +437,17 @@ public static class GeoQueryHelper
             var municipalities = await municipalityRepository.ToListAsync(municipalitiesQuery, cancellationToken);
 
             // Check each location against all municipalities
-            foreach (var location in validLocations)
+            foreach (var location in validLocations ?? Enumerable.Empty<Point>())
             {
                 var municipality = municipalities.FirstOrDefault(m => m.Boundaries?.Intersects(location) == true);
-                result[location] = municipality != null 
+                result[location] = municipality != null
                     ? (municipality.Id, municipality.Name)
                     : (null, "Unknown");
             }
         }
         catch (Exception)
         {
-            // Return unknown for all locations on any errors
-            foreach (var location in validLocations)
-            {
-                result[location] = (null, "Unknown");
-            }
+            // Optionally handle/log the exception here
         }
 
         return result;
