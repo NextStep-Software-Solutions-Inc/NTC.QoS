@@ -7,7 +7,8 @@ public class AddProviderLogoByIdRequestValidator : AbstractValidator<AddProvider
 {
     private readonly long _maxFileSizeInBytes = 5 * 1024 * 1024; // 5MB
     private readonly string[] _allowedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-    private readonly string[] _allowedContentTypes = { "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp" };
+    // Fixed: Removed "image/jpg" as it's not a standard MIME type - use "image/jpeg" instead
+    private readonly string[] _allowedContentTypes = { "image/jpeg", "image/png", "image/gif", "image/webp" };
 
     public AddProviderLogoByIdRequestValidator()
     {
