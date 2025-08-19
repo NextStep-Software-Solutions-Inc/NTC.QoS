@@ -37,10 +37,10 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             var envelope = CreatePolygonFromBoundingBox(bbox);
 
             // Apply envelope filter to queries using the helper
-            var cellQuery = _cellRepository.Query(c => !c.IsDeleted);
+            var cellQuery = _cellRepository.Query();
             cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, cellQuery);
 
-            var napQuery = _napRepository.Query(n => !n.IsDeleted);
+            var napQuery = _napRepository.Query();
             napQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, napQuery);
 
             // Execute queries and get results with related data including location
@@ -95,17 +95,27 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             .OrderByDescending(sp => sp.TotalAssets)
             .ToList();
 
-            // Calculate municipality-based location information
             var municipalities = await CalculateMunicipalityInfo(cellsWithProvider, napsWithProvider, cancellationToken);
 
-            // Calculate envelope information
             var envelopeInfo = CalculateEnvelopeInfo(envelope, bbox);
+
+            var summary = new AreaSummaryDto
+            {
+                TotalCells = cellsWithProvider.Count,
+                TotalNaps = napsWithProvider.Count,
+                TotalAssets = cellsWithProvider.Count + napsWithProvider.Count,
+                CoverageAreaKm2 = envelopeInfo.AreaSizeKm2,
+                ServiceProviderCount = serviceProviders.Count,
+                MunicipalityCount = municipalities.Count,
+                AssetDensityPerKm2 = envelopeInfo.AreaSizeKm2 > 0
+                    ? Math.Round((double)(cellsWithProvider.Count + napsWithProvider.Count) / envelopeInfo.AreaSizeKm2, 6)
+                    : 0
+            };
 
             // Build response
             var result = new AreaBroadbandInfoDto
             {
-                CellCount = cellsWithProvider.Count,
-                NAPCount = napsWithProvider.Count,
+                Summary = summary,
                 ServiceProviders = serviceProviders,
                 Municipalities = municipalities,
                 EnvelopeInfo = envelopeInfo
@@ -114,7 +124,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             return new ApiResponse<AreaBroadbandInfoDto>
             {
                 Succeeded = true,
-                Message = $"Area broadband info retrieved successfully. Found {result.CellCount} cells and {result.NAPCount} NAPs from {serviceProviders.Count} service providers across {municipalities.Count} municipalities.",
+                Message = $"Area broadband info retrieved successfully. Found {result.Summary.TotalCells} cells and {result.Summary.TotalNaps} NAPs from {serviceProviders.Count} service providers across {municipalities.Count} municipalities.",
                 Data = result
             };
         }
@@ -139,15 +149,16 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         where T1 : class
         where T2 : class
     {
-        // Extract all unique locations from cells and NAPs
         var cellLocations = cellsWithProvider
-            .Select(c => GetLocationFromDynamic(c))
-            .Where(loc => loc?.IsValid == true)
-            .ToList();
+                        .Select(c => GetLocationFromDynamic(c))
+                        .Where(loc => loc is not null && loc.IsValid)
+                        .Cast<Point>()
+                        .ToList();
 
         var napLocations = napsWithProvider
             .Select(n => GetLocationFromDynamic(n))
-            .Where(loc => loc?.IsValid == true)
+            .Where(loc => loc is not null && loc.IsValid)
+            .Cast<Point>()
             .ToList();
 
         var allLocations = cellLocations.Concat(napLocations).ToList();
@@ -259,5 +270,112 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             GeometryType = envelope.GeometryType,
             BoundingBox = bbox
         };
+    }
+
+    private static AreaSummaryDto BuildSummaryAnalytics<T1, T2>(
+    List<T1> cellsWithProvider,
+    List<T2> napsWithProvider,
+    List<ServiceProviderAreaInfoDto> serviceProviders,
+    List<MunicipalityAreaInfoDto> municipalities,
+    AreaEnvelopeInfoDto envelopeInfo)
+    {
+        var totalAssets = cellsWithProvider.Count + napsWithProvider.Count;
+
+        return new AreaSummaryDto
+        {
+            TotalCells = cellsWithProvider.Count,
+            TotalNaps = napsWithProvider.Count,
+            TotalAssets = totalAssets,
+            CoverageAreaKm2 = envelopeInfo.AreaSizeKm2,
+            ServiceProviderCount = serviceProviders.Count,
+            MunicipalityCount = municipalities.Count,
+            AssetDensityPerKm2 = envelopeInfo.AreaSizeKm2 > 0
+                ? Math.Round((double)totalAssets / envelopeInfo.AreaSizeKm2, 6)
+                : 0
+        };
+    }
+
+    private static GeographicAnalysisDto BuildGeographicAnalysis(
+        List<MunicipalityAreaInfoDto> municipalities,
+        BoundingBoxDto bbox)
+    {
+        var heatMap = CategorizeMunicipalitiesByDensity(municipalities);
+
+        return new GeographicAnalysisDto
+        {
+            BoundingBox = bbox,
+            CoverageHeatMap = heatMap
+        };
+    }
+
+    private static CoverageHeatMapDto CategorizeMunicipalitiesByDensity(List<MunicipalityAreaInfoDto> municipalities)
+    {
+        if (municipalities.Count == 0)
+        {
+            return new CoverageHeatMapDto();
+        }
+
+        // Calculate density thresholds based on data distribution
+        var densities = municipalities.Select(m => m.TotalAssets).OrderByDescending(x => x).ToList();
+        var highThreshold = densities.Take(densities.Count / 3).LastOrDefault();
+        var mediumThreshold = densities.Skip(densities.Count / 3).Take(densities.Count / 3).LastOrDefault();
+
+        return new CoverageHeatMapDto
+        {
+            HighDensityZones = municipalities
+                .Where(m => m.TotalAssets >= highThreshold)
+                .Select(m => new DensityZoneDto
+                {
+                    MunicipalityId = m.Id,
+                    Name = m.Name,
+                    AssetDensity = m.TotalAssets,
+                    DominantServiceType = DetermineDominantServiceType(m),
+                    UnderservedIndicator = false,
+                    Coordinates = EstimateMunicipalityCenter(m.Name) // You can enhance this later
+                }).ToList(),
+
+            MediumDensityZones = municipalities
+                .Where(m => m.TotalAssets >= mediumThreshold && m.TotalAssets < highThreshold)
+                .Select(m => new DensityZoneDto
+                {
+                    MunicipalityId = m.Id,
+                    Name = m.Name,
+                    AssetDensity = m.TotalAssets,
+                    DominantServiceType = DetermineDominantServiceType(m),
+                    UnderservedIndicator = false,
+                    Coordinates = EstimateMunicipalityCenter(m.Name)
+                }).ToList(),
+
+            LowDensityZones = municipalities
+                .Where(m => m.TotalAssets < mediumThreshold)
+                .Select(m => new DensityZoneDto
+                {
+                    MunicipalityId = m.Id,
+                    Name = m.Name,
+                    AssetDensity = m.TotalAssets,
+                    DominantServiceType = DetermineDominantServiceType(m),
+                    UnderservedIndicator = m.TotalAssets < 5, // Configurable threshold
+                    Coordinates = EstimateMunicipalityCenter(m.Name)
+                }).ToList()
+        };
+    }
+
+    private static string DetermineDominantServiceType(MunicipalityAreaInfoDto municipality)
+    {
+        if (municipality.CellCount > municipality.NAPCount)
+            return "Wireless";
+        else if (municipality.NAPCount > municipality.CellCount)
+            return "Wired";
+        else if (municipality.CellCount > 0 && municipality.NAPCount > 0)
+            return "Mixed";
+        else
+            return "Unknown";
+    }
+
+    private static CoordinateDto? EstimateMunicipalityCenter(string municipalityName)
+    {
+        // For now, return null - you can enhance this later with actual municipality coordinates
+        // You could maintain a lookup table of municipality centers or calculate from actual boundaries
+        return null;
     }
 }

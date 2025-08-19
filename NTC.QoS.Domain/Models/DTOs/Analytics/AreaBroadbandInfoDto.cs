@@ -4,11 +4,10 @@ namespace NTC.QoS.Domain.Models.DTOs.Analytics;
 
 public class AreaBroadbandInfoDto
 {
-    public int CellCount { get; set; }
-    public int NAPCount { get; set; }
-    public List<ServiceProviderAreaInfoDto> ServiceProviders { get; set; } = new();
+    public AreaSummaryDto Summary { get; set; } = new();
+    public List<ServiceProviderAreaInfoDto> ServiceProviders { get; set; } = [];
     public AreaEnvelopeInfoDto EnvelopeInfo { get; set; } = new();
-    public List<MunicipalityAreaInfoDto> Municipalities { get; set; } = new();
+    public List<MunicipalityAreaInfoDto> Municipalities { get; set; } = [];
 }
 
 public class ServiceProviderAreaInfoDto
