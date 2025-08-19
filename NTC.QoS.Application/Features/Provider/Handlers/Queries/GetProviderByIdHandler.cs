@@ -40,7 +40,8 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
                 Name = provider.Name,
                 Description = provider.Description,
                 LicenseNumber = provider.LicenseNumber,
-                Color = provider.Color
+                Color = provider.Color,
+                LogoPath = provider.LogoPath
             }
         };
     }

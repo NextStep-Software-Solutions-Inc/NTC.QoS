@@ -8,5 +8,6 @@ public class Provider : BaseEntity
     public string? Description { get; set; }
     public string? LicenseNumber { get; set; }
     public string Color { get; set; } = string.Empty;
+    public string? LogoPath { get; set; }
     public virtual List<ServiceProvider> ServiceProviders { get; set; } = new();
 }

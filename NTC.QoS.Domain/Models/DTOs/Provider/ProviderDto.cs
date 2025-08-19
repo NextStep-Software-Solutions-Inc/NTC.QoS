@@ -7,4 +7,5 @@ public class ProviderDto
     public string? Description { get; set; }
     public string? LicenseNumber { get; set; } = string.Empty;
     public required string Color { get; set; }
+    public string? LogoPath { get; set; }
 }

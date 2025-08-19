@@ -57,7 +57,8 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                 Name = provider.Name,
                 Description = provider.Description,
                 LicenseNumber = provider.LicenseNumber,
-                Color = provider.Color
+                Color = provider.Color,
+                LogoPath = provider.LogoPath
             },
             Message = "Provider updated successfully."
         };
