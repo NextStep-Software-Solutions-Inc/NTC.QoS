@@ -28,15 +28,19 @@ public static class RoleSeeder
     {
         logger.LogInformation("Checking if roles need to be seeded...");
 
-        // Check if roles already exist
-        var existingCount = await context.Roles.AsNoTracking().CountAsync();
-        if (existingCount > 0)
+        // Check if base keys already exist
+        var baseKeys = new[] { "admin", "super_admin", "field_officer" };
+        var existingKeys = await context.Roles
+            .AsNoTracking()
+            .Where(r => baseKeys.Contains(r.Key))
+            .Select(r => r.Key)
+            .ToListAsync();
+
+        if (existingKeys.Any())
         {
-            var rolesExist = await context.Roles.AsNoTracking().AnyAsync();
-            if (rolesExist)
-            {
-                logger.LogInformation("Roles already exist in database. Skipping role seeding.");
-            }
+            logger.LogInformation("Base role keys already exist in database ({Keys}). Skipping role seeding.", string.Join(", ", existingKeys));
+            return;
+        }
 
         logger.LogInformation("Creating hardcoded roles...");
 

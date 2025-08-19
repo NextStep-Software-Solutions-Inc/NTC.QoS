@@ -11,6 +11,7 @@ public static class OrganizationSeeder
     // Fixed UUIDs for consistent organization seeding
     public static readonly Guid NationalOrganizationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     public static readonly Guid RegionalOrganizationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    public static readonly Guid PublicOrganizationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     // Seeds organizations into the database with hardcoded data and fixed UUIDs.
     public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
@@ -28,10 +29,10 @@ public static class OrganizationSeeder
         logger.LogInformation("Checking if organizations need to be seeded...");
 
         // Check if organizations already exist
-        var existingCount = await context.Organizations.AsNoTracking().CountAsync();
-        if (existingCount > 0)
+        var organizationsExist = await context.Organizations.AsNoTracking().AnyAsync();
+        if (organizationsExist)
         {
-            logger.LogInformation("Organizations already exist in database ({Count} organizations found). Skipping organization seeding.", existingCount);
+            logger.LogInformation("Organizations already exist in database. Skipping organization seeding.");
             return;
         }
 
@@ -63,6 +64,17 @@ public static class OrganizationSeeder
                     UpdatedAt = DateTime.UtcNow,
                     UpdatedBy = "System",
                     IsDeleted = false
+                },
+                new Organization
+                {
+                    Id = PublicOrganizationId,
+                    Name = "Public",
+                    Description = "Public organization for general access",
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = "System",
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedBy = "System",
+                    IsDeleted = false
                 }
             };
 
@@ -76,3 +88,4 @@ public static class OrganizationSeeder
         }
     }
 }
+
