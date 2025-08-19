@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
-using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Infrastructure.Seed;
 
@@ -12,6 +11,7 @@ public static class RoleSeeder
     public static readonly Guid AdminRoleId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid SuperAdminRoleId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid FieldOfficerRoleId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    public static readonly Guid UserRoleId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
     // Seeds roles into the database with hardcoded data and fixed UUIDs.
     public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
@@ -29,16 +29,12 @@ public static class RoleSeeder
         logger.LogInformation("Checking if roles need to be seeded...");
 
         // Check if base keys already exist
-        var baseKeys = new[] { "admin", "super_admin", "field_officer" };
-        var existingKeys = await context.Roles
-            .AsNoTracking()
-            .Where(r => baseKeys.Contains(r.Key))
-            .Select(r => r.Key)
-            .ToListAsync();
+        var baseKeys = new[] { "admin", "super_admin", "field_officer", "user" };
+        var baseKeysExist = await context.Roles.AsNoTracking().AnyAsync(r => baseKeys.Contains(r.Key));
 
-        if (existingKeys.Any())
+        if (baseKeysExist)
         {
-            logger.LogInformation("Base role keys already exist in database ({Keys}). Skipping role seeding.", string.Join(", ", existingKeys));
+            logger.LogInformation("Base role keys already exist in database. Skipping role seeding.");
             return;
         }
 
@@ -84,10 +80,23 @@ public static class RoleSeeder
                     UpdatedAt = DateTime.UtcNow,
                     UpdatedBy = "System",
                     IsDeleted = false
+                },
+                new Role
+                {
+                    Id = UserRoleId,
+                    Name = "User",
+                    Key = "user",
+                    Description = "Standard user with basic access",
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = "System",
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedBy = "System",
+                    IsDeleted = false
                 }
             };
 
-            await SeederUtility.BulkInsertWithRetry(context, roles.ToList(), "roles", logger);
+            await context.Roles.AddRangeAsync(roles);
+            await context.SaveChangesAsync();
             logger.LogInformation("Successfully seeded {Count} roles into the database.", roles.Length);
         }
         catch (Exception ex)

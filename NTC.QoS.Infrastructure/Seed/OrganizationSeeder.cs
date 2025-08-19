@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
-using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Infrastructure.Seed;
 
@@ -78,7 +77,8 @@ public static class OrganizationSeeder
                 }
             };
 
-            await SeederUtility.BulkInsertWithRetry(context, organizations.ToList(), "organizations", logger);
+            await context.Organizations.AddRangeAsync(organizations);
+            await context.SaveChangesAsync();
             logger.LogInformation("Successfully seeded {Count} organizations into the database.", organizations.Length);
         }
         catch (Exception ex)
