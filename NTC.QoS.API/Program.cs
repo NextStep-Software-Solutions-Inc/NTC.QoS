@@ -58,7 +58,7 @@ public class Program
             };
          });
    
-        // builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization();
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddCors(options =>
@@ -139,17 +139,6 @@ public class Program
         app.UseHttpsRedirection();
         app.UseResponseCompression();
         app.UseResponseCaching();
-        app.Use(async (context, next) =>
-        {
-            if (context.Request.Path.StartsWithSegments("/.well-known/acme-challenge"))
-            {
-                context.Response.StatusCode = 200;
-                await context.Response.WriteAsync("OK");
-                return;
-            }
-            await next();
-        });
-        
         app.UseAuthentication();
         app.UseAuthorization();
 
