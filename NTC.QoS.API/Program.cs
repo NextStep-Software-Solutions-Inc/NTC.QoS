@@ -77,14 +77,9 @@ public class Program
         {
             options.AddDefaultPolicy(builder =>
             {
-                builder.WithOrigins(
-                    "https://app.qos.nextstep-software.com",
-                    "https://qos.nextstep-software.com",
-                    "https://app.qos.ntc.gov.ph",
-                    "https://qos.ntc.gov.ph"
-                )
-                .AllowAnyMethod()
-                .AllowAnyHeader();
+                builder.AllowAnyOrigin()
+                       .AllowAnyMethod()
+                       .AllowAnyHeader();
             });
         });
         builder.Services.AddControllers()
@@ -138,11 +133,11 @@ public class Program
         builder.Services.AddScoped<GeospatialQueryService>();
 
         var app = builder.Build();
-        app.UseCors();
         
         // Configure the HTTP request pipeline.
         // if (app.Environment.IsDevelopment())
         // {
+            app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI(s =>
             {
