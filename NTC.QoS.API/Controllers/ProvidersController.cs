@@ -40,10 +40,10 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> GetProviderLogo(Guid id)
     {
         var result = await _mediator.Send(new GetProviderLogoByIdRequest(id));
-        
-        if (!result.Succeeded || result.Data == null)
+
+        if (!result.Succeeded || result.Data == null || result.Data.LogoData == null)
         {
-            return NotFound(result);
+            return NotFound("Logo data not found.");
         }
 
         return File(result.Data.LogoData, result.Data.ContentType, result.Data.FileName);
