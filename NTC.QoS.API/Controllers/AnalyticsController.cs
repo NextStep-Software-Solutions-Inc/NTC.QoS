@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Domain.Constants;
@@ -10,6 +11,8 @@ namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("analytics", Name = "analytics")]
+[Authorize]
+
 public class AnalyticsController(IMediator mediator) : ControllerBase
 {
     /// <summary>

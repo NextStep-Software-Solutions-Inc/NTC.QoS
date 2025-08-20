@@ -12,7 +12,6 @@ using System.Security.Claims;
 using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Filters;
 using Hangfire;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 
 namespace NTC.QoS.API;

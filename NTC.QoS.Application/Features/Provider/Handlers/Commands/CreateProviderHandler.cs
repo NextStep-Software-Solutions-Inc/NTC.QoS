@@ -27,7 +27,12 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                     Name = provider.Name,
                     Description = provider.Description,
                     LicenseNumber = provider.LicenseNumber,
-                    Color = provider.Color
+                    Color = provider.Color,
+                    HasLogo = provider.LogoData != null && provider.LogoData.Length > 0,
+                    LogoContentType = provider.LogoContentType,
+                    LogoFileName = provider.LogoFileName,
+                    LogoSizeBytes = provider.LogoData?.Length,
+                    LogoUploadedAt = provider.LogoUploadedAt
                 },
                 Message = "Provider restored successfully.",
                 Succeeded = true
@@ -68,7 +73,12 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                 Name = newProvider.Name,
                 Description = newProvider.Description,
                 LicenseNumber = newProvider.LicenseNumber,
-                Color = newProvider.Color
+                Color = newProvider.Color,
+                HasLogo = newProvider.LogoData != null && newProvider.LogoData.Length > 0,
+                LogoContentType = newProvider.LogoContentType,
+                LogoFileName = newProvider.LogoFileName,
+                LogoSizeBytes = newProvider.LogoData?.Length,
+                LogoUploadedAt = newProvider.LogoUploadedAt
             },
             Message = "Provider created successfully.",
             Succeeded = true

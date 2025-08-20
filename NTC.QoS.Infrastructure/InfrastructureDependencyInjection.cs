@@ -108,6 +108,8 @@ public static class InfrastructureDependencyInjection
             // migrate first
             await dbContext.Database.MigrateAsync();
             await LocationSeeder.SeedAllAsync(dbContext, logger);
+            await OrganizationSeeder.SeedAsync(dbContext, logger);
+            await RoleSeeder.SeedAsync(dbContext, logger);
         });
 
         return services;

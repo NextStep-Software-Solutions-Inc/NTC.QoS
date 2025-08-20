@@ -36,6 +36,33 @@ public class ProvidersController(IMediator mediator) : ControllerBase
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 
+    [HttpGet("{id}/logo")]
+    public async Task<IActionResult> GetProviderLogo(Guid id)
+    {
+        var result = await _mediator.Send(new GetProviderLogoByIdRequest(id));
+
+        if (!result.Succeeded || result.Data == null || result.Data.LogoData == null)
+        {
+            return NotFound("Logo data not found.");
+        }
+
+        return File(result.Data.LogoData, result.Data.ContentType, result.Data.FileName);
+    }
+
+    [HttpPost("{id}/logo")]
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> AddProviderLogo(Guid id, [FromForm] UploadProviderLogoDto logo)
+    {
+        var result = await _mediator.Send(new AddProviderLogoByIdRequest(id, logo));
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpDelete("{id}/logo")]
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> DeleteProviderLogo(Guid id)
+    {
+        var result = await _mediator.Send(new DeleteProviderLogoByIdRequest(id));
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
     {
