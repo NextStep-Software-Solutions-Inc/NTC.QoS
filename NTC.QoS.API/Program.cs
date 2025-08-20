@@ -58,7 +58,7 @@ public class Program
             };
          });
    
-        builder.Services.AddAuthorization();
+        // builder.Services.AddAuthorization();
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddCors(options =>
