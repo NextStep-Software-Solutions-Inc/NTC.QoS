@@ -30,6 +30,13 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
             };
         }
 
+        // Convert logo data to base64 if available
+        string? logoBase64 = null;
+        if (provider.LogoData != null && provider.LogoData.Length > 0)
+        {
+            logoBase64 = Convert.ToBase64String(provider.LogoData);
+        }
+
         return new ApiResponse<ProviderDto>
         {
             Succeeded = true,
@@ -41,7 +48,9 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
                 Description = provider.Description,
                 LicenseNumber = provider.LicenseNumber,
                 Color = provider.Color,
-                LogoPath = provider.LogoPath
+                LogoBase64 = logoBase64,
+                LogoContentType = provider.LogoContentType,
+                LogoFileName = provider.LogoFileName
             }
         };
     }

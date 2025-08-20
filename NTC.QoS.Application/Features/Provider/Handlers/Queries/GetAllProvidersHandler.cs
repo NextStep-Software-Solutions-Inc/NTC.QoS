@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Provider.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 
@@ -27,7 +26,9 @@ public class GetAllProvidersHandler(IProviderRepository providerRepository) : IR
                 Description = p.Description,
                 LicenseNumber = p.LicenseNumber,
                 Color = p.Color,
-                LogoPath = p.LogoPath
+                LogoBase64 = p.LogoData != null && p.LogoData.Length > 0 ? Convert.ToBase64String(p.LogoData) : null,
+                LogoContentType = p.LogoContentType,
+                LogoFileName = p.LogoFileName
             });
 
         return await _providerRepository.PaginateAsync(providerDtosQuery, request.PageNumber, request.PageSize, cancellationToken);

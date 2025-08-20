@@ -22,13 +22,6 @@ public class ProvidersController(IMediator mediator) : ControllerBase
         return provider.Succeeded ? Ok(provider) : BadRequest(provider);
     }
 
-    [HttpPost("{id}/logo")]
-    public async Task<ActionResult<ApiResponse<ProviderDto>>> AddProviderLogo(Guid id, [FromForm] UploadProviderLogoDto logo)
-    {
-        var result = await _mediator.Send(new AddProviderLogoByIdRequest(id, logo));
-        return result.Succeeded ? Ok(result) : BadRequest(result);
-    }
-
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? serviceIds = null, [FromQuery] List<string>? names = null)
     {
@@ -41,6 +34,26 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     {
         var providers = await _mediator.Send(new GetProviderByIdRequest(id));
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
+    }
+
+    [HttpGet("{id}/logo")]
+    public async Task<IActionResult> GetProviderLogo(Guid id)
+    {
+        var result = await _mediator.Send(new GetProviderLogoByIdRequest(id));
+        
+        if (!result.Succeeded || result.Data == null)
+        {
+            return NotFound(result);
+        }
+
+        return File(result.Data.LogoData, result.Data.ContentType, result.Data.FileName);
+    }
+
+    [HttpPost("{id}/logo")]
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> AddProviderLogo(Guid id, [FromForm] UploadProviderLogoDto logo)
+    {
+        var result = await _mediator.Send(new AddProviderLogoByIdRequest(id, logo));
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
     [HttpPatch("{id}")]

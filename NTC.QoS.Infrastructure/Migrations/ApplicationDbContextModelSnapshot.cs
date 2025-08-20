@@ -1461,7 +1461,13 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("LicenseNumber")
                         .HasColumnType("text");
 
-                    b.Property<string>("LogoPath")
+                    b.Property<string>("LogoContentType")
+                        .HasColumnType("text");
+
+                    b.Property<byte[]>("LogoData")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("LogoFileName")
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
