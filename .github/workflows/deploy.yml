@@ -38,6 +38,23 @@ jobs:
             --set image.tag=latest \
             --dry-run
 
+      - name: Comment deployment status and URL
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const url = '${{ steps.get_url.outputs.url }}';
+            const status = '✅ Deployment to DigitalOcean Kubernetes succeeded!';
+            const message = `${status}\n\n🔗 [View your app](${url})`;
+            if (context.issue && context.issue.number) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+            }
+
   deploy:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -76,28 +93,13 @@ jobs:
 
       - name: Comment deployment status and URL
         uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         with:
-           script: |
-            const url = '${{ steps.get_url.outputs.url }}';
-            const status = '✅ Deployment to DigitalOcean Kubernetes succeeded!';
-            const message = `${status}\n\n🔗 [View your app](${url})`;
-
-            if (context.eventName === 'pull_request' && context.issue && context.issue.number) {
-              // Comment on the pull request
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: message
-              });
-            } else if (context.eventName === 'push') {
-              // Comment on the latest commit
-              github.rest.repos.createCommitComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                commit_sha: context.sha,
-                body: message
-              });
-            } else {
-              console.log("No valid context for commenting.");
-            }
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: "✅ Deployment to DigitalOcean Kubernetes succeeded!\n\n🔗 [View your app](api.qos.nextstep-software.com)"
+            });
