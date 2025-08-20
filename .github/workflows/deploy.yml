@@ -101,7 +101,8 @@ jobs:
         run: |
           helm upgrade --install ${{ env.RELEASE_NAME }} ./k8s \
             --set image.repository=${{ env.DOCKER_IMAGE }} \
-            --set image.tag=latest
+            --set image.tag=latest \ 
+            --set env.ASPNETCORE_ENVIRONMENT=Production
 
       - name: Check deployment rollout status
         run: |
