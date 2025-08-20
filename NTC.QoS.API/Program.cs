@@ -58,10 +58,10 @@ public class Program
                  }
             };
          });
-        builder.Services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .Build());
+        // builder.Services.AddAuthorizationBuilder()
+        //     .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        //         .RequireAuthenticatedUser()
+        //         .Build());
                 
         builder.Services.AddAuthorization();
 
