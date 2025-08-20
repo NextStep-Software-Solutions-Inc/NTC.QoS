@@ -108,7 +108,7 @@ public class AddProviderLogoByIdHandler(
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "FileReadError", new[] { $"Failed to read logo file: {ex.Message}" } }
+                    { "FileReadError", new[] { $"Failed to read logo file." } }
                 },
                 Message = "An error occurred while reading the logo file."
             };

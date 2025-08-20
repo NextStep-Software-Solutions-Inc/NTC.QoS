@@ -74,7 +74,7 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                 Description = newProvider.Description,
                 LicenseNumber = newProvider.LicenseNumber,
                 Color = newProvider.Color,
-                HasLogo = false, // New provider has no logo initially
+                HasLogo = newProvider.LogoData != null && newProvider.LogoData.Length > 0,
                 LogoContentType = newProvider.LogoContentType,
                 LogoFileName = newProvider.LogoFileName,
                 LogoSizeBytes = newProvider.LogoData?.Length,
