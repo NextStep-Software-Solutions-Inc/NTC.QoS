@@ -13,6 +13,7 @@ using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Filters;
 using Hangfire;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 
 namespace NTC.QoS.API;
 
@@ -58,7 +59,11 @@ public class Program
                  }
             };
          });
-
+        builder.Services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build());
+                
         builder.Services.AddAuthorization();
 
         builder.Services.AddHttpContextAccessor();
