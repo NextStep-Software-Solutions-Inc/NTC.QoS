@@ -5,6 +5,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    
 spec:
   ingressClassName: nginx
   tls:
@@ -15,6 +16,14 @@ spec:
     - host: {{ .Values.domain }}
       http:
         paths:
+          - path: /.well-known/acme-challenge/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-service
+                port:
+                  number: 80
+                  
           - path: /
             pathType: Prefix
             backend:
