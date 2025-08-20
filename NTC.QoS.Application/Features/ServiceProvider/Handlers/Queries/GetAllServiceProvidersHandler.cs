@@ -54,7 +54,7 @@ public class GetAllServiceProvidersHandler(
         {
             var requestedServiceTypes = request.ServiceTypes
                 .Select(st => EnumHelper<ServiceTypeEnum>.GetValue(st))
-                .ToHashSet(); // Use HashSet for O(1) lookups
+                .ToHashSet();
             
             allServiceProvidersQuery = allServiceProvidersQuery
                 .Where(s => requestedServiceTypes.Contains(s.Service.Type));
