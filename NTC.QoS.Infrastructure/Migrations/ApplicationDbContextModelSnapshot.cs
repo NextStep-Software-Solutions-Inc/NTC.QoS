@@ -18,7 +18,7 @@ namespace NTC.QoS.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.6")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
@@ -1460,6 +1460,18 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<string>("LicenseNumber")
                         .HasColumnType("text");
+
+                    b.Property<string>("LogoContentType")
+                        .HasColumnType("text");
+
+                    b.Property<byte[]>("LogoData")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("LogoFileName")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LogoUploadedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Name")
                         .IsRequired()
