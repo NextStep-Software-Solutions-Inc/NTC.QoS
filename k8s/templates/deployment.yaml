@@ -33,3 +33,5 @@ spec:
                 secretKeyRef:
                   name: ntc-qos-secrets
                   key: Clerk__SecretKey
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.env.ASPNETCORE_ENVIRONMENT | default "Production" }}

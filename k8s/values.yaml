@@ -5,3 +5,6 @@ image:
   tag: latest
 
 domain: api.qos.nextstep-software.com
+            
+env:
+  ASPNETCORE_ENVIRONMENT: Production
