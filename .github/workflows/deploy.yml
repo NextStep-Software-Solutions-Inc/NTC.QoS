@@ -77,13 +77,27 @@ jobs:
       - name: Comment deployment status and URL
         uses: actions/github-script@v7
         with:
-          script: |
+           script: |
             const url = '${{ steps.get_url.outputs.url }}';
             const status = '✅ Deployment to DigitalOcean Kubernetes succeeded!';
             const message = `${status}\n\n🔗 [View your app](${url})`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: message
-            });
+
+            if (context.eventName === 'pull_request' && context.issue && context.issue.number) {
+              // Comment on the pull request
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+            } else if (context.eventName === 'push') {
+              // Comment on the latest commit
+              github.rest.repos.createCommitComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+                body: message
+              });
+            } else {
+              console.log("No valid context for commenting.");
+            }
