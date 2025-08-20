@@ -27,11 +27,13 @@ public static class OrganizationSeeder
     {
         logger.LogInformation("Checking if organizations need to be seeded...");
 
-        // Check if organizations already exist
-        var organizationsExist = await context.Organizations.AsNoTracking().AnyAsync();
-        if (organizationsExist)
+        // Check if base names already exist (using Name property instead of Key since Organization doesn't have Key)
+        var baseNames = new[] { "National", "Regional", "Public" };
+        var baseNamesExist = await context.Organizations.AsNoTracking().AnyAsync(o => baseNames.Contains(o.Name));
+
+        if (baseNamesExist)
         {
-            logger.LogInformation("Organizations already exist in database. Skipping organization seeding.");
+            logger.LogInformation("Base organization names already exist in database. Skipping organization seeding.");
             return;
         }
 
