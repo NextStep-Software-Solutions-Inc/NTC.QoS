@@ -135,8 +135,8 @@ public class Program
         var app = builder.Build();
         
         // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
-        {
+        // if (app.Environment.IsDevelopment())
+        // {
             app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI(s =>
@@ -146,7 +146,7 @@ public class Program
                 s.ConfigObject.DeepLinking = true;
                 s.ConfigObject.DisplayRequestDuration = true;
             });
-        }
+        // }
 
         app.UseHttpsRedirection();
         app.UseResponseCompression();
