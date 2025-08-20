@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: ntc-qos
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ConnectionStrings__PostgreSqlConnection
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: DB_CONNECTION_STRING
+            - name: ConnectionStrings__HangfireConnection
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: HANGFIRE_CONNECTION_STRING
+            - name: Clerk__SecretKey
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: Clerk__SecretKey

@@ -1,0 +1,82 @@
+﻿using ClosedXML.Excel;
+using NTC.QoS.Domain.Attributes;
+
+namespace NTC.QoS.Infrastructure.Helper;
+
+public static class ExcelHelper
+{
+
+    public static List<T> ParseExcelToClass<T>(FileStream stream) where T : new()
+    {
+        var result = new List<T>();
+
+        using (var workbook = new XLWorkbook(stream))
+        {
+            var worksheet = workbook.Worksheet(1); // Use the first worksheet
+
+            if (worksheet == null)
+            {
+                return result;
+            }
+
+            var lastRow = worksheet.LastRowUsed();
+            var lastColumn = worksheet.LastColumnUsed();
+
+            if (lastRow == null || lastColumn == null)
+            {
+                return result;
+            }
+
+            var rowCount = lastRow.RowNumber();
+            var columnCount = lastColumn.ColumnNumber();
+
+            // Get headers from the first row
+            var headers = new List<string>();
+            for (int col = 1; col <= columnCount; col++)
+            {
+                headers.Add(worksheet.Cell(1, col).GetString());
+            }
+
+            // Parse rows into objects
+            for (int row = 2; row <= rowCount; row++) // Start from row 2 (data rows)
+            {
+                var obj = new T();
+                var properties = typeof(T).GetProperties();
+
+                for (int col = 1; col <= columnCount; col++)
+                {
+                    var cellValue = worksheet.Cell(row, col).GetString();
+                    var header = headers[col - 1];
+
+                    // Match header to property using the ExcelHeaderAttribute
+                    var property = properties.FirstOrDefault(p =>
+                    {
+                        var attribute = p.GetCustomAttributes(typeof(ExcelHeaderAttribute), false)
+                                         .Cast<ExcelHeaderAttribute>()
+                                         .FirstOrDefault();
+                        return attribute != null && attribute.HeaderName.Equals(header, StringComparison.OrdinalIgnoreCase);
+                    });
+
+                    if (property != null && property.CanWrite)
+                    {
+                        try
+                        {
+                            var convertedValue = Convert.ChangeType(cellValue, property.PropertyType);
+                            property.SetValue(obj, convertedValue);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Only log the problematic row, not all rows
+                            Console.WriteLine($"[ExcelHelper][ERROR] Row: {row}, Col: {col}, Header: '{header}', Property: '{property.Name}', Value: '{cellValue}', Type: '{property.PropertyType.Name}', Exception: {ex.Message}");
+                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at Row {row}, Col {col} (Header: '{header}').", ex);
+                        }
+                    }
+                }
+
+                result.Add(obj);
+            }
+        }
+
+        return result;
+    }
+}

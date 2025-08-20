@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/NTC.QoS.API/Uploads/
+
+# geospatial files
+*.geojson
+
+# Kubernetes
+k8s/secret.yaml

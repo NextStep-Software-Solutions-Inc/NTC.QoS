@@ -1,0 +1,48 @@
+﻿using MediatR;
+using NTC.QoS.Application.Features.AntennaPattern.Requests;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
+
+namespace NTC.QoS.Application.Features.AntennaPattern.Handlers.Commands;
+
+public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPattern> repository): IRequestHandler<CreateAntennaPatternRequest, ApiResponse<AntennaPatternDto>>
+{
+    private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
+
+    public async Task<ApiResponse<AntennaPatternDto>> Handle(CreateAntennaPatternRequest request, CancellationToken cancellationToken)
+    {
+        var antennaPatternQuery = _repository.Query(ap => ap.Name == request.AntennaPattern.Name);
+        var antennaPattern = await _repository.FirstOrDefaultAsync(antennaPatternQuery, cancellationToken);
+
+        if (antennaPattern is not null)
+        {
+            return new ApiResponse<AntennaPatternDto>
+            {
+                Message = "Antenna pattern already exists.",
+                Succeeded = false
+            };
+        }
+
+        var newAntennaPattern = new Domain.Entities.AntennaPattern
+        {
+            Name = request.AntennaPattern.Name,
+            URL = request.AntennaPattern.URL,
+        };
+
+        _repository.Add(newAntennaPattern);
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        return new ApiResponse<AntennaPatternDto>
+        {
+            Data = new AntennaPatternDto
+            {
+                Id = newAntennaPattern.Id,
+                Name = newAntennaPattern.Name,
+                URL = newAntennaPattern.URL,
+            },
+            Succeeded = true,
+            Message = "Antenna pattern created successfully.",
+        };
+    }
+}

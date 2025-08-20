@@ -2,9 +2,6 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface IProviderRepository
+public interface IProviderRepository: IRepository<Provider>
 {
-    Task<Provider?> GetByIdAsync(int id);
-    Task<List<Provider>> GetAllAsync();
-    Task AddAsync(Provider product);
 }
