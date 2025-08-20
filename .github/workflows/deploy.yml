@@ -1,0 +1,55 @@
+name: Deploy to DigitalOcean Kubernetes with Helm
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up DigitalOcean kubeconfig
+        run: doctl kubernetes cluster kubeconfig save ${{ secrets.DO_CLUSTER_NAME }}
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DO_TOKEN }}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install ntc-qos-api ./k8s \
+            --set image.repository=wacanam20/ntc-qos-api \
+            --set image.tag=latest
+
+      - name: Get Ingress Host
+        id: get_url
+        run: |
+          URL=$(kubectl get ingress ntc-qos-api-ingress -o jsonpath='{.spec.rules[0].host}')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Comment deployment status and URL
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const url = '${{ steps.get_url.outputs.url }}';
+            const status = '✅ Deployment to DigitalOcean Kubernetes succeeded!';
+            const message = `${status}\n\n🔗 [View your app](${url})`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });

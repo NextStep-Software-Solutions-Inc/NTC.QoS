@@ -1,0 +1,7 @@
+replicaCount: 2
+
+image:
+  repository: wacanam20/ntc-qos-api
+  tag: latest
+
+domain: api.qos.nextstep-software.com
