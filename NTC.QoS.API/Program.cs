@@ -12,6 +12,7 @@ using System.Security.Claims;
 using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Filters;
 using Hangfire;
+using Microsoft.AspNetCore.Authorization;
 
 namespace NTC.QoS.API;
 
@@ -57,7 +58,11 @@ public class Program
                  }
             };
          });
-   
+        builder.Services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build());
+                
         builder.Services.AddAuthorization();
 
         builder.Services.AddHttpContextAccessor();
@@ -123,8 +128,8 @@ public class Program
         var app = builder.Build();
         
         // Configure the HTTP request pipeline.
-        // if (app.Environment.IsDevelopment())
-        // {
+        if (app.Environment.IsDevelopment())
+        {
             app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI(s =>
@@ -134,15 +139,15 @@ public class Program
                 s.ConfigObject.DeepLinking = true;
                 s.ConfigObject.DisplayRequestDuration = true;
             });
-        // }
+        }
 
         app.UseHttpsRedirection();
         app.UseResponseCompression();
         app.UseResponseCaching();
+
         app.UseAuthentication();
         app.UseAuthorization();
 
-       
         app.UseHangfireDashboard();
 
         app.ConfigureExceptionHandler(app.Logger); //Important line.
