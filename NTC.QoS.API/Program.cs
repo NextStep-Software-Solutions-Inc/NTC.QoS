@@ -144,10 +144,6 @@ public class Program
         app.UseHttpsRedirection();
         app.UseResponseCompression();
         app.UseResponseCaching();
-
-        app.UseAuthentication();
-        app.UseAuthorization();
-
         app.Use(async (context, next) =>
         {
             if (context.Request.Path.StartsWithSegments("/.well-known/acme-challenge"))
@@ -159,6 +155,10 @@ public class Program
             await next();
         });
         
+        app.UseAuthentication();
+        app.UseAuthorization();
+
+       
         app.UseHangfireDashboard();
 
         app.ConfigureExceptionHandler(app.Logger); //Important line.
