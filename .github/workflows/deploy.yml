@@ -7,13 +7,17 @@ on:
     branches: [master]
 
 jobs:
-  deploy:
+  validate-deploy:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    environment: Production
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
@@ -25,8 +29,37 @@ jobs:
 
       - name: Set up DigitalOcean kubeconfig
         run: doctl kubernetes cluster kubeconfig save ${{ secrets.DO_CLUSTER_NAME }}
-        env:
-          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DO_TOKEN }}
+
+      - name: Helm dry-run (validate deployment)
+        run: |
+          helm upgrade --install ntc-qos-api ./k8s \
+            --set image.repository=wacanam20/ntc-qos-api \
+            --set image.tag=latest \
+            --dry-run
+
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up DigitalOcean kubeconfig
+        run: doctl kubernetes cluster kubeconfig save ${{ secrets.DO_CLUSTER_NAME }}
 
       - name: Deploy with Helm
         run: |
@@ -42,7 +75,6 @@ jobs:
 
       - name: Comment deployment status and URL
         uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
         with:
           script: |
             const url = '${{ steps.get_url.outputs.url }}';
