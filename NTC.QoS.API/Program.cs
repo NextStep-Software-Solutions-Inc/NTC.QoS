@@ -148,10 +148,10 @@ public class Program
         {
             if (context.Request.Path.StartsWithSegments("/.well-known/acme-challenge"))
             {
-                await next();
+                context.Response.StatusCode = 200;
+                await context.Response.WriteAsync("OK");
                 return;
             }
-            // Authentication will run for other paths
             await next();
         });
         
