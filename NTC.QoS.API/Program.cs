@@ -133,12 +133,12 @@ public class Program
         builder.Services.AddScoped<GeospatialQueryService>();
 
         var app = builder.Build();
+        app.UseCors();
         
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
-            app.UseCors();
             app.UseSwaggerUI(s =>
             {
                 s.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
