@@ -28,6 +28,23 @@ public class MunicipalityAreaInfoDto
     public int CellCount { get; set; }
     public int NAPCount { get; set; }
     public int TotalAssets => CellCount + NAPCount;
+    
+    /// <summary>
+    /// Percentage of total assets in this municipality relative to the overall area
+    /// </summary>
+    public double AssetPercentage { get; set; }
+    
+    /// <summary>
+    /// Indicates if this municipality has complete boundary data for accurate spatial calculations
+    /// </summary>
+    public bool HasBoundaryData => Id.HasValue;
+    
+    /// <summary>
+    /// Display name for the municipality (handles "Unknown" case)
+    /// </summary>
+    public string DisplayName => string.IsNullOrEmpty(Name) || Name == "Unknown" 
+        ? "Unknown Municipality" 
+        : Name;
 }
 
 public class AreaEnvelopeInfoDto

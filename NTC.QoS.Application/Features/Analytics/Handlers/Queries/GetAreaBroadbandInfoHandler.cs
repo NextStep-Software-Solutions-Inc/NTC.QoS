@@ -7,6 +7,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Infrastructure.Helper;
+using Microsoft.Extensions.Logging;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -15,15 +16,18 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
     private readonly ICellRepository _cellRepository;
     private readonly INAPRepository _napRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly ILogger<GetAreaBroadbandInfoHandler> _logger;
 
     public GetAreaBroadbandInfoHandler(
         ICellRepository cellRepository,
         INAPRepository napRepository,
-        IMunicipalityRepository municipalityRepository)
+        IMunicipalityRepository municipalityRepository,
+        ILogger<GetAreaBroadbandInfoHandler> logger)
     {
         _cellRepository = cellRepository;
         _napRepository = napRepository;
         _municipalityRepository = municipalityRepository;
+        _logger = logger;
     }
 
     public async Task<ApiResponse<AreaBroadbandInfoDto>> Handle(GetAreaBroadbandInfoRequest request, CancellationToken cancellationToken)
@@ -32,6 +36,8 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         {
             // Validation is now handled by FluentValidation pipeline
             var bbox = request.BoundingBox;
+            _logger.LogInformation("Processing area broadband info for bounding box: {MinLat}, {MinLon} to {MaxLat}, {MaxLon}", 
+                bbox.MinLatitude, bbox.MinLongitude, bbox.MaxLatitude, bbox.MaxLongitude);
 
             // Create polygon from bounding box
             var envelope = CreatePolygonFromBoundingBox(bbox);
@@ -76,6 +82,9 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 }),
                 cancellationToken);
 
+            _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs in the specified area", 
+                cellsWithProvider.Count, napsWithProvider.Count);
+
             // Group by service provider and calculate counts
             var allProviders = cellsWithProvider.Select(c => c.ServiceProvider)
                 .Concat(napsWithProvider.Select(n => n.ServiceProvider))
@@ -95,7 +104,17 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             .OrderByDescending(sp => sp.TotalAssets)
             .ToList();
 
+            _logger.LogInformation("Found {ProviderCount} service providers with assets in the area", serviceProviders.Count);
+
             var municipalities = await CalculateMunicipalityInfo(cellsWithProvider, napsWithProvider, cancellationToken);
+            _logger.LogInformation("Found {MunicipalityCount} municipalities with assets in the area", municipalities.Count);
+
+            // Log municipality details for debugging
+            foreach (var municipality in municipalities.Take(5)) // Log first 5 municipalities
+            {
+                _logger.LogInformation("Municipality: {Name} - Cells: {CellCount}, NAPs: {NAPCount}, Total: {TotalAssets}", 
+                    municipality.Name, municipality.CellCount, municipality.NAPCount, municipality.TotalAssets);
+            }
 
             var envelopeInfo = CalculateEnvelopeInfo(envelope, bbox);
 
@@ -121,6 +140,9 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 EnvelopeInfo = envelopeInfo
             };
 
+            _logger.LogInformation("Successfully processed area broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities", 
+                summary.TotalCells, summary.TotalNaps, summary.TotalAssets, summary.ServiceProviderCount, summary.MunicipalityCount);
+
             return new ApiResponse<AreaBroadbandInfoDto>
             {
                 Succeeded = true,
@@ -130,6 +152,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error occurred while processing area broadband info request");
             return new ApiResponse<AreaBroadbandInfoDto>
             {
                 Succeeded = false,
@@ -165,6 +188,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
 
         if (allLocations.Count == 0)
         {
+            _logger.LogWarning("No valid locations found for municipality calculation");
             return new List<MunicipalityAreaInfoDto>();
         }
 
@@ -211,18 +235,28 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             }
         }
 
-        // Convert to DTO list and sort by total assets
-        return [.. municipalityGroups
+        // Calculate total assets for percentage calculation
+        var totalAssets = cellsWithProvider.Count + napsWithProvider.Count;
+
+        var result = municipalityGroups
             .Select(kvp => new MunicipalityAreaInfoDto
             {
                 Id = kvp.Key.Id,
                 Name = kvp.Key.Name,
                 CellCount = kvp.Value.CellCount,
-                NAPCount = kvp.Value.NAPCount
+                NAPCount = kvp.Value.NAPCount,
+                AssetPercentage = totalAssets > 0 
+                    ? Math.Round(((double)(kvp.Value.CellCount + kvp.Value.NAPCount) / totalAssets) * 100, 2)
+                    : 0
             })
             .Where(m => m.TotalAssets > 0)
             .OrderByDescending(m => m.TotalAssets)
-            .ThenBy(m => m.Name)];
+            .ThenBy(m => m.Name)
+            .ToList();
+
+        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} municipalities with assets", result.Count);
+        
+        return result;
     }
 
     private static Point? GetLocationFromDynamic(dynamic item)
