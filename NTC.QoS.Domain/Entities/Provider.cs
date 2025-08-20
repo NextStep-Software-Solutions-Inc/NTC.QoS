@@ -11,5 +11,6 @@ public class Provider : BaseEntity
     public byte[]? LogoData { get; set; }
     public string? LogoContentType { get; set; }
     public string? LogoFileName { get; set; }
+    public DateTime? LogoUploadedAt { get; set; }
     public virtual List<ServiceProvider> ServiceProviders { get; set; } = new();
 }

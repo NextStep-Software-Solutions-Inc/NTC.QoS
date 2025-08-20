@@ -26,9 +26,11 @@ public class GetAllProvidersHandler(IProviderRepository providerRepository) : IR
                 Description = p.Description,
                 LicenseNumber = p.LicenseNumber,
                 Color = p.Color,
-                LogoBase64 = p.LogoData != null && p.LogoData.Length > 0 ? Convert.ToBase64String(p.LogoData) : null,
+                HasLogo = p.LogoData != null && p.LogoData.Length > 0,
                 LogoContentType = p.LogoContentType,
-                LogoFileName = p.LogoFileName
+                LogoFileName = p.LogoFileName,
+                LogoSizeBytes = p.LogoData != null ? p.LogoData.Length : null,
+                LogoUploadedAt = p.LogoUploadedAt
             });
 
         return await _providerRepository.PaginateAsync(providerDtosQuery, request.PageNumber, request.PageSize, cancellationToken);

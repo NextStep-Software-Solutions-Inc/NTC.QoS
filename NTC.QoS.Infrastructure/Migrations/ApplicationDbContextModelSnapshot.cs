@@ -1470,6 +1470,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("LogoFileName")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("LogoUploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");

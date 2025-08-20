@@ -19,13 +19,6 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
             repository.Update(provider);
             await repository.SaveChangesAsync(cancellationToken);
 
-            // Convert logo data to base64 if available
-            string? logoBase64 = null;
-            if (provider.LogoData != null && provider.LogoData.Length > 0)
-            {
-                logoBase64 = Convert.ToBase64String(provider.LogoData);
-            }
-
             return new ApiResponse<ProviderDto>
             {
                 Data = new ProviderDto
@@ -35,9 +28,11 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                     Description = provider.Description,
                     LicenseNumber = provider.LicenseNumber,
                     Color = provider.Color,
-                    LogoBase64 = logoBase64,
+                    HasLogo = provider.LogoData != null && provider.LogoData.Length > 0,
                     LogoContentType = provider.LogoContentType,
-                    LogoFileName = provider.LogoFileName
+                    LogoFileName = provider.LogoFileName,
+                    LogoSizeBytes = provider.LogoData?.Length,
+                    LogoUploadedAt = provider.LogoUploadedAt
                 },
                 Message = "Provider restored successfully.",
                 Succeeded = true
@@ -79,9 +74,11 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                 Description = newProvider.Description,
                 LicenseNumber = newProvider.LicenseNumber,
                 Color = newProvider.Color,
-                LogoBase64 = null, // New provider has no logo initially
+                HasLogo = false, // New provider has no logo initially
                 LogoContentType = newProvider.LogoContentType,
-                LogoFileName = newProvider.LogoFileName
+                LogoFileName = newProvider.LogoFileName,
+                LogoSizeBytes = newProvider.LogoData?.Length,
+                LogoUploadedAt = newProvider.LogoUploadedAt
             },
             Message = "Provider created successfully.",
             Succeeded = true

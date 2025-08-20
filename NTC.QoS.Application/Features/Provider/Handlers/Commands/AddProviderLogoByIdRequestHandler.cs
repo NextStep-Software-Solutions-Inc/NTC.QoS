@@ -59,16 +59,14 @@ public class AddProviderLogoByIdHandler(
             _logger.LogInformation("Successfully processed logo file for provider {ProviderId}. File size: {FileSize} bytes", 
                 provider.Id, logoData.Length);
 
-            // Update provider with new logo data
+            // Update provider with new logo data and metadata
             provider.LogoData = logoData;
             provider.LogoContentType = request.Logo.LogoFile.ContentType;
             provider.LogoFileName = request.Logo.LogoFile.FileName;
+            provider.LogoUploadedAt = DateTime.UtcNow;
 
             _repository.Update(provider);
             await _repository.SaveChangesAsync(cancellationToken);
-
-            // Convert logo data to base64 for response
-            var logoBase64 = Convert.ToBase64String(logoData);
 
             return new ApiResponse<ProviderDto>
             {
@@ -80,9 +78,11 @@ public class AddProviderLogoByIdHandler(
                     Description = provider.Description,
                     LicenseNumber = provider.LicenseNumber,
                     Color = provider.Color,
-                    LogoBase64 = logoBase64,
+                    HasLogo = provider.LogoData != null && provider.LogoData.Length > 0,
                     LogoContentType = provider.LogoContentType,
-                    LogoFileName = provider.LogoFileName
+                    LogoFileName = provider.LogoFileName,
+                    LogoSizeBytes = provider.LogoData?.Length,
+                    LogoUploadedAt = provider.LogoUploadedAt
                 },
                 Message = "Provider logo uploaded successfully."
             };

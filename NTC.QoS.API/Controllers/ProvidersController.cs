@@ -56,6 +56,13 @@ public class ProvidersController(IMediator mediator) : ControllerBase
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
+    [HttpDelete("{id}/logo")]
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> DeleteProviderLogo(Guid id)
+    {
+        var result = await _mediator.Send(new DeleteProviderLogoByIdRequest(id));
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
     {

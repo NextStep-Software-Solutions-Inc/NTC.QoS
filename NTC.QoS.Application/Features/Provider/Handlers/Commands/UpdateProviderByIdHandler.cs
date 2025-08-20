@@ -48,13 +48,6 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
         _repository.Update(provider);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        // Convert logo data to base64 if available
-        string? logoBase64 = null;
-        if (provider.LogoData != null && provider.LogoData.Length > 0)
-        {
-            logoBase64 = Convert.ToBase64String(provider.LogoData);
-        }
-
         return new ApiResponse<ProviderDto>
         {
             Succeeded = true,
@@ -65,9 +58,11 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                 Description = provider.Description,
                 LicenseNumber = provider.LicenseNumber,
                 Color = provider.Color,
-                LogoBase64 = logoBase64,
+                HasLogo = provider.LogoData != null && provider.LogoData.Length > 0,
                 LogoContentType = provider.LogoContentType,
-                LogoFileName = provider.LogoFileName
+                LogoFileName = provider.LogoFileName,
+                LogoSizeBytes = provider.LogoData?.Length,
+                LogoUploadedAt = provider.LogoUploadedAt
             },
             Message = "Provider updated successfully."
         };
