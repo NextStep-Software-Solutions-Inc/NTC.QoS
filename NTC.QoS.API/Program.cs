@@ -148,6 +148,17 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/.well-known/acme-challenge"))
+            {
+                await next();
+                return;
+            }
+            // Authentication will run for other paths
+            await next();
+        });
+        
         app.UseHangfireDashboard();
 
         app.ConfigureExceptionHandler(app.Logger); //Important line.
