@@ -36,6 +36,8 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         {
             // Validation is now handled by FluentValidation pipeline
             var bbox = request.BoundingBox;
+            _logger.LogInformation("Processing area broadband info for bounding box: {MinLat}, {MinLon} to {MaxLat}, {MaxLon}", 
+                bbox.MinLatitude, bbox.MinLongitude, bbox.MaxLatitude, bbox.MaxLongitude);
 
             // Create polygon from bounding box
             var envelope = CreatePolygonFromBoundingBox(bbox);
@@ -80,6 +82,9 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 }),
                 cancellationToken);
 
+            _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs in the specified area", 
+                cellsWithProvider.Count, napsWithProvider.Count);
+
             // Group by service provider and calculate counts
             var allProviders = cellsWithProvider.Select(c => c.ServiceProvider)
                 .Concat(napsWithProvider.Select(n => n.ServiceProvider))
@@ -99,7 +104,17 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             .OrderByDescending(sp => sp.TotalAssets)
             .ToList();
 
+            _logger.LogInformation("Found {ProviderCount} service providers with assets in the area", serviceProviders.Count);
+
             var municipalities = await CalculateMunicipalityInfo(envelope, cellsWithProvider, napsWithProvider, cancellationToken);
+            _logger.LogInformation("Found {MunicipalityCount} municipalities with assets in the area", municipalities.Count);
+
+            // Log municipality details for debugging
+            foreach (var municipality in municipalities.Take(5)) // Log first 5 municipalities
+            {
+                _logger.LogInformation("Municipality: {Name} - Cells: {CellCount}, NAPs: {NAPCount}, Total: {TotalAssets}", 
+                    municipality.Name, municipality.CellCount, municipality.NAPCount, municipality.TotalAssets);
+            }
 
             var envelopeInfo = CalculateEnvelopeInfo(envelope, bbox);
 
@@ -127,6 +142,9 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 EnvelopeInfo = envelopeInfo
             };
 
+            _logger.LogInformation("Successfully processed area broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities", 
+                summary.TotalCells, summary.TotalNaps, summary.TotalAssets, summary.ServiceProviderCount, summary.MunicipalityCount);
+
             return new ApiResponse<AreaBroadbandInfoDto>
             {
                 Succeeded = true,
@@ -136,6 +154,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error occurred while processing area broadband info request");
             return new ApiResponse<AreaBroadbandInfoDto>
             {
                 Succeeded = false,
@@ -157,13 +176,13 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         where T2 : class
     {
         var cellLocations = cellsWithProvider
-                        .Select(c => GetLocationFromDynamic(c))
+                        .Select(c => GetLocationFromObject(c))
                         .Where(loc => loc is not null && loc.IsValid)
                         .Cast<Point>()
                         .ToList();
 
         var napLocations = napsWithProvider
-            .Select(n => GetLocationFromDynamic(n))
+            .Select(n => GetLocationFromObject(n))
             .Where(loc => loc is not null && loc.IsValid)
             .Cast<Point>()
             .ToList();
@@ -197,7 +216,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         // Count cells by municipality
         foreach (var cell in cellsWithProvider)
         {
-            var location = GetLocationFromDynamic(cell);
+            var location = GetLocationFromObject(cell);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -216,7 +235,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         // Count NAPs by municipality
         foreach (var nap in napsWithProvider)
         {
-            var location = GetLocationFromDynamic(nap);
+            var location = GetLocationFromObject(nap);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -261,11 +280,27 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         return result;
     }
 
-    private static Point? GetLocationFromDynamic(dynamic item)
+    /// <summary>
+    /// Type-safe method to extract Location property from objects containing a Location property.
+    /// This replaces the dynamic approach for better compile-time type safety and performance.
+    /// </summary>
+    /// <typeparam name="T">Type containing a Location property</typeparam>
+    /// <param name="item">Object containing the Location property</param>
+    /// <returns>The Point location or null if not available or invalid</returns>
+    private static Point? GetLocationFromObject<T>(T item) where T : class
     {
         try
         {
-            return item?.Location as Point;
+            // Use reflection to get Location property in a type-safe manner
+            var locationType = typeof(T);
+            var locationProperty = locationType.GetProperty("Location");
+            
+            if (locationProperty?.PropertyType == typeof(Point))
+            {
+                return locationProperty.GetValue(item) as Point;
+            }
+            
+            return null;
         }
         catch
         {

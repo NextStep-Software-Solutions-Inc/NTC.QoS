@@ -85,14 +85,14 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
             _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs within {Radius}m of the specified point", 
                 cellsWithProvider.Count, napsWithProvider.Count, pointRadius.RadiusMeters);
 
-            // Calculate distances and add proximity information
+            // Calculate distances and add proximity information (using direct property access)
             var cellsWithDistance = cellsWithProvider.Select(c => new
             {
                 c.Id,
                 c.ServiceProviderId,
                 c.Location,
                 c.ServiceProvider,
-                DistanceMeters = CalculateDistance(centerPoint, GetLocationFromDynamic(c))
+                DistanceMeters = CalculateDistance(centerPoint, c.Location)
             }).ToList();
 
             var napsWithDistance = napsWithProvider.Select(n => new
@@ -101,7 +101,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 n.ServiceProviderId,
                 n.Location,
                 n.ServiceProvider,
-                DistanceMeters = CalculateDistance(centerPoint, GetLocationFromDynamic(n))
+                DistanceMeters = CalculateDistance(centerPoint, n.Location)
             }).ToList();
 
             // Group by service provider and calculate counts
@@ -203,13 +203,13 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         where T2 : class
     {
         var cellLocations = cellsWithProvider
-                        .Select(c => GetLocationFromDynamic(c))
+                        .Select(c => GetLocationFromObject(c))
                         .Where(loc => loc is not null && loc.IsValid)
                         .Cast<Point>()
                         .ToList();
 
         var napLocations = napsWithProvider
-            .Select(n => GetLocationFromDynamic(n))
+            .Select(n => GetLocationFromObject(n))
             .Where(loc => loc is not null && loc.IsValid)
             .Cast<Point>()
             .ToList();
@@ -243,7 +243,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         // Count cells by municipality
         foreach (var cell in cellsWithProvider)
         {
-            var location = GetLocationFromDynamic(cell);
+            var location = GetLocationFromObject(cell);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -262,7 +262,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         // Count NAPs by municipality
         foreach (var nap in napsWithProvider)
         {
-            var location = GetLocationFromDynamic(nap);
+            var location = GetLocationFromObject(nap);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -307,11 +307,27 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         return result;
     }
 
-    private static Point? GetLocationFromDynamic(dynamic item)
+    /// <summary>
+    /// Type-safe method to extract Location property from objects containing a Location property.
+    /// This replaces the dynamic approach for better compile-time type safety and performance.
+    /// </summary>
+    /// <typeparam name="T">Type containing a Location property</typeparam>
+    /// <param name="item">Object containing the Location property</param>
+    /// <returns>The Point location or null if not available or invalid</returns>
+    private static Point? GetLocationFromObject<T>(T item) where T : class
     {
         try
         {
-            return item?.Location as Point;
+            // Use reflection to get Location property in a type-safe manner
+            var locationType = typeof(T);
+            var locationProperty = locationType.GetProperty("Location");
+            
+            if (locationProperty?.PropertyType == typeof(Point))
+            {
+                return locationProperty.GetValue(item) as Point;
+            }
+            
+            return null;
         }
         catch
         {
