@@ -8,6 +8,8 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Infrastructure.Helper;
+using System.Collections.Concurrent;
+using System.Reflection;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -17,6 +19,9 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
     private readonly INAPRepository _napRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly ILogger<GetAreaBroadbandInfoHandler> _logger;
+
+    // Cache for PropertyInfo to avoid repeated reflection overhead
+    private static readonly ConcurrentDictionary<Type, PropertyInfo?> LocationPropertyCache = new();
 
     public GetAreaBroadbandInfoHandler(
         ICellRepository cellRepository,
@@ -167,6 +172,17 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         }
     }
 
+    /// <summary>
+    /// Calculates municipality information for items that have location data.
+    /// Uses both interface constraints for type safety and fallback reflection for anonymous types.
+    /// </summary>
+    /// <typeparam name="T1">Type for cells (anonymous type or IHasLocation implementer)</typeparam>
+    /// <typeparam name="T2">Type for NAPs (anonymous type or IHasLocation implementer)</typeparam>
+    /// <param name="queryGeometry">The geometry to search within</param>
+    /// <param name="cellsWithProvider">List of cells with provider information</param>
+    /// <param name="napsWithProvider">List of NAPs with provider information</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of municipality area information</returns>
     private async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo<T1, T2>(
         Geometry queryGeometry,
         List<T1> cellsWithProvider, 
@@ -176,13 +192,13 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         where T2 : class
     {
         var cellLocations = cellsWithProvider
-                        .Select(c => GetLocationFromObject(c))
+                        .Select(c => GetLocationFromItem(c))
                         .Where(loc => loc is not null && loc.IsValid)
                         .Cast<Point>()
                         .ToList();
 
         var napLocations = napsWithProvider
-            .Select(n => GetLocationFromObject(n))
+            .Select(n => GetLocationFromItem(n))
             .Where(loc => loc is not null && loc.IsValid)
             .Cast<Point>()
             .ToList();
@@ -216,7 +232,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         // Count cells by municipality
         foreach (var cell in cellsWithProvider)
         {
-            var location = GetLocationFromObject(cell);
+            var location = GetLocationFromItem(cell);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -235,7 +251,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         // Count NAPs by municipality
         foreach (var nap in napsWithProvider)
         {
-            var location = GetLocationFromObject(nap);
+            var location = GetLocationFromItem(nap);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -281,26 +297,33 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
     }
 
     /// <summary>
-    /// Type-safe method to extract Location property from objects containing a Location property.
-    /// This replaces the dynamic approach for better compile-time type safety and performance.
+    /// Type-safe method to extract Location property from objects.
+    /// Handles both interface implementations and anonymous types with optimized caching.
     /// </summary>
     /// <typeparam name="T">Type containing a Location property</typeparam>
     /// <param name="item">Object containing the Location property</param>
     /// <returns>The Point location or null if not available or invalid</returns>
-    private static Point? GetLocationFromObject<T>(T item) where T : class
+    private static Point? GetLocationFromItem<T>(T item) where T : class
     {
+        if (item == null) return null;
+
+        // First try interface-based approach for better type safety
+        if (item is IHasLocation hasLocation)
+        {
+            return hasLocation.Location;
+        }
+
+        // Fallback to cached reflection for anonymous types
         try
         {
-            // Use reflection to get Location property in a type-safe manner
             var locationType = typeof(T);
-            var locationProperty = locationType.GetProperty("Location");
-            
-            if (locationProperty?.PropertyType == typeof(Point))
+            var locationProperty = LocationPropertyCache.GetOrAdd(locationType, type =>
             {
-                return locationProperty.GetValue(item) as Point;
-            }
+                var property = type.GetProperty("Location");
+                return property?.PropertyType == typeof(Point) ? property : null;
+            });
             
-            return null;
+            return locationProperty?.GetValue(item) as Point;
         }
         catch
         {

@@ -8,6 +8,8 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Infrastructure.Helper;
+using System.Collections.Concurrent;
+using System.Reflection;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -17,6 +19,9 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
     private readonly INAPRepository _napRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly ILogger<GetPointBroadbandInfoHandler> _logger;
+
+    // Cache for PropertyInfo to avoid repeated reflection overhead
+    private static readonly ConcurrentDictionary<Type, PropertyInfo?> LocationPropertyCache = new();
 
     public GetPointBroadbandInfoHandler(
         ICellRepository cellRepository,
@@ -194,6 +199,17 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         }
     }
 
+    /// <summary>
+    /// Calculates municipality information for items that have location data.
+    /// Uses both interface constraints for type safety and fallback reflection for anonymous types.
+    /// </summary>
+    /// <typeparam name="T1">Type for cells (anonymous type or IHasLocation implementer)</typeparam>
+    /// <typeparam name="T2">Type for NAPs (anonymous type or IHasLocation implementer)</typeparam>
+    /// <param name="queryGeometry">The geometry to search within</param>
+    /// <param name="cellsWithProvider">List of cells with provider information</param>
+    /// <param name="napsWithProvider">List of NAPs with provider information</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of municipality area information</returns>
     private async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo<T1, T2>(
         Geometry queryGeometry,
         List<T1> cellsWithProvider, 
@@ -203,13 +219,13 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         where T2 : class
     {
         var cellLocations = cellsWithProvider
-                        .Select(c => GetLocationFromObject(c))
+                        .Select(c => GetLocationFromItem(c))
                         .Where(loc => loc is not null && loc.IsValid)
                         .Cast<Point>()
                         .ToList();
 
         var napLocations = napsWithProvider
-            .Select(n => GetLocationFromObject(n))
+            .Select(n => GetLocationFromItem(n))
             .Where(loc => loc is not null && loc.IsValid)
             .Cast<Point>()
             .ToList();
@@ -243,7 +259,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         // Count cells by municipality
         foreach (var cell in cellsWithProvider)
         {
-            var location = GetLocationFromObject(cell);
+            var location = GetLocationFromItem(cell);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -262,7 +278,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         // Count NAPs by municipality
         foreach (var nap in napsWithProvider)
         {
-            var location = GetLocationFromObject(nap);
+            var location = GetLocationFromItem(nap);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -308,26 +324,33 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
     }
 
     /// <summary>
-    /// Type-safe method to extract Location property from objects containing a Location property.
-    /// This replaces the dynamic approach for better compile-time type safety and performance.
+    /// Type-safe method to extract Location property from objects.
+    /// Handles both interface implementations and anonymous types with optimized caching.
     /// </summary>
     /// <typeparam name="T">Type containing a Location property</typeparam>
     /// <param name="item">Object containing the Location property</param>
     /// <returns>The Point location or null if not available or invalid</returns>
-    private static Point? GetLocationFromObject<T>(T item) where T : class
+    private static Point? GetLocationFromItem<T>(T item) where T : class
     {
+        if (item == null) return null;
+
+        // First try interface-based approach for better type safety
+        if (item is IHasLocation hasLocation)
+        {
+            return hasLocation.Location;
+        }
+
+        // Fallback to cached reflection for anonymous types
         try
         {
-            // Use reflection to get Location property in a type-safe manner
             var locationType = typeof(T);
-            var locationProperty = locationType.GetProperty("Location");
-            
-            if (locationProperty?.PropertyType == typeof(Point))
+            var locationProperty = LocationPropertyCache.GetOrAdd(locationType, type =>
             {
-                return locationProperty.GetValue(item) as Point;
-            }
+                var property = type.GetProperty("Location");
+                return property?.PropertyType == typeof(Point) ? property : null;
+            });
             
-            return null;
+            return locationProperty?.GetValue(item) as Point;
         }
         catch
         {
@@ -352,18 +375,26 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         return meters / metersPerDegreeLongitude;
     }
 
-    private static double CalculateDistance(Point point1, Point? point2)
+    /// <summary>
+    /// Calculates Haversine distance between two points in meters.
+    /// Parameters ordered consistently: centerPoint (first parameter) then targetPoint (second parameter).
+    /// </summary>
+    /// <param name="centerPoint">The center/reference point (first parameter)</param>
+    /// <param name="targetPoint">The target point to calculate distance to (second parameter)</param>
+    /// <returns>Distance in meters, or double.MaxValue if either point is invalid</returns>
+    private static double CalculateDistance(Point centerPoint, Point? targetPoint)
     {
-        if (point2?.IsValid != true || point1?.IsValid != true)
+        // Check parameters in consistent order: first parameter first, then second parameter
+        if (centerPoint?.IsValid != true || targetPoint?.IsValid != true)
             return double.MaxValue;
 
         try
         {
             // Calculate Haversine distance in meters
-            var lat1Rad = point1.Y * GeoSpatialConstants.DegreesToRadians;
-            var lon1Rad = point1.X * GeoSpatialConstants.DegreesToRadians;
-            var lat2Rad = point2.Y * GeoSpatialConstants.DegreesToRadians;
-            var lon2Rad = point2.X * GeoSpatialConstants.DegreesToRadians;
+            var lat1Rad = centerPoint.Y * GeoSpatialConstants.DegreesToRadians;
+            var lon1Rad = centerPoint.X * GeoSpatialConstants.DegreesToRadians;
+            var lat2Rad = targetPoint.Y * GeoSpatialConstants.DegreesToRadians;
+            var lon2Rad = targetPoint.X * GeoSpatialConstants.DegreesToRadians;
 
             var deltaLat = lat2Rad - lat1Rad;
             var deltaLon = lon2Rad - lon1Rad;
