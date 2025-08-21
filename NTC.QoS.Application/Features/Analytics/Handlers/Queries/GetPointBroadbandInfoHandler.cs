@@ -125,7 +125,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
 
             _logger.LogInformation("Found {ProviderCount} service providers with assets within the radius", serviceProviders.Count);
 
-            var municipalities = await CalculateMunicipalityInfo(cellsWithProvider, napsWithProvider, cancellationToken);
+            var municipalities = await CalculateMunicipalityInfo(circularArea, cellsWithProvider, napsWithProvider, cancellationToken);
             _logger.LogInformation("Found {MunicipalityCount} municipalities with assets within the radius", municipalities.Count);
 
             // Calculate area of the circular buffer
@@ -152,7 +152,9 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 TotalAssets = cellsWithProvider.Count + napsWithProvider.Count,
                 CoverageAreaKm2 = envelopeInfo.AreaSizeKm2,
                 ServiceProviderCount = serviceProviders.Count,
-                MunicipalityCount = municipalities.Count,
+                MunicipalityCount = municipalities.Count, // Now includes all covered municipalities
+                MunicipalitiesWithAssets = municipalities.Count(m => m.HasAssets),
+                MunicipalitiesWithoutAssets = municipalities.Count(m => m.IsCoveredByQuery && !m.HasAssets),
                 AssetDensityPerKm2 = envelopeInfo.AreaSizeKm2 > 0
                     ? Math.Round((double)(cellsWithProvider.Count + napsWithProvider.Count) / envelopeInfo.AreaSizeKm2, 6)
                     : 0
@@ -193,6 +195,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
     }
 
     private async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo<T1, T2>(
+        Geometry queryGeometry,
         List<T1> cellsWithProvider, 
         List<T2> napsWithProvider, 
         CancellationToken cancellationToken)
@@ -213,18 +216,29 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
 
         var allLocations = cellLocations.Concat(napLocations).ToList();
 
-        if (allLocations.Count == 0)
+        // Find all municipalities covered by the circular query area (regardless of assets)
+        var coveredMunicipalities = await GeoQueryHelper.FindMunicipalitiesWithinGeometryAsync(
+            queryGeometry, _municipalityRepository, cancellationToken);
+
+        _logger.LogInformation("Found {CoveredCount} municipalities within the circular query area", coveredMunicipalities.Count);
+
+        // Find municipalities for asset locations (if any)
+        var locationMunicipalityMap = new Dictionary<Point, (Guid? Id, string Name)>();
+        if (allLocations.Count > 0)
         {
-            _logger.LogWarning("No valid locations found for municipality calculation");
-            return new List<MunicipalityAreaInfoDto>();
+            locationMunicipalityMap = await GeoQueryHelper.FindMunicipalitiesByLocationsAsync(
+                allLocations, _municipalityRepository, cancellationToken);
         }
 
-        // Find municipalities for all locations
-        var locationMunicipalityMap = await GeoQueryHelper.FindMunicipalitiesByLocationsAsync(
-            allLocations, _municipalityRepository, cancellationToken);
-
         // Group by municipality and count assets
-        var municipalityGroups = new Dictionary<(Guid? Id, string Name), (int CellCount, int NAPCount)>();
+        var municipalityGroups = new Dictionary<(Guid? Id, string Name), (int CellCount, int NAPCount, bool IsCovered)>();
+
+        // Initialize all covered municipalities with zero assets
+        foreach (var coveredMunicipality in coveredMunicipalities)
+        {
+            var key = (coveredMunicipality.Id, coveredMunicipality.Name);
+            municipalityGroups[key] = (0, 0, true);
+        }
 
         // Count cells by municipality
         foreach (var cell in cellsWithProvider)
@@ -233,13 +247,14 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
-                if (municipalityGroups.TryGetValue(key, out (int CellCount, int NAPCount) value))
+                if (municipalityGroups.TryGetValue(key, out var value))
                 {
-                    municipalityGroups[key] = (value.CellCount + 1, value.NAPCount);
+                    municipalityGroups[key] = (value.CellCount + 1, value.NAPCount, value.IsCovered);
                 }
                 else
                 {
-                    municipalityGroups[key] = (1, 0);
+                    // Asset found in municipality not covered by query geometry (edge case)
+                    municipalityGroups[key] = (1, 0, false);
                 }
             }
         }
@@ -251,13 +266,14 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
-                if (municipalityGroups.TryGetValue(key, out (int CellCount, int NAPCount) value))
+                if (municipalityGroups.TryGetValue(key, out var value))
                 {
-                    municipalityGroups[key] = (value.CellCount, value.NAPCount + 1);
+                    municipalityGroups[key] = (value.CellCount, value.NAPCount + 1, value.IsCovered);
                 }
                 else
                 {
-                    municipalityGroups[key] = (0, 1);
+                    // Asset found in municipality not covered by query geometry (edge case)
+                    municipalityGroups[key] = (0, 1, false);
                 }
             }
         }
@@ -272,16 +288,21 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 Name = kvp.Key.Name,
                 CellCount = kvp.Value.CellCount,
                 NAPCount = kvp.Value.NAPCount,
+                IsCoveredByQuery = kvp.Value.IsCovered,
                 AssetPercentage = totalAssets > 0 
                     ? Math.Round(((double)(kvp.Value.CellCount + kvp.Value.NAPCount) / totalAssets) * 100, 2)
                     : 0
             })
-            .Where(m => m.TotalAssets > 0)
-            .OrderByDescending(m => m.TotalAssets)
-            .ThenBy(m => m.Name)
+            .OrderByDescending(m => m.HasAssets)        // Assets first
+            .ThenByDescending(m => m.TotalAssets)       // Then by asset count
+            .ThenByDescending(m => m.IsCoveredByQuery)  // Then covered ones
+            .ThenBy(m => m.Name)                        // Finally by name
             .ToList();
 
-        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} municipalities with assets", result.Count);
+        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} total municipalities ({WithAssets} with assets, {CoveredOnly} covered without assets)", 
+            result.Count, 
+            result.Count(m => m.HasAssets), 
+            result.Count(m => m.IsCoveredByQuery && !m.HasAssets));
         
         return result;
     }

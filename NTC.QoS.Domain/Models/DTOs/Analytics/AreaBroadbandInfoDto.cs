@@ -40,6 +40,24 @@ public class MunicipalityAreaInfoDto
     public bool HasBoundaryData => Id.HasValue;
 
     /// <summary>
+    /// Indicates whether this municipality is covered by the query area (has boundaries that intersect)
+    /// </summary>
+    public bool IsCoveredByQuery { get; set; }
+
+    /// <summary>
+    /// Indicates whether this municipality has any broadband assets (cells or NAPs)
+    /// </summary>
+    public bool HasAssets => TotalAssets > 0;
+
+    /// <summary>
+    /// Coverage status of the municipality
+    /// </summary>
+    public MunicipalityCoverageStatus CoverageStatus =>
+        HasAssets ? MunicipalityCoverageStatus.WithAssets :
+        IsCoveredByQuery ? MunicipalityCoverageStatus.CoveredNoAssets :
+        MunicipalityCoverageStatus.NotCovered;
+
+    /// <summary>
     /// Display name for the municipality (handles "Unknown" case)
     /// </summary>
     public string DisplayName => string.IsNullOrEmpty(Name) || Name == "Unknown"
@@ -76,4 +94,25 @@ public class PointDto
 {
     public double Latitude { get; set; }
     public double Longitude { get; set; }
+}
+
+/// <summary>
+/// Enumeration for municipality coverage status
+/// </summary>
+public enum MunicipalityCoverageStatus
+{
+    /// <summary>
+    /// Municipality is not covered by the query area
+    /// </summary>
+    NotCovered = 0,
+
+    /// <summary>
+    /// Municipality is covered by query area but has no broadband assets
+    /// </summary>
+    CoveredNoAssets = 1,
+
+    /// <summary>
+    /// Municipality is covered by query area and has broadband assets
+    /// </summary>
+    WithAssets = 2
 }

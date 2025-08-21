@@ -9,4 +9,14 @@ public class AreaSummaryDto
     public int ServiceProviderCount { get; set; }
     public int MunicipalityCount { get; set; }
     public double AssetDensityPerKm2 { get; set; }
+    
+    /// <summary>
+    /// Number of municipalities with broadband assets (cells or NAPs)
+    /// </summary>
+    public int MunicipalitiesWithAssets { get; set; }
+    
+    /// <summary>
+    /// Number of municipalities covered by query area but without any assets
+    /// </summary>
+    public int MunicipalitiesWithoutAssets { get; set; }
 }
