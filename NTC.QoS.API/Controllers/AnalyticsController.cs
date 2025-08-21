@@ -45,6 +45,34 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     }
 
     /// <summary>
+    /// Gets broadband infrastructure information within a specified radius from a center point.
+    /// Returns counts of cells, NAPs, and service provider details within the circular area.
+    /// 
+    /// Coordinate constraints:
+    /// - Latitude: -5° to 25° (Asia-Pacific region)
+    /// - Longitude: 110° to 135° (Asia-Pacific region)
+    /// - Maximum radius: 50,000 meters (50km) for performance
+    /// 
+    /// Validation:
+    /// - Point coordinates are required and must be valid
+    /// - All coordinates must be within supported geographic bounds
+    /// - Radius must be greater than 0 and not exceed 50km
+    /// </summary>
+    /// <param name="pointRadius">Center point coordinates and radius in meters</param>
+    /// <returns>Broadband infrastructure analysis for the specified circular area</returns>
+    /// <response code="200">Returns the broadband analysis data for the specified area</response>
+    /// <response code="400">Invalid point/radius parameters or validation errors</response>
+    [HttpPost("point-broadband-info")]
+    [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 400)]
+    public async Task<ActionResult<ApiResponse<AreaBroadbandInfoDto>>> GetPointBroadbandInfo(
+        [FromBody, Required] PointRadiusDto pointRadius)
+    {
+        var result = await mediator.Send(new GetPointBroadbandInfoRequest { PointRadius = pointRadius });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
     /// Gets the supported coordinate bounds and limits for the area broadband info endpoint.
     /// Useful for frontend applications to validate input before making requests.
     /// </summary>

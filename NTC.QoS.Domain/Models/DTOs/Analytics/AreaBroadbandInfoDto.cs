@@ -28,6 +28,23 @@ public class MunicipalityAreaInfoDto
     public int CellCount { get; set; }
     public int NAPCount { get; set; }
     public int TotalAssets => CellCount + NAPCount;
+
+    /// <summary>
+    /// Percentage of total assets in this municipality relative to the overall area
+    /// </summary>
+    public double AssetPercentage { get; set; }
+
+    /// <summary>
+    /// Indicates if this municipality has complete boundary data for accurate spatial calculations
+    /// </summary>
+    public bool HasBoundaryData => Id.HasValue;
+
+    /// <summary>
+    /// Display name for the municipality (handles "Unknown" case)
+    /// </summary>
+    public string DisplayName => string.IsNullOrEmpty(Name) || Name == "Unknown"
+        ? "Unknown Municipality"
+        : Name;
 }
 
 public class AreaEnvelopeInfoDto
@@ -35,6 +52,16 @@ public class AreaEnvelopeInfoDto
     public double AreaSizeKm2 { get; set; }
     public string GeometryType { get; set; } = string.Empty;
     public BoundingBoxDto BoundingBox { get; set; } = new();
+
+    /// <summary>
+    /// Center point of the query area (for circular queries)
+    /// </summary>
+    public PointDto? CenterPoint { get; set; }
+
+    /// <summary>
+    /// Radius in meters (for circular queries)
+    /// </summary>
+    public double? RadiusMeters { get; set; }
 }
 
 public class BoundingBoxDto
@@ -43,4 +70,10 @@ public class BoundingBoxDto
     public double MaxLatitude { get; set; }
     public double MinLongitude { get; set; }
     public double MaxLongitude { get; set; }
+}
+
+public class PointDto
+{
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
 }
