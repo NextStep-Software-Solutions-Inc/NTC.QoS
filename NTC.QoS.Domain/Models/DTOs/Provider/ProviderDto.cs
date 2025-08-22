@@ -12,4 +12,5 @@ public class ProviderDto
     public string? LogoFileName { get; set; }
     public long? LogoSizeBytes { get; set; }
     public DateTime? LogoUploadedAt { get; set; }
+    public string? LogoDataBase64 { get; set; }
 }
