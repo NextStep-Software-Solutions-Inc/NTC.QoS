@@ -17,7 +17,6 @@ public class GetCellSitesByProviderHandler(GeospatialQueryService geospatialQuer
         var result = await _geospatialQueryService.GetCellSitesByProviderAsync(
             request.RegionId,
             request.ServiceProviderId,
-            request.Limit,
             request.StartDate,
             request.EndDate,
             cancellationToken);

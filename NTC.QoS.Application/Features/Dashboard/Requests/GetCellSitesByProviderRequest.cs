@@ -8,7 +8,6 @@ public class GetCellSitesByProviderRequest : IRequest<ApiResponse<CellSitesByPro
 {
     public Guid? RegionId { get; set; }
     public Guid? ServiceProviderId { get; set; }
-    public int? Limit { get; set; } = null; 
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
 }

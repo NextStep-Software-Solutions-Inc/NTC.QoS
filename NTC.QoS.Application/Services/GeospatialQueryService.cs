@@ -114,24 +114,26 @@ public class GeospatialQueryService
     public async Task<CellSitesByProviderResponseDto> GetCellSitesByProviderAsync(
         Guid? regionId = null,
         Guid? serviceProviderId = null,
-        int? limit = null,
         DateTime? startDate = null,
         DateTime? endDate = null,
         CancellationToken cancellationToken = default)
     {
         if (serviceProviderId.HasValue)
         {
-            var isWirelessProvider = await _dbContext.ServiceProviders
+            var providerType = await _dbContext.ServiceProviders
                 .Where(sp => sp.Id == serviceProviderId.Value && !sp.IsDeleted)
                 .Select(sp => sp.Service.Type)
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (isWirelessProvider == ServiceTypeEnum.Unknown)
+            var providerExists = await _dbContext.ServiceProviders
+                .AnyAsync(sp => sp.Id == serviceProviderId.Value && !sp.IsDeleted, cancellationToken);
+
+            if (!providerExists)
             {
                 throw new ArgumentException($"Service Provider with ID {serviceProviderId} not found");
             }
 
-            if (isWirelessProvider != ServiceTypeEnum.Wireless)
+            if (providerType != ServiceTypeEnum.Wireless)
             {
                 throw new ArgumentException($"Service Provider with ID {serviceProviderId} is not a wireless service provider. Only wireless providers are supported for cell site statistics.");
             }
@@ -193,11 +195,6 @@ public class GeospatialQueryService
             })
             .OrderByDescending(p => p.CellCount)
             .ToListAsync(cancellationToken);
-
-        if (limit.HasValue && limit.Value > 0)
-        {
-            providerCellCounts = providerCellCounts.Take(limit.Value).ToList();
-        }
 
         var totalCellSites = providerCellCounts.Sum(p => p.CellCount);
         

@@ -72,20 +72,10 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get cell sites count by service provider, optionally filtered by region and/or specific service provider
-    /// </summary>
-    /// <param name="regionId">Optional region ID to filter by. If null, returns overall statistics for all regions</param>
-    /// <param name="serviceProviderId">Optional service provider ID to filter by. Must be a wireless service provider. If null, returns all wireless service providers</param>
-    /// <param name="limit">Optional limit for top N service providers. If null, returns ALL service providers</param>
-    /// <param name="startDate">Optional start date filter</param>
-    /// <param name="endDate">Optional end date filter</param>
-    /// <returns>Cell sites statistics by service provider with provider names, counts, and percentages. Only wireless service providers are included.</returns>
     [HttpGet("cell-sites-by-provider")]
     public async Task<ActionResult<ApiResponse<CellSitesByProviderResponseDto>>> GetCellSitesByProvider(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? serviceProviderId = null,
-        [FromQuery] int? limit = null,
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null)
     {
@@ -95,7 +85,6 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         {
             RegionId = regionId,
             ServiceProviderId = serviceProviderId,
-            Limit = limit,
             StartDate = finalStartDate,
             EndDate = finalEndDate
         };
