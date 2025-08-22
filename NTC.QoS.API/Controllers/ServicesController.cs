@@ -22,6 +22,7 @@ public class ServicesController(IMediator mediator) : ControllerBase
         return service.Succeeded ? Ok(service) : BadRequest(service);
     }
 
+    [AllowAnonymous]
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10, 
                                                                                   int pageNumber = 1, 
