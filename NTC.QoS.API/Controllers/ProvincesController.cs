@@ -14,6 +14,7 @@ namespace NTC.QoS.API.Controllers;
 public class ProvincesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private const int BrowserCacheDuration = 86400;
 
     public ProvincesController(IMediator mediator)
     {
@@ -32,6 +33,8 @@ public class ProvincesController : ControllerBase
     }
 
     [HttpGet]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "regionId" })]
+
     public async Task<ActionResult<PaginatedResponse<ProvinceDto>>> GetAllProvinces(int pageSize = 10, int pageNumber = 1, Guid? regionId = null)
     {
         var request = new GetAllProvincesRequest()

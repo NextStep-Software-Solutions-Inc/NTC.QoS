@@ -15,6 +15,7 @@ namespace NTC.QoS.API.Controllers;
 [Route("cellular-coverages", Name = "cellular-coverages")]
 public class CellularCoveragesController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
+    private const int BrowserCacheDuration = 21600;
     private const string CellularCoverageCachePrefix = "cellularCoverage_";
     private const string CellularCoverageCacheKeysSet = "cellularCoverage_cache_keys";
 
@@ -34,20 +35,21 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllPublicCellularCoverages([FromQuery] CellularCoverageQueryParams query)
     {
         return await GetAllCellularCoverages(query);
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllInternalCellularCoverages([FromQuery] CellularCoverageQueryParams query)
     {
         return await GetAllCellularCoverages(query);
     }
 
     [HttpGet("{id}")]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<CellularCoverageDto>>> GetCellularCoverageById(Guid id)
     {
         var cellularCoverage = await mediator.Send(new GetCellularCoverageByIdRequest(id));
