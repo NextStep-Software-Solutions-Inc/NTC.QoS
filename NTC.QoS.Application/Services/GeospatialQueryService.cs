@@ -5,6 +5,7 @@ using NTC.QoS.Infrastructure.Persistence;
 using NetTopologySuite.Geometries;
 using MediatR;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
+using NTC.QoS.Domain.Enums;
 
 namespace NTC.QoS.Application.Services;
 
@@ -108,5 +109,109 @@ public class GeospatialQueryService
             .ToListAsync();
 
         return results;
+    }
+
+    public async Task<CellSitesByProviderResponseDto> GetCellSitesByProviderAsync(
+        Guid? regionId = null,
+        Guid? serviceProviderId = null,
+        int? limit = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (serviceProviderId.HasValue)
+        {
+            var isWirelessProvider = await _dbContext.ServiceProviders
+                .Where(sp => sp.Id == serviceProviderId.Value && !sp.IsDeleted)
+                .Select(sp => sp.Service.Type)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (isWirelessProvider == ServiceTypeEnum.Unknown)
+            {
+                throw new ArgumentException($"Service Provider with ID {serviceProviderId} not found");
+            }
+
+            if (isWirelessProvider != ServiceTypeEnum.Wireless)
+            {
+                throw new ArgumentException($"Service Provider with ID {serviceProviderId} is not a wireless service provider. Only wireless providers are supported for cell site statistics.");
+            }
+        }
+
+        MultiPolygon? regionBoundary = null;
+
+        if (regionId.HasValue)
+        {
+            var region = await _dbContext.Regions
+                .Where(r => r.Id == regionId.Value && !r.IsDeleted)
+                .Select(r => new { r.Name, r.Boundaries })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (region == null)
+            {
+                throw new ArgumentException($"Region with ID {regionId} not found");
+            }
+
+            regionBoundary = region.Boundaries;
+        }
+
+        var cellQuery = _dbContext.Cells
+            .Where(c => !c.IsDeleted && c.Location != null && c.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless);
+
+        if (serviceProviderId.HasValue)
+        {
+            cellQuery = cellQuery.Where(c => c.ServiceProviderId == serviceProviderId.Value);
+        }
+
+        if (startDate.HasValue)
+        {
+            cellQuery = cellQuery.Where(c => c.CreatedAt >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            cellQuery = cellQuery.Where(c => c.CreatedAt <= endDate.Value);
+        }
+
+        if (regionBoundary != null)
+        {
+            cellQuery = cellQuery.Where(c => regionBoundary.Intersects(c.Location));
+        }
+
+        var providerCellCounts = await cellQuery
+            .GroupBy(c => new { 
+                ServiceProviderId = c.ServiceProviderId,
+                ProviderName = c.ServiceProvider.Provider.Name,
+                ProviderColor = c.ServiceProvider.Provider.Color
+            })
+            .Select(g => new CellSitesByProviderDto
+            {
+                ServiceProviderId = g.Key.ServiceProviderId,
+                ProviderName = g.Key.ProviderName,
+                ProviderColor = g.Key.ProviderColor,
+                CellCount = g.Count(),
+                Percentage = 0
+            })
+            .OrderByDescending(p => p.CellCount)
+            .ToListAsync(cancellationToken);
+
+        if (limit.HasValue && limit.Value > 0)
+        {
+            providerCellCounts = providerCellCounts.Take(limit.Value).ToList();
+        }
+
+        var totalCellSites = providerCellCounts.Sum(p => p.CellCount);
+        
+        foreach (var provider in providerCellCounts)
+        {
+            provider.Percentage = totalCellSites > 0 
+                ? Math.Round((double)provider.CellCount / totalCellSites * 100, 2)
+                : 0;
+        }
+
+        return new CellSitesByProviderResponseDto
+        {
+            TotalCellSites = totalCellSites,
+            Providers = providerCellCounts
+        };
     }
 }
