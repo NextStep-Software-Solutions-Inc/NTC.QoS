@@ -1,18 +1,19 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Clerk.Net.DependencyInjection;
+using Hangfire;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Extensions;
+using NTC.QoS.API.Filters;
 using NTC.QoS.Application;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Application.Services.Interface;
 using NTC.QoS.Infrastructure;
-using Clerk.Net.DependencyInjection;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
-using Microsoft.OpenApi.Models;
-using NTC.QoS.API.Filters;
-using Hangfire;
-using Microsoft.AspNetCore.Authorization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API;
 
@@ -62,7 +63,7 @@ public class Program
             .SetFallbackPolicy(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build());
-                
+
         builder.Services.AddAuthorization();
 
         builder.Services.AddHttpContextAccessor();
@@ -124,6 +125,7 @@ public class Program
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
         builder.Services.AddScoped<GeospatialQueryService>();
+        builder.Services.AddScoped<IGeographicFilteringService, GeographicFilteringService>();
 
         var app = builder.Build();
         
