@@ -60,17 +60,6 @@ jobs:
             --set image.tag=latest \
             --dry-run
 
-      - name: Comment deployment status and URL
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const status = '✅ Deployment to DigitalOcean Kubernetes can be performed!';
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: status
-            });
 
   deploy:
     if: github.event_name == 'push'
