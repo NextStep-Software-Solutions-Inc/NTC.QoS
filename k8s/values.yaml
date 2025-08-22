@@ -4,7 +4,8 @@ image:
   repository: wacanam20/ntc-qos-api
   tag: latest
 
-domain: api.qos.nextstep-software.com
+nextstep_domain: api.qos.nextstep-software.com
+ntc_domain: api.qos.ntc.gov.ph
             
 env:
   ASPNETCORE_ENVIRONMENT: Production
