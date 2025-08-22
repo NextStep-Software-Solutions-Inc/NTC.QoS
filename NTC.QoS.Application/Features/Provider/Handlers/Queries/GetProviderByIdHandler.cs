@@ -31,7 +31,7 @@ public class GetProviderByIdHandler(IRepository<Domain.Entities.Provider> reposi
         }
 
         string? logoDataBase64 = null;
-        if (provider.LogoData != null && provider.LogoData.Length > 0)
+        if ((request.IncludeLogoData ?? true) && provider.LogoData != null && provider.LogoData.Length > 0)
         {
             logoDataBase64 = Convert.ToBase64String(provider.LogoData);
         }
