@@ -46,7 +46,6 @@ public class Program
             {
                  // Disable audience validation as we aren't using it
                  ValidateAudience = false,
-                 ValidateIssuer = false,
                  NameClaimType = ClaimTypes.NameIdentifier
             };
             x.Events = new JwtBearerEvents()
@@ -136,8 +135,8 @@ public class Program
         var app = builder.Build();
         app.UseCors();
         // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
-        {
+        // if (app.Environment.IsDevelopment())
+        // {
             
             app.UseSwagger();
             app.UseSwaggerUI(s =>
@@ -147,7 +146,7 @@ public class Program
                 s.ConfigObject.DeepLinking = true;
                 s.ConfigObject.DisplayRequestDuration = true;
             });
-        }
+        // }
 
         app.UseHttpsRedirection();
         app.UseResponseCompression();
