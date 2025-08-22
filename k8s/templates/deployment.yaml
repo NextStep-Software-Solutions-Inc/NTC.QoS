@@ -13,7 +13,7 @@ spec:
         app: {{ .Release.Name }}
     spec:
       containers:
-        - name: ntc-qosp-api
+        - name: ntc-qos-api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: Always
           ports:
