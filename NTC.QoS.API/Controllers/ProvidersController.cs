@@ -23,16 +23,23 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? serviceIds = null, [FromQuery] List<string>? names = null)
+    public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(
+        int pageSize = 10, 
+        int pageNumber = 1, 
+        [FromQuery] List<Guid>? serviceIds = null, 
+        [FromQuery] List<string>? names = null,
+        [FromQuery] bool? includeLogoData = null)
     {
-        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds, names));
+        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds, names, includeLogoData));
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(Guid id)
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(
+        Guid id,
+        [FromQuery] bool? includeLogoData = null)
     {
-        var providers = await _mediator.Send(new GetProviderByIdRequest(id));
+        var providers = await _mediator.Send(new GetProviderByIdRequest(id, includeLogoData));
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 

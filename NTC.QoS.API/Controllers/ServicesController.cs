@@ -22,9 +22,11 @@ public class ServicesController(IMediator mediator) : ControllerBase
         return service.Succeeded ? Ok(service) : BadRequest(service);
     }
 
+
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10, 
-                                                                                  int pageNumber = 1, 
+    [AllowAnonymous]
+    public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10,
+                                                                                  int pageNumber = 1,
                                                                                   [FromQuery] List<Guid>? providerIds = null,
                                                                                   [FromQuery] List<string>? types = null)
     {
