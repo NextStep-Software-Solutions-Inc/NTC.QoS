@@ -15,6 +15,7 @@ spec:
       containers:
         - name: ntc-qosp-api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:

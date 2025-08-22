@@ -17,7 +17,6 @@ spec:
     - host: {{ .Values.nextstep_domain }}
       http:
         paths:
-
           - path: /
             pathType: Prefix
             backend:
@@ -25,10 +24,10 @@ spec:
                 name: {{ .Release.Name }}-service
                 port:
                   number: 80
+                  
     - host: {{ .Values.ntc_domain }}
       http:
         paths:
-
           - path: /
             pathType: Prefix
             backend:
