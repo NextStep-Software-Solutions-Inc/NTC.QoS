@@ -34,7 +34,6 @@ public class BarangaysController : ControllerBase
 
     [HttpGet]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "name", "municipality", "province" })]
-
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1,
                                                                                     [FromQuery] Guid[]? municipalityIds = default,

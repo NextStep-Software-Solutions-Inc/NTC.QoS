@@ -34,7 +34,6 @@ public class MunicipalitiesController : ControllerBase
 
     [HttpGet]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "provinceId" })]
-
     public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(int pageSize = 10, int pageNumber = 1, Guid? provinceId = null)
     {
         var request = new GetAllMunicipalitiesRequest()
