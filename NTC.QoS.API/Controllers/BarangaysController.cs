@@ -14,6 +14,7 @@ namespace NTC.QoS.API.Controllers;
 public class BarangaysController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private const int BrowserCacheDuration = 86400;
 
     public BarangaysController(IMediator mediator)
     {
@@ -32,8 +33,9 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpGet]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "name", "municipality", "province" })]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
-                                                                                    int pageNumber = 1, 
+                                                                                    int pageNumber = 1,
                                                                                     [FromQuery] Guid[]? municipalityIds = default,
                                                                                     string? name = default,
                                                                                     string? municipality = default,
@@ -46,7 +48,7 @@ public class BarangaysController : ControllerBase
             MunicipalityIds = municipalityIds,
             Name = name,
             Municipality = municipality,
-            Province= province
+            Province = province
         };
         var barangays = await _mediator.Send(request);
         return Ok(barangays);
