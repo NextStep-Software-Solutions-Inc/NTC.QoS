@@ -6,7 +6,6 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
-using System.Diagnostics;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
 
@@ -31,7 +30,6 @@ public class GetAllServiceProvidersHandler : IRequestHandler<GetAllServiceProvid
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromMinutes(3));
 
-        var stopwatch = Stopwatch.StartNew();
         _logger.LogInformation("Starting GetAllServiceProviders query with filters: Areas={Areas}, Regions={Regions}",
             string.Join(",", request.Areas ?? []), string.Join(",", request.Regions ?? []));
 
@@ -57,17 +55,12 @@ public class GetAllServiceProvidersHandler : IRequestHandler<GetAllServiceProvid
                 allServiceProvidersQuery = allServiceProvidersQuery.Where(s => requestedServiceTypes.Contains(s.Service.Type));
             }
 
-            var filterStopwatch = Stopwatch.StartNew();
-
             // Apply geographic filtering
             if ((request.Areas?.Count > 0) || (request.Regions?.Count > 0))
             {
                 allServiceProvidersQuery = await _geographicFilteringService.ApplyGeographicFiltersAsync(
                     allServiceProvidersQuery, request.Areas, request.Regions, timeoutCts.Token);
             }
-
-            filterStopwatch.Stop();
-            _logger.LogInformation("Geographic filtering completed in {FilterTime}ms", filterStopwatch.ElapsedMilliseconds);
 
             var serviceProviderDtosQuery = allServiceProvidersQuery
                 .OrderBy(s => s.CreatedAt)
@@ -94,25 +87,18 @@ public class GetAllServiceProvidersHandler : IRequestHandler<GetAllServiceProvid
 
             var result = await _serviceProviderRepository.PaginateAsync(serviceProviderDtosQuery, request.PageNumber, request.PageSize, timeoutCts.Token);
 
-            stopwatch.Stop();
-            _logger.LogInformation("Query completed successfully in {TotalTime}ms, returned {Count} items",
-                stopwatch.ElapsedMilliseconds, result.Data?.Count ?? 0);
+            _logger.LogInformation("Query completed successfully, returned {Count} items", result.Data?.Count ?? 0);
 
             return result;
         }
         catch (OperationCanceledException) when (timeoutCts.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            stopwatch.Stop();
-            _logger.LogError("Query timed out after {ElapsedTime}ms", stopwatch.ElapsedMilliseconds);
-            throw new TimeoutException($"Query timed out after {stopwatch.ElapsedMilliseconds}ms. Please try with more specific filters.");
+            _logger.LogError("Query timed out");
+            throw new TimeoutException("Query timed out. Please try with more specific filters.");
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            _logger.LogError(ex, "Error occurred during query execution after {ElapsedTime}ms with Areas={Areas}, Regions={Regions}",
-                stopwatch.ElapsedMilliseconds,
-                string.Join(",", request.Areas ?? []),
-                string.Join(",", request.Regions ?? []));
+            _logger.LogError(ex, "Query execution failed");
             throw;
         }
     }
