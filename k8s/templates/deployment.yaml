@@ -11,6 +11,9 @@ spec:
     metadata:
       labels:
         app: {{ .Release.Name }}
+      annotations:
+        checksum/image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        helm.sh/revision: "{{ .Release.Revision }}"
     spec:
       containers:
         - name: ntc-qos-api

@@ -39,14 +39,14 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return await GetAllCells(query);
     }
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] CellsQueryParams query)
     {
         return await GetAllCells(query);
     }
 
     [HttpGet("{id}")]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<CellDto>>> GetCellById(Guid id)
     {
         var cell = await mediator.Send(new GetCellByIdRequest(id));

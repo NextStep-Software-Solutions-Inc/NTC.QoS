@@ -39,14 +39,14 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllInternalSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
         return await GetAllSpeedtests(query);
     }
 
     [HttpGet("{id}")]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
         var speedtest = await mediator.Send(new GetSpeedtestByIdRequest(id));

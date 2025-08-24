@@ -42,14 +42,14 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
     }
 
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "networkIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllInternalCellularCoverages([FromQuery] CellularCoverageQueryParams query)
     {
         return await GetAllCellularCoverages(query);
     }
 
     [HttpGet("{id}")]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<CellularCoverageDto>>> GetCellularCoverageById(Guid id)
     {
         var cellularCoverage = await mediator.Send(new GetCellularCoverageByIdRequest(id));
