@@ -10,7 +10,6 @@ using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using GeoQueryHelper = NTC.QoS.Infrastructure.Helper.GeoQueryHelper;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -244,14 +243,36 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("Pre-loaded {Count} cell sectors mapped to cells.", cellSectorCache.Count);
 
         // Pre-load existing Cellular records for efficient in-memory checks.
-        var cellularLookup = await _cellularRepository
+        // Fix: Handle duplicate cellular records gracefully by loading first, then building dictionary manually
+        var cellularList = await _cellularRepository
             .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
-            .ToDictionaryAsync(
-                c => (c.CellSectorId, c.ServiceProviderId, c.TechnologyId, c.BandId),
-                c => c,
-                token
-            );
-        _logger.LogInformation("Pre-loaded {Count} existing cellular records.", cellularLookup.Count);
+            .ToListAsync(token);
+
+        // Build cellular lookup manually to handle duplicates gracefully
+        var cellularLookup = new Dictionary<(Guid CellSectorId, Guid ServiceProviderId, Guid TechnologyId, Guid BandId), Domain.Entities.Cellular>();
+        var cellularDuplicateCount = 0;
+
+        foreach (var cellular in cellularList)
+        {
+            var key = (cellular.CellSectorId, cellular.ServiceProviderId, cellular.TechnologyId, cellular.BandId);
+            
+            if (!cellularLookup.TryGetValue(key, out var existingCellular))
+            {
+                cellularLookup[key] = cellular;
+            }
+            else
+            {
+                cellularDuplicateCount++;
+                _logger.LogWarning("Duplicate cellular record found with key: (CellSectorId: {CellSectorId}, ServiceProviderId: {ServiceProviderId}, TechnologyId: {TechnologyId}, BandId: {BandId}). " +
+                    "Cellular ID {CellularId} skipped in favor of existing Cellular ID {ExistingCellularId}. " +
+                    "Consider cleaning up duplicate cellular data in the database.",
+                    cellular.CellSectorId, cellular.ServiceProviderId, cellular.TechnologyId, cellular.BandId, 
+                    cellular.Id, existingCellular.Id);
+            }
+        }
+
+        _logger.LogInformation("Pre-loaded {Count} existing cellular records ({DuplicateCount} duplicates handled, {TotalCellular} total).", 
+            cellularLookup.Count, cellularDuplicateCount, cellularList.Count);
 
 
         // --- Step 4: Process the Excel File ---
