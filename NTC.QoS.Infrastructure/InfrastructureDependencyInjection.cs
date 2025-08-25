@@ -54,6 +54,13 @@ public static class InfrastructureDependencyInjection
         );
         // Add the processing server as a hosted service
         services.AddHangfireServer();
+        
+        GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
+        {
+            Attempts = 3, // limit retries
+            LogEvents = true,
+            OnAttemptsExceeded = AttemptsExceededAction.Delete // or Fail/Succeed
+        });
 
         // Register repositories
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
