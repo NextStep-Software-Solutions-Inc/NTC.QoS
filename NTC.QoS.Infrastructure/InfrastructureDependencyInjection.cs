@@ -53,7 +53,19 @@ public static class InfrastructureDependencyInjection
             .UseDashboardMetrics()
         );
         // Add the processing server as a hosted service
-        services.AddHangfireServer();
+        services.AddHangfireServer(options =>
+        {
+            var configuredWorkerCount = configuration.GetValue<int?>("Hangfire:WorkerCount");
+            // Use a conservative multiplier and cap the maximum worker count to avoid resource exhaustion
+            const int maxWorkerCount = 40;
+            int fallbackWorkerCount = Math.Min(Environment.ProcessorCount * 2, maxWorkerCount);
+            options.WorkerCount = configuredWorkerCount ?? fallbackWorkerCount;
+            // builder may not be available in this static context; derive a safe application name
+            var appName = Environment.GetEnvironmentVariable("ASPNETCORE_APPLICATIONNAME")
+                          ?? AppDomain.CurrentDomain.FriendlyName
+                          ?? "HangfireServer";
+            options.ServerName = $"{appName}-{Environment.MachineName}";
+        });
         
         GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
         {
@@ -65,7 +77,6 @@ public static class InfrastructureDependencyInjection
         // Register repositories
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IProviderRepository, ProviderRepository>();
-        services.AddScoped<IUserContextService, UserContextService>();
         services.AddScoped<IProvinceRepository, ProvinceRepository>();
         services.AddScoped<IServiceProviderRepository, ServiceProviderRepository>();
         services.AddScoped<ICellRepository, CellRepository>();
