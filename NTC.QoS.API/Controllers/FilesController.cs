@@ -100,6 +100,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("download/{type}")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {
         var res = await _mediator.Send(new DownloadTemplateFileRequest(type));
