@@ -53,7 +53,16 @@ public static class InfrastructureDependencyInjection
             .UseDashboardMetrics()
         );
         // Add the processing server as a hosted service
-        services.AddHangfireServer();
+        services.AddHangfireServer(options =>
+        {
+            var configuredWorkerCount = configuration.GetValue<int?>("Hangfire:WorkerCount");
+            options.WorkerCount = configuredWorkerCount ?? (Environment.ProcessorCount * 5);
+            // builder may not be available in this static context; derive a safe application name
+            var appName = Environment.GetEnvironmentVariable("ASPNETCORE_APPLICATIONNAME")
+                          ?? AppDomain.CurrentDomain.FriendlyName
+                          ?? "HangfireServer";
+            options.ServerName = $"{appName}-{Environment.MachineName}";
+        });
         
         GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
         {
