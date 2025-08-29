@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.BackgroundTasks;
+using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Seed;
@@ -43,6 +44,9 @@ public static class InfrastructureDependencyInjection
             var userContextService = serviceProvider.GetRequiredService<IUserContextService>();
             options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()).AddInterceptors(new TimestampInterceptor(userContextService));
         });
+
+        // Add dynamic authorization services
+        services.AddDynamicAuthorization();
 
         // Add Hangfire services.
         services.AddHangfire(configuration => configuration
