@@ -15,6 +15,7 @@ namespace NTC.QoS.API.Controllers;
 [Route("speedtests", Name = "speedtests")]
 public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
+    private const int BrowserCacheDuration = 21600;
     private const string SpeedtestsCachePrefix = "speedtest_";
     private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
@@ -31,20 +32,21 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllPublicSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
         return await GetAllSpeedtests(query);
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllInternalSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
         return await GetAllSpeedtests(query);
     }
 
     [HttpGet("{id}")]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
         var speedtest = await mediator.Send(new GetSpeedtestByIdRequest(id));

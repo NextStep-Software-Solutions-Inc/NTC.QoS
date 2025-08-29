@@ -23,6 +23,13 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+
+        // load appsettings based on the env
+        var env = builder.Environment.EnvironmentName ?? "Production";
+        // load appsettings based on the env
+        builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+        builder.Configuration.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
+
         // Add services to the container.
         builder.Services.AddClerkApiClient(config =>
         {
@@ -128,11 +135,11 @@ public class Program
         builder.Services.AddScoped<IGeographicFilteringService, GeographicFilteringService>();
 
         var app = builder.Build();
-        
+        app.UseCors();
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
-            app.UseCors();
+            
             app.UseSwagger();
             app.UseSwaggerUI(s =>
             {

@@ -128,7 +128,8 @@ public static class LocationSeeder
             {
                 Name = feature.Attributes["ADM1_EN"]?.ToString() ?? string.Empty,
                 Description = null,
-                Code = feature.Attributes["ADM1_PCODE"]?.ToString() ?? string.Empty
+                Code = feature.Attributes["ADM1_PCODE"]?.ToString() ?? string.Empty,
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
             };
 
             switch (feature.Geometry)

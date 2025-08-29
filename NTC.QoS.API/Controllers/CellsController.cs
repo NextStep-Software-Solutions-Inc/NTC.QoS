@@ -16,6 +16,7 @@ namespace NTC.QoS.API.Controllers;
 
 public class CellsController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
+    private const int BrowserCacheDuration = 21600;
     private const string CellsCachePrefix = "cells_";
     private const string CellsCacheKeysSet = "cells_cache_keys";
 
@@ -32,19 +33,20 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] CellsQueryParams query)
     {
         return await GetAllCells(query);
     }
     [HttpGet]
-    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] CellsQueryParams query)
     {
         return await GetAllCells(query);
     }
 
     [HttpGet("{id}")]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<CellDto>>> GetCellById(Guid id)
     {
         var cell = await mediator.Send(new GetCellByIdRequest(id));

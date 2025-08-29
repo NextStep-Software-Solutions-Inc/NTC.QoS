@@ -14,6 +14,7 @@ namespace NTC.QoS.API.Controllers;
 
 public class ServiceProvidersController(IMediator mediator, ILogger<ServiceProvidersController> logger, IMemoryCache memoryCache) : ControllerBase
 {
+    private const int BrowserCacheDuration = 21600;
     private readonly IMediator _mediator = mediator;
     private readonly ILogger<ServiceProvidersController> _logger = logger;
     private const string ServiceProviderCachePrefix = "serviceProvider_";

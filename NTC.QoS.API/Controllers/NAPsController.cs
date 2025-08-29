@@ -16,6 +16,7 @@ namespace NTC.QoS.API.Controllers;
 
 public class NAPsController : ControllerBase
 {
+    private const int BrowserCacheDuration = 21600;
     private readonly IMediator _mediator;
     private readonly IMemoryCache _memoryCache;
     private const string NAPsCachePrefix = "naps_";
@@ -41,20 +42,21 @@ public class NAPsController : ControllerBase
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllPublicNAPs([FromQuery] CellsQueryParams query)
     {
         return await GetAllNAPs(query);
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllInternalNAPs([FromQuery] CellsQueryParams query)
     {
         return await GetAllNAPs(query);
     }
 
     [HttpGet("{id}")]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<NAPDto>>> GetNAPById(Guid id)
     {
         var request = new GetNAPByIdRequest(id);

@@ -13,6 +13,8 @@ namespace NTC.QoS.API.Controllers;
 
 public class ServicesController(IMediator mediator) : ControllerBase
 {
+    
+    private const int BrowserCacheDuration = 21600;
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
@@ -25,6 +27,7 @@ public class ServicesController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10,
                                                                                   int pageNumber = 1,
                                                                                   [FromQuery] List<Guid>? providerIds = null,

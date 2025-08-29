@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Hangfire;
+using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 
@@ -14,7 +15,8 @@ internal class DeleteUploadedFileJob : IDeleteUploadedFileJob
         _fileRepository = fileRepository;
         _logger = logger;
     }
-
+    
+    [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
         var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id == parameters.Id);
