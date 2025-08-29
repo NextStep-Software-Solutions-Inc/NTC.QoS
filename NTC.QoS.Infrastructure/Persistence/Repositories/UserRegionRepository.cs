@@ -10,6 +10,10 @@ internal sealed class UserRegionRepository(ApplicationDbContext context) : Repos
     public override IQueryable<UserRegion> Query(Expression<Func<UserRegion, bool>>? expression = null)
     {
         var query = _context.Set<UserRegion>()
+            .Include(ur => ur.User)
+                .ThenInclude(u => u.Role)
+            .Include(ur => ur.User)
+                .ThenInclude(u => u.Organization)
             .Include(ur => ur.Region)
             .AsQueryable();
 
