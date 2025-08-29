@@ -57,11 +57,11 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
         try
         {
-            // --- Step 2: Initialize Collections ---
+            // Step 2: Initialize Collections
             var speedtestList = new List<Speedtest>();
             var speedtestsToAdd = new List<Speedtest>();
 
-            // --- Step 3: Pre-load Static/Reference Data for Performance ---
+            // Step 3: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
             // Pre-load all wireless service providers with optimized query
@@ -87,7 +87,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
             _logger.LogInformation("Pre-loaded {Count} generations and technologies.", technologyCache.Count);
 
-            // Pre-load existing speedtest records for duplicate checking (simplified fields)
+            // Pre-load existing speedtest records for duplicate checking
             var providerIds = serviceProviderCache.Values.ToList();
             var existingSpeedtests = await _speedtestRepository
                 .Query(s => providerIds.Contains(s.ServiceProviderId))
@@ -112,7 +112,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 var longitude = speedtest.Location?.Coordinate?.X ?? 0;
                 var latitude = speedtest.Location?.Coordinate?.Y ?? 0;
                 
-                // Simplified duplicate key with core fields only: timestamp, upload, download, rssi, signal_quality, operator, lat, lon, network_type
+                // Simplified duplicate key with core fields only
                 var signalQuality = string.IsNullOrEmpty(speedtest.SignalQuality) ? "NULL" : speedtest.SignalQuality;
                 var rssi = speedtest.RSSI?.ToString() ?? "NULL";
                 
@@ -130,7 +130,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             _logger.LogInformation("Pre-loaded {Count} existing speedtest records ({DuplicateCount} duplicates handled, {TotalSpeedtests} total).",
                 speedtestLookup.Count, duplicateCount, existingSpeedtests.Count);
 
-            // --- Step 4: Process the Excel File ---
+            // Step 4: Process the Excel File
             using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
             _logger.LogInformation("Processing file: {FilePath}", parameters.Path);
 
@@ -146,7 +146,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             }
             else
             {
-                // --- Step 5: Process Each Record ---
+                // Step 5: Process Each Record
                 var duplicatesSkipped = 0;
                 
                 foreach (var record in speedtestRecords)
@@ -174,16 +174,17 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     {
                         Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
 
-                        // Parse values for duplicate check and entity creation
                         var pingValue = decimal.TryParse(record.Ping, out decimal parsedPing) ? parsedPing : 0;
                         var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
                         var signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
 
-                        // Simplified duplicate key with core fields only: timestamp, upload, download, rssi, signal_quality, operator, lat, lon, network_type
                         var duplicateKey = $"{serviceProviderId}_{generationId}_{record.Timestamp.ToUniversalTime():yyyy-MM-dd HH:mm:ss}_{record.Upload}_{record.Download}_{record.RSSI}_{signalQuality ?? "NULL"}_{record.Longitude:F6}_{record.Latitude:F6}";
 
                         // Debug logging for duplicate check
-                        _logger.LogDebug("Generated duplicate key: {DuplicateKey}", duplicateKey);
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                        {
+                            _logger.LogDebug("Generated duplicate key: {DuplicateKey}", duplicateKey);
+                        }
 
                         // Check for duplicates
                         if (!speedtestLookup.Contains(duplicateKey))
@@ -200,29 +201,32 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 RSSI = record.RSSI,
                                 SignalQuality = signalQuality,
                                 Location = location,
-                                PhoneModel = record.PhoneModel ?? string.Empty,
-                                CellIdentifier = record.CellIdentifier ?? string.Empty,
-                                MCC = record.MCC ?? string.Empty,
-                                MNC = record.MNC ?? string.Empty,
-                                TAC = record.TAC ?? string.Empty,
+                                PhoneModel = record.PhoneModel,
+                                CellIdentifier = record.CellIdentifier,
+                                MCC = record.MCC,
+                                MNC = record.MNC,
+                                TAC = record.TAC,
                                 Ping = pingValue,
                                 Jitter = jitterValue,
                                 IsFileUploaded = true,
                             };
                             speedtestsToAdd.Add(speedtest);
-                            speedtestLookup.Add(duplicateKey); // Add to lookup to prevent duplicates within the same file
+                            speedtestLookup.Add(duplicateKey);
                         }
                         else
                         {
                             duplicatesSkipped++;
                             _logger.LogInformation("Duplicate speedtest record found and skipped: Provider={Provider}, NetworkType={NetworkType}, DateTime={DateTime}, Location=({Lat},{Lng}), Upload={Upload}, Download={Download}", 
                                 record.Provider, record.NetworkType, record.Timestamp, record.Latitude, record.Longitude, record.Upload, record.Download);
-                            _logger.LogDebug("Existing duplicate key: {DuplicateKey}", duplicateKey);
+                            if (_logger.IsEnabled(LogLevel.Debug))
+                            {
+                                _logger.LogDebug("Existing duplicate key: {DuplicateKey}", duplicateKey);
+                            }
                         }
                     }
                 }
 
-                // Step 6: Batch Insert New Records ---
+                // Step 6: Batch Insert New Records
                 if (speedtestsToAdd.Count != 0)
                 {
                     _speedtestRepository.AddRange(speedtestsToAdd);
