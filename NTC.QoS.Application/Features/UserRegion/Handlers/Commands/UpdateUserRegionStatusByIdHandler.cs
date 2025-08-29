@@ -42,6 +42,7 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
                 {
                     Id = userRegion.User.Id,
                     AuthUserId = userRegion.User.AuthUserId,
+                    Email = userRegion.User.Email,
                     Role =  new()
                     {
                         Id = userRegion.User.RoleId,
