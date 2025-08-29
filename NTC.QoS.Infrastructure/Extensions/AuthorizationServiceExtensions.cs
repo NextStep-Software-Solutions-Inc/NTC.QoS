@@ -113,7 +113,7 @@ public static class AuthorizationServiceExtensions
 
     private static void ConfigureRolePolicies(AuthorizationOptions options)
     {
-        // Role-based policies
+        // Role-based policies using actual database role keys
         options.AddPolicy(Policies.AdminOnly, policy =>
             policy.AddRequirements(new RoleRequirement(Roles.Admin)));
 
@@ -127,6 +127,19 @@ public static class AuthorizationServiceExtensions
             policy.RequireAssertion(context =>
                 context.User.HasClaim("role", Roles.Admin) ||
                 context.User.HasClaim("role", Roles.Manager)));
+
+        // Additional policies for existing roles
+        options.AddPolicy("SuperAdminOnly", policy =>
+            policy.AddRequirements(new RoleRequirement(Roles.SuperAdmin)));
+
+        options.AddPolicy("FieldOfficerOnly", policy =>
+            policy.AddRequirements(new RoleRequirement(Roles.FieldOfficer)));
+
+        options.AddPolicy("RegionalManagerOnly", policy =>
+            policy.AddRequirements(new RoleRequirement(Roles.RegionalManager)));
+
+        options.AddPolicy("ViewerOnly", policy =>
+            policy.AddRequirements(new RoleRequirement(Roles.Viewer)));
     }
 
     private static void ConfigureOrganizationPolicies(AuthorizationOptions options)

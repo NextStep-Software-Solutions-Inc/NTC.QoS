@@ -7,6 +7,7 @@ namespace NTC.QoS.Infrastructure.Seed;
 
 /// <summary>
 /// Seeds authorization data (permissions, roles, and role permissions)
+/// Aligned with existing RoleSeeder for consistency
 /// </summary>
 public static class AuthorizationSeeder
 {
@@ -17,7 +18,7 @@ public static class AuthorizationSeeder
             logger.LogInformation("Starting authorization data seeding...");
 
             await SeedPermissionsAsync(context, logger);
-            await SeedRolesAsync(context, logger);
+            await SeedAdditionalRolesAsync(context, logger);
             await SeedRolePermissionsAsync(context, logger);
 
             logger.LogInformation("Authorization data seeding completed successfully.");
@@ -116,20 +117,21 @@ public static class AuthorizationSeeder
         logger.LogInformation("Permissions seeding completed.");
     }
 
-    private static async Task SeedRolesAsync(ApplicationDbContext context, ILogger logger)
+    /// <summary>
+    /// Seeds additional roles that complement the existing RoleSeeder roles
+    /// Does not conflict with existing "admin", "super_admin", "field_officer", "user" roles
+    /// </summary>
+    private static async Task SeedAdditionalRolesAsync(ApplicationDbContext context, ILogger logger)
     {
-        var roles = new[]
+        // Additional roles that complement existing ones
+        var additionalRoles = new[]
         {
-            new { Key = Roles.SuperAdmin, Name = "Super Administrator", Description = "Full system access with all permissions" },
-            new { Key = Roles.Admin, Name = "Administrator", Description = "Administrative access with most permissions" },
-            new { Key = Roles.Manager, Name = "Manager", Description = "Management access with elevated permissions" },
-            new { Key = Roles.RegionalManager, Name = "Regional Manager", Description = "Regional management access" },
-            new { Key = Roles.TechnicalStaff, Name = "Technical Staff", Description = "Technical operations access" },
-            new { Key = Roles.User, Name = "User", Description = "Standard user access" },
-            new { Key = Roles.Viewer, Name = "Viewer", Description = "Read-only access" }
+            new { Key = "manager", Name = "Manager", Description = "Management access with elevated permissions" },
+            new { Key = "regional_manager", Name = "Regional Manager", Description = "Regional management access" },
+            new { Key = "viewer", Name = "Viewer", Description = "Read-only access" }
         };
 
-        foreach (var role in roles)
+        foreach (var role in additionalRoles)
         {
             var exists = await context.Set<Domain.Entities.Role>()
                 .AnyAsync(r => r.Key == role.Key);
@@ -145,37 +147,81 @@ public static class AuthorizationSeeder
                     UpdatedBy = "System"
                 });
 
-                logger.LogInformation("Added role: {RoleKey} - {RoleName}", role.Key, role.Name);
+                logger.LogInformation("Added additional role: {RoleKey} - {RoleName}", role.Key, role.Name);
             }
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation("Roles seeding completed.");
+        logger.LogInformation("Additional roles seeding completed.");
     }
 
+    /// <summary>
+    /// Seeds role permissions for both existing and additional roles
+    /// Uses the actual database role keys (snake_case from RoleSeeder)
+    /// </summary>
     private static async Task SeedRolePermissionsAsync(ApplicationDbContext context, ILogger logger)
     {
         // Get all roles and permissions
         var roles = await context.Set<Domain.Entities.Role>().ToListAsync();
         var permissions = await context.Set<Domain.Entities.Permission>().ToListAsync();
 
-        // Super Admin gets all permissions
-        var superAdminRole = roles.FirstOrDefault(r => r.Key == Roles.SuperAdmin);
+        // Map existing roles to authorization roles
+        await AssignPermissionsForExistingRoles(context, logger, roles, permissions);
+        await AssignPermissionsForAdditionalRoles(context, logger, roles, permissions);
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Role permissions seeding completed.");
+    }
+
+    private static async Task AssignPermissionsForExistingRoles(ApplicationDbContext context, ILogger logger, List<Domain.Entities.Role> roles, List<Domain.Entities.Permission> permissions)
+    {
+        // Super Admin (super_admin) gets all permissions
+        var superAdminRole = roles.FirstOrDefault(r => r.Key == "super_admin");
         if (superAdminRole != null)
         {
             await AssignPermissionsToRole(context, logger, superAdminRole, permissions.Select(p => p.Key).ToArray());
         }
 
         // Admin gets most permissions (excluding super admin specific ones)
-        var adminRole = roles.FirstOrDefault(r => r.Key == Roles.Admin);
+        var adminRole = roles.FirstOrDefault(r => r.Key == "admin");
         if (adminRole != null)
         {
             var adminPermissions = permissions.Where(p => p.Key != Permissions.SystemAdministration).Select(p => p.Key).ToArray();
             await AssignPermissionsToRole(context, logger, adminRole, adminPermissions);
         }
 
+        // Field Officer (existing role) gets technical/operational permissions
+        var fieldOfficerRole = roles.FirstOrDefault(r => r.Key == "field_officer");
+        if (fieldOfficerRole != null)
+        {
+            var fieldOfficerPermissions = new[]
+            {
+                Permissions.ViewFiles, Permissions.UploadFiles, Permissions.ProcessFiles,
+                Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
+                Permissions.ViewNetworks, Permissions.CreateNetworks, Permissions.UpdateNetworks,
+                Permissions.ViewProviders, Permissions.ViewReports, Permissions.CreateReports
+            };
+            await AssignPermissionsToRole(context, logger, fieldOfficerRole, fieldOfficerPermissions);
+        }
+
+        // User gets basic permissions
+        var userRole = roles.FirstOrDefault(r => r.Key == "user");
+        if (userRole != null)
+        {
+            var userPermissions = new[]
+            {
+                Permissions.ViewFiles, Permissions.UploadFiles,
+                Permissions.ViewCells, Permissions.ViewNetworks, Permissions.ViewProviders,
+                Permissions.ViewReports
+            };
+            await AssignPermissionsToRole(context, logger, userRole, userPermissions);
+        }
+    }
+
+    private static async Task AssignPermissionsForAdditionalRoles(ApplicationDbContext context, ILogger logger, List<Domain.Entities.Role> roles, List<Domain.Entities.Permission> permissions)
+    {
         // Manager gets management permissions
-        var managerRole = roles.FirstOrDefault(r => r.Key == Roles.Manager);
+        var managerRole = roles.FirstOrDefault(r => r.Key == "manager");
         if (managerRole != null)
         {
             var managerPermissions = new[]
@@ -192,7 +238,7 @@ public static class AuthorizationSeeder
         }
 
         // Regional Manager gets regional permissions
-        var regionalManagerRole = roles.FirstOrDefault(r => r.Key == Roles.RegionalManager);
+        var regionalManagerRole = roles.FirstOrDefault(r => r.Key == "regional_manager");
         if (regionalManagerRole != null)
         {
             var regionalPermissions = new[]
@@ -206,35 +252,8 @@ public static class AuthorizationSeeder
             await AssignPermissionsToRole(context, logger, regionalManagerRole, regionalPermissions);
         }
 
-        // Technical Staff gets technical permissions
-        var technicalStaffRole = roles.FirstOrDefault(r => r.Key == Roles.TechnicalStaff);
-        if (technicalStaffRole != null)
-        {
-            var technicalPermissions = new[]
-            {
-                Permissions.ViewFiles, Permissions.UploadFiles, Permissions.ProcessFiles,
-                Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
-                Permissions.ViewNetworks, Permissions.CreateNetworks, Permissions.UpdateNetworks,
-                Permissions.ViewProviders, Permissions.ViewReports
-            };
-            await AssignPermissionsToRole(context, logger, technicalStaffRole, technicalPermissions);
-        }
-
-        // User gets basic permissions
-        var userRole = roles.FirstOrDefault(r => r.Key == Roles.User);
-        if (userRole != null)
-        {
-            var userPermissions = new[]
-            {
-                Permissions.ViewFiles, Permissions.UploadFiles,
-                Permissions.ViewCells, Permissions.ViewNetworks, Permissions.ViewProviders,
-                Permissions.ViewReports
-            };
-            await AssignPermissionsToRole(context, logger, userRole, userPermissions);
-        }
-
         // Viewer gets read-only permissions
-        var viewerRole = roles.FirstOrDefault(r => r.Key == Roles.Viewer);
+        var viewerRole = roles.FirstOrDefault(r => r.Key == "viewer");
         if (viewerRole != null)
         {
             var viewerPermissions = new[]
@@ -244,9 +263,6 @@ public static class AuthorizationSeeder
             };
             await AssignPermissionsToRole(context, logger, viewerRole, viewerPermissions);
         }
-
-        await context.SaveChangesAsync();
-        logger.LogInformation("Role permissions seeding completed.");
     }
 
     private static async Task AssignPermissionsToRole(ApplicationDbContext context, ILogger logger, Domain.Entities.Role role, string[] permissionKeys)
