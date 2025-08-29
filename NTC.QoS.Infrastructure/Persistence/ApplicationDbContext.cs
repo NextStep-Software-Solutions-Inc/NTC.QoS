@@ -479,11 +479,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(cs => cs.Cellulars);
 
         modelBuilder.Entity<UserRegion>()
-            .HasOne(ur => ur.User)
-            .WithMany(u => u.UserRegions)
-            .HasForeignKey(ur => ur.UserId);
-
-        modelBuilder.Entity<UserRegion>()
             .HasOne(ur => ur.Region)
             .WithMany(r => r.UserRegions)
             .HasForeignKey(ur => ur.RegionId);

@@ -9,5 +9,4 @@ public class User : BaseEntity
     public Guid OrganizationId { get; set; }
     public virtual Organization Organization { get; set; } = null!;
     public string AuthUserId { get; set; } = string.Empty;
-    public virtual List<UserRegion> UserRegions { get; set; } = new();
 }
