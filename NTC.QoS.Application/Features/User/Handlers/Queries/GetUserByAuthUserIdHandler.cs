@@ -49,7 +49,8 @@ public class GetUserByAuthUserIdHandler(IUserRepository repository) : IRequestHa
                     Name = user.Organization?.Name ?? string.Empty,
                     Description = user.Organization?.Description ?? string.Empty
                 },
-                AuthUserId = user.AuthUserId
+                AuthUserId = user.AuthUserId,
+                Email = user.Email
             },
         };
     }
