@@ -16,6 +16,9 @@ public class InviteUserHandler(IUserRepository userRepository,
 
     public async Task<ApiResponse<UserDto>> Handle(InviteUserRequest request, CancellationToken cancellationToken)
     {
+        // Check for exact duplicate: same email, role, and organization
+        // This allows the same email to be invited to different roles or organizations
+        // which may be intentional for multi-tenant or multi-role scenarios
         var existingUserQuery = _userRepository.Query(u => u.Email == request.User.Email
                                                            && u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId);
@@ -34,6 +37,26 @@ public class InviteUserHandler(IUserRepository userRepository,
                 }
             };
         }
+
+        // Optional: Add global email uniqueness check if business rules require it
+        // Uncomment the following lines if email should be globally unique across all roles/organizations
+        
+        // var emailExistsQuery = _userRepository.Query(u => u.Email == request.User.Email);
+        // var emailExists = await _userRepository.FirstOrDefaultAsync(emailExistsQuery, cancellationToken);
+        // if (emailExists is not null)
+        // {
+        //     return new ApiResponse<UserDto>
+        //     {
+        //         Succeeded = false,
+        //         Message = "Email already exists.",
+        //         Errors = new Dictionary<string, string[]>
+        //         {
+        //             { 
+        //                 "Email", ["A user with this email address already exists in the system."] 
+        //             }
+        //         }
+        //     };
+        // }
         
         var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId);
         var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
@@ -75,7 +98,7 @@ public class InviteUserHandler(IUserRepository userRepository,
             Email = request.User.Email,
             RoleId = request.User.RoleId,
             OrganizationId = request.User.OrganizationId,
-            AuthUserId = string.Empty 
+            AuthUserId = string.Empty,
         };
 
         _userRepository.Add(newUser);
