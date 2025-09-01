@@ -51,11 +51,47 @@ public class DynamicAuthorizationPolicyProvider : IAuthorizationPolicyProvider
         // Handle organization-based policies dynamically
         if (policyName.StartsWith("Organization:", StringComparison.OrdinalIgnoreCase))
         {
-            var organization = policyName.Substring("Organization:".Length);
-            var policy = new AuthorizationPolicyBuilder()
-                .AddRequirements(new OrganizationRequirement(organization))
-                .Build();
-            return Task.FromResult<AuthorizationPolicy?>(policy);
+            var organizationPart = policyName.Substring("Organization:".Length);
+            
+            if (organizationPart == "SameOrganization")
+            {
+                var policy = new AuthorizationPolicyBuilder()
+                    .AddRequirements(new OrganizationRequirement(requireSameOrganization: true))
+                    .Build();
+                return Task.FromResult<AuthorizationPolicy?>(policy);
+            }
+            else
+            {
+                // Parse organization name and case sensitivity
+                var caseSensitive = organizationPart.EndsWith(":CaseSensitive", StringComparison.OrdinalIgnoreCase);
+                var organizationName = caseSensitive 
+                    ? organizationPart.Substring(0, organizationPart.Length - ":CaseSensitive".Length)
+                    : organizationPart;
+
+                var policy = new AuthorizationPolicyBuilder()
+                    .AddRequirements(new OrganizationRequirement(
+                        organization: organizationName, 
+                        requireSameOrganization: false,
+                        caseSensitive: caseSensitive))
+                    .Build();
+                return Task.FromResult<AuthorizationPolicy?>(policy);
+            }
+        }
+
+        // Handle organization ID-based policies dynamically
+        if (policyName.StartsWith("OrganizationId:", StringComparison.OrdinalIgnoreCase))
+        {
+            var organizationIdString = policyName.Substring("OrganizationId:".Length);
+            
+            if (Guid.TryParse(organizationIdString, out var organizationId))
+            {
+                var policy = new AuthorizationPolicyBuilder()
+                    .AddRequirements(new OrganizationRequirement(
+                        organizationId: organizationId,
+                        requireSameOrganization: false))
+                    .Build();
+                return Task.FromResult<AuthorizationPolicy?>(policy);
+            }
         }
 
         // Handle region-based policies dynamically

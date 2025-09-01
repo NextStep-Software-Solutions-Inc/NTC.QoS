@@ -30,9 +30,27 @@ public class RequireRoleAttribute : AuthorizeAttribute
 /// </summary>
 public class RequireOrganizationAttribute : AuthorizeAttribute
 {
-    public RequireOrganizationAttribute(string? organization = null)
+    public RequireOrganizationAttribute(string? organizationName = null, bool caseSensitive = false)
     {
-        Policy = $"Organization:{organization ?? "SameOrganization"}";
+        if (string.IsNullOrEmpty(organizationName))
+        {
+            Policy = "Organization:SameOrganization";
+        }
+        else
+        {
+            Policy = $"Organization:{organizationName}{(caseSensitive ? ":CaseSensitive" : "")}";
+        }
+    }
+}
+
+/// <summary>
+/// Attribute for organization ID-based authorization
+/// </summary>
+public class RequireOrganizationIdAttribute : AuthorizeAttribute
+{
+    public RequireOrganizationIdAttribute(string organizationId)
+    {
+        Policy = $"OrganizationId:{organizationId}";
     }
 }
 

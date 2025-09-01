@@ -73,6 +73,51 @@ public class AuthorizationExampleController : ControllerBase
     }
 
     /// <summary>
+    /// Example using specific organization name authorization
+    /// </summary>
+    [HttpGet("national-data")]
+    [RequireOrganization("National")]
+    public async Task<ActionResult<ApiResponse<string>>> GetNationalData()
+    {
+        return Ok(new ApiResponse<string>
+        {
+            Data = "National organization data",
+            Succeeded = true,
+            Message = "National data retrieved successfully"
+        });
+    }
+
+    /// <summary>
+    /// Example using case-sensitive organization name authorization
+    /// </summary>
+    [HttpGet("regional-data")]
+    [RequireOrganization("Regional", caseSensitive: true)]
+    public async Task<ActionResult<ApiResponse<string>>> GetRegionalData()
+    {
+        return Ok(new ApiResponse<string>
+        {
+            Data = "Regional organization data (case-sensitive match)",
+            Succeeded = true,
+            Message = "Regional data retrieved successfully"
+        });
+    }
+
+    /// <summary>
+    /// Example using organization ID authorization
+    /// </summary>
+    [HttpGet("public-data")]
+    [RequireOrganizationId("33333333-3333-3333-3333-333333333333")] // Public organization ID
+    public async Task<ActionResult<ApiResponse<string>>> GetPublicData()
+    {
+        return Ok(new ApiResponse<string>
+        {
+            Data = "Public organization data",
+            Succeeded = true,
+            Message = "Public data retrieved successfully"
+        });
+    }
+
+    /// <summary>
     /// Example using predefined policy
     /// </summary>
     [HttpPost("upload")]
