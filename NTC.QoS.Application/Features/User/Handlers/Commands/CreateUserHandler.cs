@@ -74,7 +74,8 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         {
             RoleId = request.User.RoleId,
             OrganizationId = request.User.OrganizationId,
-            AuthUserId = request.User.AuthUserId
+            AuthUserId = request.User.AuthUserId,
+            Email = request.User.Email
         };
 
         _userRepository.Add(newUser);
@@ -98,7 +99,8 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
                     Name = newUser.Organization?.Name ?? string.Empty,
                     Description = newUser.Organization?.Description ?? string.Empty
                 },
-                AuthUserId = newUser.AuthUserId
+                AuthUserId = newUser.AuthUserId,
+                Email = newUser.Email
             },
             Message = "User created successfully.",
             Succeeded = true
