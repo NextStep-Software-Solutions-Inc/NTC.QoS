@@ -29,6 +29,7 @@ public class CellularsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewCellulars)]
     public async Task<ActionResult<PaginatedResponse<GetCellularDto>>> GetAllCellulars(int pageSize = 10,
                                                                                        int pageNumber = 1,
                                                                                        Guid? cellId = null,

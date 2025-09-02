@@ -18,6 +18,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateSectors)]
     public async Task<ActionResult<ApiResponse<SectorDto>>> CreateSector(CreateSectorDto sectorDto)
     {
         var sector = await _mediator.Send(new CreateSectorRequest(sectorDto));
@@ -25,7 +26,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    [RequirePermission(Permissions.CreateSectors)]
+    [RequirePermission(Permissions.ViewSectors)]
     public async Task<ActionResult<PaginatedResponse<SectorDto>>> GetAllSectors(
                                                 int pageNumber = 1,
                                                 int pageSize = 10,
@@ -48,7 +49,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [RequirePermission(Permissions.CreateSectors)]
+    [RequirePermission(Permissions.ViewSectors)]
     public async Task<ActionResult<ApiResponse<SectorDto>>> GetSectorById(Guid id)
     {
         var sector = await _mediator.Send(new GetSectorByIdRequest(id));
