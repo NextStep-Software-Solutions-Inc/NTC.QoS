@@ -116,7 +116,8 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                 Name = user.Organization?.Name ?? string.Empty,
                 Description = user.Organization?.Description ?? string.Empty
             },
-            AuthUserId = user.AuthUserId
+            AuthUserId = user.AuthUserId,
+            Email = user.Email,
         };
 
         return new ApiResponse<UserDto>
