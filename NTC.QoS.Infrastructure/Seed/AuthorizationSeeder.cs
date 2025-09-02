@@ -101,7 +101,7 @@ public static class AuthorizationSeeder
             // Barangay permissions
             new { Key = Permissions.ViewBarangays, Name = "View Barangays", Description = "Can view barangay listings" },
             new { Key = Permissions.CreateBarangays, Name = "Create Barangays", Description = "Can create new barangays" },
-            new { Key = Permissions.UpdateBarangays, Name = "Update Barangays", Description = "Can update barangay information}" },
+            new { Key = Permissions.UpdateBarangays, Name = "Update Barangays", Description = "Can update barangay information" },
             new { Key = Permissions.DeleteBarangays, Name = "Delete Barangays", Description = "Can delete barangays" },
 
             // Zone permissions
