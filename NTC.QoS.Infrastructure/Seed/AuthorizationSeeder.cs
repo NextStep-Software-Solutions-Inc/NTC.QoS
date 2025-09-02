@@ -18,7 +18,7 @@ public static class AuthorizationSeeder
             logger.LogInformation("Starting authorization data seeding...");
 
             await SeedPermissionsAsync(context, logger);
-            await SeedAdditionalRolesAsync(context, logger);
+            //await SeedAdditionalRolesAsync(context, logger);
             await SeedRolePermissionsAsync(context, logger);
 
             logger.LogInformation("Authorization data seeding completed successfully.");
@@ -341,71 +341,71 @@ public static class AuthorizationSeeder
         }
     }
 
-    //private static async Task AssignPermissionsForAdditionalRoles(ApplicationDbContext context, ILogger logger, List<Domain.Entities.Role> roles, List<Domain.Entities.Permission> permissions)
-    //{
-    //    // Manager gets management permissions
-    //    var managerRole = roles.FirstOrDefault(r => r.Key == "manager");
-    //    if (managerRole != null)
-    //    {
-    //        var managerPermissions = new[]
-    //        {
-    //            Permissions.AccessDashboard,
-    //            Permissions.ViewAnalytics, Permissions.CreateAnalytics, Permissions.UpdateAnalytics, Permissions.ExportAnalytics,
-    //            Permissions.ViewFiles, Permissions.UploadFiles,
-    //            Permissions.ViewUsers, Permissions.CreateUsers, Permissions.UpdateUsers,
-    //            Permissions.ViewRoles, Permissions.ViewPermissions, Permissions.ViewRolePermissions,
-    //            Permissions.ViewOrganizations, Permissions.UpdateOrganizations,
-    //            Permissions.ViewRegions, Permissions.CreateRegions, Permissions.UpdateRegions,
-    //            Permissions.ViewZones, Permissions.CreateZones, Permissions.UpdateZones,
-    //            Permissions.ViewUserRegions, Permissions.CreateUserRegions, Permissions.UpdateUserRegions,
-    //            Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
-    //            Permissions.ViewNetworks, Permissions.CreateNetworks, Permissions.UpdateNetworks,
-    //            Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors,
-    //            Permissions.ViewProviders, Permissions.CreateProviders, Permissions.UpdateProviders,
-    //            Permissions.ViewTechnologies, Permissions.ViewBands, Permissions.ViewGenerations,
-    //            Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports
-    //        };
-    //        await AssignPermissionsToRole(context, logger, managerRole, managerPermissions);
-    //    }
+    private static async Task AssignPermissionsForAdditionalRoles(ApplicationDbContext context, ILogger logger, List<Domain.Entities.Role> roles, List<Domain.Entities.Permission> permissions)
+    {
+        // Manager gets management permissions
+        var managerRole = roles.FirstOrDefault(r => r.Key == "manager");
+        if (managerRole != null)
+        {
+            var managerPermissions = new[]
+            {
+                Permissions.AccessDashboard,
+                Permissions.ViewAnalytics, Permissions.CreateAnalytics, Permissions.UpdateAnalytics, Permissions.ExportAnalytics,
+                Permissions.ViewFiles, Permissions.UploadFiles,
+                Permissions.ViewUsers, Permissions.CreateUsers, Permissions.UpdateUsers,
+                Permissions.ViewRoles, Permissions.ViewPermissions, Permissions.ViewRolePermissions,
+                Permissions.ViewOrganizations, Permissions.UpdateOrganizations,
+                Permissions.ViewRegions, Permissions.CreateRegions, Permissions.UpdateRegions,
+                Permissions.ViewZones, Permissions.CreateZones, Permissions.UpdateZones,
+                Permissions.ViewUserRegions, Permissions.CreateUserRegions, Permissions.UpdateUserRegions,
+                Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
+                Permissions.ViewNetworks, Permissions.CreateNetworks, Permissions.UpdateNetworks,
+                Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors,
+                Permissions.ViewProviders, Permissions.CreateProviders, Permissions.UpdateProviders,
+                Permissions.ViewTechnologies, Permissions.ViewBands, Permissions.ViewGenerations,
+                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports
+            };
+            await AssignPermissionsToRole(context, logger, managerRole, managerPermissions);
+        }
 
-    //    // Regional Manager gets regional permissions
-    //    var regionalManagerRole = roles.FirstOrDefault(r => r.Key == "regional_manager");
-    //    if (regionalManagerRole != null)
-    //    {
-    //        var regionalPermissions = new[]
-    //        {
-    //            Permissions.AccessDashboard,
-    //            Permissions.ViewAnalytics,
-    //            Permissions.ViewFiles, Permissions.UploadFiles,
-    //            Permissions.ViewUsers,
-    //            Permissions.ViewRegions, Permissions.UpdateRegions,
-    //            Permissions.ViewZones, Permissions.CreateZones, Permissions.UpdateZones,
-    //            Permissions.ViewUserRegions, Permissions.CreateUserRegions, Permissions.UpdateUserRegions,
-    //            Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
-    //            Permissions.ViewNetworks, Permissions.ViewProviders,
-    //            Permissions.ViewReports, Permissions.CreateReports
-    //        };
-    //        await AssignPermissionsToRole(context, logger, regionalManagerRole, regionalPermissions);
-    //    }
+        // Regional Manager gets regional permissions
+        var regionalManagerRole = roles.FirstOrDefault(r => r.Key == "regional_manager");
+        if (regionalManagerRole != null)
+        {
+            var regionalPermissions = new[]
+            {
+                Permissions.AccessDashboard,
+                Permissions.ViewAnalytics,
+                Permissions.ViewFiles, Permissions.UploadFiles,
+                Permissions.ViewUsers,
+                Permissions.ViewRegions, Permissions.UpdateRegions,
+                Permissions.ViewZones, Permissions.CreateZones, Permissions.UpdateZones,
+                Permissions.ViewUserRegions, Permissions.CreateUserRegions, Permissions.UpdateUserRegions,
+                Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
+                Permissions.ViewNetworks, Permissions.ViewProviders,
+                Permissions.ViewReports, Permissions.CreateReports
+            };
+            await AssignPermissionsToRole(context, logger, regionalManagerRole, regionalPermissions);
+        }
 
-    //    // Viewer gets read-only permissions
-    //    var viewerRole = roles.FirstOrDefault(r => r.Key == "viewer");
-    //    if (viewerRole != null)
-    //    {
-    //        var viewerPermissions = new[]
-    //        {
-    //            Permissions.AccessDashboard,
-    //            Permissions.ViewAnalytics,
-    //            Permissions.ViewFiles, 
-    //            Permissions.ViewUsers, Permissions.ViewRoles, Permissions.ViewPermissions,
-    //            Permissions.ViewOrganizations, Permissions.ViewRegions, Permissions.ViewZones,
-    //            Permissions.ViewCells, Permissions.ViewNetworks, Permissions.ViewSectors,
-    //            Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
-    //            Permissions.ViewReports
-    //        };
-    //        await AssignPermissionsToRole(context, logger, viewerRole, viewerPermissions);
-    //    }
-    //}
+        // Viewer gets read-only permissions
+        var viewerRole = roles.FirstOrDefault(r => r.Key == "viewer");
+        if (viewerRole != null)
+        {
+            var viewerPermissions = new[]
+            {
+                Permissions.AccessDashboard,
+                Permissions.ViewAnalytics,
+                Permissions.ViewFiles,
+                Permissions.ViewUsers, Permissions.ViewRoles, Permissions.ViewPermissions,
+                Permissions.ViewOrganizations, Permissions.ViewRegions, Permissions.ViewZones,
+                Permissions.ViewCells, Permissions.ViewNetworks, Permissions.ViewSectors,
+                Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
+                Permissions.ViewReports
+            };
+            await AssignPermissionsToRole(context, logger, viewerRole, viewerPermissions);
+        }
+    }
 
     private static async Task AssignPermissionsToRole(ApplicationDbContext context, ILogger logger, Domain.Entities.Role role, string[] permissionKeys)
     {
