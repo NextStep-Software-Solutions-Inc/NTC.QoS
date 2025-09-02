@@ -110,12 +110,6 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UpdateZones, Name = "Update Zones", Description = "Can update zone information" },
             new { Key = Permissions.DeleteZones, Name = "Delete Zones", Description = "Can delete zones" },
 
-            // Zone permissions
-            new { Key = Permissions.ViewZones, Name = "View Zones", Description = "Can view zone listings" },
-            new { Key = Permissions.CreateZones, Name = "Create Zones", Description = "Can create new zones" },
-            new { Key = Permissions.UpdateZones, Name = "Update Zones", Description = "Can update zone information" },
-            new { Key = Permissions.DeleteZones, Name = "Delete Zones", Description = "Can delete zones" },
-
             // User-Region permissions
             new { Key = Permissions.ViewUserRegions, Name = "View User Regions", Description = "Can view user region assignments" },
             new { Key = Permissions.CreateUserRegions, Name = "Create User Regions", Description = "Can assign users to regions" },
@@ -352,8 +346,7 @@ public static class AuthorizationSeeder
         {
             var userPermissions = new[]
             {
-                Permissions.ViewFiles, Permissions.ViewCells,
-                Permissions.ViewCellulars, Permissions.ViewSpeedtests, Permissions.ViewNAPs
+                Permissions.ViewCells, Permissions.ViewCellulars, Permissions.ViewSpeedtests, Permissions.ViewNAPs
             };
             await AssignPermissionsToRole(context, logger, userRole, userPermissions);
         }
