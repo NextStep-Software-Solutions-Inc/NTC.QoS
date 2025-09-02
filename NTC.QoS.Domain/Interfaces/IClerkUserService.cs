@@ -17,8 +17,28 @@ public class UserMetadataPayload
     public object? PrivateMetadata { get; set; }
 }
 
+public class CreateClerkUserPayload
+{
+    public string EmailAddress { get; set; } = string.Empty;
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? Password { get; set; }
+    public object? PublicMetadata { get; set; }
+    public object? PrivateMetadata { get; set; }
+    public bool EmailVerified { get; set; } = true;
+}
+
+public class ClerkUserResponse
+{
+    public string Id { get; set; } = string.Empty;
+    public string EmailAddress { get; set; } = string.Empty;
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+}
+
 public interface IClerkUserService
 {
     Task UpdateUserMetadataAsync(string userId, UserMetadataPayload payload);
-    // Add other methods like GetUserAsync, CreateUserAsync, etc.
+    Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload);
+    // Add other methods like GetUserAsync, etc.
 }

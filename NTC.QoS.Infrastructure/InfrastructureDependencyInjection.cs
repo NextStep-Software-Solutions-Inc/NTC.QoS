@@ -127,12 +127,24 @@ public static class InfrastructureDependencyInjection
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
 
+            // Try to get ClerkUserService, but don't fail if it's not available
+            IClerkUserService? clerkUserService = null;
+            try
+            {
+                clerkUserService = scope.ServiceProvider.GetService<IClerkUserService>();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning("ClerkUserService not available during seeding: {Message}. User seeding will proceed without Clerk integration.", ex.Message);
+            }
+
             // migrate first
             await dbContext.Database.MigrateAsync();
             await LocationSeeder.SeedAllAsync(dbContext, logger);
             await OrganizationSeeder.SeedAsync(dbContext, logger);
             await RoleSeeder.SeedAsync(dbContext, logger);
             await AuthorizationSeeder.SeedAsync(dbContext, logger);
+            await UserSeeder.SeedAsync(dbContext, clerkUserService, configuration, logger);
         });
 
         return services;

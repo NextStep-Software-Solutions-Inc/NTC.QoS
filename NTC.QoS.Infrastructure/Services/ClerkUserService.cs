@@ -25,6 +25,55 @@ public class ClerkUserService : IClerkUserService
         _httpClient.BaseAddress = new Uri("https://api.clerk.com/v1/"); // Set base address
     }
 
+    public async Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload)
+    {
+        try
+        {
+            string jsonPayload = JsonSerializer.Serialize(payload, new JsonSerializerOptions 
+            { 
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            });
+            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+            HttpResponseMessage response = await _httpClient.PostAsync("users", content);
+
+            // Directly check for success status code to throw HttpRequestException
+            response.EnsureSuccessStatusCode();
+
+            string responseBody = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"User creation successful. Response: {responseBody}");
+
+            var userResponse = JsonSerializer.Deserialize<ClerkUserResponse>(responseBody, new JsonSerializerOptions 
+            { 
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+            });
+
+            return userResponse ?? throw new InvalidOperationException("Failed to deserialize Clerk user response.");
+        }
+        // Catch specific exceptions first
+        catch (HttpRequestException ex) when (ex.StatusCode.HasValue) // Check if StatusCode has a value
+        {
+            Console.Error.WriteLine($"HTTP Request Error creating user: Status Code - {ex.StatusCode}, Message - {ex.Message}");
+            throw new InvalidOperationException($"Failed to create user in Clerk due to HTTP error.", ex);
+        }
+        catch (HttpRequestException ex) // General HttpRequestException
+        {
+            Console.Error.WriteLine($"HTTP Request Error creating user: {ex.Message}");
+            throw new InvalidOperationException($"Failed to create user in Clerk due to HTTP error.", ex);
+        }
+        catch (JsonException ex)
+        {
+            Console.Error.WriteLine($"JSON Serialization/Deserialization Error: {ex.Message}");
+            throw new InvalidOperationException($"Failed to process JSON for user creation.", ex);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"An unexpected error occurred in ClerkService.CreateUserAsync: {ex.Message}");
+            throw new ApplicationException($"An unexpected error occurred while creating user.", ex);
+        }
+    }
+
     public async Task UpdateUserMetadataAsync(string userId, UserMetadataPayload payload)
     {
         try
