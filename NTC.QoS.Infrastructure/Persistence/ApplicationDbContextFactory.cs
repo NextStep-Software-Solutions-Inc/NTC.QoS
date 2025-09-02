@@ -8,7 +8,7 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
 {
     public ApplicationDbContext CreateDbContext(string[] args)
     {
-        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
         
         // Try different base paths to find configuration files
         var basePaths = new[]
