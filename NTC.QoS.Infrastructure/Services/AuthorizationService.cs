@@ -82,7 +82,8 @@ public class UserAuthorizationService : IUserAuthorizationService
                     Id = user.Organization.Id,
                     Name = user.Organization.Name,
                     Description = user.Organization.Description
-                } : null
+                } : null,
+                Email = user.Email,
             };
 
             return _cachedUser;
