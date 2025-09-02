@@ -86,6 +86,30 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UpdateRegions, Name = "Update Regions", Description = "Can update region information" },
             new { Key = Permissions.DeleteRegions, Name = "Delete Regions", Description = "Can delete regions" },
 
+            // Province permissions
+            new { Key = Permissions.ViewProvinces, Name = "View Provinces", Description = "Can view province listings" },
+            new { Key = Permissions.CreateProvinces, Name = "Create Provinces", Description = "Can create new provinces" },
+            new { Key = Permissions.UpdateProvinces, Name = "Update Provinces", Description = "Can update province information" },
+            new { Key = Permissions.DeleteProvinces, Name = "Delete Provinces", Description = "Can delete provinces" },
+
+            // Municipality permissions
+            new { Key = Permissions.ViewMunicipalities, Name = "View Municipalities", Description = "Can view municipality listings" },
+            new { Key = Permissions.CreateMunicipalities, Name = "Create Municipalities", Description = "Can create new municipalities" },
+            new { Key = Permissions.UpdateMunicipalities, Name = "Update Municipalities", Description = "Can update municipality information" },
+            new { Key = Permissions.DeleteMunicipalities, Name = "Delete Municipalities", Description = "Can delete municipalities" },
+
+            // Barangay permissions
+            new { Key = Permissions.ViewBarangays, Name = "View Barangays", Description = "Can view barangay listings" },
+            new { Key = Permissions.CreateBarangays, Name = "Create Barangays", Description = "Can create new barangays" },
+            new { Key = Permissions.UpdateBarangays, Name = "Update Barangays", Description = "Can update barangay information}" },
+            new { Key = Permissions.DeleteBarangays, Name = "Delete Barangays", Description = "Can delete barangays" },
+
+            // Zone permissions
+            new { Key = Permissions.ViewZones, Name = "View Zones", Description = "Can view zone listings" },
+            new { Key = Permissions.CreateZones, Name = "Create Zones", Description = "Can create new zones" },
+            new { Key = Permissions.UpdateZones, Name = "Update Zones", Description = "Can update zone information" },
+            new { Key = Permissions.DeleteZones, Name = "Delete Zones", Description = "Can delete zones" },
+
             // Zone permissions
             new { Key = Permissions.ViewZones, Name = "View Zones", Description = "Can view zone listings" },
             new { Key = Permissions.CreateZones, Name = "Create Zones", Description = "Can create new zones" },
@@ -121,12 +145,6 @@ public static class AuthorizationSeeder
             new { Key = Permissions.CreateGenerations, Name = "Create Generations", Description = "Can create new technology generations" },
             new { Key = Permissions.UpdateGenerations, Name = "Update Generations", Description = "Can update technology generation information" },
             new { Key = Permissions.DeleteGenerations, Name = "Delete Generations", Description = "Can delete technology generations" },
-
-            // Generation-Band permissions
-            new { Key = Permissions.ViewGenerationBands, Name = "View Generation Bands", Description = "Can view generation band mappings" },
-            new { Key = Permissions.CreateGenerationBands, Name = "Create Generation Bands", Description = "Can create generation band mappings" },
-            new { Key = Permissions.UpdateGenerationBands, Name = "Update Generation Bands", Description = "Can update generation band mappings" },
-            new { Key = Permissions.DeleteGenerationBands, Name = "Delete Generation Bands", Description = "Can delete generation band mappings" },
 
             // Technology permissions
             new { Key = Permissions.ViewTechnologies, Name = "View Technologies", Description = "Can view technology listings" },

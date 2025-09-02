@@ -57,6 +57,24 @@ public static class Permissions
     public const string UpdateRegions = "regions.update";
     public const string DeleteRegions = "regions.delete";
 
+    // Provice management permissions
+    public const string ViewProvinces = "provinces.view";
+    public const string CreateProvinces = "provinces.create";
+    public const string UpdateProvinces = "provinces.update";
+    public const string DeleteProvinces = "provinces.delete";
+
+    // Municipality management permissions
+    public const string ViewMunicipalities = "municipalities.view";
+    public const string CreateMunicipalities = "municipalities.create";
+    public const string UpdateMunicipalities = "municipalities.update";
+    public const string DeleteMunicipalities = "municipalities.delete";
+
+    // Barangay management permissions
+    public const string ViewBarangays = "barangays.view";
+    public const string CreateBarangays = "barangays.create";
+    public const string UpdateBarangays = "barangays.update";
+    public const string DeleteBarangays = "barangays.delete";
+
     // Zone management permissions
     public const string ViewZones = "zones.view";
     public const string CreateZones = "zones.create";
@@ -89,11 +107,6 @@ public static class Permissions
     public const string CreateGenerations = "generations.create";
     public const string UpdateGenerations = "generations.update";
     public const string DeleteGenerations = "generations.delete";
-
-    public const string ViewGenerationBands = "generation_bands.view";
-    public const string CreateGenerationBands = "generation_bands.create";
-    public const string UpdateGenerationBands = "generation_bands.update";
-    public const string DeleteGenerationBands = "generation_bands.delete";
 
     public const string ViewTechnologies = "technologies.view";
     public const string CreateTechnologies = "technologies.create";

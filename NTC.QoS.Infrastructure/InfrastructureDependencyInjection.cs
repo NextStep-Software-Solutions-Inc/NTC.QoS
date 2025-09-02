@@ -132,8 +132,6 @@ public static class InfrastructureDependencyInjection
             await LocationSeeder.SeedAllAsync(dbContext, logger);
             await OrganizationSeeder.SeedAsync(dbContext, logger);
             await RoleSeeder.SeedAsync(dbContext, logger);
-            
-            // Seed authorization data (permissions and additional roles)
             await AuthorizationSeeder.SeedAsync(dbContext, logger);
         });
 
