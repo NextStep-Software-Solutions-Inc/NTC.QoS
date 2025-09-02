@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Sector.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
@@ -23,6 +25,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.CreateSectors)]
     public async Task<ActionResult<PaginatedResponse<SectorDto>>> GetAllSectors(
                                                 int pageNumber = 1,
                                                 int pageSize = 10,
@@ -45,6 +48,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.CreateSectors)]
     public async Task<ActionResult<ApiResponse<SectorDto>>> GetSectorById(Guid id)
     {
         var sector = await _mediator.Send(new GetSectorByIdRequest(id));
@@ -52,6 +56,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateSectors)]
     public async Task<ActionResult<ApiResponse<SectorDto>>> UpdateSector(Guid id, UpdateSectorDto sectorDto)
     {
         var sector = await _mediator.Send(new UpdateSectorByIdRequest(id, sectorDto));
@@ -59,6 +64,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteSectors)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteSector(Guid id)
     {
         var sector = await _mediator.Send(new DeleteSectorByIdRequest(id));

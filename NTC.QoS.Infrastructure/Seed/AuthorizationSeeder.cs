@@ -212,7 +212,6 @@ public static class AuthorizationSeeder
             // Cellular permissions
             new { Key = Permissions.ViewCellulars, Name = "View Cellulars", Description = "Can view cellular listings" },
             new { Key = Permissions.CreateCellulars, Name = "Create Cellulars", Description = "Can create new cellular records" },
-            new { Key = Permissions.UpdateCellulars, Name = "Update Cellulars", Description = "Can update cellular information" },
             new { Key = Permissions.DeleteCellulars, Name = "Delete Cellulars", Description = "Can delete cellular records" },
 
             // Report permissions
@@ -335,7 +334,7 @@ public static class AuthorizationSeeder
                 Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors, 
                 Permissions.ViewCellSectors, Permissions.CreateCellSectors, Permissions.UpdateCellSectors,
                 Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
-                Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars, Permissions.UpdateCellulars,
+                Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars,
                 Permissions.ViewSpeedtests, Permissions.CreateSpeedtests, Permissions.UpdateSpeedtests,
                 Permissions.ViewNAPs, Permissions.CreateNAPs, Permissions.UpdateNAPs,
                 Permissions.ViewAnalytics

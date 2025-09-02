@@ -1,12 +1,14 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using MediatR;
+﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.NAP.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.NAP;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -29,12 +31,13 @@ public class NAPsController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateNAPs)]
     public async Task<ActionResult<ApiResponse<NAPDto>>> CreateNAP(CreateNAPDto createNAPDto)
     {
         var NAP = await _mediator.Send(new CreateNAPRequest(createNAPDto));
         if (NAP.Succeeded)
         {
-            RemoveAllNAPsCache(); // Purge all NAPs cache
+            RemoveAllNAPsCache();
             return Ok(NAP);
         }
         return BadRequest(NAP);
@@ -49,6 +52,7 @@ public class NAPsController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewNAPs)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllInternalNAPs([FromQuery] CellsQueryParams query)
     {
@@ -56,6 +60,7 @@ public class NAPsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewNAPs)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<NAPDto>>> GetNAPById(Guid id)
     {
@@ -65,6 +70,7 @@ public class NAPsController : ControllerBase
     }
 
     [HttpDelete]
+    [RequirePermission(Permissions.DeleteNAPs)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteNAPsByIds([Required][FromQuery] List<Guid> ids)
     {
         var NAP = await _mediator.Send(new DeleteNAPsByIdsRequest { Ids = ids });

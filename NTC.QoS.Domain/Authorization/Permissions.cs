@@ -171,7 +171,6 @@ public static class Permissions
 
     public const string ViewCellulars = "cellulars.view";
     public const string CreateCellulars = "cellulars.create";
-    public const string UpdateCellulars = "cellulars.update";
     public const string DeleteCellulars = "cellulars.delete";
 
     // Reporting permissions

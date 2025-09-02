@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Link.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Link;
 
@@ -21,6 +23,7 @@ public class LinksController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateFrequencyAllocations)]
     public async Task<IActionResult> Post(CreateLinkDto linkDto)
     {
         var link = await _mediator.Send(new CreateLinkRequest
@@ -31,6 +34,7 @@ public class LinksController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewFrequencyAllocations)]
     public async Task<ActionResult<PaginatedResponse<LinkDto>>> GetAllLinks(
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? bandIds = null,
@@ -49,6 +53,7 @@ public class LinksController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewFrequencyAllocations)]
     public async Task<ActionResult<ApiResponse<LinkDto>>> GetLinkById(Guid id)
     {
         var request = new GetLinkByIdRequest(id);
@@ -57,6 +62,7 @@ public class LinksController : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateFrequencyAllocations)]
     public async Task<ActionResult<ApiResponse<LinkDto>>> UpdateLinkById(Guid id, UpdateLinkDto updateLink)
     {
         var link = await _mediator.Send(new UpdateLinkByIdRequest
@@ -69,6 +75,7 @@ public class LinksController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteFrequencyAllocations)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteLinkById(Guid id)
     {
         var link = await _mediator.Send(new DeleteLinkByIdRequest(id));

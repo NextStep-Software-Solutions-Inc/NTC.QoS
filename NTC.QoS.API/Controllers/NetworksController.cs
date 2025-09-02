@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Network.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
 
@@ -16,6 +18,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateNetworks)]
     public async Task<ActionResult<ApiResponse<NetworkDto>>> CreateNetwork([FromBody] CreateNetworkDto createNetwork)
     {
         var network = await _mediator.Send(new CreateNetworkRequest(createNetwork));
@@ -23,6 +26,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewNetworks)]
     public async Task<ActionResult<PaginatedResponse<NetworkDto>>> GetAllNetworks(int pageNumber = 1, int pageSize = 10, string? search = null, Guid? networkTemplateId = null)
     {
         var request = new GetAllNetworksRequest(pageNumber, pageSize, search, networkTemplateId);
@@ -31,6 +35,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewNetworks)]
     public async Task<ActionResult<ApiResponse<NetworkDto>>> GetNetworkById(Guid id)
     {
         var request = new GetNetworkByIdRequest(id);
@@ -39,6 +44,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateNetworks)]
     public async Task<ActionResult<ApiResponse<NetworkDto>>> UpdateNetworkById(Guid id, UpdateNetworkDto updateNetwork)
     {
         var network = await _mediator.Send(new UpdateNetworkByIdRequest(id, updateNetwork));
@@ -46,6 +52,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteNetworks)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteNetworkById(Guid id)
     {
         var network = await _mediator.Send(new DeleteNetworkByIdRequest(id));

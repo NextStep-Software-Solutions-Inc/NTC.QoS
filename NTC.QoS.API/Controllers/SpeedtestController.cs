@@ -1,11 +1,13 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using System.ComponentModel.DataAnnotations;
-using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API.Controllers;
@@ -20,6 +22,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateSpeedtests)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
     {
         var speedtest = await mediator.Send(new CreateSpeedtestRequest(createSpeedtest));
@@ -39,6 +42,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewSpeedtests)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllInternalSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
@@ -46,6 +50,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewSpeedtests)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
@@ -54,6 +59,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpDelete]
+    [RequirePermission(Permissions.DeleteSpeedtests)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteSpeedtestById([Required][FromQuery] List<Guid> ids)
     {
         var speedtests = await mediator.Send(new DeleteSpeedtestsByIdsRequest { Ids = ids });
