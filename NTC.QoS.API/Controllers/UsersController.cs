@@ -22,6 +22,13 @@ public class UsersController(IMediator mediator) : ControllerBase
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }
 
+    [HttpPost("invite")]
+    public async Task<ActionResult<ApiResponse<UserDto>>> InviteUser(InviteUserDto userDto)
+    {
+        var user = await _mediator.Send(new InviteUserRequest(userDto));
+        return user.Succeeded ? Ok(user) : BadRequest(user);
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetAllUsers(int pageSize = 10,
                                                                          int pageNumber = 1,

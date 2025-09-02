@@ -9,4 +9,5 @@ public class UserDto
     public required RoleDto? Role { get; set; }
     public required OrganizationDto? Organization { get; set; }
     public required string AuthUserId { get; set; }
+    public required string Email { get; set; }
 }
