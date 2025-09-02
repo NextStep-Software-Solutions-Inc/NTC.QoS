@@ -9,6 +9,12 @@ public static class Permissions
     public const string AccessDashboard = "dashboard.access";
 
     // Analytics access permission
+    public const string ViewAnalytics = "analytics.view";
+    public const string CreateAnalytics = "analytics.create";
+    public const string UpdateAnalytics = "analytics.update";
+    public const string DeleteAnalytics = "analytics.delete";
+    public const string ExportAnalytics = "analytics.export";
+    public const string ConfigureAnalytics = "analytics.configure";
 
     // File management permissions
     public const string ViewFiles = "files.view";
@@ -34,11 +40,34 @@ public static class Permissions
     public const string UpdatePermissions = "permissions.update";
     public const string DeletePermissions = "permissions.delete";
 
+    // Role-Permission management permissions
+    public const string ViewRolePermissions = "role_permissions.view";
+    public const string CreateRolePermissions = "role_permissions.create";
+    public const string DeleteRolePermissions = "role_permissions.delete";
+
     // Organization management permissions
     public const string ViewOrganizations = "organizations.view";
     public const string CreateOrganizations = "organizations.create";
     public const string UpdateOrganizations = "organizations.update";
     public const string DeleteOrganizations = "organizations.delete";
+
+    // Region management permissions
+    public const string ViewRegions = "regions.view";
+    public const string CreateRegions = "regions.create";
+    public const string UpdateRegions = "regions.update";
+    public const string DeleteRegions = "regions.delete";
+
+    // Zone management permissions
+    public const string ViewZones = "zones.view";
+    public const string CreateZones = "zones.create";
+    public const string UpdateZones = "zones.update";
+    public const string DeleteZones = "zones.delete";
+
+    // User-Region management permissions
+    public const string ViewUserRegions = "user_regions.view";
+    public const string CreateUserRegions = "user_regions.create";
+    public const string UpdateUserRegions = "user_regions.update";
+    public const string DeleteUserRegions = "user_regions.delete";
 
     // Network configuration permissions
     public const string ViewProviders = "providers.view";
@@ -61,6 +90,11 @@ public static class Permissions
     public const string UpdateGenerations = "generations.update";
     public const string DeleteGenerations = "generations.delete";
 
+    public const string ViewGenerationBands = "generation_bands.view";
+    public const string CreateGenerationBands = "generation_bands.create";
+    public const string UpdateGenerationBands = "generation_bands.update";
+    public const string DeleteGenerationBands = "generation_bands.delete";
+
     public const string ViewTechnologies = "technologies.view";
     public const string CreateTechnologies = "technologies.create";
     public const string UpdateTechnologies = "technologies.update";
@@ -81,10 +115,22 @@ public static class Permissions
     public const string UpdateAreaStudyTypes = "area_study_types.update";
     public const string DeleteAreaStudyTypes = "area_study_types.delete";
 
+    // Links/Frequency Allocations permissions
     public const string ViewFrequencyAllocations = "links.view";
     public const string CreateFrequencyAllocations = "links.create";
     public const string UpdateFrequencyAllocations = "links.update";
     public const string DeleteFrequencyAllocations = "links.delete";
+
+    // Network infrastructure permissions
+    public const string ViewNetworks = "networks.view";
+    public const string CreateNetworks = "networks.create";
+    public const string UpdateNetworks = "networks.update";
+    public const string DeleteNetworks = "networks.delete";
+
+    public const string ViewSectors = "sectors.view";
+    public const string CreateSectors = "sectors.create";
+    public const string UpdateSectors = "sectors.update";
+    public const string DeleteSectors = "sectors.delete";
 
     // Broadband permissions
     public const string ViewCells = "cells.view";
