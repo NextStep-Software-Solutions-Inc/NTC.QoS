@@ -37,7 +37,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <response code="200">Returns the broadband analysis data for the specified area</response>
     /// <response code="400">Invalid bounding box parameters or validation errors</response>
     [HttpPost("area-broadband-info")]
-    [RequirePermission(Permissions.CreateAnalytics)]
+    [RequirePermission(Permissions.ViewAnalytics)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 400)]
     public async Task<ActionResult<ApiResponse<AreaBroadbandInfoDto>>> GetAreaBroadbandInfo(
@@ -66,7 +66,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <response code="200">Returns the broadband analysis data for the specified area</response>
     /// <response code="400">Invalid point/radius parameters or validation errors</response>
     [HttpPost("point-broadband-info")]
-    [RequirePermission(Permissions.CreateAnalytics)]
+    [RequirePermission(Permissions.ViewAnalytics)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 400)]
     public async Task<ActionResult<ApiResponse<AreaBroadbandInfoDto>>> GetPointBroadbandInfo(
