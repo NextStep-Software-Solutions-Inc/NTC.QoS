@@ -210,9 +210,8 @@ public static class AuthorizationSeeder
         {
             var userPermissions = new[]
             {
-                Permissions.ViewFiles, Permissions.UploadFiles,
-                Permissions.ViewCells, Permissions.ViewNetworks, Permissions.ViewProviders,
-                Permissions.ViewReports
+                Permissions.ViewFiles, 
+                Permissions.ViewCells, Permissions.ViewNetworks, 
             };
             await AssignPermissionsToRole(context, logger, userRole, userPermissions);
         }

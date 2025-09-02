@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using NTC.QoS.Domain.Authorization;
 
 namespace NTC.QoS.API.Authorization;
 
