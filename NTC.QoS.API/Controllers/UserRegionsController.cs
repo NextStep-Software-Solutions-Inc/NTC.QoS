@@ -1,7 +1,9 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.UserRegion.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
 
@@ -15,6 +17,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateUserRegions)]
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> CreateUserRegion(CreateUserRegionDto createUserRegion)
     {
         var userRegion = await _mediator.Send(new CreateUserRegionRequest { UserRegion = createUserRegion });
@@ -22,6 +25,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewUserRegions)]
     public async Task<ActionResult<PaginatedResponse<UserRegionDto>>> GetAllUserRegions(
         [FromQuery] int pageSize = 10,
         [FromQuery] int pageNumber = 1,
@@ -43,6 +47,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewUserRegions)]
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> GetUserRegionById(Guid id)
     {
         var userRegion = await _mediator.Send(new GetUserRegionByIdRequest(id));
@@ -50,6 +55,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}/status")]
+    [RequirePermission(Permissions.UpdateUserRegions)]
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> UpdateUserRegionStatus(Guid id, UpdateUserRegionStatusDto updateUserRegion)
     {
         var userRegion = await _mediator.Send(new UpdateUserRegionStatusByIdRequest(id, updateUserRegion));
@@ -57,6 +63,7 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteUserRegions)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteUserRegion(Guid id)
     {
         var result = await _mediator.Send(new DeleteUserRegionByIdRequest(id));

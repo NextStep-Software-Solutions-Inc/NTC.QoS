@@ -21,12 +21,15 @@ public static class Permissions
     public const string UploadFiles = "files.upload";
     public const string DeleteFiles = "files.delete";
     public const string ProcessFiles = "files.process";
+    public const string DownloadFiles = "files.download";
+    public const string UpdateFiles = "files.edit";
 
     // User management permissions
     public const string ViewUsers = "users.view";
     public const string CreateUsers = "users.create";
     public const string UpdateUsers = "users.update";
     public const string DeleteUsers = "users.delete";
+    public const string InviteUsers = "users.invite";
 
     // Role management permissions
     public const string ViewRoles = "roles.view";
