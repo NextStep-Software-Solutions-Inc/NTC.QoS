@@ -30,16 +30,16 @@ public class GetAllRolePermissionsHandler(IRolePermissionRepository rolePermissi
             Role = new()
             {
                 Id = rp.RoleId,
-                Name = rp.Role != null ? rp.Role.Name : string.Empty,
-                Key = rp.Role != null ? rp.Role.Key : string.Empty,
-                Description = rp.Role != null ? rp.Role.Description : string.Empty
+                Name = rp.Role!.Name,
+                Key = rp.Role!.Key,
+                Description = rp.Role!.Description
             },
             Permission = new()
             {
                 Id = rp.PermissionId,
-                Name = rp.Permission != null ? rp.Permission.Name : string.Empty,
-                Key = rp.Permission != null ? rp.Permission.Key : string.Empty,
-                Description = rp.Permission != null ? rp.Permission.Description : string.Empty
+                Name = rp.Permission!.Name,
+                Key = rp.Permission!.Key,
+                Description = rp.Permission!.Description
             }
         });
 
