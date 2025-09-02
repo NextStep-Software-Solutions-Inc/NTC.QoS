@@ -47,7 +47,6 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
                 "PostgreSqlConnection not found in configuration. " +
                 "Checked sources: appsettings.json, appsettings.{env}.json, user secrets, environment variables. " +
                 $"Current environment: {env}, " +
-                $"UserSecretsId: 5f075bbb-4701-416c-82f1-ae4905418a7a, " +
                 $"Checked base paths: {checkedPaths}, " +
                 $"Current directory: {Directory.GetCurrentDirectory()}");
         }
