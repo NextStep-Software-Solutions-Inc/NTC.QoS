@@ -74,21 +74,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         // ... any entity configuration ...
         modelBuilder.Entity<Provider>()
             .HasIndex(p => p.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Provider>()
             .HasMany(p => p.ServiceProviders);
 
         modelBuilder.Entity<Service>()
             .HasIndex(s => new { s.Name, s.Type })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Service>()
             .HasMany(s => s.ServiceProviders);
 
         modelBuilder.Entity<ServiceProvider>()
             .HasIndex(sp => new { sp.ServiceId, sp.ProviderId, sp.MNC })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<ServiceProvider>()
             .HasOne(sp => sp.Service)
@@ -166,7 +169,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<AreaStudy>()
             .HasIndex(p => p.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<AreaStudy>()
             .HasMany(a => a.Studies)
@@ -195,7 +199,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Cell>()
             .HasIndex(c => c.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Cell>()
             .HasOne(c => c.ServiceProvider)

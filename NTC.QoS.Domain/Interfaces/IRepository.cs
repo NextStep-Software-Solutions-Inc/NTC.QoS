@@ -27,8 +27,24 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     void Delete(TEntity entity);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<PaginatedResponse<TResult>> PaginateAsync<TResult>(IQueryable<TResult> queryable, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+
+    [Obsolete("Use ExecuteHardDeleteAsync for physical deletes or SoftDeleteAsync for logical deletes.")]
     Task<int> ExecuteDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
+
+    // Hard delete (physical)
+    Task<int> ExecuteHardDeleteAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
+
+    // Bulk hard delete by entities
+    Task BulkDeleteAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
+
     IQueryable<TEntity> QueryWithIgnoreQueryFilters(Expression<Func<TEntity, bool>>? expression = null);
     IQueryable<TEntity> QueryAsNoTracking(Expression<Func<TEntity, bool>>? expression = null);
-    Task BulkDeleteAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
+
+    // Existing explicit soft delete (allows external user/time for batch scenarios)
+    Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, string? userId, DateTime utcNow, CancellationToken cancellationToken = default);
+    Task<int> RestoreAsync(IQueryable<TEntity> queryable, string? userId, DateTime utcNow, CancellationToken cancellationToken = default);
+
+    // Convenience overloads using injected context/time
+    Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default);
+    Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default);
 }
