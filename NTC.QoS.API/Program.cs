@@ -150,7 +150,7 @@ public class Program
             .AddCheck<DbConnectionHealthCheck>("db");
 
         var app = builder.Build();
-
+        `
         // Conditional migrations & seeding
         var runMigrations = builder.Configuration.GetValue<bool?>("Database:RunMigrationsOnStartup") ?? env.IsDevelopment();
         if (runMigrations)

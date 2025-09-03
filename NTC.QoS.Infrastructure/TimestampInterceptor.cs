@@ -4,87 +4,56 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Infrastructure;
-public class TimestampInterceptor : ISaveChangesInterceptor
+public class AuditInterceptor : ISaveChangesInterceptor
 {
     private readonly IUserContextService _userContextService;
+    private readonly ITimeProvider _timeProvider;
 
-    public TimestampInterceptor(IUserContextService userContextService) // Constructor injection
+    public AuditInterceptor(IUserContextService userContextService, ITimeProvider timeProvider)
     {
         _userContextService = userContextService;
+        _timeProvider = timeProvider;
     }
+
     public void SaveChangesFailed(DbContextErrorEventData eventData) { }
 
     public InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
     {
         if (eventData.Context == null) return result;
-
-        var userId = _userContextService.GetCurrentUserId() ?? "System";
-        var entries = eventData.Context.ChangeTracker.Entries();
-
-        foreach (var entry in entries)
-        {
-            if (entry.Entity is BaseEntity entity)
-            {
-                switch (entry.State)
-                {
-                    case EntityState.Added:
-                        entity.CreatedAt = DateTime.UtcNow;
-                        entity.CreatedBy = userId;
-                        entity.UpdatedAt = entity.CreatedAt;
-                        entity.UpdatedBy = userId;
-                        entity.IsDeleted = false; // Initialize IsDeleted to false on creation
-                        break;
-                    case EntityState.Modified:
-                        entity.UpdatedAt = DateTime.UtcNow;
-                        entity.UpdatedBy = userId;
-                        break;
-                    case EntityState.Deleted: // Handle soft delete
-                        entry.State = EntityState.Modified; // Change state to Modified
-                        entity.IsDeleted = true; // Set IsDeleted to true
-                        entity.DeletedAt = DateTime.UtcNow;
-                        entity.DeletedBy = userId;
-                        break;
-                }
-            }
-        }
-
+        ApplyAudit(eventData.Context);
         return result;
     }
 
     public ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
     {
-        if (eventData.Context == null) return new ValueTask<InterceptionResult<int>>(result);
+        if (eventData.Context != null)
+            ApplyAudit(eventData.Context);
+        return new(result);
+    }
 
+    private void ApplyAudit(DbContext context)
+    {
         var userId = _userContextService.GetCurrentUserId() ?? "System";
-        var entries = eventData.Context.ChangeTracker.Entries();
+        var now = _timeProvider.UtcNow;
 
-        foreach (var entry in entries)
+        foreach (var entry in context.ChangeTracker.Entries<BaseEntity>())
         {
-            if (entry.Entity is BaseEntity entity)
+            switch (entry.State)
             {
-                switch (entry.State)
-                {
-                    case EntityState.Added:
-                        entity.CreatedAt = DateTime.UtcNow;
-                        entity.CreatedBy = userId;
-                        entity.UpdatedAt = entity.CreatedAt;
-                        entity.UpdatedBy = userId;
-                        entity.IsDeleted = false; // Initialize IsDeleted to false on creation
-                        break;
-                    case EntityState.Modified:
-                        entity.UpdatedAt = DateTime.UtcNow;
-                        entity.UpdatedBy = userId;
-                        break;
-                    case EntityState.Deleted: // Handle soft delete
-                        entry.State = EntityState.Modified; // Change state to Modified
-                        entity.IsDeleted = true; // Set IsDeleted to true
-                        entity.DeletedAt = DateTime.UtcNow;
-                        entity.DeletedBy = userId;
-                        break;
-                }
+                case EntityState.Added:
+                    entry.Entity.CreatedAt = now;
+                    entry.Entity.CreatedBy = userId;
+                    entry.Entity.UpdatedAt = now;
+                    entry.Entity.UpdatedBy = userId;
+                    if (!entry.Entity.IsDeleted)
+                        entry.Entity.IsDeleted = false;
+                    break;
+                case EntityState.Modified:
+                    // Avoid overwriting Created* fields
+                    entry.Entity.UpdatedAt = now;
+                    entry.Entity.UpdatedBy = userId;
+                    break;
             }
         }
-
-        return new ValueTask<InterceptionResult<int>>(result);
     }
 }

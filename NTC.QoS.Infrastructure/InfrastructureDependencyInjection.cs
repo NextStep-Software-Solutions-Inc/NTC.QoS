@@ -34,17 +34,21 @@ public static class InfrastructureDependencyInjection
         });
 
         services.AddScoped<IUserContextService, UserContextService>();
+        services.AddSingleton<ITimeProvider, SystemTimeProvider>();
+        services.AddScoped<AuditInterceptor>();
+        services.AddScoped<SoftDeleteInterceptor>();
 
         services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {
-            var userContextService = sp.GetRequiredService<IUserContextService>();
+            var audit = sp.GetRequiredService<AuditInterceptor>();
+            var softDelete = sp.GetRequiredService<SoftDeleteInterceptor>();
             options
                 .UseNpgsql(connectionString, npgsql =>
                 {
                     npgsql.UseNetTopologySuite();
                     npgsql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null);
                 })
-                .AddInterceptors(new TimestampInterceptor(userContextService));
+                .AddInterceptors(audit, softDelete);
         });
 
         services.AddDynamicAuthorization();
