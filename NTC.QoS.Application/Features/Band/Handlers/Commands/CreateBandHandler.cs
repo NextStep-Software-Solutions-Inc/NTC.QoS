@@ -12,15 +12,36 @@ public class CreateBandHandler (IRepository<Domain.Entities.Band> repository): I
 
     public async Task<ApiResponse<BandDto>> Handle(CreateBandRequest request, CancellationToken cancellationToken)
     {
-        var bandQuery = _repository.Query(b => b.Name == request.Band.Name);
-        var band = await _repository.FirstOrDefaultAsync(bandQuery, cancellationToken);
+        var bandQueryAll = _repository.QueryWithIgnoreQueryFilters(b => b.Name == request.Band.Name);
+        var existing = await _repository.FirstOrDefaultAsync(bandQueryAll, cancellationToken);
 
-        if (band != null)
+        if (existing != null && existing.IsDeleted)
+        {
+            var restoreQuery = _repository.QueryWithIgnoreQueryFilters(b => b.Id == existing.Id && b.IsDeleted);
+            await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            return new ApiResponse<BandDto>
+            {
+                Data = new BandDto
+                {
+                    Id = existing.Id,
+                    Name = existing.Name,
+                    Description = existing.Description,
+                },
+                Succeeded = true,
+                Message = "Band restored successfully."
+            };
+        }
+
+        if (existing != null)
         {
             return new ApiResponse<BandDto>
             {
                 Succeeded = false,
-                Message = "Band already exists."
+                Message = "Band already exists.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {"Duplicate", ["Band with the same name already exists."]}
+                }
             };
         }
                 
