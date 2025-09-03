@@ -22,7 +22,6 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-
         // load appsettings based on the env
         var env = builder.Environment.EnvironmentName ?? "Production";
         // load appsettings based on the env

@@ -129,10 +129,27 @@ public static class InfrastructureDependencyInjection
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
 
-        await dbContext.Database.MigrateAsync(cancellationToken);
-        await LocationSeeder.SeedAllAsync(dbContext, logger);
-        await OrganizationSeeder.SeedAsync(dbContext, logger);
-        await RoleSeeder.SeedAsync(dbContext, logger);
-        await AuthorizationSeeder.SeedAsync(dbContext, logger);
+        // Acquire PostgreSQL advisory lock to prevent concurrent migrations/seeding across instances
+        const long advisoryLockKey = 987654321012345678; // Arbitrary unique bigint key
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_lock({advisoryLockKey});", cancellationToken);
+            await dbContext.Database.MigrateAsync(cancellationToken);
+            await LocationSeeder.SeedAllAsync(dbContext, logger);
+            await OrganizationSeeder.SeedAsync(dbContext, logger);
+            await RoleSeeder.SeedAsync(dbContext, logger);
+            await AuthorizationSeeder.SeedAsync(dbContext, logger);
+        }
+        finally
+        {
+            try
+            {
+                await dbContext.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_unlock({advisoryLockKey});", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to release advisory lock {LockKey}", advisoryLockKey);
+            }
+        }
     }
 }
