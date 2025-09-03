@@ -86,7 +86,7 @@ public class Program
             });
             options.AddPolicy("Prod", policy =>
             {
-                var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+                var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
                 policy.WithOrigins(origins)
                       .AllowAnyHeader()
                       .AllowAnyMethod();
@@ -161,13 +161,13 @@ public class Program
         // Security headers (minimal baseline)
         app.Use(async (context, next) =>
         {
-            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-            context.Response.Headers["X-Frame-Options"] = "DENY";
-            context.Response.Headers["Referrer-Policy"] = "no-referrer";
-            context.Response.Headers["X-XSS-Protection"] = "0"; // modern browsers ignore, set explicit
+            context.Response.Headers.XContentTypeOptions = "nosniff";
+            context.Response.Headers.XFrameOptions = "DENY";
+            context.Response.Headers.Referer = "no-referrer";
+            context.Response.Headers.XXSSProtection = "0"; // modern browsers ignore, set explicit
             if (!env.IsDevelopment())
             {
-                context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+                context.Response.Headers.StrictTransportSecurity = "max-age=31536000; includeSubDomains";
             }
             await next();
         });
@@ -206,7 +206,7 @@ public class Program
         {
             app.UseHangfireDashboard("/hangfire", new DashboardOptions
             {
-                Authorization = new[] { new HangfireDashboardAuthorizationFilter() }
+                Authorization = [new HangfireDashboardAuthorizationFilter()]
             });
         }
 

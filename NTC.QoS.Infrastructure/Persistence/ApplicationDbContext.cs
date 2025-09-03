@@ -421,7 +421,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Region>()
             .Property(r => r.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Region>()
             .HasIndex(r => r.Boundaries)
@@ -441,7 +441,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Province>()
             .Property(p => p.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Province>()
             .HasIndex(p => p.Boundaries)
@@ -461,7 +461,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Municipality>()
             .Property(m => m.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Municipality>()
             .HasIndex(m => m.Boundaries)
@@ -481,7 +481,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Barangay>()
             .HasIndex(b => b.Boundaries)

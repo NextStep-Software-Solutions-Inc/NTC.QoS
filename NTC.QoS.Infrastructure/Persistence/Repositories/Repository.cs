@@ -130,7 +130,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         {
             entity.IsDeleted = false;
             entity.DeletedAt = null;
-            entity.DeletedBy = null;
+            entity.DeletedBy = string.Empty; // Use empty string instead of null
             entity.UpdatedAt = utcNow;
             entity.UpdatedBy = userId ?? "System";
         }
