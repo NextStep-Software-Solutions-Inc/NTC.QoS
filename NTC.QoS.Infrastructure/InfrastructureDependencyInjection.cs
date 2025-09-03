@@ -11,12 +11,17 @@ using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Seed;
 using NTC.QoS.Infrastructure.Services;
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NTC.QoS.Infrastructure;
 
 public static class InfrastructureDependencyInjection
 {
-    public static async Task<IServiceCollection> AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    // Pure registration only. Seeding/migrations moved to ApplyMigrationsAndSeedAsync
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
         var hangfireConnectionString = configuration.GetConnectionString("HangfireConnection");
@@ -25,60 +30,55 @@ public static class InfrastructureDependencyInjection
 
         services.AddHttpClient<IClerkUserService, ClerkUserService>(client =>
         {
-            // BaseAddress and DefaultRequestHeaders should ideally be set here
-            // to ensure the HttpClient instance injected into ClerkService is pre-configured.
-            // This also ensures that the HttpClient is correctly managed by HttpClientFactory.
             client.BaseAddress = new Uri("https://api.clerk.com/v1/");
-            // The API key will be added in the ClerkService constructor as it depends on IConfiguration.
-            // For a more robust solution, consider passing Clerk API settings via options pattern.
         });
 
-        // Register DbContext
-        // Ensure IUserContextService is registered before DbContext if DbContext depends on it directly for interceptors.
-        // It's generally better to register IUserContextService first and then resolve it.
         services.AddScoped<IUserContextService, UserContextService>();
 
-        services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {
-            // Resolve IUserContextService from the serviceProvider within the DbContext configuration
-            var userContextService = serviceProvider.GetRequiredService<IUserContextService>();
-            options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()).AddInterceptors(new TimestampInterceptor(userContextService));
+            var userContextService = sp.GetRequiredService<IUserContextService>();
+            options
+                .UseNpgsql(connectionString, npgsql =>
+                {
+                    npgsql.UseNetTopologySuite();
+                    npgsql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null);
+                })
+                .AddInterceptors(new TimestampInterceptor(userContextService));
         });
 
-        // Add dynamic authorization services
         services.AddDynamicAuthorization();
 
-        // Add Hangfire services.
-        services.AddHangfire(configuration => configuration
+        services.AddHangfire(cfg => cfg
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
             .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(hangfireConnectionString)) // Replace with your PostgreSQL connection string name
+            .UsePostgreSqlStorage(s => s.UseNpgsqlConnection(hangfireConnectionString))
             .UseDashboardMetrics()
         );
-        // Add the processing server as a hosted service
+
         services.AddHangfireServer(options =>
         {
             var configuredWorkerCount = configuration.GetValue<int?>("Hangfire:WorkerCount");
-            // Use a conservative multiplier and cap the maximum worker count to avoid resource exhaustion
-            const int maxWorkerCount = 40;
-            int fallbackWorkerCount = Math.Min(Environment.ProcessorCount * 2, maxWorkerCount);
-            options.WorkerCount = configuredWorkerCount ?? fallbackWorkerCount;
-            // builder may not be available in this static context; derive a safe application name
+            const int maxWorkerCount = 32;
+            int fallback = Math.Min(Environment.ProcessorCount, maxWorkerCount);
+            options.WorkerCount = configuredWorkerCount is > 0 ? Math.Min(configuredWorkerCount.Value, maxWorkerCount) : fallback;
             var appName = Environment.GetEnvironmentVariable("ASPNETCORE_APPLICATIONNAME")
                           ?? AppDomain.CurrentDomain.FriendlyName
                           ?? "HangfireServer";
             options.ServerName = $"{appName}-{Environment.MachineName}";
         });
-        
-        GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
-        {
-            Attempts = 3, // limit retries
-            LogEvents = true,
-            OnAttemptsExceeded = AttemptsExceededAction.Delete // or Fail/Succeed
-        });
 
-        // Register repositories
+        if (!GlobalJobFilters.Filters.Any(f => f.Instance is AutomaticRetryAttribute))
+        {
+            GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
+            {
+                Attempts = 3,
+                LogEvents = true,
+                OnAttemptsExceeded = AttemptsExceededAction.Delete
+            });
+        }
+
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IProviderRepository, ProviderRepository>();
         services.AddScoped<IProvinceRepository, ProvinceRepository>();
@@ -112,29 +112,27 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ICellSectorRepository, CellSectorRepository>();
         services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
 
-        services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
-
-        // Register all Jobs here
+        services.AddTransient<IBackgroundJobService, BackgroundJobService>();
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
         services.AddTransient<IProcessCellJob, ProcessCellJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
 
-        await Task.Run(async () =>
-        {
-            using var scope = services.BuildServiceProvider().CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
-
-            // migrate first
-            await dbContext.Database.MigrateAsync();
-            await LocationSeeder.SeedAllAsync(dbContext, logger);
-            await OrganizationSeeder.SeedAsync(dbContext, logger);
-            await RoleSeeder.SeedAsync(dbContext, logger);
-            await AuthorizationSeeder.SeedAsync(dbContext, logger);
-        });
-
         return services;
+    }
+
+    // Explicit migration / seeding entry point. Call once after building the app.
+    public static async Task ApplyMigrationsAndSeedAsync(this IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
+
+        await dbContext.Database.MigrateAsync(cancellationToken);
+        await LocationSeeder.SeedAllAsync(dbContext, logger);
+        await OrganizationSeeder.SeedAsync(dbContext, logger);
+        await RoleSeeder.SeedAsync(dbContext, logger);
+        await AuthorizationSeeder.SeedAsync(dbContext, logger);
     }
 }

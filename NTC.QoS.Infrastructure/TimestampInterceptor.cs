@@ -18,7 +18,7 @@ public class TimestampInterceptor : ISaveChangesInterceptor
     {
         if (eventData.Context == null) return result;
 
-        var userId = _userContextService.GetCurrentUserId();
+        var userId = _userContextService.GetCurrentUserId() ?? "System";
         var entries = eventData.Context.ChangeTracker.Entries();
 
         foreach (var entry in entries)
@@ -29,20 +29,20 @@ public class TimestampInterceptor : ISaveChangesInterceptor
                 {
                     case EntityState.Added:
                         entity.CreatedAt = DateTime.UtcNow;
-                        entity.CreatedBy = userId ?? "System";
-                        entity.UpdatedAt = DateTime.UtcNow;
-                        entity.CreatedBy = userId ?? "System"; ;
+                        entity.CreatedBy = userId;
+                        entity.UpdatedAt = entity.CreatedAt;
+                        entity.UpdatedBy = userId;
                         entity.IsDeleted = false; // Initialize IsDeleted to false on creation
                         break;
                     case EntityState.Modified:
                         entity.UpdatedAt = DateTime.UtcNow;
-                        entity.UpdatedBy = userId ?? "System";
+                        entity.UpdatedBy = userId;
                         break;
                     case EntityState.Deleted: // Handle soft delete
                         entry.State = EntityState.Modified; // Change state to Modified
                         entity.IsDeleted = true; // Set IsDeleted to true
                         entity.DeletedAt = DateTime.UtcNow;
-                        entity.DeletedBy = userId ?? "System";
+                        entity.DeletedBy = userId;
                         break;
                 }
             }
@@ -55,7 +55,7 @@ public class TimestampInterceptor : ISaveChangesInterceptor
     {
         if (eventData.Context == null) return new ValueTask<InterceptionResult<int>>(result);
 
-        var userId = _userContextService.GetCurrentUserId();
+        var userId = _userContextService.GetCurrentUserId() ?? "System";
         var entries = eventData.Context.ChangeTracker.Entries();
 
         foreach (var entry in entries)
@@ -66,20 +66,20 @@ public class TimestampInterceptor : ISaveChangesInterceptor
                 {
                     case EntityState.Added:
                         entity.CreatedAt = DateTime.UtcNow;
-                        entity.CreatedBy = userId ?? "System";
-                        entity.UpdatedAt = DateTime.UtcNow;
-                        entity.CreatedBy = userId ?? "System";
+                        entity.CreatedBy = userId;
+                        entity.UpdatedAt = entity.CreatedAt;
+                        entity.UpdatedBy = userId;
                         entity.IsDeleted = false; // Initialize IsDeleted to false on creation
                         break;
                     case EntityState.Modified:
                         entity.UpdatedAt = DateTime.UtcNow;
-                        entity.UpdatedBy = userId ?? "System";
+                        entity.UpdatedBy = userId;
                         break;
                     case EntityState.Deleted: // Handle soft delete
                         entry.State = EntityState.Modified; // Change state to Modified
                         entity.IsDeleted = true; // Set IsDeleted to true
                         entity.DeletedAt = DateTime.UtcNow;
-                        entity.DeletedBy = userId ?? "System";
+                        entity.DeletedBy = userId;
                         break;
                 }
             }

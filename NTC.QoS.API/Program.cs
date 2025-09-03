@@ -121,7 +121,7 @@ public class Program
             options.OperationFilter<SwaggerOperationIdFilter>();
         });
         builder.Services.AddApplication(builder.Configuration); // Call the Application registration
-        await builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+        builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
         builder.Services.AddResponseCompression(options =>
         {
             options.EnableForHttps = true;
@@ -133,6 +133,10 @@ public class Program
         builder.Services.AddScoped<GeospatialQueryService>();
 
         var app = builder.Build();
+
+        // Run migrations & seed data explicitly after container built
+        await app.Services.ApplyMigrationsAndSeedAsync();
+
         app.UseCors();
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
