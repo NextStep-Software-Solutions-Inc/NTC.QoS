@@ -62,6 +62,7 @@ public class CreateUserRegionHandler(
                 {
                     Id = user.Id,
                     AuthUserId = user.AuthUserId,
+                    Email = user.Email,
                     Role = new()
                     {
                         Id = user.RoleId,
@@ -74,7 +75,7 @@ public class CreateUserRegionHandler(
                         Id = user.OrganizationId,
                         Name = user.Organization.Name ,
                         Description = user.Organization.Description
-                    }
+                    },
                 },
                 Region = new()
                 {

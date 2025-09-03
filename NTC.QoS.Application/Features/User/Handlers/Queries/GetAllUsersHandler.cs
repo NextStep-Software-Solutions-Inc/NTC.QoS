@@ -48,7 +48,8 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
                 Name = u.Organization != null ? u.Organization.Name : string.Empty,
                 Description = u.Organization != null ? u.Organization.Description ?? string.Empty : string.Empty
             },
-            AuthUserId = u.AuthUserId
+            AuthUserId = u.AuthUserId,
+            Email = u.Email,
         });
 
         return await _repository.PaginateAsync(userDtosQuery, request.PageNumber, request.PageSize, cancellationToken);

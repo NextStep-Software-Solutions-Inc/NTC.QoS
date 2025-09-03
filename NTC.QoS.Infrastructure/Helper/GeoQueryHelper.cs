@@ -452,4 +452,40 @@ public static class GeoQueryHelper
 
         return result;
     }
+
+    /// <summary>
+    /// Finds all municipalities that intersect with the given geometry, regardless of asset presence.
+    /// Returns municipality info with coverage status and asset counts.
+    /// </summary>
+    /// <param name="geometry">The geometry to search within</param>
+    /// <param name="municipalityRepository">Repository for municipality entities</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping municipality info to their coverage and asset data</returns>
+    public static async Task<List<(Guid? Id, string Name, bool IsCovered)>> FindMunicipalitiesWithinGeometryAsync(
+        Geometry geometry,
+        IMunicipalityRepository municipalityRepository,
+        CancellationToken cancellationToken = default)
+    {
+        if (geometry?.IsValid != true)
+        {
+            return new List<(Guid? Id, string Name, bool IsCovered)>();
+        }
+
+        try
+        {
+            // Get all municipalities with boundaries that intersect with the geometry
+            var municipalitiesQuery = municipalityRepository
+                .Query(m => m.Boundaries != null && m.Boundaries.Intersects(geometry))
+                .Select(m => new { m.Id, m.Name });
+
+            var municipalities = await municipalityRepository.ToListAsync(municipalitiesQuery, cancellationToken);
+
+            return municipalities.Select(m => ((Guid?)m.Id, m.Name, true)).ToList();
+        }
+        catch (Exception)
+        {
+            // Return empty list on any spatial query errors
+            return new List<(Guid? Id, string Name, bool IsCovered)>();
+        }
+    }
 }

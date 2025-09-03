@@ -11,10 +11,14 @@ spec:
     metadata:
       labels:
         app: {{ .Release.Name }}
+      annotations:
+        checksum/image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        helm.sh/revision: "{{ .Release.Revision }}"
     spec:
       containers:
-        - name: ntc-qos
+        - name: ntc-qos-api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -33,3 +37,5 @@ spec:
                 secretKeyRef:
                   name: ntc-qos-secrets
                   key: Clerk__SecretKey
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.env.ASPNETCORE_ENVIRONMENT | default "Production" }}

@@ -49,13 +49,6 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
         return userRegion.Succeeded ? Ok(userRegion) : BadRequest(userRegion);
     }
 
-    [HttpGet("auth-user/{authUserId}")]
-    public async Task<ActionResult<ApiResponse<UserRegionDto>>> GetUserRegionByAuthUserId(string authUserId)
-    {
-        var userRegion = await _mediator.Send(new GetUserRegionByAuthUserIdRequest(authUserId));
-        return userRegion.Succeeded ? Ok(userRegion) : BadRequest(userRegion);
-    }
-
     [HttpPut("{id}/status")]
     public async Task<ActionResult<ApiResponse<UserRegionDto>>> UpdateUserRegionStatus(Guid id, UpdateUserRegionStatusDto updateUserRegion)
     {

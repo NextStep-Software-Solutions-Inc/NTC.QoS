@@ -323,10 +323,28 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(r => r.Users);
 
         modelBuilder.Entity<Role>()
-            .HasMany(r => r.RolePermissions);
+            .HasMany(r => r.RolePermissions)
+            .WithOne(rp => rp.Role)
+            .HasForeignKey(rp => rp.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Permission>()
-            .HasMany(p => p.RolePermissions);
+            .HasMany(p => p.RolePermissions)
+            .WithOne(rp => rp.Permission)
+            .HasForeignKey(rp => rp.PermissionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RolePermission>()
+            .HasOne(rp => rp.Role)
+            .WithMany(r => r.RolePermissions)
+            .HasForeignKey(rp => rp.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RolePermission>()
+            .HasOne(rp => rp.Permission)
+            .WithMany(p => p.RolePermissions)
+            .HasForeignKey(rp => rp.PermissionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<RolePermission>()
             .HasIndex(rp => new { rp.PermissionId, rp.RoleId })

@@ -72,6 +72,27 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         return Ok(result);
     }
 
+    [HttpGet("cell-sites-by-provider")]
+    public async Task<ActionResult<ApiResponse<CellSitesByProviderResponseDto>>> GetCellSitesByProvider(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? serviceProviderId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
+    {
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger);
+
+        var request = new GetCellSitesByProviderRequest
+        {
+            RegionId = regionId,
+            ServiceProviderId = serviceProviderId,
+            StartDate = finalStartDate,
+            EndDate = finalEndDate
+        };
+
+        var result = await mediator.Send(request);
+        return Ok(result);
+    }
+
     [HttpGet("overview")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
     VaryByQueryKeys = new[] { "startDate", "endDate", "daysInPast", "regionId", "provinceId", "municipalityId", "limit" })]
