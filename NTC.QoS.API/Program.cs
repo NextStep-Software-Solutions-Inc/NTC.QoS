@@ -40,7 +40,9 @@ public class Program
 
         builder.Services.AddClerkApiClient(config =>
         {
-            config.SecretKey = clerkSecret ?? "dev_placeholder_secret"; // allow placeholder in dev
+            config.SecretKey = env.IsDevelopment()
+                ? (clerkSecret ?? "dev_placeholder_secret")
+                : clerkSecret;
         });
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
