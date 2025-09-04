@@ -130,7 +130,20 @@ public class ClerkUserService : IClerkUserService
 
     private ClerkApiErrorResponse? TryParseError(string body)
     {
-        try { return JsonSerializer.Deserialize<ClerkApiErrorResponse>(body, ResponseSerializerOptions); } catch { return null; }
+        try
+        {
+            return JsonSerializer.Deserialize<ClerkApiErrorResponse>(body, ResponseSerializerOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to deserialize Clerk API error response. Body: {Body}", body);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during Clerk API error response deserialization. Body: {Body}", body);
+            return null;
+        }
     }
 
     public async Task UpdateUserMetadataAsync(string userId, UserMetadataPayload payload)
