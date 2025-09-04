@@ -10,7 +10,7 @@ The default admin user basic information is configured through the `appsettings.
 ```json
 {
   "DefaultAdmin": {
-    "Email": "admin@ntc.gov.ph",
+    "Email": "nssqos2025@gmail.com",
     "FirstName": "System",
     "LastName": "Administrator"
   }

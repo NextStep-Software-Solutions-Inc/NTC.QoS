@@ -12,6 +12,8 @@ public static class UserSeeder
     // Fixed UUID for consistent default admin user seeding
     public static readonly Guid DefaultAdminUserId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
+    private static bool IsValidClerkSecret(string? key) => !string.IsNullOrWhiteSpace(key) && key.StartsWith("sk_");
+
     // Seeds a default admin user into the database and Clerk
     public static async Task SeedAsync(ApplicationDbContext context, IClerkUserService? clerkUserService, IConfiguration configuration, ILogger logger)
     {
@@ -37,9 +39,13 @@ public static class UserSeeder
                                   Environment.GetEnvironmentVariable("DEFAULT_ADMIN_PASSWORD") ?? // Environment Variable
                                   GenerateSecureDefaultPassword(); // Generate secure password as last resort
 
-        // Check if Clerk is configured
+        // Check if Clerk is configured (must be a real secret key starting with sk_)
         var clerkSecretKey = configuration.GetSection("Clerk:SecretKey").Value;
-        var isClerkConfigured = !string.IsNullOrEmpty(clerkSecretKey) && clerkUserService != null;
+        var isClerkConfigured = IsValidClerkSecret(clerkSecretKey) && clerkUserService != null;
+        if (!IsValidClerkSecret(clerkSecretKey) && !string.IsNullOrWhiteSpace(clerkSecretKey))
+        {
+            logger.LogWarning("Clerk secret key present but does not look valid (expected to start with 'sk_'). Skipping Clerk user creation.");
+        }
 
         // Check if default admin user already exists in database
         var existingUser = await context.Users.AsNoTracking()
@@ -98,7 +104,6 @@ public static class UserSeeder
                         FirstName = defaultAdminFirstName,
                         LastName = defaultAdminLastName,
                         Password = defaultAdminPassword,
-                        EmailVerified = true,
                         PublicMetadata = new Dictionary<string, object>
                         {
                             { "role", superAdminRole.Key },
@@ -118,14 +123,13 @@ public static class UserSeeder
                 }
                 catch (Exception clerkEx)
                 {
-                    logger.LogError(clerkEx, "Failed to create user in Clerk. Proceeding with database-only user creation. Error: {ErrorMessage}", clerkEx.Message);
-                    // Continue with database creation even if Clerk fails
+                    logger.LogError(clerkEx, "Failed to create user in Clerk (will continue with placeholder AuthUserId). Error: {ErrorMessage}", clerkEx.Message);
                 }
             }
             else
             {
-                logger.LogInformation("Clerk not configured. Creating database user with placeholder AuthUserId: {AuthUserId}", authUserId);
-                logger.LogInformation("To integrate with Clerk later, configure Clerk credentials and restart the application.");
+                logger.LogInformation("Clerk not configured or invalid secret. Creating database user with placeholder AuthUserId: {AuthUserId}", authUserId);
+                logger.LogInformation("To integrate with Clerk later, configure a valid Clerk secret (starts with 'sk_') and restart the application.");
             }
 
             // Create user in local database
@@ -161,7 +165,7 @@ public static class UserSeeder
             // Log additional instructions if Clerk is not configured
             if (!isClerkConfigured)
             {
-                logger.LogWarning("To enable Clerk authentication for this user, configure Clerk credentials and restart the application.");
+                logger.LogWarning("To enable Clerk authentication for this user, configure a valid Clerk secret and restart the application.");
             }
         }
         catch (Exception ex)
@@ -185,20 +189,17 @@ public static class UserSeeder
         {
             logger.LogInformation("Updating existing admin user with Clerk integration...");
 
-            // Get role and organization for metadata
             var role = await context.Roles.AsNoTracking()
                 .FirstOrDefaultAsync(r => r.Id == existingUser.RoleId);
             var organization = await context.Organizations.AsNoTracking()
                 .FirstOrDefaultAsync(o => o.Id == existingUser.OrganizationId);
 
-            // Create user in Clerk
             var clerkUserPayload = new CreateClerkUserPayload
             {
                 EmailAddress = existingUser.Email,
                 FirstName = "System",
                 LastName = "Administrator",
                 Password = password,
-                EmailVerified = true,
                 PublicMetadata = new Dictionary<string, object>
                 {
                     { "role", role?.Key ?? "super_admin" },
@@ -215,7 +216,6 @@ public static class UserSeeder
 
             var clerkUser = await clerkUserService.CreateUserAsync(clerkUserPayload);
 
-            // Update the user's AuthUserId in the database
             var userToUpdate = await context.Users.FirstOrDefaultAsync(u => u.Id == existingUser.Id);
             if (userToUpdate != null)
             {
