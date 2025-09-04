@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Persistence;
+using System.Security.Cryptography;
 
 namespace NTC.QoS.Infrastructure.Seed;
 
@@ -240,29 +241,33 @@ public static class UserSeeder
     private static string GenerateSecureDefaultPassword()
     {
         // Generate a secure random password for production use
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz023456789!@#$%^&*";
-        var random = new Random();
+        const string uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string lowercase = "abcdefghijkmnpqrstuvwxyz";
+        const string digits = "023456789";
+        const string special = "!@#$%^&*";
+        const string allChars = uppercase + lowercase + digits + special;
+
         var password = new char[16];
-        
+
         // Ensure at least one of each type
-        password[0] = "ABCDEFGHJKLMNPQRSTUVWXYZ"[random.Next(23)]; // Uppercase
-        password[1] = "abcdefghijkmnpqrstuvwxyz"[random.Next(23)]; // Lowercase  
-        password[2] = "023456789"[random.Next(9)]; // Number
-        password[3] = "!@#$%^&*"[random.Next(8)]; // Special
-        
+        password[0] = uppercase[RandomNumberGenerator.GetInt32(uppercase.Length)];
+        password[1] = lowercase[RandomNumberGenerator.GetInt32(lowercase.Length)];
+        password[2] = digits[RandomNumberGenerator.GetInt32(digits.Length)];
+        password[3] = special[RandomNumberGenerator.GetInt32(special.Length)];
+
         // Fill the rest randomly
         for (int i = 4; i < 16; i++)
         {
-            password[i] = chars[random.Next(chars.Length)];
+            password[i] = allChars[RandomNumberGenerator.GetInt32(allChars.Length)];
         }
-        
-        // Shuffle the password
+
+        // Shuffle the password using Fisher-Yates shuffle
         for (int i = password.Length - 1; i > 0; i--)
         {
-            int j = random.Next(i + 1);
+            int j = RandomNumberGenerator.GetInt32(i + 1);
             (password[i], password[j]) = (password[j], password[i]);
         }
-        
+
         return new string(password);
     }
 }
