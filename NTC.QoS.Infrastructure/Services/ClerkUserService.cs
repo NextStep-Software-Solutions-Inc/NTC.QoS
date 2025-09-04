@@ -73,8 +73,8 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
         }
 
         _logger.LogInformation("Clerk user creation successful. Response: {Response}", responseBody);
-        var userResponse = JsonSerializer.Deserialize<ClerkUserResponse>(responseBody, ResponseSerializerOptions);
-        return userResponse ?? throw new InvalidOperationException("Failed to deserialize Clerk user response.");
+        return userResponse ?? throw new InvalidOperationException(
+            $"Failed to deserialize Clerk user response. Status: {(int)response.StatusCode} {response.StatusCode}. Response body: {responseBody}");
     }
 
     public async Task<List<ClerkUserResponse>> GetUsersByEmailAsync(string email)
