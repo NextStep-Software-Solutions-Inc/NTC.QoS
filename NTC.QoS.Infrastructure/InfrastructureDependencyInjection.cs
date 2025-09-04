@@ -11,10 +11,6 @@ using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Seed;
 using NTC.QoS.Infrastructure.Services;
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace NTC.QoS.Infrastructure;
 
@@ -73,15 +69,8 @@ public static class InfrastructureDependencyInjection
             options.ServerName = $"{appName}-{Environment.MachineName}";
         });
 
-        if (!GlobalJobFilters.Filters.Any(f => f.Instance is AutomaticRetryAttribute))
-        {
-            GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
-            {
-                Attempts = 3,
-                LogEvents = true,
-                OnAttemptsExceeded = AttemptsExceededAction.Delete
-            });
-        }
+        // Hangfire global filter registrar
+        services.AddSingleton<IHangfireFilterRegistrar, HangfireFilterRegistrar>();
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IProviderRepository, ProviderRepository>();

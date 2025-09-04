@@ -151,6 +151,9 @@ public class Program
 
         var app = builder.Build();
         
+        // Register global Hangfire filters (idempotent)
+        app.Services.GetRequiredService<IHangfireFilterRegistrar>().RegisterGlobalFilters();
+        
         // Conditional migrations & seeding
         var runMigrations = builder.Configuration.GetValue<bool?>("Database:RunMigrationsOnStartup") ?? env.IsDevelopment();
         if (runMigrations)
