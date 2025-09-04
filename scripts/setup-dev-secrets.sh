@@ -74,9 +74,9 @@ echo "You can skip any secret by pressing Enter without typing a value."
 set_secret "DefaultAdmin:Password" "Default Admin Password" "DevPassword123!" true
 
 # Set up database connection strings
-set_secret "ConnectionStrings:PostgreSqlConnection" "PostgreSQL Connection String" "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=yourpassword;" false
+set_secret "ConnectionStrings:PostgreSqlConnection" "PostgreSQL Connection String" "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=CHANGE_ME;" false
 
-set_secret "ConnectionStrings:HangfireConnection" "Hangfire Connection String" "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=yourpassword;" false
+set_secret "ConnectionStrings:HangfireConnection" "Hangfire Connection String" "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=CHANGE_ME;" false
 
 # Set up Clerk secrets
 set_secret "Clerk:SecretKey" "Clerk Secret Key" "" true
