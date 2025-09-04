@@ -159,8 +159,8 @@ public static class UserSeeder
             if (string.IsNullOrEmpty(configuration.GetSection("DefaultAdmin:Password").Value) && 
                 string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DEFAULT_ADMIN_PASSWORD")))
             {
-                logger.LogCritical("IMPORTANT: Generated password for admin user {Email}: {Password}. Save this password securely and change it immediately after first login!", 
-                    defaultAdminEmail, defaultAdminPassword);
+                logger.LogCritical("IMPORTANT: A password for the admin user {Email} was auto-generated. For security reasons, it is not displayed. Please set a password using the 'DefaultAdmin:Password' user secret or the 'DEFAULT_ADMIN_PASSWORD' environment variable and restart the application to ensure you can log in.", 
+                    defaultAdminEmail);
             }
 
             // Log additional instructions if Clerk is not configured
