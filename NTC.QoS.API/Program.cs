@@ -1,18 +1,21 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Clerk.Net.DependencyInjection;
+using Hangfire;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Extensions;
+using NTC.QoS.API.Filters;
 using NTC.QoS.Application;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure;
-using Clerk.Net.DependencyInjection;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using NTC.QoS.Infrastructure.Services;
+using System.Net.Http.Headers;
 using System.Security.Claims;
-using Microsoft.OpenApi.Models;
-using NTC.QoS.API.Filters;
-using Hangfire;
-using Microsoft.AspNetCore.Authorization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API;
 
@@ -33,6 +36,26 @@ public class Program
         builder.Services.AddClerkApiClient(config =>
         {
             config.SecretKey = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
+        });
+
+        builder.Services.AddHttpClient<IClerkUserService, ClerkUserService>((serviceProvider, client) =>
+        {
+            // Get the configuration service so we can read the API key
+            var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+
+            // Read the secret key
+            var clerkApiKey = configuration.GetValue<string>("Clerk:SecretKey")
+                              ?? throw new InvalidOperationException("Clerk API Key is not configured.");
+
+            // Determine the correct base URL (dev vs. prod)
+            var baseUrl = clerkApiKey.StartsWith("sk_test_")
+                          ? "https://api.clerk.dev/v1/"
+                          : "https://api.clerk.com/v1/";
+
+            // Configure the HttpClient instance
+            client.BaseAddress = new Uri(baseUrl);
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", clerkApiKey);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         });
 
         // JWT Bearer Authentication for Clerk.

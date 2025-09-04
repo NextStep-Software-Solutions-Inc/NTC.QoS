@@ -91,7 +91,8 @@ public static class UserSeeder
                 throw new InvalidOperationException("National organization not found. Ensure organization seeding runs before user seeding.");
             }
 
-            string authUserId = "clerk_placeholder_" + Guid.NewGuid().ToString("N")[..8]; // Default placeholder
+            // Use a deterministic placeholder based on the user's fixed ID
+            string authUserId = $"clerk_placeholder_{DefaultAdminUserId:N}";
 
             // Create user in Clerk if configured
             if (isClerkConfigured && clerkUserService != null)

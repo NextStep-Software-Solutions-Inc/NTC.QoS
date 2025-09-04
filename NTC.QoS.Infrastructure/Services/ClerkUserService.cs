@@ -1,14 +1,12 @@
-﻿using System.Text;
-using System.Text.Json;
-using Microsoft.Extensions.Configuration;
-using System.Net.Http.Headers;
+﻿using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
-using Microsoft.Extensions.Logging;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace NTC.QoS.Infrastructure.Services;
 
-public class ClerkUserService : IClerkUserService
+public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> logger) : IClerkUserService
 {
     private static readonly JsonSerializerOptions RequestSerializerOptions = new()
     {
@@ -21,34 +19,14 @@ public class ClerkUserService : IClerkUserService
         PropertyNamingPolicy = null
     };
 
-    private readonly HttpClient _httpClient;
-    private readonly string _clerkApiKey;
-    private readonly ILogger<ClerkUserService> _logger;
+    private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    private readonly ILogger<ClerkUserService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     private sealed record ClerkApiErrorDetail([property: JsonPropertyName("message")] string Message,
                                                [property: JsonPropertyName("long_message")] string? LongMessage,
                                                [property: JsonPropertyName("code")] string? Code);
     private sealed record ClerkApiErrorResponse([property: JsonPropertyName("errors")] List<ClerkApiErrorDetail>? Errors,
                                                 [property: JsonPropertyName("clerk_trace_id")] string? TraceId);
-
-    public ClerkUserService(HttpClient httpClient, IConfiguration configuration, ILogger<ClerkUserService> logger)
-    {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _clerkApiKey = configuration.GetSection("Clerk:SecretKey").Value ?? throw new InvalidOperationException("Clerk API Key is not configured.");
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _clerkApiKey);
-        _httpClient.DefaultRequestHeaders.Accept.Clear();
-        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-        // Use dev API host for test keys, production host for live keys
-        var baseUrl = _clerkApiKey.StartsWith("sk_test_") ? "https://api.clerk.dev/v1/" : "https://api.clerk.com/v1/";
-        if (_httpClient.BaseAddress == null || _httpClient.BaseAddress.ToString() != baseUrl)
-        {
-            _httpClient.BaseAddress = new Uri(baseUrl);
-        }
-        _logger.LogInformation("Clerk API base URL set to {BaseUrl}", baseUrl);
-    }
 
     public async Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload)
     {
