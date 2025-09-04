@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Infrastructure;
+
 public class AuditInterceptor : ISaveChangesInterceptor
 {
     private readonly IUserContextService _userContextService;
@@ -45,8 +46,6 @@ public class AuditInterceptor : ISaveChangesInterceptor
                     entry.Entity.CreatedBy = userId;
                     entry.Entity.UpdatedAt = now;
                     entry.Entity.UpdatedBy = userId;
-                    if (!entry.Entity.IsDeleted)
-                        entry.Entity.IsDeleted = false;
                     break;
                 case EntityState.Modified:
                     // Avoid overwriting Created* fields
