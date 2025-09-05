@@ -66,8 +66,12 @@ echo.
 REM Set up Hangfire connection
 echo ?? Setting up: Hangfire Connection String
 echo Key: ConnectionStrings:HangfireConnection
-set /p hangfire_connection="Enter Hangfire connection string (or press Enter to use same as PostgreSQL): "
-if "%hangfire_connection%"=="" set hangfire_connection=%db_connection%
+REM Only use db_connection as fallback if it is not empty
+if "%hangfire_connection%"=="" (
+    if not "%db_connection%"=="" (
+        set hangfire_connection=%db_connection%
+    )
+)
 if not "%hangfire_connection%"=="" (
     dotnet user-secrets set "ConnectionStrings:HangfireConnection" "%hangfire_connection%" --project "%API_PROJECT%"
     if errorlevel 1 (
