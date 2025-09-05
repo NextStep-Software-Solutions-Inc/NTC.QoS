@@ -32,11 +32,6 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
     public async Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload)
     {
         // The Clerk API expects email_address to be an array.
-        return await SendCreateAsync(payload);
-    }
-
-    private async Task<ClerkUserResponse> SendCreateAsync(CreateClerkUserPayload payload)
-    {
         // Construct a new object for serialization with email_address as an array.
         var requestObject = new
         {
