@@ -25,6 +25,7 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
     private sealed record ClerkApiErrorDetail([property: JsonPropertyName("message")] string Message,
                                                [property: JsonPropertyName("long_message")] string? LongMessage,
                                                [property: JsonPropertyName("code")] string? Code);
+
     private sealed record ClerkApiErrorResponse([property: JsonPropertyName("errors")] List<ClerkApiErrorDetail>? Errors,
                                                 [property: JsonPropertyName("clerk_trace_id")] string? TraceId);
 
@@ -60,22 +61,27 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
             {
                 foreach (var err in parsed.Errors ?? new())
                 {
-                    _logger.LogError("Clerk error code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status} payload={Payload}",
-                        err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode, jsonPayload);
+                    _logger.LogError("Clerk error code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status}",
+                        err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode);
                 }
             }
             else
             {
-                _logger.LogError("Clerk create user failed. Status: {Status} RawBody: {Body} Payload: {Payload}", response.StatusCode, responseBody, jsonPayload);
+                _logger.LogError("Clerk create user failed. Status: {Status} RawBody: {Body}", response.StatusCode, responseBody);
             }
             
             throw new InvalidOperationException($"Clerk create user failed: {(int)response.StatusCode} {response.StatusCode}");
         }
 
-        _logger.LogInformation("Clerk user creation successful. Response: {Response}", responseBody);
         var userResponse = JsonSerializer.Deserialize<ClerkUserResponse>(responseBody, ResponseSerializerOptions);
-        return userResponse ?? throw new InvalidOperationException(
-            $"Failed to deserialize Clerk user response. Status: {(int)response.StatusCode} {response.StatusCode}. Response body: {responseBody}");
+        if (userResponse == null)
+        {
+            throw new InvalidOperationException(
+                $"Failed to deserialize Clerk user response. Status: {(int)response.StatusCode} {response.StatusCode}.");
+        }
+
+        _logger.LogInformation("Clerk user creation successful for user Id: {UserId}", userResponse.Id);
+        return userResponse;
     }
 
     public async Task<List<ClerkUserResponse>> GetUsersByEmailAsync(string email)
