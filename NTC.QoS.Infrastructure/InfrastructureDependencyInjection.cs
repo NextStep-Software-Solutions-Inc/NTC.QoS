@@ -111,6 +111,8 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
         services.AddScoped<ICellSectorRepository, CellSectorRepository>();
         services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
+        services.AddScoped<IConnectivityAssessmentRepository, ConnectivityAssessmentRepository>();
+        services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
 
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
 
