@@ -120,7 +120,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
 
         // Get location information and boundaries
-        var (locationName, boundary, center, areaKm2) = await GetLocationDetailsAsync(locationId, locationType, cancellationToken);
+        var (locationName, boundary, center, areaKm2, population, householdCount) = await GetLocationDetailsAsync(locationId, locationType, cancellationToken);
         if (center == null)
         {
             _logger.LogWarning("Could not get location information for location {LocationId}", locationId);
@@ -133,8 +133,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate speed test statistics
         var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
         
-        // Calculate CMTS scores based on infrastructure and speed data
-        var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2);
+        // Calculate CMTS scores based on infrastructure, speed data, and population (NEW!)
+        var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
         
         // Determine connectivity status and total score
         var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess + 
@@ -149,6 +149,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             LocationType = locationType,
             Location = center,
             AreaSizeKm2 = areaKm2,
+            Population = population,               // NEW: Store population data
+            HouseholdCount = householdCount,       // NEW: Store household count
             AssessmentDate = DateTime.UtcNow,
             LastUpdated = DateTime.UtcNow,
             AssessedBy = "System",
@@ -181,6 +183,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Update existing
             existingRecord.AssessmentDate = assessment.AssessmentDate;
             existingRecord.LastUpdated = assessment.LastUpdated;
+            existingRecord.Population = assessment.Population;                    // NEW: Update population
+            existingRecord.HouseholdCount = assessment.HouseholdCount;            // NEW: Update household count
             existingRecord.ConnectivityStatus = assessment.ConnectivityStatus;
             existingRecord.TotalScore = assessment.TotalScore;
             existingRecord.FiberCoverageScore = assessment.FiberCoverageScore;
@@ -223,18 +227,17 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             CMTSScores = cmtsScores,
             Infrastructure = infrastructureStats,
             SpeedStats = speedStats,
-            Coverage = new CoverageStatsDto
-            {
-                HasReliableConnectivity = assessment.HasReliableConnectivity
-            },
+            Coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, assessment.HasReliableConnectivity),
             AreaSizeKm2 = areaKm2,
+            Population = population,                                    // NEW: Include population data
+            HouseholdCount = householdCount,                           // NEW: Include household count  
             CenterPoint = new PointDto { Latitude = center.Y, Longitude = center.X },
             AssessmentDate = assessment.AssessmentDate,
             LastUpdated = assessment.LastUpdated
         };
     }
 
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2)> GetLocationDetailsAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetLocationDetailsAsync(
         Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken)
     {
         return locationType switch
@@ -243,23 +246,23 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             LocationTypeEnum.Municipality => await GetMunicipalityDetailsOptimizedAsync(locationId, cancellationToken),
             LocationTypeEnum.Provincial => await GetProvinceDetailsOptimizedAsync(locationId, cancellationToken),
             LocationTypeEnum.Regional => await GetRegionDetailsOptimizedAsync(locationId, cancellationToken),
-            _ => ("Unknown", null, null, 0)
+            _ => ("Unknown", null, null, 0, null, null)
         };
     }
 
     /// <summary>
     /// Optimized barangay details retrieval - always loads boundaries for government-grade accuracy
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2)> GetBarangayDetailsOptimizedAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetBarangayDetailsOptimizedAsync(
         Guid barangayId, CancellationToken cancellationToken)
     {
         var barangayInfo = await _barangayRepository.FirstOrDefaultAsync(
             _barangayRepository.Query(b => b.Id == barangayId)
-                .Select(b => new { b.Name, b.Center, b.Area }), 
+                .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount }), 
             cancellationToken);
         
         if (barangayInfo == null)
-            return ("Unknown", null, null, 0);
+            return ("Unknown", null, null, 0, null, null);
 
         // Always load boundaries for barangays - they're typically small and accuracy is important
         Geometry? boundary = null;
@@ -267,22 +270,23 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Select(b => b.Boundaries);
         boundary = await _barangayRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
-        return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area);
+        return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area, 
+               barangayInfo.TotalPopulation, barangayInfo.HouseholdCount);
     }
 
     /// <summary>
     /// Optimized municipality details - always loads boundaries for government-grade accuracy
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2)> GetMunicipalityDetailsOptimizedAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetMunicipalityDetailsOptimizedAsync(
         Guid municipalityId, CancellationToken cancellationToken)
     {
         var municipalityInfo = await _municipalityRepository.FirstOrDefaultAsync(
             _municipalityRepository.Query(m => m.Id == municipalityId)
-                .Select(m => new { m.Name, m.Center, m.Area }), 
+                .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount }), 
             cancellationToken);
         
         if (municipalityInfo == null)
-            return ("Unknown", null, null, 0);
+            return ("Unknown", null, null, 0, null, null);
 
         // Always load boundaries for accurate government mapping - performance optimized with caching
         Geometry? boundary = null;
@@ -290,22 +294,23 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Select(m => m.Boundaries);
         boundary = await _municipalityRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
-        return (municipalityInfo.Name, boundary, municipalityInfo.Center, municipalityInfo.Area);
+        return (municipalityInfo.Name, boundary, municipalityInfo.Center, municipalityInfo.Area,
+               municipalityInfo.TotalPopulation, municipalityInfo.HouseholdCount);
     }
 
     /// <summary>
     /// Province details - always loads boundaries for government-grade accuracy
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2)> GetProvinceDetailsOptimizedAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetProvinceDetailsOptimizedAsync(
         Guid provinceId, CancellationToken cancellationToken)
     {
         var provinceInfo = await _provinceRepository.FirstOrDefaultAsync(
             _provinceRepository.Query(p => p.Id == provinceId)
-                .Select(p => new { p.Name, p.Center, p.Area }), 
+                .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount }), 
             cancellationToken);
         
         if (provinceInfo == null)
-            return ("Unknown", null, null, 0);
+            return ("Unknown", null, null, 0, null, null);
 
         // Always load boundaries for accurate government mapping - performance optimized with caching
         Geometry? boundary = null;
@@ -313,22 +318,23 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Select(p => p.Boundaries);
         boundary = await _provinceRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
-        return (provinceInfo.Name, boundary, provinceInfo.Center, provinceInfo.Area);
+        return (provinceInfo.Name, boundary, provinceInfo.Center, provinceInfo.Area,
+               provinceInfo.TotalPopulation, provinceInfo.HouseholdCount);
     }
 
     /// <summary>
     /// Region details - loads boundaries for maximum accuracy (performance managed via caching)
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2)> GetRegionDetailsOptimizedAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetRegionDetailsOptimizedAsync(
         Guid regionId, CancellationToken cancellationToken)
     {
         var regionInfo = await _regionRepository.FirstOrDefaultAsync(
             _regionRepository.Query(r => r.Id == regionId)
-                .Select(r => new { r.Name, r.Center, r.Area }), 
+                .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount }), 
             cancellationToken);
         
         if (regionInfo == null)
-            return ("Unknown", null, null, 0);
+            return ("Unknown", null, null, 0, null, null);
 
         // Load boundaries for accurate government mapping - large regions benefit most from caching
         Geometry? boundary = null;
@@ -336,7 +342,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Select(r => r.Boundaries);
         boundary = await _regionRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
-        return (regionInfo.Name, boundary, regionInfo.Center, regionInfo.Area);
+        return (regionInfo.Name, boundary, regionInfo.Center, regionInfo.Area,
+               regionInfo.TotalPopulation, regionInfo.HouseholdCount);
     }
 
     /// <summary>
@@ -357,7 +364,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
         else
         {
-            _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignoring cache)", locationType, locationId);
+            _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
 
         _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
@@ -477,7 +484,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
         else
         {
-            _logger.LogInformation("Force recalculating speed stats for {LocationType} {LocationId} (ignoring cache)", locationType, locationId);
+            _logger.LogInformation("Force recalculating speed stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
 
         SpeedStatsDto? result = null;
@@ -746,22 +753,66 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         return hasInfrastructure && (hasMultipleProviders || hasGoodSpeeds);
     }
 
-    private static CMTSScoresDto CalculateCMTSScores(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats, double areaKm2)
+    private static CMTSScoresDto CalculateCMTSScores(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats, double areaKm2, int? population, int? householdCount)
     {
         var scores = new CMTSScoresDto();
 
-        // 1. Fiber Coverage (based on NAP density and presence)
+        // Calculate population density for context
+        var populationDensity = population.HasValue && areaKm2 > 0 ? population.Value / areaKm2 : 0;
+        var isHighDensityArea = populationDensity > 500; // >500 people per km² = high density
+        var isUrbanArea = populationDensity > 1000; // >1000 people per km² = urban
+        
+        // 1. Fiber Coverage (enhanced with population context)
         if (infrastructure.FiberNAPCount == 0)
         {
             scores.FiberCoverage = 1; // Unserved - No installed or present FTTH facilities
         }
-        else if (areaKm2 > 0 && infrastructure.FiberNAPCount / areaKm2 < 0.1) // Low density
-        {
-            scores.FiberCoverage = 2; // Underserved - Few major Telco NAPs
-        }
         else
         {
-            scores.FiberCoverage = 3; // Served - Fiber optic cables and FTTH NAP facilities
+            // Population-aware fiber coverage calculation
+            double fiberDensityScore;
+            
+            if (population.HasValue && population > 0)
+            {
+                // Calculate fiber NAPs per 1000 people
+                var fiberPer1000People = (infrastructure.FiberNAPCount * 1000.0) / population.Value;
+                
+                if (isUrbanArea)
+                {
+                    // Urban areas need higher fiber density
+                    fiberDensityScore = fiberPer1000People >= 2.0 ? 3 :    // 2+ NAPs per 1000 people = Served
+                                       fiberPer1000People >= 0.5 ? 2 :     // 0.5-2 NAPs per 1000 people = Underserved
+                                       1;                                   // <0.5 NAPs per 1000 people = Unserved
+                }
+                else if (isHighDensityArea)
+                {
+                    // Semi-urban areas
+                    fiberDensityScore = fiberPer1000People >= 1.0 ? 3 :    // 1+ NAPs per 1000 people = Served
+                                       fiberPer1000People >= 0.3 ? 2 :     // 0.3-1 NAPs per 1000 people = Underserved  
+                                       1;                                   // <0.3 NAPs per 1000 people = Unserved
+                }
+                else
+                {
+                    // Rural areas - lower per-capita requirements but consider geographic coverage
+                    var geographicDensity = areaKm2 > 0 ? infrastructure.FiberNAPCount / areaKm2 : 0;
+                    var populationDensityScore = fiberPer1000People >= 0.5 ? 3 :
+                                               fiberPer1000People >= 0.2 ? 2 : 1;
+                    var geographicDensityScore = geographicDensity >= 0.1 ? 3 :
+                                               geographicDensity >= 0.05 ? 2 : 1;
+                    
+                    // Use the higher of the two scores for rural areas
+                    fiberDensityScore = Math.Max(populationDensityScore, geographicDensityScore);
+                }
+            }
+            else
+            {
+                // Fallback to geographic density when population data unavailable
+                var geographicDensity = areaKm2 > 0 ? infrastructure.FiberNAPCount / areaKm2 : 0;
+                fiberDensityScore = geographicDensity >= 0.1 ? 3 :
+                                  geographicDensity >= 0.05 ? 2 : 1;
+            }
+            
+            scores.FiberCoverage = (int)Math.Round(fiberDensityScore);
         }
 
         // 2. Internet Access (based on speed test data)
@@ -866,29 +917,168 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             };
         }
 
-        // 5. Overall Coverage Availability (based on infrastructure density and provider diversity)
-        var assetDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
-        var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
-        var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
-
+        // 5. Overall Coverage Availability (POPULATION-AWARE - This is the key CMTS requirement!)
         if (infrastructure.TotalAssets == 0)
         {
             scores.CoverageAvailability = 1; // Unserved - No coverage
         }
-        else if (hasMultipleProviders && hasModernTech && assetDensity >= 1.0) // Good density + competition + modern tech
-        {
-            scores.CoverageAvailability = 3; // Served - Comprehensive coverage
-        }
-        else if (hasMultipleProviders || hasModernTech || assetDensity >= 0.5) // Some positive factors
-        {
-            scores.CoverageAvailability = 2; // Underserved - Partial coverage
-        }
         else
         {
-            scores.CoverageAvailability = 1; // Unserved - Limited coverage
+            double coverageScore;
+            
+            if (population.HasValue && population > 0)
+            {
+                // Population-based coverage calculation (aligns with CMTS rubric)
+                var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
+                var providersPerThousand = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
+                var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
+                var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
+                
+                // Calculate estimated coverage percentage based on infrastructure density
+                double estimatedCoveragePercent;
+                
+                if (isUrbanArea)
+                {
+                    // Urban: High infrastructure density expected  
+                    estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 10000) + (providersPerThousand * 20));
+                }
+                else if (isHighDensityArea)
+                {
+                    // Semi-urban: Moderate infrastructure density
+                    estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 15000) + (providersPerThousand * 25));
+                }
+                else
+                {
+                    // Rural: Lower per-capita requirements but geographic coverage matters
+                    var geographicDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
+                    var populationCoverage = Math.Min(100, (assetsPerCapita * 20000) + (providersPerThousand * 30));
+                    var geographicCoverage = Math.Min(100, geographicDensity * 100);
+                    estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
+                }
+                
+                // Apply CMTS rubric thresholds
+                if (estimatedCoveragePercent >= 100 && hasMultipleProviders && hasModernTech)
+                {
+                    coverageScore = 3; // Served - 100% coverage with competition and modern tech
+                }
+                else if (estimatedCoveragePercent >= 40 && (hasMultipleProviders || hasModernTech))
+                {
+                    coverageScore = 2; // Underserved - 40-99% coverage with some positive factors
+                }
+                else if (estimatedCoveragePercent >= 40)
+                {
+                    coverageScore = 2; // Underserved - 40-99% coverage
+                }
+                else
+                {
+                    coverageScore = 1; // Unserved - <40% coverage
+                }
+            }
+            else
+            {
+                // Fallback to geographic density when population data unavailable
+                var assetDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
+                var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
+                var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
+                
+                if (hasMultipleProviders && hasModernTech && assetDensity >= 1.0)
+                {
+                    coverageScore = 3; // Served - Comprehensive coverage
+                }
+                else if (hasMultipleProviders || hasModernTech || assetDensity >= 0.5)
+                {
+                    coverageScore = 2; // Underserved - Partial coverage
+                }
+                else
+                {
+                    coverageScore = 1; // Unserved - Limited coverage
+                }
+            }
+            
+            scores.CoverageAvailability = (int)Math.Round(coverageScore);
         }
 
         return scores;
+    }
+
+    /// <summary>
+    /// Calculates population-aware coverage statistics
+    /// </summary>
+    private static CoverageStatsDto CalculatePopulationAwareCoverage(
+        InfrastructureStatsDto infrastructure, 
+        double areaKm2, 
+        int? population, 
+        int? householdCount, 
+        bool hasReliableConnectivity)
+    {
+        var coverage = new CoverageStatsDto
+        {
+            HasReliableConnectivity = hasReliableConnectivity
+        };
+
+        // Calculate population-aware metrics if population data is available
+        if (population.HasValue && population > 0)
+        {
+            // Assets per thousand people
+            coverage.AssetsPerThousandPeople = (infrastructure.TotalAssets * 1000.0) / population.Value;
+            
+            // Providers per thousand people  
+            coverage.ProvidersPerThousandPeople = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
+            
+            // Estimate population coverage based on infrastructure density
+            var populationDensity = areaKm2 > 0 ? population.Value / areaKm2 : 0;
+            var isUrbanArea = populationDensity > 1000;
+            var isHighDensityArea = populationDensity > 500;
+            
+            double estimatedCoveragePercent;
+            var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
+            var providersPerThousand = coverage.ProvidersPerThousandPeople ?? 0;
+            
+            if (isUrbanArea)
+            {
+                // Urban areas: Higher infrastructure density expected
+                estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 10000) + (providersPerThousand * 20));
+            }
+            else if (isHighDensityArea)
+            {
+                // Semi-urban areas: Moderate infrastructure density
+                estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 15000) + (providersPerThousand * 25));
+            }
+            else
+            {
+                // Rural areas: Consider both population and geographic coverage
+                var geographicDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
+                var populationCoverage = Math.Min(100, (assetsPerCapita * 20000) + (providersPerThousand * 30));
+                var geographicCoverage = Math.Min(100, geographicDensity * 100);
+                estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
+            }
+            
+            coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
+            
+            // Estimate household coverage (assuming similar ratio)
+            if (householdCount.HasValue && householdCount > 0)
+            {
+                var householdRatio = (double)householdCount.Value / population.Value;
+                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent * householdRatio, 2);
+            }
+        }
+        
+        // Calculate basic coverage percentages based on infrastructure mix
+        var totalInfrastructure = infrastructure.TotalAssets;
+        if (totalInfrastructure > 0)
+        {
+            // Mobile coverage based on cell towers
+            coverage.MobileCoveragePercentage = Math.Round((double)infrastructure.CellTowerCount / totalInfrastructure * 100, 2);
+            
+            // Fixed broadband coverage based on fiber NAPs and WiFi
+            var fixedInfrastructure = infrastructure.FiberNAPCount + infrastructure.WiFiHotspotCount;
+            coverage.FixedBroadbandCoveragePercentage = Math.Round((double)fixedInfrastructure / totalInfrastructure * 100, 2);
+            
+            // Fiber coverage based on NAP presence
+            coverage.FiberCoveragePercentage = Math.Round((double)infrastructure.FiberNAPCount / totalInfrastructure * 100, 2);
+        }
+        
+        return coverage;
     }
 
     /// <summary>

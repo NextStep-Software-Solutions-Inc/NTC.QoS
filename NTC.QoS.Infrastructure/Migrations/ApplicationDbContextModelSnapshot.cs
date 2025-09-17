@@ -877,6 +877,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -886,6 +892,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1407,6 +1416,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsCity")
                         .HasColumnType("boolean");
 
@@ -1419,6 +1434,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<Guid>("ProvinceId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1683,6 +1701,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -1692,6 +1716,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<Guid>("RegionId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1758,12 +1785,21 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");

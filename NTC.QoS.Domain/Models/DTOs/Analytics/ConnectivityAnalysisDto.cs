@@ -169,6 +169,27 @@ public class CoverageStatsDto
     public double? FixedBroadbandCoveragePercentage { get; set; }
     public double? FiberCoveragePercentage { get; set; }
     public bool HasReliableConnectivity { get; set; }
+    
+    // NEW: Population-aware coverage metrics
+    /// <summary>
+    /// Estimated percentage of population with broadband access
+    /// </summary>
+    public double? EstimatedPopulationCoveragePercent { get; set; }
+    
+    /// <summary>
+    /// Estimated percentage of households with broadband access  
+    /// </summary>
+    public double? EstimatedHouseholdCoveragePercent { get; set; }
+    
+    /// <summary>
+    /// Infrastructure assets per 1000 people
+    /// </summary>
+    public double? AssetsPerThousandPeople { get; set; }
+    
+    /// <summary>
+    /// Service providers per thousand people
+    /// </summary>
+    public double? ProvidersPerThousandPeople { get; set; }
 }
 
 /// <summary>
