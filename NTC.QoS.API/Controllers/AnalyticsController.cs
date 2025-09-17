@@ -132,7 +132,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<List<LocationConnectivityDto>>), 400)]
     public async Task<ActionResult<ApiResponse<List<LocationConnectivityDto>>>> GenerateConnectivityAssessment(
         [FromBody, Required] GenerateConnectivityAssessmentRequest request)
-    {
+    { 
         var result = await mediator.Send(request);
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }

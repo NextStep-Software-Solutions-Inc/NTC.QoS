@@ -128,10 +128,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
 
         // Calculate infrastructure counts within the boundary
-        var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, cancellationToken);
+        var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
         
         // Calculate speed test statistics
-        var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, cancellationToken);
+        var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
         
         // Calculate CMTS scores based on infrastructure and speed data
         var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2);
@@ -342,24 +342,32 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Enhanced infrastructure calculation with multi-level caching and accurate boundary usage
     /// </summary>
-    private async Task<InfrastructureStatsDto> CalculateInfrastructureStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken)
+    private async Task<InfrastructureStatsDto> CalculateInfrastructureStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
-        // Try cache first
-        var cacheKey = _cacheService.GenerateInfrastructureCacheKey(locationId, locationType);
-        var cachedResult = await _cacheService.GetCachedResultAsync<InfrastructureStatsDto>(cacheKey);
-        if (cachedResult != null)
+        // Only check cache if not forcing recalculation
+        if (!forceRecalculate)
         {
-            _logger.LogDebug("Using cached infrastructure stats for {LocationType} {LocationId}", locationType, locationId);
-            return cachedResult;
+            var cacheKey = _cacheService.GenerateInfrastructureCacheKey(locationId, locationType);
+            var cachedResult = await _cacheService.GetCachedResultAsync<InfrastructureStatsDto>(cacheKey);
+            if (cachedResult != null)
+            {
+                _logger.LogDebug("Using cached infrastructure stats for {LocationType} {LocationId}", locationType, locationId);
+                return cachedResult;
+            }
+        }
+        else
+        {
+            _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignoring cache)", locationType, locationId);
         }
 
         _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
 
         // Use accurate boundaries with optimizations
-        var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, cancellationToken);
+        var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
         
-        // Cache the result with appropriate expiry
-        await _cacheService.SetCachedResultAsync(cacheKey, result);
+        // Always cache the fresh result
+        var infraCacheKey = _cacheService.GenerateInfrastructureCacheKey(locationId, locationType);
+        await _cacheService.SetCachedResultAsync(infraCacheKey, result);
         
         return result;
     }
@@ -368,7 +376,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// Smart boundary optimization that maintains accuracy while improving performance
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
-        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken)
+        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
         List<string> cells, naps, wifiHotspots;
         TechnologyBreakdownDto? technologyBreakdown = null;
@@ -399,8 +407,12 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Get technology breakdown with caching
             var techCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType);
             technologyBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBreakdownDto>(techCacheKey);
-            if (technologyBreakdown == null)
+            if (technologyBreakdown == null || forceRecalculate)
             {
+                if (forceRecalculate)
+                {
+                    _logger.LogInformation("Force recalculating technology breakdown for {LocationType} {LocationId}", locationType, locationId);
+                }
                 technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, cancellationToken);
                 await _cacheService.SetCachedResultAsync(techCacheKey, technologyBreakdown);
             }
@@ -450,15 +462,22 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Enhanced speed stats calculation with caching
     /// </summary>
-    private async Task<SpeedStatsDto?> CalculateSpeedTestStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken)
+    private async Task<SpeedStatsDto?> CalculateSpeedTestStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
-        // Try cache first
-        var cacheKey = _cacheService.GenerateSpeedStatsCacheKey(locationId, locationType);
-        var cachedResult = await _cacheService.GetCachedResultAsync<SpeedStatsDto>(cacheKey);
-        if (cachedResult != null)
+        // Only check cache if not forcing recalculation
+        if (!forceRecalculate)
         {
-            _logger.LogDebug("Using cached speed stats for {LocationType} {LocationId}", locationType, locationId);
-            return cachedResult;
+            var cacheKey = _cacheService.GenerateSpeedStatsCacheKey(locationId, locationType);
+            var cachedResult = await _cacheService.GetCachedResultAsync<SpeedStatsDto>(cacheKey);
+            if (cachedResult != null)
+            {
+                _logger.LogDebug("Using cached speed stats for {LocationType} {LocationId}", locationType, locationId);
+                return cachedResult;
+            }
+        }
+        else
+        {
+            _logger.LogInformation("Force recalculating speed stats for {LocationType} {LocationId} (ignoring cache)", locationType, locationId);
         }
 
         SpeedStatsDto? result = null;
@@ -490,10 +509,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             result = ProcessSpeedTestResults(speedtestResults);
         }
 
-        // Cache the result
+        // Always cache the fresh result
         if (result != null)
         {
-            await _cacheService.SetCachedResultAsync(cacheKey, result);
+            var speedCacheKey = _cacheService.GenerateSpeedStatsCacheKey(locationId, locationType);
+            await _cacheService.SetCachedResultAsync(speedCacheKey, result);
         }
 
         return result;
