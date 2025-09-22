@@ -131,7 +131,14 @@ public static class InfrastructureDependencyInjection
 
             // migrate first
             await dbContext.Database.MigrateAsync();
+            
+            // Seed geographic data first (from GeoJSON files in the working directory)
             await LocationSeeder.SeedAllAsync(dbContext, logger);
+            
+            // Then seed population data (from Excel file in the working directory)
+            await PopulationSeeder.SeedAsync(dbContext, logger);
+            
+            // Continue with other seeders
             await OrganizationSeeder.SeedAsync(dbContext, logger);
             await RoleSeeder.SeedAsync(dbContext, logger);
             await AuthorizationSeeder.SeedAsync(dbContext, logger);
