@@ -1,31 +1,120 @@
-# Connectivity Analysis API - CMTS Broadband Mapping Implementation
-
-This document outlines the implementation of internet connectivity analysis based on the CMTS (Commission on Information and Communications Technology) Broadband Mapping Rubric for the Philippines.
+# NTC QoS Analytics API Documentation
 
 ## Overview
 
-The connectivity analysis system evaluates internet access across different administrative levels (Barangay, Municipality, Province, Region) using a standardized scoring methodology that classifies areas as **Served**, **Underserved**, or **Unserved**.
+The Analytics API provides comprehensive broadband infrastructure analysis and connectivity assessment capabilities based on CMTS (Commission on Information and Communications Technology) Broadband Mapping Rubric for the Philippines.
 
-## Database Schema Additions
+## Key Features
 
-### New Entities
+1. **Area-based broadband analysis** - Query infrastructure within geographic boundaries
+2. **Point-radius broadband analysis** - Query infrastructure within circular areas
+3. **CMTS connectivity assessment** - Standardized connectivity scoring (Served/Underserved/Unserved)
+4. **Signal strength utilities** - Comprehensive RSSI analysis and classification
 
-#### 1. ConnectivityAssessment
-Stores comprehensive connectivity evaluations for geographic areas.
+## API Endpoints
 
+### 1. Area Broadband Info
+**`POST /analytics/area-broadband-info`**
+```json
+{
+  "minLatitude": -5.0,
+  "maxLatitude": 25.0,
+  "minLongitude": 110.0,
+  "maxLongitude": 135.0
+}
+```
+
+### 2. Point Broadband Info  
+**`POST /analytics/point-broadband-info`**
+```json
+{
+  "latitude": 14.5995,
+  "longitude": 120.9842,
+  "radiusMeters": 10000
+}
+```
+
+### 3. Connectivity Analysis
+**`POST /analytics/connectivity-analysis`**
+
+Uses separate request validation with FluentValidation.
+
+```json
+{
+  "locationIds": ["guid1", "guid2"],
+  "locationType": "Municipality",
+  "filterByStatus": "Underserved",
+  "includeSpeedTestData": true,
+  "includeInfrastructureData": true
+}
+```
+
+**Request Validation Rules:**
+- LocationIds: Required, 1-100 locations, valid GUIDs only
+- LocationType: Must be valid enum (Barangay, Municipality, Provincial, Regional)
+- FilterByStatus: Optional, must be valid ConnectivityStatusEnum when provided
+- At least one of IncludeSpeedTestData or IncludeInfrastructureData must be true
+
+### 4. Generate Connectivity Assessment
+**`POST /analytics/generate-connectivity-assessment`**
+
+Uses separate request validation with FluentValidation.
+
+```json
+{
+  "locationIds": ["guid1", "guid2"],
+  "locationType": "Barangay",
+  "forceRecalculate": false
+}
+```
+
+**Request Validation Rules:**
+- LocationIds: Required, 1-50 locations, valid GUIDs only  
+- LocationType: Must be valid enum
+- ForceRecalculate: Limited to 20 locations when true
+- Regional assessments limited to 5 locations at once
+
+### 5. CMTS Rubric & Geographic Constraints
+- **`GET /analytics/connectivity-rubric`** - CMTS scoring methodology
+- **`GET /analytics/geographic-constraints`** - Supported coordinate bounds
+
+## Request Architecture
+
+### Separated Request Classes
+Each endpoint now uses dedicated request classes with comprehensive validation:
+
+#### GetConnectivityAnalysisRequest
+- **Location**: `NTC.QoS.Application/Features/Analytics/Requests/GetConnectivityAnalysisRequest.cs`
+- **Validator**: `GetConnectivityAnalysisRequestValidator`
+- **Max Locations**: 100 (performance optimized)
+
+#### GenerateConnectivityAssessmentRequest  
+- **Location**: `NTC.QoS.Application/Features/Analytics/Requests/GenerateConnectivityAssessmentRequest.cs`
+- **Validator**: `GenerateConnectivityAssessmentRequestValidator`  
+- **Max Locations**: 50 (computational complexity)
+
+### FluentValidation Integration
+- **Auto-validation** enabled in Application layer
+- **Detailed error messages** for invalid requests
+- **Business rule validation** (e.g., ForceRecalculate limits)
+- **Performance constraints** built into validation rules
+
+## Database Entities
+
+### ConnectivityAssessment
 ```csharp
 public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
 {
-    // Location Information
-    public Guid LocationId { get; set; }                    // Administrative area ID
-    public LocationTypeEnum LocationType { get; set; }       // Barangay/Municipality/Province/Region
-    public Point Location { get; set; }                     // Geographic center point
-    public MultiPolygon? Boundary { get; set; }             // Area boundaries
-    public double AreaSizeKm2 { get; set; }                 // Area size in km²
+    // Location & Geography
+    public Guid LocationId { get; set; }
+    public LocationTypeEnum LocationType { get; set; }
+    public Point Location { get; set; }
+    public MultiPolygon? Boundary { get; set; }
+    public double AreaSizeKm2 { get; set; }
     
-    // Assessment Results
+    // CMTS Assessment Results
     public ConnectivityStatusEnum ConnectivityStatus { get; set; } // Served/Underserved/Unserved
-    public int TotalScore { get; set; }                      // 0-15 total CMTS score
+    public int TotalScore { get; set; }                          // 0-15 total score
     
     // CMTS Criteria Scores (0-3 each)
     public int FiberCoverageScore { get; set; }
@@ -40,321 +129,190 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     public int WifiHotspotCount { get; set; }
     public int ServiceProviderCount { get; set; }
     
-    // Speed Test Analytics
+    // Speed Analytics
     public decimal? AverageDownloadSpeedMbps { get; set; }
     public decimal? MedianDownloadSpeedMbps { get; set; }
-    public bool MeetsMinimumSpeedRequirement { get; set; }   // ?25 Mbps standard
+    public bool MeetsMinimumSpeedRequirement { get; set; }
     
-    // Metadata
     public DateTime AssessmentDate { get; set; }
-    public DateTime LastUpdated { get; set; }
     public string AssessedBy { get; set; }
 }
 ```
 
-#### 2. WiFiHotspot
-Tracks WiFi access points for comprehensive coverage analysis.
-
+### WiFiHotspot
 ```csharp
 public class WiFiHotspot : BaseEntity, IGeoLocatedEntity
 {
     public Guid ServiceProviderId { get; set; }
-    public string Name { get; set; }                        // Hotspot SSID/Name
-    public string Address { get; set; }                     // Physical location
-    public Point Location { get; set; }                     // GPS coordinates
-    public double CoverageRadiusMeters { get; set; }        // Coverage area
-    public bool IsPublic { get; set; }                      // Public accessibility
-    public bool IsActive { get; set; }                      // Operational status
-    public decimal? MaxBandwidthMbps { get; set; }          // Bandwidth capacity
-    public string? FrequencyBand { get; set; }              // 2.4GHz, 5GHz, etc.
+    public string Name { get; set; }
+    public string Address { get; set; }
+    public Point Location { get; set; }
+    public double CoverageRadiusMeters { get; set; }
+    public bool IsPublic { get; set; }
+    public bool IsActive { get; set; }
+    public decimal? MaxBandwidthMbps { get; set; }
+    public string? FrequencyBand { get; set; }
 }
 ```
-
-### New Enums
-
-```csharp
-public enum ConnectivityStatusEnum
-{
-    Served = 3,         // 11-15 points
-    Underserved = 2,    // 6-10 points  
-    Unserved = 1        // ?5 points
-}
-
-public enum LocationTypeEnum
-{
-    Barangay = 1,
-    Municipality = 2,
-    Provincial = 3,
-    Regional = 4
-}
-```
-
-## API Endpoints
-
-### 1. Connectivity Analysis
-**`POST /analytics/connectivity-analysis`**
-
-Analyzes connectivity status for specified locations using existing assessment data.
-
-```json
-{
-  "locationIds": ["guid1", "guid2", "guid3"],
-  "locationType": "Municipality",
-  "filterByStatus": "Underserved",
-  "includeSpeedTestData": true,
-  "includeInfrastructureData": true
-}
-```
-
-**Response:**
-```json
-{
-  "succeeded": true,
-  "message": "Connectivity analysis completed for 3 Municipalities. Served: 1, Underserved: 1, Unserved: 1",
-  "data": {
-    "locationType": "Municipality",
-    "locations": [
-      {
-        "locationId": "guid1",
-        "locationName": "Makati City",
-        "connectivityStatus": "Served",
-        "totalScore": 13,
-        "cmtsScores": {
-          "fiberCoverage": 3,
-          "internetAccess": 3,
-          "technologyType": 3,
-          "qualityOfService": 2,
-          "coverageAvailability": 2
-        },
-        "infrastructure": {
-          "cellTowerCount": 45,
-          "fiberNAPCount": 23,
-          "wiFiHotspotCount": 12,
-          "serviceProviderCount": 4,
-          "dominantServiceProvider": "Globe Telecom"
-        },
-        "speedStats": {
-          "averageDownloadSpeedMbps": 85.4,
-          "medianDownloadSpeedMbps": 78.2,
-          "averageLatencyMs": 25.3,
-          "speedTestCount": 1247,
-          "meetsMinimumSpeedRequirement": true
-        },
-        "coverage": {
-          "mobileCoveragePercentage": 98.5,
-          "fixedBroadbandCoveragePercentage": 85.2,
-          "fiberCoveragePercentage": 67.8,
-          "hasReliableConnectivity": true
-        },
-        "areaSizeKm2": 27.36,
-        "population": 629301,
-        "assessmentDate": "2024-01-15T10:30:00Z"
-      }
-    ],
-    "summary": {
-      "totalLocations": 3,
-      "servedCount": 1,
-      "underservedCount": 1,
-      "unservedCount": 1,
-      "servedPercentage": 33.33,
-      "underservedPercentage": 33.33,
-      "unservedPercentage": 33.33,
-      "totalInfrastructure": {
-        "cellTowerCount": 78,
-        "fiberNAPCount": 34,
-        "wiFiHotspotCount": 15,
-        "serviceProviderCount": 5
-      },
-      "totalAreaKm2": 156.42,
-      "totalPopulation": 1205634,
-      "averageScore": 8.33
-    }
-  }
-}
-```
-
-### 2. Generate Connectivity Assessment
-**`POST /analytics/generate-connectivity-assessment`**
-
-Calculates new connectivity assessments based on current infrastructure and speed test data.
-
-```json
-{
-  "locationIds": ["guid1", "guid2"],
-  "locationType": "Barangay", 
-  "forceRecalculate": false
-}
-```
-
-This endpoint:
-1. Analyzes infrastructure within location boundaries
-2. Calculates speed test statistics  
-3. Applies CMTS scoring rubric
-4. Determines connectivity status
-5. Stores results in the database
-
-### 3. CMTS Rubric Information
-**`GET /analytics/connectivity-rubric`**
-
-Returns the complete CMTS scoring methodology and criteria definitions.
 
 ## CMTS Scoring Methodology
 
-### Criteria and Point Values
+### Connectivity Status Classification
+- **Served** (11-15 points): Fully developed, meets broadband standards
+- **Underserved** (6-10 points): Basic infrastructure but lacks quality/consistency  
+- **Unserved** (?5 points): Virtually no broadband access
 
-| Criterion | Served (3 pts) | Underserved (2 pts) | Unserved (1 pt) |
+### Scoring Criteria (0-3 points each)
+
+| Criterion | Served (3pts) | Underserved (2pts) | Unserved (1pt) |
 |-----------|---------------|-------------------|----------------|
-| **Fiber Coverage** | FTTH NAP facilities for all service providers present | Few major Telco NAPs from local/different VAS providers | No installed/present FTTH facilities |
-| **Internet Access** | Stable internet ?25 Mbps meeting broadband standards | Available but slow/unreliable <25 Mbps | No/minimal internet access |
-| **Technology Type** | Fiber optic, LTE/5G, high-speed DSL active | Legacy technologies (2G/3G, dial-up, satellite) | No broadband technology, radio signals only |
-| **Quality of Service** | High quality, low latency, suitable for streaming/remote work | Fair quality with congestion/consistency issues | Poor quality, frequent disconnections |
-| **Coverage Availability** | 100% household/institution coverage | 40-99% coverage, clustered in specific areas | <40% coverage, sparse infrastructure |
+| **Fiber Coverage** | FTTH NAP facilities for all providers | Few major Telco/local VAS NAPs | No FTTH facilities |
+| **Internet Access** | Stable ?25 Mbps broadband | Available but <25 Mbps | No/minimal access |
+| **Technology Type** | Fiber/LTE/5G active | Legacy 2G/3G/satellite | Radio signals only |
+| **Quality of Service** | High quality, low latency | Fair with congestion issues | Poor, frequent disconnections |
+| **Coverage Availability** | 100% household coverage | 40-99% coverage | <40% coverage |
 
-### Final Classification
+## Signal Strength Utilities
 
-- **Served**: 11-15 total points
-- **Underserved**: 6-10 total points  
-- **Unserved**: ?5 total points
+### Available Classes
+- **`SignalStrengthHelper`** - Static helper methods (`NTC.QoS.Domain.Helper`)
+- **`SignalStrengthExtensions`** - Extension methods (`NTC.QoS.Domain.Extensions`)
 
-## Implementation Guide
-
-### 1. Database Migration
-
-Add the new entities to your `ApplicationDbContext`:
+### Quick Usage Examples
 
 ```csharp
+using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Extensions;
+
+// Classify RSSI values
+decimal rssi = 75;
+SignalStrengthEnum strength = SignalStrengthHelper.ClassifyRSSI(rssi);
+// or using extensions
+SignalStrengthEnum strength2 = rssi.ToSignalStrength();
+
+// Get descriptions and ranges  
+string description = strength.GetDescription(); // "Average"
+string range = strength.GetRSSIRange();        // "70-90 dBm"
+bool meetsReq = strength.MeetsMinimumRequirement(); // true
+
+// Parse quality strings
+SignalStrengthEnum parsed = "good".ToSignalStrength();
+
+// Calculate averages from collections
+var rssiList = new List<decimal> { 60, 70, 80, 90 };
+double avgStrength = rssiList.CalculateAverageSignalStrength();
+```
+
+### Signal Strength Classifications
+- **Excellent**: 40-70 dBm
+- **Good**: 70-80 dBm  
+- **Average**: 80-90 dBm
+- **Weak**: 90-100 dBm
+- **Very Weak**: >100 dBm
+
+## Geographic Constraints
+
+### Supported Region (Asia-Pacific)
+- **Latitude**: -5° to 25°
+- **Longitude**: 110° to 135°
+- **Maximum area**: 10° × 15° (?1,100km × 1,300-1,600km)
+- **Maximum radius**: 50,000 meters (50km)
+
+## Implementation Setup
+
+### 1. Database Registration
+```csharp
+// ApplicationDbContext
 public DbSet<ConnectivityAssessment> ConnectivityAssessments { get; set; }
 public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
 ```
 
-### 2. Register Repositories
-
-In your DI container:
-
+### 2. DI Registration  
 ```csharp
+// Infrastructure layer
 services.AddScoped<IConnectivityAssessmentRepository, ConnectivityAssessmentRepository>();
 services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
+services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
+
+// Application layer - FluentValidation auto-configured
+services.AddFluentValidationAutoValidation();
+services.Scan(scan => scan
+    .FromAssemblies(Assembly.GetExecutingAssembly())
+    .AddClasses(classes => classes.AssignableTo(typeof(IValidator<>)))
+    .AsImplementedInterfaces()
+    .WithScopedLifetime());
 ```
 
-### 3. Sample Usage
-
-#### Generate Assessment for All Barangays in Metro Manila
+### 3. Request Handling Architecture
 ```csharp
-// Get all barangay IDs in Metro Manila
-var barangayIds = await barangayRepository.GetBarangayIdsByRegion("Metro Manila");
-
-// Generate assessments
-var request = new GenerateConnectivityAssessmentRequest
+// Controller maps DTO to MediatR request
+[HttpPost("connectivity-analysis")]
+public async Task<ActionResult<ApiResponse<ConnectivityAnalysisResponseDto>>> GetConnectivityAnalysis(
+    [FromBody, Required] ConnectivityAnalysisRequestDto request)
 {
-    LocationIds = barangayIds,
-    LocationType = LocationTypeEnum.Barangay,
-    ForceRecalculate = true
-};
-
-var result = await mediator.Send(request);
-```
-
-#### Query Underserved Municipalities
-```csharp
-var analysisRequest = new GetConnectivityAnalysisRequest
-{
-    LocationIds = municipalityIds,
-    LocationType = LocationTypeEnum.Municipality,
-    FilterByStatus = ConnectivityStatusEnum.Underserved
-};
-
-var analysis = await mediator.Send(analysisRequest);
-```
-
-## Data Requirements
-
-To fully utilize this system, ensure you have:
-
-### Required Data
-- ? Geographic boundaries (Barangay, Municipality, Province, Region) - **Already available**
-- ? Cell tower locations and service providers - **Already available**
-- ? Fiber NAP locations - **Already available** 
-- ? Speed test data with locations - **Already available**
-
-### Additional Data Needed
-- ?? **WiFi Hotspot data** - Public and private WiFi access points
-- ?? **Population data** - For coverage percentage calculations
-- ?? **Household counts** - For household-level connectivity metrics
-- ?? **Service provider service areas** - For coverage availability scoring
-
-### Optional Enhancements
-- Signal strength measurements (RSSI/SINR data)
-- Technology generation mapping (2G/3G/4G/5G coverage areas)
-- Affordability metrics (pricing data)
-- Digital literacy indicators
-
-## Frontend Integration
-
-### Dashboard Components
-
-#### 1. Connectivity Status Map
-```typescript
-interface ConnectivityMapProps {
-  locationType: LocationTypeEnum;
-  data: LocationConnectivityDto[];
+    var result = await mediator.Send(new GetConnectivityAnalysisRequest
+    {
+        LocationIds = request.LocationIds,
+        LocationType = request.LocationType,
+        FilterByStatus = request.FilterByStatus,
+        IncludeSpeedTestData = request.IncludeSpeedTestData,
+        IncludeInfrastructureData = request.IncludeInfrastructureData
+    });
+    return result.Succeeded ? Ok(result) : BadRequest(result);
 }
 
-const getStatusColor = (status: ConnectivityStatusEnum) => {
-  switch(status) {
-    case ConnectivityStatusEnum.Served: return '#28a745';      // Green
-    case ConnectivityStatusEnum.Underserved: return '#ffc107'; // Yellow  
-    case ConnectivityStatusEnum.Unserved: return '#dc3545';    // Red
+// Direct MediatR request for generate endpoint
+[HttpPost("generate-connectivity-assessment")]
+public async Task<ActionResult<ApiResponse<List<LocationConnectivityDto>>>> GenerateConnectivityAssessment(
+    [FromBody, Required] GenerateConnectivityAssessmentRequest request)
+{ 
+    var result = await mediator.Send(request);
+    return result.Succeeded ? Ok(result) : BadRequest(result);
+}
+```
+
+## Validation Benefits
+
+### Request Validation Features
+- **Performance limits**: Max locations per request type
+- **Business rules**: ForceRecalculate computational limits
+- **Data quality**: GUID validation, enum validation
+- **User guidance**: Detailed error messages
+- **Type safety**: Strongly typed request classes
+
+### Error Response Example
+```json
+{
+  "succeeded": false,
+  "message": "Validation failed",
+  "errors": {
+    "LocationIds": ["Cannot process more than 100 locations at once for performance reasons."],
+    "LocationType": ["LocationType must be a valid enum value (Barangay, Municipality, Provincial, or Regional)."]
   }
-};
-```
-
-#### 2. CMTS Score Breakdown
-```typescript
-const CMTSScoreCard = ({ scores }: { scores: CMTSScoresDto }) => (
-  <div className="score-breakdown">
-    <div className="score-item">
-      <span>Fiber Coverage</span>
-      <div className="score-bar">
-        <div style={{width: `${(scores.fiberCoverage / 3) * 100}%`}} />
-      </div>
-      <span>{scores.fiberCoverage}/3</span>
-    </div>
-    {/* Repeat for other criteria */}
-  </div>
-);
-```
-
-#### 3. Service Gap Analysis
-```typescript
-const ServiceGapAnalysis = ({ summary }: { summary: ConnectivitySummaryDto }) => {
-  const gapPercentage = summary.underservedPercentage + summary.unservedPercentage;
-  
-  return (
-    <div className="gap-analysis">
-      <h3>Service Gaps Identified</h3>
-      <p>{gapPercentage}% of areas need connectivity improvements</p>
-      <ul>
-        <li>{summary.unservedCount} areas with no broadband infrastructure</li>
-        <li>{summary.underservedCount} areas with inadequate connectivity</li>
-      </ul>
-    </div>
-  );
-};
+}
 ```
 
 ## Performance Considerations
 
-1. **Spatial Indexing**: Ensure geometry columns have spatial indexes for efficient boundary queries
-2. **Assessment Caching**: Cache assessment results for 30 days unless forced recalculation
-3. **Batch Processing**: Process large location sets in batches to avoid timeouts
-4. **Background Jobs**: Consider running assessment generation as background tasks for large datasets
+- **Separated request validation** for appropriate scaling limits
+- **Assessment caching** (30-day default unless force recalculated)  
+- **Batch processing** with location limits
+- **Background job processing** for assessment generation
+- **Spatial indexing** on geometry columns
+- **FluentValidation** with minimal overhead
 
-## Monitoring and Alerts
+## Data Requirements
 
-Set up monitoring for:
-- Assessment generation success rates
-- Data freshness (speed tests, infrastructure updates)
-- API response times for large location sets
-- Assessment accuracy validation against known connectivity status
+### Already Available ?
+- Geographic boundaries (Barangay/Municipality/Province/Region)
+- Cell tower locations and service providers
+- Fiber NAP locations
+- Speed test data with locations
 
-This implementation provides a comprehensive foundation for connectivity analysis while following the official CMTS guidelines for Philippine broadband mapping.
+### Additional Data Needed ??
+- WiFi hotspot data (public/private access points)
+- Population data for coverage calculations
+- Household counts for connectivity metrics
+- Service provider service areas
+
+This consolidated documentation covers all analytics functionality with emphasis on the new separated request architecture and comprehensive validation system.

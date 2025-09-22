@@ -13,10 +13,3 @@ public class GetConnectivityAnalysisRequest : IRequest<ApiResponse<ConnectivityA
     public bool IncludeSpeedTestData { get; set; } = true;
     public bool IncludeInfrastructureData { get; set; } = true;
 }
-
-public class GenerateConnectivityAssessmentRequest : IRequest<ApiResponse<List<LocationConnectivityDto>>>
-{
-    public List<Guid> LocationIds { get; set; } = [];
-    public LocationTypeEnum LocationType { get; set; }
-    public bool ForceRecalculate { get; set; } = false;
-}

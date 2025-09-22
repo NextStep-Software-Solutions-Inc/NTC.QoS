@@ -1,9 +1,8 @@
-using MediatR;
+ï»¿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Domain.Constants;
-using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using System.ComponentModel.DataAnnotations;
@@ -21,9 +20,9 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// Returns counts of cells, NAPs, and service provider details within the bounding box.
     /// 
     /// Coordinate constraints:
-    /// - Latitude: -5° to 25° (Asia-Pacific region)
-    /// - Longitude: 110° to 135° (Asia-Pacific region)
-    /// - Maximum area: 10° × 15° (approximately 1,100km × 1,300-1,600km)
+    /// - Latitude: -5Â° to 25Â° (Asia-Pacific region)
+    /// - Longitude: 110Â° to 135Â° (Asia-Pacific region)
+    /// - Maximum area: 10Â° Ã— 15Â° (approximately 1,100km Ã— 1,300-1,600km)
     /// 
     /// Validation:
     /// - Bounding box is required and cannot be null
@@ -50,8 +49,8 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// Returns counts of cells, NAPs, and service provider details within the circular area.
     /// 
     /// Coordinate constraints:
-    /// - Latitude: -5° to 25° (Asia-Pacific region)
-    /// - Longitude: 110° to 135° (Asia-Pacific region)
+    /// - Latitude: -5Â° to 25Â° (Asia-Pacific region)
+    /// - Longitude: 110Â° to 135Â° (Asia-Pacific region)
     /// - Maximum radius: 50,000 meters (50km) for performance
     /// 
     /// Validation:
@@ -80,7 +79,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// CMTS Classification:
     /// - Served (11-15 points): Fully developed, meets most technical and social benchmarks
     /// - Underserved (6-10 points): Basic infrastructure but lacks quality, affordability, or consistency
-    /// - Unserved (?5 points): Virtually no broadband access or supporting infrastructure
+    /// - Unserved (â‰¤5 points): Virtually no broadband access or supporting infrastructure
     /// 
     /// Analysis includes:
     /// - Fiber coverage assessment
@@ -121,7 +120,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// 4. Determines overall connectivity status (Served/Underserved/Unserved)
     /// 5. Stores assessment for future reference
     /// 
-    /// Use forceReCalculate=true to regenerate existing assessments.
+    /// Use ForceRecalculate=true to regenerate existing assessments.
     /// </summary>
     /// <param name="request">Assessment generation request parameters</param>
     /// <returns>Generated connectivity assessments with detailed scoring</returns>
