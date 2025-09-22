@@ -215,7 +215,7 @@ double avgStrength = rssiList.CalculateAverageSignalStrength();
 ### Supported Region (Asia-Pacific)
 - **Latitude**: -5° to 25°
 - **Longitude**: 110° to 135°
-- **Maximum area**: 10° × 15° (?1,100km × 1,300-1,600km)
+- **Maximum area**: 10° × 15° (≈1,100km × 1,300–1,600km)
 - **Maximum radius**: 50,000 meters (50km)
 
 ## Implementation Setup
