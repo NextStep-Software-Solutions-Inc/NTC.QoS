@@ -160,7 +160,7 @@ public class WiFiHotspot : BaseEntity, IGeoLocatedEntity
 ### Connectivity Status Classification
 - **Served** (11-15 points): Fully developed, meets broadband standards
 - **Underserved** (6-10 points): Basic infrastructure but lacks quality/consistency  
-- **Unserved** (?5 points): Virtually no broadband access
+- **Unserved** (â‰¤5 points): Virtually no broadband access
 
 ### Scoring Criteria (0-3 points each)
 
@@ -204,18 +204,18 @@ double avgStrength = rssiList.CalculateAverageSignalStrength();
 ```
 
 ### Signal Strength Classifications
-- **Excellent**: 40-70 dBm
-- **Good**: 70-80 dBm  
-- **Average**: 80-90 dBm
-- **Weak**: 90-100 dBm
-- **Very Weak**: >100 dBm
+- **Good**: 40â€“70 dBm
+- **Average**: 70â€“80 dBm
+- **Weak**: 80â€“90 dBm
+- **Very Weak**: 90â€“100 dBm
+- **No Broadband Coverage**: >100 dBm (no reliable signal detected)
 
 ## Geographic Constraints
 
 ### Supported Region (Asia-Pacific)
-- **Latitude**: -5° to 25°
-- **Longitude**: 110° to 135°
-- **Maximum area**: 10° × 15° (?1,100km × 1,300-1,600km)
+- **Latitude**: -5Â° to 25Â°
+- **Longitude**: 110Â° to 135Â°
+- **Maximum area**: 10Â° Ã— 15Â° (â‰ˆ1,100km Ã— 1,300â€“1,600km)
 - **Maximum radius**: 50,000 meters (50km)
 
 ## Implementation Setup
