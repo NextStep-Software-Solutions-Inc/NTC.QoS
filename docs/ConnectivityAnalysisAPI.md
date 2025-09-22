@@ -160,7 +160,7 @@ public class WiFiHotspot : BaseEntity, IGeoLocatedEntity
 ### Connectivity Status Classification
 - **Served** (11-15 points): Fully developed, meets broadband standards
 - **Underserved** (6-10 points): Basic infrastructure but lacks quality/consistency  
-- **Unserved** (?5 points): Virtually no broadband access
+- **Unserved** (≤5 points): Virtually no broadband access
 
 ### Scoring Criteria (0-3 points each)
 
