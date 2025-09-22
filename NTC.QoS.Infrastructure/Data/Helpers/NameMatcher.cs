@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using System.Globalization;
+using System.Text;
 
 namespace NTC.QoS.Infrastructure.Data.Helpers;
 
@@ -70,14 +72,15 @@ public static class NameMatcher
 
     /// <summary>
     /// Normalizes a name for consistent comparison
+    /// Use Unicode normalization to properly handle diacritics while preserving base letters
     /// </summary>
     private static string NormalizeName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return string.Empty;
 
-        // Convert to uppercase and remove extra whitespace
-        var normalized = name.ToUpperInvariant().Trim();
+        // Use Unicode normalization instead of dropping non-ASCII
+        var normalized = RemoveDiacritics(name).ToUpperInvariant().Trim();
 
         // Remove common prefixes/suffixes and administrative markers
         normalized = RemoveCommonPrefixes(normalized);
@@ -87,6 +90,34 @@ public static class NameMatcher
         normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
 
         return normalized;
+    }
+
+    /// <summary>
+    /// Properly removes diacritics while preserving base letters using Unicode normalization
+    /// This correctly handles characters like 'ñ' in 'Las Piñas' by converting them to 'n' instead of dropping them
+    /// </summary>
+    private static string RemoveDiacritics(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        // Normalize to FormD (canonical decomposition) - separates base characters from diacritics
+        var normalizedString = text.Normalize(NormalizationForm.FormD);
+        var stringBuilder = new StringBuilder();
+
+        foreach (var c in normalizedString)
+        {
+            // Include only base characters (not diacritics/combining marks)
+            // This preserves letters like 'ñ' -> 'n', 'á' -> 'a', etc.
+            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (unicodeCategory != UnicodeCategory.NonSpacingMark) // NonSpacingMark = diacritics/combining marks
+            {
+                stringBuilder.Append(c);
+            }
+        }
+
+        // Normalize back to FormC (canonical composition) for consistency
+        return stringBuilder.ToString().Normalize(NormalizationForm.FormC);
     }
 
     /// <summary>

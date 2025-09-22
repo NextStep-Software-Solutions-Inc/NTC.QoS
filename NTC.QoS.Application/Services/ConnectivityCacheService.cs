@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
+using System.Collections.Concurrent;
 
 namespace NTC.QoS.Application.Services;
 
@@ -32,7 +33,8 @@ public class ConnectivityCacheService : IConnectivityCacheService
     private readonly IMemoryCache _memoryCache;
     private readonly ConnectivityCacheOptions _options;
     private readonly ILogger<ConnectivityCacheService> _logger;
-    private static readonly Dictionary<string, List<string>> _cacheKeyPatterns = new();
+    // Use ConcurrentDictionary for thread-safe cache key pattern tracking
+    private static readonly ConcurrentDictionary<string, ConcurrentBag<string>> _cacheKeyPatterns = new();
 
     public ConnectivityCacheService(
         IMemoryCache memoryCache,
@@ -42,6 +44,18 @@ public class ConnectivityCacheService : IConnectivityCacheService
         _memoryCache = memoryCache;
         _options = options.Value;
         _logger = logger;
+        
+        // Configure memory cache with MaxCacheSizeMB setting
+        if (_memoryCache is MemoryCache mc)
+        {
+            // Note: MemoryCache uses SizeLimit (in arbitrary units) not MB directly
+            // We'll convert MB to a reasonable size limit (1MB = ~1000 units as approximation)
+            var sizeLimit = _options.MaxCacheSizeMB * 1000L;
+            mc.GetType().GetProperty("Options")?.SetValue(mc, new MemoryCacheOptions
+            {
+                SizeLimit = sizeLimit
+            });
+        }
     }
 
     public async Task<T?> GetCachedResultAsync<T>(string cacheKey) where T : class
@@ -56,12 +70,14 @@ public class ConnectivityCacheService : IConnectivityCacheService
         var options = new MemoryCacheEntryOptions
         {
             SlidingExpiration = cacheExpiry,
-            Priority = GetCachePriorityForType<T>()
+            Priority = GetCachePriorityForType<T>(),
+            // Set size for entries to make MaxCacheSizeMB effective
+            Size = EstimateObjectSize<T>()
         };
 
         _memoryCache.Set(cacheKey, data, options);
         
-        // Track cache keys for pattern-based invalidation
+        // Track cache keys for pattern-based invalidation (now thread-safe)
         TrackCacheKey(cacheKey);
         
         await Task.CompletedTask;
@@ -69,15 +85,19 @@ public class ConnectivityCacheService : IConnectivityCacheService
 
     public async Task InvalidateCacheAsync(string pattern)
     {
-        if (_cacheKeyPatterns.TryGetValue(pattern, out var keys))
+        // Thread-safe access to cache key patterns
+        if (_cacheKeyPatterns.TryGetValue(pattern, out var keyBag))
         {
+            var keys = keyBag.ToArray(); // Get snapshot of keys
             foreach (var key in keys)
             {
                 _memoryCache.Remove(key);
             }
-            _cacheKeyPatterns[pattern].Clear();
             
-            _logger.LogInformation("Invalidated {Count} cache entries for pattern {Pattern}", keys.Count, pattern);
+            // Clear the bag (thread-safe operation)
+            _cacheKeyPatterns.TryUpdate(pattern, new ConcurrentBag<string>(), keyBag);
+            
+            _logger.LogInformation("Invalidated {Count} cache entries for pattern {Pattern}", keys.Length, pattern);
         }
         await Task.CompletedTask;
     }
@@ -120,10 +140,26 @@ public class ConnectivityCacheService : IConnectivityCacheService
     private void TrackCacheKey(string cacheKey)
     {
         var pattern = cacheKey.Split(':')[0];
-        if (!_cacheKeyPatterns.ContainsKey(pattern))
+        _cacheKeyPatterns.AddOrUpdate(
+            pattern, 
+            new ConcurrentBag<string> { cacheKey },
+            (key, existing) => 
+            {
+                existing.Add(cacheKey);
+                return existing;
+            });
+    }
+
+    // Add size estimation for cache entries
+    private long EstimateObjectSize<T>()
+    {
+        return typeof(T).Name switch
         {
-            _cacheKeyPatterns[pattern] = new List<string>();
-        }
-        _cacheKeyPatterns[pattern].Add(cacheKey);
+            nameof(ConnectivityAssessment) => 5, // 5KB estimated
+            nameof(InfrastructureStatsDto) => 2, // 2KB estimated
+            nameof(SpeedStatsDto) => 1, // 1KB estimated
+            nameof(TechnologyBreakdownDto) => 1, // 1KB estimated
+            _ => 1 // Default 1KB
+        };
     }
 }
