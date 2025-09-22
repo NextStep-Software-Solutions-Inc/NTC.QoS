@@ -45,17 +45,8 @@ public class ConnectivityCacheService : IConnectivityCacheService
         _options = options.Value;
         _logger = logger;
         
-        // Configure memory cache with MaxCacheSizeMB setting
-        if (_memoryCache is MemoryCache mc)
-        {
-            // Note: MemoryCache uses SizeLimit (in arbitrary units) not MB directly
-            // We'll convert MB to a reasonable size limit (1MB = ~1000 units as approximation)
-            var sizeLimit = _options.MaxCacheSizeMB * 1000L;
-            mc.GetType().GetProperty("Options")?.SetValue(mc, new MemoryCacheOptions
-            {
-                SizeLimit = sizeLimit
-            });
-        }
+        // Note: MemoryCache size limits must be configured at DI registration time,
+        // not in the constructor. The size limits are now configured in ApplicationDependencyInjection.cs
     }
 
     public async Task<T?> GetCachedResultAsync<T>(string cacheKey) where T : class

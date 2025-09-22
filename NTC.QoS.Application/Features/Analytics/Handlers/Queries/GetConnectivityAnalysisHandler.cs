@@ -235,10 +235,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 CellTowerCount = locations.Sum(l => l.Infrastructure.CellTowerCount),
                 FiberNAPCount = locations.Sum(l => l.Infrastructure.FiberNAPCount),
                 WiFiHotspotCount = locations.Sum(l => l.Infrastructure.WiFiHotspotCount),
-                ServiceProviderCount = locations.SelectMany(l => new[] { l.Infrastructure.DominantServiceProvider })
-                    .Where(sp => !string.IsNullOrEmpty(sp))
-                    .Distinct()
-                    .Count()
+                ServiceProviderCount = locations.Sum(l => l.Infrastructure.ServiceProviderCount)
             };
         }
 
