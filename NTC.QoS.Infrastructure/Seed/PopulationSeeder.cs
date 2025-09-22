@@ -39,7 +39,7 @@ public static class PopulationSeeder
     /// Expected sheets:
     /// - "Regions" sheet: RegionName (A), TotalPopulation (B), HouseholdPopulation (C), NumberOfHouseholds (D)
     /// - "Provinces" sheet: RegionName (A), ProvinceName (B), TotalPopulation (C), HouseholdPopulation (D), NumberOfHouseholds (E)
-    /// - "Municipalities" sheet: RegionName (A), MunicipalityName (B), TotalPopulation (C), HouseholdPopulation (D), NumberOfHouseholds (E)
+    /// - "Municipalities" sheet: RegionName (A), ProvinceName (B), MunicipalityName (C), TotalPopulation (D), HouseholdPopulation (E), NumberOfHouseholds (F)
     /// </summary>
     public static async Task SeedPopulationDataAsync(ApplicationDbContext context, string excelFilePath, ILogger logger)
     {
