@@ -40,7 +40,7 @@ string description = SignalStrengthHelper.GetDescription(SignalStrengthEnum.Good
 var rssiValues = new List<decimal> { 65, 75, 85, 95 };
 var qualityStrings = new List<string> { "good", "average", "weak" };
 double average = SignalStrengthHelper.CalculateAverageSignalStrength(rssiValues, qualityStrings);
-// Result: 3.57
+// Result: 3.71
 
 // Check minimum requirements
 bool meetsReq = SignalStrengthHelper.MeetsMinimumRequirement(SignalStrengthEnum.Average);
