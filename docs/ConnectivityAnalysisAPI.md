@@ -204,18 +204,18 @@ double avgStrength = rssiList.CalculateAverageSignalStrength();
 ```
 
 ### Signal Strength Classifications
-- **Excellent**: 40-70 dBm
-- **Good**: 70-80 dBm  
-- **Average**: 80-90 dBm
+- **Good**: 40-70 dBm
+- **Average**: 70-90 dBm
 - **Weak**: 90-100 dBm
-- **Very Weak**: >100 dBm
+- **Very Weak**: 100-110 dBm
+- **No Broadband Coverage**: >110 dBm
 
 ## Geographic Constraints
 
 ### Supported Region (Asia-Pacific)
-- **Latitude**: -5° to 25°
-- **Longitude**: 110° to 135°
-- **Maximum area**: 10° × 15° (?1,100km × 1,300-1,600km)
+- **Latitude**: -5Â° to 25Â°
+- **Longitude**: 110Â° to 135Â°
+- **Maximum area**: 10Â° Ã— 15Â° (?1,100km Ã— 1,300-1,600km)
 - **Maximum radius**: 50,000 meters (50km)
 
 ## Implementation Setup
