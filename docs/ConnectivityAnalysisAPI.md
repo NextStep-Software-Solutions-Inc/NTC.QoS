@@ -204,11 +204,11 @@ double avgStrength = rssiList.CalculateAverageSignalStrength();
 ```
 
 ### Signal Strength Classifications
-- **Good**: 40-70 dBm
-- **Average**: 70-90 dBm
-- **Weak**: 90-100 dBm
-- **Very Weak**: 100-110 dBm
-- **No Broadband Coverage**: >110 dBm
+- **Good**: 40–70 dBm
+- **Average**: 70–80 dBm
+- **Weak**: 80–90 dBm
+- **Very Weak**: 90–100 dBm
+- **No Broadband Coverage**: >100 dBm (no reliable signal detected)
 
 ## Geographic Constraints
 
