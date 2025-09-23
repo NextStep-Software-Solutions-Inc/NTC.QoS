@@ -125,28 +125,44 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
     {
         return locationType switch
         {
-            LocationTypeEnum.Barangay => await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => locationIds.Contains(b.Id)).Select(b => new { b.Id, b.Name }), 
-                cancellationToken)
-                .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
-
-            LocationTypeEnum.Municipality => await _municipalityRepository.ToListAsync(
-                _municipalityRepository.Query(m => locationIds.Contains(m.Id)).Select(m => new { m.Id, m.Name }), 
-                cancellationToken)
-                .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
-
-            LocationTypeEnum.Provincial => await _provinceRepository.ToListAsync(
-                _provinceRepository.Query(p => locationIds.Contains(p.Id)).Select(p => new { p.Id, p.Name }), 
-                cancellationToken)
-                .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
-
-            LocationTypeEnum.Regional => await _regionRepository.ToListAsync(
-                _regionRepository.Query(r => locationIds.Contains(r.Id)).Select(r => new { r.Id, r.Name }), 
-                cancellationToken)
-                .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
-
+            LocationTypeEnum.Barangay => await GetBarangayNamesAsync(locationIds, cancellationToken),
+            LocationTypeEnum.Municipality => await GetMunicipalityNamesAsync(locationIds, cancellationToken),
+            LocationTypeEnum.Provincial => await GetProvinceNamesAsync(locationIds, cancellationToken),
+            LocationTypeEnum.Regional => await GetRegionNamesAsync(locationIds, cancellationToken),
             _ => new Dictionary<Guid, string>()
         };
+    }
+
+    private async Task<Dictionary<Guid, string>> GetBarangayNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
+    {
+        var barangays = await _barangayRepository.ToListAsync(
+            _barangayRepository.Query(b => locationIds.Contains(b.Id)).Select(b => new { b.Id, b.Name }), 
+            cancellationToken);
+        return barangays.ToDictionary(x => x.Id, x => x.Name);
+    }
+
+    private async Task<Dictionary<Guid, string>> GetMunicipalityNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
+    {
+        var municipalities = await _municipalityRepository.ToListAsync(
+            _municipalityRepository.Query(m => locationIds.Contains(m.Id)).Select(m => new { m.Id, m.Name }), 
+            cancellationToken);
+        return municipalities.ToDictionary(x => x.Id, x => x.Name);
+    }
+
+    private async Task<Dictionary<Guid, string>> GetProvinceNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
+    {
+        var provinces = await _provinceRepository.ToListAsync(
+            _provinceRepository.Query(p => locationIds.Contains(p.Id)).Select(p => new { p.Id, p.Name }), 
+            cancellationToken);
+        return provinces.ToDictionary(x => x.Id, x => x.Name);
+    }
+
+    private async Task<Dictionary<Guid, string>> GetRegionNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
+    {
+        var regions = await _regionRepository.ToListAsync(
+            _regionRepository.Query(r => locationIds.Contains(r.Id)).Select(r => new { r.Id, r.Name }), 
+            cancellationToken);
+        return regions.ToDictionary(x => x.Id, x => x.Name);
     }
 
     private static LocationConnectivityDto MapToLocationDto(ConnectivityAssessment assessment, string locationName)
