@@ -1091,5 +1091,4 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         return SignalStrengthHelper.CalculateAverageSignalStrength(rssiValues, signalQualities);
     }
-
 }

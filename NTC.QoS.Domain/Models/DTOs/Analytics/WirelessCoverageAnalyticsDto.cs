@@ -44,7 +44,7 @@ public class MunicipalityWirelessCoverageDto
     public TechnologyBreakdownDto? TechnologyBreakdown { get; set; }
 
     // Coverage assessment
-    public string CoverageStatus { get; set; } // Well-Covered, Partially-Covered, Poor-Coverage, No-Coverage
+    public string CoverageStatus { get; set; } = string.Empty; // Well-Covered, Partially-Covered, Poor-Coverage, No-Coverage
     public List<string> CoverageIssues { get; set; } = new();
     public List<string> Recommendations { get; set; } = new();
 
@@ -150,10 +150,10 @@ public class SignalQualityStatsDto
 // 7. SIGNAL QUALITY BY TECHNOLOGY DTO
 public class SignalQualityByTechnologyDto
 {
-    public string Technology { get; set; }
+    public string Technology { get; set; } = string.Empty;
     public int TowerCount { get; set; }
     public double AverageSignalStrength { get; set; }
-    public string QualityRating { get; set; }
+    public string QualityRating { get; set; } = string.Empty;
     public double CMTSComplianceRate { get; set; }
 }
 
@@ -172,12 +172,12 @@ public class SignalQualityByProviderDto
 // 9. SIGNAL QUALITY ZONE DTO
 public class SignalQualityZoneDto
 {
-    public string ZoneName { get; set; }
-    public string QualityLevel { get; set; } // Excellent, Good, Fair, Poor
+    public string ZoneName { get; set; } = string.Empty;
+    public string QualityLevel { get; set; } = string.Empty; // Excellent, Good, Fair, Poor
     public List<string> MunicipalitiesInZone { get; set; } = new();
     public int TowerCount { get; set; }
     public double AverageSignalStrength { get; set; }
-    public string PrimaryIssue { get; set; }
+    public string PrimaryIssue { get; set; } = string.Empty;
     public List<string> RecommendedActions { get; set; } = new();
 }
 
@@ -185,8 +185,8 @@ public class SignalQualityZoneDto
 public class ProviderCoverageDto
 {
     public Guid ProviderId { get; set; }
-    public string ProviderName { get; set; }
-    public string ProviderColor { get; set; }
+    public string ProviderName { get; set; } = string.Empty;
+    public string ProviderColor { get; set; } = string.Empty;
     public int TotalTowers { get; set; }
 
     // Coverage metrics
@@ -196,12 +196,12 @@ public class ProviderCoverageDto
     public double MarketShareByCoverage { get; set; }
 
     // Technology deployment
-    public TechnologyBreakdownDto TechnologyDeployment { get; set; }
+    public TechnologyBreakdownDto? TechnologyDeployment { get; set; }
     public List<string> PrimaryTechnologies { get; set; } = new();
 
     // Network quality
     public double AverageSignalStrength { get; set; }
-    public string NetworkQualityRating { get; set; }
+    public string NetworkQualityRating { get; set; } = string.Empty;
     public double CMTSComplianceRate { get; set; }
 
     // Geographic presence
@@ -210,32 +210,32 @@ public class ProviderCoverageDto
     // Competitive analysis
     public List<string> CompetitiveAdvantages { get; set; } = new();
     public List<string> CoverageGaps { get; set; } = new();
-    public string DeploymentStrategy { get; set; }
+    public string DeploymentStrategy { get; set; } = string.Empty;
 }
 
 // 11. MUNICIPALITY PROVIDER PRESENCE DTO
 public class MunicipalityProviderPresenceDto
 {
     public Guid? MunicipalityId { get; set; }
-    public string MunicipalityName { get; set; }
+    public string MunicipalityName { get; set; } = string.Empty;
     public int TowerCount { get; set; }
     public double EstimatedCoveragePercent { get; set; }
     public List<string> TechnologiesOffered { get; set; } = new();
     public double AverageSignalStrength { get; set; }
     public bool IsDominantProvider { get; set; }
-    public string MarketPosition { get; set; } // Leader, Competitor, Minor
+    public string MarketPosition { get; set; } = string.Empty; // Leader, Competitor, Minor
 }
 
 // 12. COVERAGE GAP DTO
 public class CoverageGapDto
 {
-    public string GapType { get; set; } // No-Coverage, Poor-Signal, Technology-Gap, Single-Provider
-    public string Severity { get; set; } // Critical, High, Medium, Low
+    public string GapType { get; set; } = string.Empty; // No-Coverage, Poor-Signal, Technology-Gap, Single-Provider
+    public string Severity { get; set; } = string.Empty; // Critical, High, Medium, Low
     public List<string> AffectedMunicipalities { get; set; } = new();
-    public string Description { get; set; }
+    public string Description { get; set; } = string.Empty;
     public double EstimatedAffectedPopulation { get; set; }
     public double EstimatedAffectedAreaKm2 { get; set; }
     public List<string> RecommendedSolutions { get; set; } = new();
-    public string Priority { get; set; } // Immediate, Short-term, Medium-term, Long-term
+    public string Priority { get; set; } = string.Empty; // Immediate, Short-term, Medium-term, Long-term
     public double EstimatedInvestmentRequired { get; set; }
 }
