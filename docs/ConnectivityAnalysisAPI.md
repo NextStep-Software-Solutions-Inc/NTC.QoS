@@ -37,7 +37,7 @@ The Analytics API provides comprehensive broadband infrastructure analysis and c
 ### 3. Connectivity Analysis
 **`POST /analytics/connectivity-analysis`**
 
-Uses separate request validation with FluentValidation.
+Uses comprehensive FluentValidation with MediatR pipeline validation.
 
 ```json
 {
@@ -58,7 +58,7 @@ Uses separate request validation with FluentValidation.
 ### 4. Generate Connectivity Assessment
 **`POST /analytics/generate-connectivity-assessment`**
 
-Uses separate request validation with FluentValidation.
+Uses comprehensive FluentValidation with MediatR pipeline validation.
 
 ```json
 {
@@ -93,11 +93,22 @@ Each endpoint now uses dedicated request classes with comprehensive validation:
 - **Validator**: `GenerateConnectivityAssessmentRequestValidator`  
 - **Max Locations**: 50 (computational complexity)
 
-### FluentValidation Integration
-- **Auto-validation** enabled in Application layer
-- **Detailed error messages** for invalid requests
-- **Business rule validation** (e.g., ForceRecalculate limits)
-- **Performance constraints** built into validation rules
+### Validation System Architecture
+The application uses a multi-layered validation approach:
+
+#### 1. FluentValidation Auto-Validation
+- **ASP.NET Core Integration**: Automatic model validation at controller level
+- **Early validation**: Catches invalid requests before reaching MediatR pipeline
+
+#### 2. MediatR Pipeline Validation Behavior
+- **Custom ValidationBehavior**: Intercepts all MediatR requests
+- **Comprehensive validation**: Uses registered FluentValidation validators
+- **Structured error responses**: Returns consistent `ApiResponse<T>` format
+
+#### 3. Scrutor-Based Validator Registration
+- **Automatic discovery**: Scans assemblies for `IValidator<T>` implementations
+- **Scoped lifetime**: Proper DI container management
+- **No manual registration**: Reduces configuration overhead
 
 ## Database Entities
 
@@ -227,23 +238,49 @@ public DbSet<ConnectivityAssessment> ConnectivityAssessments { get; set; }
 public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
 ```
 
-### 2. DI Registration  
+### 2. Application Layer DI Registration  
 ```csharp
-// Infrastructure layer
+// ApplicationDependencyInjection.cs
+public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
+{
+    var applicationAssembly = typeof(ApplicationDependencyInjection).Assembly;
+
+    // Register MediatR
+    services.AddMediatR(cfg =>
+    {
+        cfg.RegisterServicesFromAssembly(applicationAssembly);
+        cfg.Lifetime = ServiceLifetime.Scoped;
+    });
+
+    // FluentValidation Auto-Validation (ASP.NET Core integration)
+    services.AddFluentValidationAutoValidation();
+    
+    // Scrutor-based validator registration (automatic discovery)
+    services.Scan(scan => scan
+        .FromAssemblies(Assembly.GetExecutingAssembly())
+        .AddClasses(classes => classes.AssignableTo(typeof(IValidator<>)))
+        .AsImplementedInterfaces()
+        .WithScopedLifetime());
+
+    // MediatR Pipeline Validation Behavior
+    services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+    // Other application services...
+    services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
+    
+    return services;
+}
+```
+
+### 3. Infrastructure Layer DI Registration
+```csharp
+// InfrastructureDependencyInjection.cs - Repository registrations
 services.AddScoped<IConnectivityAssessmentRepository, ConnectivityAssessmentRepository>();
 services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
 services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
-
-// Application layer - FluentValidation auto-configured
-services.AddFluentValidationAutoValidation();
-services.Scan(scan => scan
-    .FromAssemblies(Assembly.GetExecutingAssembly())
-    .AddClasses(classes => classes.AssignableTo(typeof(IValidator<>)))
-    .AsImplementedInterfaces()
-    .WithScopedLifetime());
 ```
 
-### 3. Request Handling Architecture
+### 4. Request Handling Architecture
 ```csharp
 // Controller maps DTO to MediatR request
 [HttpPost("connectivity-analysis")]
@@ -271,14 +308,21 @@ public async Task<ActionResult<ApiResponse<List<LocationConnectivityDto>>>> Gene
 }
 ```
 
-## Validation Benefits
+## Validation System Benefits
 
-### Request Validation Features
+### Multi-Layered Validation Architecture
+1. **ASP.NET Core Model Validation**: Early validation at controller binding
+2. **MediatR Pipeline Validation**: Comprehensive validation in the application layer
+3. **Business Rule Validation**: Domain-specific constraints and performance limits
+4. **Automatic Error Handling**: Consistent `ApiResponse<T>` error format
+
+### Validation Features
 - **Performance limits**: Max locations per request type
-- **Business rules**: ForceRecalculate computational limits
+- **Business rules**: ForceRecalculate computational limits  
 - **Data quality**: GUID validation, enum validation
 - **User guidance**: Detailed error messages
 - **Type safety**: Strongly typed request classes
+- **Automatic discovery**: Scrutor-based validator registration
 
 ### Error Response Example
 ```json
@@ -292,27 +336,35 @@ public async Task<ActionResult<ApiResponse<List<LocationConnectivityDto>>>> Gene
 }
 ```
 
+### ValidationBehavior Implementation
+The custom `ValidationBehavior<TRequest, TResponse>` provides:
+- **Pipeline interception**: Validates all MediatR requests automatically
+- **Structured error responses**: Creates typed `ApiResponse<T>` error objects
+- **Multiple validator support**: Aggregates validation results from all registered validators
+- **Consistent error format**: Property-grouped error messages
+
 ## Performance Considerations
 
-- **Separated request validation** for appropriate scaling limits
+- **Multi-layered validation** ensures early error detection
 - **Assessment caching** (30-day default unless force recalculated)  
 - **Batch processing** with location limits
 - **Background job processing** for assessment generation
 - **Spatial indexing** on geometry columns
-- **FluentValidation** with minimal overhead
+- **Scrutor registration** with minimal startup overhead
+- **Scoped validator lifetime** for proper resource management
 
 ## Data Requirements
 
-### Already Available ?
+### Already Available ✓
 - Geographic boundaries (Barangay/Municipality/Province/Region)
 - Cell tower locations and service providers
 - Fiber NAP locations
 - Speed test data with locations
 
-### Additional Data Needed ??
+### Additional Data Needed ⚠️
 - WiFi hotspot data (public/private access points)
 - Population data for coverage calculations
 - Household counts for connectivity metrics
 - Service provider service areas
 
-This consolidated documentation covers all analytics functionality with emphasis on the new separated request architecture and comprehensive validation system.
+This consolidated documentation covers all analytics functionality with emphasis on the comprehensive validation system using FluentValidation auto-validation, MediatR pipeline validation behavior, and Scrutor-based automatic validator registration.
