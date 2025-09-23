@@ -1090,13 +1090,4 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         return SignalStrengthHelper.CalculateAverageSignalStrength(rssiValues, signalQualities);
     }
 
-    /// <summary>
-    /// Helper method to convert meters to degrees for spatial calculations
-    /// </summary>
-    private static double ConvertMetersToDegreesApprox(double meters, double latitude)
-    {
-        const double metersPerDegree = 111000; // Approximate meters per degree
-        var latRadians = latitude * Math.PI / 180;
-        return meters / (metersPerDegree * Math.Cos(latRadians));
-    }
 }
