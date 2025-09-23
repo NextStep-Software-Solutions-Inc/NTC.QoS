@@ -21,11 +21,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private readonly IRepository<NTC.QoS.Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<NTC.QoS.Domain.Entities.Region> _regionRepository;
     private readonly ICellRepository _cellRepository;
+    private readonly ICellularRepository _cellularRepository;
     private readonly INAPRepository _napRepository;
     private readonly IWiFiHotspotRepository _wifiRepository;
-    private readonly IRepository<NTC.QoS.Domain.Entities.Speedtest> _speedtestRepository;
-    private readonly IGenerationRepository _generationRepository;
-    private readonly ITechnologyRepository _technologyRepository;
+    private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IConnectivityCacheService _cacheService;
     private readonly ILogger<GenerateConnectivityAssessmentHandler> _logger;
 
@@ -36,11 +35,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         IRepository<NTC.QoS.Domain.Entities.Province> provinceRepository,
         IRepository<NTC.QoS.Domain.Entities.Region> regionRepository,
         ICellRepository cellRepository,
+        ICellularRepository cellularRepository,
         INAPRepository napRepository,
         IWiFiHotspotRepository wifiRepository,
-        IRepository<NTC.QoS.Domain.Entities.Speedtest> speedtestRepository,
-        IGenerationRepository generationRepository,
-        ITechnologyRepository technologyRepository,
+        ISpeedtestRepository speedtestRepository,
         IConnectivityCacheService cacheService,
         ILogger<GenerateConnectivityAssessmentHandler> logger)
     {
@@ -50,11 +48,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
         _cellRepository = cellRepository;
+        _cellularRepository = cellularRepository;
         _napRepository = napRepository;
         _wifiRepository = wifiRepository;
         _speedtestRepository = speedtestRepository;
-        _generationRepository = generationRepository;
-        _technologyRepository = technologyRepository;
         _cacheService = cacheService;
         _logger = logger;
     }
@@ -610,15 +607,20 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
                 allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
 
-                // Get cellular technology data if available (simplified approach)
-                var cellularQuery = _cellRepository.Query();
-                cellularQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellularQuery);
+                // Get cellular technology data using cell repository with spatial filter
+                var cellQuery = _cellRepository.Query();
+                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+
                 var cellularResults = await _cellRepository.ToListAsync(
-                    cellularQuery.Select(c => new {
-                        GenerationName = "4G", // Default assumption for cell towers
-                        TechnologyStandard = "LTE",
-                        c.Id
-                    }), cancellationToken);
+                    cellQuery
+                        .SelectMany(cell => cell.CellSectors!)
+                        .SelectMany(sector => sector.Cellulars!)
+                        .Where(c => c.Technology != null && c.Technology.Generation != null)
+                        .Select(c => new {
+                            GenerationName = c.Technology!.Generation!.Name,
+                            TechnologyStandard = c.Technology!.Standard,
+                            c.Id
+                        }), cancellationToken);
 
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
             }
@@ -640,12 +642,12 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
                 allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
 
-                var cellularResults = await _cellRepository.ToListAsync(
-                    _cellRepository.Query()
-                        .Where(c => c.Location.Distance(center) <= searchRadiusMeters)
+                var cellularResults = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters)
                         .Select(c => new {
-                            GenerationName = "4G", // Default assumption
-                            TechnologyStandard = "LTE",
+                            GenerationName = c.Technology!.Generation!.Name,
+                            TechnologyStandard = c.Technology!.Standard,
                             c.Id
                         }), cancellationToken);
 

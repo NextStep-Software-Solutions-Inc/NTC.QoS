@@ -76,9 +76,6 @@ public class TechnologyBreakdownDto
     /// </summary>
     public int Count5G { get; set; }
     
-    public int CountLTE { get; set; }
-    public int CountOther { get; set; }
-    
     /// <summary>
     /// List of available technology standards (e.g., GSM, WCDMA, LTE, NR)
     /// </summary>

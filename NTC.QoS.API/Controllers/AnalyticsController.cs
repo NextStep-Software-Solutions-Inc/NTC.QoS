@@ -215,7 +215,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
                 },
                 new { 
                     Status = "Unserved", 
-                    ScoreRange = "?5 points",
+                    ScoreRange = "<= 5 points",
                     Description = "Virtually no broadband access or supporting infrastructure",
                     Characteristics = new[]
                     {
@@ -268,7 +268,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
             {
                 ServedArea = "Total score = 11-15 points - Fully developed, meets most technical and social benchmarks",
                 UnderservedArea = "Total score = 6-10 points - Has basic infrastructure or partial access, but lacks quality, affordability, or consistency",
-                UnservedArea = "Total score ? 5 points - Virtually no broadband access or supporting infrastructure"
+                UnservedArea = "Total score <= 5 points - Virtually no broadband access or supporting infrastructure"
             }
         };
 
