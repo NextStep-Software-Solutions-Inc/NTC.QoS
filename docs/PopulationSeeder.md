@@ -53,12 +53,12 @@ Place your Excel file as `census_population_data.xlsx` in the root directory. Th
 ### 1. Default File Location (Recommended)
 ```
 NTC.QoS-Backend/
-??? census_population_data.xlsx    ? Place your Excel file here
-??? admin1.geojson                 ? Your region GeoJSON files
-??? admin2.geojson                 
-??? admin3.geojson
-??? admin4.geojson
-??? [other project folders]
+? census_population_data.xlsx    ? Place your Excel file here
+? admin1.geojson                 ? Your region GeoJSON files
+? admin2.geojson                 
+? admin3.geojson
+? admin4.geojson
+? [other project folders]
 ```
 
 ### 2. Automatic Detection
@@ -73,24 +73,27 @@ Population seeding is integrated into the application startup pipeline in `Infra
 
 ```csharp
 // Automatic seeding during application startup
-await LocationSeeder.SeedAllAsync(dbContext, logger);                    // Geographic data first
-await PopulationSeeder.SeedPopulationDataIfExistsAsync(dbContext, logger); // Population data
-await OrganizationSeeder.SeedAsync(dbContext, logger);                  // Continue with other seeders
+await LocationSeeder.SeedAllAsync(dbContext, logger);     // Geographic data first
+await PopulationSeeder.SeedAsync(dbContext, logger);      // Population data (automatic file detection)
+await OrganizationSeeder.SeedAsync(dbContext, logger);    // Continue with other seeders
 ```
 
 ### Available Methods
 
-#### 1. Automatic Seeding (Default)
+#### Automatic Seeding (Default and Only Public Method)
 ```csharp
 // Handles file detection and logging automatically
-await PopulationSeeder.SeedPopulationDataIfExistsAsync(context, logger);
+// Looks for census_population_data.xlsx in current directory
+await PopulationSeeder.SeedAsync(context, logger);
 ```
 
-#### 2. Manual Seeding (Custom File Path)
-```csharp
-// For custom file paths or manual seeding scenarios
-await PopulationSeeder.SeedPopulationDataAsync(context, filePath, logger);
-```
+The seeder automatically:
+- Checks for `census_population_data.xlsx` in the current directory
+- Seeds population data if the file exists
+- Logs helpful information if the file is not found
+- Continues gracefully regardless of file availability
+
+**Note**: There is no public manual seeding method. All population seeding is handled through the single `SeedAsync` method which manages file detection internally.
 
 ## Features
 
@@ -171,7 +174,7 @@ The seeder handles common name variations:
 Excel: "Manila"           Database: "City of Manila"          ? Matches
 Excel: "Las Piñas"        Database: "Las Pinas"               ? Matches  
 Excel: "NCR"              Database: "National Capital Region" ? Matches
-Excel: "ARMM"             Database: "BARMM"                   ?? May not match
+Excel: "ARMM"             Database: "BARMM"                   ? May not match
 ```
 
 ### Debugging Failed Matches
