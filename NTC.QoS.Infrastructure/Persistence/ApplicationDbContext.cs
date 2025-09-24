@@ -49,6 +49,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
     public DbSet<UserRegion> UserRegions { get; set; }
+    public DbSet<WirelessValidation> WirelessValidations { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
@@ -510,6 +511,48 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(st => st.Generation)
             .WithMany(g => g.SystemTypes)
             .HasForeignKey(st => st.GenerationId);
+
+        // WirelessValidation entity configuration
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<ServiceProvider>()
+            .WithMany()
+            .HasForeignKey(wv => wv.ServiceProviderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Barangay>()
+            .WithMany()
+            .HasForeignKey(wv => wv.BarangayId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Band>()
+            .WithMany()
+            .HasForeignKey(wv => wv.BandId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Technology>()
+            .WithMany()
+            .HasForeignKey(wv => wv.TechnologyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Indexes for performance
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.ServiceProviderId)
+            .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.BarangayId)
+            .HasDatabaseName("IX_WirelessValidation_BarangayId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => new { wv.TechnologyId, wv.BandId })
+            .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.IsMarginal)
+            .HasDatabaseName("IX_WirelessValidation_IsMarginal");
 
         base.OnModelCreating(modelBuilder);
     }
