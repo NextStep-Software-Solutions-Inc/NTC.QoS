@@ -95,5 +95,21 @@ namespace NTC.QoS.Infrastructure.Helper
         {
             return networkName.ToLowerInvariant();
         }
+
+        public static string GenerateBarangayCacheKey(string barangayName, Guid municipalityId)
+        {
+            return $"{barangayName}_{municipalityId}".ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Generates a standardized cache key for Municipality.
+        /// Format: Lowercase municipality name.
+        /// </summary>
+        /// <param name="municipalityName">The municipality name (e.g., "Quezon City").</param>
+        /// <returns>A standardized lowercase cache key for the municipality.</returns>
+        public static string GenerateMunicipalityCacheKey(string municipalityName)
+        {
+            return municipalityName.ToLowerInvariant();
+        }
     }
 }

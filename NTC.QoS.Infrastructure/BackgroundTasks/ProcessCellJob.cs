@@ -292,8 +292,8 @@ public class ProcessCellJob : IProcessCellJob
                 {
                     Property = property,
                     HeaderAttribute = property.GetCustomAttribute<ExcelHeaderAttribute>(),
-                    Band = GetBandFromPropertyName(property.Name),
-                    Technology = GetTechnologyFromPropertyName(property.Name)
+                    Band = CellPropertyNameParser.GetBandFromPropertyName(property.Name),
+                    Technology = CellPropertyNameParser.GetTechnologyFromPropertyName(property.Name)
                 })
                 .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
                 .ToList();
@@ -1072,39 +1072,6 @@ public class ProcessCellJob : IProcessCellJob
         };
     }
 
-    private static string GetBandFromPropertyName(string propertyName)
-    {
-        if (propertyName.Contains("700")) return "Band 28";
-        if (propertyName.Contains("850")) return "Band 5";
-        if (propertyName.Contains("900")) return "Band 8";
-        if (propertyName.Contains("1800")) return "Band 3";
-        if (propertyName.Contains("2100")) return "Band 1";
-        if (propertyName.Contains("2300")) return "Band 40";
-        if (propertyName.Contains("2500")) return "Band 41";
-        if (propertyName.Contains("2600")) return "Band 38";
-        if (propertyName.Contains("3400")) return "Band 42";
-        if (propertyName.Contains("3500")) return "Band 78";
-        return string.Empty;
-    }
-
-    private static string GetGenerationFromPropertyName(string propertyName)
-    {
-        if (propertyName.StartsWith("Gsm")) return "2G";
-        if (propertyName.StartsWith("Wcdma")) return "3G";
-        if (propertyName.StartsWith("FddLte") || propertyName.StartsWith("TddLte")) return "4G";
-        if (propertyName.StartsWith("Nr")) return "5G";
-        return string.Empty;
-    }
-
-    private static string GetTechnologyFromPropertyName(string propertyName)
-    {
-        if (propertyName.StartsWith("Gsm")) return "GSM";
-        if (propertyName.StartsWith("Wcdma")) return "WCDMA";
-        if (propertyName.StartsWith("FddLte")) return "FDDLTE"; // Match database convention
-        if (propertyName.StartsWith("TddLte")) return "TDDLTE"; // Match database convention
-        if (propertyName.StartsWith("Nr")) return "NR";
-        return string.Empty;
-    }
 
     /// <summary>
     /// Result structure for parsing band/technology column values
