@@ -62,6 +62,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
                 await GenerateTemplate(package, worksheet => GenerateCellularCoverageTemplate(package, worksheet, cancellationToken));
                 break;
 
+            case FileTypeEnum.WirelessValidation:
+                throw new ArgumentException("WirelessValidation template requires municipalityId parameter. Use the dedicated endpoint.");
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(request.Type), $"Unsupported file type: {request.Type}");
         }
