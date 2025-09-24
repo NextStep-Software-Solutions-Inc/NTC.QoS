@@ -41,14 +41,11 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             _logger.LogInformation("Processing connectivity analysis for {LocationCount} {LocationType}s", 
                 request.LocationIds.Count, request.LocationType);
 
-            // Get existing assessments
             var existingAssessments = await _connectivityRepository.GetByLocationIdsAsync(
                 request.LocationIds, request.LocationType, cancellationToken);
 
-            // Get location names
             var locationNames = await GetLocationNamesAsync(request.LocationIds, request.LocationType, cancellationToken);
 
-            // Build response
             var locations = new List<LocationConnectivityDto>();
             
             foreach (var locationId in request.LocationIds)
@@ -79,13 +76,11 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 }
             }
 
-            // Apply status filter if specified
             if (request.FilterByStatus.HasValue)
             {
                 locations = locations.Where(l => l.ConnectivityStatus == request.FilterByStatus.Value).ToList();
             }
 
-            // Calculate summary
             var summary = CalculateSummary(locations);
 
             var response = new ConnectivityAnalysisResponseDto
