@@ -111,6 +111,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
         services.AddScoped<ICellSectorRepository, CellSectorRepository>();
         services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
+        services.AddScoped<IWirelessValidationRepository, WirelessValidationRepository>();
 
         services.AddTransient(typeof(IBackgroundJobService), typeof(BackgroundJobService));
 
@@ -120,6 +121,7 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
+        services.AddTransient<IProcessWirelessValidationJob, ProcessWirelessValidationJob>();
 
         await Task.Run(async () =>
         {
