@@ -9,6 +9,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
@@ -493,7 +494,14 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
 
             var speedtestResults = await _speedtestRepository.ToListAsync(
-                query.Select(s => new { s.DownloadSpeed, s.UploadSpeed, s.Ping, s.RSSI, s.SignalQuality }), 
+                query.Select(s => new SpeedtestDto 
+                { 
+                    DownloadSpeed = s.DownloadSpeed, 
+                    UploadSpeed = s.UploadSpeed, 
+                    Ping = s.Ping, 
+                    RSSI = s.RSSI, 
+                    SignalQuality = s.SignalQuality 
+                }), 
                 cancellationToken);
             
             result = ProcessSpeedTestResults(speedtestResults);
@@ -507,7 +515,14 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var speedtestResults = await _speedtestRepository.ToListAsync(
                 _speedtestRepository.Query()
                     .Where(s => s.Location.Distance(center) <= searchRadiusMeters)
-                    .Select(s => new { s.DownloadSpeed, s.UploadSpeed, s.Ping, s.RSSI, s.SignalQuality }), 
+                    .Select(s => new SpeedtestDto 
+                    { 
+                        DownloadSpeed = s.DownloadSpeed, 
+                        UploadSpeed = s.UploadSpeed, 
+                        Ping = s.Ping, 
+                        RSSI = s.RSSI, 
+                        SignalQuality = s.SignalQuality 
+                    }), 
                 cancellationToken);
             
             result = ProcessSpeedTestResults(speedtestResults);
@@ -523,48 +538,29 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         return result;
     }
 
-    private SpeedStatsDto? ProcessSpeedTestResults<T>(List<T> speedtests) where T : class
+    private static SpeedStatsDto? ProcessSpeedTestResults(List<SpeedtestDto> speedtests)
     {
         if (speedtests.Count == 0)
             return null;
 
-        // Use reflection to get property values safely
-        var downloadSpeedsProperty = typeof(T).GetProperty("DownloadSpeed");
-        var uploadSpeedsProperty = typeof(T).GetProperty("UploadSpeed");
-        var pingProperty = typeof(T).GetProperty("Ping");
-        var rssiProperty = typeof(T).GetProperty("RSSI");
-        var signalQualityProperty = typeof(T).GetProperty("SignalQuality");
-
-        if (downloadSpeedsProperty == null || uploadSpeedsProperty == null || pingProperty == null)
-            return null;
-
         var downloadSpeeds = speedtests
-            .Select(s => (decimal)downloadSpeedsProperty.GetValue(s)!)
+            .Select(s => s.DownloadSpeed)
             .OrderBy(s => s).ToList();
+
         var uploadSpeeds = speedtests
-            .Select(s => (decimal)uploadSpeedsProperty.GetValue(s)!)
+            .Select(s => s.UploadSpeed)
             .OrderBy(s => s).ToList();
         
         // Calculate signal quality metrics from RSSI data
-        var rssiValues = new List<decimal>();
-        var signalQualities = new List<string>();
+        var rssiValues = speedtests
+            .Where(s => s.RSSI.HasValue)
+            .Select(s => s.RSSI!.Value)
+            .ToList();
 
-        if (rssiProperty != null)
-        {
-            rssiValues = speedtests
-                .Select(s => rssiProperty.GetValue(s) as decimal?)
-                .Where(r => r.HasValue)
-                .Select(r => r!.Value)
-                .ToList();
-        }
-
-        if (signalQualityProperty != null)
-        {
-            signalQualities = speedtests
-                .Select(s => signalQualityProperty.GetValue(s) as string)
-                .Where(sq => !string.IsNullOrEmpty(sq))
-                .ToList()!;
-        }
+        var signalQualities = speedtests
+            .Where(s => !string.IsNullOrEmpty(s.SignalQuality))
+            .Select(s => s.SignalQuality!)
+            .ToList();
         
         // Determine average signal strength based on RSSI ranges
         var averageSignalStrength = CalculateAverageSignalStrength(rssiValues, signalQualities);
@@ -573,7 +569,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             AverageDownloadSpeedMbps = Math.Round(downloadSpeeds.Average(), 2),
             AverageUploadSpeedMbps = Math.Round(uploadSpeeds.Average(), 2),
-            AverageLatencyMs = Math.Round(speedtests.Average(s => (decimal)pingProperty.GetValue(s)!), 2),
+            AverageLatencyMs = Math.Round(speedtests.Average(s => s.Ping), 2),
             MedianDownloadSpeedMbps = CalculateMedian(downloadSpeeds),
             MedianUploadSpeedMbps = CalculateMedian(uploadSpeeds),
             SpeedTestCount = speedtests.Count,
