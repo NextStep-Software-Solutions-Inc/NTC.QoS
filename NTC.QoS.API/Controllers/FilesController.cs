@@ -120,6 +120,6 @@ public class FilesController(IMediator mediator) : ControllerBase
         {
             return BadRequest(res);
         }
-        return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"wireless_validation_template_{municipalityId}.xlsx");
+        return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"wireless_validation_template.xlsx");
     }
 }

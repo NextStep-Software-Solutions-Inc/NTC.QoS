@@ -1,9 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Infrastructure.Helper;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
@@ -26,9 +24,6 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
 
     }
 
-    /// <summary>
-    /// Gets municipality by location using spatial intersection
-    /// </summary>
     public async Task<Municipality?> GetMunicipalityByLocationAsync(Point location, CancellationToken cancellationToken = default)
     {
         if (location == null)
@@ -38,9 +33,6 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Gets municipality ID and name by location using spatial intersection
-    /// </summary>
     public async Task<(Guid? Id, string Name)> GetMunicipalityIdAndNameByLocationAsync(Point location, CancellationToken cancellationToken = default)
     {
         if (location == null)
