@@ -151,6 +151,32 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             }
         }
 
+        int techBorderTopRow = 2;                              
+        int techBorderBottomRow = Math.Max(4, dataEndRow);     
+        var techGray = Color.FromArgb(160, 160, 160);          
+
+        // Recompute technology spans from the same 'groups' definition
+        int colPtr = 3; 
+        foreach (var g in groups)
+        {
+            int techStart = colPtr;
+            int techEnd = colPtr + g.Bands.Length - 1;
+
+            using (var left = ws.Cells[techBorderTopRow, techStart, techBorderBottomRow, techStart])
+            {
+                left.Style.Border.Left.Style = ExcelBorderStyle.Thin;
+                left.Style.Border.Left.Color.SetColor(techGray);
+            }
+
+            using (var right = ws.Cells[techBorderTopRow, techEnd, techBorderBottomRow, techEnd])
+            {
+                right.Style.Border.Right.Style = ExcelBorderStyle.Thin;
+                right.Style.Border.Right.Color.SetColor(techGray);
+            }
+
+            colPtr = techEnd + 1;
+        }
+
         // Freeze panes so header stays visible (row 5, col C)
         ws.View.FreezePanes(5, 3);
 
