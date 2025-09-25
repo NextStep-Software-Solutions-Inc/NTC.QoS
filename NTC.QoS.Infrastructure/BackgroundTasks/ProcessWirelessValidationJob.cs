@@ -13,6 +13,8 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
 public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           ILogger<ProcessWirelessValidationJob> logger,
+                                          IRegionRepository regionRepository,
+                                          IProvinceRepository provinceRepository,
                                           IMunicipalityRepository municipalityRepository,
                                           IBarangayRepository barangayRepository,
                                           IServiceProviderRepository serviceProviderRepository,
@@ -23,6 +25,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 {
     private readonly IFileRepository _fileRepository = fileRepository;
     private readonly ILogger<ProcessWirelessValidationJob> _logger = logger;
+    private readonly IRegionRepository _regionRepository = regionRepository;
+    private readonly IProvinceRepository _provinceRepository = provinceRepository;
     private readonly IMunicipalityRepository _municipalityRepository = municipalityRepository;
     private readonly IBarangayRepository _barangayRepository = barangayRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
@@ -67,12 +71,12 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             _logger.LogInformation("Parsed {RecordCount:N0} records from Excel file", wirelessValidationRecords.Count);
             processingResults.TotalRecords = wirelessValidationRecords.Count;
 
-            // Phase 2: Preload Reference Data
+            // Phase 2: Preload Reference Data with Hierarchical Structure
             var referenceData = await PreloadReferenceData(wirelessValidationRecords, token);
             _logger.LogInformation("Reference data preloaded successfully");
 
-            // Phase 3: Resolve Municipality for all records
-            await ResolveMunicipality(wirelessValidationRecords, referenceData, token);
+            // Phase 3: Resolve Municipality using Hierarchical Approach
+            await ResolveMunicipalityHierarchical(wirelessValidationRecords, referenceData, token);
 
             // Phase 4: Process Records in Batches
             await ProcessRecordsInBatches(wirelessValidationRecords, referenceData, processingResults, token);
@@ -86,13 +90,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             file.Status = FileStatusEnum.Failed;
             _fileRepository.Update(file);
             await _fileRepository.SaveChangesAsync(token);
-            throw;
+            throw; 
         }
     }
 
     private async Task<ReferenceData> PreloadReferenceData(List<WirelessValidationRecord> records, CancellationToken token)
     {
-        _logger.LogInformation("Preloading reference data...");
+        _logger.LogInformation("Preloading reference data with hierarchical structure...");
 
         // Preload wireless service providers
         var serviceProviderCache = await _serviceProviderRepository
@@ -106,20 +110,46 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
         _logger.LogInformation("Preloaded {Count:N0} wireless service providers", serviceProviderCache.Count);
 
-        // Preload municipalities
-        var municipalityList = await _municipalityRepository
+        // Preload hierarchical municipality data with Province and Region information
+        var municipalityHierarchyList = await _municipalityRepository
             .Query()
-            .Select(m => new { m.Id, m.Name })
+            .Select(m => new { 
+                m.Id, 
+                m.Name, 
+                ProvinceName = m.Province.Name,
+                RegionName = m.Province.Region.Name,
+                m.ProvinceId,
+                RegionId = m.Province.RegionId
+            })
             .ToListAsync(token);
 
-        var municipalityCache = new Dictionary<string, Guid>();
-        foreach (var municipality in municipalityList)
+        var municipalityHierarchyCache = new Dictionary<string, MunicipalityHierarchyInfo>();
+        foreach (var municipality in municipalityHierarchyList)
         {
-            var key = CacheKeyGenerator.GenerateMunicipalityCacheKey(municipality.Name);
-            municipalityCache[key] = municipality.Id;
+            var key = GenerateHierarchicalMunicipalityKey(municipality.Name, municipality.ProvinceName, municipality.RegionName);
+            municipalityHierarchyCache[key] = new MunicipalityHierarchyInfo
+            {
+                Id = municipality.Id,
+                Name = municipality.Name,
+                ProvinceName = municipality.ProvinceName,
+                RegionName = municipality.RegionName,
+                ProvinceId = municipality.ProvinceId,
+                RegionId = municipality.RegionId
+            };
         }
 
-        _logger.LogInformation("Preloaded {Count:N0} municipalities", municipalityCache.Count);
+        // Also create a simple municipality cache for fallback lookup
+        var municipalityCache = new Dictionary<string, Guid>();
+        foreach (var municipality in municipalityHierarchyList)
+        {
+            var key = CacheKeyGenerator.GenerateMunicipalityCacheKey(municipality.Name);
+            if (!municipalityCache.ContainsKey(key))
+            {
+                municipalityCache[key] = municipality.Id;
+            }
+        }
+
+        _logger.LogInformation("Preloaded {Count:N0} municipalities with hierarchical data", municipalityHierarchyCache.Count);
 
         // Preload technologies
         var technologyList = await _technologyRepository
@@ -135,6 +165,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         }
 
         _logger.LogInformation("Preloaded {Count:N0} technologies", technologyCache.Count);
+
+        // Log technology diagnostics for debugging
+        TechnologyMappingHelper.LogTechnologyDiagnostics(technologyCache, _logger);
 
         // Preload bands
         var bandList = await _bandRepository
@@ -155,28 +188,45 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         {
             ServiceProviderCache = serviceProviderCache,
             MunicipalityCache = municipalityCache,
+            MunicipalityHierarchyCache = municipalityHierarchyCache,
             TechnologyCache = technologyCache,
             BandCache = bandCache
         };
     }
 
-    private async Task ResolveMunicipality(List<WirelessValidationRecord> records, ReferenceData referenceData, CancellationToken token)
+    private async Task ResolveMunicipalityHierarchical(List<WirelessValidationRecord> records, ReferenceData referenceData, CancellationToken token)
     {
-        // Group records by municipality to minimize database queries
-        var municipalityGroups = records.GroupBy(r => r.Municipality).ToList();
+        // Group records by their hierarchical municipality information
+        var municipalityGroups = records.GroupBy(r => new { r.Municipality, r.Province, r.Region }).ToList();
         
         foreach (var group in municipalityGroups)
         {
-            var municipalityName = group.Key;
-            var municipalityKey = CacheKeyGenerator.GenerateMunicipalityCacheKey(municipalityName);
+            var municipalityName = group.Key.Municipality;
+            var provinceName = group.Key.Province;
+            var regionName = group.Key.Region;
             
-            if (referenceData.MunicipalityCache.TryGetValue(municipalityKey, out var municipalityId))
+            MunicipalityHierarchyInfo? resolvedMunicipality = null;
+
+            // Option A: Hierarchical matching (preferred approach)
+            var hierarchicalKey = GenerateHierarchicalMunicipalityKey(municipalityName, provinceName, regionName);
+            if (referenceData.MunicipalityHierarchyCache.TryGetValue(hierarchicalKey, out resolvedMunicipality))
+            {
+                _logger.LogInformation("Exact hierarchical match found for: {Municipality}, {Province}, {Region}", 
+                    municipalityName, provinceName, regionName);
+            }
+            else
+            {
+                // Option B: Fuzzy matching with hierarchical validation
+                resolvedMunicipality = await FindMunicipalityWithFuzzyMatching(municipalityName, provinceName, regionName, referenceData, token);
+            }
+
+            if (resolvedMunicipality != null)
             {
                 // Preload barangays for this municipality
-                if (!referenceData.BarangayCache.ContainsKey(municipalityId))
+                if (!referenceData.BarangayCache.ContainsKey(resolvedMunicipality.Id))
                 {
                     var barangayList = await _barangayRepository
-                        .Query(b => b.MunicipalityId == municipalityId)
+                        .Query(b => b.MunicipalityId == resolvedMunicipality.Id)
                         .Select(b => new { b.Id, b.Name, b.MunicipalityId })
                         .ToListAsync(token);
 
@@ -187,23 +237,131 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                         barangayCache[key] = barangay.Id;
                     }
 
-                    referenceData.BarangayCache[municipalityId] = barangayCache;
+                    referenceData.BarangayCache[resolvedMunicipality.Id] = barangayCache;
                     _logger.LogInformation("Preloaded {Count:N0} barangays for municipality: {Municipality}", 
-                        barangayCache.Count, municipalityName);
+                        barangayCache.Count, resolvedMunicipality.Name);
                 }
 
                 // Set municipality ID for all records in this group
                 foreach (var record in group)
                 {
-                    record.MunicipalityId = municipalityId;
+                    record.MunicipalityId = resolvedMunicipality.Id;
                 }
+
+                _logger.LogInformation("Resolved {RecordCount} records for municipality: {Municipality} (ID: {MunicipalityId})", 
+                    group.Count(), resolvedMunicipality.Name, resolvedMunicipality.Id);
             }
             else
             {
-                _logger.LogWarning("Municipality not found: {Municipality}. {RecordCount} records will be skipped.", 
-                    municipalityName, group.Count());
+                _logger.LogWarning("Municipality not found: {Municipality}, {Province}, {Region}. {RecordCount} records will be skipped.", 
+                    municipalityName, provinceName, regionName, group.Count());
             }
         }
+    }
+
+    private async Task<MunicipalityHierarchyInfo?> FindMunicipalityWithFuzzyMatching(string municipalityName, string provinceName, string regionName, ReferenceData referenceData, CancellationToken token)
+    {
+        _logger.LogInformation("Attempting fuzzy match for: {Municipality}, {Province}, {Region}", municipalityName, provinceName, regionName);
+
+        // Try different variations and tolerance levels
+        var possibleMatches = new List<MunicipalityHierarchyInfo>();
+
+        foreach (var kvp in referenceData.MunicipalityHierarchyCache)
+        {
+            var municipalityInfo = kvp.Value;
+            
+            // Calculate similarity scores
+            var municipalityScore = CalculateSimilarity(municipalityName, municipalityInfo.Name);
+            var provinceScore = CalculateSimilarity(provinceName, municipalityInfo.ProvinceName);
+            var regionScore = CalculateSimilarity(regionName, municipalityInfo.RegionName);
+
+            // Require high municipality match, moderate province match
+            if (municipalityScore >= 0.8 && provinceScore >= 0.6 && regionScore >= 0.5)
+            {
+                possibleMatches.Add(municipalityInfo);
+                _logger.LogInformation("Fuzzy match candidate: {Municipality} ({MScore:F2}), {Province} ({PScore:F2}), {Region} ({RScore:F2})", 
+                    municipalityInfo.Name, municipalityScore, municipalityInfo.ProvinceName, provinceScore, municipalityInfo.RegionName, regionScore);
+            }
+        }
+
+        if (possibleMatches.Count == 1)
+        {
+            _logger.LogInformation("Single fuzzy match found: {Municipality}, {Province}, {Region}", 
+                possibleMatches[0].Name, possibleMatches[0].ProvinceName, possibleMatches[0].RegionName);
+            return possibleMatches[0];
+        }
+        else if (possibleMatches.Count > 1)
+        {
+            // Select the best match based on combined score
+            var bestMatch = possibleMatches
+                .Select(m => new {
+                    Municipality = m,
+                    Score = (CalculateSimilarity(municipalityName, m.Name) * 2) + // Weight municipality name more heavily
+                           CalculateSimilarity(provinceName, m.ProvinceName) +
+                           CalculateSimilarity(regionName, m.RegionName)
+                })
+                .OrderByDescending(x => x.Score)
+                .First();
+            
+            _logger.LogInformation("Best fuzzy match selected: {Municipality}, {Province}, {Region} (Score: {Score:F2})", 
+                bestMatch.Municipality.Name, bestMatch.Municipality.ProvinceName, bestMatch.Municipality.RegionName, bestMatch.Score);
+            return bestMatch.Municipality;
+        }
+
+        _logger.LogWarning("No suitable fuzzy match found for: {Municipality}, {Province}, {Region}", municipalityName, provinceName, regionName);
+        return null;
+    }
+
+    private static double CalculateSimilarity(string source, string target)
+    {
+        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(target))
+            return 0;
+
+        source = source.ToLowerInvariant().Trim();
+        target = target.ToLowerInvariant().Trim();
+
+        if (source == target)
+            return 1.0;
+
+        // Check if one contains the other
+        if (source.Contains(target) || target.Contains(source))
+            return 0.9;
+
+        // Levenshtein distance calculation
+        var distance = LevenshteinDistance(source, target);
+        var maxLength = Math.Max(source.Length, target.Length);
+        return 1.0 - (double)distance / maxLength;
+    }
+
+    private static int LevenshteinDistance(string source, string target)
+    {
+        if (source.Length == 0) return target.Length;
+        if (target.Length == 0) return source.Length;
+
+        var matrix = new int[source.Length + 1, target.Length + 1];
+
+        for (int i = 0; i <= source.Length; i++)
+            matrix[i, 0] = i;
+        for (int j = 0; j <= target.Length; j++)
+            matrix[0, j] = j;
+
+        for (int i = 1; i <= source.Length; i++)
+        {
+            for (int j = 1; j <= target.Length; j++)
+            {
+                var cost = source[i - 1] == target[j - 1] ? 0 : 1;
+                matrix[i, j] = Math.Min(
+                    Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
+                    matrix[i - 1, j - 1] + cost);
+            }
+        }
+
+        return matrix[source.Length, target.Length];
+    }
+
+    private static string GenerateHierarchicalMunicipalityKey(string municipality, string province, string region)
+    {
+        return $"{municipality.ToLowerInvariant().Trim()}|{province.ToLowerInvariant().Trim()}|{region.ToLowerInvariant().Trim()}";
     }
 
     private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData, 
@@ -346,21 +504,24 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 if (!shouldCreate)
                     continue;
 
-                // Get technology ID
-                var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(item.Technology);
-                if (!referenceData.TechnologyCache.TryGetValue(technologyKey, out Guid technologyId))
+                // Use TechnologyMappingHelper to resolve technology ID with fallbacks
+                var contextInfo = $"Provider: {record.Provider}, Municipality: {record.Municipality}, Technology: {item.Technology}, Band: {item.Band}";
+                var technologyId = TechnologyMappingHelper.ResolveTechnologyId(item.Technology, referenceData.TechnologyCache, _logger, contextInfo);
+                
+                if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
                 {
-                    _logger.LogWarning("Technology not found: {Technology} for property {PropertyName}", 
-                        item.Technology, item.Property.Name);
+                    _logger.LogWarning("Skipping technology/band combination due to unresolved technology: {Technology}/{Band}", 
+                        item.Technology, item.Band);
                     continue;
                 }
 
-                // Get band ID
-                var bandKey = CacheKeyGenerator.GenerateBandCacheKey(item.Band);
-                if (!referenceData.BandCache.TryGetValue(bandKey, out Guid bandId))
+                // Use TechnologyMappingHelper to resolve band ID
+                var bandId = TechnologyMappingHelper.ResolveBandId(item.Band, referenceData.BandCache, _logger, contextInfo);
+                
+                if (!TechnologyMappingHelper.IsTechnologyResolved(bandId)) // Reusing the same check since it's just checking for Guid.Empty
                 {
-                    _logger.LogWarning("Band not found: {Band} for property {PropertyName}", 
-                        item.Band, item.Property.Name);
+                    _logger.LogWarning("Skipping technology/band combination due to unresolved band: {Technology}/{Band}", 
+                        item.Technology, item.Band);
                     continue;
                 }
 
@@ -427,6 +588,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         }
         
         _logger.LogInformation("Processing Logic Applied:");
+        _logger.LogInformation("- Hierarchical municipality resolution with Province and Region validation");
+        _logger.LogInformation("- Fuzzy matching for address variations and spelling differences");
         _logger.LogInformation("- 'false', empty, N/A values: Skipped (no entity created)");
         _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSSI=0");
         _logger.LogInformation("- 'true' values: Created with IsMarginal=false, RSSI=0");
@@ -446,9 +609,20 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     {
         public Dictionary<string, Guid> ServiceProviderCache { get; set; } = new();
         public Dictionary<string, Guid> MunicipalityCache { get; set; } = new();
+        public Dictionary<string, MunicipalityHierarchyInfo> MunicipalityHierarchyCache { get; set; } = new();
         public Dictionary<string, Guid> TechnologyCache { get; set; } = new();
         public Dictionary<string, Guid> BandCache { get; set; } = new();
         public Dictionary<Guid, Dictionary<string, Guid>> BarangayCache { get; set; } = new();
+    }
+
+    private class MunicipalityHierarchyInfo
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ProvinceName { get; set; } = string.Empty;
+        public string RegionName { get; set; } = string.Empty;
+        public Guid ProvinceId { get; set; }
+        public Guid RegionId { get; set; }
     }
 
     private class ProcessingResults

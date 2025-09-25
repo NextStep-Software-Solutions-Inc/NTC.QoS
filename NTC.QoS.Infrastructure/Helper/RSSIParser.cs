@@ -39,6 +39,7 @@ public static class RSSIParser
             case "marginal":
             case "margin":
             case "marg":
+            case "m":
                 return (true, null, true); // Create entity, no RSSI value, set marginal = true
 
             case "true":

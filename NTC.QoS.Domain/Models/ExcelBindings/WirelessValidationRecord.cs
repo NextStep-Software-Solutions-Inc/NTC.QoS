@@ -58,6 +58,9 @@ public class WirelessValidationRecord
     [ExcelHeader("B38-2600")]
     public string TddLte2600 { get; set; } = string.Empty;
 
+    [ExcelHeader("B28-700")]
+    public string Nr700 { get; set; } = string.Empty;
+
     [ExcelHeader("B3-1800")]
     public string Nr1800 { get; set; } = string.Empty;
 
@@ -73,6 +76,6 @@ public class WirelessValidationRecord
     [ExcelHeader("B38-2600")]
     public string Nr2600 { get; set; } = string.Empty;
 
-    [ExcelHeader("Bn78-3500")]
+    [ExcelHeader("B78-3500")]
     public string Nr3500 { get; set; } = string.Empty;
 }

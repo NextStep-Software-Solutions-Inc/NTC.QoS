@@ -130,6 +130,9 @@ public class ProcessCellJob : IProcessCellJob
                 technologyCache.Count,
                 string.Join(", ", technologyList.Select(t => $"'{t.Technology}' -> '{CacheKeyGenerator.GenerateTechnologyCacheKey(t.Technology)}'")));
 
+            // Log technology diagnostics for debugging
+            TechnologyMappingHelper.LogTechnologyDiagnostics(technologyCache, _logger);
+
             var bandList = await _bandRepository
                 .Query()
                 .Select(b => new
@@ -428,84 +431,26 @@ public class ProcessCellJob : IProcessCellJob
                 {
                     foreach (var propInfo in bandTechnologyProperties)
                     {
-                        var technologyCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(propInfo.Technology);
-                        if (!technologyCache.TryGetValue(technologyCacheKey, out var technologyId))
+                        var contextInfo = $"Excel row {actualRowNumber}";
+                        var technologyId = TechnologyMappingHelper.ResolveTechnologyId(propInfo.Technology, technologyCache, _logger, contextInfo);
+                        
+                        if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
                         {
-                            // Try flexible lookup for TDD/FDD technologies by checking for keywords
-                            if (propInfo.Technology.Contains("TDD", StringComparison.OrdinalIgnoreCase))
-                            {
-                                var tddTechnology = technologyCache.FirstOrDefault(kvp =>
-                                    kvp.Key.Contains("tdd", StringComparison.OrdinalIgnoreCase));
-                                if (tddTechnology.Key != null)
-                                {
-                                    technologyId = tddTechnology.Value;
-                                    _logger.LogInformation("Technology '{Technology}' not found, using TDD technology '{FoundTechnology}' for Excel row {RowNumber}",
-                                        propInfo.Technology, tddTechnology.Key, actualRowNumber);
-                                }
-                            }
-                            else if (propInfo.Technology.Contains("FDD", StringComparison.OrdinalIgnoreCase))
-                            {
-                                var fddTechnology = technologyCache.FirstOrDefault(kvp =>
-                                    kvp.Key.Contains("fdd", StringComparison.OrdinalIgnoreCase));
-                                if (fddTechnology.Key != null)
-                                {
-                                    technologyId = fddTechnology.Value;
-                                    _logger.LogInformation("Technology '{Technology}' not found, using FDD technology '{FoundTechnology}' for Excel row {RowNumber}",
-                                        propInfo.Technology, fddTechnology.Key, actualRowNumber);
-                                }
-                            }
-
-                            if (technologyId == Guid.Empty)
-                            {
-                                string? alternativeTechnology = propInfo.Technology.ToUpperInvariant() switch
-                                {
-                                    "GSM" => "EDGE",
-                                    "WCDMA" => "HSPAP",
-                                    "FDDLTE" => "LTE",
-                                    "TDDLTE" => "LTE",
-                                    _ => null
-                                };
-
-                                if (alternativeTechnology != null)
-                                {
-                                    var alternativeCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(alternativeTechnology);
-                                    if (technologyCache.TryGetValue(alternativeCacheKey, out technologyId))
-                                    {
-                                        _logger.LogInformation("Technology '{Technology}' not found, using alternative '{Alternative}' for Excel row {RowNumber}",
-                                            propInfo.Technology, alternativeTechnology, actualRowNumber);
-                                    }
-                                    else
-                                    {
-                                        _logger.LogError("CRITICAL ERROR: Technology '{Technology}' and alternative '{Alternative}' not found in database. " +
-                                            "Processing terminated at Excel row {RowNumber}. " +
-                                            "Please add the required Technology to the database before processing this file. " +
-                                            "Available technologies: {AvailableTechnologies}",
-                                            propInfo.Technology, alternativeTechnology, actualRowNumber, string.Join(", ", technologyCache.Keys));
-                                        await TerminateProcess(file, token);
-                                        return;
-                                    }
-                                }
-                                else
-                                {
-                                    _logger.LogError("CRITICAL ERROR: Technology '{Technology}' not found in database and no alternative mapping available. " +
-                                        "Processing terminated at Excel row {RowNumber}. " +
-                                        "Please add the required Technology to the database before processing this file. " +
-                                        "Available technologies: {AvailableTechnologies}",
-                                        propInfo.Technology, actualRowNumber, string.Join(", ", technologyCache.Keys));
-                                    await TerminateProcess(file, token);
-                                    return;
-                                }
-                            }
+                            _logger.LogError("CRITICAL ERROR: Technology '{Technology}' could not be resolved. " +
+                                "Processing terminated at Excel row {RowNumber}. " +
+                                "Please add the required Technology to the database before processing this file.",
+                                propInfo.Technology, actualRowNumber);
+                            await TerminateProcess(file, token);
+                            return;
                         }
 
-                        var bandCacheKey = CacheKeyGenerator.GenerateBandCacheKey(propInfo.Band);
-                        if (!bandCache.TryGetValue(bandCacheKey, out var bandId))
+                        var bandId = TechnologyMappingHelper.ResolveBandId(propInfo.Band, bandCache, _logger, contextInfo);
+                        if (!TechnologyMappingHelper.IsTechnologyResolved(bandId))
                         {
                             _logger.LogError("CRITICAL ERROR: Band '{Band}' not found in database. " +
                                 "Processing terminated at Excel row {RowNumber}. " +
-                                "Please add the required Band to the database before processing this file. " +
-                                "Available bands: {AvailableBands}",
-                                propInfo.Band, actualRowNumber, string.Join(", ", bandCache.Keys));
+                                "Please add the required Band to the database before processing this file.",
+                                propInfo.Band, actualRowNumber);
                             await TerminateProcess(file, token);
                             return;
                         }
