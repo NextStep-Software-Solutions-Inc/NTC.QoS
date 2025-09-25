@@ -4,12 +4,13 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using OfficeOpenXml;
-using OfficeOpenXml.DataValidation;
 using OfficeOpenXml.Style;
+using System.Drawing;
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 
-internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandler<DownloadWirelessValidationTemplateRequest, ApiResponse<Stream>>
+internal sealed class DownloadWirelessValidationTemplateHandler
+    : IRequestHandler<DownloadWirelessValidationTemplateRequest, ApiResponse<Stream>>
 {
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IBarangayRepository _barangayRepository;
@@ -35,196 +36,230 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
 
         await package.SaveAsAsync(memoryStream, cancellationToken);
         if (memoryStream.Length == 0)
-        {
             throw new InvalidOperationException("Excel file generation failed.");
-        }
-        memoryStream.Position = 0;
 
-        return new ApiResponse<Stream>(memoryStream, succeeded: true, message: "Wireless validation template generated successfully");
+        memoryStream.Position = 0;
+        return new ApiResponse<Stream>(memoryStream, true, "Wireless validation template generated successfully");
     }
 
     private async Task GenerateWirelessValidationTemplate(ExcelPackage package, Guid municipalityId, CancellationToken cancellationToken)
     {
-        var worksheet = package.Workbook.Worksheets.Add("Data");
-        
-        // Get municipality with province and region info
-        var municipality = await GetMunicipalityWithLocationInfo(municipalityId, cancellationToken);
-        if (municipality is null)
-        {
-            throw new ArgumentException("Municipality not found");
-        }
+        var ws = package.Workbook.Worksheets.Add("Data");
 
-        // Get barangays for the municipality
+        // Municipality (with province/region)
+        var municipality = await GetMunicipalityWithLocationInfo(municipalityId, cancellationToken)
+                         ?? throw new ArgumentException("Municipality not found");
+
+        // Barangays & Providers
         var barangays = await GetBarangaysByMunicipality(municipalityId, cancellationToken);
-        
-        // Get wireless service providers
         var providers = await GetWirelessServiceProviders(cancellationToken);
 
         barangays = barangays.OrderBy(b => b.Name).ToList();
         providers = providers.OrderBy(p => p).ToList();
 
-        // Create the location header
+        // Location header text
         var locationHeader = $"{municipality.Name}, {municipality.Province.Name}, {municipality.Province.Region.Name}";
 
-        // Define the multi-row header data (4 rows, proper structure)
-        object[,] headers = new object[,]
+        // ---------------- Template definition (align to your sheet) ----------------
+        var groups = new[]
         {
-            // Row 1: Location header spanning all columns
-            { locationHeader, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
-            // Row 2: Generation headers (Provider and Barangay will be merged vertically)
-            { "", "", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "5G", "5G", "5G", "5G", "5G", "5G" },
-            // Row 3: Technology headers (Provider and Barangay will be merged vertically)  
-            { "", "", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "NR", "NR", "NR", "NR", "NR", "NR" },
-            // Row 4: Column headers (Provider, Barangay, Bands)
-            { "Provider", "Barangay", "B8-900", "B3-1800", "B5-850", "B8-900", "B1-2100", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "Bn78-3500", "" }
+            new { Generation = "2G", Technology = "GSM",     Bands = new[] { "B8-900", "B3-1800" } },
+            new { Generation = "3G", Technology = "WCDMA",   Bands = new[] { "B5-850", "B8-900", "B1-2100" } },
+            new { Generation = "4G", Technology = "FDD-LTE", Bands = new[] { "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100" } },
+            new { Generation = "4G", Technology = "TDD-LTE", Bands = new[] { "B40-2300", "B41-2500", "B38-2600" } },
+            new { Generation = "5G", Technology = "NR",      Bands = new[] { "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "Bn78-3500" } }
         };
+        // --------------------------------------------------------------------------
 
-        // Apply the multi-row headers
-        AddWirelessValidationMultiRowHeaders(worksheet, headers, 1);
+        // Build 4-row header and get last column used
+        int lastCol = BuildWirelessHeader(ws, locationHeader, groups, startRow: 1, startCol: 1);
 
-        // Add instruction/legend about validation values
-        worksheet.Cells["A1"].AddComment("Instructions:\n- TRUE: Band is present\n- FALSE: Band is not present\n- MARGINAL: Band has marginal coverage\n- BLANK: Same as FALSE (band not present)", "NTC QoS System");
+        // Instruction (optional)
+        ws.Cells["A1"].AddComment(
+            "Instructions:\n- TRUE: Band is present\n- FALSE: Band is not present\n- MARGINAL: Band has marginal coverage\n- BLANK: same as FALSE",
+            "NTC QoS System");
 
-        // Generate data rows - repeat each Barangay for every Service Provider (desired pattern)
-        int currentRow = 5; // Start after 4 header rows
-
-        foreach (var barangay in barangays)            // <-- outer: barangay
+        // -------- Row color mapping per provider (moved here so it's in scope) --------
+        var fixedProviderColors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase)
         {
-            foreach (var provider in providers)        // <-- inner: provider
-            {
-                worksheet.Cells[currentRow, 1].Value = provider;       // Provider
-                worksheet.Cells[currentRow, 2].Value = barangay.Name;   // Barangay
+            ["GLOBE COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#DDEBF7"), // light blue
+            ["SMART COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#E2EFDA"), // light green
+            ["DITO TELECOMMUNITY CORP."] = ColorTranslator.FromHtml("#FCE4D6"), // light red
+        };
+        var fallbackPalette = new[]
+        {
+            ColorTranslator.FromHtml("#FFF2CC"), // light yellow
+            ColorTranslator.FromHtml("#EDEDED"), // light gray
+            ColorTranslator.FromHtml("#E5DFEC"), // light lavender
+            ColorTranslator.FromHtml("#DAEEF3"), // light teal
+        };
+        var assignedColors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase);
 
-                // worksheet.Cells[currentRow, 3 + k].Value = <value>;
+        Color GetColorForProvider(string name)
+        {
+            if (fixedProviderColors.TryGetValue(name, out var c)) return c;
+            if (!assignedColors.TryGetValue(name, out c))
+            {
+                c = fallbackPalette[assignedColors.Count % fallbackPalette.Length];
+                assignedColors[name] = c;
+            }
+            return c;
+        }
+        // ------------------------------------------------------------------------------
+
+        // Data rows (Row 5+): each Barangay × each Provider
+        int currentRow = 5;
+        foreach (var barangay in barangays)
+        {
+            foreach (var provider in providers)
+            {
+                ws.Cells[currentRow, 1].Value = provider;       // Provider
+                ws.Cells[currentRow, 2].Value = barangay.Name;  // Barangay
+
+                // Row background by provider
+                var rowColor = GetColorForProvider(provider);
+                using (var rng = ws.Cells[currentRow, 1, currentRow, lastCol])
+                {
+                    rng.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    rng.Style.Fill.BackgroundColor.SetColor(rowColor);
+                }
 
                 currentRow++;
             }
-        }
 
-        // Add validation options (TRUE, FALSE, MARGINAL) - blank is also allowed and treated as FALSE
-        string[] validationValues = ["TRUE", "FALSE", "MARGINAL"];
-        
-        // Apply dropdown validation to band columns (C to AA) for all data rows
-        int totalRows = providers.Count * barangays.Count;
-        int lastDataRow = 4 + totalRows;
-        
-        for (int col = 3; col <= 26; col++) // Columns C through Z (band columns) - updated to include all 5G bands
-        {
-            string columnLetter = GetColumnLetter(col);
-            string range = $"{columnLetter}5:{columnLetter}{lastDataRow}";
-            AddDropdownValidation(worksheet, range, validationValues.ToList());
-        }
-
-        // Add providers to a hidden sheet for provider validation
-        var providerSheet = package.Workbook.Worksheets.Add("Providers");
-        providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
-        providerSheet.Hidden = eWorkSheetHidden.Hidden;
-        
-        // Add provider validation
-        string providerRange = $"A5:A{lastDataRow}";
-        AddDropdownValidation(worksheet, providerRange, providerSheet.Cells[1, 1, providers.Count, 1]);
-
-        AutoFitColumns(worksheet);
-    }
-
-    private static void AddWirelessValidationMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
-    {
-        int numRows = headers.GetLength(0);
-        int numCols = headers.GetLength(1);
-
-        // Write all header values first
-        for (int row = 0; row < numRows; row++)
-        {
-            for (int col = 0; col < numCols; col++)
+            // Thin separator after each barangay block
+            using (var rng = ws.Cells[currentRow - 1, 1, currentRow - 1, lastCol])
             {
-                var cell = worksheet.Cells[startRow + row, col + 1];
-                cell.Value = headers[row, col];
-                cell.Style.Font.Bold = true;
-                cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
-                cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+                rng.Style.Border.Bottom.Style = ExcelBorderStyle.Thin; // Hair/Medium if you prefer
+                rng.Style.Border.Bottom.Color.SetColor(Color.FromArgb(180, 180, 180));
             }
         }
 
-        // Row 1: Location header - merge across all columns
-        using (var range = worksheet.Cells[startRow, 1, startRow, numCols])
+        // Freeze panes so header stays visible (row 5, col C)
+        ws.View.FreezePanes(5, 3);
+
+        AutoFitColumns(ws);
+    }
+
+    /// <summary>
+    /// 4-row header:
+    /// Row 1: Location (merged across all columns)
+    /// Row 2: "Generation" over A:B AND 2G/3G/4G/5G merged over band spans (C..)
+    /// Row 3: "Technology" over A:B AND GSM/WCDMA/FDD-LTE/TDD-LTE/NR merged over band spans (C..)
+    /// Row 4: Provider, Barangay, and band labels
+    /// Returns last column index used.
+    /// </summary>
+    private static int BuildWirelessHeader(ExcelWorksheet ws, string locationHeader,
+        IEnumerable<dynamic> groups, int startRow = 1, int startCol = 1)
+    {
+        int rowLoc = startRow;        // 1
+        int rowGen = startRow + 1;    // 2
+        int rowTech = startRow + 2;    // 3
+        int rowBand = startRow + 3;    // 4
+
+        // Row 4 fixed headers
+        ws.Cells[rowBand, startCol].Value = "Provider"; // A
+        ws.Cells[rowBand, startCol + 1].Value = "Barangay"; // B
+
+        // Build band columns starting at C
+        int col = startCol + 2;
+
+        // Track spans for generations and technologies across bands
+        var genSpans = new List<(string Label, int Start, int End)>();
+        var techSpans = new List<(string Label, int Start, int End)>();
+
+        foreach (var g in groups)
         {
-            range.Merge = true;
+            int techStart = col;
+
+            foreach (string band in g.Bands)
+            {
+                ws.Cells[rowBand, col].Value = band;
+                col++;
+            }
+
+            int techEnd = col - 1;
+            techSpans.Add(((string)g.Technology, techStart, techEnd));
+
+            // Merge/extend generation span if consecutive groups share same generation
+            if (genSpans.Count == 0 || genSpans[^1].Label != (string)g.Generation)
+                genSpans.Add(((string)g.Generation, techStart, techEnd));
+            else
+                genSpans[^1] = (genSpans[^1].Label, genSpans[^1].Start, techEnd);
         }
 
-        // Row 2: Generation merging - don't overlap with Provider/Barangay columns
-        using (var range = worksheet.Cells[startRow + 1, 3, startRow + 1, 8]) // Start from column 3 (C)
+        int lastCol = col - 1;
+
+        // Row 1: Location across A..lastCol
+        using (var rng = ws.Cells[rowLoc, startCol, rowLoc, lastCol])
         {
-            range.Merge = true;
-            range.Value = "Generation";
-        }
-        using (var range = worksheet.Cells[startRow + 1, 9, startRow + 1, 10]) // 2G: I-J
-        {
-            range.Merge = true;
-            range.Value = "2G";
-        }
-        using (var range = worksheet.Cells[startRow + 1, 11, startRow + 1, 13]) // 3G: K-M
-        {
-            range.Merge = true;
-            range.Value = "3G";
-        }
-        using (var range = worksheet.Cells[startRow + 1, 14, startRow + 1, 21]) // 4G: N-U
-        {
-            range.Merge = true;
-            range.Value = "4G";
-        }
-        using (var range = worksheet.Cells[startRow + 1, 22, startRow + 1, 27]) // 5G: V-AA
-        {
-            range.Merge = true;
-            range.Value = "5G";
+            rng.Merge = true;
+            rng.Value = locationHeader;
+            rng.Style.Font.Bold = true;
+            rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            rng.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            rng.Style.Border.BorderAround(ExcelBorderStyle.Thin);
         }
 
-        // Row 3: Technology merging - don't overlap with Provider/Barangay columns
-        using (var range = worksheet.Cells[startRow + 2, 3, startRow + 2, 8]) // Start from column 3 (C)
+        // Row 2: "Generation" over A:B
+        using (var rng = ws.Cells[rowGen, startCol, rowGen, startCol + 1])
         {
-            range.Merge = true;
-            range.Value = "Technology";
+            rng.Merge = true;
+            rng.Value = "Generation";
+            rng.Style.Font.Bold = true;
+            rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            rng.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            rng.Style.Border.BorderAround(ExcelBorderStyle.Thin);
         }
-        using (var range = worksheet.Cells[startRow + 2, 9, startRow + 2, 10]) // GSM: I-J
+        // Row 2: 2G/3G/4G/5G over band spans
+        foreach (var (label, c1, c2) in genSpans)
         {
-            range.Merge = true;
-            range.Value = "GSM";
-        }
-        using (var range = worksheet.Cells[startRow + 2, 11, startRow + 2, 13]) // WCDMA: K-M
-        {
-            range.Merge = true;
-            range.Value = "WCDMA";
-        }
-        using (var range = worksheet.Cells[startRow + 2, 14, startRow + 2, 18]) // FDD-LTE: N-R
-        {
-            range.Merge = true;
-            range.Value = "FDD-LTE";
-        }
-        using (var range = worksheet.Cells[startRow + 2, 19, startRow + 2, 21]) // TDD-LTE: S-U
-        {
-            range.Merge = true;
-            range.Value = "TDD-LTE";
-        }
-        using (var range = worksheet.Cells[startRow + 2, 22, startRow + 2, 27]) // NR: V-AA
-        {
-            range.Merge = true;
-            range.Value = "NR";
+            using (var rng = ws.Cells[rowGen, c1, rowGen, c2])
+            {
+                rng.Merge = true;
+                rng.Value = label;
+                rng.Style.Font.Bold = true;
+                rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                rng.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                rng.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            }
         }
 
-        // Merge Provider and Barangay vertically for rows 2-4 (avoid the location header)
-        using (var range = worksheet.Cells[startRow + 1, 1, startRow + 3, 1])
+        // Row 3: "Technology" over A:B
+        using (var rng = ws.Cells[rowTech, startCol, rowTech, startCol + 1])
         {
-            range.Merge = true;
-            range.Value = "Provider";
+            rng.Merge = true;
+            rng.Value = "Technology";
+            rng.Style.Font.Bold = true;
+            rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            rng.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            rng.Style.Border.BorderAround(ExcelBorderStyle.Thin);
         }
-        using (var range = worksheet.Cells[startRow + 1, 2, startRow + 3, 2])
+        // Row 3: GSM/WCDMA/FDD-LTE/TDD-LTE/NR over band spans
+        foreach (var (label, c1, c2) in techSpans)
         {
-            range.Merge = true;
-            range.Value = "Barangay";
+            using (var rng = ws.Cells[rowTech, c1, rowTech, c2])
+            {
+                rng.Merge = true;
+                rng.Value = label;
+                rng.Style.Font.Bold = true;
+                rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                rng.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                rng.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            }
         }
 
-        // Freeze the header rows
-        worksheet.View.FreezePanes(startRow + numRows, 1);
+        // Style Row 4 (Provider, Barangay, Bands)
+        for (int c = startCol; c <= lastCol; c++)
+        {
+            var cell = ws.Cells[rowBand, c];
+            cell.Style.Font.Bold = true;
+            cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+        }
+
+        return lastCol;
     }
 
     private async Task<Domain.Entities.Municipality?> GetMunicipalityWithLocationInfo(Guid municipalityId, CancellationToken cancellationToken)
@@ -251,67 +286,9 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
         return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
     }
 
-    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, string? defaultValue = null)
-    {
-        var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = false;
-        validation.ShowErrorMessage = true;
-        validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-        validation.ErrorTitle = "Invalid input";
-        validation.Error = "Choose only from the dropdown menu";
-        validation.Formula.ExcelFormula = sourceRange.FullAddressAbsolute;
-
-        if (!string.IsNullOrEmpty(defaultValue))
-        {
-            string cellAddress = range.Split(':')[0];
-            ExcelRange targetCell = worksheet.Cells[cellAddress];
-            targetCell.Value = defaultValue;
-            targetCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-        }
-    }
-
-    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, List<string> values, string? defaultValue = null)
-    {
-        var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = true;
-        validation.ShowErrorMessage = true;
-        validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-        validation.ErrorTitle = "Invalid input";
-        validation.Error = "Choose from: TRUE, FALSE, MARGINAL, or leave blank (blank = FALSE)";
-
-        foreach (var value in values)
-        {
-            validation.Formula.Values.Add(value);
-        }
-
-        if (!string.IsNullOrEmpty(defaultValue))
-        {
-            string cellAddress = range.Split(':')[0];
-            ExcelRange targetCell = worksheet.Cells[cellAddress];
-            targetCell.Value = defaultValue;
-            targetCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-        }
-    }
-
     private static void AutoFitColumns(ExcelWorksheet worksheet)
     {
         for (int i = 1; i <= worksheet.Dimension.Columns; i++)
-        {
             worksheet.Column(i).AutoFit();
-        }
-    }
-
-    private static string GetColumnLetter(int columnNumber)
-    {
-        string columnName = "";
-        
-        while (columnNumber > 0)
-        {
-            int modulo = (columnNumber - 1) % 26;
-            columnName = Convert.ToChar('A' + modulo) + columnName;
-            columnNumber = (columnNumber - modulo) / 26;
-        }
-        
-        return columnName;
     }
 }
