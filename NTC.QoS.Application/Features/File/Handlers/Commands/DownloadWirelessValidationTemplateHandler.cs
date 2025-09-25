@@ -60,6 +60,9 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
         // Get wireless service providers
         var providers = await GetWirelessServiceProviders(cancellationToken);
 
+        barangays = barangays.OrderBy(b => b.Name).ToList();
+        providers = providers.OrderBy(p => p).ToList();
+
         // Create the location header
         var locationHeader = $"{municipality.Name}, {municipality.Province.Name}, {municipality.Province.Region.Name}";
 
@@ -67,13 +70,13 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
         object[,] headers = new object[,]
         {
             // Row 1: Location header spanning all columns
-            { locationHeader, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+            { locationHeader, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
             // Row 2: Generation headers (Provider and Barangay will be merged vertically)
-            { "", "", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "5G" },
+            { "", "", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "5G", "5G", "5G", "5G", "5G", "5G" },
             // Row 3: Technology headers (Provider and Barangay will be merged vertically)  
-            { "", "", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "NR" },
+            { "", "", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "NR", "NR", "NR", "NR", "NR", "NR" },
             // Row 4: Column headers (Provider, Barangay, Bands)
-            { "Provider", "Barangay", "B8-900", "B3-1800", "B5-850", "B8-900", "B1-2100", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "Bn78-3500", "" }
+            { "Provider", "Barangay", "B8-900", "B3-1800", "B5-850", "B8-900", "B1-2100", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "Bn78-3500", "" }
         };
 
         // Apply the multi-row headers
@@ -82,16 +85,18 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
         // Add instruction/legend about validation values
         worksheet.Cells["A1"].AddComment("Instructions:\n- TRUE: Band is present\n- FALSE: Band is not present\n- MARGINAL: Band has marginal coverage\n- BLANK: Same as FALSE (band not present)", "NTC QoS System");
 
-        // Generate data rows - repeat barangays for each service provider
+        // Generate data rows - repeat each Barangay for every Service Provider (desired pattern)
         int currentRow = 5; // Start after 4 header rows
-        
-        foreach (var provider in providers)
+
+        foreach (var barangay in barangays)            // <-- outer: barangay
         {
-            foreach (var barangay in barangays)
+            foreach (var provider in providers)        // <-- inner: provider
             {
-                worksheet.Cells[currentRow, 1].Value = provider; // Provider
-                worksheet.Cells[currentRow, 2].Value = barangay.Name; // Barangay
-                
+                worksheet.Cells[currentRow, 1].Value = provider;       // Provider
+                worksheet.Cells[currentRow, 2].Value = barangay.Name;   // Barangay
+
+                // worksheet.Cells[currentRow, 3 + k].Value = <value>;
+
                 currentRow++;
             }
         }
@@ -99,11 +104,11 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
         // Add validation options (TRUE, FALSE, MARGINAL) - blank is also allowed and treated as FALSE
         string[] validationValues = ["TRUE", "FALSE", "MARGINAL"];
         
-        // Apply dropdown validation to band columns (C to U) for all data rows
+        // Apply dropdown validation to band columns (C to AA) for all data rows
         int totalRows = providers.Count * barangays.Count;
         int lastDataRow = 4 + totalRows;
         
-        for (int col = 3; col <= 21; col++) // Columns C through U (band columns)
+        for (int col = 3; col <= 26; col++) // Columns C through Z (band columns) - updated to include all 5G bands
         {
             string columnLetter = GetColumnLetter(col);
             string range = $"{columnLetter}5:{columnLetter}{lastDataRow}";
@@ -153,23 +158,24 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
             range.Merge = true;
             range.Value = "Generation";
         }
-        using (var range = worksheet.Cells[startRow + 1, 9, startRow + 1, 10])
+        using (var range = worksheet.Cells[startRow + 1, 9, startRow + 1, 10]) // 2G: I-J
         {
             range.Merge = true;
             range.Value = "2G";
         }
-        using (var range = worksheet.Cells[startRow + 1, 11, startRow + 1, 13])
+        using (var range = worksheet.Cells[startRow + 1, 11, startRow + 1, 13]) // 3G: K-M
         {
             range.Merge = true;
             range.Value = "3G";
         }
-        using (var range = worksheet.Cells[startRow + 1, 14, startRow + 1, 21])
+        using (var range = worksheet.Cells[startRow + 1, 14, startRow + 1, 21]) // 4G: N-U
         {
             range.Merge = true;
             range.Value = "4G";
         }
-        using (var range = worksheet.Cells[startRow + 1, 22, startRow + 1, 22])
+        using (var range = worksheet.Cells[startRow + 1, 22, startRow + 1, 27]) // 5G: V-AA
         {
+            range.Merge = true;
             range.Value = "5G";
         }
 
@@ -179,28 +185,29 @@ internal sealed class DownloadWirelessValidationTemplateHandler : IRequestHandle
             range.Merge = true;
             range.Value = "Technology";
         }
-        using (var range = worksheet.Cells[startRow + 2, 9, startRow + 2, 10])
+        using (var range = worksheet.Cells[startRow + 2, 9, startRow + 2, 10]) // GSM: I-J
         {
             range.Merge = true;
             range.Value = "GSM";
         }
-        using (var range = worksheet.Cells[startRow + 2, 11, startRow + 2, 13])
+        using (var range = worksheet.Cells[startRow + 2, 11, startRow + 2, 13]) // WCDMA: K-M
         {
             range.Merge = true;
             range.Value = "WCDMA";
         }
-        using (var range = worksheet.Cells[startRow + 2, 14, startRow + 2, 18])
+        using (var range = worksheet.Cells[startRow + 2, 14, startRow + 2, 18]) // FDD-LTE: N-R
         {
             range.Merge = true;
             range.Value = "FDD-LTE";
         }
-        using (var range = worksheet.Cells[startRow + 2, 19, startRow + 2, 21])
+        using (var range = worksheet.Cells[startRow + 2, 19, startRow + 2, 21]) // TDD-LTE: S-U
         {
             range.Merge = true;
             range.Value = "TDD-LTE";
         }
-        using (var range = worksheet.Cells[startRow + 2, 22, startRow + 2, 22])
+        using (var range = worksheet.Cells[startRow + 2, 22, startRow + 2, 27]) // NR: V-AA
         {
+            range.Merge = true;
             range.Value = "NR";
         }
 
