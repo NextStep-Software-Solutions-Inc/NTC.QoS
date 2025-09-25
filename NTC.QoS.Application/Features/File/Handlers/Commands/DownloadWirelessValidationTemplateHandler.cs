@@ -60,38 +60,30 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         // Location header text
         var locationHeader = $"{municipality.Name}, {municipality.Province.Name}, {municipality.Province.Region.Name}";
 
-        // ---------------- Template definition (align to your sheet) ----------------
         var groups = new[]
         {
             new { Generation = "2G", Technology = "GSM",     Bands = new[] { "B8-900", "B3-1800" } },
             new { Generation = "3G", Technology = "WCDMA",   Bands = new[] { "B5-850", "B8-900", "B1-2100" } },
             new { Generation = "4G", Technology = "FDD-LTE", Bands = new[] { "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100" } },
             new { Generation = "4G", Technology = "TDD-LTE", Bands = new[] { "B40-2300", "B41-2500", "B38-2600" } },
-            new { Generation = "5G", Technology = "NR",      Bands = new[] { "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "Bn78-3500" } }
+            new { Generation = "5G", Technology = "NR",      Bands = new[] { "B28-700","B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B78-3500" } }
         };
-        // --------------------------------------------------------------------------
 
         // Build 4-row header and get last column used
         int lastCol = BuildWirelessHeader(ws, locationHeader, groups, startRow: 1, startCol: 1);
 
-        // Instruction (optional)
-        ws.Cells["A1"].AddComment(
-            "Instructions:\n- TRUE: Band is present\n- FALSE: Band is not present\n- MARGINAL: Band has marginal coverage\n- BLANK: same as FALSE",
-            "NTC QoS System");
-
-        // -------- Row color mapping per provider (moved here so it's in scope) --------
         var fixedProviderColors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase)
         {
-            ["GLOBE COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#DDEBF7"), // light blue
-            ["SMART COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#E2EFDA"), // light green
-            ["DITO TELECOMMUNITY CORP."] = ColorTranslator.FromHtml("#FCE4D6"), // light red
+            ["GLOBE COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#DDEBF7"), 
+            ["SMART COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#E2EFDA"), 
+            ["DITO TELECOMMUNITY CORP."] = ColorTranslator.FromHtml("#FCE4D6"), 
         };
         var fallbackPalette = new[]
         {
-            ColorTranslator.FromHtml("#FFF2CC"), // light yellow
-            ColorTranslator.FromHtml("#EDEDED"), // light gray
-            ColorTranslator.FromHtml("#E5DFEC"), // light lavender
-            ColorTranslator.FromHtml("#DAEEF3"), // light teal
+            ColorTranslator.FromHtml("#FFF2CC"), 
+            ColorTranslator.FromHtml("#EDEDED"),
+            ColorTranslator.FromHtml("#E5DFEC"),
+            ColorTranslator.FromHtml("#DAEEF3"), 
         };
         var assignedColors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase);
 
@@ -105,7 +97,6 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             }
             return c;
         }
-        // ------------------------------------------------------------------------------
 
         // Data rows (Row 5+): each Barangay × each Provider
         int currentRow = 5;
@@ -113,8 +104,8 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         {
             foreach (var provider in providers)
             {
-                ws.Cells[currentRow, 1].Value = provider;       // Provider
-                ws.Cells[currentRow, 2].Value = barangay.Name;  // Barangay
+                ws.Cells[currentRow, 1].Value = provider;       
+                ws.Cells[currentRow, 2].Value = barangay.Name; 
 
                 // Row background by provider
                 var rowColor = GetColorForProvider(provider);
@@ -128,7 +119,6 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             }
         }
 
-        // Draw light grid borders on all data cells (rows 5..last, cols A..lastCol)
         // Draw light grid borders on all data cells
         int dataStartRow = 5;
         int dataEndRow = currentRow - 1;
@@ -147,7 +137,7 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             dataRange.Style.Border.Right.Color.SetColor(grid);
 
             // Re-apply the barangay separators so they override the grid
-            int blockSize = providers.Count; // rows per barangay
+            int blockSize = providers.Count;
             if (blockSize > 0)
             {
                 for (int r = dataStartRow + blockSize - 1; r <= dataEndRow; r += blockSize)
@@ -167,25 +157,17 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         AutoFitColumns(ws);
     }
 
-    /// <summary>
-    /// 4-row header:
-    /// Row 1: Location (merged across all columns)
-    /// Row 2: "Generation" over A:B AND 2G/3G/4G/5G merged over band spans (C..)
-    /// Row 3: "Technology" over A:B AND GSM/WCDMA/FDD-LTE/TDD-LTE/NR merged over band spans (C..)
-    /// Row 4: Provider, Barangay, and band labels
-    /// Returns last column index used.
-    /// </summary>
     private static int BuildWirelessHeader(ExcelWorksheet ws, string locationHeader,
         IEnumerable<dynamic> groups, int startRow = 1, int startCol = 1)
     {
-        int rowLoc = startRow;        // 1
-        int rowGen = startRow + 1;    // 2
-        int rowTech = startRow + 2;    // 3
-        int rowBand = startRow + 3;    // 4
+        int rowLoc = startRow;        
+        int rowGen = startRow + 1;    
+        int rowTech = startRow + 2;    
+        int rowBand = startRow + 3;    
 
-        // Row 4 fixed headers
-        ws.Cells[rowBand, startCol].Value = "Provider"; // A
-        ws.Cells[rowBand, startCol + 1].Value = "Barangay"; // B
+        // Row 4 fixed header
+        ws.Cells[rowBand, startCol].Value = "Provider"; 
+        ws.Cells[rowBand, startCol + 1].Value = "Barangay"; 
 
         // Build band columns starting at C
         int col = startCol + 2;
