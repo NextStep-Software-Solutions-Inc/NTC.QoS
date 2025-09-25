@@ -15,10 +15,11 @@ spec:
         checksum/image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         helm.sh/revision: "{{ .Release.Revision }}"
     spec:
+      restartPolicy: {{ .Values.restartPolicy }}
       containers:
-        - name: ntc-qos-api
+        - name:  {{ .Release.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.image.pullPolicy}}
           ports:
             - containerPort: 8080
           env:

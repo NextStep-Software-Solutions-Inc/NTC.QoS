@@ -1,10 +1,17 @@
 replicaCount: 2
 
+restartPolicy: Always
+
 image:
   repository: wacanam20/ntc-qos-api
   tag: latest
+  pullPolicy: Always
 
-nextstep_domain: api.qos.nextstep-software.com
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
 ntc_domain: api.qos.ntc.gov.ph
             
 env:
