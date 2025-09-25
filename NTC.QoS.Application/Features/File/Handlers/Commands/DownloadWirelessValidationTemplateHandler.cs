@@ -126,12 +126,38 @@ internal sealed class DownloadWirelessValidationTemplateHandler
 
                 currentRow++;
             }
+        }
 
-            // Thin separator after each barangay block
-            using (var rng = ws.Cells[currentRow - 1, 1, currentRow - 1, lastCol])
+        // Draw light grid borders on all data cells (rows 5..last, cols A..lastCol)
+        // Draw light grid borders on all data cells
+        int dataStartRow = 5;
+        int dataEndRow = currentRow - 1;
+
+        if (dataEndRow >= dataStartRow)
+        {
+            var grid = Color.FromArgb(210, 210, 210);
+            var dataRange = ws.Cells[dataStartRow, 1, dataEndRow, lastCol];
+            dataRange.Style.Border.Top.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.Border.Bottom.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.Border.Left.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.Border.Top.Color.SetColor(grid);
+            dataRange.Style.Border.Bottom.Color.SetColor(grid);
+            dataRange.Style.Border.Left.Color.SetColor(grid);
+            dataRange.Style.Border.Right.Color.SetColor(grid);
+
+            // Re-apply the barangay separators so they override the grid
+            int blockSize = providers.Count; // rows per barangay
+            if (blockSize > 0)
             {
-                rng.Style.Border.Bottom.Style = ExcelBorderStyle.Thin; // Hair/Medium if you prefer
-                rng.Style.Border.Bottom.Color.SetColor(Color.FromArgb(180, 180, 180));
+                for (int r = dataStartRow + blockSize - 1; r <= dataEndRow; r += blockSize)
+                {
+                    using (var rng = ws.Cells[r, 1, r, lastCol])
+                    {
+                        rng.Style.Border.Bottom.Style = ExcelBorderStyle.Thin; // or Medium
+                        rng.Style.Border.Bottom.Color.SetColor(Color.FromArgb(170, 170, 170));
+                    }
+                }
             }
         }
 
