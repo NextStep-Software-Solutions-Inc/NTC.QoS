@@ -31,15 +31,20 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         var memoryStream = new MemoryStream();
         ExcelPackage.License.SetNonCommercialPersonal("NTC QoS");
 
-        using var package = new ExcelPackage();
-        await GenerateWirelessValidationTemplate(package, request.MunicipalityId, cancellationToken);
-
-        await package.SaveAsAsync(memoryStream, cancellationToken);
-        if (memoryStream.Length == 0)
-            throw new InvalidOperationException("Excel file generation failed.");
-
-        memoryStream.Position = 0;
-        return new ApiResponse<Stream>(memoryStream, true, "Wireless validation template generated successfully");
+        try
+        {
+            using var package = new ExcelPackage();
+            await GenerateWirelessValidationTemplate(package, request.MunicipalityId, cancellationToken);
+            await package.SaveAsAsync(memoryStream, cancellationToken);
+            if (memoryStream.Length == 0)
+                throw new InvalidOperationException($"Excel file generation failed: The generated file is empty. MunicipalityId: {request.MunicipalityId}");
+            memoryStream.Position = 0;
+            return new ApiResponse<Stream>(memoryStream, true, "Wireless validation template generated successfully");
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Excel file generation failed for MunicipalityId: {request.MunicipalityId}.", ex);
+        }
     }
 
     private async Task GenerateWirelessValidationTemplate(ExcelPackage package, Guid municipalityId, CancellationToken cancellationToken)
@@ -320,9 +325,10 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
     }
 
-    private static void AutoFitColumns(ExcelWorksheet worksheet)
+    private static void AutoFitColumns(ExcelWorksheet ws)
     {
-        for (int i = 1; i <= worksheet.Dimension.Columns; i++)
-            worksheet.Column(i).AutoFit();
+        var dim = ws.Dimension;
+        if (dim == null) return;                 
+        ws.Cells[dim.Address].AutoFitColumns();  
     }
 }

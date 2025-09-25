@@ -8,5 +8,5 @@ public enum FileTypeEnum
     Cell = 4,
     CellularCoverage = 5,
     WirelessValidation = 6,
-    Unknown = 0,
+    Unknown = 7,
 }
