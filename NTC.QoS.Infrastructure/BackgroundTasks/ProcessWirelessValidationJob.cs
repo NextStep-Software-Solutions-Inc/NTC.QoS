@@ -184,13 +184,47 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
         _logger.LogInformation("Preloaded {Count:N0} bands", bandCache.Count);
 
+        // Preload existing wireless validation records for duplication checking
+        var serviceProviderIds = serviceProviderCache.Values.ToList();
+        var existingValidations = await _wirelessValidationRepository
+            .Query(wv => serviceProviderIds.Contains(wv.ServiceProviderId))
+            .ToListAsync(token);
+
+        var validationCache = new HashSet<string>();
+        var duplicateCount = 0;
+
+        foreach (var validation in existingValidations)
+        {
+            var key = CacheKeyGenerator.GenerateWirelessValidationCacheKey(
+                validation.ServiceProviderId,
+                validation.BarangayId,
+                validation.BandId,
+                validation.TechnologyId,
+                validation.Address ?? string.Empty
+            );
+
+            if (!validationCache.Add(key))
+            {
+                duplicateCount++;
+                _logger.LogWarning("Duplicate wireless validation found in database: ServiceProvider={ServiceProviderId}, " +
+                    "Barangay={BarangayId}, Band={BandId}, Technology={TechnologyId}, Address='{Address}'. " +
+                    "Consider cleaning up duplicate validation data.",
+                    validation.ServiceProviderId, validation.BarangayId, validation.BandId, 
+                    validation.TechnologyId, validation.Address);
+            }
+        }
+
+        _logger.LogInformation("Preloaded {Count:N0} existing wireless validation records ({DuplicateCount} duplicates found in database, {TotalValidations} total)",
+            validationCache.Count, duplicateCount, existingValidations.Count);
+
         return new ReferenceData
         {
             ServiceProviderCache = serviceProviderCache,
             MunicipalityCache = municipalityCache,
             MunicipalityHierarchyCache = municipalityHierarchyCache,
             TechnologyCache = technologyCache,
-            BandCache = bandCache
+            BandCache = bandCache,
+            WirelessValidationCache = validationCache
         };
     }
 
@@ -382,14 +416,15 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             results.ErrorRecords += batchResults.ErrorRecords;
             results.SkippedRecords += batchResults.SkippedRecords;
             results.CreatedValidations += batchResults.CreatedValidations;
+            results.SkippedDuplicates += batchResults.SkippedDuplicates;
             results.ProcessedRecords += batch.Count;
 
             // Progress reporting
             var progress = (double)(batchIndex + 1) / totalBatches * 100;
             _logger.LogInformation("Batch {BatchNumber}/{TotalBatches} completed - Progress: {Progress:F1}% - " +
-                "Successful: {Successful:N0}, Errors: {Errors:N0}, Validations Created: {Created:N0}",
+                "Successful: {Successful:N0}, Errors: {Errors:N0}, Validations Created: {Created:N0}, Duplicates Skipped: {Duplicates:N0}",
                 batchIndex + 1, totalBatches, progress, 
-                batchResults.SuccessfulRecords, batchResults.ErrorRecords, batchResults.CreatedValidations);
+                batchResults.SuccessfulRecords, batchResults.ErrorRecords, batchResults.CreatedValidations, batchResults.SkippedDuplicates);
         }
     }
 
@@ -455,8 +490,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 }
 
                 // Process each technology/band combination
-                var recordValidations = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
+                var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
                 validationsToCreate.AddRange(recordValidations);
+                results.SkippedDuplicates += skippedDuplicates;
 
                 if (recordValidations.Any())
                 {
@@ -486,10 +522,11 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         return results;
     }
 
-    private List<WirelessValidation> ProcessTechnologyBandCombinations(WirelessValidationRecord record,
+    private (List<WirelessValidation> validations, int skippedDuplicates) ProcessTechnologyBandCombinations(WirelessValidationRecord record,
         List<BandTechnologyProperty> bandTechnologyProperties, ReferenceData referenceData)
     {
         var validations = new List<WirelessValidation>();
+        var skippedDuplicates = 0;
 
         foreach (var item in bandTechnologyProperties)
         {
@@ -525,6 +562,24 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     continue;
                 }
 
+                // Check for duplicate wireless validation record
+                var validationCacheKey = CacheKeyGenerator.GenerateWirelessValidationCacheKey(
+                    record.ServiceProviderId!.Value,
+                    record.BarangayId,
+                    bandId,
+                    technologyId,
+                    record.Address ?? string.Empty
+                );
+
+                if (referenceData.WirelessValidationCache.Contains(validationCacheKey))
+                {
+                    skippedDuplicates++;
+                    _logger.LogDebug("Skipping duplicate wireless validation - Provider: {Provider}, Technology: {Technology}, Band: {Band}, " +
+                        "Barangay: {Barangay}, Address: {Address}. Record already exists in database.",
+                        record.Provider, item.Technology, item.Band, record.Barangay, record.Address);
+                    continue;
+                }
+
                 // Create wireless validation entity
                 var validation = new WirelessValidation
                 {
@@ -538,6 +593,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 };
 
                 validations.Add(validation);
+
+                // Add to cache to prevent duplicates within the same batch
+                referenceData.WirelessValidationCache.Add(validationCacheKey);
 
                 // Log detailed information for debugging
                 var qualityDesc = rssiValue.HasValue 
@@ -556,7 +614,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             }
         }
 
-        return validations;
+        return (validations, skippedDuplicates);
     }
 
     private async Task CompleteProcessing(Domain.Entities.File file, ProcessingResults results, DateTime startTime, CancellationToken token)
@@ -574,6 +632,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         _logger.LogInformation("Skipped Records: {SkippedRecords:N0}", results.SkippedRecords);
         _logger.LogInformation("Error Records: {ErrorRecords:N0}", results.ErrorRecords);
         _logger.LogInformation("Wireless Validations Created: {CreatedValidations:N0}", results.CreatedValidations);
+        _logger.LogInformation("Duplicate Validations Skipped: {SkippedDuplicates:N0}", results.SkippedDuplicates);
         
         if (results.TotalRecords > 0)
         {
@@ -585,17 +644,27 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 ? (double)results.CreatedValidations / results.SuccessfulRecords 
                 : 0;
             _logger.LogInformation("Average Validations per Record: {AvgValidations:F1}", avgValidationsPerRecord);
+            
+            // Duplicate statistics
+            var totalPotentialValidations = results.CreatedValidations + results.SkippedDuplicates;
+            var duplicateRate = totalPotentialValidations > 0 
+                ? (double)results.SkippedDuplicates / totalPotentialValidations * 100 
+                : 0;
+            _logger.LogInformation("Duplicate Rate: {DuplicateRate:F1}% ({SkippedDuplicates:N0} of {TotalPotential:N0} potential validations)", 
+                duplicateRate, results.SkippedDuplicates, totalPotentialValidations);
         }
         
         _logger.LogInformation("Processing Logic Applied:");
         _logger.LogInformation("- Hierarchical municipality resolution with Province and Region validation");
         _logger.LogInformation("- Fuzzy matching for address variations and spelling differences");
+        _logger.LogInformation("- Duplicate validation detection and prevention");
         _logger.LogInformation("- 'false', empty, N/A values: Skipped (no entity created)");
         _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSSI=0");
         _logger.LogInformation("- 'true' values: Created with IsMarginal=false, RSSI=0");
         _logger.LogInformation("- RSSI values: Parsed and evaluated per technology thresholds");
         _logger.LogInformation("- NBC Thresholds: 2G/3G <= -105dBm, 4G/5G <= -120dBm (not created)");
         _logger.LogInformation("- Marginal Thresholds: 2G/3G <= -90dBm, 4G/5G <= -100dBm");
+        _logger.LogInformation("- Duplicate Detection: ServiceProvider + Barangay + Band + Technology + Address combination");
         _logger.LogInformation("=======================================");
 
         // Update file status
@@ -613,6 +682,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         public Dictionary<string, Guid> TechnologyCache { get; set; } = new();
         public Dictionary<string, Guid> BandCache { get; set; } = new();
         public Dictionary<Guid, Dictionary<string, Guid>> BarangayCache { get; set; } = new();
+        public HashSet<string> WirelessValidationCache { get; set; } = new();
     }
 
     private class MunicipalityHierarchyInfo
@@ -633,6 +703,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         public int SkippedRecords { get; set; }
         public int ErrorRecords { get; set; }
         public int CreatedValidations { get; set; }
+        public int SkippedDuplicates { get; set; }
     }
 
     private class BandTechnologyProperty

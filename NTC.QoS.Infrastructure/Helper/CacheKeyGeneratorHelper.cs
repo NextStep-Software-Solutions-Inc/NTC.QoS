@@ -111,5 +111,22 @@ namespace NTC.QoS.Infrastructure.Helper
         {
             return municipalityName.ToLowerInvariant();
         }
+
+        /// <summary>
+        /// Generates a cache key for wireless validation records to check for duplicates.
+        /// Format: "WV-ServiceProviderId_BarangayId_BandId_TechnologyId_NormalizedAddress"
+        /// </summary>
+        /// <param name="serviceProviderId">Service provider ID</param>
+        /// <param name="barangayId">Barangay ID (nullable)</param>
+        /// <param name="bandId">Band ID</param>
+        /// <param name="technologyId">Technology ID</param>
+        /// <param name="address">Address string</param>
+        /// <returns>A unique cache key for the wireless validation combination</returns>
+        public static string GenerateWirelessValidationCacheKey(Guid serviceProviderId, Guid? barangayId, Guid bandId, Guid technologyId, string address)
+        {
+            var normalizedAddress = address?.ToLowerInvariant().Trim() ?? string.Empty;
+            var barangayIdString = barangayId?.ToString() ?? "null";
+            return $"WV-{serviceProviderId}_{barangayIdString}_{bandId}_{technologyId}_{normalizedAddress}";
+        }
     }
 }
