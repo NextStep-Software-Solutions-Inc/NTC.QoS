@@ -262,10 +262,10 @@ public static class TechnologyMappingHelper
             var targetExists = technologyCache.ContainsKey(CacheKeyGenerator.GenerateTechnologyCacheKey(mapping.Value));
             var status = (sourceExists, targetExists) switch
             {
-                (true, true) => "? Both available",
-                (true, false) => "? Source available, target missing",
-                (false, true) => "? Source missing, target available",
-                (false, false) => "? Both missing"
+                (true, true) => "✓ Both available",
+                (true, false) => "✓ Source available, ✗ Target missing",
+                (false, true) => "✗ Source missing, ✓ Target available",
+                (false, false) => "✗ Both missing"
             };
             
             logger.LogInformation("  - '{Source}' -> '{Target}' ({Status})", 
