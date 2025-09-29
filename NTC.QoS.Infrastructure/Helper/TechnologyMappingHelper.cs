@@ -84,12 +84,21 @@ public static class TechnologyMappingHelper
             "TDDLTE" => "LTE",
             "LTE-FDD" => "LTE", // Hyphenated variant
             "LTE-TDD" => "LTE", // Hyphenated variant
-            "LTE" => TryGetSpecificLTEVariant(technologyCache), // Try to find specific LTE variant if generic LTE fails
+            "LTE" => "LTE", // Handle LTE explicitly after the switch
             "NR" => "5G", // 5G NR alternative
             "5G" => "NR", // Reverse mapping
             _ => null
         };
 
+        // If the technology is LTE and the static mapping did not resolve, try to find a specific LTE variant
+        if (alternativeTechnology == "LTE")
+        {
+            var specificLteVariant = TryGetSpecificLTEVariant(technologyCache);
+            if (!string.IsNullOrEmpty(specificLteVariant))
+            {
+                alternativeTechnology = specificLteVariant;
+            }
+        }
         if (alternativeTechnology != null)
         {
             logger.LogDebug("Found alternative technology mapping: '{Technology}' -> '{AlternativeTechnology}'{Context}", 
