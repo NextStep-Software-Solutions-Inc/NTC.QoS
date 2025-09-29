@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using System.Linq;
 
 namespace NTC.QoS.Infrastructure.Helper;
 
@@ -84,14 +83,13 @@ public static class TechnologyMappingHelper
             "TDDLTE" => "LTE",
             "LTE-FDD" => "LTE", // Hyphenated variant
             "LTE-TDD" => "LTE", // Hyphenated variant
-            "LTE" => "LTE", // Handle LTE explicitly after the switch
             "NR" => "5G", // 5G NR alternative
             "5G" => "NR", // Reverse mapping
             _ => null
         };
 
-        // If the technology is LTE and the static mapping did not resolve, try to find a specific LTE variant
-        if (alternativeTechnology == "LTE")
+        // If the technology is LTE and no alternative was found, try to find a specific LTE variant
+        if (technology.Equals("LTE", StringComparison.OrdinalIgnoreCase) && alternativeTechnology == null)
         {
             var specificLteVariant = TryGetSpecificLTEVariant(technologyCache);
             if (!string.IsNullOrEmpty(specificLteVariant))

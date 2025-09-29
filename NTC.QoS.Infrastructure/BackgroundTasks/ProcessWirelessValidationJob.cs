@@ -301,7 +301,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         }
     }
 
-    private async Task<MunicipalityHierarchyInfo?> FindMunicipalityWithFuzzyMatching(string municipalityName, string provinceName, string regionName, ReferenceData referenceData, CancellationToken token)
+    private Task<MunicipalityHierarchyInfo?> FindMunicipalityWithFuzzyMatching(string municipalityName, string provinceName, string regionName, ReferenceData referenceData, CancellationToken token)
     {
         _logger.LogInformation("Attempting fuzzy match for: {Municipality}, {Province}, {Region}", municipalityName, provinceName, regionName);
 
@@ -332,7 +332,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         {
             _logger.LogInformation("Single fuzzy match found: {Municipality}, {Province}, {Region}", 
                 possibleMatches[0].Name, possibleMatches[0].ProvinceName, possibleMatches[0].RegionName);
-            return possibleMatches[0];
+            return Task.FromResult<MunicipalityHierarchyInfo?>(possibleMatches[0]);
         }
         else if (possibleMatches.Count > 1)
         {
@@ -349,11 +349,11 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             
             _logger.LogInformation("Best fuzzy match selected: {Municipality}, {Province}, {Region} (Score: {Score:F2})", 
                 bestMatch.Municipality.Name, bestMatch.Municipality.ProvinceName, bestMatch.Municipality.RegionName, bestMatch.Score);
-            return bestMatch.Municipality;
+            return Task.FromResult<MunicipalityHierarchyInfo?>(bestMatch.Municipality);
         }
 
         _logger.LogWarning("No suitable fuzzy match found for: {Municipality}, {Province}, {Region}", municipalityName, provinceName, regionName);
-        return null;
+        return Task.FromResult<MunicipalityHierarchyInfo?>(null);
     }
 
     private static double CalculateSimilarity(string source, string target)
@@ -513,7 +513,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 validationsToCreate.AddRange(recordValidations);
                 results.SkippedDuplicates += skippedDuplicates;
 
-                if (recordValidations.Any())
+                if (recordValidations.Count != 0)
                 {
                     results.SuccessfulRecords++;
                     results.CreatedValidations += recordValidations.Count;
@@ -532,7 +532,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         }
 
         // Save all validations in a single batch operation
-        if (validationsToCreate.Any())
+        if (validationsToCreate.Count != 0)
         {
             _wirelessValidationRepository.AddRange(validationsToCreate);
             await _wirelessValidationRepository.SaveChangesAsync(token);

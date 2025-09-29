@@ -1,5 +1,3 @@
-using System;
-
 namespace NTC.QoS.Infrastructure.Helper;
 
 /// <summary>
