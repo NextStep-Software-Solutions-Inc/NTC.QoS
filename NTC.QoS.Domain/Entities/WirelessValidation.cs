@@ -6,7 +6,7 @@ public class WirelessValidation : BaseEntity
     public Guid BarangayId { get; set; }
     public Guid BandId { get; set; }
     public Guid TechnologyId { get; set; }
-    public string? Address { get; set; } = string.Empty;
+    public string? Address { get; set; } = null;
     public decimal? RSRP { get; set; }
     public bool IsMarginal { get; set; } = false;
 }
