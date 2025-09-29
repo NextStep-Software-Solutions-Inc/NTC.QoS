@@ -5,7 +5,7 @@ namespace NTC.QoS.Infrastructure.Helper;
 /// <summary>
 /// Helper class for parsing RSRP values from wireless validation technology/band columns
 /// </summary>
-public static class RSRPParser
+public static partial class RSRPParser
 {
     #region RSRP Threshold Constants
 
@@ -145,19 +145,15 @@ public static class RSRPParser
     /// </summary>
     private static bool TryParseRSRPValue(string value, out decimal rsrp)
     {
-        rsrp = 0;
-
         // Pattern 1: "RSRP: -85 dBm" or "RSRP: -85"
-        var rsrpPattern = new Regex(@"RSRP\s*:\s*(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
-        var match = rsrpPattern.Match(value);
+        var match = RSRPRegex().Match(value);
         if (match.Success && decimal.TryParse(match.Groups[1].Value, out rsrp))
         {
             return ValidateRSRPRange(rsrp);
         }
 
         // Pattern 2: "Good: -70" or "Fair: -80" or "Poor: -90"
-        var qualityPattern = new Regex(@"(?:Good|Fair|Poor|Excellent|Bad|Average|Weak)\s*:\s*(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
-        match = qualityPattern.Match(value);
+        match = QualityRegex().Match(value);
         if (match.Success && decimal.TryParse(match.Groups[1].Value, out rsrp))
         {
             return ValidateRSRPRange(rsrp);
@@ -170,16 +166,14 @@ public static class RSRPParser
         }
 
         // Pattern 4: "Signal: -75 dBm" or similar signal indicators
-        var signalPattern = new Regex(@"(?:Signal|Power|Level)\s*:\s*(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
-        match = signalPattern.Match(value);
+        match = SignalRegex().Match(value);
         if (match.Success && decimal.TryParse(match.Groups[1].Value, out rsrp))
         {
             return ValidateRSRPRange(rsrp);
         }
 
         // Pattern 5: Extract any negative number from the string
-        var negativeNumberPattern = new Regex(@"(-\d+(?:\.\d+)?)");
-        match = negativeNumberPattern.Match(value);
+        match = NegativeNumberRegex().Match(value);
         if (match.Success && decimal.TryParse(match.Groups[1].Value, out rsrp))
         {
             return ValidateRSRPRange(rsrp);
@@ -187,6 +181,18 @@ public static class RSRPParser
 
         return false;
     }
+
+    [GeneratedRegex(@"RSRP\s*:\s*(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase)]
+    private static partial Regex RSRPRegex();
+
+    [GeneratedRegex(@"(?:Good|Fair|Poor|Excellent|Bad|Average|Weak)\s*:\s*(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase)]
+    private static partial Regex QualityRegex();
+
+    [GeneratedRegex(@"(?:Signal|Power|Level)\s*:\s*(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase)]
+    private static partial Regex SignalRegex();
+
+    [GeneratedRegex(@"(-\d+(?:\.\d+)?)")]
+    private static partial Regex NegativeNumberRegex();
 
     /// <summary>
     /// Validates if RSRP value is within reasonable range

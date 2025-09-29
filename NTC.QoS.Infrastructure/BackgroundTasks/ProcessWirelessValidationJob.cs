@@ -517,7 +517,6 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     }
                 }
 
-                // Skip records without resolved barangay since BarangayId is now required (non-nullable)
                 if (!barangayId.HasValue)
                 {
                     _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}. " +
