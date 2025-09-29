@@ -2272,7 +2272,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsMarginal")
                         .HasColumnType("boolean");
 
-                    b.Property<decimal>("RSSI")
+                    b.Property<decimal>("RSRP")
                         .HasColumnType("numeric");
 
                     b.Property<Guid>("ServiceProviderId")
@@ -2815,7 +2815,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
                         .WithMany()
                         .HasForeignKey("BarangayId")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)

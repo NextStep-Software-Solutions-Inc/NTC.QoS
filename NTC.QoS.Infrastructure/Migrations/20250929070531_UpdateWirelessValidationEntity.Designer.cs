@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NTC.QoS.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250929023058_MakeBarangayIdNonNullableInWirelessValidation")]
-    partial class MakeBarangayIdNonNullableInWirelessValidation
+    [Migration("20250929070531_UpdateWirelessValidationEntity")]
+    partial class UpdateWirelessValidationEntity
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -2275,7 +2275,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsMarginal")
                         .HasColumnType("boolean");
 
-                    b.Property<decimal>("RSSI")
+                    b.Property<decimal>("RSRP")
                         .HasColumnType("numeric");
 
                     b.Property<Guid>("ServiceProviderId")
@@ -2818,7 +2818,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
                         .WithMany()
                         .HasForeignKey("BarangayId")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)

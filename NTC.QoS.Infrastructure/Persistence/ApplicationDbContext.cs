@@ -523,7 +523,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne<Barangay>()
             .WithMany()
             .HasForeignKey(wv => wv.BarangayId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne<Band>()
