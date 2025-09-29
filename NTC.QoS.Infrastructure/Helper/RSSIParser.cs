@@ -7,6 +7,69 @@ namespace NTC.QoS.Infrastructure.Helper;
 /// </summary>
 public static class RSSIParser
 {
+    #region RSSI Threshold Constants
+
+    // No Broadband Coverage (NBC) Thresholds
+    /// <summary>
+    /// RSSI threshold for No Broadband Coverage in 2G/3G technologies (GSM, WCDMA)
+    /// </summary>
+    public const decimal NBC_THRESHOLD_2G_3G = -105m;
+
+    /// <summary>
+    /// RSSI threshold for No Broadband Coverage in 4G/5G technologies (LTE, NR)
+    /// </summary>
+    public const decimal NBC_THRESHOLD_4G_5G = -120m;
+
+    // Marginal Coverage Thresholds
+    /// <summary>
+    /// RSSI threshold for Marginal coverage in 2G/3G technologies (GSM, WCDMA)
+    /// </summary>
+    public const decimal MARGINAL_THRESHOLD_2G_3G = -90m;
+
+    /// <summary>
+    /// RSSI threshold for Marginal coverage in 4G/5G technologies (LTE, NR)
+    /// </summary>
+    public const decimal MARGINAL_THRESHOLD_4G_5G = -100m;
+
+    /// <summary>
+    /// Default marginal threshold for unknown technologies
+    /// </summary>
+    public const decimal MARGINAL_THRESHOLD_DEFAULT = -85m;
+
+    // Signal Quality Thresholds
+    /// <summary>
+    /// Excellent signal threshold for 2G/3G technologies
+    /// </summary>
+    public const decimal EXCELLENT_THRESHOLD_2G_3G = -70m;
+
+    /// <summary>
+    /// Good signal threshold for 2G/3G technologies
+    /// </summary>
+    public const decimal GOOD_THRESHOLD_2G_3G = -80m;
+
+    /// <summary>
+    /// Excellent signal threshold for 4G/5G technologies
+    /// </summary>
+    public const decimal EXCELLENT_THRESHOLD_4G_5G = -80m;
+
+    /// <summary>
+    /// Good signal threshold for 4G/5G technologies
+    /// </summary>
+    public const decimal GOOD_THRESHOLD_4G_5G = -90m;
+
+    // RSSI Validation Range
+    /// <summary>
+    /// Minimum valid RSSI value (most negative)
+    /// </summary>
+    public const decimal MIN_VALID_RSSI = -150m;
+
+    /// <summary>
+    /// Maximum valid RSSI value (typically 0 dBm)
+    /// </summary>
+    public const decimal MAX_VALID_RSSI = 0m;
+
+    #endregion
+
     /// <summary>
     /// Parses wireless validation data from various string formats found in Excel cells
     /// </summary>
@@ -122,8 +185,8 @@ public static class RSSIParser
     /// </summary>
     private static bool ValidateRSSIRange(decimal rssi)
     {
-        // Validate it's a reasonable RSSI value (typically between -150 and 0)
-        return rssi >= -150 && rssi <= 0;
+        // Validate it's a reasonable RSSI value using defined constants
+        return rssi >= MIN_VALID_RSSI && rssi <= MAX_VALID_RSSI;
     }
 
     /// <summary>
@@ -136,8 +199,8 @@ public static class RSSIParser
     {
         return technology?.ToUpperInvariant() switch
         {
-            "GSM" or "WCDMA" => rssi <= -105,        // 2G/3G: NBC at -105 dBm or lower
-            "FDDLTE" or "TDDLTE" or "LTE" or "NR" => rssi <= -120,  // 4G/5G: NBC at -120 dBm or lower
+            "GSM" or "WCDMA" => rssi <= NBC_THRESHOLD_2G_3G,        // 2G/3G: NBC at -105 dBm or lower
+            "FDDLTE" or "TDDLTE" or "LTE" or "NR" => rssi <= NBC_THRESHOLD_4G_5G,  // 4G/5G: NBC at -120 dBm or lower
             _ => false // Unknown technology, don't filter out
         };
     }
@@ -152,9 +215,9 @@ public static class RSSIParser
     {
         return technology?.ToUpperInvariant() switch
         {
-            "GSM" or "WCDMA" => rssi <= -90,         // 2G/3G: Marginal at -90 dBm or lower
-            "FDDLTE" or "TDDLTE" or "LTE" or "NR" => rssi <= -100,  // 4G/5G: Marginal at -100 dBm or lower
-            _ => rssi < -85 // Default threshold for unknown technologies
+            "GSM" or "WCDMA" => rssi <= MARGINAL_THRESHOLD_2G_3G,         // 2G/3G: Marginal at -90 dBm or lower
+            "FDDLTE" or "TDDLTE" or "LTE" or "NR" => rssi <= MARGINAL_THRESHOLD_4G_5G,  // 4G/5G: Marginal at -100 dBm or lower
+            _ => rssi < MARGINAL_THRESHOLD_DEFAULT // Default threshold for unknown technologies
         };
     }
 
