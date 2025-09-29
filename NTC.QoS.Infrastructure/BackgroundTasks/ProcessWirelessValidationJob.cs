@@ -200,6 +200,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
         var validationCache = new HashSet<string>();
         var duplicateCount = 0;
+        var duplicateDetails = new List<string>();
 
         foreach (var validation in existingValidations)
         {
@@ -214,12 +215,30 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             if (!validationCache.Add(key))
             {
                 duplicateCount++;
-                _logger.LogWarning("Duplicate wireless validation found in database: ServiceProvider={ServiceProviderId}, " +
-                    "Barangay={BarangayId}, Band={BandId}, Technology={TechnologyId}, Address='{Address}'. " +
-                    "Consider cleaning up duplicate validation data.",
+                
+                // Log individual duplicates at debug level to avoid spam
+                _logger.LogDebug("Duplicate wireless validation found in database: ServiceProvider={ServiceProviderId}, " +
+                    "Barangay={BarangayId}, Band={BandId}, Technology={TechnologyId}, Address='{Address}'",
                     validation.ServiceProviderId, validation.BarangayId, validation.BandId, 
                     validation.TechnologyId, validation.Address);
+
+                // Track first few duplicates for summary logging
+                if (duplicateDetails.Count < 5)
+                {
+                    duplicateDetails.Add($"ServiceProvider={validation.ServiceProviderId}, " +
+                        $"Barangay={validation.BarangayId}, Band={validation.BandId}, " +
+                        $"Technology={validation.TechnologyId}, Address='{validation.Address}'");
+                }
             }
+        }
+
+        // Log summary warning if duplicates were found
+        if (duplicateCount > 0)
+        {
+            _logger.LogWarning("Found {DuplicateCount} duplicate wireless validation records in database. " +
+                "Consider cleaning up duplicate validation data. " +
+                "First few examples: {Examples}",
+                duplicateCount, string.Join("; ", duplicateDetails));
         }
 
         _logger.LogInformation("Preloaded {Count:N0} existing wireless validation records ({DuplicateCount} duplicates found in database, {TotalValidations} total)",
