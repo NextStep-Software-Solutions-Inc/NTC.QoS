@@ -2272,7 +2272,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsMarginal")
                         .HasColumnType("boolean");
 
-                    b.Property<decimal>("RSRP")
+                    b.Property<decimal?>("RSRP")
                         .HasColumnType("numeric");
 
                     b.Property<Guid>("ServiceProviderId")

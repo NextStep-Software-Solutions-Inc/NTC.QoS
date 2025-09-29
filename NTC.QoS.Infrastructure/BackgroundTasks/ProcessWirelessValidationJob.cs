@@ -606,7 +606,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     BandId = bandId,
                     TechnologyId = technologyId,
                     Address = record.Address,
-                    RSRP = rsrpValue ?? 0, // Use parsed RSRP or 0 if null (for true/marginal cases)
+                    RSRP = rsrpValue, // Use null when no RSRP value is available
                     IsMarginal = isMarginal
                 };
 
@@ -623,7 +623,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 _logger.LogDebug("Created validation - Provider: {Provider}, Technology: {Technology}, Band: {Band}, " +
                     "RSRP: {RSRP}, Marginal: {IsMarginal}, Quality: {Quality}", 
                     record.Provider, item.Technology, item.Band, 
-                    rsrpValue?.ToString() ?? "N/A", isMarginal, qualityDesc);
+                    rsrpValue?.ToString() ?? "NULL", isMarginal, qualityDesc);
             }
             catch (Exception ex)
             {
@@ -679,8 +679,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         _logger.LogInformation("- Consistent address construction from all available location components");
         _logger.LogInformation("- Duplicate validation detection and prevention");
         _logger.LogInformation("- 'false', empty, N/A values: Skipped (no entity created)");
-        _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSRP=0");
-        _logger.LogInformation("- 'true' values: Created with IsMarginal=false, RSRP=0");
+        _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSRP=NULL");
+        _logger.LogInformation("- 'true' values: Created with IsMarginal=false, RSRP=NULL");
         _logger.LogInformation("- RSRP values: Parsed and evaluated per technology thresholds");
         _logger.LogInformation("- NBC Thresholds: 2G/3G <= -105dBm, 4G/5G <= -120dBm (not created)");
         _logger.LogInformation("- Marginal Thresholds: 2G/3G <= -90dBm, 4G/5G <= -100dBm");
