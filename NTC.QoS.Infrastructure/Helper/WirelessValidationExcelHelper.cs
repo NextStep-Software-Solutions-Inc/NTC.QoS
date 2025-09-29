@@ -21,7 +21,7 @@ public class WirelessValidationExcelHelper
 
             // Parse municipality information from cell A1
             // Expected format: "<municipalityName>, <provinceName>, <regionName>"
-            var municipalityInfo = ParseMunicipalityFromA1(worksheet.Cell(1, 1).GetString());
+            var (Municipality, Province, Region) = ParseMunicipalityFromA1(worksheet.Cell(1, 1).GetString());
 
             // Read headers from row 4
             var headers = new List<string>();
@@ -40,9 +40,9 @@ public class WirelessValidationExcelHelper
                 var record = new WirelessValidationRecord
                 {
                     // Set municipality info parsed from A1
-                    Municipality = municipalityInfo.Municipality,
-                    Province = municipalityInfo.Province,
-                    Region = municipalityInfo.Region
+                    Municipality = Municipality,
+                    Province = Province,
+                    Region = Region
                 };
 
                 for (int col = 1; col <= lastColumn; col++)
@@ -63,11 +63,10 @@ public class WirelessValidationExcelHelper
                     }
                 }
 
-                // Construct the complete address from barangay, municipality, province, region
-                if (!string.IsNullOrWhiteSpace(record.Barangay))
-                {
-                    record.Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
-                }
+                // Construct the complete address from all available components (barangay, municipality, province, region)
+                // This ensures consistent address format regardless of missing barangay
+                record.Address = string.Join(", ", new[] { record.Barangay, record.Municipality, record.Province, record.Region }
+                    .Where(component => !string.IsNullOrWhiteSpace(component)));
 
                 result.Add(record);
             }

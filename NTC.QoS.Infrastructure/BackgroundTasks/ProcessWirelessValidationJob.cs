@@ -489,6 +489,16 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     }
                 }
 
+                // Skip records without resolved barangay since BarangayId is now required (non-nullable)
+                if (!barangayId.HasValue)
+                {
+                    _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}. " +
+                        "Barangay resolution is now required for wireless validation records.",
+                        record.Provider, record.Barangay, record.Municipality);
+                    results.SkippedRecords++;
+                    continue;
+                }
+
                 // Process each technology/band combination
                 var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
                 validationsToCreate.AddRange(recordValidations);
@@ -534,7 +544,6 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             {
                 var propertyValue = item.Property.GetValue(record) as string;
 
-                // Fix: Ensure propertyValue is not null before passing to ParseWirelessData
                 var (shouldCreate, rssiValue, isMarginal) = RSSIParser.ParseWirelessData(propertyValue ?? string.Empty, item.Technology);
 
                 // Skip if we shouldn't create an entity (false, empty, NBC, etc.)
@@ -565,7 +574,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 // Check for duplicate wireless validation record
                 var validationCacheKey = CacheKeyGenerator.GenerateWirelessValidationCacheKey(
                     record.ServiceProviderId!.Value,
-                    record.BarangayId,
+                    record.BarangayId!.Value,
                     bandId,
                     technologyId,
                     record.Address ?? string.Empty
@@ -584,10 +593,10 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 var validation = new WirelessValidation
                 {
                     ServiceProviderId = record.ServiceProviderId!.Value,
-                    BarangayId = record.BarangayId,
+                    BarangayId = record.BarangayId!.Value,
                     BandId = bandId,
                     TechnologyId = technologyId,
-                    Address = record.Address, // Complete address: "Barangay, Municipality, Province, Region"
+                    Address = record.Address,
                     RSSI = rssiValue ?? 0, // Use parsed RSSI or 0 if null (for true/marginal cases)
                     IsMarginal = isMarginal
                 };
@@ -657,6 +666,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         _logger.LogInformation("Processing Logic Applied:");
         _logger.LogInformation("- Hierarchical municipality resolution with Province and Region validation");
         _logger.LogInformation("- Fuzzy matching for address variations and spelling differences");
+        _logger.LogInformation("- Barangay resolution is REQUIRED - records without resolved barangay are skipped");
+        _logger.LogInformation("- Consistent address construction from all available location components");
         _logger.LogInformation("- Duplicate validation detection and prevention");
         _logger.LogInformation("- 'false', empty, N/A values: Skipped (no entity created)");
         _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSSI=0");

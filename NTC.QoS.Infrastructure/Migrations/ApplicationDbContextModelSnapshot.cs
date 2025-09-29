@@ -2249,7 +2249,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("BarangayId")
+                    b.Property<Guid>("BarangayId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -2815,7 +2815,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
                         .WithMany()
                         .HasForeignKey("BarangayId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
                         .WithMany()
