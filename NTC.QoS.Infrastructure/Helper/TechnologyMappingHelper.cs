@@ -137,7 +137,27 @@ public static class TechnologyMappingHelper
     /// <returns>True if the technology ID is valid (not empty), false otherwise</returns>
     public static bool IsTechnologyResolved(Guid technologyId)
     {
-        return technologyId != Guid.Empty;
+        return IsGuidResolved(technologyId);
+    }
+
+    /// <summary>
+    /// Checks if a band ID was successfully resolved (not Guid.Empty)
+    /// </summary>
+    /// <param name="bandId">The band ID to check</param>
+    /// <returns>True if the band ID is valid (not empty), false otherwise</returns>
+    public static bool IsBandResolved(Guid bandId)
+    {
+        return IsGuidResolved(bandId);
+    }
+
+    /// <summary>
+    /// Generic method to check if a Guid was successfully resolved (not Guid.Empty)
+    /// </summary>
+    /// <param name="guid">The Guid to check</param>
+    /// <returns>True if the Guid is valid (not empty), false otherwise</returns>
+    public static bool IsGuidResolved(Guid guid)
+    {
+        return guid != Guid.Empty;
     }
 
     /// <summary>

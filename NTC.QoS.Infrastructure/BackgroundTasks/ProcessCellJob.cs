@@ -445,7 +445,7 @@ public class ProcessCellJob : IProcessCellJob
                         }
 
                         var bandId = TechnologyMappingHelper.ResolveBandId(propInfo.Band, bandCache, _logger, contextInfo);
-                        if (!TechnologyMappingHelper.IsTechnologyResolved(bandId))
+                        if (!TechnologyMappingHelper.IsBandResolved(bandId))
                         {
                             _logger.LogError("CRITICAL ERROR: Band '{Band}' not found in database. " +
                                 "Processing terminated at Excel row {RowNumber}. " +

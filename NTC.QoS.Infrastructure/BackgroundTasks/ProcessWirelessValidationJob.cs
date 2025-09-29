@@ -564,7 +564,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 // Use TechnologyMappingHelper to resolve band ID
                 var bandId = TechnologyMappingHelper.ResolveBandId(item.Band, referenceData.BandCache, _logger, contextInfo);
                 
-                if (!TechnologyMappingHelper.IsTechnologyResolved(bandId)) // Reusing the same check since it's just checking for Guid.Empty
+                if (!TechnologyMappingHelper.IsBandResolved(bandId))
                 {
                     _logger.LogWarning("Skipping technology/band combination due to unresolved band: {Technology}/{Band}", 
                         item.Technology, item.Band);
