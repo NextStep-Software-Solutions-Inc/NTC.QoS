@@ -23,6 +23,14 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           IWirelessValidationRepository wirelessValidationRepository
                                           ) : IProcessWirelessValidationJob
 {
+    // Fuzzy matching thresholds for hierarchical municipality resolution
+    private const double MinimumMunicipalityMatchThreshold = 0.8;
+    private const double MinimumProvinceMatchThreshold = 0.6;
+    private const double MinimumRegionMatchThreshold = 0.5;
+    
+    // Processing batch size for wireless validation records
+    private const int ProcessingBatchSize = 2000;
+
     private readonly IFileRepository _fileRepository = fileRepository;
     private readonly ILogger<ProcessWirelessValidationJob> _logger = logger;
     private readonly IRegionRepository _regionRepository = regionRepository;
@@ -310,7 +318,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             var regionScore = CalculateSimilarity(regionName, municipalityInfo.RegionName);
 
             // Require high municipality match, moderate province match
-            if (municipalityScore >= 0.8 && provinceScore >= 0.6 && regionScore >= 0.5)
+            if (municipalityScore >= MinimumMunicipalityMatchThreshold && 
+                provinceScore >= MinimumProvinceMatchThreshold && 
+                regionScore >= MinimumRegionMatchThreshold)
             {
                 possibleMatches.Add(municipalityInfo);
                 _logger.LogInformation("Fuzzy match candidate: {Municipality} ({MScore:F2}), {Province} ({PScore:F2}), {Region} ({RScore:F2})", 
@@ -401,14 +411,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData, 
         ProcessingResults results, CancellationToken token)
     {
-        const int batchSize = 2000; // Smaller batches for wireless validation due to multiple entities per record
-        var totalBatches = (int)Math.Ceiling((double)records.Count / batchSize);
+        var totalBatches = (int)Math.Ceiling((double)records.Count / ProcessingBatchSize);
 
         _logger.LogInformation("Processing {RecordCount:N0} records in {BatchCount} batches", records.Count, totalBatches);
 
         for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
-            var batch = records.Skip(batchIndex * batchSize).Take(batchSize).ToList();
+            var batch = records.Skip(batchIndex * ProcessingBatchSize).Take(ProcessingBatchSize).ToList();
             var batchResults = await ProcessBatch(batch, referenceData, token);
 
             // Merge batch results
