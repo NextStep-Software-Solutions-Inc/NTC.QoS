@@ -534,8 +534,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             {
                 var propertyValue = item.Property.GetValue(record) as string;
 
-                // Fix: Ensure propertyValue is not null before passing to ParseWirelessData
-                var (shouldCreate, rssiValue, isMarginal) = RSSIParser.ParseWirelessData(propertyValue ?? string.Empty, item.Technology);
+                // Pass propertyValue directly; ParseWirelessData handles null/empty internally
+                var (shouldCreate, rssiValue, isMarginal) = RSSIParser.ParseWirelessData(propertyValue, item.Technology);
 
                 // Skip if we shouldn't create an entity (false, empty, NBC, etc.)
                 if (!shouldCreate)
