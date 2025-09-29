@@ -544,7 +544,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             {
                 var propertyValue = item.Property.GetValue(record) as string;
 
-                var (shouldCreate, rssiValue, isMarginal) = RSSIParser.ParseWirelessData(propertyValue ?? string.Empty, item.Technology);
+                var (shouldCreate, rsrpValue, isMarginal) = RSRPParser.ParseWirelessData(propertyValue ?? string.Empty, item.Technology);
 
                 // Skip if we shouldn't create an entity (false, empty, NBC, etc.)
                 if (!shouldCreate)
@@ -597,7 +597,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     BandId = bandId,
                     TechnologyId = technologyId,
                     Address = record.Address,
-                    RSSI = rssiValue ?? 0, // Use parsed RSSI or 0 if null (for true/marginal cases)
+                    RSRP = rsrpValue ?? 0, // Use parsed RSRP or 0 if null (for true/marginal cases)
                     IsMarginal = isMarginal
                 };
 
@@ -607,14 +607,14 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 referenceData.WirelessValidationCache.Add(validationCacheKey);
 
                 // Log detailed information for debugging
-                var qualityDesc = rssiValue.HasValue 
-                    ? RSSIParser.GetSignalQualityDescription(rssiValue.Value, item.Technology)
-                    : (isMarginal ? "Marginal (No RSSI)" : "Good (No RSSI)");
+                var qualityDesc = rsrpValue.HasValue 
+                    ? RSRPParser.GetSignalQualityDescription(rsrpValue.Value, item.Technology)
+                    : (isMarginal ? "Marginal (No RSRP)" : "Good (No RSRP)");
                 
                 _logger.LogDebug("Created validation - Provider: {Provider}, Technology: {Technology}, Band: {Band}, " +
-                    "RSSI: {RSSI}, Marginal: {IsMarginal}, Quality: {Quality}", 
+                    "RSRP: {RSRP}, Marginal: {IsMarginal}, Quality: {Quality}", 
                     record.Provider, item.Technology, item.Band, 
-                    rssiValue?.ToString() ?? "N/A", isMarginal, qualityDesc);
+                    rsrpValue?.ToString() ?? "N/A", isMarginal, qualityDesc);
             }
             catch (Exception ex)
             {
@@ -670,9 +670,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         _logger.LogInformation("- Consistent address construction from all available location components");
         _logger.LogInformation("- Duplicate validation detection and prevention");
         _logger.LogInformation("- 'false', empty, N/A values: Skipped (no entity created)");
-        _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSSI=0");
-        _logger.LogInformation("- 'true' values: Created with IsMarginal=false, RSSI=0");
-        _logger.LogInformation("- RSSI values: Parsed and evaluated per technology thresholds");
+        _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSRP=0");
+        _logger.LogInformation("- 'true' values: Created with IsMarginal=false, RSRP=0");
+        _logger.LogInformation("- RSRP values: Parsed and evaluated per technology thresholds");
         _logger.LogInformation("- NBC Thresholds: 2G/3G <= -105dBm, 4G/5G <= -120dBm (not created)");
         _logger.LogInformation("- Marginal Thresholds: 2G/3G <= -90dBm, 4G/5G <= -100dBm");
         _logger.LogInformation("- Duplicate Detection: ServiceProvider + Barangay + Band + Technology + Address combination");
