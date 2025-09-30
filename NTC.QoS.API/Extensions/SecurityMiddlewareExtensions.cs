@@ -16,4 +16,18 @@ public static class SecurityMiddlewareExtensions
     {
         return app.UseMiddleware<SecurityHeadersMiddleware>();
     }
+
+    /// <summary>
+    /// Configures production security middleware including HSTS and HTTPS redirection.
+    /// This method should be called when the application is running in production mode.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    public static IApplicationBuilder UseProductionSecurity(this IApplicationBuilder app)
+    {
+        app.UseHsts();
+        app.UseHttpsRedirection();
+        
+        return app;
+    }
 }

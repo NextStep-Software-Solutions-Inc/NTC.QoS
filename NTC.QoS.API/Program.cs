@@ -172,10 +172,10 @@ public class Program
         }
         else
         {
-            app.UseHsts();
+            // Production security configuration (HSTS + HTTPS Redirection)
+            app.UseProductionSecurity();
         }
 
-        app.UseHttpsRedirection();
         app.UseResponseCompression();
         app.UseResponseCaching();
 
