@@ -14,6 +14,10 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
                 .ThenInclude(sp => sp!.Provider)
             .Include(c => c.ServiceProvider)
                 .ThenInclude(sp => sp!.Service)
+            .Include(c => c.CellSectors)
+                .ThenInclude(cs => cs!.Cellulars)
+                    .ThenInclude(cellular => cellular!.Technology)
+                        .ThenInclude(tech => tech!.Generation)
             .AsQueryable();
 
         if (expression != null)
