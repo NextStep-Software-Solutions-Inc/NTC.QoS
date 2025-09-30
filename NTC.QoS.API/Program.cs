@@ -31,18 +31,16 @@ public class Program
             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
-        // Validate Clerk secret strictly only outside Development
+        // Validate Clerk secret for both Development and Production
         var clerkSecret = builder.Configuration["Clerk:SecretKey"];
-        if (!env.IsDevelopment() && string.IsNullOrWhiteSpace(clerkSecret))
+        if (string.IsNullOrWhiteSpace(clerkSecret))
         {
             throw new InvalidOperationException("Clerk Secret Key is not configured.");
         }
 
         builder.Services.AddClerkApiClient(config =>
         {
-            config.SecretKey = env.IsDevelopment()
-                ? (clerkSecret ?? "dev_placeholder_secret")
-                : clerkSecret;
+            config.SecretKey = clerkSecret;
         });
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
