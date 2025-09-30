@@ -47,8 +47,6 @@ public static class InfrastructureDependencyInjection
                 .AddInterceptors(audit, softDelete);
         });
 
-        services.AddDynamicAuthorization();
-
         services.AddHangfire(cfg => cfg
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()

@@ -1,22 +1,22 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Clerk.Net.DependencyInjection;
+using Hangfire;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Extensions;
+using NTC.QoS.API.Filters;
+using NTC.QoS.API.Infrastructure;
 using NTC.QoS.Application;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
 using NTC.QoS.Infrastructure.Extensions;
-using Clerk.Net.DependencyInjection;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Security.Claims;
-using Microsoft.OpenApi.Models;
-using NTC.QoS.API.Filters;
-using Hangfire;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NTC.QoS.Infrastructure.HealthChecks;
-using NTC.QoS.API.Infrastructure;
+using System.Security.Claims;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API;
 
@@ -75,6 +75,7 @@ public class Program
                 .RequireAuthenticatedUser()
                 .Build());
         builder.Services.AddAuthorization();
+        builder.Services.AddDynamicAuthorization();
 
         builder.Services.AddHttpContextAccessor();
 
