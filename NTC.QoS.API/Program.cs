@@ -5,6 +5,7 @@ using NTC.QoS.API.Extensions;
 using NTC.QoS.Application;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
+using NTC.QoS.Infrastructure.Extensions;
 using Clerk.Net.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -151,17 +152,9 @@ public class Program
 
         var app = builder.Build();
         
-        // Register global Hangfire filters (idempotent)
-        app.Services.GetRequiredService<IHangfireFilterRegistrar>().RegisterGlobalFilters();
-        
-        // Conditional migrations & seeding
-        var runMigrations = builder.Configuration.GetValue<bool?>("Database:RunMigrationsOnStartup") ?? env.IsDevelopment();
-        if (runMigrations)
-        {
-            await app.Services.ApplyMigrationsAndSeedAsync();
-        }
+        // Initialize application startup processes (Hangfire filters, migrations, seeding)
+        await app.Services.InitializeApplicationAsync(builder.Configuration, env);
 
-        // Security headers middleware
         app.UseSecurityHeaders();
 
         app.UseCors(env.IsDevelopment() ? "Dev" : "Prod");
