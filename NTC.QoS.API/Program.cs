@@ -161,19 +161,8 @@ public class Program
             await app.Services.ApplyMigrationsAndSeedAsync();
         }
 
-        // Security headers (minimal baseline)
-        app.Use(async (context, next) =>
-        {
-            context.Response.Headers.XContentTypeOptions = "nosniff";
-            context.Response.Headers.XFrameOptions = "DENY";
-            context.Response.Headers.Referer = "no-referrer";
-            context.Response.Headers.XXSSProtection = "0"; // modern browsers ignore, set explicit
-            if (!env.IsDevelopment())
-            {
-                context.Response.Headers.StrictTransportSecurity = "max-age=31536000; includeSubDomains";
-            }
-            await next();
-        });
+        // Security headers middleware
+        app.UseSecurityHeaders();
 
         app.UseCors(env.IsDevelopment() ? "Dev" : "Prod");
 
