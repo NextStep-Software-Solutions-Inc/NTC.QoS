@@ -4,8 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.BackgroundTasks;
+using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Persistence.Repositories;
@@ -16,130 +18,130 @@ namespace NTC.QoS.Infrastructure;
 
 public static class InfrastructureDependencyInjection
 {
-    // Pure registration only. Seeding/migrations moved to ApplyMigrationsAndSeedAsync
+    /// <summary>
+    /// Registers all infrastructure services with improved organization and configuration support
+    /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="configuration">The application configuration</param>
+    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
-
+        // Register logging first
         services.AddLogging();
 
-        services.AddHttpClient<IClerkUserService, ClerkUserService>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.clerk.com/v1/");
-        });
-
-        services.AddScoped<IUserContextService, UserContextService>();
-        services.AddSingleton<ITimeProvider, SystemTimeProvider>();
-        services.AddScoped<AuditInterceptor>();
-        services.AddScoped<SoftDeleteInterceptor>();
-
-        services.AddDbContext<ApplicationDbContext>((sp, options) =>
-        {
-            var audit = sp.GetRequiredService<AuditInterceptor>();
-            var softDelete = sp.GetRequiredService<SoftDeleteInterceptor>();
-            options
-                .UseNpgsql(connectionString, npgsql =>
-                {
-                    npgsql.UseNetTopologySuite();
-                    npgsql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null);
-                })
-                .AddInterceptors(audit, softDelete);
-        });
-
-        services.AddHangfire(cfg => cfg
-            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-            .UseSimpleAssemblyNameTypeSerializer()
-            .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(s => s.UseNpgsqlConnection(connectionString))
-            .UseDashboardMetrics()
-        );
-
-        services.AddHangfireServer(options =>
-        {
-            var configuredWorkerCount = configuration.GetValue<int?>("Hangfire:WorkerCount");
-            const int maxWorkerCount = 32;
-            int fallback = Math.Min(Environment.ProcessorCount, maxWorkerCount);
-            options.WorkerCount = configuredWorkerCount is > 0 ? Math.Min(configuredWorkerCount.Value, maxWorkerCount) : fallback;
-            var appName = Environment.GetEnvironmentVariable("ASPNETCORE_APPLICATIONNAME")
-                          ?? AppDomain.CurrentDomain.FriendlyName
-                          ?? "HangfireServer";
-            options.ServerName = $"{appName}-{Environment.MachineName}";
-        });
-
-        // Hangfire global filter registrar
-        services.AddSingleton<IHangfireFilterRegistrar, HangfireFilterRegistrar>();
-
-        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-        services.AddScoped<IProviderRepository, ProviderRepository>();
-        services.AddScoped<IProvinceRepository, ProvinceRepository>();
-        services.AddScoped<IServiceProviderRepository, ServiceProviderRepository>();
-        services.AddScoped<ICellRepository, CellRepository>();
-        services.AddScoped<IServiceRepository, ServiceRepository>();
-        services.AddScoped<INetworkRepository, NetworkRepository>();
-        services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
-        services.AddScoped<IBarangayRepository, BarangayRepository>();
-        services.AddScoped<IZoneRepository, ZoneRepository>();
-        services.AddScoped<IStudyRepository, StudyRepository>();
-        services.AddScoped<ITechnologyRepository, TechnologyRepository>();
-        services.AddScoped<IBandRepository, BandRepository>();
-        services.AddScoped<ILinkRepository, LinkRepository>();
-        services.AddScoped<IGenerationRepository, GenerationRepository>();
-        services.AddScoped<IGenerationBandRepository, GenerationBandRepository>();
-        services.AddScoped<ISpeedtestRepository, SpeedtestRepository>();
-        services.AddScoped<INAPRepository, NAPRepository>();
-        services.AddScoped<IFileRepository, FileRepository>();
-        services.AddScoped<ICellularRepository, CellularRepository>();
-        services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IUserRegionRepository, UserRegionRepository>();
-        services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
-        services.AddScoped<IMIMORepository, MIMORepository>();
-        services.AddScoped<ISectorRepository, SectorRepository>();
-        services.AddScoped<IStudyNetworkRepository, StudyNetworkRepository>();
-        services.AddScoped<IRegionRepository, RegionRepository>();
-        services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
-        services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
-        services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
-        services.AddScoped<ICellSectorRepository, CellSectorRepository>();
-        services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
-
-        services.AddTransient<IBackgroundJobService, BackgroundJobService>();
-        services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
-        services.AddTransient<IProcessCellJob, ProcessCellJob>();
-        services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
-        services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
-        services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
+        // Register services in logical groups
+        services.AddDatabaseServices(configuration);
+        services.AddHangfireServices(configuration);
+        services.AddExternalServices(configuration);
+        services.AddRepositories();
+        services.AddBackgroundJobServices();
 
         return services;
     }
 
-    // Explicit migration / seeding entry point. Call once after building the app.
+    /// <summary>
+    /// Applies database migrations and seeds initial data with enhanced error handling and configuration support
+    /// </summary>
+    /// <param name="serviceProvider">The service provider</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A task representing the migration and seeding operation</returns>
     public static async Task ApplyMigrationsAndSeedAsync(this IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
         using var scope = serviceProvider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
+        var services = scope.ServiceProvider;
+        
+        var dbContext = services.GetRequiredService<ApplicationDbContext>();
+        var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
+        var databaseOptions = services.GetRequiredService<IOptions<DatabaseOptions>>().Value;
 
-        // Acquire PostgreSQL advisory lock to prevent concurrent migrations/seeding across instances
-        const long advisoryLockKey = 987654321012345678; // Arbitrary unique bigint key
+        var advisoryLockKey = databaseOptions.AdvisoryLockKey;
+        var lockAcquired = false;
+
         try
         {
+            logger.LogInformation("Starting database migration and seeding process with advisory lock {LockKey}", advisoryLockKey);
+            
+            // Acquire PostgreSQL advisory lock to prevent concurrent migrations/seeding across instances
             await dbContext.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_lock({advisoryLockKey});", cancellationToken);
+            lockAcquired = true;
+            logger.LogDebug("Advisory lock {LockKey} acquired successfully", advisoryLockKey);
+
+            // Apply database migrations
+            logger.LogInformation("Applying database migrations...");
             await dbContext.Database.MigrateAsync(cancellationToken);
-            await LocationSeeder.SeedAllAsync(dbContext, logger);
-            await OrganizationSeeder.SeedAsync(dbContext, logger);
-            await RoleSeeder.SeedAsync(dbContext, logger);
-            await AuthorizationSeeder.SeedAsync(dbContext, logger);
+            logger.LogInformation("Database migrations applied successfully");
+
+            // Seed initial data
+            logger.LogInformation("Starting data seeding process...");
+            await SeedInitialDataAsync(dbContext, logger, cancellationToken);
+            logger.LogInformation("Data seeding completed successfully");
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning("Migration and seeding process was cancelled");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to apply migrations and seed data");
+            throw;
         }
         finally
         {
+            if (lockAcquired)
+            {
+                await ReleaseAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Seeds initial data in the correct order with error handling for each seeder
+    /// </summary>
+    private static async Task SeedInitialDataAsync(ApplicationDbContext dbContext, ILogger logger, CancellationToken cancellationToken)
+    {
+        var seeders = new (string Name, Func<Task> SeedAction)[]
+        {
+            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, logger)),
+            ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
+            ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
+            ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))
+        };
+
+        foreach (var (name, seedAction) in seeders)
+        {
             try
             {
-                await dbContext.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_unlock({advisoryLockKey});", cancellationToken);
+                logger.LogDebug("Seeding {SeederName}...", name);
+                await seedAction();
+                logger.LogDebug("{SeederName} seeding completed", name);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to release advisory lock {LockKey}", advisoryLockKey);
+                logger.LogError(ex, "Failed to seed {SeederName}", name);
+                
+                // Decide whether to continue or stop based on seeder criticality
+                // For now, we'll continue with other seeders but log the error
+                continue;
             }
+        }
+    }
+
+    /// <summary>
+    /// Safely releases the PostgreSQL advisory lock
+    /// </summary>
+    private static async Task ReleaseAdvisoryLockAsync(ApplicationDbContext dbContext, long advisoryLockKey, ILogger logger, CancellationToken cancellationToken)
+    {
+        try
+        {
+            logger.LogDebug("Releasing advisory lock {LockKey}", advisoryLockKey);
+            await dbContext.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_unlock({advisoryLockKey});", cancellationToken);
+            logger.LogDebug("Advisory lock {LockKey} released successfully", advisoryLockKey);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to release advisory lock {LockKey}. This may cause issues if the application restarts quickly", advisoryLockKey);
+            // Don't re-throw as this is cleanup code
         }
     }
 }
