@@ -111,4 +111,15 @@ public class FilesController(IMediator mediator) : ControllerBase
         return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{type}_template-file.xlsx");
     }
 
+    [HttpGet("download/wireless-validation/{municipalityId}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<Stream>>> DownloadWirelessValidationTemplate(Guid municipalityId)
+    {
+        var res = await _mediator.Send(new DownloadWirelessValidationTemplateRequest(municipalityId));
+        if(res.Succeeded is false || res.Data is null || res.Data.Length is 0)
+        {
+            return BadRequest(res);
+        }
+        return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"wireless_validation_template.xlsx");
+    }
 }
