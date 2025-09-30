@@ -111,6 +111,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
         services.AddScoped<ICellSectorRepository, CellSectorRepository>();
         services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
+        services.AddScoped<IWirelessValidationRepository, WirelessValidationRepository>();
         services.AddScoped<IConnectivityAssessmentRepository, ConnectivityAssessmentRepository>();
         services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
 
@@ -122,6 +123,7 @@ public static class InfrastructureDependencyInjection
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
+        services.AddTransient<IProcessWirelessValidationJob, ProcessWirelessValidationJob>();
 
         await Task.Run(async () =>
         {
@@ -138,7 +140,6 @@ public static class InfrastructureDependencyInjection
             // Then seed population data (from Excel file in the working directory)
             await PopulationSeeder.SeedAsync(dbContext, logger);
             
-            // Continue with other seeders
             await OrganizationSeeder.SeedAsync(dbContext, logger);
             await RoleSeeder.SeedAsync(dbContext, logger);
             await AuthorizationSeeder.SeedAsync(dbContext, logger);
