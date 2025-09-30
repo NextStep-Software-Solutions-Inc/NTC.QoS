@@ -1110,8 +1110,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("NetworkId");
 
                     b.ToTable("CellularCoverages");
-<<<<<<< HEAD
-=======
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
@@ -1262,7 +1260,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
 
                     b.ToTable("ConnectivityAssessments");
->>>>>>> development
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
@@ -2426,32 +2423,18 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("UserTypes");
                 });
 
-<<<<<<< HEAD
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
-=======
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
->>>>>>> development
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("Address")
-<<<<<<< HEAD
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("BandId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BarangayId")
-                        .HasColumnType("uuid");
-=======
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<double>("CoverageRadiusMeters")
                         .HasColumnType("double precision");
->>>>>>> development
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2467,21 +2450,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-<<<<<<< HEAD
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsMarginal")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal?>("RSRP")
-                        .HasColumnType("numeric");
-
-                    b.Property<Guid>("ServiceProviderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TechnologyId")
-=======
                     b.Property<string>("EstablishmentType")
                         .HasColumnType("text");
 
@@ -2520,7 +2488,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("ServiceProviderId")
->>>>>>> development
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -2532,23 +2499,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-<<<<<<< HEAD
-                    b.HasIndex("BandId");
-
-                    b.HasIndex("BarangayId")
-                        .HasDatabaseName("IX_WirelessValidation_BarangayId");
-
-                    b.HasIndex("IsMarginal")
-                        .HasDatabaseName("IX_WirelessValidation_IsMarginal");
-
-                    b.HasIndex("ServiceProviderId")
-                        .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
-
-                    b.HasIndex("TechnologyId", "BandId")
-                        .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
-
-                    b.ToTable("WirelessValidations");
-=======
                     b.HasIndex("Location")
                         .HasDatabaseName("IX_WiFiHotspot_Location");
 
@@ -2560,13 +2510,18 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasDatabaseName("IX_WiFiHotspot_Active_Public");
 
                     b.ToTable("WiFiHotspots");
->>>>>>> development
                 });
 
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("BarangayId")
@@ -2589,9 +2544,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<bool>("IsMarginal")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("RSRP")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("ServiceProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TechnologyId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2602,9 +2565,59 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BarangayId");
+                    b.HasIndex("BandId");
 
-                    b.ToTable("Zone");
+                    b.HasIndex("BarangayId")
+                        .HasDatabaseName("IX_WirelessValidation_BarangayId");
+
+                    b.HasIndex("IsMarginal")
+                        .HasDatabaseName("IX_WirelessValidation_IsMarginal");
+
+                    b.HasIndex("ServiceProviderId")
+                        .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
+
+                    b.HasIndex("TechnologyId", "BandId")
+                        .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
+
+                    b.ToTable("WirelessValidations");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
+                        .WithMany()
+                        .HasForeignKey("ServiceProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceProvider");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
+                        .WithMany()
+                        .HasForeignKey("BarangayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
+                        .WithMany()
+                        .HasForeignKey("TechnologyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
@@ -3060,7 +3073,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
-<<<<<<< HEAD
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
+                        .WithMany()
+                        .HasForeignKey("ServiceProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceProvider");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Band", null)
@@ -3076,25 +3099,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
-=======
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
-                {
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
->>>>>>> development
                         .WithMany()
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-<<<<<<< HEAD
                     b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
                         .WithMany()
                         .HasForeignKey("TechnologyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-=======
-                    b.Navigation("ServiceProvider");
->>>>>>> development
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
