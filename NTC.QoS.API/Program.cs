@@ -182,18 +182,11 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
-        // Conditional Hangfire dashboard exposure
-        if (env.IsDevelopment())
+        // Hangfire dashboard with authorization
+        app.UseHangfireDashboard("/hangfire", new DashboardOptions
         {
-            app.UseHangfireDashboard();
-        }
-        else
-        {
-            app.UseHangfireDashboard("/hangfire", new DashboardOptions
-            {
-                Authorization = [new HangfireDashboardAuthorizationFilter()]
-            });
-        }
+            Authorization = [new HangfireDashboardAuthorizationFilter()]
+        });
 
         app.ConfigureExceptionHandler(app.Logger);
 
