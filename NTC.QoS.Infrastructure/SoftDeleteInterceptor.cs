@@ -8,12 +8,10 @@ namespace NTC.QoS.Infrastructure;
 public class SoftDeleteInterceptor : ISaveChangesInterceptor
 {
     private readonly IUserContextService _userContextService;
-    private readonly ITimeProvider _timeProvider;
 
-    public SoftDeleteInterceptor(IUserContextService userContextService, ITimeProvider timeProvider)
+    public SoftDeleteInterceptor(IUserContextService userContextService)
     {
         _userContextService = userContextService;
-        _timeProvider = timeProvider;
     }
 
     public void SaveChangesFailed(DbContextErrorEventData eventData) { }
@@ -35,7 +33,7 @@ public class SoftDeleteInterceptor : ISaveChangesInterceptor
     private void ApplySoftDelete(DbContext context)
     {
         var userId = _userContextService.GetCurrentUserId() ?? "System";
-        var now = _timeProvider.UtcNow;
+        var now = DateTime.UtcNow;
 
         foreach (var entry in context.ChangeTracker.Entries<BaseEntity>())
         {

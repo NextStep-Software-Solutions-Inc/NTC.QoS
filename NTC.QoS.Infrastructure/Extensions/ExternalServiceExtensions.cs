@@ -28,7 +28,6 @@ internal static class ExternalServiceExtensions
 
         // Core services
         services.AddScoped<IUserContextService, UserContextService>();
-        services.AddSingleton<ITimeProvider, SystemTimeProvider>();
 
         return services;
     }

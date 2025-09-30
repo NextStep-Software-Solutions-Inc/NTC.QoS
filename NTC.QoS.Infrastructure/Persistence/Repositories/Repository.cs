@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Infrastructure.Exceptions;
 using System.Linq.Expressions;
 
@@ -14,14 +13,11 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
 {
     protected readonly ApplicationDbContext _context;
     private readonly IUserContextService _userContext;
-    private readonly ITimeProvider _timeProvider;
 
-    public Repository(ApplicationDbContext context, IUserContextService? userContext = null, ITimeProvider? timeProvider = null)
+    public Repository(ApplicationDbContext context, IUserContextService? userContext = null)
     {
         _context = context;
-        var serviceProvider = context.GetService<IServiceProvider>();
-        _userContext = userContext ?? serviceProvider.GetRequiredService<IUserContextService>();
-        _timeProvider = timeProvider ?? serviceProvider.GetRequiredService<ITimeProvider>();
+        _userContext = userContext ?? context.GetService<IServiceProvider>().GetRequiredService<IUserContextService>();
     }
 
     [Obsolete("FindAsync is deprecated. Use the Query method with appropriate filters instead then call FirstOrDefaultAsync().")]
@@ -109,6 +105,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         ArgumentNullException.ThrowIfNull(queryable);
         var list = await queryable.ToListAsync(cancellationToken);
         if (list.Count == 0) return 0;
+        
         foreach (var entity in list.Where(e => !e.IsDeleted))
         {
             entity.IsDeleted = true;
@@ -117,7 +114,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
             entity.UpdatedAt = utcNow;
             entity.UpdatedBy = userId ?? "System";
         }
-        await _context.SaveChangesAsync(cancellationToken);
+
         return list.Count(e => e.IsDeleted);
     }
 
@@ -126,21 +123,22 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         ArgumentNullException.ThrowIfNull(queryable);
         var list = await queryable.ToListAsync(cancellationToken);
         if (list.Count == 0) return 0;
+        
         foreach (var entity in list.Where(e => e.IsDeleted))
         {
             entity.IsDeleted = false;
             entity.DeletedAt = null;
-            entity.DeletedBy = string.Empty; // Use empty string instead of null
+            entity.DeletedBy = string.Empty;
             entity.UpdatedAt = utcNow;
             entity.UpdatedBy = userId ?? "System";
         }
-        await _context.SaveChangesAsync(cancellationToken);
+
         return list.Count(e => !e.IsDeleted);
     }
 
     public Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => SoftDeleteAsync(queryable, _userContext.GetCurrentUserId(), _timeProvider.UtcNow, cancellationToken);
+        => SoftDeleteAsync(queryable, _userContext.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
 
     public Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => RestoreAsync(queryable, _userContext.GetCurrentUserId(), _timeProvider.UtcNow, cancellationToken);
+        => RestoreAsync(queryable, _userContext.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
 }
