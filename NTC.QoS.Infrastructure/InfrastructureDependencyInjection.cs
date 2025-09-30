@@ -20,7 +20,6 @@ public static class InfrastructureDependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
-        var hangfireConnectionString = configuration.GetConnectionString("HangfireConnection");
 
         services.AddLogging();
 
@@ -51,7 +50,7 @@ public static class InfrastructureDependencyInjection
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
             .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(s => s.UseNpgsqlConnection(hangfireConnectionString))
+            .UsePostgreSqlStorage(s => s.UseNpgsqlConnection(connectionString))
             .UseDashboardMetrics()
         );
 
