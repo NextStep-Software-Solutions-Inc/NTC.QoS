@@ -22,8 +22,10 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+
         // load appsettings based on the env
         var env = builder.Environment.EnvironmentName ?? "Production";
+        // load appsettings based on the env
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
         builder.Configuration.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
 
@@ -132,7 +134,6 @@ public class Program
 
         var app = builder.Build();
         app.UseCors();
-        
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {

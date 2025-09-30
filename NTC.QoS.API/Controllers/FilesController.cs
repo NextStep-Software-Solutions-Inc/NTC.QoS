@@ -2,8 +2,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
-using NTC.QoS.Application.Features.Municipality.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
@@ -124,17 +122,6 @@ public class FilesController(IMediator mediator) : ControllerBase
         {
             return BadRequest(res);
         }
-
-        var municipalityResponse = await _mediator.Send(new GetMunicipalityByIdRequest(municipalityId));
-
-        string name = "unknown";
-        if (municipalityResponse.Succeeded && municipalityResponse.Data is not null)
-        {
-            name = municipalityResponse.Data.Name?.Replace(" ", "_") ?? "unknown";
-        }
-
-        return File(res.Data,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        $"wireless_validation_template-{name}.xlsx");
+        return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"wireless_validation_template.xlsx");
     }
 }

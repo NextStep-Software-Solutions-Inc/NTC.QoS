@@ -16,7 +16,6 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
             .Include(st => st.ServiceProvider)
                 .ThenInclude(sp => sp.Service)
             .Include(st => st.Generation)
-            .Include(st => st.Technology)
             .AsQueryable();
 
         if (expression != null)
@@ -27,3 +26,4 @@ internal sealed class SpeedtestRepository(ApplicationDbContext context)
         return query;
     }
 }
+
