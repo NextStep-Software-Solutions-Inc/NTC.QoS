@@ -1,18 +1,12 @@
-﻿using Hangfire;
-using Hangfire.PostgreSql;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Infrastructure.BackgroundTasks;
 using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
-using NTC.QoS.Infrastructure.Persistence.Repositories;
 using NTC.QoS.Infrastructure.Seed;
-using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure;
 
