@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NTC.QoS.Infrastructure.Configuration;
+using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure.Extensions;
 

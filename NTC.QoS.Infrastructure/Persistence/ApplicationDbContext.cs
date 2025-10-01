@@ -49,6 +49,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
     public DbSet<UserRegion> UserRegions { get; set; }
+    public DbSet<WirelessValidation> WirelessValidations { get; set; }
+    public DbSet<ConnectivityAssessment> ConnectivityAssessments { get; set; }
+    public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
@@ -246,9 +250,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(n => n.Location)
             .HasDatabaseName("IX_NAP_Location")
             .HasMethod("GIST");
-
-        modelBuilder.Entity<Zone>()
-            .HasMany(z => z.NAPs);
 
         modelBuilder.Entity<Speedtest>()
             .HasOne(s => s.ServiceProvider)
@@ -515,6 +516,84 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(st => st.Generation)
             .WithMany(g => g.SystemTypes)
             .HasForeignKey(st => st.GenerationId);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<ServiceProvider>()
+            .WithMany()
+            .HasForeignKey(wv => wv.ServiceProviderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Barangay>()
+            .WithMany()
+            .HasForeignKey(wv => wv.BarangayId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Band>()
+            .WithMany()
+            .HasForeignKey(wv => wv.BandId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Technology>()
+            .WithMany()
+            .HasForeignKey(wv => wv.TechnologyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.ServiceProviderId)
+            .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.BarangayId)
+            .HasDatabaseName("IX_WirelessValidation_BarangayId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => new { wv.TechnologyId, wv.BandId })
+            .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.IsMarginal)
+            .HasDatabaseName("IX_WirelessValidation_IsMarginal");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .Property(ca => ca.Location)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => ca.Location)
+            .HasDatabaseName("IX_ConnectivityAssessment_Location")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => new { ca.LocationId, ca.LocationType })
+            .IsUnique()
+            .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => ca.ConnectivityStatus)
+            .HasDatabaseName("IX_ConnectivityAssessment_Status");
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .HasOne(w => w.ServiceProvider)
+            .WithMany()
+            .HasForeignKey(w => w.ServiceProviderId);
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .Property(w => w.Location)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .HasIndex(w => w.Location)
+            .HasDatabaseName("IX_WiFiHotspot_Location")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .HasIndex(w => new { w.IsActive, w.IsPublic })
+            .HasDatabaseName("IX_WiFiHotspot_Active_Public");
 
         base.OnModelCreating(modelBuilder);
     }

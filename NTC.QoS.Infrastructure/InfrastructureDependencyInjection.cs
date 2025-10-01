@@ -59,18 +59,6 @@ public static class InfrastructureDependencyInjection
 
         try
         {
-            logger.LogInformation("Starting database migration and seeding process with advisory lock {LockKey}", advisoryLockKey);
-            
-            // Acquire PostgreSQL advisory lock to prevent concurrent migrations/seeding across instances
-            await dbContext.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_lock({advisoryLockKey});", cancellationToken);
-            lockAcquired = true;
-            logger.LogDebug("Advisory lock {LockKey} acquired successfully", advisoryLockKey);
-
-            // Apply database migrations
-            logger.LogInformation("Applying database migrations...");
-            await dbContext.Database.MigrateAsync(cancellationToken);
-            logger.LogInformation("Database migrations applied successfully");
-
             // Seed initial data
             logger.LogInformation("Starting data seeding process...");
             await SeedInitialDataAsync(dbContext, logger, cancellationToken);
@@ -108,23 +96,12 @@ public static class InfrastructureDependencyInjection
             ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))
         };
 
-        foreach (var (name, seedAction) in seeders)
-        {
-            try
-            {
-                logger.LogDebug("Seeding {SeederName}...", name);
-                await seedAction();
-                logger.LogDebug("{SeederName} seeding completed", name);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to seed {SeederName}", name);
-                
-                // Decide whether to continue or stop based on seeder criticality
-                // For now, we'll continue with other seeders but log the error
-                continue;
-            }
-        }
+        // migrate first
+        await dbContext.Database.MigrateAsync(cancellationToken);
+        await LocationSeeder.SeedAllAsync(dbContext, logger);
+        await OrganizationSeeder.SeedAsync(dbContext, logger);
+        await RoleSeeder.SeedAsync(dbContext, logger);
+        await AuthorizationSeeder.SeedAsync(dbContext, logger);
     }
 
     /// <summary>
