@@ -10,6 +10,9 @@
     <Folder Include="Exceptions\" />
     <Folder Include="Features\Province\Handlers\Commands\" />
     <Folder Include="Features\Province\Handlers\Queries\" />
+    <Folder Include="Features\Reports\Handlers\Commands\" />
+    <Folder Include="Features\Reports\Handlers\Queries\" />
+    <Folder Include="Features\Reports\Requests\" />
     <Folder Include="Mappers\" />
   </ItemGroup>
 
