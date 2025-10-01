@@ -112,7 +112,11 @@ public static class InfrastructureDependencyInjection
         try
         {
             logger.LogDebug("Releasing advisory lock {LockKey}", advisoryLockKey);
-            await dbContext.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_unlock({advisoryLockKey});", cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_unlock({0});", 
+                new object[] { advisoryLockKey }, 
+                cancellationToken
+            );
             logger.LogDebug("Advisory lock {LockKey} released successfully", advisoryLockKey);
         }
         catch (Exception ex)
