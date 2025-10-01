@@ -39,6 +39,7 @@ public static class ApplicationDependencyInjection
 
         // Register Application Services
         services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
+        services.AddScoped<IConnectivityReportingService, ConnectivityReportingService>();
 
         // Configure ConnectivityCache options
         services.Configure<ConnectivityCacheOptions>(

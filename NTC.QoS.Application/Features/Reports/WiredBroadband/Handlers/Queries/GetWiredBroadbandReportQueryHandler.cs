@@ -15,6 +15,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     private readonly IBarangayRepository _barangayRepository;
     private readonly INAPRepository _napRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
+    private readonly IConnectivityAssessmentRepository _connectivityAssessmentRepository;
     private readonly ILogger<GetWiredBroadbandReportQueryHandler> _logger;
 
     public GetWiredBroadbandReportQueryHandler(
@@ -22,12 +23,14 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         IBarangayRepository barangayRepository,
         INAPRepository napRepository,
         ISpeedtestRepository speedtestRepository,
+        IConnectivityAssessmentRepository connectivityAssessmentRepository,
         ILogger<GetWiredBroadbandReportQueryHandler> logger)
     {
         _municipalityRepository = municipalityRepository;
         _barangayRepository = barangayRepository;
         _napRepository = napRepository;
         _speedtestRepository = speedtestRepository;
+        _connectivityAssessmentRepository = connectivityAssessmentRepository;
         _logger = logger;
     }
 
@@ -35,7 +38,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     {
         try
         {
-            _logger.LogInformation("Generating wired broadband report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}",
+            _logger.LogInformation("Generating wired broadband report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId} (Enhanced with Connectivity Assessments)",
                 request.RegionId, request.ProvinceId, request.MunicipalityId);
 
             // Build municipality query with geographic filters
@@ -83,10 +86,10 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             var municipalityBroadbandData = new List<MunicipalityBroadbandDto>();
             var allProvidersFound = new HashSet<string>();
 
-            // Process each municipality
+            // Process each municipality using enhanced connectivity assessment approach
             foreach (var municipality in municipalities)
             {
-                var municipalityDto = await ProcessMunicipalityAsync(municipality, request, cancellationToken);
+                var municipalityDto = await ProcessMunicipalityEnhancedAsync(municipality, request, cancellationToken);
                 
                 // Collect all providers found
                 foreach (var barangay in municipalityDto.Barangays)
@@ -121,13 +124,13 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 Summary = summary
             };
 
-            _logger.LogInformation("Wired broadband report generated successfully. {TotalMunicipalities} municipalities, {TotalBarangays} barangays processed",
+            _logger.LogInformation("Enhanced wired broadband report generated successfully. {TotalMunicipalities} municipalities, {TotalBarangays} barangays processed (leveraged connectivity assessments where available)",
                 summary.TotalMunicipalities, summary.TotalBarangays);
 
             return new ApiResponse<WiredBroadbandReportDto>
             {
                 Succeeded = true,
-                Message = $"Wired broadband report generated successfully for {summary.TotalMunicipalities} municipalities and {summary.TotalBarangays} barangays.",
+                Message = $"Wired broadband report generated successfully for {summary.TotalMunicipalities} municipalities and {summary.TotalBarangays} barangays (enhanced with connectivity assessments).",
                 Data = result
             };
         }
@@ -146,11 +149,29 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         }
     }
 
-    private async Task<MunicipalityBroadbandDto> ProcessMunicipalityAsync(
+    /// <summary>
+    /// Enhanced municipality processing that leverages connectivity assessments where available,
+    /// falling back to direct calculation for real-time data or when assessments are unavailable
+    /// </summary>
+    private async Task<MunicipalityBroadbandDto> ProcessMunicipalityEnhancedAsync(
         Domain.Entities.Municipality municipality, 
         GetWiredBroadbandReportQuery request, 
         CancellationToken cancellationToken)
     {
+        // Check if we have recent connectivity assessment for this municipality
+        var municipalityAssessment = await _connectivityAssessmentRepository
+            .GetByLocationAsync(municipality.Id, LocationTypeEnum.Municipality, cancellationToken);
+
+        var useAssessmentData = municipalityAssessment != null && 
+                               municipalityAssessment.LastUpdated > DateTime.UtcNow.AddDays(-30) &&
+                               !HasDateFilters(request); // Don't use cached data if user wants specific date range
+
+        if (useAssessmentData)
+        {
+            _logger.LogInformation("Using connectivity assessment data for municipality {MunicipalityName} (last updated: {LastUpdated})",
+                municipality.Name, municipalityAssessment!.LastUpdated);
+        }
+
         // Get barangays for this municipality
         var barangays = await _barangayRepository
             .Query(b => b.MunicipalityId == municipality.Id)
@@ -161,7 +182,29 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
         foreach (var barangay in barangays)
         {
-            var barangayDto = await ProcessBarangayAsync(barangay, request, cancellationToken);
+            BarangayBroadbandDto barangayDto;
+
+            // Check for barangay-level assessment first
+            var barangayAssessment = await _connectivityAssessmentRepository
+                .GetByLocationAsync(barangay.Id, LocationTypeEnum.Barangay, cancellationToken);
+
+            var useBarangayAssessment = barangayAssessment != null && 
+                                       barangayAssessment.LastUpdated > DateTime.UtcNow.AddDays(-30) &&
+                                       !HasDateFilters(request);
+
+            if (useBarangayAssessment)
+            {
+                // Use pre-calculated connectivity assessment data
+                barangayDto = await ProcessBarangayFromAssessmentAsync(barangay, barangayAssessment!, cancellationToken);
+                _logger.LogDebug("Used connectivity assessment for barangay {BarangayName}", barangay.Name);
+            }
+            else
+            {
+                // Fallback to real-time calculation (original logic)
+                barangayDto = await ProcessBarangayDirectAsync(barangay, request, cancellationToken);
+                _logger.LogDebug("Used direct calculation for barangay {BarangayName}", barangay.Name);
+            }
+
             barangayBroadbandData.Add(barangayDto);
         }
 
@@ -174,11 +217,64 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         };
     }
 
-    private async Task<BarangayBroadbandDto> ProcessBarangayAsync(
+    /// <summary>
+    /// Process barangay using pre-calculated connectivity assessment data (high performance)
+    /// </summary>
+    private async Task<BarangayBroadbandDto> ProcessBarangayFromAssessmentAsync(
+        Domain.Entities.Barangay barangay,
+        Domain.Entities.ConnectivityAssessment assessment,
+        CancellationToken cancellationToken)
+    {
+        // Extract wired broadband provider information from assessment
+        var providers = new List<string>();
+        
+        // If the assessment has a dominant provider for fixed broadband, include it
+        if (!string.IsNullOrEmpty(assessment.DominantServiceProvider) && assessment.FiberNAPCount > 0)
+        {
+            providers.Add(assessment.DominantServiceProvider);
+        }
+
+        // For more accurate provider data, we could enhance the assessment to store provider breakdown
+        // For now, we'll do a quick query for active providers if we need more detail
+        if (assessment.FiberNAPCount > 0)
+        {
+            var activeProviders = await GetActiveWiredProvidersInBarangay(barangay.Id, cancellationToken);
+            providers.AddRange(activeProviders);
+            providers = providers.Distinct().ToList();
+        }
+
+        var providerAvailability = new ServiceProviderAvailabilityDto();
+        foreach (var provider in providers)
+        {
+            providerAvailability.Providers[provider] = true;
+        }
+
+        // Map connectivity status from assessment to service status
+        var serviceStatus = MapConnectivityStatusToServiceStatus(assessment.ConnectivityStatus);
+
+        // Generate remarks based on assessment data
+        var remarks = GenerateRemarksFromAssessment(assessment);
+
+        return new BarangayBroadbandDto
+        {
+            Id = barangay.Id,
+            Name = barangay.Name,
+            Code = barangay.Code,
+            ProviderAvailability = providerAvailability,
+            ServiceStatus = serviceStatus,
+            Remarks = remarks
+        };
+    }
+
+    /// <summary>
+    /// Process barangay using direct calculation (original logic, used when assessment unavailable)
+    /// </summary>
+    private async Task<BarangayBroadbandDto> ProcessBarangayDirectAsync(
         Domain.Entities.Barangay barangay,
         GetWiredBroadbandReportQuery request,
         CancellationToken cancellationToken)
     {
+        // Original implementation - direct calculation
         // Get NAP data (Network Access Points) for wired broadband services
         var napQuery = _napRepository.Query()
             .Include(n => n.ServiceProvider)
@@ -245,13 +341,92 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         };
     }
 
+    /// <summary>
+    /// Get active wired providers in a barangay for enhanced provider detail
+    /// </summary>
+    private async Task<List<string>> GetActiveWiredProvidersInBarangay(Guid barangayId, CancellationToken cancellationToken)
+    {
+        var barangayBoundary = await _barangayRepository.FirstOrDefaultAsync(
+            _barangayRepository.Query(b => b.Id == barangayId).Select(b => b.Boundaries), 
+            cancellationToken);
+
+        if (barangayBoundary == null) return [];
+
+        var providers = await _napRepository.ToListAsync(
+            _napRepository.Query()
+                .Where(n => n.ServiceProvider.Service.Type == ServiceTypeEnum.Wired &&
+                           n.Location != null &&
+                           barangayBoundary.Intersects(n.Location))
+                .Select(n => n.ServiceProvider.Provider.Name)
+                .Distinct(),
+            cancellationToken);
+
+        return providers.Where(p => !string.IsNullOrEmpty(p)).ToList();
+    }
+
+    /// <summary>
+    /// Map connectivity status from assessment to report service status
+    /// </summary>
+    private static ServiceStatusEnum MapConnectivityStatusToServiceStatus(ConnectivityStatusEnum connectivityStatus)
+    {
+        return connectivityStatus switch
+        {
+            ConnectivityStatusEnum.Served => ServiceStatusEnum.Served,
+            ConnectivityStatusEnum.Underserved => ServiceStatusEnum.Underserved,
+            ConnectivityStatusEnum.Unserved => ServiceStatusEnum.Unserved,
+            _ => ServiceStatusEnum.Unserved
+        };
+    }
+
+    /// <summary>
+    /// Generate remarks based on assessment data
+    /// </summary>
+    private static string GenerateRemarksFromAssessment(Domain.Entities.ConnectivityAssessment assessment)
+    {
+        var remarks = assessment.ConnectivityStatus switch
+        {
+            ConnectivityStatusEnum.Served => "SERVED",
+            ConnectivityStatusEnum.Underserved => "UNDERSERVED", 
+            ConnectivityStatusEnum.Unserved => "UNSERVED",
+            _ => "UNSERVED"
+        };
+
+        // Enhance remarks with assessment details
+        if (assessment.FiberNAPCount > 0)
+        {
+            remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
+        }
+
+        if (assessment.ServiceProviderCount > 1)
+        {
+            remarks += $" - {assessment.ServiceProviderCount} providers";
+        }
+
+        if (assessment.MeetsMinimumSpeedRequirement)
+        {
+            remarks += " - Meets speed requirements";
+        }
+
+        return remarks;
+    }
+
+    /// <summary>
+    /// Check if the request has date filters that would require real-time calculation
+    /// </summary>
+    private static bool HasDateFilters(GetWiredBroadbandReportQuery request)
+    {
+        return request.StartDate.HasValue || request.EndDate.HasValue;
+    }
+
+    // ... Keep all existing helper methods (DetermineProviderAvailability, DetermineServiceStatus, GenerateSummary)
+    
     private ServiceProviderAvailabilityDto DetermineProviderAvailability(
         IEnumerable<Domain.Aggregates.NAP> naps, 
         IEnumerable<Domain.Entities.Speedtest> speedtests)
     {
         var availability = new ServiceProviderAvailabilityDto();
 
-        // Get unique provider names from NAPs and speedtests
+        // Get unique provider names from both data sources
         var providerNames = naps.Select(n => n.ServiceProvider.Provider.Name.Trim())
             .Concat(speedtests.Select(s => s.ServiceProvider.Provider.Name.Trim()))
             .Distinct(StringComparer.OrdinalIgnoreCase)
