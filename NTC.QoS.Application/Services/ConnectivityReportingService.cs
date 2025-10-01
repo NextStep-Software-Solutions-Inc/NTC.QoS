@@ -113,8 +113,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
         DateTime? endDate = null,
         CancellationToken cancellationToken = default)
     {
-        // Similar implementation for wireless using assessment data
-        // This would leverage the technology breakdown from connectivity assessments
+        // Simulate async operation to avoid CS1998 warning
+        await Task.Yield();
         throw new NotImplementedException("Wireless report implementation pending");
     }
 
