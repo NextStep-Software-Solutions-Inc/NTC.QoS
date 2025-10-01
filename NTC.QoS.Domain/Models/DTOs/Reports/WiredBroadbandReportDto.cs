@@ -30,17 +30,19 @@ public class BarangayBroadbandDto
 
 public class ServiceProviderAvailabilityDto
 {
-    public bool PLDT { get; set; }
-    public bool Globe { get; set; }
-    public bool Converge { get; set; }
-    public bool Parasat { get; set; }
-    public bool DCTech { get; set; }
-    public bool SouthernCablevision { get; set; }
-    public bool Others { get; set; }
+    /// <summary>
+    /// Dictionary of provider names and their availability status
+    /// Key: Provider name, Value: Available (true/false)
+    /// </summary>
+    public Dictionary<string, bool> Providers { get; set; } = new();
     
-    public bool HasAnyProvider => PLDT || Globe || Converge || Parasat || DCTech || SouthernCablevision || Others;
-    public int ProviderCount => (PLDT ? 1 : 0) + (Globe ? 1 : 0) + (Converge ? 1 : 0) + 
-                               (Parasat ? 1 : 0) + (DCTech ? 1 : 0) + (SouthernCablevision ? 1 : 0) + (Others ? 1 : 0);
+    /// <summary>
+    /// List of available provider names for easier access
+    /// </summary>
+    public List<string> AvailableProviders => Providers.Where(p => p.Value).Select(p => p.Key).ToList();
+    
+    public bool HasAnyProvider => Providers.Any(p => p.Value);
+    public int ProviderCount => Providers.Count(p => p.Value);
 }
 
 public class WiredBroadbandSummaryDto
@@ -53,6 +55,17 @@ public class WiredBroadbandSummaryDto
     public double ServedPercentage => TotalBarangays > 0 ? Math.Round((double)ServedBarangays / TotalBarangays * 100, 2) : 0;
     public double UnderservedPercentage => TotalBarangays > 0 ? Math.Round((double)UnderservedBarangays / TotalBarangays * 100, 2) : 0;
     public double UnservedPercentage => TotalBarangays > 0 ? Math.Round((double)UnservedBarangays / TotalBarangays * 100, 2) : 0;
+    
+    /// <summary>
+    /// List of all unique providers found across all barangays
+    /// </summary>
+    public List<string> AllProviders { get; set; } = [];
+    
+    /// <summary>
+    /// Provider statistics - how many barangays each provider serves
+    /// </summary>
+    public Dictionary<string, int> ProviderCoverage { get; set; } = new();
+    
     public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
 }
 

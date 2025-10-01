@@ -17,17 +17,6 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly ILogger<GetWiredBroadbandReportQueryHandler> _logger;
 
-    // Known wired broadband service providers based on the image
-    private static readonly Dictionary<string, string> WiredProviderNames = new()
-    {
-        { "PLDT", "pldt" },
-        { "Globe", "globe" },
-        { "Converge", "converge" },
-        { "Parasat", "parasat" },
-        { "DCTech", "dctech" },
-        { "Southern Cablevision", "southern" }
-    };
-
     public GetWiredBroadbandReportQueryHandler(
         IMunicipalityRepository municipalityRepository,
         IBarangayRepository barangayRepository,
@@ -91,13 +80,22 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 };
             }
 
-            var municipalityIds = municipalities.Select(m => m.Id).ToList();
             var municipalityBroadbandData = new List<MunicipalityBroadbandDto>();
+            var allProvidersFound = new HashSet<string>();
 
             // Process each municipality
             foreach (var municipality in municipalities)
             {
                 var municipalityDto = await ProcessMunicipalityAsync(municipality, request, cancellationToken);
+                
+                // Collect all providers found
+                foreach (var barangay in municipalityDto.Barangays)
+                {
+                    foreach (var provider in barangay.ProviderAvailability.AvailableProviders)
+                    {
+                        allProvidersFound.Add(provider);
+                    }
+                }
                 
                 // Apply filtering if requested
                 if (request.IncludeOnlyServedAreas)
@@ -115,7 +113,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             }
 
             // Generate summary
-            var summary = GenerateSummary(municipalityBroadbandData);
+            var summary = GenerateSummary(municipalityBroadbandData, allProvidersFound.ToList());
 
             var result = new WiredBroadbandReportDto
             {
@@ -230,7 +228,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
         var speedtests = await speedtestQuery.ToListAsync(cancellationToken);
 
-        // Determine provider availability
+        // Determine provider availability dynamically
         var providerAvailability = DetermineProviderAvailability(naps, speedtests);
         
         // Determine service status and remarks
@@ -253,29 +251,17 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     {
         var availability = new ServiceProviderAvailabilityDto();
 
-        // Combine data sources for provider detection
-        var allProviders = naps.Select(n => n.ServiceProvider.Provider.Name.ToLowerInvariant())
-            .Concat(speedtests.Select(s => s.ServiceProvider.Provider.Name.ToLowerInvariant()))
-            .Distinct()
+        // Get unique provider names from NAPs and speedtests
+        var providerNames = naps.Select(n => n.ServiceProvider.Provider.Name.Trim())
+            .Concat(speedtests.Select(s => s.ServiceProvider.Provider.Name.Trim()))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name)
             .ToList();
 
-        // Check for specific providers (case-insensitive matching)
-        foreach (var provider in allProviders)
+        // Set all found providers as available
+        foreach (var providerName in providerNames)
         {
-            if (provider.Contains(WiredProviderNames["PLDT"]))
-                availability.PLDT = true;
-            else if (provider.Contains(WiredProviderNames["Globe"]))
-                availability.Globe = true;
-            else if (provider.Contains(WiredProviderNames["Converge"]))
-                availability.Converge = true;
-            else if (provider.Contains(WiredProviderNames["Parasat"]))
-                availability.Parasat = true;
-            else if (provider.Contains(WiredProviderNames["DCTech"]))
-                availability.DCTech = true;
-            else if (provider.Contains(WiredProviderNames["Southern Cablevision"]))
-                availability.SouthernCablevision = true;
-            else
-                availability.Others = true; // Any other wired provider
+            availability.Providers[providerName] = true;
         }
 
         return availability;
@@ -294,9 +280,18 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         };
     }
 
-    private static WiredBroadbandSummaryDto GenerateSummary(IEnumerable<MunicipalityBroadbandDto> municipalities)
+    private static WiredBroadbandSummaryDto GenerateSummary(IEnumerable<MunicipalityBroadbandDto> municipalities, List<string> allProviders)
     {
         var allBarangays = municipalities.SelectMany(m => m.Barangays).ToList();
+        
+        // Calculate provider coverage
+        var providerCoverage = new Dictionary<string, int>();
+        foreach (var provider in allProviders)
+        {
+            var coverageCount = allBarangays.Count(b => b.ProviderAvailability.Providers.ContainsKey(provider) && 
+                                                      b.ProviderAvailability.Providers[provider]);
+            providerCoverage[provider] = coverageCount;
+        }
 
         return new WiredBroadbandSummaryDto
         {
@@ -305,6 +300,8 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             ServedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Served),
             UnderservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Underserved),
             UnservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Unserved),
+            AllProviders = allProviders,
+            ProviderCoverage = providerCoverage,
             GeneratedAt = DateTime.UtcNow
         };
     }
