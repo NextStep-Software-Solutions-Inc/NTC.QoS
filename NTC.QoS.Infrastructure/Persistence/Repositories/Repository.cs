@@ -12,12 +12,43 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEntity
 {
     protected readonly ApplicationDbContext _context;
-    private readonly IUserContextService _userContext;
+    private readonly IUserContextService? _explicitUserContext;
+    private IUserContextService? _resolvedUserContext;
 
     public Repository(ApplicationDbContext context, IUserContextService? userContext = null)
     {
         _context = context;
-        _userContext = userContext ?? context.GetService<IServiceProvider>().GetRequiredService<IUserContextService>();
+        _explicitUserContext = userContext;
+    }
+
+    /// <summary>
+    /// Gets the user context service, using explicit injection first, then falling back to service resolution
+    /// </summary>
+    private IUserContextService? UserContext
+    {
+        get
+        {
+            // Return explicitly injected service if available
+            if (_explicitUserContext != null)
+                return _explicitUserContext;
+
+            // Try to resolve from context's service provider if not already attempted
+            if (_resolvedUserContext == null)
+            {
+                try
+                {
+                    var serviceProvider = _context.GetService<IServiceProvider>();
+                    _resolvedUserContext = serviceProvider?.GetService<IUserContextService>();
+                }
+                catch
+                {
+                    // If service resolution fails, _resolvedUserContext will remain null
+                    // The methods that need it will handle this gracefully
+                }
+            }
+
+            return _resolvedUserContext;
+        }
     }
 
     [Obsolete("FindAsync is deprecated. Use the Query method with appropriate filters instead then call FirstOrDefaultAsync().")]
@@ -137,8 +168,8 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
     }
 
     public Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => SoftDeleteAsync(queryable, _userContext.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
+        => SoftDeleteAsync(queryable, UserContext?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
 
     public Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => RestoreAsync(queryable, _userContext.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
+        => RestoreAsync(queryable, UserContext?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
 }
