@@ -12,43 +12,38 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEntity
 {
     protected readonly ApplicationDbContext _context;
-    private readonly IUserContextService? _explicitUserContext;
-    private IUserContextService? _resolvedUserContext;
+    private IUserContextService? _userContextService;
+    private bool _userContextResolutionAttempted = false;
 
-    public Repository(ApplicationDbContext context, IUserContextService? userContext = null)
+    public Repository(ApplicationDbContext context)
     {
         _context = context;
-        _explicitUserContext = userContext;
     }
 
     /// <summary>
-    /// Gets the user context service, using explicit injection first, then falling back to service resolution
+    /// Gets the user context service by resolving it from the DbContext's service provider when needed
     /// </summary>
-    private IUserContextService? UserContext
+    private IUserContextService? GetUserContextService()
     {
-        get
+        // Only attempt resolution once
+        if (!_userContextResolutionAttempted)
         {
-            // Return explicitly injected service if available
-            if (_explicitUserContext != null)
-                return _explicitUserContext;
-
-            // Try to resolve from context's service provider if not already attempted
-            if (_resolvedUserContext == null)
+            _userContextResolutionAttempted = true;
+            
+            try
             {
-                try
-                {
-                    var serviceProvider = _context.GetService<IServiceProvider>();
-                    _resolvedUserContext = serviceProvider?.GetService<IUserContextService>();
-                }
-                catch
-                {
-                    // If service resolution fails, _resolvedUserContext will remain null
-                    // The methods that need it will handle this gracefully
-                }
+                var serviceProvider = _context.GetService<IServiceProvider>();
+                _userContextService = serviceProvider?.GetService<IUserContextService>();
             }
-
-            return _resolvedUserContext;
+            catch
+            {
+                // If service resolution fails, _userContextService will remain null
+                // The methods that need it will handle this gracefully
+                _userContextService = null;
+            }
         }
+
+        return _userContextService;
     }
 
     [Obsolete("FindAsync is deprecated. Use the Query method with appropriate filters instead then call FirstOrDefaultAsync().")]
@@ -168,8 +163,8 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
     }
 
     public Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => SoftDeleteAsync(queryable, UserContext?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
+        => SoftDeleteAsync(queryable, GetUserContextService()?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
 
     public Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => RestoreAsync(queryable, UserContext?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
+        => RestoreAsync(queryable, GetUserContextService()?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
 }
