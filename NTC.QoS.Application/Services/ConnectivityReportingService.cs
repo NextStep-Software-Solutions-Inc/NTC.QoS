@@ -38,17 +38,23 @@ public class ConnectivityReportingService : IConnectivityReportingService
     private readonly IConnectivityAssessmentRepository _assessmentRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IBarangayRepository _barangayRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IRegionRepository _regionRepository;
     private readonly ILogger<ConnectivityReportingService> _logger;
 
     public ConnectivityReportingService(
         IConnectivityAssessmentRepository assessmentRepository,
         IMunicipalityRepository municipalityRepository, 
         IBarangayRepository barangayRepository,
+        IProvinceRepository provinceRepository,
+        IRegionRepository regionRepository,
         ILogger<ConnectivityReportingService> logger)
     {
         _assessmentRepository = assessmentRepository;
         _municipalityRepository = municipalityRepository;
         _barangayRepository = barangayRepository;
+        _provinceRepository = provinceRepository;
+        _regionRepository = regionRepository;
         _logger = logger;
     }
 
@@ -87,7 +93,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
                 Name = m.Name,
                 Code = m.Code,
                 Barangays = m.Barangays.Where(b => b.ServiceStatus == ServiceStatusEnum.Served).ToList()
-            }).Where(m => m.Barangays.Any()).ToList();
+            }).Where(m => m.Barangays.Count != 0).ToList();
         }
 
         var allProviders = municipalities
@@ -130,6 +136,21 @@ public class ConnectivityReportingService : IConnectivityReportingService
             .Where(a => a.ConnectivityStatus != ConnectivityStatusEnum.Served)
             .ToList();
 
+        // Build priority areas with proper location names
+        var priorityAreaTasks = gaps.OrderByDescending(a => a.Population ?? 0)
+                              .Take(20)
+                              .Select(async a => new PriorityAreaDto
+                              {
+                                  LocationId = a.LocationId,
+                                  LocationName = await GetLocationNameAsync(a.LocationId, a.LocationType, cancellationToken),
+                                  ConnectivityStatus = a.ConnectivityStatus,
+                                  Population = a.Population,
+                                  TotalScore = a.TotalScore,
+                                  LastAssessed = a.AssessmentDate
+                              });
+
+        var priorityAreas = await Task.WhenAll(priorityAreaTasks);
+
         return new ConnectivityGapReportDto
         {
             TotalUnservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
@@ -138,17 +159,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
                                    .Sum(a => a.Population ?? 0),
             UnderservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
                                       .Sum(a => a.Population ?? 0),
-            PriorityAreas = gaps.OrderByDescending(a => a.Population ?? 0)
-                              .Take(20)
-                              .Select(a => new PriorityAreaDto
-                              {
-                                  LocationId = a.LocationId,
-                                  LocationName = GetLocationName(a.LocationId, a.LocationType),
-                                  ConnectivityStatus = a.ConnectivityStatus,
-                                  Population = a.Population,
-                                  TotalScore = a.TotalScore,
-                                  LastAssessed = a.AssessmentDate
-                              }).ToList(),
+            PriorityAreas = priorityAreas.ToList(),
             GeneratedAt = DateTime.UtcNow
         };
     }
@@ -283,10 +294,46 @@ public class ConnectivityReportingService : IConnectivityReportingService
         };
     }
 
-    private string GetLocationName(Guid locationId, LocationTypeEnum locationType)
+    private async Task<string> GetLocationNameAsync(Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken = default)
     {
-        // Implementation to get location name - could be cached or looked up
-        return $"Location-{locationId}";
+        try
+        {
+            switch (locationType)
+            {
+                case LocationTypeEnum.Barangay:
+                    var barangayQuery = _barangayRepository.Query(b => b.Id == locationId)
+                        .Select(b => b.Name);
+                    var barangayName = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
+                    return barangayName ?? $"Barangay-{locationId}";
+
+                case LocationTypeEnum.Municipality:
+                    var municipalityQuery = _municipalityRepository.Query(m => m.Id == locationId)
+                        .Select(m => m.Name);
+                    var municipalityName = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
+                    return municipalityName ?? $"Municipality-{locationId}";
+
+                case LocationTypeEnum.Provincial:
+                    var provinceQuery = _provinceRepository.Query(p => p.Id == locationId)
+                        .Select(p => p.Name);
+                    var provinceName = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
+                    return provinceName ?? $"Province-{locationId}";
+
+                case LocationTypeEnum.Regional:
+                    var regionQuery = _regionRepository.Query(r => r.Id == locationId)
+                        .Select(r => r.Name);
+                    var regionName = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
+                    return regionName ?? $"Region-{locationId}";
+
+                default:
+                    _logger.LogWarning("Unknown location type '{LocationType}' for location ID '{LocationId}'", locationType, locationId);
+                    return $"Location-{locationId}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving location name for ID '{LocationId}' of type '{LocationType}'", locationId, locationType);
+            return $"Location-{locationId}";
+        }
     }
 }
 
