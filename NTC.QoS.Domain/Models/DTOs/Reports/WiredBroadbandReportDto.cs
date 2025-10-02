@@ -75,3 +75,42 @@ public enum ServiceStatusEnum
     Underserved = 1,
     Served = 2
 }
+
+// Additional DTOs for connectivity gap reporting
+public class ConnectivityGapReportDto
+{
+    public int TotalUnservedAreas { get; set; }
+    public int TotalUnderservedAreas { get; set; }
+    public int UnservedPopulation { get; set; }
+    public int UnderservedPopulation { get; set; }
+    public List<PriorityAreaDto> PriorityAreas { get; set; } = [];
+    public DateTime GeneratedAt { get; set; }
+}
+
+public class PriorityAreaDto
+{
+    public Guid LocationId { get; set; }
+    public string LocationName { get; set; } = string.Empty;
+    public NTC.QoS.Domain.Enums.ConnectivityStatusEnum ConnectivityStatus { get; set; }
+    public int? Population { get; set; }
+    public int TotalScore { get; set; }
+    public DateTime LastAssessed { get; set; }
+}
+
+// Wireless broadband reporting DTOs
+public class WirelessBroadbandReportDto
+{
+    public List<MunicipalityBroadbandDto> Municipalities { get; set; } = [];
+    public WirelessBroadbandSummaryDto Summary { get; set; } = new();
+}
+
+public class WirelessBroadbandSummaryDto
+{
+    public int TotalMunicipalities { get; set; }
+    public int TotalBarangays { get; set; }
+    public int CellCount2G { get; set; }
+    public int CellCount3G { get; set; }
+    public int CellCount4G { get; set; }
+    public int CellCount5G { get; set; }
+    public DateTime GeneratedAt { get; set; }
+}

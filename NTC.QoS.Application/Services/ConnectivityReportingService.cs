@@ -32,6 +32,50 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generate wired broadband report as PDF
+    /// </summary>
+    Task<byte[]> GenerateWiredBroadbandPdfAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        Guid? municipalityId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        bool includeOnlyServedAreas = false,
+        string reportTitle = "Wired Broadband Report",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generate wired broadband report as Excel
+    /// </summary>
+    Task<byte[]> GenerateWiredBroadbandExcelAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        Guid? municipalityId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        bool includeOnlyServedAreas = false,
+        string reportTitle = "Wired Broadband Report",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generate connectivity gap report as PDF
+    /// </summary>
+    Task<byte[]> GenerateConnectivityGapPdfAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        string reportTitle = "Connectivity Gap Analysis Report",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generate connectivity gap report as Excel
+    /// </summary>
+    Task<byte[]> GenerateConnectivityGapExcelAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        string reportTitle = "Connectivity Gap Analysis Report",
+        CancellationToken cancellationToken = default);
 }
 
 public class ConnectivityReportingService : IConnectivityReportingService
@@ -41,6 +85,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
     private readonly IBarangayRepository _barangayRepository;
     private readonly IProvinceRepository _provinceRepository;
     private readonly IRegionRepository _regionRepository;
+    private readonly IReportGenerationService _reportGenerationService;
     private readonly ILogger<ConnectivityReportingService> _logger;
 
     // Cache for location names during the request lifetime
@@ -52,6 +97,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         IBarangayRepository barangayRepository,
         IProvinceRepository provinceRepository,
         IRegionRepository regionRepository,
+        IReportGenerationService reportGenerationService,
         ILogger<ConnectivityReportingService> logger)
     {
         _assessmentRepository = assessmentRepository;
@@ -59,6 +105,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         _barangayRepository = barangayRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _reportGenerationService = reportGenerationService;
         _logger = logger;
     }
 
@@ -167,6 +214,68 @@ public class ConnectivityReportingService : IConnectivityReportingService
             PriorityAreas = priorityAreas,
             GeneratedAt = DateTime.UtcNow
         };
+    }
+
+    public async Task<byte[]> GenerateWiredBroadbandPdfAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        Guid? municipalityId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        bool includeOnlyServedAreas = false,
+        string reportTitle = "Wired Broadband Report",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating wired broadband PDF report");
+
+        var reportData = await GenerateWiredBroadbandReportAsync(
+            regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, cancellationToken);
+
+        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(reportData, reportTitle, cancellationToken);
+    }
+
+    public async Task<byte[]> GenerateWiredBroadbandExcelAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        Guid? municipalityId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        bool includeOnlyServedAreas = false,
+        string reportTitle = "Wired Broadband Report",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating wired broadband Excel report");
+
+        var reportData = await GenerateWiredBroadbandReportAsync(
+            regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, cancellationToken);
+
+        return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(reportData, reportTitle, cancellationToken);
+    }
+
+    public async Task<byte[]> GenerateConnectivityGapPdfAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        string reportTitle = "Connectivity Gap Analysis Report",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating connectivity gap PDF report");
+
+        var reportData = await GenerateConnectivityGapReportAsync(regionId, provinceId, cancellationToken);
+
+        return await _reportGenerationService.GenerateConnectivityGapPdfAsync(reportData, reportTitle, cancellationToken);
+    }
+
+    public async Task<byte[]> GenerateConnectivityGapExcelAsync(
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        string reportTitle = "Connectivity Gap Analysis Report",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating connectivity gap Excel report");
+
+        var reportData = await GenerateConnectivityGapReportAsync(regionId, provinceId, cancellationToken);
+
+        return await _reportGenerationService.GenerateConnectivityGapExcelAsync(reportData, reportTitle, cancellationToken);
     }
 
     private async Task<List<Domain.Entities.ConnectivityAssessment>> GetFilteredAssessmentsAsync(
@@ -372,7 +481,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         List<Guid> locationIds, 
         CancellationToken cancellationToken = default)
     {
-        if (!locationIds.Any())
+        if (locationIds.Count == 0)
             return new Dictionary<Guid, string>();
 
         return locationType switch
@@ -430,42 +539,4 @@ public class ConnectivityReportingService : IConnectivityReportingService
             return fallbackName;
         }
     }
-}
-
-// Supporting DTOs
-public class WirelessBroadbandReportDto
-{
-    public List<MunicipalityBroadbandDto> Municipalities { get; set; } = [];
-    public WirelessBroadbandSummaryDto Summary { get; set; } = new();
-}
-
-public class WirelessBroadbandSummaryDto
-{
-    public int TotalMunicipalities { get; set; }
-    public int TotalBarangays { get; set; }
-    public int CellCount2G { get; set; }
-    public int CellCount3G { get; set; }
-    public int CellCount4G { get; set; }
-    public int CellCount5G { get; set; }
-    public DateTime GeneratedAt { get; set; }
-}
-
-public class ConnectivityGapReportDto
-{
-    public int TotalUnservedAreas { get; set; }
-    public int TotalUnderservedAreas { get; set; }
-    public int UnservedPopulation { get; set; }
-    public int UnderservedPopulation { get; set; }
-    public List<PriorityAreaDto> PriorityAreas { get; set; } = [];
-    public DateTime GeneratedAt { get; set; }
-}
-
-public class PriorityAreaDto
-{
-    public Guid LocationId { get; set; }
-    public string LocationName { get; set; } = string.Empty;
-    public ConnectivityStatusEnum ConnectivityStatus { get; set; }
-    public int? Population { get; set; }
-    public int TotalScore { get; set; }
-    public DateTime LastAssessed { get; set; }
 }

@@ -3,10 +3,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
+using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure;
 
@@ -29,7 +31,17 @@ public static class InfrastructureDependencyInjection
         services.AddExternalServices(configuration);
         services.AddRepositories();
         services.AddBackgroundJobServices();
+        services.AddReportingServices();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Registers reporting services
+    /// </summary>
+    private static IServiceCollection AddReportingServices(this IServiceCollection services)
+    {
+        services.AddScoped<IReportGenerationService, ReportGenerationService>();
         return services;
     }
 
