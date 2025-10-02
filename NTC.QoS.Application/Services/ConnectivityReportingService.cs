@@ -2,6 +2,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 
 namespace NTC.QoS.Application.Services;
 
@@ -41,6 +42,9 @@ public class ConnectivityReportingService : IConnectivityReportingService
     private readonly IProvinceRepository _provinceRepository;
     private readonly IRegionRepository _regionRepository;
     private readonly ILogger<ConnectivityReportingService> _logger;
+
+    // Cache for location names during the request lifetime
+    private readonly ConcurrentDictionary<(Guid, LocationTypeEnum), string> _locationNameCache = new();
 
     public ConnectivityReportingService(
         IConnectivityAssessmentRepository assessmentRepository,
@@ -136,20 +140,21 @@ public class ConnectivityReportingService : IConnectivityReportingService
             .Where(a => a.ConnectivityStatus != ConnectivityStatusEnum.Served)
             .ToList();
 
-        // Build priority areas with proper location names
-        var priorityAreaTasks = gaps.OrderByDescending(a => a.Population ?? 0)
-                              .Take(20)
-                              .Select(async a => new PriorityAreaDto
-                              {
-                                  LocationId = a.LocationId,
-                                  LocationName = await GetLocationNameAsync(a.LocationId, a.LocationType, cancellationToken),
-                                  ConnectivityStatus = a.ConnectivityStatus,
-                                  Population = a.Population,
-                                  TotalScore = a.TotalScore,
-                                  LastAssessed = a.AssessmentDate
-                              });
+        // OPTIMIZED: Batch load location names instead of individual calls
+        var priorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).Take(20).ToList();
+        var locationNames = await GetLocationNamesBatchAsync(
+            priorityGaps.Select(a => (a.LocationId, a.LocationType)).ToList(), 
+            cancellationToken);
 
-        var priorityAreas = await Task.WhenAll(priorityAreaTasks);
+        var priorityAreas = priorityGaps.Select(a => new PriorityAreaDto
+        {
+            LocationId = a.LocationId,
+            LocationName = locationNames.GetValueOrDefault((a.LocationId, a.LocationType), $"Location-{a.LocationId}"),
+            ConnectivityStatus = a.ConnectivityStatus,
+            Population = a.Population,
+            TotalScore = a.TotalScore,
+            LastAssessed = a.AssessmentDate
+        }).ToList();
 
         return new ConnectivityGapReportDto
         {
@@ -159,7 +164,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
                                    .Sum(a => a.Population ?? 0),
             UnderservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
                                       .Sum(a => a.Population ?? 0),
-            PriorityAreas = priorityAreas.ToList(),
+            PriorityAreas = priorityAreas,
             GeneratedAt = DateTime.UtcNow
         };
     }
@@ -294,45 +299,135 @@ public class ConnectivityReportingService : IConnectivityReportingService
         };
     }
 
+    /// <summary>
+    /// Optimized batch method to retrieve multiple location names in minimal database calls
+    /// </summary>
+    private async Task<Dictionary<(Guid, LocationTypeEnum), string>> GetLocationNamesBatchAsync(
+        List<(Guid LocationId, LocationTypeEnum LocationType)> locations, 
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<(Guid, LocationTypeEnum), string>();
+        
+        // Check cache first
+        var uncachedLocations = new List<(Guid, LocationTypeEnum)>();
+        foreach (var location in locations)
+        {
+            if (_locationNameCache.TryGetValue(location, out var cachedName))
+            {
+                result[location] = cachedName;
+            }
+            else
+            {
+                uncachedLocations.Add(location);
+            }
+        }
+
+        if (uncachedLocations.Count == 0)
+            return result;
+
+        // Group by location type for efficient batch queries
+        var locationGroups = uncachedLocations.GroupBy(l => l.Item2);
+
+        var batchTasks = locationGroups.Select(async group =>
+        {
+            var locationType = group.Key;
+            var locationIds = group.Select(g => g.Item1).ToList();
+
+            try
+            {
+                var names = await GetLocationNamesByTypeAsync(locationType, locationIds, cancellationToken);
+                
+                // Cache and add to result
+                foreach (var kvp in names)
+                {
+                    var key = (kvp.Key, locationType);
+                    _locationNameCache.TryAdd(key, kvp.Value);
+                    result[key] = kvp.Value;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error batch loading location names for type '{LocationType}'", locationType);
+                
+                // Add fallback names for failed locations
+                foreach (var locationId in locationIds)
+                {
+                    var fallbackName = $"Location-{locationId}";
+                    var key = (locationId, locationType);
+                    _locationNameCache.TryAdd(key, fallbackName);
+                    result[key] = fallbackName;
+                }
+            }
+        });
+
+        await Task.WhenAll(batchTasks);
+        return result;
+    }
+
+    /// <summary>
+    /// Batch load location names by type with a single query per type
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> GetLocationNamesByTypeAsync(
+        LocationTypeEnum locationType, 
+        List<Guid> locationIds, 
+        CancellationToken cancellationToken = default)
+    {
+        if (!locationIds.Any())
+            return new Dictionary<Guid, string>();
+
+        return locationType switch
+        {
+            LocationTypeEnum.Barangay => await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => locationIds.Contains(b.Id))
+                    .Select(b => new { b.Id, b.Name }), cancellationToken)
+                .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
+
+            LocationTypeEnum.Municipality => await _municipalityRepository.ToListAsync(
+                _municipalityRepository.Query(m => locationIds.Contains(m.Id))
+                    .Select(m => new { m.Id, m.Name }), cancellationToken)
+                .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
+
+            LocationTypeEnum.Provincial => await _provinceRepository.ToListAsync(
+                _provinceRepository.Query(p => locationIds.Contains(p.Id))
+                    .Select(p => new { p.Id, p.Name }), cancellationToken)
+                .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
+
+            LocationTypeEnum.Regional => await _regionRepository.ToListAsync(
+                _regionRepository.Query(r => locationIds.Contains(r.Id))
+                    .Select(r => new { r.Id, r.Name }), cancellationToken)
+                .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
+
+            _ => new Dictionary<Guid, string>()
+        };
+    }
+
+    /// <summary>
+    /// Optimized single location name lookup with caching (for backward compatibility)
+    /// </summary>
     private async Task<string> GetLocationNameAsync(Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken = default)
     {
+        // Check cache first
+        var cacheKey = (locationId, locationType);
+        if (_locationNameCache.TryGetValue(cacheKey, out var cachedName))
+        {
+            return cachedName;
+        }
+
         try
         {
-            switch (locationType)
-            {
-                case LocationTypeEnum.Barangay:
-                    var barangayQuery = _barangayRepository.Query(b => b.Id == locationId)
-                        .Select(b => b.Name);
-                    var barangayName = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
-                    return barangayName ?? $"Barangay-{locationId}";
-
-                case LocationTypeEnum.Municipality:
-                    var municipalityQuery = _municipalityRepository.Query(m => m.Id == locationId)
-                        .Select(m => m.Name);
-                    var municipalityName = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
-                    return municipalityName ?? $"Municipality-{locationId}";
-
-                case LocationTypeEnum.Provincial:
-                    var provinceQuery = _provinceRepository.Query(p => p.Id == locationId)
-                        .Select(p => p.Name);
-                    var provinceName = await _provinceRepository.FirstOrDefaultAsync(provinceQuery, cancellationToken);
-                    return provinceName ?? $"Province-{locationId}";
-
-                case LocationTypeEnum.Regional:
-                    var regionQuery = _regionRepository.Query(r => r.Id == locationId)
-                        .Select(r => r.Name);
-                    var regionName = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
-                    return regionName ?? $"Region-{locationId}";
-
-                default:
-                    _logger.LogWarning("Unknown location type '{LocationType}' for location ID '{LocationId}'", locationType, locationId);
-                    return $"Location-{locationId}";
-            }
+            var names = await GetLocationNamesByTypeAsync(locationType, [locationId], cancellationToken);
+            var name = names.GetValueOrDefault(locationId, $"Location-{locationId}");
+            
+            // Cache the result
+            _locationNameCache.TryAdd(cacheKey, name);
+            return name;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving location name for ID '{LocationId}' of type '{LocationType}'", locationId, locationType);
-            return $"Location-{locationId}";
+            var fallbackName = $"Location-{locationId}";
+            _locationNameCache.TryAdd(cacheKey, fallbackName);
+            return fallbackName;
         }
     }
 }
