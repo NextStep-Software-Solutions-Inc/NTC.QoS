@@ -9,7 +9,7 @@ using NTC.QoS.Domain.Models.DTOs.Reports;
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
-[Route("api/reports", Name = "reports")]
+[Route("reports", Name = "reports")]
 [Authorize]
 public class ReportsController : ControllerBase
 {

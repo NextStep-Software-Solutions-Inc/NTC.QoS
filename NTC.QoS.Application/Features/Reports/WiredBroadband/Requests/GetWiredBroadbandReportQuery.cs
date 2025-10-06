@@ -12,4 +12,9 @@ public class GetWiredBroadbandReportQuery : IRequest<ApiResponse<WiredBroadbandR
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public bool IncludeOnlyServedAreas { get; set; } = false;
+    /// <summary>
+    /// When true, forces generation of new connectivity assessments even if recent ones exist.
+    /// When false (default), uses existing assessments from the last month if available.
+    /// </summary>
+    public bool ForceGenerateConnectivityAssessment { get; set; } = false;
 }
