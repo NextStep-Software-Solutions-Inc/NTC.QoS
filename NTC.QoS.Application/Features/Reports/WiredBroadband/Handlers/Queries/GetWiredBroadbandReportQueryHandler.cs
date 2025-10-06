@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
+using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Application.Features.Reports.WiredBroadband.Handlers.Queries;
 
@@ -267,24 +268,27 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     }
 
     /// <summary>
-    /// Process barangay using direct calculation (original logic, used when assessment unavailable)
+    /// Process barangay using direct calculation with enhanced envelope spatial filtering
+    /// (aligns with connectivity assessment implementation)
     /// </summary>
     private async Task<BarangayBroadbandDto> ProcessBarangayDirectAsync(
         Domain.Entities.Barangay barangay,
         GetWiredBroadbandReportQuery request,
         CancellationToken cancellationToken)
     {
-        // Original implementation - direct calculation
-        // Get NAP data (Network Access Points) for wired broadband services
+        // Enhanced NAP data collection with envelope spatial filtering
         var napQuery = _napRepository.Query()
             .Include(n => n.ServiceProvider)
             .ThenInclude(sp => sp.Provider)
             .Include(n => n.ServiceProvider)
             .ThenInclude(sp => sp.Service)
-            .Where(n => n.ServiceProvider.Service.Type == ServiceTypeEnum.Wired && 
-                       barangay.Boundaries != null && 
-                       n.Location != null &&
-                       barangay.Boundaries.Intersects(n.Location));
+            .Where(n => n.ServiceProvider.Service.Type == ServiceTypeEnum.Wired);
+
+        // Apply envelope spatial filtering (matches connectivity assessment approach)
+        if (barangay.Boundaries != null)
+        {
+            napQuery = GeoQueryHelper.ApplyEnvelopeFilter(barangay.Boundaries, napQuery);
+        }
 
         // Apply date filters if provided
         if (request.StartDate.HasValue)
@@ -299,17 +303,20 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
         var naps = await napQuery.ToListAsync(cancellationToken);
 
-        // Get fixed broadband speedtest data as additional indicator
+        // Enhanced speedtest data collection with envelope spatial filtering
         var speedtestQuery = _speedtestRepository.Query()
             .Include(s => s.ServiceProvider)
             .ThenInclude(sp => sp.Provider)
             .Include(s => s.ServiceProvider)
             .ThenInclude(sp => sp.Service)
             .Where(s => s.IsFixedBroadband && 
-                       s.ServiceProvider.Service.Type == ServiceTypeEnum.Wired &&
-                       barangay.Boundaries != null && 
-                       s.Location != null &&
-                       barangay.Boundaries.Intersects(s.Location));
+                       s.ServiceProvider.Service.Type == ServiceTypeEnum.Wired);
+
+        // Apply envelope spatial filtering (matches connectivity assessment approach)
+        if (barangay.Boundaries != null)
+        {
+            speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(barangay.Boundaries, speedtestQuery);
+        }
 
         // Apply date filters for speedtests
         if (request.StartDate.HasValue)
@@ -343,6 +350,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
     /// <summary>
     /// Get active wired providers in a barangay for enhanced provider detail
+    /// Uses envelope spatial filtering for consistency
     /// </summary>
     private async Task<List<string>> GetActiveWiredProvidersInBarangay(Guid barangayId, CancellationToken cancellationToken)
     {
@@ -352,13 +360,14 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
         if (barangayBoundary == null) return [];
 
+        // Use envelope spatial filtering for consistent approach
+        var napQuery = _napRepository.Query()
+            .Where(n => n.ServiceProvider.Service.Type == ServiceTypeEnum.Wired);
+
+        napQuery = GeoQueryHelper.ApplyEnvelopeFilter(barangayBoundary, napQuery);
+
         var providers = await _napRepository.ToListAsync(
-            _napRepository.Query()
-                .Where(n => n.ServiceProvider.Service.Type == ServiceTypeEnum.Wired &&
-                           n.Location != null &&
-                           barangayBoundary.Intersects(n.Location))
-                .Select(n => n.ServiceProvider.Provider.Name)
-                .Distinct(),
+            napQuery.Select(n => n.ServiceProvider.Provider.Name).Distinct(),
             cancellationToken);
 
         return providers.Where(p => !string.IsNullOrEmpty(p)).ToList();
