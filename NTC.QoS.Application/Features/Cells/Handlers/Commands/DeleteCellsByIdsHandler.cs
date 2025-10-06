@@ -12,9 +12,9 @@ public class DeleteCellsByIdsHandler(ICellRepository repository) : IRequestHandl
     public async Task<ApiResponse<bool>> Handle(DeleteCellsByIdsRequest request, CancellationToken cancellationToken)
     {
         var cellsToDeleteQuery = _repository.Query(c => request.Ids.Contains(c.Id));
-        var cellsToDelete = await _repository.ExecuteDeleteAsync(cellsToDeleteQuery, cancellationToken);
+        var deletedCount = await _repository.ExecuteHardDeleteAsync(cellsToDeleteQuery, cancellationToken);
 
-        if (cellsToDelete is 0)
+        if (deletedCount is 0)
         {
             return new ApiResponse<bool>
             {
@@ -26,7 +26,7 @@ public class DeleteCellsByIdsHandler(ICellRepository repository) : IRequestHandl
         return new ApiResponse<bool>
         {
             Succeeded = true,
-            Message = $"{cellsToDelete} cell/s deleted successfully."
+            Message = $"{deletedCount} cell/s deleted successfully."
         };
     }
 }

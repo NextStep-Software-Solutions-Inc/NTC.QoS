@@ -11,9 +11,9 @@ public class DeleteCellularCoveragesByIdsHandler(IRepository<Domain.Entities.Cel
     public async Task<ApiResponse<bool>> Handle(DeleteCellularCoveragesByIdsRequest request, CancellationToken cancellationToken)
     {
         var cellularCoveragesToDeleteQuery = _repository.Query(cc => request.Ids.Contains(cc.Id));
-        var cellularCoveragesDeletedCount = await _repository.ExecuteDeleteAsync(cellularCoveragesToDeleteQuery, cancellationToken);
+        var deletedCount = await _repository.ExecuteHardDeleteAsync(cellularCoveragesToDeleteQuery, cancellationToken);
 
-        if (cellularCoveragesDeletedCount == 0)
+        if (deletedCount == 0)
         {
             return new ApiResponse<bool>
             {
@@ -25,7 +25,7 @@ public class DeleteCellularCoveragesByIdsHandler(IRepository<Domain.Entities.Cel
         return new ApiResponse<bool>
         {
             Succeeded = true,
-            Message = $"{cellularCoveragesDeletedCount} cellular coverages deleted successfully."
+            Message = $"{deletedCount} cellular coverages deleted successfully."
         };
     }
 }

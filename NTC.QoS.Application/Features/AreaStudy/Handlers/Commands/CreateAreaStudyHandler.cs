@@ -3,6 +3,7 @@ using NTC.QoS.Application.Features.AreaStudy.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.AreaStudy;
+using System.Linq;
 
 namespace NTC.QoS.Application.Features.AreaStudy.Handlers.Commands;
 
@@ -11,14 +12,14 @@ public class CreateAreaStudyHandler(IRepository<Domain.Entities.AreaStudy> repos
     private readonly IRepository<Domain.Entities.AreaStudy> _repository = repository;
     public async Task<ApiResponse<AreaStudyDto>> Handle(CreateAreaStudyRequest request, CancellationToken cancellationToken)
     {
-        var areaStudyQuery = _repository.QueryWithIgnoreQueryFilters(a => a.Name == request.AreaStudy.Name);
-        var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQuery, cancellationToken);
+        var areaStudyQueryAll = _repository.QueryWithIgnoreQueryFilters(a => a.Name == request.AreaStudy.Name);
+        var areaStudy = await _repository.FirstOrDefaultAsync(areaStudyQueryAll, cancellationToken);
 
-        if (areaStudy is not null && areaStudy.IsDeleted) 
+        if (areaStudy is not null && areaStudy.IsDeleted)
         {
-            areaStudy.IsDeleted = false;
-            _repository.Update(areaStudy);
-            await _repository.SaveChangesAsync(cancellationToken);
+            // Restore using repository helper (ensures audit fields updated consistently)
+            var restoreQuery = _repository.QueryWithIgnoreQueryFilters(a => a.Id == areaStudy.Id && a.IsDeleted);
+            await _repository.RestoreAsync(restoreQuery, cancellationToken);
 
             return new ApiResponse<AreaStudyDto>
             {

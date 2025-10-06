@@ -78,21 +78,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         // ... any entity configuration ...
         modelBuilder.Entity<Provider>()
             .HasIndex(p => p.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Provider>()
             .HasMany(p => p.ServiceProviders);
 
         modelBuilder.Entity<Service>()
             .HasIndex(s => new { s.Name, s.Type })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Service>()
             .HasMany(s => s.ServiceProviders);
 
         modelBuilder.Entity<ServiceProvider>()
             .HasIndex(sp => new { sp.ServiceId, sp.ProviderId, sp.MNC })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<ServiceProvider>()
             .HasOne(sp => sp.Service)
@@ -170,7 +173,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<AreaStudy>()
             .HasIndex(p => p.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<AreaStudy>()
             .HasMany(a => a.Studies)
@@ -199,7 +203,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Cell>()
             .HasIndex(c => c.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Cell>()
             .HasOne(c => c.ServiceProvider)
@@ -245,9 +250,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(n => n.Location)
             .HasDatabaseName("IX_NAP_Location")
             .HasMethod("GIST");
-
-        modelBuilder.Entity<Zone>()
-            .HasMany(z => z.NAPs);
 
         modelBuilder.Entity<Speedtest>()
             .HasOne(s => s.ServiceProvider)
@@ -420,7 +422,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Region>()
             .Property(r => r.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Region>()
             .HasIndex(r => r.Boundaries)
@@ -440,7 +442,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Province>()
             .Property(p => p.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Province>()
             .HasIndex(p => p.Boundaries)
@@ -460,7 +462,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Municipality>()
             .Property(m => m.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Municipality>()
             .HasIndex(m => m.Boundaries)
@@ -480,7 +482,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Barangay>()
             .HasIndex(b => b.Boundaries)

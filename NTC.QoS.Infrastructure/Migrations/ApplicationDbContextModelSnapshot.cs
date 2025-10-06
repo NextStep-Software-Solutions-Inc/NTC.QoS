@@ -48,7 +48,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -111,9 +110,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("ZoneId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FileId");
@@ -124,11 +120,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("ServiceProviderId");
-
-                    b.HasIndex("ZoneId");
 
                     b.ToTable("Cells");
                 });
@@ -150,7 +145,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -195,7 +189,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("GenerationId")
@@ -243,7 +236,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -304,7 +296,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid?>("FileId")
@@ -332,9 +323,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("ZoneId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FileId");
@@ -345,8 +333,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
                     b.HasIndex("ServiceProviderId");
-
-                    b.HasIndex("ZoneId");
 
                     b.ToTable("NAPs");
                 });
@@ -374,7 +360,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -431,7 +416,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -479,7 +463,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -511,7 +494,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("ProviderId");
 
                     b.HasIndex("ServiceId", "ProviderId", "MNC")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("ServiceProviders");
                 });
@@ -533,7 +517,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -578,7 +561,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -626,7 +608,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -670,7 +651,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -719,7 +699,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -762,7 +741,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -785,7 +763,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("AreaStudies");
                 });
@@ -807,7 +786,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -871,7 +849,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -952,7 +929,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1004,7 +980,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid?>("FileId")
@@ -1072,7 +1047,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1157,7 +1131,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("DominantServiceProvider")
@@ -1279,7 +1252,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1344,7 +1316,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1410,7 +1381,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1479,7 +1449,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1525,7 +1494,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1567,7 +1535,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1617,7 +1584,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1655,7 +1621,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Providers");
                 });
@@ -1695,7 +1662,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1779,7 +1745,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1840,7 +1805,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1892,7 +1856,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -2023,7 +1986,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -2046,7 +2008,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name", "Type")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Services");
                 });
@@ -2082,7 +2045,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<decimal>("DownloadSpeed")
@@ -2193,7 +2155,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -2240,7 +2201,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("GenerationId")
@@ -2289,7 +2249,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -2344,7 +2303,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
@@ -2398,7 +2356,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -2447,7 +2404,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("EstablishmentType")
@@ -2538,7 +2494,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -2582,42 +2537,47 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("WirelessValidations");
                 });
 
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
-                        .WithMany()
-                        .HasForeignKey("ServiceProviderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
-                    b.Navigation("ServiceProvider");
-                });
+                    b.Property<Guid>("BarangayId")
+                        .HasColumnType("uuid");
 
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
-                {
-                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
-                        .WithMany()
-                        .HasForeignKey("BandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
-                        .WithMany()
-                        .HasForeignKey("BarangayId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
-                        .WithMany()
-                        .HasForeignKey("ServiceProviderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
-                        .WithMany()
-                        .HasForeignKey("TechnologyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BarangayId");
+
+                    b.ToTable("Zone");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
@@ -2631,10 +2591,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Entities.Zone", null)
-                        .WithMany("Cells")
-                        .HasForeignKey("ZoneId");
 
                     b.Navigation("ServiceProvider");
                 });
@@ -2688,10 +2644,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Entities.Zone", null)
-                        .WithMany("NAPs")
-                        .HasForeignKey("ZoneId");
 
                     b.Navigation("ServiceProvider");
                 });
@@ -3295,13 +3247,6 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.UserType", b =>
                 {
                     b.Navigation("Users");
-                });
-
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
-                {
-                    b.Navigation("Cells");
-
-                    b.Navigation("NAPs");
                 });
 #pragma warning restore 612, 618
         }

@@ -12,10 +12,28 @@ public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTem
 
     public async Task<ApiResponse<NetworkTemplateDto>> Handle(CreateNetworkTemplateRequest request, CancellationToken cancellationToken)
     {
-        var networkTemplate = _repository.Query(nt => nt.Name == request.CreateNetworkTemplate.Name);
-        var existingNetworkTemplate = await _repository.FirstOrDefaultAsync(networkTemplate, cancellationToken);
+        var allQuery = _repository.QueryWithIgnoreQueryFilters(nt => nt.Name == request.CreateNetworkTemplate.Name);
+        var existing = await _repository.FirstOrDefaultAsync(allQuery, cancellationToken);
 
-        if (existingNetworkTemplate is not null)
+        if (existing is not null && existing.IsDeleted)
+        {
+            var restoreQuery = _repository.QueryWithIgnoreQueryFilters(nt => nt.Id == existing.Id && nt.IsDeleted);
+            await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            return new ApiResponse<NetworkTemplateDto>
+            {
+                Succeeded = true,
+                Message = "Network template restored successfully.",
+                Data = new NetworkTemplateDto
+                {
+                    Id = existing.Id,
+                    Name = existing.Name,
+                    Description = existing.Description,
+                    URL = existing.URL
+                }
+            };
+        }
+
+        if (existing is not null)
         {
             return new ApiResponse<NetworkTemplateDto>
             {
@@ -24,7 +42,7 @@ public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTem
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Name", ["Network template with the same name already exists."]   }
+                    { "Duplicate", ["Network template with the same name already exists."] }
                 }
             };
         }

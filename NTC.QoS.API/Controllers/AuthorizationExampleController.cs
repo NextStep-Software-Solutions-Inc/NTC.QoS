@@ -34,6 +34,8 @@ public class AuthorizationExampleController : ControllerBase
     [RequirePermission(Permissions.ViewFiles)]
     public async Task<ActionResult<ApiResponse<string>>> GetFiles()
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<string>
         {
             Data = "Files data - accessible with ViewFiles permission",
@@ -49,6 +51,8 @@ public class AuthorizationExampleController : ControllerBase
     [RequireRole(Roles.Admin)]
     public async Task<ActionResult<ApiResponse<string>>> GetAdminData()
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<string>
         {
             Data = "Admin-only data",
@@ -64,6 +68,8 @@ public class AuthorizationExampleController : ControllerBase
     [RequireOrganization]
     public async Task<ActionResult<ApiResponse<string>>> GetOrganizationData()
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<string>
         {
             Data = "Organization-specific data",
@@ -79,6 +85,8 @@ public class AuthorizationExampleController : ControllerBase
     [RequireOrganization("National")]
     public async Task<ActionResult<ApiResponse<string>>> GetNationalData()
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<string>
         {
             Data = "National organization data",
@@ -94,6 +102,8 @@ public class AuthorizationExampleController : ControllerBase
     [RequireOrganization("Regional", caseSensitive: true)]
     public async Task<ActionResult<ApiResponse<string>>> GetRegionalData()
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<string>
         {
             Data = "Regional organization data (case-sensitive match)",
@@ -109,6 +119,8 @@ public class AuthorizationExampleController : ControllerBase
     [RequireOrganizationId("33333333-3333-3333-3333-333333333333")] // Public organization ID
     public async Task<ActionResult<ApiResponse<string>>> GetPublicData()
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<string>
         {
             Data = "Public organization data",
@@ -124,6 +136,8 @@ public class AuthorizationExampleController : ControllerBase
     [Authorize(Policy = Policies.CanUploadFiles)]
     public async Task<ActionResult<ApiResponse<string>>> UploadFile()
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<string>
         {
             Data = "File uploaded successfully",
@@ -139,6 +153,8 @@ public class AuthorizationExampleController : ControllerBase
     [Authorize(Policy = "Permission:" + Permissions.DeleteFiles)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteFile(Guid id)
     {
+        // Simulate async operation to avoid CS1998 warning
+        await Task.CompletedTask;
         return Ok(new ApiResponse<bool>
         {
             Data = true,
