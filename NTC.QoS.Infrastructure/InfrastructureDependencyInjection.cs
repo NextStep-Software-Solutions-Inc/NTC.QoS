@@ -102,12 +102,24 @@ public static class InfrastructureDependencyInjection
             ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))
         };
 
-        // migrate first
+        // Apply migrations first
         await dbContext.Database.MigrateAsync(cancellationToken);
-        await LocationSeeder.SeedAllAsync(dbContext, logger);
-        await OrganizationSeeder.SeedAsync(dbContext, logger);
-        await RoleSeeder.SeedAsync(dbContext, logger);
-        await AuthorizationSeeder.SeedAsync(dbContext, logger);
+        
+        // Use the seeders array instead of calling them directly
+        foreach (var (name, seedAction) in seeders)
+        {
+            try
+            {
+                logger.LogInformation("Starting {SeederName}...", name);
+                await seedAction();
+                logger.LogInformation("Completed {SeederName}", name);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to seed {SeederName}", name);
+                throw;
+            }
+        }
     }
 
     /// <summary>
