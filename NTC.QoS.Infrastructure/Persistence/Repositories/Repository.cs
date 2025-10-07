@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Exceptions;
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -93,12 +94,97 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         return await queryable.FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Checks if the query has an OrderBy clause by examining the query provider
+    /// </summary>
+    private static bool HasOrderBy<TResult>(IQueryable<TResult> queryable)
+    {
+        // Check if the expression contains OrderBy, OrderByDescending, ThenBy, or ThenByDescending
+        var expression = queryable.Expression;
+        return HasOrderByInExpression(expression);
+    }
+
+    private static bool HasOrderByInExpression(Expression expression)
+    {
+        if (expression is MethodCallExpression methodCall)
+        {
+            // Check if this method call is an ordering method
+            if (methodCall.Method.Name is "OrderBy" or "OrderByDescending" or "ThenBy" or "ThenByDescending")
+            {
+                return true;
+            }
+
+            // Recursively check arguments for nested ordering
+            foreach (var argument in methodCall.Arguments)
+            {
+                if (HasOrderByInExpression(argument))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Ensures the query has consistent ordering for pagination. If no OrderBy exists, adds a default one.
+    /// </summary>
+    private static IQueryable<TResult> EnsureOrdered<TResult>(IQueryable<TResult> queryable)
+    {
+        if (HasOrderBy(queryable))
+        {
+            return queryable;
+        }
+
+        // Try to find an Id property for consistent ordering
+        var resultType = typeof(TResult);
+        var idProperty = resultType.GetProperty("Id");
+        
+        if (idProperty != null)
+        {
+            // Create expression: x => x.Id
+            var parameter = Expression.Parameter(resultType, "x");
+            var propertyAccess = Expression.Property(parameter, idProperty);
+            var lambda = Expression.Lambda(propertyAccess, parameter);
+            
+            // Call OrderBy method
+            var orderByMethod = typeof(Queryable).GetMethods()
+                .First(m => m.Name == "OrderBy" && m.GetParameters().Length == 2)
+                .MakeGenericMethod(resultType, idProperty.PropertyType);
+                
+            return (IQueryable<TResult>)orderByMethod.Invoke(null, new object[] { queryable, lambda })!;
+        }
+
+        // Fallback: try to order by the first property available
+        var firstProperty = resultType.GetProperties().FirstOrDefault();
+        if (firstProperty != null)
+        {
+            var parameter = Expression.Parameter(resultType, "x");
+            var propertyAccess = Expression.Property(parameter, firstProperty);
+            var lambda = Expression.Lambda(propertyAccess, parameter);
+            
+            var orderByMethod = typeof(Queryable).GetMethods()
+                .First(m => m.Name == "OrderBy" && m.GetParameters().Length == 2)
+                .MakeGenericMethod(resultType, firstProperty.PropertyType);
+                
+            return (IQueryable<TResult>)orderByMethod.Invoke(null, new object[] { queryable, lambda })!;
+        }
+
+        // If no properties found, return original query (this should be rare)
+        return queryable;
+    }
+
     public async Task<PaginatedResponse<TResult>> PaginateAsync<TResult>(IQueryable<TResult> queryable, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(queryable);
         if (pageNumber < 1) throw new ArgumentOutOfRangeException(nameof(pageNumber), "Page number must be at least 1.");
+        
+        // Ensure the query has consistent ordering before pagination
+        var orderedQuery = EnsureOrdered(queryable);
+        
         var totalCount = await queryable.CountAsync(cancellationToken);
-        var data = await queryable.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var data = await orderedQuery.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return new PaginatedResponse<TResult>(data, pageNumber, pageSize, totalCount);
     }
 

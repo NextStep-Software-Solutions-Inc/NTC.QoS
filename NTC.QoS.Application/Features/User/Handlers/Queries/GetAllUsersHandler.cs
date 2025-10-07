@@ -32,25 +32,27 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             query = query.Where(u => request.AuthUserIds.Contains(u.AuthUserId));
         }
 
-        var userDtosQuery = query.Select(u => new UserDto
-        {
-            Id = u.Id,
-            Role = new()
+        var userDtosQuery = query
+            .OrderBy(u => u.CreatedAt)
+            .Select(u => new UserDto
             {
-                Id = u.RoleId,
-                Name = u.Role != null ? u.Role.Name : string.Empty,
-                Key = u.Role != null ? u.Role.Key : string.Empty,
-                Description = u.Role != null ? u.Role.Description ?? string.Empty : string.Empty
-            },
-            Organization = new()
-            {
-                Id = u.OrganizationId,
-                Name = u.Organization != null ? u.Organization.Name : string.Empty,
-                Description = u.Organization != null ? u.Organization.Description ?? string.Empty : string.Empty
-            },
-            AuthUserId = u.AuthUserId,
-            Email = u.Email,
-        });
+                Id = u.Id,
+                Role = new()
+                {
+                    Id = u.RoleId,
+                    Name = u.Role != null ? u.Role.Name : string.Empty,
+                    Key = u.Role != null ? u.Role.Key : string.Empty,
+                    Description = u.Role != null ? u.Role.Description ?? string.Empty : string.Empty
+                },
+                Organization = new()
+                {
+                    Id = u.OrganizationId,
+                    Name = u.Organization != null ? u.Organization.Name : string.Empty,
+                    Description = u.Organization != null ? u.Organization.Description ?? string.Empty : string.Empty
+                },
+                AuthUserId = u.AuthUserId,
+                Email = u.Email,
+            });
 
         return await _repository.PaginateAsync(userDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
