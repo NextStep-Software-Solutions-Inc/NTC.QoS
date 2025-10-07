@@ -71,7 +71,7 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             new { Generation = "3G", Technology = "WCDMA",   Bands = new[] { "B5-850", "B8-900", "B1-2100" } },
             new { Generation = "4G", Technology = "FDD-LTE", Bands = new[] { "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100" } },
             new { Generation = "4G", Technology = "TDD-LTE", Bands = new[] { "B40-2300", "B41-2500", "B38-2600" } },
-            new { Generation = "5G", Technology = "NR",      Bands = new[] { "B28-700","B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B78-3500" } }
+            new { Generation = "5G", Technology = "NR",      Bands = new[] { "B28-700", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B78-3500" } }
         };
 
         // Build 4-row header and get last column used
