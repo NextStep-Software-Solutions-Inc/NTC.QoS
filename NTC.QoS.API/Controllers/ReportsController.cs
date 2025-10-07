@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 
@@ -15,11 +16,22 @@ public class ReportsController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IConnectivityReportingService _connectivityReportingService;
+    private readonly IRegionRepository _regionRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
 
-    public ReportsController(IMediator mediator, IConnectivityReportingService connectivityReportingService)
+    public ReportsController(
+        IMediator mediator, 
+        IConnectivityReportingService connectivityReportingService,
+        IRegionRepository regionRepository,
+        IProvinceRepository provinceRepository,
+        IMunicipalityRepository municipalityRepository)
     {
         _mediator = mediator;
         _connectivityReportingService = connectivityReportingService;
+        _regionRepository = regionRepository;
+        _provinceRepository = provinceRepository;
+        _municipalityRepository = municipalityRepository;
     }
 
     /// <summary>
@@ -81,7 +93,7 @@ public class ReportsController : ControllerBase
         var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
             regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, title);
 
-        var fileName = GenerateFileName("WiredBroadband", "pdf", regionId, provinceId, municipalityId);
+        var fileName = await GenerateFileNameAsync("WiredBroadband", "pdf", regionId, provinceId, municipalityId);
         return File(pdfBytes, "application/pdf", fileName);
     }
 
@@ -110,7 +122,7 @@ public class ReportsController : ControllerBase
         var excelBytes = await _connectivityReportingService.GenerateWiredBroadbandExcelAsync(
             regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, title);
 
-        var fileName = GenerateFileName("WiredBroadband", "xlsx", regionId, provinceId, municipalityId);
+        var fileName = await GenerateFileNameAsync("WiredBroadband", "xlsx", regionId, provinceId, municipalityId);
         return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 
@@ -163,7 +175,7 @@ public class ReportsController : ControllerBase
         var pdfBytes = await _connectivityReportingService.GenerateConnectivityGapPdfAsync(
             regionId, provinceId, title);
 
-        var fileName = GenerateFileName("ConnectivityGap", "pdf", regionId, provinceId, null);
+        var fileName = await GenerateFileNameAsync("ConnectivityGap", "pdf", regionId, provinceId, null);
         return File(pdfBytes, "application/pdf", fileName);
     }
 
@@ -184,26 +196,96 @@ public class ReportsController : ControllerBase
         var excelBytes = await _connectivityReportingService.GenerateConnectivityGapExcelAsync(
             regionId, provinceId, title);
 
-        var fileName = GenerateFileName("ConnectivityGap", "xlsx", regionId, provinceId, null);
+        var fileName = await GenerateFileNameAsync("ConnectivityGap", "xlsx", regionId, provinceId, null);
         return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 
     /// <summary>
-    /// Generate a descriptive filename for downloaded reports
+    /// Generate a descriptive filename for downloaded reports using location names instead of UUIDs
     /// </summary>
-    private static string GenerateFileName(string reportType, string extension, 
+    private async Task<string> GenerateFileNameAsync(string reportType, string extension, 
         Guid? regionId = null, Guid? provinceId = null, Guid? municipalityId = null)
     {
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         var scope = "National";
         
-        if (municipalityId.HasValue)
-            scope = $"Municipality_{municipalityId}";
-        else if (provinceId.HasValue)
-            scope = $"Province_{provinceId}";
-        else if (regionId.HasValue)
-            scope = $"Region_{regionId}";
+        try
+        {
+            if (municipalityId.HasValue)
+            {
+                var municipalityQuery = _municipalityRepository.Query(m => m.Id == municipalityId.Value);
+                var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery);
+                
+                scope = municipality != null 
+                    ? $"Municipality_{SanitizeFileName(municipality.Name)}"
+                    : $"Municipality_{municipalityId}";
+            }
+            else if (provinceId.HasValue)
+            {
+                var provinceQuery = _provinceRepository.Query(p => p.Id == provinceId.Value);
+                var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery);
+                
+                scope = province != null 
+                    ? $"Province_{SanitizeFileName(province.Name)}"
+                    : $"Province_{provinceId}";
+            }
+            else if (regionId.HasValue)
+            {
+                var regionQuery = _regionRepository.Query(r => r.Id == regionId.Value);
+                var region = await _regionRepository.FirstOrDefaultAsync(regionQuery);
+                
+                scope = region != null 
+                    ? $"Region_{SanitizeFileName(region.Name)}"
+                    : $"Region_{regionId}";
+            }
+        }
+        catch (Exception)
+        {
+            // Fallback to UUID-based naming if there's any error fetching names
+            if (municipalityId.HasValue)
+                scope = $"Municipality_{municipalityId}";
+            else if (provinceId.HasValue)
+                scope = $"Province_{provinceId}";
+            else if (regionId.HasValue)
+                scope = $"Region_{regionId}";
+        }
         
         return $"{reportType}Report_{scope}_{timestamp}.{extension}";
+    }
+
+    /// <summary>
+    /// Sanitize a location name to make it safe for use in filenames
+    /// </summary>
+    private static string SanitizeFileName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "Unknown";
+
+        // Replace invalid filename characters with underscores
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = name;
+        
+        foreach (var invalidChar in invalidChars)
+        {
+            sanitized = sanitized.Replace(invalidChar, '_');
+        }
+        
+        // Replace spaces with underscores and remove consecutive underscores
+        sanitized = sanitized.Replace(' ', '_');
+        while (sanitized.Contains("__"))
+        {
+            sanitized = sanitized.Replace("__", "_");
+        }
+        
+        // Trim underscores from start and end
+        sanitized = sanitized.Trim('_');
+        
+        // Limit length to prevent excessively long filenames
+        if (sanitized.Length > 50)
+        {
+            sanitized = sanitized[..50].TrimEnd('_');
+        }
+        
+        return string.IsNullOrEmpty(sanitized) ? "Unknown" : sanitized;
     }
 }
