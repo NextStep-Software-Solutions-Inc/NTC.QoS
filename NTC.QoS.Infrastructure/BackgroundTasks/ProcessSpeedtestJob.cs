@@ -82,8 +82,15 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 .ToListAsync(token);
 
             var technologyCache = generationCache
-                .SelectMany(g => g.Technologies.Select(t => new { t.Standard, g.Id }))
-                .ToDictionary(x => CacheKeyGenerator.GenerateGenerationCacheKey(x.Standard), x => x.Id);
+                .SelectMany(g => g.Technologies.Select(t => new {
+                    t.Standard,
+                    TechnologyId = t.Id,
+                    GenerationId = g.Id
+                }))
+                .ToDictionary(
+                    x => CacheKeyGenerator.GenerateGenerationCacheKey(x.Standard),
+                    x => new { x.TechnologyId, x.GenerationId }
+                );
 
             _logger.LogInformation("Pre-loaded {Count} generations and technologies.", technologyCache.Count);
 
@@ -94,6 +101,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 .Select(s => new { 
                     s.ServiceProviderId, 
                     s.GenerationId, 
+                    s.TechnologyId,
                     s.DateTime, 
                     s.UploadSpeed,
                     s.DownloadSpeed,
@@ -115,8 +123,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 // Simplified duplicate key with core fields only
                 var signalQuality = string.IsNullOrEmpty(speedtest.SignalQuality) ? "NULL" : speedtest.SignalQuality;
                 var rssi = speedtest.RSSI?.ToString() ?? "NULL";
-                
-                var key = $"{speedtest.ServiceProviderId}_{speedtest.GenerationId}_{speedtest.DateTime:yyyy-MM-dd HH:mm:ss}_{speedtest.UploadSpeed}_{speedtest.DownloadSpeed}_{rssi}_{signalQuality}_{longitude:F6}_{latitude:F6}";
+                var technologyId = speedtest.TechnologyId?.ToString() ?? "NULL";
+
+                var key = $"{speedtest.ServiceProviderId}_{speedtest.GenerationId}_{speedtest.TechnologyId}_{speedtest.DateTime:yyyy-MM-dd HH:mm:ss}_{speedtest.UploadSpeed}_{speedtest.DownloadSpeed}_{rssi}_{signalQuality}_{longitude:F6}_{latitude:F6}";
                 
                 // Debug logging for pre-loaded keys
                 _logger.LogDebug("Pre-loaded duplicate key: {DuplicateKey}", key);
@@ -161,16 +170,18 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                         return;
                     }
 
-                    var generationKey = CacheKeyGenerator.GenerateGenerationCacheKey(record.NetworkType);
-                    if (!technologyCache.TryGetValue(generationKey, out var generationId))
+                    var technologyKey = CacheKeyGenerator.GenerateGenerationCacheKey(record.NetworkType);
+                    if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
                     {
-                        _logger.LogWarning("Generation not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
+                        _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
                         await TerminateProcess(file, token);
                         return;
                     }
+                    var technologyId = technologyInfo.TechnologyId;
+                    var generationId = technologyInfo.GenerationId;
 
                     // Check if all valid Ids are valid
-                    if (serviceProviderId != Guid.Empty && generationId != Guid.Empty)
+                    if (serviceProviderId != Guid.Empty && generationId != Guid.Empty && technologyId != Guid.Empty)
                     {
                         Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
 
@@ -178,7 +189,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                         var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
                         var signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
 
-                        var duplicateKey = $"{serviceProviderId}_{generationId}_{record.Timestamp.ToUniversalTime():yyyy-MM-dd HH:mm:ss}_{record.Upload}_{record.Download}_{record.RSSI}_{signalQuality ?? "NULL"}_{record.Longitude:F6}_{record.Latitude:F6}";
+                        var duplicateKey = $"{serviceProviderId}_{generationId}_{technologyId}_{record.Timestamp.ToUniversalTime():yyyy-MM-dd HH:mm:ss}_{record.Upload}_{record.Download}_{record.RSSI}_{signalQuality ?? "NULL"}_{record.Longitude:F6}_{record.Latitude:F6}";
 
                         // Debug logging for duplicate check
                         if (_logger.IsEnabled(LogLevel.Debug))
@@ -195,6 +206,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
                                 ServiceProviderId = serviceProviderId,
                                 GenerationId = generationId,
+                                TechnologyId = technologyId,
                                 DateTime = record.Timestamp.ToUniversalTime(),
                                 UploadSpeed = record.Upload,
                                 DownloadSpeed = record.Download,
