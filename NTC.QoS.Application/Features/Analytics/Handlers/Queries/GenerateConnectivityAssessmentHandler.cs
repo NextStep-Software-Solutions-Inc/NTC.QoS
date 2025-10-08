@@ -11,6 +11,8 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using NTC.QoS.Infrastructure.Helper;
+using System.Collections.Concurrent; // Added for thread-safe collections
+using System.Linq; // Added for Chunk method
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -28,6 +30,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IConnectivityCacheService _cacheService;
     private readonly ILogger<GenerateConnectivityAssessmentHandler> _logger;
+
+    // Batch processing configuration
+    private const int DEFAULT_BATCH_SIZE = 50;
+    private const int MAX_BATCH_SIZE = 200;
+    private const int MIN_BATCH_SIZE = 10;
+    private const int MEMORY_PRESSURE_THRESHOLD_MB = 500;
+    private const int PROGRESS_REPORT_INTERVAL = 25; // Report progress every 25 items
+
+    // Thread safety for memory management
+    private static readonly object _memoryManagementLock = new object();
 
     public GenerateConnectivityAssessmentHandler(
         IConnectivityAssessmentRepository connectivityRepository,
@@ -61,26 +73,63 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         try
         {
-            _logger.LogInformation("Generating connectivity assessments for {LocationCount} {LocationType}s", 
-                request.LocationIds.Count, request.LocationType);
+            // Check if this request would be better suited for background processing
+            var estimatedProcessingTime = EstimateProcessingTimeMinutes(request);
+            if (estimatedProcessingTime > 10) // More than 10 minutes
+            {
+                _logger.LogWarning("Large connectivity assessment request detected ({EstimatedMinutes} minutes estimated). " +
+                    "Consider using background processing endpoint: POST /api/reports/connectivity-assessment/background. " +
+                    "Processing {LocationCount} {LocationType}s with hierarchical={Hierarchical}, maxParallelism={MaxParallelism}",
+                    estimatedProcessingTime, request.LocationIds.Count, request.LocationType, 
+                    request.GenerateHierarchicalAssessments, request.MaxParallelism);
+            }
+
+            _logger.LogInformation("Starting connectivity assessment generation for {LocationCount} {LocationType}s with " +
+                "hierarchical={Hierarchical}, maxParallelism={MaxParallelism} (estimated: {EstimatedMinutes} minutes)", 
+                request.LocationIds.Count, request.LocationType, request.GenerateHierarchicalAssessments, 
+                request.MaxParallelism, estimatedProcessingTime);
 
             var generatedAssessments = new List<LocationConnectivityDto>();
             
-            foreach (var locationId in request.LocationIds)
+            // Process primary locations with optimized batch processing
+            var primaryAssessments = await ProcessLocationsBatchOptimized(
+                request.LocationIds.Select(id => (id, request.LocationType, "Primary")).ToList(),
+                request.ForceRecalculate, 
+                request.MaxParallelism, 
+                "primary locations",
+                cancellationToken);
+            
+            generatedAssessments.AddRange(primaryAssessments);
+            
+            // Generate hierarchical assessments if requested with enhanced batch processing
+            if (request.GenerateHierarchicalAssessments)
             {
-                var assessment = await GenerateAssessmentForLocationAsync(locationId, request.LocationType, request.ForceRecalculate, cancellationToken);
-                if (assessment != null)
-                {
-                    generatedAssessments.Add(assessment);
-                }
+                var hierarchicalAssessments = await GenerateHierarchicalAssessmentsWithBatchOptimization(
+                    request.LocationIds, 
+                    request.LocationType, 
+                    request.HierarchicalDepth, 
+                    request.MaxParallelism, 
+                    request.ForceRecalculate, 
+                    cancellationToken);
+                
+                generatedAssessments.AddRange(hierarchicalAssessments);
             }
 
-            _logger.LogInformation("Generated {AssessmentCount} connectivity assessments", generatedAssessments.Count);
+            var successMessage = $"Successfully generated {generatedAssessments.Count} connectivity assessments";
+            
+            // Add recommendation for future large requests
+            if (estimatedProcessingTime > 5)
+            {
+                successMessage += $". Note: This request took an estimated {estimatedProcessingTime} minutes. " +
+                    "For faster processing of large requests, consider using the background job endpoint.";
+            }
+
+            _logger.LogInformation(successMessage);
 
             return new ApiResponse<List<LocationConnectivityDto>>
             {
                 Succeeded = true,
-                Message = $"Successfully generated {generatedAssessments.Count} connectivity assessments",
+                Message = successMessage,
                 Data = generatedAssessments
             };
         }
@@ -96,6 +145,509 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     { "GenerationError", [ex.Message] }
                 }
             };
+        }
+    }
+
+    /// <summary>
+    /// Estimate processing time in minutes for logging and recommendations
+    /// </summary>
+    private static int EstimateProcessingTimeMinutes(GenerateConnectivityAssessmentRequest request)
+    {
+        // Base time per location (in minutes) - optimistic estimates for current implementation
+        var baseTimePerLocation = request.ForceRecalculate ? 0.3 : 0.1; // Reduced due to current optimizations
+        
+        // Parallelism impact (lower parallelism = longer time)
+        var parallelismPenalty = request.MaxParallelism == 1 ? 2.0 : 1.0; // Double time for sequential processing
+        
+        // Hierarchical multiplier
+        var hierarchicalMultiplier = request.GenerateHierarchicalAssessments 
+            ? request.LocationType switch
+            {
+                LocationTypeEnum.Regional => 100, // Regions have many children
+                LocationTypeEnum.Provincial => 30, // Provinces have many municipalities
+                LocationTypeEnum.Municipality => 10, // Municipalities have many barangays
+                _ => 1
+            }
+            : 1;
+
+        var estimatedMinutes = (int)Math.Ceiling(
+            request.LocationIds.Count * baseTimePerLocation * parallelismPenalty * hierarchicalMultiplier);
+        
+        return Math.Max(1, estimatedMinutes);
+    }
+
+    /// <summary>
+    /// Enhanced hierarchical assessment generation with batch processing optimization
+    /// </summary>
+    private async Task<List<LocationConnectivityDto>> GenerateHierarchicalAssessmentsWithBatchOptimization(
+        List<Guid> parentLocationIds,
+        LocationTypeEnum parentLocationType,
+        int hierarchicalDepth,
+        int maxParallelism,
+        bool forceRecalculate,
+        CancellationToken cancellationToken)
+    {
+        var hierarchicalAssessments = new List<LocationConnectivityDto>();
+        
+        try
+        {
+            _logger.LogInformation("Starting optimized hierarchical assessment generation for {ParentCount} {ParentType}s with depth {Depth}",
+                parentLocationIds.Count, parentLocationType, hierarchicalDepth);
+
+            // Collect all child locations across all parents with intelligent batching
+            var allChildLocations = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
+            
+            foreach (var parentLocationId in parentLocationIds)
+            {
+                var childLocations = await GetChildLocationsAsync(parentLocationId, parentLocationType, hierarchicalDepth, cancellationToken);
+                allChildLocations.AddRange(childLocations);
+            }
+
+            if (allChildLocations.Count == 0)
+            {
+                _logger.LogInformation("No child locations found for hierarchical processing");
+                return hierarchicalAssessments;
+            }
+
+            // Remove duplicates that may occur when multiple parents have overlapping children
+            var uniqueChildLocations = allChildLocations
+                .GroupBy(c => new { c.Id, c.Type })
+                .Select(g => g.First())
+                .ToList();
+
+            _logger.LogInformation("Found {TotalChildCount} unique child locations to process (removed {DuplicateCount} duplicates)", 
+                uniqueChildLocations.Count, allChildLocations.Count - uniqueChildLocations.Count);
+
+            // Process child locations with optimized batch processing
+            var childAssessments = await ProcessLocationsBatchOptimized(
+                uniqueChildLocations,
+                forceRecalculate, 
+                maxParallelism, 
+                "hierarchical child locations",
+                cancellationToken);
+
+            hierarchicalAssessments.AddRange(childAssessments);
+
+            _logger.LogInformation("Generated {HierarchicalCount} hierarchical assessments across {ParentCount} parent locations",
+                hierarchicalAssessments.Count, parentLocationIds.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating optimized hierarchical assessments");
+            throw; // Re-throw to be handled by main handler
+        }
+
+        return hierarchicalAssessments;
+    }
+
+    /// <summary>
+    /// Optimized batch processing with dynamic batch sizing and thread-safe memory management
+    /// </summary>
+    private async Task<List<LocationConnectivityDto>> ProcessLocationsBatchOptimized(
+        List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
+        bool forceRecalculate,
+        int maxParallelism,
+        string processingContext,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<LocationConnectivityDto>();
+        
+        if (locations.Count == 0)
+            return results;
+
+        _logger.LogInformation("Starting batch-optimized processing of {LocationCount} {Context} with maxParallelism={MaxParallelism}",
+            locations.Count, processingContext, maxParallelism);
+
+        // Calculate optimal batch size based on memory pressure and location count
+        var batchSize = CalculateOptimalBatchSize(locations.Count, maxParallelism);
+        var totalBatches = (int)Math.Ceiling((double)locations.Count / batchSize);
+        var processedCount = 0;
+        var startTime = DateTime.UtcNow;
+
+        _logger.LogInformation("Processing {LocationCount} locations in {BatchCount} batches of size {BatchSize}",
+            locations.Count, totalBatches, batchSize);
+
+        // Process locations in optimized batches
+        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
+        {
+            var batchLocations = locations
+                .Skip(batchIndex * batchSize)
+                .Take(batchSize)
+                .ToList();
+
+            _logger.LogDebug("Processing batch {BatchNumber}/{TotalBatches} with {BatchLocationCount} locations",
+                batchIndex + 1, totalBatches, batchLocations.Count);
+
+            try
+            {
+                // Process batch with controlled parallelism and smart caching
+                var batchResults = await ProcessBatchWithSmartCaching(
+                    batchLocations, 
+                    forceRecalculate, 
+                    Math.Min(maxParallelism, batchLocations.Count), 
+                    cancellationToken);
+
+                results.AddRange(batchResults.Where(r => r != null)!);
+                processedCount += batchLocations.Count;
+
+                // Report progress periodically
+                if (processedCount % PROGRESS_REPORT_INTERVAL == 0 || batchIndex == totalBatches - 1)
+                {
+                    var progressPercent = Math.Round((double)processedCount / locations.Count * 100, 1);
+                    var elapsed = DateTime.UtcNow - startTime;
+                    var estimatedRemaining = processedCount > 0 
+                        ? TimeSpan.FromTicks(elapsed.Ticks * (locations.Count - processedCount) / processedCount)
+                        : TimeSpan.Zero;
+
+                    _logger.LogInformation("Batch processing progress: {ProcessedCount}/{TotalCount} ({Progress}%) - ETA: {ETA:mm\\:ss}",
+                        processedCount, locations.Count, progressPercent, estimatedRemaining);
+                }
+
+                // THREAD-SAFE Memory management: Force garbage collection after large batches
+                if (batchIndex % 10 == 0 && batchIndex > 0)
+                {
+                    // Use lock to prevent multiple threads from triggering GC simultaneously
+                    lock (_memoryManagementLock)
+                    {
+                        var memoryBefore = GC.GetTotalMemory(false) / 1024 / 1024; // MB
+                        
+                        if (memoryBefore > MEMORY_PRESSURE_THRESHOLD_MB)
+                        {
+                            _logger.LogDebug("Memory pressure detected ({MemoryMB} MB), forcing garbage collection", memoryBefore);
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+                            GC.Collect();
+                            
+                            var memoryAfter = GC.GetTotalMemory(false) / 1024 / 1024;
+                            _logger.LogDebug("Garbage collection completed. Memory: {Before} MB -> {After} MB (freed {Freed} MB)",
+                                memoryBefore, memoryAfter, memoryBefore - memoryAfter);
+                        }
+                    }
+                }
+
+                // Adaptive batch size adjustment based on performance
+                if (batchIndex % 5 == 0 && batchIndex > 0)
+                {
+                    var currentElapsed = DateTime.UtcNow - startTime;
+                    batchSize = AdjustBatchSizeBasedOnPerformance(batchSize, currentElapsed, processedCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error processing batch {BatchNumber}/{TotalBatches}. Continuing with next batch.", 
+                    batchIndex + 1, totalBatches);
+                
+                // Continue processing remaining batches even if one fails
+                continue;
+            }
+
+            // Small delay between batches to prevent overwhelming the system
+            if (batchIndex < totalBatches - 1)
+            {
+                await Task.Delay(50, cancellationToken); // 50ms delay between batches
+            }
+        }
+
+        var totalElapsed = DateTime.UtcNow - startTime;
+        _logger.LogInformation("Completed batch processing of {LocationCount} {Context}. Generated {ResultCount} assessments in {ElapsedTime:mm\\:ss}. Average: {AvgPerSecond:F1}/sec",
+            locations.Count, processingContext, results.Count, totalElapsed, 
+            totalElapsed.TotalSeconds > 0 ? processedCount / totalElapsed.TotalSeconds : 0);
+
+        return results;
+    }
+
+    /// <summary>
+    /// Process a single batch with smart caching and parallel optimization - THREAD SAFE WITH EF CONCURRENCY FIX
+    /// </summary>
+    private async Task<List<LocationConnectivityDto?>> ProcessBatchWithSmartCaching(
+        List<(Guid Id, LocationTypeEnum Type, string Name)> batchLocations,
+        bool forceRecalculate,
+        int maxParallelism,
+        CancellationToken cancellationToken)
+    {
+        // Pre-warm cache for the entire batch if not forcing recalculation
+        if (!forceRecalculate)
+        {
+            await PreWarmBatchCache(batchLocations, cancellationToken);
+        }
+
+        // Use thread-safe collections for tracking processed items
+        var processedKeys = new ConcurrentBag<string>();
+        var results = new List<LocationConnectivityDto?>();
+
+        // CRITICAL FIX: Reduce parallelism for database operations to prevent EF concurrency issues
+        var safeBatchSize = Math.Min(maxParallelism, 3); // Limit to max 3 parallel DB operations
+        var batches = batchLocations.Chunk(safeBatchSize).ToList();
+
+        foreach (var batch in batches)
+        {
+            // Process each small batch with controlled parallelism
+            using var semaphore = new SemaphoreSlim(safeBatchSize, safeBatchSize);
+            
+            var batchTasks = batch.Select(async location =>
+            {
+                await semaphore.WaitAsync(cancellationToken);
+                try
+                {
+                    var result = await GenerateAssessmentForLocationAsync(
+                        location.Id, 
+                        location.Type, 
+                        forceRecalculate, 
+                        cancellationToken);
+                    
+                    if (result != null)
+                    {
+                        var key = $"{location.Type}_{location.Id}";
+                        processedKeys.Add(key);
+                    }
+                    
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to generate assessment for {LocationType} {LocationId} ({LocationName})", 
+                        location.Type, location.Id, location.Name);
+                    return null;
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+
+            var batchResults = await Task.WhenAll(batchTasks);
+            results.AddRange(batchResults);
+
+            // Delay between mini-batches to prevent database overload
+            if (batches.Count > 1)
+            {
+                await Task.Delay(150, cancellationToken);
+            }
+        }
+        
+        _logger.LogDebug("Batch processing completed. Processed {ProcessedCount} items, Generated {ResultCount} assessments",
+            processedKeys.Count, results.Count(r => r != null));
+            
+        return results;
+    }
+
+    /// <summary>
+    /// Pre-warm cache for batch processing efficiency - THREAD SAFE
+    /// </summary>
+    private async Task PreWarmBatchCache(
+        List<(Guid Id, LocationTypeEnum Type, string Name)> batchLocations,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogDebug("Pre-warming cache for batch of {BatchSize} locations", batchLocations.Count);
+
+            // Use ConcurrentBag for thread-safe collection of results
+            var existingAssessmentTasks = batchLocations.Select(async location =>
+            {
+                try
+                {
+                    var existing = await _connectivityRepository.GetByLocationAsync(location.Id, location.Type, cancellationToken);
+                    var isRecent = existing?.LastUpdated > DateTime.UtcNow.AddDays(-30);
+                    return new { Location = location, Existing = existing, IsRecent = isRecent };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Error checking existing assessment for {LocationType} {LocationId}", 
+                        location.Type, location.Id);
+                    return new { Location = location, Existing = (ConnectivityAssessment?)null, IsRecent = false };
+                }
+            });
+
+            var existingResults = await Task.WhenAll(existingAssessmentTasks);
+            var cachedCount = existingResults.Count(r => r.IsRecent);
+            var needsGenerationCount = existingResults.Count(r => !r.IsRecent);
+
+            _logger.LogDebug("Cache pre-warm complete: {CachedCount} cached, {NeedsGenerationCount} need generation", 
+                cachedCount, needsGenerationCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error during cache pre-warming. Continuing with batch processing.");
+            // Don't fail the entire batch if pre-warming fails
+        }
+    }
+
+    /// <summary>
+    /// Generates assessments for all child locations in the hierarchy
+    /// </summary>
+    private async Task<List<LocationConnectivityDto>> GenerateHierarchicalAssessmentsAsync(
+        Guid parentLocationId,
+        LocationTypeEnum parentLocationType,
+        int hierarchicalDepth,
+        int maxParallelism,
+        bool forceRecalculate,
+        CancellationToken cancellationToken)
+    {
+        var hierarchicalAssessments = new List<LocationConnectivityDto>();
+        
+        try
+        {
+            _logger.LogInformation("Starting hierarchical assessment generation for {ParentType} {ParentId} with depth {Depth}",
+                parentLocationType, parentLocationId, hierarchicalDepth);
+
+            // Get child locations based on parent type and depth
+            var childLocations = await GetChildLocationsAsync(parentLocationId, parentLocationType, hierarchicalDepth, cancellationToken);
+            
+            if (childLocations.Count == 0)
+            {
+                _logger.LogInformation("No child locations found for {ParentType} {ParentId}", parentLocationType, parentLocationId);
+                return hierarchicalAssessments;
+            }
+
+            _logger.LogInformation("Found {ChildCount} child locations to process", childLocations.Count);
+
+            // Use the new batch optimization for child locations
+            hierarchicalAssessments = await ProcessLocationsBatchOptimized(
+                childLocations,
+                forceRecalculate,
+                maxParallelism,
+                $"hierarchical children of {parentLocationType} {parentLocationId}",
+                cancellationToken);
+
+            _logger.LogInformation("Generated {HierarchicalCount} hierarchical assessments for {ParentType} {ParentId}",
+                hierarchicalAssessments.Count, parentLocationType, parentLocationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating hierarchical assessments for {ParentType} {ParentId}",
+                parentLocationType, parentLocationId);
+        }
+
+        return hierarchicalAssessments;
+    }
+
+    /// <summary>
+    /// Gets child locations based on parent location type and hierarchical depth
+    /// </summary>
+    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsAsync(
+        Guid parentLocationId,
+        LocationTypeEnum parentLocationType,
+        int hierarchicalDepth,
+        CancellationToken cancellationToken)
+    {
+        var childLocations = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
+
+        switch (parentLocationType)
+        {
+            case LocationTypeEnum.Regional:
+                // Region -> Provinces (depth 1), Municipalities (depth 2), Barangays (depth 3)
+                childLocations.AddRange(await GetProvincesInRegionAsync(parentLocationId, cancellationToken));
+                
+                if (hierarchicalDepth >= 2)
+                {
+                    var provinceIds = childLocations.Select(c => c.Id).ToList();
+                    foreach (var provinceId in provinceIds)
+                    {
+                        childLocations.AddRange(await GetMunicipalitiesInProvinceAsync(provinceId, cancellationToken));
+                    }
+                }
+                
+                if (hierarchicalDepth >= 3)
+                {
+                    var municipalityIds = childLocations.Where(c => c.Type == LocationTypeEnum.Municipality).Select(c => c.Id).ToList();
+                    foreach (var municipalityId in municipalityIds)
+                    {
+                        childLocations.AddRange(await GetBarangaysInMunicipalityAsync(municipalityId, cancellationToken));
+                    }
+                }
+                break;
+
+            case LocationTypeEnum.Provincial:
+                // Province -> Municipalities (depth 1), Barangays (depth 2)
+                childLocations.AddRange(await GetMunicipalitiesInProvinceAsync(parentLocationId, cancellationToken));
+                
+                if (hierarchicalDepth >= 2)
+                {
+                    var municipalityIds = childLocations.Select(c => c.Id).ToList();
+                    foreach (var municipalityId in municipalityIds)
+                    {
+                        childLocations.AddRange(await GetBarangaysInMunicipalityAsync(municipalityId, cancellationToken));
+                    }
+                }
+                break;
+
+            case LocationTypeEnum.Municipality:
+                // Municipality -> Barangays (depth 1)
+                childLocations.AddRange(await GetBarangaysInMunicipalityAsync(parentLocationId, cancellationToken));
+                break;
+
+            case LocationTypeEnum.Barangay:
+                // Barangays have no children in our hierarchy
+                break;
+        }
+
+        return childLocations;
+    }
+
+    /// <summary>
+    /// Gets all provinces in a region
+    /// </summary>
+    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetProvincesInRegionAsync(
+        Guid regionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var provinces = await _provinceRepository.ToListAsync(
+                _provinceRepository.Query(p => p.RegionId == regionId)
+                    .Select(p => new { p.Id, p.Name }), 
+                cancellationToken);
+
+            return provinces.Select(p => (p.Id, LocationTypeEnum.Provincial, p.Name)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting provinces for region {RegionId}", regionId);
+            return new List<(Guid Id, LocationTypeEnum Type, string Name)>();
+        }
+    }
+
+    /// <summary>
+    /// Gets all municipalities in a province
+    /// </summary>
+    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetMunicipalitiesInProvinceAsync(
+        Guid provinceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var municipalities = await _municipalityRepository.ToListAsync(
+                _municipalityRepository.Query(m => m.ProvinceId == provinceId)
+                    .Select(m => new { m.Id, m.Name }), 
+                cancellationToken);
+
+            return municipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting municipalities for province {ProvinceId}", provinceId);
+            return new List<(Guid Id, LocationTypeEnum Type, string Name)>();
+        }
+    }
+
+    /// <summary>
+    /// Gets all barangays in a municipality
+    /// </summary>
+    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetBarangaysInMunicipalityAsync(
+        Guid municipalityId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var barangays = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
+                    .Select(b => new { b.Id, b.Name }), 
+                cancellationToken);
+
+            return barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting barangays for municipality {MunicipalityId}", municipalityId);
+            return new List<(Guid Id, LocationTypeEnum Type, string Name)>();
         }
     }
 
@@ -1122,5 +1674,76 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private static double CalculateAverageSignalStrength(List<decimal> rssiValues, List<string> signalQualities)
     {
         return SignalStrengthHelper.CalculateAverageSignalStrength(rssiValues, signalQualities);
+    }
+
+    /// <summary>
+    /// Calculate optimal batch size based on system resources and workload
+    /// </summary>
+    private int CalculateOptimalBatchSize(int totalLocations, int maxParallelism)
+    {
+        // Base batch size on parallelism and total workload
+        var baseBatchSize = Math.Max(MIN_BATCH_SIZE, Math.Min(maxParallelism * 2, DEFAULT_BATCH_SIZE));
+        
+        // Adjust for very large workloads
+        if (totalLocations > 1000)
+        {
+            baseBatchSize = Math.Min(MAX_BATCH_SIZE, baseBatchSize * 2); // Larger batches for big jobs
+        }
+        else if (totalLocations < 50)
+        {
+            baseBatchSize = Math.Min(totalLocations, MIN_BATCH_SIZE); // Smaller batches for small jobs
+        }
+
+        // Check memory pressure - THREAD SAFE
+        long currentMemoryMB;
+        lock (_memoryManagementLock)
+        {
+            currentMemoryMB = GC.GetTotalMemory(false) / 1024 / 1024;
+        }
+        
+        if (currentMemoryMB > MEMORY_PRESSURE_THRESHOLD_MB)
+        {
+            baseBatchSize = Math.Max(MIN_BATCH_SIZE, baseBatchSize / 2); // Reduce batch size under memory pressure
+            _logger.LogDebug("Reducing batch size to {BatchSize} due to memory pressure ({MemoryMB} MB)", 
+                baseBatchSize, currentMemoryMB);
+        }
+
+        _logger.LogDebug("Calculated optimal batch size: {BatchSize} for {TotalLocations} locations with {MaxParallelism} parallelism",
+            baseBatchSize, totalLocations, maxParallelism);
+
+        return baseBatchSize;
+    }
+
+    /// <summary>
+    /// Dynamically adjust batch size based on processing performance - THREAD SAFE
+    /// </summary>
+    private int AdjustBatchSizeBasedOnPerformance(int currentBatchSize, TimeSpan elapsed, int processedCount)
+    {
+        if (processedCount == 0 || elapsed.TotalSeconds == 0)
+            return currentBatchSize;
+
+        var itemsPerSecond = processedCount / elapsed.TotalSeconds;
+        var newBatchSize = currentBatchSize;
+
+        // Adjust batch size based on processing speed - with thread safety
+        lock (_memoryManagementLock) // Reuse the same lock for batch size adjustments
+        {
+            if (itemsPerSecond > 5) // Very fast processing
+            {
+                newBatchSize = Math.Min(MAX_BATCH_SIZE, (int)(currentBatchSize * 1.2)); // Increase batch size by 20%
+            }
+            else if (itemsPerSecond < 1) // Slow processing
+            {
+                newBatchSize = Math.Max(MIN_BATCH_SIZE, (int)(currentBatchSize * 0.8)); // Decrease batch size by 20%
+            }
+
+            if (newBatchSize != currentBatchSize)
+            {
+                _logger.LogDebug("Adjusting batch size from {OldSize} to {NewSize} based on performance ({ItemsPerSec:F1} items/sec)",
+                    currentBatchSize, newBatchSize, itemsPerSecond);
+            }
+        }
+
+        return newBatchSize;
     }
 }

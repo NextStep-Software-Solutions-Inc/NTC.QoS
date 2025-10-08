@@ -568,9 +568,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMethod("GIST");
 
         modelBuilder.Entity<ConnectivityAssessment>()
-            .HasIndex(ca => new { ca.LocationId, ca.LocationType })
+            .HasIndex(ca => ca.LocationId)
             .IsUnique()
-            .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
+            .HasDatabaseName("IX_ConnectivityAssessment_LocationId");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => ca.LocationType)
+            .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
 
         modelBuilder.Entity<ConnectivityAssessment>()
             .HasIndex(ca => ca.ConnectivityStatus)
