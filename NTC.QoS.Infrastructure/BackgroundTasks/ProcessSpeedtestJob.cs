@@ -88,7 +88,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     GenerationId = g.Id
                 }))
                 .ToDictionary(
-                    x => CacheKeyGenerator.GenerateGenerationCacheKey(x.Standard),
+                    x => CacheKeyGenerator.GenerateTechnologyCacheKey(x.Standard),
                     x => new { x.TechnologyId, x.GenerationId }
                 );
 
@@ -170,7 +170,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                         return;
                     }
 
-                    var technologyKey = CacheKeyGenerator.GenerateGenerationCacheKey(record.NetworkType);
+                    var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
                     if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
                     {
                         _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
