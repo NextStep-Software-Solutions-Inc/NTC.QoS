@@ -120,12 +120,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 var longitude = speedtest.Location?.Coordinate?.X ?? 0;
                 var latitude = speedtest.Location?.Coordinate?.Y ?? 0;
                 
-                // Simplified duplicate key with core fields only
+                // Simplified duplicate key with core fields only 
                 var signalQuality = string.IsNullOrEmpty(speedtest.SignalQuality) ? "NULL" : speedtest.SignalQuality;
                 var rssi = speedtest.RSSI?.ToString() ?? "NULL";
                 var technologyId = speedtest.TechnologyId?.ToString() ?? "NULL";
 
-                var key = $"{speedtest.ServiceProviderId}_{speedtest.GenerationId}_{speedtest.TechnologyId}_{speedtest.DateTime:yyyy-MM-dd HH:mm:ss}_{speedtest.UploadSpeed}_{speedtest.DownloadSpeed}_{rssi}_{signalQuality}_{longitude:F6}_{latitude:F6}";
+                var key = $"{speedtest.ServiceProviderId}_{speedtest.GenerationId}_{technologyId}_{speedtest.DateTime:yyyy-MM-dd HH:mm:ss}_{speedtest.UploadSpeed}_{speedtest.DownloadSpeed}_{rssi}_{signalQuality}_{longitude:F6}_{latitude:F6}";
                 
                 // Debug logging for pre-loaded keys
                 _logger.LogDebug("Pre-loaded duplicate key: {DuplicateKey}", key);
