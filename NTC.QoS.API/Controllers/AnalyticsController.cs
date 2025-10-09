@@ -293,7 +293,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobResponseDto>>> StartConnectivityAssessmentJob(
         [FromBody] StartConnectivityAssessmentJobRequest request)
     {
-        var response = await _mediator.Send(request);
+        var response = await mediator.Send(request);
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
@@ -303,13 +303,13 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <param name="jobId">Job identifier returned from the start job endpoint</param>
     /// <returns>Current job status and progress information</returns>
     [HttpGet("connectivity-assessment/job/{jobId}/status")]
-    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatus>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatus>), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobStatus>>> GetConnectivityAssessmentJobStatus(
-        [FromRoute] string jobId)
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobStatusDto>>> GetConnectivityAssessmentJobStatus(
+        [FromRoute] int jobId)
     {
         var request = new GetConnectivityAssessmentJobStatusRequest { JobId = jobId };
-        var response = await _mediator.Send(request);
+        var response = await mediator.Send(request);
         return response.Succeeded ? Ok(response) : NotFound(response);
     }
 }

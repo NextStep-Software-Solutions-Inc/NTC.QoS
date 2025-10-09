@@ -11,8 +11,6 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using NTC.QoS.Infrastructure.Helper;
-using System.Collections.Concurrent; // Added for thread-safe collections
-using System.Linq; // Added for Chunk method
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -30,16 +28,6 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IConnectivityCacheService _cacheService;
     private readonly ILogger<GenerateConnectivityAssessmentHandler> _logger;
-
-    // Batch processing configuration
-    private const int DEFAULT_BATCH_SIZE = 50;
-    private const int MAX_BATCH_SIZE = 200;
-    private const int MIN_BATCH_SIZE = 10;
-    private const int MEMORY_PRESSURE_THRESHOLD_MB = 500;
-    private const int PROGRESS_REPORT_INTERVAL = 25; // Report progress every 25 items
-
-    // Thread safety for memory management
-    private static readonly object _memoryManagementLock = new object();
 
     public GenerateConnectivityAssessmentHandler(
         IConnectivityAssessmentRepository connectivityRepository,
@@ -73,63 +61,26 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         try
         {
-            // Check if this request would be better suited for background processing
-            var estimatedProcessingTime = EstimateProcessingTimeMinutes(request);
-            if (estimatedProcessingTime > 10) // More than 10 minutes
-            {
-                _logger.LogWarning("Large connectivity assessment request detected ({EstimatedMinutes} minutes estimated). " +
-                    "Consider using background processing endpoint: POST /api/reports/connectivity-assessment/background. " +
-                    "Processing {LocationCount} {LocationType}s with hierarchical={Hierarchical}, maxParallelism={MaxParallelism}",
-                    estimatedProcessingTime, request.LocationIds.Count, request.LocationType, 
-                    request.GenerateHierarchicalAssessments, request.MaxParallelism);
-            }
-
-            _logger.LogInformation("Starting connectivity assessment generation for {LocationCount} {LocationType}s with " +
-                "hierarchical={Hierarchical}, maxParallelism={MaxParallelism} (estimated: {EstimatedMinutes} minutes)", 
-                request.LocationIds.Count, request.LocationType, request.GenerateHierarchicalAssessments, 
-                request.MaxParallelism, estimatedProcessingTime);
+            _logger.LogInformation("Generating connectivity assessments for {LocationCount} {LocationType}s",
+                request.LocationIds.Count, request.LocationType);
 
             var generatedAssessments = new List<LocationConnectivityDto>();
-            
-            // Process primary locations with optimized batch processing
-            var primaryAssessments = await ProcessLocationsBatchOptimized(
-                request.LocationIds.Select(id => (id, request.LocationType, "Primary")).ToList(),
-                request.ForceRecalculate, 
-                request.MaxParallelism, 
-                "primary locations",
-                cancellationToken);
-            
-            generatedAssessments.AddRange(primaryAssessments);
-            
-            // Generate hierarchical assessments if requested with enhanced batch processing
-            if (request.GenerateHierarchicalAssessments)
+
+            foreach (var locationId in request.LocationIds)
             {
-                var hierarchicalAssessments = await GenerateHierarchicalAssessmentsWithBatchOptimization(
-                    request.LocationIds, 
-                    request.LocationType, 
-                    request.HierarchicalDepth, 
-                    request.MaxParallelism, 
-                    request.ForceRecalculate, 
-                    cancellationToken);
-                
-                generatedAssessments.AddRange(hierarchicalAssessments);
+                var assessment = await GenerateAssessmentForLocationAsync(locationId, request.LocationType, request.ForceRecalculate, cancellationToken);
+                if (assessment != null)
+                {
+                    generatedAssessments.Add(assessment);
+                }
             }
 
-            var successMessage = $"Successfully generated {generatedAssessments.Count} connectivity assessments";
-            
-            // Add recommendation for future large requests
-            if (estimatedProcessingTime > 5)
-            {
-                successMessage += $". Note: This request took an estimated {estimatedProcessingTime} minutes. " +
-                    "For faster processing of large requests, consider using the background job endpoint.";
-            }
-
-            _logger.LogInformation(successMessage);
+            _logger.LogInformation("Generated {AssessmentCount} connectivity assessments", generatedAssessments.Count);
 
             return new ApiResponse<List<LocationConnectivityDto>>
             {
                 Succeeded = true,
-                Message = successMessage,
+                Message = $"Successfully generated {generatedAssessments.Count} connectivity assessments",
                 Data = generatedAssessments
             };
         }
@@ -148,513 +99,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
     }
 
-    /// <summary>
-    /// Estimate processing time in minutes for logging and recommendations
-    /// </summary>
-    private static int EstimateProcessingTimeMinutes(GenerateConnectivityAssessmentRequest request)
-    {
-        // Base time per location (in minutes) - optimistic estimates for current implementation
-        var baseTimePerLocation = request.ForceRecalculate ? 0.3 : 0.1; // Reduced due to current optimizations
-        
-        // Parallelism impact (lower parallelism = longer time)
-        var parallelismPenalty = request.MaxParallelism == 1 ? 2.0 : 1.0; // Double time for sequential processing
-        
-        // Hierarchical multiplier
-        var hierarchicalMultiplier = request.GenerateHierarchicalAssessments 
-            ? request.LocationType switch
-            {
-                LocationTypeEnum.Regional => 100, // Regions have many children
-                LocationTypeEnum.Provincial => 30, // Provinces have many municipalities
-                LocationTypeEnum.Municipality => 10, // Municipalities have many barangays
-                _ => 1
-            }
-            : 1;
-
-        var estimatedMinutes = (int)Math.Ceiling(
-            request.LocationIds.Count * baseTimePerLocation * parallelismPenalty * hierarchicalMultiplier);
-        
-        return Math.Max(1, estimatedMinutes);
-    }
-
-    /// <summary>
-    /// Enhanced hierarchical assessment generation with batch processing optimization
-    /// </summary>
-    private async Task<List<LocationConnectivityDto>> GenerateHierarchicalAssessmentsWithBatchOptimization(
-        List<Guid> parentLocationIds,
-        LocationTypeEnum parentLocationType,
-        int hierarchicalDepth,
-        int maxParallelism,
-        bool forceRecalculate,
-        CancellationToken cancellationToken)
-    {
-        var hierarchicalAssessments = new List<LocationConnectivityDto>();
-        
-        try
-        {
-            _logger.LogInformation("Starting optimized hierarchical assessment generation for {ParentCount} {ParentType}s with depth {Depth}",
-                parentLocationIds.Count, parentLocationType, hierarchicalDepth);
-
-            // Collect all child locations across all parents with intelligent batching
-            var allChildLocations = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
-            
-            foreach (var parentLocationId in parentLocationIds)
-            {
-                var childLocations = await GetChildLocationsAsync(parentLocationId, parentLocationType, hierarchicalDepth, cancellationToken);
-                allChildLocations.AddRange(childLocations);
-            }
-
-            if (allChildLocations.Count == 0)
-            {
-                _logger.LogInformation("No child locations found for hierarchical processing");
-                return hierarchicalAssessments;
-            }
-
-            // Remove duplicates that may occur when multiple parents have overlapping children
-            var uniqueChildLocations = allChildLocations
-                .GroupBy(c => new { c.Id, c.Type })
-                .Select(g => g.First())
-                .ToList();
-
-            _logger.LogInformation("Found {TotalChildCount} unique child locations to process (removed {DuplicateCount} duplicates)", 
-                uniqueChildLocations.Count, allChildLocations.Count - uniqueChildLocations.Count);
-
-            // Process child locations with optimized batch processing
-            var childAssessments = await ProcessLocationsBatchOptimized(
-                uniqueChildLocations,
-                forceRecalculate, 
-                maxParallelism, 
-                "hierarchical child locations",
-                cancellationToken);
-
-            hierarchicalAssessments.AddRange(childAssessments);
-
-            _logger.LogInformation("Generated {HierarchicalCount} hierarchical assessments across {ParentCount} parent locations",
-                hierarchicalAssessments.Count, parentLocationIds.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error generating optimized hierarchical assessments");
-            throw; // Re-throw to be handled by main handler
-        }
-
-        return hierarchicalAssessments;
-    }
-
-    /// <summary>
-    /// Optimized batch processing with dynamic batch sizing and thread-safe memory management
-    /// </summary>
-    private async Task<List<LocationConnectivityDto>> ProcessLocationsBatchOptimized(
-        List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
-        bool forceRecalculate,
-        int maxParallelism,
-        string processingContext,
-        CancellationToken cancellationToken)
-    {
-        var results = new List<LocationConnectivityDto>();
-        
-        if (locations.Count == 0)
-            return results;
-
-        _logger.LogInformation("Starting batch-optimized processing of {LocationCount} {Context} with maxParallelism={MaxParallelism}",
-            locations.Count, processingContext, maxParallelism);
-
-        // Calculate optimal batch size based on memory pressure and location count
-        var batchSize = CalculateOptimalBatchSize(locations.Count, maxParallelism);
-        var totalBatches = (int)Math.Ceiling((double)locations.Count / batchSize);
-        var processedCount = 0;
-        var startTime = DateTime.UtcNow;
-
-        _logger.LogInformation("Processing {LocationCount} locations in {BatchCount} batches of size {BatchSize}",
-            locations.Count, totalBatches, batchSize);
-
-        // Process locations in optimized batches
-        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
-        {
-            var batchLocations = locations
-                .Skip(batchIndex * batchSize)
-                .Take(batchSize)
-                .ToList();
-
-            _logger.LogDebug("Processing batch {BatchNumber}/{TotalBatches} with {BatchLocationCount} locations",
-                batchIndex + 1, totalBatches, batchLocations.Count);
-
-            try
-            {
-                // Process batch with controlled parallelism and smart caching
-                var batchResults = await ProcessBatchWithSmartCaching(
-                    batchLocations, 
-                    forceRecalculate, 
-                    Math.Min(maxParallelism, batchLocations.Count), 
-                    cancellationToken);
-
-                results.AddRange(batchResults.Where(r => r != null)!);
-                processedCount += batchLocations.Count;
-
-                // Report progress periodically
-                if (processedCount % PROGRESS_REPORT_INTERVAL == 0 || batchIndex == totalBatches - 1)
-                {
-                    var progressPercent = Math.Round((double)processedCount / locations.Count * 100, 1);
-                    var elapsed = DateTime.UtcNow - startTime;
-                    var estimatedRemaining = processedCount > 0 
-                        ? TimeSpan.FromTicks(elapsed.Ticks * (locations.Count - processedCount) / processedCount)
-                        : TimeSpan.Zero;
-
-                    _logger.LogInformation("Batch processing progress: {ProcessedCount}/{TotalCount} ({Progress}%) - ETA: {ETA:mm\\:ss}",
-                        processedCount, locations.Count, progressPercent, estimatedRemaining);
-                }
-
-                // THREAD-SAFE Memory management: Force garbage collection after large batches
-                if (batchIndex % 10 == 0 && batchIndex > 0)
-                {
-                    // Use lock to prevent multiple threads from triggering GC simultaneously
-                    lock (_memoryManagementLock)
-                    {
-                        var memoryBefore = GC.GetTotalMemory(false) / 1024 / 1024; // MB
-                        
-                        if (memoryBefore > MEMORY_PRESSURE_THRESHOLD_MB)
-                        {
-                            _logger.LogDebug("Memory pressure detected ({MemoryMB} MB), forcing garbage collection", memoryBefore);
-                            GC.Collect();
-                            GC.WaitForPendingFinalizers();
-                            GC.Collect();
-                            
-                            var memoryAfter = GC.GetTotalMemory(false) / 1024 / 1024;
-                            _logger.LogDebug("Garbage collection completed. Memory: {Before} MB -> {After} MB (freed {Freed} MB)",
-                                memoryBefore, memoryAfter, memoryBefore - memoryAfter);
-                        }
-                    }
-                }
-
-                // Adaptive batch size adjustment based on performance
-                if (batchIndex % 5 == 0 && batchIndex > 0)
-                {
-                    var currentElapsed = DateTime.UtcNow - startTime;
-                    batchSize = AdjustBatchSizeBasedOnPerformance(batchSize, currentElapsed, processedCount);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error processing batch {BatchNumber}/{TotalBatches}. Continuing with next batch.", 
-                    batchIndex + 1, totalBatches);
-                
-                // Continue processing remaining batches even if one fails
-                continue;
-            }
-
-            // Small delay between batches to prevent overwhelming the system
-            if (batchIndex < totalBatches - 1)
-            {
-                await Task.Delay(50, cancellationToken); // 50ms delay between batches
-            }
-        }
-
-        var totalElapsed = DateTime.UtcNow - startTime;
-        _logger.LogInformation("Completed batch processing of {LocationCount} {Context}. Generated {ResultCount} assessments in {ElapsedTime:mm\\:ss}. Average: {AvgPerSecond:F1}/sec",
-            locations.Count, processingContext, results.Count, totalElapsed, 
-            totalElapsed.TotalSeconds > 0 ? processedCount / totalElapsed.TotalSeconds : 0);
-
-        return results;
-    }
-
-    /// <summary>
-    /// Process a single batch with smart caching and parallel optimization - THREAD SAFE WITH EF CONCURRENCY FIX
-    /// </summary>
-    private async Task<List<LocationConnectivityDto?>> ProcessBatchWithSmartCaching(
-        List<(Guid Id, LocationTypeEnum Type, string Name)> batchLocations,
-        bool forceRecalculate,
-        int maxParallelism,
-        CancellationToken cancellationToken)
-    {
-        // Pre-warm cache for the entire batch if not forcing recalculation
-        if (!forceRecalculate)
-        {
-            await PreWarmBatchCache(batchLocations, cancellationToken);
-        }
-
-        // Use thread-safe collections for tracking processed items
-        var processedKeys = new ConcurrentBag<string>();
-        var results = new List<LocationConnectivityDto?>();
-
-        // CRITICAL FIX: Reduce parallelism for database operations to prevent EF concurrency issues
-        var safeBatchSize = Math.Min(maxParallelism, 3); // Limit to max 3 parallel DB operations
-        var batches = batchLocations.Chunk(safeBatchSize).ToList();
-
-        foreach (var batch in batches)
-        {
-            // Process each small batch with controlled parallelism
-            using var semaphore = new SemaphoreSlim(safeBatchSize, safeBatchSize);
-            
-            var batchTasks = batch.Select(async location =>
-            {
-                await semaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    var result = await GenerateAssessmentForLocationAsync(
-                        location.Id, 
-                        location.Type, 
-                        forceRecalculate, 
-                        cancellationToken);
-                    
-                    if (result != null)
-                    {
-                        var key = $"{location.Type}_{location.Id}";
-                        processedKeys.Add(key);
-                    }
-                    
-                    return result;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to generate assessment for {LocationType} {LocationId} ({LocationName})", 
-                        location.Type, location.Id, location.Name);
-                    return null;
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-
-            var batchResults = await Task.WhenAll(batchTasks);
-            results.AddRange(batchResults);
-
-            // Delay between mini-batches to prevent database overload
-            if (batches.Count > 1)
-            {
-                await Task.Delay(150, cancellationToken);
-            }
-        }
-        
-        _logger.LogDebug("Batch processing completed. Processed {ProcessedCount} items, Generated {ResultCount} assessments",
-            processedKeys.Count, results.Count(r => r != null));
-            
-        return results;
-    }
-
-    /// <summary>
-    /// Pre-warm cache for batch processing efficiency - THREAD SAFE
-    /// </summary>
-    private async Task PreWarmBatchCache(
-        List<(Guid Id, LocationTypeEnum Type, string Name)> batchLocations,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            _logger.LogDebug("Pre-warming cache for batch of {BatchSize} locations", batchLocations.Count);
-
-            // Use ConcurrentBag for thread-safe collection of results
-            var existingAssessmentTasks = batchLocations.Select(async location =>
-            {
-                try
-                {
-                    var existing = await _connectivityRepository.GetByLocationAsync(location.Id, location.Type, cancellationToken);
-                    var isRecent = existing?.LastUpdated > DateTime.UtcNow.AddDays(-30);
-                    return new { Location = location, Existing = existing, IsRecent = isRecent };
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Error checking existing assessment for {LocationType} {LocationId}", 
-                        location.Type, location.Id);
-                    return new { Location = location, Existing = (ConnectivityAssessment?)null, IsRecent = false };
-                }
-            });
-
-            var existingResults = await Task.WhenAll(existingAssessmentTasks);
-            var cachedCount = existingResults.Count(r => r.IsRecent);
-            var needsGenerationCount = existingResults.Count(r => !r.IsRecent);
-
-            _logger.LogDebug("Cache pre-warm complete: {CachedCount} cached, {NeedsGenerationCount} need generation", 
-                cachedCount, needsGenerationCount);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error during cache pre-warming. Continuing with batch processing.");
-            // Don't fail the entire batch if pre-warming fails
-        }
-    }
-
-    /// <summary>
-    /// Generates assessments for all child locations in the hierarchy
-    /// </summary>
-    private async Task<List<LocationConnectivityDto>> GenerateHierarchicalAssessmentsAsync(
-        Guid parentLocationId,
-        LocationTypeEnum parentLocationType,
-        int hierarchicalDepth,
-        int maxParallelism,
-        bool forceRecalculate,
-        CancellationToken cancellationToken)
-    {
-        var hierarchicalAssessments = new List<LocationConnectivityDto>();
-        
-        try
-        {
-            _logger.LogInformation("Starting hierarchical assessment generation for {ParentType} {ParentId} with depth {Depth}",
-                parentLocationType, parentLocationId, hierarchicalDepth);
-
-            // Get child locations based on parent type and depth
-            var childLocations = await GetChildLocationsAsync(parentLocationId, parentLocationType, hierarchicalDepth, cancellationToken);
-            
-            if (childLocations.Count == 0)
-            {
-                _logger.LogInformation("No child locations found for {ParentType} {ParentId}", parentLocationType, parentLocationId);
-                return hierarchicalAssessments;
-            }
-
-            _logger.LogInformation("Found {ChildCount} child locations to process", childLocations.Count);
-
-            // Use the new batch optimization for child locations
-            hierarchicalAssessments = await ProcessLocationsBatchOptimized(
-                childLocations,
-                forceRecalculate,
-                maxParallelism,
-                $"hierarchical children of {parentLocationType} {parentLocationId}",
-                cancellationToken);
-
-            _logger.LogInformation("Generated {HierarchicalCount} hierarchical assessments for {ParentType} {ParentId}",
-                hierarchicalAssessments.Count, parentLocationType, parentLocationId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error generating hierarchical assessments for {ParentType} {ParentId}",
-                parentLocationType, parentLocationId);
-        }
-
-        return hierarchicalAssessments;
-    }
-
-    /// <summary>
-    /// Gets child locations based on parent location type and hierarchical depth
-    /// </summary>
-    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsAsync(
-        Guid parentLocationId,
-        LocationTypeEnum parentLocationType,
-        int hierarchicalDepth,
-        CancellationToken cancellationToken)
-    {
-        var childLocations = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
-
-        switch (parentLocationType)
-        {
-            case LocationTypeEnum.Regional:
-                // Region -> Provinces (depth 1), Municipalities (depth 2), Barangays (depth 3)
-                childLocations.AddRange(await GetProvincesInRegionAsync(parentLocationId, cancellationToken));
-                
-                if (hierarchicalDepth >= 2)
-                {
-                    var provinceIds = childLocations.Select(c => c.Id).ToList();
-                    foreach (var provinceId in provinceIds)
-                    {
-                        childLocations.AddRange(await GetMunicipalitiesInProvinceAsync(provinceId, cancellationToken));
-                    }
-                }
-                
-                if (hierarchicalDepth >= 3)
-                {
-                    var municipalityIds = childLocations.Where(c => c.Type == LocationTypeEnum.Municipality).Select(c => c.Id).ToList();
-                    foreach (var municipalityId in municipalityIds)
-                    {
-                        childLocations.AddRange(await GetBarangaysInMunicipalityAsync(municipalityId, cancellationToken));
-                    }
-                }
-                break;
-
-            case LocationTypeEnum.Provincial:
-                // Province -> Municipalities (depth 1), Barangays (depth 2)
-                childLocations.AddRange(await GetMunicipalitiesInProvinceAsync(parentLocationId, cancellationToken));
-                
-                if (hierarchicalDepth >= 2)
-                {
-                    var municipalityIds = childLocations.Select(c => c.Id).ToList();
-                    foreach (var municipalityId in municipalityIds)
-                    {
-                        childLocations.AddRange(await GetBarangaysInMunicipalityAsync(municipalityId, cancellationToken));
-                    }
-                }
-                break;
-
-            case LocationTypeEnum.Municipality:
-                // Municipality -> Barangays (depth 1)
-                childLocations.AddRange(await GetBarangaysInMunicipalityAsync(parentLocationId, cancellationToken));
-                break;
-
-            case LocationTypeEnum.Barangay:
-                // Barangays have no children in our hierarchy
-                break;
-        }
-
-        return childLocations;
-    }
-
-    /// <summary>
-    /// Gets all provinces in a region
-    /// </summary>
-    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetProvincesInRegionAsync(
-        Guid regionId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var provinces = await _provinceRepository.ToListAsync(
-                _provinceRepository.Query(p => p.RegionId == regionId)
-                    .Select(p => new { p.Id, p.Name }), 
-                cancellationToken);
-
-            return provinces.Select(p => (p.Id, LocationTypeEnum.Provincial, p.Name)).ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error getting provinces for region {RegionId}", regionId);
-            return new List<(Guid Id, LocationTypeEnum Type, string Name)>();
-        }
-    }
-
-    /// <summary>
-    /// Gets all municipalities in a province
-    /// </summary>
-    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetMunicipalitiesInProvinceAsync(
-        Guid provinceId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var municipalities = await _municipalityRepository.ToListAsync(
-                _municipalityRepository.Query(m => m.ProvinceId == provinceId)
-                    .Select(m => new { m.Id, m.Name }), 
-                cancellationToken);
-
-            return municipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)).ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error getting municipalities for province {ProvinceId}", provinceId);
-            return new List<(Guid Id, LocationTypeEnum Type, string Name)>();
-        }
-    }
-
-    /// <summary>
-    /// Gets all barangays in a municipality
-    /// </summary>
-    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetBarangaysInMunicipalityAsync(
-        Guid municipalityId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var barangays = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
-                    .Select(b => new { b.Id, b.Name }), 
-                cancellationToken);
-
-            return barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)).ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error getting barangays for municipality {MunicipalityId}", municipalityId);
-            return new List<(Guid Id, LocationTypeEnum Type, string Name)>();
-        }
-    }
-
     private async Task<LocationConnectivityDto?> GenerateAssessmentForLocationAsync(
-        Guid locationId, 
-        LocationTypeEnum locationType, 
-        bool forceRecalculate, 
+        Guid locationId,
+        LocationTypeEnum locationType,
+        bool forceRecalculate,
         CancellationToken cancellationToken)
     {
         // Check if assessment already exists
@@ -663,7 +111,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var existingAssessment = await _connectivityRepository.GetByLocationAsync(locationId, locationType, cancellationToken);
             if (existingAssessment != null && existingAssessment.LastUpdated > DateTime.UtcNow.AddDays(-30))
             {
-                _logger.LogInformation("Using existing assessment for location {LocationId} (last updated: {LastUpdated})", 
+                _logger.LogInformation("Using existing assessment for location {LocationId} (last updated: {LastUpdated})",
                     locationId, existingAssessment.LastUpdated);
                 return null; // Skip generation, use existing
             }
@@ -679,17 +127,17 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
         // Calculate infrastructure counts within the boundary
         var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
-        
+
         // Calculate speed test statistics
         var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
-        
+
         // Calculate CMTS scores based on infrastructure, speed data, and population (NEW!)
         var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
-        
+
         // Determine connectivity status and total score
-        var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess + 
+        var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess +
                         cmtsScores.TechnologyType + cmtsScores.QualityOfService + cmtsScores.CoverageAvailability;
-        
+
         var connectivityStatus = DetermineConnectivityStatus(totalScore);
 
         // Create or update assessment entity
@@ -763,7 +211,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Create new
             await _connectivityRepository.AddAsync(assessment, cancellationToken);
         }
-        
+
         await _connectivityRepository.SaveChangesAsync(cancellationToken);
 
         // Return DTO
@@ -808,9 +256,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var barangayInfo = await _barangayRepository.FirstOrDefaultAsync(
             _barangayRepository.Query(b => b.Id == barangayId)
-                .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount }), 
+                .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount }),
             cancellationToken);
-        
+
         if (barangayInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -820,7 +268,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Select(b => b.Boundaries);
         boundary = await _barangayRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
-        return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area, 
+        return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area,
                barangayInfo.TotalPopulation, barangayInfo.HouseholdCount);
     }
 
@@ -832,9 +280,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var municipalityInfo = await _municipalityRepository.FirstOrDefaultAsync(
             _municipalityRepository.Query(m => m.Id == municipalityId)
-                .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount }), 
+                .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount }),
             cancellationToken);
-        
+
         if (municipalityInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -856,9 +304,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var provinceInfo = await _provinceRepository.FirstOrDefaultAsync(
             _provinceRepository.Query(p => p.Id == provinceId)
-                .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount }), 
+                .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount }),
             cancellationToken);
-        
+
         if (provinceInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -880,9 +328,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var regionInfo = await _regionRepository.FirstOrDefaultAsync(
             _regionRepository.Query(r => r.Id == regionId)
-                .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount }), 
+                .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount }),
             cancellationToken);
-        
+
         if (regionInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -921,11 +369,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
         // Use accurate boundaries with optimizations
         var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
-        
+
         // Always cache the fresh result
         var infraCacheKey = _cacheService.GenerateInfrastructureCacheKey(locationId, locationType);
         await _cacheService.SetCachedResultAsync(infraCacheKey, result);
-        
+
         return result;
     }
 
@@ -978,7 +426,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             // Fallback for cases where boundaries couldn't be loaded (very large areas)
             _logger.LogWarning("No boundary available for {LocationType} {LocationId}, using center-point approximation", locationType, locationId);
-            
+
             var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI); // Equivalent area circle radius
             var searchRadiusMeters = searchRadiusKm * 1000;
 
@@ -1046,16 +494,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
 
             var speedtestResults = await _speedtestRepository.ToListAsync(
-                query.Select(s => new SpeedtestDto 
-                { 
-                    DownloadSpeed = s.DownloadSpeed, 
-                    UploadSpeed = s.UploadSpeed, 
-                    Ping = s.Ping, 
-                    RSSI = s.RSSI, 
-                    SignalQuality = s.SignalQuality 
-                }), 
+                query.Select(s => new SpeedtestDto
+                {
+                    DownloadSpeed = s.DownloadSpeed,
+                    UploadSpeed = s.UploadSpeed,
+                    Ping = s.Ping,
+                    RSSI = s.RSSI,
+                    SignalQuality = s.SignalQuality
+                }),
                 cancellationToken);
-            
+
             result = ProcessSpeedTestResults(speedtestResults);
         }
         else
@@ -1067,16 +515,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var speedtestResults = await _speedtestRepository.ToListAsync(
                 _speedtestRepository.Query()
                     .Where(s => s.Location.Distance(center) <= searchRadiusMeters)
-                    .Select(s => new SpeedtestDto 
-                    { 
-                        DownloadSpeed = s.DownloadSpeed, 
-                        UploadSpeed = s.UploadSpeed, 
-                        Ping = s.Ping, 
-                        RSSI = s.RSSI, 
-                        SignalQuality = s.SignalQuality 
-                    }), 
+                    .Select(s => new SpeedtestDto
+                    {
+                        DownloadSpeed = s.DownloadSpeed,
+                        UploadSpeed = s.UploadSpeed,
+                        Ping = s.Ping,
+                        RSSI = s.RSSI,
+                        SignalQuality = s.SignalQuality
+                    }),
                 cancellationToken);
-            
+
             result = ProcessSpeedTestResults(speedtestResults);
         }
 
@@ -1102,7 +550,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var uploadSpeeds = speedtests
             .Select(s => s.UploadSpeed)
             .OrderBy(s => s).ToList();
-        
+
         // Calculate signal quality metrics from RSSI data
         var rssiValues = speedtests
             .Where(s => s.RSSI.HasValue)
@@ -1113,10 +561,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Where(s => !string.IsNullOrEmpty(s.SignalQuality))
             .Select(s => s.SignalQuality!)
             .ToList();
-        
+
         // Determine average signal strength based on RSSI ranges
         var averageSignalStrength = CalculateAverageSignalStrength(rssiValues, signalQualities);
-        
+
         return new SpeedStatsDto
         {
             AverageDownloadSpeedMbps = Math.Round(downloadSpeeds.Average(), 2),
@@ -1147,7 +595,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var speedtestResults = await _speedtestRepository.ToListAsync(
                     speedtestQuery
                         .Where(s => s.Generation != null && s.Technology != null)
-                        .Select(s => new { 
+                        .Select(s => new {
                             GenerationName = s.Generation!.Name,
                             TechnologyStandard = s.Technology!.Standard,
                             s.Id
@@ -1180,9 +628,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
                 var speedtestResults = await _speedtestRepository.ToListAsync(
                     _speedtestRepository.Query()
-                        .Where(s => s.Location.Distance(center) <= searchRadiusMeters 
+                        .Where(s => s.Location.Distance(center) <= searchRadiusMeters
                                   && s.Generation != null && s.Technology != null)
-                        .Select(s => new { 
+                        .Select(s => new {
                             GenerationName = s.Generation!.Name,
                             TechnologyStandard = s.Technology!.Standard,
                             s.Id
@@ -1224,7 +672,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 .Distinct()
                 .ToList();
 
-            var dominantGeneration = generationCounts.Any() 
+            var dominantGeneration = generationCounts.Any()
                 ? generationCounts.OrderByDescending(kvp => kvp.Value).First().Key
                 : null;
 
@@ -1263,11 +711,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             return "Unknown";
 
         var normalized = generationName.ToUpperInvariant().Trim();
-        
+
         return normalized switch
         {
             var s when s.Contains("2G") || s.Contains("GSM") || s.Contains("EDGE") => "2G",
-            var s when s.Contains("3G") || s.Contains("UMTS") || s.Contains("WCDMA") || s.Contains("HSPA") => "3G", 
+            var s when s.Contains("3G") || s.Contains("UMTS") || s.Contains("WCDMA") || s.Contains("HSPA") => "3G",
             var s when s.Contains("4G") || s.Contains("LTE") || s.Contains("LTE-A") => "4G",
             var s when s.Contains("5G") || s.Contains("NR") || s.Contains("5G NR") => "5G",
             _ => normalized
@@ -1277,9 +725,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private static decimal CalculateMedian(List<decimal> values)
     {
         if (values.Count == 0) return 0;
-        
+
         int mid = values.Count / 2;
-        return values.Count % 2 == 0 
+        return values.Count % 2 == 0
             ? Math.Round((values[mid - 1] + values[mid]) / 2, 2)
             : Math.Round(values[mid], 2);
     }
@@ -1477,7 +925,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var hasGoodLatency = speedStats.AverageLatencyMs <= 50; // Under 50ms
         var hasConsistentSpeeds = speedStats.MeetsMinimumSpeedRequirement;
         var hasGoodSignal = speedStats.AverageSignalStrength >= 3.5; // Average or better signal
-        
+
 
         // Enhanced quality scoring with signal strength consideration
         var qualityFactors = 0;
@@ -1485,15 +933,15 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         if (hasConsistentSpeeds) qualityFactors++;
         if (hasGoodLatency) qualityFactors++;
         if (hasGoodSignal) qualityFactors++;
-        
+
         // Bonus for 5G areas with excellent performance
-        if (infrastructure.TechnologyBreakdown?.Count5G > 0 && 
-            speedStats.AverageDownloadSpeedMbps >= 100 && 
+        if (infrastructure.TechnologyBreakdown?.Count5G > 0 &&
+            speedStats.AverageDownloadSpeedMbps >= 100 &&
             speedStats.AverageLatencyMs <= 20)
         {
             qualityFactors++;
         }
-        
+
         return qualityFactors switch
         {
             >= 3 => 3, // Served - High quality (good speed, low latency, good signal)
@@ -1514,7 +962,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
 
         double coverageScore;
-        
+
         if (population.HasValue && population > 0)
         {
             // Population-based coverage calculation (aligns with CMTS rubric)
@@ -1522,10 +970,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var providersPerThousand = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
             var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
-            
+
             // Calculate estimated coverage percentage based on infrastructure density
             double estimatedCoveragePercent;
-            
+
             if (context.IsUrbanArea)
             {
                 // Urban: High infrastructure density expected  
@@ -1544,7 +992,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var geographicCoverage = Math.Min(100, geographicDensity * 100);
                 estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
             }
-            
+
             // Apply CMTS rubric thresholds
             if (estimatedCoveragePercent >= 100 && hasMultipleProviders && hasModernTech)
             {
@@ -1569,7 +1017,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var assetDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
             var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
-            
+
             if (hasMultipleProviders && hasModernTech && assetDensity >= 1.0)
             {
                 coverageScore = 3; // Served - Comprehensive coverage
@@ -1583,7 +1031,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 coverageScore = 1; // Unserved - Limited coverage
             }
         }
-        
+
         return (int)Math.Round(coverageScore);
     }
 
@@ -1591,10 +1039,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// Calculates population-aware coverage statistics
     /// </summary>
     private static CoverageStatsDto CalculatePopulationAwareCoverage(
-        InfrastructureStatsDto infrastructure, 
-        double areaKm2, 
-        int? population, 
-        int? householdCount, 
+        InfrastructureStatsDto infrastructure,
+        double areaKm2,
+        int? population,
+        int? householdCount,
         bool hasReliableConnectivity)
     {
         var coverage = new CoverageStatsDto
@@ -1607,19 +1055,19 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             // Assets per thousand people
             coverage.AssetsPerThousandPeople = (infrastructure.TotalAssets * 1000.0) / population.Value;
-            
+
             // Providers per thousand people  
             coverage.ProvidersPerThousandPeople = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
-            
+
             // Estimate population coverage based on infrastructure density
             var populationDensity = areaKm2 > 0 ? population.Value / areaKm2 : 0;
             var isUrbanArea = populationDensity > 1000;
             var isHighDensityArea = populationDensity > 500;
-            
+
             double estimatedCoveragePercent;
             var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
             var providersPerThousand = coverage.ProvidersPerThousandPeople ?? 0;
-            
+
             if (isUrbanArea)
             {
                 // Urban areas: Higher infrastructure density expected
@@ -1638,9 +1086,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var geographicCoverage = Math.Min(100, geographicDensity * 100);
                 estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
             }
-            
+
             coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
-            
+
             // Estimate household coverage (assuming similar ratio)
             if (householdCount.HasValue && householdCount > 0)
             {
@@ -1648,22 +1096,22 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent * householdRatio, 2);
             }
         }
-        
+
         // Calculate basic coverage percentages based on infrastructure mix
         var totalInfrastructure = infrastructure.TotalAssets;
         if (totalInfrastructure > 0)
         {
             // Mobile coverage based on cell towers
             coverage.MobileCoveragePercentage = Math.Round((double)infrastructure.CellTowerCount / totalInfrastructure * 100, 2);
-            
+
             // Fixed broadband coverage based on fiber NAPs and WiFi
             var fixedInfrastructure = infrastructure.FiberNAPCount + infrastructure.WiFiHotspotCount;
             coverage.FixedBroadbandCoveragePercentage = Math.Round((double)fixedInfrastructure / totalInfrastructure * 100, 2);
-            
+
             // Fiber coverage based on NAP presence
             coverage.FiberCoveragePercentage = Math.Round((double)infrastructure.FiberNAPCount / totalInfrastructure * 100, 2);
         }
-        
+
         return coverage;
     }
 
@@ -1674,76 +1122,5 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private static double CalculateAverageSignalStrength(List<decimal> rssiValues, List<string> signalQualities)
     {
         return SignalStrengthHelper.CalculateAverageSignalStrength(rssiValues, signalQualities);
-    }
-
-    /// <summary>
-    /// Calculate optimal batch size based on system resources and workload
-    /// </summary>
-    private int CalculateOptimalBatchSize(int totalLocations, int maxParallelism)
-    {
-        // Base batch size on parallelism and total workload
-        var baseBatchSize = Math.Max(MIN_BATCH_SIZE, Math.Min(maxParallelism * 2, DEFAULT_BATCH_SIZE));
-        
-        // Adjust for very large workloads
-        if (totalLocations > 1000)
-        {
-            baseBatchSize = Math.Min(MAX_BATCH_SIZE, baseBatchSize * 2); // Larger batches for big jobs
-        }
-        else if (totalLocations < 50)
-        {
-            baseBatchSize = Math.Min(totalLocations, MIN_BATCH_SIZE); // Smaller batches for small jobs
-        }
-
-        // Check memory pressure - THREAD SAFE
-        long currentMemoryMB;
-        lock (_memoryManagementLock)
-        {
-            currentMemoryMB = GC.GetTotalMemory(false) / 1024 / 1024;
-        }
-        
-        if (currentMemoryMB > MEMORY_PRESSURE_THRESHOLD_MB)
-        {
-            baseBatchSize = Math.Max(MIN_BATCH_SIZE, baseBatchSize / 2); // Reduce batch size under memory pressure
-            _logger.LogDebug("Reducing batch size to {BatchSize} due to memory pressure ({MemoryMB} MB)", 
-                baseBatchSize, currentMemoryMB);
-        }
-
-        _logger.LogDebug("Calculated optimal batch size: {BatchSize} for {TotalLocations} locations with {MaxParallelism} parallelism",
-            baseBatchSize, totalLocations, maxParallelism);
-
-        return baseBatchSize;
-    }
-
-    /// <summary>
-    /// Dynamically adjust batch size based on processing performance - THREAD SAFE
-    /// </summary>
-    private int AdjustBatchSizeBasedOnPerformance(int currentBatchSize, TimeSpan elapsed, int processedCount)
-    {
-        if (processedCount == 0 || elapsed.TotalSeconds == 0)
-            return currentBatchSize;
-
-        var itemsPerSecond = processedCount / elapsed.TotalSeconds;
-        var newBatchSize = currentBatchSize;
-
-        // Adjust batch size based on processing speed - with thread safety
-        lock (_memoryManagementLock) // Reuse the same lock for batch size adjustments
-        {
-            if (itemsPerSecond > 5) // Very fast processing
-            {
-                newBatchSize = Math.Min(MAX_BATCH_SIZE, (int)(currentBatchSize * 1.2)); // Increase batch size by 20%
-            }
-            else if (itemsPerSecond < 1) // Slow processing
-            {
-                newBatchSize = Math.Max(MIN_BATCH_SIZE, (int)(currentBatchSize * 0.8)); // Decrease batch size by 20%
-            }
-
-            if (newBatchSize != currentBatchSize)
-            {
-                _logger.LogDebug("Adjusting batch size from {OldSize} to {NewSize} based on performance ({ItemsPerSec:F1} items/sec)",
-                    currentBatchSize, newBatchSize, itemsPerSecond);
-            }
-        }
-
-        return newBatchSize;
     }
 }
