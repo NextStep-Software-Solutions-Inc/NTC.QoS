@@ -1,7 +1,7 @@
 using MediatR;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Application.Features.Analytics.Handlers.Queries;
+using NTC.QoS.Domain.Models.DTOs.Analytics;
 
 namespace NTC.QoS.Application.Features.Analytics.Requests;
 
@@ -32,6 +32,25 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     /// Default is 3 (complete hierarchy)
     /// </summary>
     public int HierarchicalDepth { get; set; } = 3;
+    
+    /// <summary>
+    /// NEW: Optional flag to enable hierarchical processing (default null = disabled for performance)
+    /// Must be explicitly set to true to enable hierarchical processing
+    /// This is separate from GenerateHierarchicalAssessments for backward compatibility
+    /// </summary>
+    public bool? EnableHierarchicalProcessing { get; set; } = null; // null = use default (disabled)
+    
+    /// <summary>
+    /// NEW: Optional maximum number of hierarchical locations to process
+    /// When null, uses location-type specific defaults for safety
+    /// </summary>
+    public int? MaxHierarchicalLocations { get; set; } = null; // null = use defaults
+    
+    /// <summary>
+    /// NEW: Optional batch size for hierarchical processing
+    /// When null, uses location-type specific defaults for performance
+    /// </summary>
+    public int? HierarchicalBatchSize { get; set; } = null; // null = use defaults
     
     /// <summary>
     /// User ID for tracking purposes

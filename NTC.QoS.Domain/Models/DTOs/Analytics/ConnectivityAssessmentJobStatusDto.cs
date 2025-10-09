@@ -5,12 +5,12 @@ namespace NTC.QoS.Domain.Models.DTOs.Analytics;
 /// <summary>
 /// Status information for connectivity assessment background jobs
 /// </summary>
-public class ConnectivityAssessmentJobStatus
+public class ConnectivityAssessmentJobStatusDto
 {
     /// <summary>
-    /// Unique identifier for the job
+    /// Unique identifier for the job (using int for easier querying)
     /// </summary>
-    public string JobId { get; set; } = string.Empty;
+    public int JobId { get; set; }
 
     /// <summary>
     /// Current status of the job
@@ -45,21 +45,47 @@ public class ConnectivityAssessmentJobStatus
         : null;
 
     /// <summary>
-    /// Number of locations processed (if available)
+    /// Number of locations actually processed (updated during job execution)
+    /// For completed jobs, this represents the actual total that was processable
     /// </summary>
     public int? ProcessedCount { get; set; }
 
     /// <summary>
-    /// Total number of locations to process (if available)
+    /// Initial estimated total number of locations to process (set at job creation)
+    /// This may differ from the actual count once job determines what's processable
     /// </summary>
-    public int? TotalCount { get; set; }
+    public int? EstimatedTotalCount { get; set; }
 
     /// <summary>
-    /// Progress percentage (if counts are available)
+    /// Progress percentage based on processed count vs estimated total
+    /// For completed jobs, always returns 100% since all available items were processed
+    /// For running jobs, calculates based on ProcessedCount vs EstimatedTotalCount
     /// </summary>
-    public double? ProgressPercentage => ProcessedCount.HasValue && TotalCount.HasValue && TotalCount.Value > 0
-        ? Math.Round((double)ProcessedCount.Value / TotalCount.Value * 100, 1)
-        : null;
+    public double? ProgressPercentage
+    {
+        get
+        {
+            if (!ProcessedCount.HasValue) return null;
+            
+            // For completed jobs, progress is always 100%
+            if (Status == ConnectivityAssessmentJobStatusEnum.Completed)
+            {
+                return 100.0;
+            }
+            
+            // For running or failed jobs, calculate based on estimate
+            return EstimatedTotalCount.HasValue && EstimatedTotalCount.Value > 0
+                ? Math.Round((double)ProcessedCount.Value / EstimatedTotalCount.Value * 100, 1)
+                : null;
+        }
+    }
+
+    /// <summary>
+    /// Indicates whether we're still working with estimated counts (true) or have actual results (false)
+    /// For completed/failed jobs, ProcessedCount represents the definitive actual count
+    /// </summary>
+    public bool IsCountEstimated => Status != ConnectivityAssessmentJobStatusEnum.Completed && 
+                                    Status != ConnectivityAssessmentJobStatusEnum.Failed;
 
     /// <summary>
     /// Indicates if the job is still running
@@ -81,6 +107,7 @@ public class ConnectivityAssessmentJobStatus
         ConnectivityAssessmentJobStatusEnum.Processing => "Job is currently processing assessments",
         ConnectivityAssessmentJobStatusEnum.Completed => "Job completed successfully",
         ConnectivityAssessmentJobStatusEnum.Failed => "Job failed with errors",
+        ConnectivityAssessmentJobStatusEnum.Cancelled => "Job was cancelled",
         _ => "Unknown status"
     };
 }
