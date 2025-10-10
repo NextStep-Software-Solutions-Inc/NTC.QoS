@@ -27,6 +27,7 @@ public static class InfrastructureDependencyInjection
         services.AddDatabaseServices(configuration);
         services.AddHangfireServices(configuration);
         services.AddExternalServices(configuration);
+        services.AddBlobStorageServices(configuration);
         services.AddRepositories();
         services.AddBackgroundJobServices();
 

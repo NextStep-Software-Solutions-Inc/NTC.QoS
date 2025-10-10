@@ -32,6 +32,12 @@ public class Program
             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
+        // Explicitly add user secrets in development
+        if (env.IsDevelopment())
+        {
+            builder.Configuration.AddUserSecrets<Program>();
+        }
+
         // Validate Clerk secret for both Development and Production
         var clerkSecret = builder.Configuration["Clerk:SecretKey"];
         if (string.IsNullOrWhiteSpace(clerkSecret))
@@ -129,6 +135,19 @@ public class Program
                     Array.Empty<string>()
                 }
             });
+            
+            // Configure IFormFile mapping for file uploads
+            options.MapType<IFormFile>(() => new OpenApiSchema
+            {
+                Type = "string",
+                Format = "binary"
+            });
+            
+            // Support for multipart/form-data
+            options.SupportNonNullableReferenceTypes();
+            
+            // Custom operation filter for file upload endpoints
+            options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
         });
