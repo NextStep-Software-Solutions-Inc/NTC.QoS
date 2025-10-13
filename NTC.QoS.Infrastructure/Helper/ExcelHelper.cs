@@ -5,8 +5,10 @@ namespace NTC.QoS.Infrastructure.Helper;
 
 public static class ExcelHelper
 {
-
-    public static List<T> ParseExcelToClass<T>(FileStream stream) where T : new()
+    /// <summary>
+    /// Parses Excel data from a Stream (supports both FileStream and blob storage streams)
+    /// </summary>
+    public static List<T> ParseExcelToClass<T>(Stream stream) where T : new()
     {
         var result = new List<T>();
 
@@ -78,5 +80,14 @@ public static class ExcelHelper
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Legacy method for backward compatibility with FileStream
+    /// </summary>
+    [Obsolete("Use ParseExcelToClass<T>(Stream) instead. This method will be removed in a future version.")]
+    public static List<T> ParseExcelToClass<T>(FileStream stream) where T : new()
+    {
+        return ParseExcelToClass<T>((Stream)stream);
     }
 }

@@ -33,10 +33,27 @@ public class BlobStorageService : IBlobStorageService
         {
             _logger.LogInformation("Starting upload of file {FileName} to container {ContainerName}", fileName, containerName);
 
-            // Validate file size
-            if (fileStream.Length > _options.MaxFileSizeMB * 1024 * 1024)
+            // Validate file size - handle both seekable and non-seekable streams
+            long fileSize = 0;
+            if (fileStream.CanSeek)
             {
-                throw new InvalidOperationException($"File size exceeds the maximum allowed size of {_options.MaxFileSizeMB}MB");
+                fileSize = fileStream.Length;
+                _logger.LogDebug("File size from stream Length: {FileSize} bytes", fileSize);
+            }
+            else
+            {
+                // For non-seekable streams, we'll let the upload proceed and let Azure handle the size limit
+                _logger.LogDebug("Stream is not seekable, cannot pre-validate file size");
+            }
+
+            var maxFileSizeBytes = (long)_options.MaxFileSizeMB * 1024 * 1024;
+            
+            if (fileSize > 0 && fileSize > maxFileSizeBytes)
+            {
+                var fileSizeMB = (double)fileSize / (1024 * 1024);
+                _logger.LogWarning("File size validation failed: {FileSizeMB:F2}MB exceeds limit of {MaxFileSizeMB}MB", 
+                    fileSizeMB, _options.MaxFileSizeMB);
+                throw new InvalidOperationException($"File size ({fileSizeMB:F2}MB) exceeds the maximum allowed size of {_options.MaxFileSizeMB}MB");
             }
 
             // Validate content type

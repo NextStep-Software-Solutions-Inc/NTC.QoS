@@ -29,6 +29,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly ILinkRepository _linkRepository;
     private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository;
+    private readonly IBlobStorageService _blobStorageService;
 
     // Default values for frequency and bandwidth when not specified
     private const decimal DEFAULT_DL_CENTER_FREQ = 0;
@@ -48,7 +49,8 @@ public class ProcessCellJob : IProcessCellJob
         INetworkRepository networkRepository,
         IMunicipalityRepository municipalityRepository,
         ILinkRepository linkRepository,
-        IRepository<Domain.Entities.SystemType> systemTypeRepository
+        IRepository<Domain.Entities.SystemType> systemTypeRepository,
+        IBlobStorageService blobStorageService
         )
     {
         _logger = logger;
@@ -64,6 +66,7 @@ public class ProcessCellJob : IProcessCellJob
         _municipalityRepository = municipalityRepository;
         _linkRepository = linkRepository;
         _systemTypeRepository = systemTypeRepository;
+        _blobStorageService = blobStorageService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -86,610 +89,640 @@ public class ProcessCellJob : IProcessCellJob
 
         try
         {
-            // --- Step 2: Initialize Collections ---
-            var cellSectorList = new List<Domain.Entities.CellSector>();
-            var cellularToAdd = new List<Domain.Entities.Cellular>();
-            var cellularToDelete = new List<Domain.Entities.Cellular>();
-            var cellSectorsCreatedForCellId = new Dictionary<Guid, List<Guid>>();
-            var networkCache = new Dictionary<string, Guid>();
-            var networksToAdd = new List<Domain.Aggregates.Network>();
-            var cellsToAdd = new List<Domain.Aggregates.Cell>();
-
-            // --- Step 3: Pre-load Static/Reference Data for Performance ---
-            _logger.LogInformation("Pre-loading reference data.");
-
-            // Pre-load all wireless service providers
-            var serviceProviderCache = await _serviceProviderRepository
-                .Query(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
-                .Select(sp => new { sp.Id, sp.Provider.Name })
-                .ToDictionaryAsync(
-                     sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless),
-                     sp => sp.Id,
-                     token
-                );
-            _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
-
-            // Pre-load technologies
-            var technologyList = await _technologyRepository
-                .Query()
-                .Select(t => new
-                {
-                    t.Id,
-                    Technology = t.Standard
-                })
-                .ToListAsync(token);
-
-            var technologyCache = new Dictionary<string, Guid>();
-            foreach (var tech in technologyList)
+            // --- Step 2: Download file from blob storage ---
+            Stream fileStream;
+            try
             {
-                var key = CacheKeyGenerator.GenerateTechnologyCacheKey(tech.Technology);
-                technologyCache[key] = tech.Id;
-            }
-
-            _logger.LogInformation("Pre-loaded {Count} technologies: {Technologies}",
-                technologyCache.Count,
-                string.Join(", ", technologyList.Select(t => $"'{t.Technology}' -> '{CacheKeyGenerator.GenerateTechnologyCacheKey(t.Technology)}'")));
-
-            // Log technology diagnostics for debugging
-            TechnologyMappingHelper.LogTechnologyDiagnostics(technologyCache, _logger);
-
-            var bandList = await _bandRepository
-                .Query()
-                .Select(b => new
+                if (Uri.TryCreate(parameters.Path, UriKind.Absolute, out var blobUri))
                 {
-                    b.Id,
-                    Band = b.Name
-                })
-                .ToListAsync(token);
-
-            var bandCache = new Dictionary<string, Guid>();
-            foreach (var band in bandList)
-            {
-                var key = CacheKeyGenerator.GenerateBandCacheKey(band.Band);
-                bandCache[key] = band.Id;
-            }
-
-            _logger.LogInformation("Pre-loaded {Count} bands: {Bands}",
-                bandCache.Count,
-                string.Join(", ", bandList.Select(b => $"'{b.Band}' -> '{CacheKeyGenerator.GenerateBandCacheKey(b.Band)}'")));
-
-            // Pre-load existing networks to avoid duplicates
-            var existingNetworks = await _networkRepository
-                .Query(n => serviceProviderCache.Values.Contains(n.ServiceProviderId))
-                .Include(n => n.SystemType)
-                .Select(n => new { n.Id, n.Name, n.ServiceProviderId, n.SystemType.TechnologyId })
-                .ToListAsync(token);
-
-            foreach (var network in existingNetworks)
-            {
-                // Try to extract municipality, technology, and band from network name if following our naming convention
-                var nameParts = network.Name.Split('-');
-                if (nameParts.Length >= 3)
-                {
-                    var techName = nameParts[0];
-                    var bandName = nameParts[1];
-                    var municipalityName = nameParts[2];
-
-                    // Look up the actual band ID from the cache
-                    var bandCacheKey = CacheKeyGenerator.GenerateBandCacheKey(bandName);
-                    if (bandCache.TryGetValue(bandCacheKey, out var bandId))
-                    {
-                        // Create a cache key with the correct band ID
-                        var networkKey = CacheKeyGenerator.GenerateNetworkCacheKey(network.ServiceProviderId, municipalityName, network.TechnologyId, bandId);
-                        if (!networkCache.ContainsKey(networkKey))
-                        {
-                            networkCache[networkKey] = network.Id;
-                            _logger.LogDebug("Cached existing network: {NetworkName} with key: {NetworkKey}", network.Name, networkKey);
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Could not find band '{BandName}' in cache for existing network '{NetworkName}'. Network will not be cached.", bandName, network.Name);
-                    }
+                    // Extract container and blob name from the blob URL
+                    var (containerName, blobName) = ExtractBlobInfo(blobUri);
+                    
+                    _logger.LogInformation("Downloading file from blob storage: container={ContainerName}, blob={BlobName}", 
+                        containerName, blobName);
+                    
+                    fileStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
                 }
                 else
                 {
-                    _logger.LogWarning("Network name '{NetworkName}' does not follow expected naming convention 'Technology-Band-Municipality'. Network will not be cached.", network.Name);
+                    // Fallback for legacy local file paths
+                    _logger.LogWarning("Using legacy file path access for file: {FilePath}", parameters.Path);
+                    fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
                 }
             }
-            _logger.LogInformation("Pre-loaded {Count} existing networks.", networkCache.Count);
-
-            var providerIds = serviceProviderCache.Values.ToList();
-
-            // Pre-load municipalities with boundaries for efficient lookup
-            var municipalitiesWithBoundaries = await _municipalityRepository
-                .Query(m => m.Boundaries != null)
-                .Select(m => new { m.Id, m.Name, m.Boundaries })
-                .ToListAsync(token);
-
-            // Load existing cells for cache
-            var cellList = await _cellRepository
-                .Query(c => providerIds.Contains(c.ServiceProviderId))
-                .ToListAsync(token);
-
-            var cellCache = new Dictionary<string, Guid>();
-            var duplicateCount = 0;
-
-            foreach (var cell in cellList)
+            catch (Exception ex)
             {
-                // Normalize TowerType to handle nulls and empty strings consistently
-                var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
-                var key = CacheKeyGenerator.GenerateCellCacheKey(cell.ServiceProviderId, normalizedTowerType, cell.Location);
-
-                if (!cellCache.TryGetValue(key, out Guid value))
-                {
-                    cellCache[key] = cell.Id;
-                }
-                else
-                {
-                    duplicateCount++;
-                    _logger.LogWarning("Duplicate cell cache key found: {Key}. Cell ID {CellId} skipped in favor of existing Cell ID {ExistingCellId}. Consider cleaning up duplicate location data.",
-                        key, cell.Id, value);
-                }
-            }
-
-            _logger.LogInformation("Pre-loaded {Count} existing cells ({DuplicateCount} duplicates handled, {TotalCells} total).",
-                cellCache.Count, duplicateCount, cellList.Count);
-
-            var cellSectorCache = await _cellSectorRepository
-                .Query()
-                .GroupBy(cs => cs.CellId)
-                .ToDictionaryAsync(
-                    g => g.Key,
-                    g => g.Select(cs => cs.Id).ToList(),
-                    token
-                );
-            _logger.LogInformation("Pre-loaded {Count} cell sectors mapped to cells.", cellSectorCache.Count);
-
-            // Pre-load existing Cellular records for duplicate checking
-            var cellularList = await _cellularRepository
-                .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
-                .ToListAsync(token);
-
-            var cellularLookup = new Dictionary<(Guid CellSectorId, Guid ServiceProviderId, Guid TechnologyId, Guid BandId), Domain.Entities.Cellular>();
-            var cellularDuplicateCount = 0;
-
-            foreach (var cellular in cellularList)
-            {
-                var key = (cellular.CellSectorId, cellular.ServiceProviderId, cellular.TechnologyId, cellular.BandId);
-
-                if (!cellularLookup.TryGetValue(key, out var existingCellular))
-                {
-                    cellularLookup[key] = cellular;
-                }
-                else
-                {
-                    cellularDuplicateCount++;
-                    _logger.LogWarning("Duplicate cellular record found with key: (CellSectorId: {CellSectorId}, ServiceProviderId: {ServiceProviderId}, TechnologyId: {TechnologyId}, BandId: {BandId}). " +
-                        "Cellular ID {CellularId} skipped in favor of existing Cellular ID {ExistingCellularId}. " +
-                        "Consider cleaning up duplicate cellular data in the database.",
-                        cellular.CellSectorId, cellular.ServiceProviderId, cellular.TechnologyId, cellular.BandId,
-                        cellular.Id, existingCellular.Id);
-                }
-            }
-
-            _logger.LogInformation("Pre-loaded {Count} existing cellular records ({DuplicateCount} duplicates handled, {TotalCellular} total).",
-                cellularLookup.Count, cellularDuplicateCount, cellularList.Count);
-
-            // --- Step 4: Process the Excel File ---
-            using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
-            _logger.LogInformation("Processing file: {FilePath}", parameters.Path);
-
-            fileStream.Position = 0;
-            _logger.LogInformation("Excel processing started");
-
-            var cellRecords = CellExcelHelper.ParseExcelToCellRecords(fileStream);
-
-            if (cellRecords.Count is 0)
-            {
-                _logger.LogInformation("The Excel is empty.");
-                file.Status = FileStatusEnum.Success;
-                _fileRepository.Update(file);
-                await _fileRepository.SaveChangesAsync(token);
+                _logger.LogError(ex, "Failed to download file from blob storage or access local file: {FilePath}", parameters.Path);
+                await TerminateProcess(file, token);
                 return;
             }
 
-            var bandTechnologyProperties = typeof(CellRecord).GetProperties()
-                .Where(p => p.PropertyType == typeof(string))
-                .Select(property => new
-                {
-                    Property = property,
-                    HeaderAttribute = property.GetCustomAttribute<ExcelHeaderAttribute>(),
-                    Band = CellPropertyNameParser.GetBandFromPropertyName(property.Name),
-                    Technology = CellPropertyNameParser.GetTechnologyFromPropertyName(property.Name)
-                })
-                .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
-                .ToList();
-
-            _logger.LogInformation("Extracted {Count} band/technology properties from Excel: {Properties}",
-                bandTechnologyProperties.Count,
-                string.Join(", ", bandTechnologyProperties.Select(p => $"{p.Property.Name} -> {p.Technology}/{p.Band}")));
-
-            // --- Step 5: Main Loop for Processing Each Cell Record ---
-            for (int recordIndex = 0; recordIndex < cellRecords.Count; recordIndex++)
+            using (fileStream)
             {
-                var record = cellRecords[recordIndex];
-                var actualRowNumber = recordIndex + 4;
+                // --- Step 3: Initialize Collections ---
+                var cellSectorList = new List<Domain.Entities.CellSector>();
+                var cellularToAdd = new List<Domain.Entities.Cellular>();
+                var cellularToDelete = new List<Domain.Entities.Cellular>();
+                var cellSectorsCreatedForCellId = new Dictionary<Guid, List<Guid>>();
+                var networkCache = new Dictionary<string, Guid>();
+                var networksToAdd = new List<Domain.Aggregates.Network>();
+                var cellsToAdd = new List<Domain.Aggregates.Cell>();
 
-                ReportProgress($"Processing record from Excel row {actualRowNumber}: {record.Provider}, {record.Zone} {record.Barangay} {record.Municipality} {record.Province} {record.Region}, Coordinates: ({record.Latitude}, {record.Longitude})");
-                _logger.LogInformation("Processing record from Excel row {RowNumber}: {Provider}, {Zone} {Barangay} {Municipality} {Province} {Region}, Coordinates: ({Latitude}, {Longitude})",
-                    actualRowNumber, record.Provider, record.Zone, record.Barangay, record.Municipality, record.Province, record.Region, record.Latitude, record.Longitude);
+                // --- Step 4: Pre-load Static/Reference Data for Performance ---
+                _logger.LogInformation("Pre-loading reference data.");
 
-                var spCacheKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+                // Pre-load all wireless service providers
+                var serviceProviderCache = await _serviceProviderRepository
+                    .Query(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
+                    .Select(sp => new { sp.Id, sp.Provider.Name })
+                    .ToDictionaryAsync(
+                         sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless),
+                         sp => sp.Id,
+                         token
+                    );
+                _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
 
-                if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
-                {
-                    _logger.LogWarning("Wireless Service Provider not found in pre-loaded cache: {Provider}. Terminating process.", record.Provider);
-                    await TerminateProcess(file, token);
-                    return;
-                }
-
-                Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
-
-                // TEMPORARY FIX: Swap coordinates if they appear to be in wrong order
-                var actualLatitude = record.Latitude;
-                var actualLongitude = record.Longitude;
-
-                if (record.Latitude > 50 && record.Longitude < 50)
-                {
-                    actualLatitude = record.Longitude;
-                    actualLongitude = record.Latitude;
-                    _logger.LogWarning("Detected swapped coordinates in Excel row {RowNumber}. " +
-                        "Original: Lat={OriginalLat}, Lon={OriginalLon}. " +
-                        "Corrected: Lat={CorrectedLat}, Lon={CorrectedLon}",
-                        recordIndex + 4, record.Latitude, record.Longitude, actualLatitude, actualLongitude);
-                }
-
-                // Create location with corrected coordinates
-                location = GeometryHelper.CreatePoint(new Coordinate(y: actualLatitude, x: actualLongitude));
-
-                var address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
-
-                Guid cellId = Guid.Empty;
-
-                var cellCacheKey = CacheKeyGenerator.GenerateCellCacheKey(serviceProviderId,
-                    string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType, location);
-
-                if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
-                {
-                    // Cell not in cache, meaning it's a new cell.
-                    var cell = new Domain.Aggregates.Cell
+                // Pre-load technologies
+                var technologyList = await _technologyRepository
+                    .Query()
+                    .Select(t => new
                     {
-                        Name = $"Cell-{record.Provider}-{address}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
-                        Group = record.Provider,
-                        Address = address,
-                        ServiceProviderId = serviceProviderId,
-                        TowerType = string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType,
-                        Location = location,
-                        IsFileUploaded = true,
-                    };
-                    cellsToAdd.Add(cell);
-                    cellId = cell.Id;
-                    cellCache[cellCacheKey] = cellId;
-                    _logger.LogInformation("Cell {CellId} marked for addition. Name: {Name}", cellId, cell.Name);
+                        t.Id,
+                        Technology = t.Standard
+                    })
+                    .ToListAsync(token);
 
-                    // Cell Sector Processing (only for newly created cells)
-                    if (!String.IsNullOrEmpty(record.Azimuth))
-                    {
-                        var azimuths = record.Azimuth.Split(",", StringSplitOptions.RemoveEmptyEntries);
-                        var beamTilts = record.BeamTilt?.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-                        if (beamTilts == null || azimuths.Length != beamTilts.Length)
-                        {
-                            _logger.LogError("The number of Azimuth values ('{AzimuthCount}') does not match the number of BeamTilt values ('{BeamTiltCount}') for record in Excel row {RowNumber}. The file is invalid and needs to be re-uploaded.", azimuths.Length, beamTilts?.Length ?? 0, actualRowNumber);
-                            await TerminateProcess(file, token);
-                            return;
-                        }
-
-                        for (int i = 0; i < azimuths.Length; i++)
-                        {
-                            var trimmedAzimuth = azimuths[i].Trim();
-                            var trimmedBeamTilt = beamTilts[i].Trim();
-
-                            if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth) &&
-                                decimal.TryParse(trimmedBeamTilt, out decimal decimalBeamTilt))
-                            {
-                                var cellSector = new Domain.Entities.CellSector
-                                {
-                                    CellId = cellId,
-                                    AntennaHeight = record.AntennaHeight,
-                                    AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
-                                    Azimuth = decimalAzimuth,
-                                    BeamTilt = decimalBeamTilt,
-                                };
-                                cellSectorList.Add(cellSector);
-
-                                // Track sectors by cell
-                                if (!cellSectorsCreatedForCellId.ContainsKey(cellId))
-                                    cellSectorsCreatedForCellId[cellId] = new List<Guid>();
-
-                                cellSectorsCreatedForCellId[cellId].Add(cellSector.Id);
-                            }
-                            else
-                            {
-                                if (!decimal.TryParse(trimmedAzimuth, out _))
-                                {
-                                    _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for record in Excel row {RowNumber}, Azimuth index {Index}.", trimmedAzimuth, actualRowNumber, i);
-                                }
-                                if (!decimal.TryParse(trimmedBeamTilt, out _))
-                                {
-                                    _logger.LogWarning("Could not parse '{TrimmedBeamTilt}' as a decimal for record in Excel row {RowNumber}, BeamTilt index {Index}.", trimmedBeamTilt, actualRowNumber, i);
-                                }
-                            }
-                        }
-                    }
-                }
-                else
+                var technologyCache = new Dictionary<string, Guid>();
+                foreach (var tech in technologyList)
                 {
-                    // Cell found in cache (meaning it already exists in DB)
-                    cellId = cachedCellId;
-                    _logger.LogInformation("Cell already exists for Service Provider: {Provider}, Location: {location}. Re-using CellId: {CellId}", record.Provider, location, cellId);
+                    var key = CacheKeyGenerator.GenerateTechnologyCacheKey(tech.Technology);
+                    technologyCache[key] = tech.Id;
                 }
 
-                // --- Cellular Data Processing Based on File Data Only ---
-                if (cellId != Guid.Empty)
-                {
-                    foreach (var propInfo in bandTechnologyProperties)
+                _logger.LogInformation("Pre-loaded {Count} technologies: {Technologies}",
+                    technologyCache.Count,
+                    string.Join(", ", technologyList.Select(t => $"'{t.Technology}' -> '{CacheKeyGenerator.GenerateTechnologyCacheKey(t.Technology)}'")));
+
+                // Log technology diagnostics for debugging
+                TechnologyMappingHelper.LogTechnologyDiagnostics(technologyCache, _logger);
+
+                var bandList = await _bandRepository
+                    .Query()
+                    .Select(b => new
                     {
-                        var contextInfo = $"Excel row {actualRowNumber}";
-                        var technologyId = TechnologyMappingHelper.ResolveTechnologyId(propInfo.Technology, technologyCache, _logger, contextInfo);
-                        
-                        if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
-                        {
-                            _logger.LogError("CRITICAL ERROR: Technology '{Technology}' could not be resolved. " +
-                                "Processing terminated at Excel row {RowNumber}. " +
-                                "Please add the required Technology to the database before processing this file.",
-                                propInfo.Technology, actualRowNumber);
-                            await TerminateProcess(file, token);
-                            return;
-                        }
+                        b.Id,
+                        Band = b.Name
+                    })
+                    .ToListAsync(token);
 
-                        var bandId = TechnologyMappingHelper.ResolveBandId(propInfo.Band, bandCache, _logger, contextInfo);
-                        if (!TechnologyMappingHelper.IsBandResolved(bandId))
-                        {
-                            _logger.LogError("CRITICAL ERROR: Band '{Band}' not found in database. " +
-                                "Processing terminated at Excel row {RowNumber}. " +
-                                "Please add the required Band to the database before processing this file.",
-                                propInfo.Band, actualRowNumber);
-                            await TerminateProcess(file, token);
-                            return;
-                        }
+                var bandCache = new Dictionary<string, Guid>();
+                foreach (var band in bandList)
+                {
+                    var key = CacheKeyGenerator.GenerateBandCacheKey(band.Band);
+                    bandCache[key] = band.Id;
+                }
 
-                        // Parse the file data to determine if cellular should be created/deleted
-                        var value = propInfo.Property.GetValue(record);
-                        var parseResult = ParseBandTechnologyValue(value, propInfo.Technology, propInfo.Band, actualRowNumber);
+                _logger.LogInformation("Pre-loaded {Count} bands: {Bands}",
+                    bandCache.Count,
+                    string.Join(", ", bandList.Select(b => $"'{b.Band}' -> '{CacheKeyGenerator.GenerateBandCacheKey(b.Band)}'")));
 
-                        if (cellularLookup.TryGetValue((cellId, serviceProviderId, technologyId, bandId), out var existingCellular))
+                // Pre-load existing networks to avoid duplicates
+                var existingNetworks = await _networkRepository
+                    .Query(n => serviceProviderCache.Values.Contains(n.ServiceProviderId))
+                    .Include(n => n.SystemType)
+                    .Select(n => new { n.Id, n.Name, n.ServiceProviderId, n.SystemType.TechnologyId })
+                    .ToListAsync(token);
+
+                foreach (var network in existingNetworks)
+                {
+                    // Try to extract municipality, technology, and band from network name if following our naming convention
+                    var nameParts = network.Name.Split('-');
+                    if (nameParts.Length >= 3)
+                    {
+                        var techName = nameParts[0];
+                        var bandName = nameParts[1];
+                        var municipalityName = nameParts[2];
+
+                        // Look up the actual band ID from the cache
+                        var bandCacheKey = CacheKeyGenerator.GenerateBandCacheKey(bandName);
+                        if (bandCache.TryGetValue(bandCacheKey, out var bandId))
                         {
-                            if (!parseResult.IsActive)
+                            // Create a cache key with the correct band ID
+                            var networkKey = CacheKeyGenerator.GenerateNetworkCacheKey(network.ServiceProviderId, municipalityName, network.TechnologyId, bandId);
+                            if (!networkCache.ContainsKey(networkKey))
                             {
-                                // File indicates this cellular should not exist - mark for deletion
-                                cellularToDelete.Add(existingCellular);
-                                _logger.LogInformation(
-                                    "Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Technology: {Technology}, Band: {Band}",
-                                    existingCellular.Id,
-                                    cellId,
-                                    propInfo.Technology,
-                                    propInfo.Band);
-                            }
-                            else
-                            {
-                                // File indicates this cellular should exist - update frequency data if provided
-                                if (parseResult.DLCenterFreq.HasValue)
-                                {
-                                    existingCellular.DLCenterFreq = parseResult.DLCenterFreq.Value;
-                                    existingCellular.ULCenterFreq = CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band);
-                                }
-                                if (parseResult.Bandwidth.HasValue)
-                                {
-                                    existingCellular.Bandwidth = parseResult.Bandwidth.Value;
-                                }
-
-                                _cellularRepository.Update(existingCellular);
-                                _logger.LogInformation(
-                                    "Updated existing Cellular record: CellularId: {CellularId}, Technology: {Technology}, Band: {Band}",
-                                    existingCellular.Id, propInfo.Technology, propInfo.Band);
+                                networkCache[networkKey] = network.Id;
+                                _logger.LogDebug("Cached existing network: {NetworkName} with key: {NetworkKey}", network.Name, networkKey);
                             }
                         }
                         else
                         {
-                            if (parseResult.IsActive)
+                            _logger.LogWarning("Could not find band '{BandName}' in cache for existing network '{NetworkName}'. Network will not be cached.", bandName, network.Name);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Network name '{NetworkName}' does not follow expected naming convention 'Technology-Band-Municipality'. Network will not be cached.", network.Name);
+                    }
+                }
+                _logger.LogInformation("Pre-loaded {Count} existing networks.", networkCache.Count);
+
+                var providerIds = serviceProviderCache.Values.ToList();
+
+                // Pre-load municipalities with boundaries for efficient lookup
+                var municipalitiesWithBoundaries = await _municipalityRepository
+                    .Query(m => m.Boundaries != null)
+                    .Select(m => new { m.Id, m.Name, m.Boundaries })
+                    .ToListAsync(token);
+
+                // Load existing cells for cache
+                var cellList = await _cellRepository
+                    .Query(c => providerIds.Contains(c.ServiceProviderId))
+                    .ToListAsync(token);
+
+                var cellCache = new Dictionary<string, Guid>();
+                var duplicateCount = 0;
+
+                foreach (var cell in cellList)
+                {
+                    // Normalize TowerType to handle nulls and empty strings consistently
+                    var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
+                    var key = CacheKeyGenerator.GenerateCellCacheKey(cell.ServiceProviderId, normalizedTowerType, cell.Location);
+
+                    if (!cellCache.TryGetValue(key, out Guid value))
+                    {
+                        cellCache[key] = cell.Id;
+                    }
+                    else
+                    {
+                        duplicateCount++;
+                        _logger.LogWarning("Duplicate cell cache key found: {Key}. Cell ID {CellId} skipped in favor of existing Cell ID {ExistingCellId}. Consider cleaning up duplicate location data.",
+                            key, cell.Id, value);
+                    }
+                }
+
+                _logger.LogInformation("Pre-loaded {Count} existing cells ({DuplicateCount} duplicates handled, {TotalCells} total).",
+                    cellCache.Count, duplicateCount, cellList.Count);
+
+                var cellSectorCache = await _cellSectorRepository
+                    .Query()
+                    .GroupBy(cs => cs.CellId)
+                    .ToDictionaryAsync(
+                        g => g.Key,
+                        g => g.Select(cs => cs.Id).ToList(),
+                        token
+                    );
+                _logger.LogInformation("Pre-loaded {Count} cell sectors mapped to cells.", cellSectorCache.Count);
+
+                // Pre-load existing Cellular records for duplicate checking
+                var cellularList = await _cellularRepository
+                    .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
+                    .ToListAsync(token);
+
+                var cellularLookup = new Dictionary<(Guid CellSectorId, Guid ServiceProviderId, Guid TechnologyId, Guid BandId), Domain.Entities.Cellular>();
+                var cellularDuplicateCount = 0;
+
+                foreach (var cellular in cellularList)
+                {
+                    var key = (cellular.CellSectorId, cellular.ServiceProviderId, cellular.TechnologyId, cellular.BandId);
+
+                    if (!cellularLookup.TryGetValue(key, out var existingCellular))
+                    {
+                        cellularLookup[key] = cellular;
+                    }
+                    else
+                    {
+                        cellularDuplicateCount++;
+                        _logger.LogWarning("Duplicate cellular record found with key: (CellSectorId: {CellSectorId}, ServiceProviderId: {ServiceProviderId}, TechnologyId: {TechnologyId}, BandId: {BandId}). " +
+                            "Cellular ID {CellularId} skipped in favor of existing Cellular ID {ExistingCellularId}. " +
+                            "Consider cleaning up duplicate cellular data in the database.",
+                            cellular.CellSectorId, cellular.ServiceProviderId, cellular.TechnologyId, cellular.BandId,
+                            cellular.Id, existingCellular.Id);
+                    }
+                }
+
+                _logger.LogInformation("Pre-loaded {Count} existing cellular records ({DuplicateCount} duplicates handled, {TotalCellular} total).",
+                    cellularLookup.Count, cellularDuplicateCount, cellularList.Count);
+
+                // --- Step 5: Process the Excel File ---
+                _logger.LogInformation("Processing downloaded file from blob storage");
+
+                fileStream.Position = 0;
+                _logger.LogInformation("Excel processing started");
+
+                var cellRecords = CellExcelHelper.ParseExcelToCellRecords(fileStream);
+
+                if (cellRecords.Count is 0)
+                {
+                    _logger.LogInformation("The Excel is empty.");
+                    file.Status = FileStatusEnum.Success;
+                    _fileRepository.Update(file);
+                    await _fileRepository.SaveChangesAsync(token);
+                    return;
+                }
+
+                var bandTechnologyProperties = typeof(CellRecord).GetProperties()
+                    .Where(p => p.PropertyType == typeof(string))
+                    .Select(property => new
+                    {
+                        Property = property,
+                        HeaderAttribute = property.GetCustomAttribute<ExcelHeaderAttribute>(),
+                        Band = CellPropertyNameParser.GetBandFromPropertyName(property.Name),
+                        Technology = CellPropertyNameParser.GetTechnologyFromPropertyName(property.Name)
+                    })
+                    .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
+                    .ToList();
+
+                _logger.LogInformation("Extracted {Count} band/technology properties from Excel: {Properties}",
+                    bandTechnologyProperties.Count,
+                    string.Join(", ", bandTechnologyProperties.Select(p => $"{p.Property.Name} -> {p.Technology}/{p.Band}")));
+
+                // --- Step 6: Main Loop for Processing Each Cell Record ---
+                for (int recordIndex = 0; recordIndex < cellRecords.Count; recordIndex++)
+                {
+                    var record = cellRecords[recordIndex];
+                    var actualRowNumber = recordIndex + 4;
+
+                    ReportProgress($"Processing record from Excel row {actualRowNumber}: {record.Provider}, {record.Zone} {record.Barangay} {record.Municipality} {record.Province} {record.Region}, Coordinates: ({record.Latitude}, {record.Longitude})");
+                    _logger.LogInformation("Processing record from Excel row {RowNumber}: {Provider}, {Zone} {Barangay} {Municipality} {Province} {Region}, Coordinates: ({Latitude}, {Longitude})",
+                        actualRowNumber, record.Provider, record.Zone, record.Barangay, record.Municipality, record.Province, record.Region, record.Latitude, record.Longitude);
+
+                    var spCacheKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+
+                    if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
+                    {
+                        _logger.LogWarning("Wireless Service Provider not found in pre-loaded cache: {Provider}. Terminating process.", record.Provider);
+                        await TerminateProcess(file, token);
+                        return;
+                    }
+
+                    Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
+
+                    // TEMPORARY FIX: Swap coordinates if they appear to be in wrong order
+                    var actualLatitude = record.Latitude;
+                    var actualLongitude = record.Longitude;
+
+                    if (record.Latitude > 50 && record.Longitude < 50)
+                    {
+                        actualLatitude = record.Longitude;
+                        actualLongitude = record.Latitude;
+                        _logger.LogWarning("Detected swapped coordinates in Excel row {RowNumber}. " +
+                            "Original: Lat={OriginalLat}, Lon={OriginalLon}. " +
+                            "Corrected: Lat={CorrectedLat}, Lon={CorrectedLon}",
+                            recordIndex + 4, record.Latitude, record.Longitude, actualLatitude, actualLongitude);
+                    }
+
+                    // Create location with corrected coordinates
+                    location = GeometryHelper.CreatePoint(new Coordinate(y: actualLatitude, x: actualLongitude));
+
+                    var address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
+
+                    Guid cellId = Guid.Empty;
+
+                    var cellCacheKey = CacheKeyGenerator.GenerateCellCacheKey(serviceProviderId,
+                        string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType, location);
+
+                    if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
+                    {
+                        // Cell not in cache, meaning it's a new cell.
+                        var cell = new Domain.Aggregates.Cell
+                        {
+                            Name = $"Cell-{record.Provider}-{address}-{record.TowerType}-{record.Longitude}-{record.Latitude}",
+                            Group = record.Provider,
+                            Address = address,
+                            ServiceProviderId = serviceProviderId,
+                            TowerType = string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType,
+                            Location = location,
+                            IsFileUploaded = true,
+                        };
+                        cellsToAdd.Add(cell);
+                        cellId = cell.Id;
+                        cellCache[cellCacheKey] = cellId;
+                        _logger.LogInformation("Cell {CellId} marked for addition. Name: {Name}", cellId, cell.Name);
+
+                        // Cell Sector Processing (only for newly created cells)
+                        if (!String.IsNullOrEmpty(record.Azimuth))
+                        {
+                            var azimuths = record.Azimuth.Split(",", StringSplitOptions.RemoveEmptyEntries);
+                            var beamTilts = record.BeamTilt?.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                            if (beamTilts == null || azimuths.Length != beamTilts.Length)
                             {
-                                // File indicates this cellular should exist but doesn't - create it
-                                // Get all sector ID's for this cell (both existing and newly created)
-                                var allSectorIds = new List<Guid>();
+                                _logger.LogError("The number of Azimuth values ('{AzimuthCount}') does not match the number of BeamTilt values ('{BeamTiltCount}') for record in Excel row {RowNumber}. The file is invalid and needs to be re-uploaded.", azimuths.Length, beamTilts?.Length ?? 0, actualRowNumber);
+                                await TerminateProcess(file, token);
+                                return;
+                            }
 
-                                // Add existing sectors from cache
-                                if (cellSectorCache.TryGetValue(cellId, out var existingSectorIds))
+                            for (int i = 0; i < azimuths.Length; i++)
+                            {
+                                var trimmedAzimuth = azimuths[i].Trim();
+                                var trimmedBeamTilt = beamTilts[i].Trim();
+
+                                if (decimal.TryParse(trimmedAzimuth, out decimal decimalAzimuth) &&
+                                    decimal.TryParse(trimmedBeamTilt, out decimal decimalBeamTilt))
                                 {
-                                    allSectorIds.AddRange(existingSectorIds);
-                                }
-
-                                // Add newly created sectors for this cell
-                                if (cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectorIds))
-                                {
-                                    allSectorIds.AddRange(newSectorIds);
-                                }
-
-                                if (allSectorIds.Count > 0)
-                                {
-                                    _logger.LogInformation("Found {SectorCount} total sector(s) for CellId: {CellId} ({ExistingCount} existing, {NewCount} new)",
-                                        allSectorIds.Count, cellId, existingSectorIds?.Count ?? 0, newSectorIds?.Count ?? 0);
-
-                                    foreach (var sectorId in allSectorIds)
+                                    var cellSector = new Domain.Entities.CellSector
                                     {
-                                        var key = (sectorId, serviceProviderId, technologyId, bandId);
+                                        CellId = cellId,
+                                        AntennaHeight = record.AntennaHeight,
+                                        AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
+                                        Azimuth = decimalAzimuth,
+                                        BeamTilt = decimalBeamTilt,
+                                    };
+                                    cellSectorList.Add(cellSector);
 
-                                        // Check if cellular entity already exists
-                                        if (!cellularLookup.ContainsKey(key))
+                                    // Track sectors by cell
+                                    if (!cellSectorsCreatedForCellId.ContainsKey(cellId))
+                                        cellSectorsCreatedForCellId[cellId] = new List<Guid>();
+
+                                    cellSectorsCreatedForCellId[cellId].Add(cellSector.Id);
+                                }
+                                else
+                                {
+                                    if (!decimal.TryParse(trimmedAzimuth, out _))
+                                    {
+                                        _logger.LogWarning("Could not parse '{TrimmedAzimuth}' as a decimal for record in Excel row {RowNumber}, Azimuth index {Index}.", trimmedAzimuth, actualRowNumber, i);
+                                    }
+                                    if (!decimal.TryParse(trimmedBeamTilt, out _))
+                                    {
+                                        _logger.LogWarning("Could not parse '{TrimmedBeamTilt}' as a decimal for record in Excel row {RowNumber}, BeamTilt index {Index}.", trimmedBeamTilt, actualRowNumber, i);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Cell found in cache (meaning it already exists in DB)
+                        cellId = cachedCellId;
+                        _logger.LogInformation("Cell already exists for Service Provider: {Provider}, Location: {location}. Re-using CellId: {CellId}", record.Provider, location, cellId);
+                    }
+
+                    // --- Cellular Data Processing Based on File Data Only ---
+                    if (cellId != Guid.Empty)
+                    {
+                        foreach (var propInfo in bandTechnologyProperties)
+                        {
+                            var contextInfo = $"Excel row {actualRowNumber}";
+                            var technologyId = TechnologyMappingHelper.ResolveTechnologyId(propInfo.Technology, technologyCache, _logger, contextInfo);
+                            
+                            if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
+                            {
+                                _logger.LogError("CRITICAL ERROR: Technology '{Technology}' could not be resolved. " +
+                                    "Processing terminated at Excel row {RowNumber}. " +
+                                    "Please add the required Technology to the database before processing this file.",
+                                    propInfo.Technology, actualRowNumber);
+                                await TerminateProcess(file, token);
+                                return;
+                            }
+
+                            var bandId = TechnologyMappingHelper.ResolveBandId(propInfo.Band, bandCache, _logger, contextInfo);
+                            if (!TechnologyMappingHelper.IsBandResolved(bandId))
+                            {
+                                _logger.LogError("CRITICAL ERROR: Band '{Band}' not found in database. " +
+                                    "Processing terminated at Excel row {RowNumber}. " +
+                                    "Please add the required Band to the database before processing this file.",
+                                    propInfo.Band, actualRowNumber);
+                                await TerminateProcess(file, token);
+                                return;
+                            }
+
+                            // Parse the file data to determine if cellular should be created/deleted
+                            var value = propInfo.Property.GetValue(record);
+                            var parseResult = ParseBandTechnologyValue(value, propInfo.Technology, propInfo.Band, actualRowNumber);
+
+                            if (cellularLookup.TryGetValue((cellId, serviceProviderId, technologyId, bandId), out var existingCellular))
+                            {
+                                if (!parseResult.IsActive)
+                                {
+                                    // File indicates this cellular should not exist - mark for deletion
+                                    cellularToDelete.Add(existingCellular);
+                                    _logger.LogInformation(
+                                        "Marked Cellular record for deletion: CellularId: {CellularId}, CellId: {CellId}, Technology: {Technology}, Band: {Band}",
+                                        existingCellular.Id,
+                                        cellId,
+                                        propInfo.Technology,
+                                        propInfo.Band);
+                                }
+                                else
+                                {
+                                    // File indicates this cellular should exist - update frequency data if provided
+                                    if (parseResult.DLCenterFreq.HasValue)
+                                    {
+                                        existingCellular.DLCenterFreq = parseResult.DLCenterFreq.Value;
+                                        existingCellular.ULCenterFreq = CalculateULCenterFreq(parseResult.DLCenterFreq.Value, propInfo.Technology, propInfo.Band);
+                                    }
+                                    if (parseResult.Bandwidth.HasValue)
+                                    {
+                                        existingCellular.Bandwidth = parseResult.Bandwidth.Value;
+                                    }
+
+                                    _cellularRepository.Update(existingCellular);
+                                    _logger.LogInformation(
+                                        "Updated existing Cellular record: CellularId: {CellularId}, Technology: {Technology}, Band: {Band}",
+                                        existingCellular.Id, propInfo.Technology, propInfo.Band);
+                                }
+                            }
+                            else
+                            {
+                                if (parseResult.IsActive)
+                                {
+                                    // File indicates this cellular should exist but doesn't - create it
+                                    // Get all sector ID's for this cell (both existing and newly created)
+                                    var allSectorIds = new List<Guid>();
+
+                                    // Add existing sectors from cache
+                                    if (cellSectorCache.TryGetValue(cellId, out var existingSectorIds))
+                                    {
+                                        allSectorIds.AddRange(existingSectorIds);
+                                    }
+
+                                    // Add newly created sectors for this cell
+                                    if (cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectorIds))
+                                    {
+                                        allSectorIds.AddRange(newSectorIds);
+                                    }
+
+                                    if (allSectorIds.Count > 0)
+                                    {
+                                        _logger.LogInformation("Found {SectorCount} total sector(s) for CellId: {CellId} ({ExistingCount} existing, {NewCount} new)",
+                                            allSectorIds.Count, cellId, existingSectorIds?.Count ?? 0, newSectorIds?.Count ?? 0);
+
+                                        foreach (var sectorId in allSectorIds)
                                         {
-                                            // Double-check database to ensure we don't create duplicates
-                                            var existsInDatabase = await _cellularRepository
-                                                .Query(c => c.CellSectorId == sectorId &&
-                                                           c.ServiceProviderId == serviceProviderId &&
-                                                           c.TechnologyId == technologyId &&
-                                                           c.BandId == bandId)
-                                                .AnyAsync(token);
+                                            var key = (sectorId, serviceProviderId, technologyId, bandId);
 
-                                            if (!existsInDatabase)
+                                            // Check if cellular entity already exists
+                                            if (!cellularLookup.ContainsKey(key))
                                             {
-                                                // Apply values from file or defaults
-                                                var dlCenterFreq = parseResult.DLCenterFreq ?? GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band);
-                                                var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
-                                                var ulCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band);
+                                                // Double-check database to ensure we don't create duplicates
+                                                var existsInDatabase = await _cellularRepository
+                                                    .Query(c => c.CellSectorId == sectorId &&
+                                                               c.ServiceProviderId == serviceProviderId &&
+                                                               c.TechnologyId == technologyId &&
+                                                               c.BandId == bandId)
+                                                    .AnyAsync(token);
 
-                                                // Get municipality for this cell's location
-                                                var (municipalityId, municipalityName) = GetMunicipalityByLocationOptimized(location, municipalitiesWithBoundaries);
-
-                                                // Get or create network for this combination
-                                                var networkId = await GetOrCreateNetworkAsync(
-                                                    serviceProviderId,
-                                                    municipalityName,
-                                                    technologyId,
-                                                    bandId,
-                                                    networkCache,
-                                                    networksToAdd,
-                                                    technologyCache,
-                                                    bandCache,
-                                                    dlCenterFreq,
-                                                    ulCenterFreq,
-                                                    bandwidth,
-                                                    token);
-
-                                                // Only create cellular if we have a valid network
-                                                if (networkId == Guid.Empty)
+                                                if (!existsInDatabase)
                                                 {
-                                                    _logger.LogError(
-                                                        "CRITICAL ERROR: Cannot create Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} " +
-                                                        "because required network dependencies (SystemType, Links) are missing for ServiceProvider: {ServiceProviderId}. " +
-                                                        "Processing terminated at Excel row {RowNumber}. Please ensure all required dependencies exist in database.",
-                                                        sectorId, propInfo.Technology, propInfo.Band, serviceProviderId, actualRowNumber);
-                                                    await TerminateProcess(file, token);
-                                                    return;
+                                                    // Apply values from file or defaults
+                                                    var dlCenterFreq = parseResult.DLCenterFreq ?? GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band);
+                                                    var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
+                                                    var ulCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band);
+
+                                                    // Get municipality for this cell's location
+                                                    var (municipalityId, municipalityName) = GetMunicipalityByLocationOptimized(location, municipalitiesWithBoundaries);
+
+                                                    // Get or create network for this combination
+                                                    var networkId = await GetOrCreateNetworkAsync(
+                                                        serviceProviderId,
+                                                        municipalityName,
+                                                        technologyId,
+                                                        bandId,
+                                                        networkCache,
+                                                        networksToAdd,
+                                                        technologyCache,
+                                                        bandCache,
+                                                        dlCenterFreq,
+                                                        ulCenterFreq,
+                                                        bandwidth,
+                                                        token);
+
+                                                    // Only create cellular if we have a valid network
+                                                    if (networkId == Guid.Empty)
+                                                    {
+                                                        _logger.LogError(
+                                                            "CRITICAL ERROR: Cannot create Cellular record for CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band} " +
+                                                            "because required network dependencies (SystemType, Links) are missing for ServiceProvider: {ServiceProviderId}. " +
+                                                            "Processing terminated at Excel row {RowNumber}. Please ensure all required dependencies exist in database.",
+                                                            sectorId, propInfo.Technology, propInfo.Band, serviceProviderId, actualRowNumber);
+                                                        await TerminateProcess(file, token);
+                                                        return;
+                                                    }
+
+                                                    var newCellular = new Domain.Entities.Cellular
+                                                    {
+                                                        CellSectorId = sectorId,
+                                                        ServiceProviderId = serviceProviderId,
+                                                        TechnologyId = technologyId,
+                                                        BandId = bandId,
+                                                        NetworkId = networkId,
+                                                        Address = address,
+                                                        IsFileUploaded = true,
+                                                        DLCenterFreq = dlCenterFreq,
+                                                        Bandwidth = bandwidth,
+                                                        ULCenterFreq = ulCenterFreq
+                                                    };
+
+                                                    cellularToAdd.Add(newCellular);
+                                                    cellularLookup[key] = newCellular;
+
+                                                    _logger.LogInformation(
+                                                        "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, NetworkId: {NetworkId}, Municipality: {Municipality}, DLCenterFreq: {DLCenterFreq}, ULCenterFreq: {ULCenterFreq}, Bandwidth: {Bandwidth}",
+                                                        sectorId, propInfo.Technology, propInfo.Band, networkId, municipalityName, newCellular.DLCenterFreq, newCellular.ULCenterFreq, newCellular.Bandwidth);
                                                 }
-
-                                                var newCellular = new Domain.Entities.Cellular
+                                                else
                                                 {
-                                                    CellSectorId = sectorId,
-                                                    ServiceProviderId = serviceProviderId,
-                                                    TechnologyId = technologyId,
-                                                    BandId = bandId,
-                                                    NetworkId = networkId,
-                                                    Address = address,
-                                                    IsFileUploaded = true,
-                                                    DLCenterFreq = dlCenterFreq,
-                                                    Bandwidth = bandwidth,
-                                                    ULCenterFreq = ulCenterFreq
-                                                };
-
-                                                cellularToAdd.Add(newCellular);
-                                                cellularLookup[key] = newCellular;
-
-                                                _logger.LogInformation(
-                                                    "Marked Cellular record for addition: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}, NetworkId: {NetworkId}, Municipality: {Municipality}, DLCenterFreq: {DLCenterFreq}, ULCenterFreq: {ULCenterFreq}, Bandwidth: {Bandwidth}",
-                                                    sectorId, propInfo.Technology, propInfo.Band, networkId, municipalityName, newCellular.DLCenterFreq, newCellular.ULCenterFreq, newCellular.Bandwidth);
+                                                    _logger.LogInformation(
+                                                        "Skipped Cellular record creation (already exists in database): CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}",
+                                                        sectorId, propInfo.Technology, propInfo.Band);
+                                                }
                                             }
                                             else
                                             {
                                                 _logger.LogInformation(
-                                                    "Skipped Cellular record creation (already exists in database): CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}",
+                                                    "Skipped existing Cellular record: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}",
                                                     sectorId, propInfo.Technology, propInfo.Band);
                                             }
                                         }
-                                        else
-                                        {
-                                            _logger.LogInformation(
-                                                "Skipped existing Cellular record: CellSectorId: {CellSectorId}, Technology: {Technology}, Band: {Band}",
-                                                sectorId, propInfo.Technology, propInfo.Band);
-                                        }
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning("No cell sectors found for cell {CellId}. Skipping cellular creation for this cell.", cellId);
                                     }
                                 }
-                                else
-                                {
-                                    _logger.LogWarning("No cell sectors found for cell {CellId}. Skipping cellular creation for this cell.", cellId);
-                                }
+                                // If parseResult.IsActive is false, do nothing - cellular doesn't exist and file doesn't want it
                             }
-                            // If parseResult.IsActive is false, do nothing - cellular doesn't exist and file doesn't want it
                         }
                     }
                 }
-            }
 
-            // --- Step 6: Batch Save All Accumulated Changes ---
-            // Batch add new networks (before cellular records since they depend on networks)
-            if (networksToAdd.Count != 0)
-            {
-                await _networkRepository.BulkInsertAsync(networksToAdd, token);
-                _logger.LogInformation("{Count} new networks saved successfully (batched).", networksToAdd.Count);
-            }
-            else
-            {
-                _logger.LogInformation("No new networks to add (batched).");
-            }
-
-            // Batch add new cells
-            if (cellsToAdd.Count != 0)
-            {
-                await _cellRepository.BulkInsertAsync(cellsToAdd, token);
-                _logger.LogInformation("{Count} new cells saved successfully (batched).", cellsToAdd.Count);
-            }
-            else
-            {
-                _logger.LogInformation("No new cells to add (batched).");
-            }
-
-            // Batch add new cell sectors
-            if (cellSectorList.Count != 0)
-            {
-                await _cellSectorRepository.BulkInsertAsync(cellSectorList, token);
-                _logger.LogInformation("{Count} sector records saved successfully (batched).", cellSectorList.Count);
-
-                // Update cellSectorCache with newly created sectors
-                foreach (var sector in cellSectorList)
+                // --- Step 7: Batch Save All Accumulated Changes ---
+                // Batch add new networks (before cellular records since they depend on networks)
+                if (networksToAdd.Count != 0)
                 {
-                    if (!cellSectorCache.ContainsKey(sector.CellId))
-                        cellSectorCache[sector.CellId] = new List<Guid>();
-                    cellSectorCache[sector.CellId].Add(sector.Id);
+                    await _networkRepository.BulkInsertAsync(networksToAdd, token);
+                    _logger.LogInformation("{Count} new networks saved successfully (batched).", networksToAdd.Count);
                 }
-            }
-            else
-            {
-                _logger.LogInformation("No sector records to add.");
-            }
+                else
+                {
+                    _logger.LogInformation("No new networks to add (batched).");
+                }
 
-            // Batch add new cellular entries
-            if (cellularToAdd.Count != 0)
-            {
-                await _cellularRepository.BulkInsertAsync(cellularToAdd, token);
-                _logger.LogInformation("{Count} cellular records saved successfully (batched).", cellularToAdd.Count);
+                // Batch add new cells
+                if (cellsToAdd.Count != 0)
+                {
+                    await _cellRepository.BulkInsertAsync(cellsToAdd, token);
+                    _logger.LogInformation("{Count} new cells saved successfully (batched).", cellsToAdd.Count);
+                }
+                else
+                {
+                    _logger.LogInformation("No new cells to add (batched).");
+                }
+
+                // Batch add new cell sectors
+                if (cellSectorList.Count != 0)
+                {
+                    await _cellSectorRepository.BulkInsertAsync(cellSectorList, token);
+                    _logger.LogInformation("{Count} sector records saved successfully (batched).", cellSectorList.Count);
+
+                    // Update cellSectorCache with newly created sectors
+                    foreach (var sector in cellSectorList)
+                    {
+                        if (!cellSectorCache.ContainsKey(sector.CellId))
+                            cellSectorCache[sector.CellId] = new List<Guid>();
+                        cellSectorCache[sector.CellId].Add(sector.Id);
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("No sector records to add.");
+                }
+
+                // Batch add new cellular entries
+                if (cellularToAdd.Count != 0)
+                {
+                    await _cellularRepository.BulkInsertAsync(cellularToAdd, token);
+                    _logger.LogInformation("{Count} cellular records saved successfully (batched).", cellularToAdd.Count);
+                }
+                else
+                {
+                    _logger.LogInformation("No cellular records to add.");
+                }
+
+                // Batch delete cellular entries
+                if (cellularToDelete.Count != 0)
+                {
+                    await _cellularRepository.BulkDeleteAsync(cellularToDelete);
+                    _logger.LogInformation("{Count} cellular records deleted successfully (batched).", cellularToDelete.Count);
+                }
+
+                // --- Step 8: Final File Status Update ---
+                file.Status = FileStatusEnum.Success;
+                _fileRepository.Update(file);
+                await _fileRepository.SaveChangesAsync(token);
+
+                _logger.LogInformation("Processing completed successfully. " +
+                    "If you encounter termination errors in future runs, ensure the following dependencies exist in the database:");
+                _logger.LogInformation("1. Technologies: Required for all technology/band combinations in your Excel file");
+                _logger.LogInformation("2. Bands: Required for all technology/band combinations in your Excel file");
+                _logger.LogInformation("3. SystemTypes: Required for each Technology to create Networks");
+                _logger.LogInformation("4. Links (Uplink/Downlink): Required for each ServiceProvider/Band combination to create Networks");
+                _logger.LogInformation("Current database contains - Technologies: {TechCount}, Bands: {BandCount}, Networks: {NetworkCount}",
+                    technologyCache.Count, bandCache.Count, networkCache.Count);
+
+                _logger.LogInformation("Processing completed.");
             }
-            else
-            {
-                _logger.LogInformation("No cellular records to add.");
-            }
-
-            // Batch delete cellular entries
-            if (cellularToDelete.Count != 0)
-            {
-                await _cellularRepository.BulkDeleteAsync(cellularToDelete);
-                _logger.LogInformation("{Count} cellular records deleted successfully (batched).", cellularToDelete.Count);
-            }
-
-            // --- Step 7: Final File Status Update ---
-            file.Status = FileStatusEnum.Success;
-            _fileRepository.Update(file);
-            await _fileRepository.SaveChangesAsync(token);
-
-            _logger.LogInformation("Processing completed successfully. " +
-                "If you encounter termination errors in future runs, ensure the following dependencies exist in the database:");
-            _logger.LogInformation("1. Technologies: Required for all technology/band combinations in your Excel file");
-            _logger.LogInformation("2. Bands: Required for all technology/band combinations in your Excel file");
-            _logger.LogInformation("3. SystemTypes: Required for each Technology to create Networks");
-            _logger.LogInformation("4. Links (Uplink/Downlink): Required for each ServiceProvider/Band combination to create Networks");
-            _logger.LogInformation("Current database contains - Technologies: {TechCount}, Bands: {BandCount}, Networks: {NetworkCount}",
-                technologyCache.Count, bandCache.Count, networkCache.Count);
-
-            _logger.LogInformation("Processing completed.");
         }
         catch (Exception ex)
         {
@@ -697,6 +730,25 @@ public class ProcessCellJob : IProcessCellJob
             await TerminateProcess(file, token);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Extracts container name and blob name from a blob storage URL
+    /// </summary>
+    private static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
+    {
+        // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
+        var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
+        
+        if (segments.Length < 2)
+        {
+            throw new ArgumentException($"Invalid blob URL format: {blobUri}");
+        }
+
+        var containerName = segments[0].TrimEnd('/');
+        var blobName = string.Join("", segments.Skip(1));
+
+        return (containerName, blobName);
     }
 
     /// <summary>

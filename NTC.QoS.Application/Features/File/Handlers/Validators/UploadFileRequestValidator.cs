@@ -6,7 +6,7 @@ namespace NTC.QoS.Application.Features.File.Handlers.Validators;
 
 public class UploadFileRequestValidator : AbstractValidator<UploadFileRequest>
 {
-    private readonly long _maxFileSizeInBytes = 10 * 1024 * 1024;
+    private readonly long _maxFileSizeInBytes = 50 * 1024 * 1024; // 50MB
 
     public UploadFileRequestValidator()
     {
