@@ -206,7 +206,7 @@ public class BlobStorageController : ControllerBase
     /// <param name="fileName">The blob name</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>File stream</returns>
-    [HttpGet("download/{containerName}/{fileName}")]
+    [HttpGet("download/{containerName}/{**fileName}")]
     [ProducesResponseType(typeof(FileStreamResult), 200)]
     [ProducesResponseType(typeof(ApiResponse<BlobDownloadDto>), 404)]
     public async Task<IActionResult> DownloadBlob(
@@ -214,6 +214,7 @@ public class BlobStorageController : ControllerBase
         [FromRoute, Required] string fileName,
         CancellationToken cancellationToken = default)
     {
+
         try
         {
             var request = new DownloadBlobRequest

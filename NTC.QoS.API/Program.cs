@@ -149,6 +149,7 @@ public class Program
             // Custom operation filter for file upload endpoints
             options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
+            options.DocumentFilter<CatchAllRouteDocumentFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
         });
 
