@@ -11,6 +11,7 @@ using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Web;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -752,6 +753,9 @@ public class ProcessCellJob : IProcessCellJob
         var containerName = segments[0].TrimEnd('/');
         var blobName = string.Join("", segments.Skip(1));
 
+        // URL decode the blob name to handle special characters like parentheses
+        blobName = HttpUtility.UrlDecode(blobName);
+
         return (containerName, blobName);
     }
 
@@ -898,6 +902,14 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogError("5. LINKS: Each ServiceProvider + Band combination must have both Uplink and Downlink entries");
         _logger.LogError("Contact your system administrator to add the missing entities before re-processing this file.");
         _logger.LogError("======================================================");
+    }
+
+    private async Task MarkFileAsFailed(Domain.Entities.File file, string reason, CancellationToken cancellationToken)
+    {
+        file.Status = FileStatusEnum.Failed;
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(cancellationToken);
+        _logger.LogWarning("Cell file marked as failed: {Reason}", reason);
     }
 
     /// <summary>

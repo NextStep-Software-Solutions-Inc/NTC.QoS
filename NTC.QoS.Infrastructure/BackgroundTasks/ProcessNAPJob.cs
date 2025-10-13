@@ -8,6 +8,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Web;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -42,7 +43,7 @@ public class ProcessNAPJob : IProcessNAPJob
 
         if (file is null)
         {
-            var message = "File not found";
+            var message = "File record not found in database";
             _logger.LogError(message);
             throw new Exception(message);
         }
@@ -62,22 +63,60 @@ public class ProcessNAPJob : IProcessNAPJob
                     // Extract container and blob name from the blob URL
                     var (containerName, blobName) = ExtractBlobInfo(blobUri);
                     
+                    _logger.LogInformation("Checking if NAP file exists in blob storage: container={ContainerName}, blob={BlobName}", 
+                        containerName, blobName);
+                    
+                    // Check if the blob exists before attempting to download
+                    var exists = await _blobStorageService.ExistsAsync(containerName, blobName, token);
+                    if (!exists)
+                    {
+                        _logger.LogError("NAP file not found in blob storage: container={ContainerName}, blob={BlobName}. " +
+                            "The file may have been deleted or never uploaded successfully.", containerName, blobName);
+                        
+                        file.Status = FileStatusEnum.Failed;
+                        _fileRepository.Update(file);
+                        await _fileRepository.SaveChangesAsync(token);
+                        return;
+                    }
+                    
                     _logger.LogInformation("Downloading NAP file from blob storage: container={ContainerName}, blob={BlobName}", 
                         containerName, blobName);
                     
-                    fileStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
+                    // Download to MemoryStream to support seeking operations
+                    using var blobStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
+                    var memoryStream = new MemoryStream();
+                    await blobStream.CopyToAsync(memoryStream, token);
+                    memoryStream.Position = 0;
+                    fileStream = memoryStream;
                 }
                 else
                 {
                     // Fallback for legacy local file paths
                     _logger.LogWarning("Using legacy file path access for NAP file: {FilePath}", parameters.Path);
+                    
+                    if (!System.IO.File.Exists(parameters.Path))
+                    {
+                        _logger.LogError("Legacy NAP file not found on disk: {FilePath}", parameters.Path);
+                        
+                        file.Status = FileStatusEnum.Failed;
+                        _fileRepository.Update(file);
+                        await _fileRepository.SaveChangesAsync(token);
+                        return;
+                    }
+                    
                     fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
                 }
             }
+            catch (FileNotFoundException ex)
+            {
+                _logger.LogError(ex, "NAP file not found: {FilePath}. Marking file as failed.", parameters.Path);
+                await MarkFileAsFailed(file, "File not found in storage", token);
+                return;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to download NAP file from blob storage or access local file: {FilePath}", parameters.Path);
-                await TerminateProcess(file, token);
+                _logger.LogError(ex, "Failed to access NAP file: {FilePath}. This could be due to file deletion, network issues, or storage problems.", parameters.Path);
+                await MarkFileAsFailed(file, $"Failed to access file: {ex.Message}", token);
                 return;
             }
 
@@ -85,7 +124,6 @@ public class ProcessNAPJob : IProcessNAPJob
             {
                 _logger.LogInformation("Processing NAP file downloaded from blob storage");
 
-                fileStream.Position = 0;
                 _logger.LogInformation("NAP processing started");
 
                 var napRecords = ExcelHelper.ParseExcelToClass<NAPRecord>(fileStream);
@@ -292,6 +330,9 @@ public class ProcessNAPJob : IProcessNAPJob
         var containerName = segments[0].TrimEnd('/');
         var blobName = string.Join("", segments.Skip(1));
 
+        // URL decode the blob name to handle special characters like parentheses
+        blobName = HttpUtility.UrlDecode(blobName);
+
         return (containerName, blobName);
     }
 
@@ -306,6 +347,14 @@ public class ProcessNAPJob : IProcessNAPJob
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("NAP process terminated due to error in runtime.");
+    }
+
+    private async Task MarkFileAsFailed(Domain.Entities.File file, string reason, CancellationToken cancellationToken)
+    {
+        file.Status = FileStatusEnum.Failed;
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(cancellationToken);
+        _logger.LogWarning("NAP file marked as failed: {Reason}", reason);
     }
 }
 

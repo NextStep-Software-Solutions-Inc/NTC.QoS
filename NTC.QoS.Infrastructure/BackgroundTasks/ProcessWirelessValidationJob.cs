@@ -20,7 +20,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           IServiceProviderRepository serviceProviderRepository,
                                           ITechnologyRepository technologyRepository,
                                           IBandRepository bandRepository,
-                                          IWirelessValidationRepository wirelessValidationRepository
+                                          IWirelessValidationRepository wirelessValidationRepository,
+                                          IBlobStorageService blobStorageService
                                           ) : IProcessWirelessValidationJob
 {
     // Fuzzy matching thresholds for hierarchical municipality resolution
@@ -41,6 +42,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private readonly ITechnologyRepository _technologyRepository = technologyRepository;
     private readonly IBandRepository _bandRepository = bandRepository;
     private readonly IWirelessValidationRepository _wirelessValidationRepository = wirelessValidationRepository;
+    private readonly IBlobStorageService _blobStorageService = blobStorageService;
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
@@ -65,9 +67,74 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         {
             _logger.LogInformation("Starting wireless validation processing for file: {FileName}", file.Name);
 
-            // Phase 1: Parse Excel File
-            using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
-            var wirelessValidationRecords = WirelessValidationExcelHelper.ParseExcelToWirelessValidationRecords(fileStream);
+            // Phase 1: Download and Parse Excel File
+            Stream fileStream;
+            try
+            {
+                if (Uri.TryCreate(parameters.Path, UriKind.Absolute, out var blobUri))
+                {
+                    // Extract container and blob name from the blob URL
+                    var (containerName, blobName) = ExtractBlobInfo(blobUri);
+                    
+                    _logger.LogInformation("Checking if Wireless Validation file exists in blob storage: container={ContainerName}, blob={BlobName}", 
+                        containerName, blobName);
+                    
+                    // Check if the blob exists before attempting to download
+                    var exists = await _blobStorageService.ExistsAsync(containerName, blobName, token);
+                    if (!exists)
+                    {
+                        _logger.LogError("Wireless Validation file not found in blob storage: container={ContainerName}, blob={BlobName}. " +
+                            "The file may have been deleted or never uploaded successfully.", containerName, blobName);
+                        
+                        await MarkFileAsFailed(file, "File not found in storage", token);
+                        return;
+                    }
+                    
+                    _logger.LogInformation("Downloading Wireless Validation file from blob storage: container={ContainerName}, blob={BlobName}", 
+                        containerName, blobName);
+                    
+                    // Download to MemoryStream to support seeking operations
+                    using var blobStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
+                    var memoryStream = new MemoryStream();
+                    await blobStream.CopyToAsync(memoryStream, token);
+                    memoryStream.Position = 0;
+                    fileStream = memoryStream;
+                }
+                else
+                {
+                    // Fallback for legacy local file paths
+                    _logger.LogWarning("Using legacy file path access for Wireless Validation file: {FilePath}", parameters.Path);
+                    
+                    if (!System.IO.File.Exists(parameters.Path))
+                    {
+                        _logger.LogError("Legacy Wireless Validation file not found on disk: {FilePath}", parameters.Path);
+                        
+                        await MarkFileAsFailed(file, "File not found on disk", token);
+                        return;
+                    }
+                    
+                    fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
+                }
+            }
+            catch (FileNotFoundException ex)
+            {
+                _logger.LogError(ex, "Wireless Validation file not found: {FilePath}. Marking file as failed.", parameters.Path);
+                await MarkFileAsFailed(file, "File not found in storage", token);
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to access Wireless Validation file: {FilePath}. This could be due to file deletion, network issues, or storage problems.", parameters.Path);
+                await MarkFileAsFailed(file, $"Failed to access file: {ex.Message}", token);
+                return;
+            }
+
+            List<WirelessValidationRecord> wirelessValidationRecords;
+            using (fileStream)
+            {
+                _logger.LogInformation("Processing Wireless Validation file downloaded from blob storage");
+                wirelessValidationRecords = WirelessValidationExcelHelper.ParseExcelToWirelessValidationRecords(fileStream);
+            }
             
             if (wirelessValidationRecords.Count == 0)
             {
@@ -709,6 +776,38 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        _logger.LogInformation("Processing completed successfully.");
+    }
+
+    /// <summary>
+    /// Extracts container name and blob name from a blob storage URL
+    /// </summary>
+    private static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
+    {
+        // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
+        var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
+        
+        if (segments.Length < 2)
+        {
+            throw new ArgumentException($"Invalid blob URL format: {blobUri}");
+        }
+
+        var containerName = segments[0].TrimEnd('/');
+        var blobName = string.Join("", segments.Skip(1));
+
+        // URL decode the blob name to handle special characters like parentheses
+        blobName = System.Web.HttpUtility.UrlDecode(blobName);
+
+        return (containerName, blobName);
+    }
+
+    private async Task MarkFileAsFailed(Domain.Entities.File file, string reason, CancellationToken cancellationToken)
+    {
+        file.Status = FileStatusEnum.Failed;
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(cancellationToken);
+        _logger.LogWarning("Wireless Validation file marked as failed: {Reason}", reason);
     }
 
     // Supporting classes

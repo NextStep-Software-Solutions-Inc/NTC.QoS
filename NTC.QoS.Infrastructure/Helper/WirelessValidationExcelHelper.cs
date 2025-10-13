@@ -5,7 +5,7 @@ namespace NTC.QoS.Infrastructure.Helper;
 
 public class WirelessValidationExcelHelper
 {
-    public static List<WirelessValidationRecord> ParseExcelToWirelessValidationRecords(FileStream stream)
+    public static List<WirelessValidationRecord> ParseExcelToWirelessValidationRecords(Stream stream)
     {
         var result = new List<WirelessValidationRecord>();
         using (var workbook = new ClosedXML.Excel.XLWorkbook(stream))
@@ -175,5 +175,14 @@ public class WirelessValidationExcelHelper
             "FALSE" or "0" or "NO" or "N" or "" => false,
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Legacy method for backward compatibility with FileStream
+    /// </summary>
+    [Obsolete("Use ParseExcelToWirelessValidationRecords(Stream) instead. This method will be removed in a future version.")]
+    public static List<WirelessValidationRecord> ParseExcelToWirelessValidationRecords(FileStream stream)
+    {
+        return ParseExcelToWirelessValidationRecords((Stream)stream);
     }
 }
