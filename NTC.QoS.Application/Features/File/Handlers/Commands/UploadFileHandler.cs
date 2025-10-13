@@ -13,11 +13,13 @@ namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 public class UploadFileHandler(
     IFileRepository repository,
     IBlobStorageService blobStorageService,
+    IUserContextService userContextService,
     IConfiguration configuration,
     ILogger<UploadFileHandler> logger) : IRequestHandler<UploadFileRequest, ApiResponse<FileDto>>
 {
     private readonly IFileRepository _repository = repository;
     private readonly IBlobStorageService _blobStorageService = blobStorageService;
+    private readonly IUserContextService _userContextService = userContextService;
     private readonly IConfiguration _configuration = configuration;
     private readonly ILogger<UploadFileHandler> _logger = logger;
 
@@ -64,6 +66,10 @@ public class UploadFileHandler(
 
             _logger.LogInformation("Successfully uploaded file to blob storage. URL: {BlobUrl}", blobUrl);
 
+            // Get current user information for UploadedBy field
+            var currentUserId = _userContextService.GetCurrentUserId();
+            var uploadedBy = currentUserId ?? "System"; // Fallback to "System" if no user context
+
             // Create file entity with blob URL as path
             var newFile = new Domain.Entities.File
             {
@@ -71,6 +77,8 @@ public class UploadFileHandler(
                 Type = fileType,
                 Path = blobUrl, // Store the blob URL instead of local path
                 Status = FileStatusEnum.Pending,
+                UploadedBy = uploadedBy,
+                UploadDate = DateTime.UtcNow
             };
             
             _repository.Add(newFile);
