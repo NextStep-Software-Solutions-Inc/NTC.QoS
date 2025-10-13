@@ -13,10 +13,10 @@ namespace NTC.QoS.Infrastructure.Seed;
 
 public static class LocationSeeder
 {
-    private const string RegionGeoJsonFilePath = "admin1.geojson";
-    private const string ProvinceGeoJsonFilePath = "admin2.geojson";
-    private const string MunicipalityGeoJsonFilePath = "admin3.geojson";
-    private const string BarangayGeoJsonFilePath = "admin4.geojson";
+    private const string RegionGeoJsonFilePath = "Regionbdry.geojson";
+    private const string ProvinceGeoJsonFilePath = "Provincebdry.geojson";
+    private const string MunicipalityGeoJsonFilePath = "Municipalitybdry.geojson";
+    private const string BarangayGeoJsonFilePath = "Barangaybdry.geojson";
 
     /// <summary>
     /// Seeds all configured entities into the database.
@@ -124,12 +124,17 @@ public static class LocationSeeder
                 continue;
             }
 
+            var regionName = feature.Attributes["ADM1_EN"]?.ToString() ?? string.Empty;
+
             var region = new Region
             {
-                Name = feature.Attributes["ADM1_EN"]?.ToString() ?? string.Empty,
+                Name = regionName,
                 Description = null,
                 Code = feature.Attributes["ADM1_PCODE"]?.ToString() ?? string.Empty,
-                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f,
+                TotalPopulation = ParsePopulationValue(feature.Attributes["TOTAL_POP"], logger, regionName),
+                HouseholdPopulation = ParsePopulationValue(feature.Attributes["HHOLD_POPN"], logger, regionName),
+                HouseholdCount = ParsePopulationValue(feature.Attributes["HHOLD_CNT"], logger, regionName)
             };
 
             switch (feature.Geometry)
@@ -168,7 +173,7 @@ public static class LocationSeeder
     {
         if (await dbContext.Provinces.AnyAsync())
         {
-            logger.LogInformation("Database already contains provinces. Skipping region seeding.");
+            logger.LogInformation("Database already contains provinces. Skipping province seeding.");
             return;
         }
         logger.LogInformation("Starting province seeding from {FilePath}...", ProvinceGeoJsonFilePath);
@@ -218,12 +223,17 @@ public static class LocationSeeder
                 continue;
             }
 
+            var provinceName = feature.Attributes["ADM2_EN"]?.ToString() ?? string.Empty;
+
             var province = new Province
             {
-                Name = feature.Attributes["ADM2_EN"]?.ToString() ?? string.Empty,
+                Name = provinceName,
                 Description = null,
                 Code = feature.Attributes["ADM2_PCODE"]?.ToString() ?? string.Empty,
-                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f,
+                TotalPopulation = ParsePopulationValue(feature.Attributes["TOTAL_POP"], logger, provinceName),
+                HouseholdPopulation = ParsePopulationValue(feature.Attributes["HHOLD_POPN"], logger, provinceName),
+                HouseholdCount = ParsePopulationValue(feature.Attributes["HHOLD_CNT"], logger, provinceName)
             };
 
             switch (feature.Geometry)
@@ -333,12 +343,17 @@ public static class LocationSeeder
                 continue;
             }
 
+            var municipalityName = feature.Attributes["ADM3_EN"]?.ToString() ?? string.Empty;
+
             var municipality = new Municipality
             {
-                Name = feature.Attributes["ADM3_EN"]?.ToString() ?? string.Empty,
+                Name = municipalityName,
                 Description = null,
                 Code = feature.Attributes["ADM3_PCODE"]?.ToString() ?? string.Empty,
-                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f,
+                TotalPopulation = ParsePopulationValue(feature.Attributes["TOTAL_POP"], logger, municipalityName),
+                HouseholdPopulation = ParsePopulationValue(feature.Attributes["HHOLD_POPN"], logger, municipalityName),
+                HouseholdCount = ParsePopulationValue(feature.Attributes["HHOLD_CNT"], logger, municipalityName)
             };
 
             switch (feature.Geometry)
@@ -455,7 +470,10 @@ public static class LocationSeeder
                 Name = feature.Attributes["ADM4_EN"]?.ToString() ?? string.Empty,
                 Description = null,
                 Code = feature.Attributes["ADM4_PCODE"]?.ToString() ?? string.Empty,
-                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f
+                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f,
+                TotalPopulation = null,
+                HouseholdPopulation = null,
+                HouseholdCount = null
             };
 
             switch (feature.Geometry)
@@ -506,6 +524,39 @@ public static class LocationSeeder
             logger.LogError("Error saving barangays to database: {Message}", ex.Message);
             logger.LogInformation(ex.InnerException?.Message);
             logger.LogTrace(ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Safely parses a population value from a GeoJSON attribute object.
+    /// </summary>
+    /// <param name="attributeValue">The attribute value object.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="locationName">The name of the location for logging context.</param>
+    /// <returns>A nullable long with the parsed value, or null if parsing fails.</returns>
+    private static int? ParsePopulationValue(object? attributeValue, ILogger logger, string locationName)
+    {
+        if (attributeValue == null)
+        {
+            return null;
+        }
+
+        var valueStr = attributeValue.ToString();
+        if (string.IsNullOrWhiteSpace(valueStr))
+        {
+            return null;
+        }
+
+        var cleanedValueStr = valueStr.Replace(",", "");
+
+        if (int.TryParse(cleanedValueStr, out int result))
+        {
+            return result;
+        }
+        else
+        {
+            logger.LogWarning("Could not parse population value '{Value}' for '{Location}'. Setting to null.", valueStr, locationName);
+            return null;
         }
     }
 }
