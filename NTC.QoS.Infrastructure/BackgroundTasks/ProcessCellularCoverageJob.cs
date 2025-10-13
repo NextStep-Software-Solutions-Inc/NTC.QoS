@@ -8,7 +8,6 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
-using System.Web;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -38,19 +37,11 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
-        var fileQuery = _fileRepository.Query(f => !f.IsDeleted && f.Id.Equals(parameters.Id));
-        var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
+        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
+            parameters.Id, _fileRepository, _logger, "Cellular Coverage", token);
 
-        if (file is null)
-        {
-            const string message = "File not found.";
-            _logger.LogError("{Message}", message);
-            throw new InvalidOperationException(message);
-        }
-
-        file.Status = FileStatusEnum.Processing;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(token);
+        await ProcessingJobHelper.SetFileProcessingStatusAsync(
+            file, _fileRepository, _logger, "Cellular Coverage", token);
 
         try
         {
@@ -72,61 +63,19 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
             Stream fileStream;
             try
             {
-                if (Uri.TryCreate(parameters.Path, UriKind.Absolute, out var blobUri))
-                {
-                    // Extract container and blob name from the blob URL
-                    var (containerName, blobName) = ExtractBlobInfo(blobUri);
-                    
-                    _logger.LogInformation("Checking if Cellular Coverage file exists in blob storage: container={ContainerName}, blob={BlobName}", 
-                        containerName, blobName);
-                    
-                    // Check if the blob exists before attempting to download
-                    var exists = await _blobStorageService.ExistsAsync(containerName, blobName, token);
-                    if (!exists)
-                    {
-                        _logger.LogError("Cellular Coverage file not found in blob storage: container={ContainerName}, blob={BlobName}. " +
-                            "The file may have been deleted or never uploaded successfully.", containerName, blobName);
-                        
-                        await MarkFileAsFailed(file, "File not found in storage", token);
-                        return;
-                    }
-                    
-                    _logger.LogInformation("Downloading Cellular Coverage file from blob storage: container={ContainerName}, blob={BlobName}", 
-                        containerName, blobName);
-                    
-                    // Download to MemoryStream to support seeking operations
-                    using var blobStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
-                    var memoryStream = new MemoryStream();
-                    await blobStream.CopyToAsync(memoryStream, token);
-                    memoryStream.Position = 0;
-                    fileStream = memoryStream;
-                }
-                else
-                {
-                    // Fallback for legacy local file paths
-                    _logger.LogWarning("Using legacy file path access for Cellular Coverage file: {FilePath}", parameters.Path);
-                    
-                    if (!System.IO.File.Exists(parameters.Path))
-                    {
-                        _logger.LogError("Legacy Cellular Coverage file not found on disk: {FilePath}", parameters.Path);
-                        
-                        await MarkFileAsFailed(file, "File not found on disk", token);
-                        return;
-                    }
-                    
-                    fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
-                }
+                fileStream = await ProcessingJobHelper.GetFileStreamAsync(
+                    parameters.Path, _blobStorageService, _logger, "Cellular Coverage", token);
             }
             catch (FileNotFoundException ex)
             {
-                _logger.LogError(ex, "Cellular Coverage file not found: {FilePath}. Marking file as failed.", parameters.Path);
-                await MarkFileAsFailed(file, "File not found in storage", token);
+                await ProcessingJobHelper.HandleFileAccessErrorAsync(
+                    ex, parameters.Path, file, _fileRepository, _logger, "Cellular Coverage", token);
                 return;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to access Cellular Coverage file: {FilePath}. This could be due to file deletion, network issues, or storage problems.", parameters.Path);
-                await MarkFileAsFailed(file, $"Failed to access file: {ex.Message}", token);
+                await ProcessingJobHelper.HandleFileAccessErrorAsync(
+                    ex, parameters.Path, file, _fileRepository, _logger, "Cellular Coverage", token);
                 return;
             }
 
@@ -142,9 +91,8 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 if (cellularCoverageRecords.Count is 0)
                 {
                     _logger.LogInformation("The Excel is empty.");
-                    file.Status = FileStatusEnum.Success;
-                    _fileRepository.Update(file);
-                    await _fileRepository.SaveChangesAsync(token);
+                    await ProcessingJobHelper.SetFileSuccessStatusAsync(
+                        file, _fileRepository, _logger, "Cellular Coverage", token);
                     return;
                 }
 
@@ -152,7 +100,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 {
                     _logger.LogInformation("Processing record: {Record}", record);
 
-                    ReportProgress($"Processing record: {record.Network}, {record.Latitude}, {record.Longitude}, {record.Strength}, {record.Address}");
+                    ProcessingJobHelper.ReportProgress($"Processing record: {record.Network}, {record.Latitude}, {record.Longitude}, {record.Strength}, {record.Address}", _logger);
 
                     if (!networkCache.TryGetValue(record.Network, out var networkId))
                     {
@@ -163,7 +111,9 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         if (network is null)
                         {
                             _logger.LogWarning("Network {Network} not found", record.Network);
-                            await TerminateProcess(file, token);
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, "Cellular Coverage", 
+                                $"Network '{record.Network}' not found in database", token);
                             return;
                         }
                         else
@@ -203,9 +153,8 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                     _logger.LogInformation("No cellular coverage records to add.");
                 }
 
-                file.Status = FileStatusEnum.Success;
-                _fileRepository.Update(file);
-                await _fileRepository.SaveChangesAsync(token);
+                await ProcessingJobHelper.SetFileSuccessStatusAsync(
+                    file, _fileRepository, _logger, "Cellular Coverage", token);
 
                 _logger.LogInformation("File processing completed successfully.");
             }
@@ -213,51 +162,10 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred while processing Cellular Coverage file.");
-            await TerminateProcess(file, token);
+            await ProcessingJobHelper.TerminateProcessAsync(
+                file, _fileRepository, _logger, "Cellular Coverage", 
+                $"Error occurred while processing: {ex.Message}", token);
             throw;
         }
-    }
-
-    void ReportProgress(string message)
-    {
-        _logger.LogInformation(message);
-    }
-
-    /// <summary>
-    /// Extracts container name and blob name from a blob storage URL
-    /// </summary>
-    private static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
-    {
-        // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
-        var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
-        
-        if (segments.Length < 2)
-        {
-            throw new ArgumentException($"Invalid blob URL format: {blobUri}");
-        }
-
-        var containerName = segments[0].TrimEnd('/');
-        var blobName = string.Join("", segments.Skip(1));
-
-        // URL decode the blob name to handle special characters like parentheses
-        blobName = HttpUtility.UrlDecode(blobName);
-
-        return (containerName, blobName);
-    }
-
-    private async Task TerminateProcess(Domain.Entities.File file, CancellationToken cancellationToken)
-    {
-        file.Status = FileStatusEnum.Failed;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Process terminated due to error in runtime.");
-    }
-
-    private async Task MarkFileAsFailed(Domain.Entities.File file, string reason, CancellationToken cancellationToken)
-    {
-        file.Status = FileStatusEnum.Failed;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(cancellationToken);
-        _logger.LogWarning("Cellular Coverage file marked as failed: {Reason}", reason);
     }
 }
