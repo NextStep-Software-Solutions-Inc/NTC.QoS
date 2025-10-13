@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
+using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -38,8 +39,8 @@ internal class DeleteUploadedFileJob : IDeleteUploadedFileJob
         {
             if (Uri.TryCreate(file.Path, UriKind.Absolute, out var blobUri))
             {
-                // Extract container and blob name from the blob URL
-                var (containerName, blobName) = ExtractBlobInfo(blobUri);
+                // Use shared helper to extract container and blob name from the blob URL
+                var (containerName, blobName) = ProcessingJobHelper.ExtractBlobInfo(blobUri);
                 
                 _logger.LogInformation("Deleting file from blob storage: container={ContainerName}, blob={BlobName}", 
                     containerName, blobName);
@@ -89,24 +90,5 @@ internal class DeleteUploadedFileJob : IDeleteUploadedFileJob
             _logger.LogError(ex, "Error deleting file record from database: {FileId}", file.Id);
             throw;
         }
-    }
-
-    /// <summary>
-    /// Extracts container name and blob name from a blob storage URL
-    /// </summary>
-    private static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
-    {
-        // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
-        var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
-        
-        if (segments.Length < 2)
-        {
-            throw new ArgumentException($"Invalid blob URL format: {blobUri}");
-        }
-
-        var containerName = segments[0].TrimEnd('/');
-        var blobName = string.Join("", segments.Skip(1));
-
-        return (containerName, blobName);
     }
 }

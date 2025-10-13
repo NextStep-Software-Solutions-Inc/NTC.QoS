@@ -46,19 +46,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
-        var fileQuery = _fileRepository.Query(f => f.Id.Equals(parameters.Id));
-        var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
+        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(parameters.Id, _fileRepository, _logger, "Wireless Validation", token);
 
-        if (file == null)
-        {
-            const string message = "File not found.";
-            _logger.LogError(message);
-            throw new InvalidOperationException(message);
-        }
-
-        file.Status = FileStatusEnum.Processing;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(token);
+        await ProcessingJobHelper.SetFileProcessingStatusAsync(file, _fileRepository, _logger, "Wireless Validation", token);
 
         var processingResults = new ProcessingResults();
         var startTime = DateTime.UtcNow;
@@ -71,61 +61,11 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             Stream fileStream;
             try
             {
-                if (Uri.TryCreate(parameters.Path, UriKind.Absolute, out var blobUri))
-                {
-                    // Extract container and blob name from the blob URL
-                    var (containerName, blobName) = ExtractBlobInfo(blobUri);
-                    
-                    _logger.LogInformation("Checking if Wireless Validation file exists in blob storage: container={ContainerName}, blob={BlobName}", 
-                        containerName, blobName);
-                    
-                    // Check if the blob exists before attempting to download
-                    var exists = await _blobStorageService.ExistsAsync(containerName, blobName, token);
-                    if (!exists)
-                    {
-                        _logger.LogError("Wireless Validation file not found in blob storage: container={ContainerName}, blob={BlobName}. " +
-                            "The file may have been deleted or never uploaded successfully.", containerName, blobName);
-                        
-                        await MarkFileAsFailed(file, "File not found in storage", token);
-                        return;
-                    }
-                    
-                    _logger.LogInformation("Downloading Wireless Validation file from blob storage: container={ContainerName}, blob={BlobName}", 
-                        containerName, blobName);
-                    
-                    // Download to MemoryStream to support seeking operations
-                    using var blobStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
-                    var memoryStream = new MemoryStream();
-                    await blobStream.CopyToAsync(memoryStream, token);
-                    memoryStream.Position = 0;
-                    fileStream = memoryStream;
-                }
-                else
-                {
-                    // Fallback for legacy local file paths
-                    _logger.LogWarning("Using legacy file path access for Wireless Validation file: {FilePath}", parameters.Path);
-                    
-                    if (!System.IO.File.Exists(parameters.Path))
-                    {
-                        _logger.LogError("Legacy Wireless Validation file not found on disk: {FilePath}", parameters.Path);
-                        
-                        await MarkFileAsFailed(file, "File not found on disk", token);
-                        return;
-                    }
-                    
-                    fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
-                }
-            }
-            catch (FileNotFoundException ex)
-            {
-                _logger.LogError(ex, "Wireless Validation file not found: {FilePath}. Marking file as failed.", parameters.Path);
-                await MarkFileAsFailed(file, "File not found in storage", token);
-                return;
+                fileStream = await ProcessingJobHelper.GetFileStreamAsync(parameters.Path, _blobStorageService, _logger, "Wireless Validation", token);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to access Wireless Validation file: {FilePath}. This could be due to file deletion, network issues, or storage problems.", parameters.Path);
-                await MarkFileAsFailed(file, $"Failed to access file: {ex.Message}", token);
+                await ProcessingJobHelper.HandleFileAccessErrorAsync(ex, parameters.Path, file, _fileRepository, _logger, "Wireless Validation", token);
                 return;
             }
 
@@ -162,9 +102,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing wireless validation file with ID {FileId}", parameters.Id);
-            file.Status = FileStatusEnum.Failed;
-            _fileRepository.Update(file);
-            await _fileRepository.SaveChangesAsync(token);
+            await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, "Wireless Validation", cancellationToken: token);
             throw; 
         }
     }
@@ -514,12 +452,10 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             results.SkippedDuplicates += batchResults.SkippedDuplicates;
             results.ProcessedRecords += batch.Count;
 
-            // Progress reporting
+            // Progress reporting using shared helper
             var progress = (double)(batchIndex + 1) / totalBatches * 100;
-            _logger.LogInformation("Batch {BatchNumber}/{TotalBatches} completed - Progress: {Progress:F1}% - " +
-                "Successful: {Successful:N0}, Errors: {Errors:N0}, Validations Created: {Created:N0}, Duplicates Skipped: {Duplicates:N0}",
-                batchIndex + 1, totalBatches, progress, 
-                batchResults.SuccessfulRecords, batchResults.ErrorRecords, batchResults.CreatedValidations, batchResults.SkippedDuplicates);
+            ProcessingJobHelper.ReportProgress($"Batch {batchIndex + 1}/{totalBatches} completed - Progress: {progress:F1}% - " +
+                "Successful: {batchResults.SuccessfulRecords:N0}, Errors: {batchResults.ErrorRecords:N0}, Validations Created: {batchResults.CreatedValidations:N0}, Duplicates Skipped: {batchResults.SkippedDuplicates:N0}", _logger);
         }
     }
 
@@ -778,36 +714,6 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         await _fileRepository.SaveChangesAsync(token);
 
         _logger.LogInformation("Processing completed successfully.");
-    }
-
-    /// <summary>
-    /// Extracts container name and blob name from a blob storage URL
-    /// </summary>
-    private static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
-    {
-        // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
-        var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
-        
-        if (segments.Length < 2)
-        {
-            throw new ArgumentException($"Invalid blob URL format: {blobUri}");
-        }
-
-        var containerName = segments[0].TrimEnd('/');
-        var blobName = string.Join("", segments.Skip(1));
-
-        // URL decode the blob name to handle special characters like parentheses
-        blobName = System.Web.HttpUtility.UrlDecode(blobName);
-
-        return (containerName, blobName);
-    }
-
-    private async Task MarkFileAsFailed(Domain.Entities.File file, string reason, CancellationToken cancellationToken)
-    {
-        file.Status = FileStatusEnum.Failed;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(cancellationToken);
-        _logger.LogWarning("Wireless Validation file marked as failed: {Reason}", reason);
     }
 
     // Supporting classes

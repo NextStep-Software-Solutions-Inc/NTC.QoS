@@ -54,7 +54,6 @@ public class ProcessNAPJob : IProcessNAPJob
 
         try
         {
-            // Download file from blob storage
             Stream fileStream;
             try
             {

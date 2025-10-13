@@ -34,7 +34,6 @@ public class UploadFileHandler(
             string fileExtension = Path.GetExtension(originalFileName);
             string newFileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}";
 
-            // Log file information for debugging
             _logger.LogInformation("Processing file upload - Original: {OriginalFileName}, New: {NewFileName}, ContentType: {ContentType}, Size: {FileSize} bytes", 
                 originalFileName, newFileName, request.File.File.ContentType, request.File.File.Length);
 
@@ -66,16 +65,14 @@ public class UploadFileHandler(
 
             _logger.LogInformation("Successfully uploaded file to blob storage. URL: {BlobUrl}", blobUrl);
 
-            // Get current user information for UploadedBy field
             var currentUserId = _userContextService.GetCurrentUserId();
-            var uploadedBy = currentUserId ?? "System"; // Fallback to "System" if no user context
+            var uploadedBy = currentUserId ?? "System";
 
-            // Create file entity with blob URL as path
             var newFile = new Domain.Entities.File
             {
                 Name = newFileName,
                 Type = fileType,
-                Path = blobUrl, // Store the blob URL instead of local path
+                Path = blobUrl,
                 Status = FileStatusEnum.Pending,
                 UploadedBy = uploadedBy,
                 UploadDate = DateTime.UtcNow
