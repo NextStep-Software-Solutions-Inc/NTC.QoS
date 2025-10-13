@@ -9,6 +9,7 @@ using NTC.QoS.Domain.Models.DTOs.BlobStorage;
 using NTC.QoS.Infrastructure.Configuration;
 using System.ComponentModel.DataAnnotations;
 using Azure.Storage.Blobs;
+using Azure;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -200,12 +201,12 @@ public class BlobStorageController : ControllerBase
     }
 
     /// <summary>
-    /// Download a file from Azure Blob Storage
+    /// Download a file from Azure Blob Storage (Optimized for streaming)
     /// </summary>
     /// <param name="containerName">The container name</param>
     /// <param name="fileName">The blob name</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>File stream</returns>
+    /// <returns>File stream with optimized headers</returns>
     [HttpGet("download/{containerName}/{**fileName}")]
     [ProducesResponseType(typeof(FileStreamResult), 200)]
     [ProducesResponseType(typeof(ApiResponse<BlobDownloadDto>), 404)]
@@ -214,23 +215,61 @@ public class BlobStorageController : ControllerBase
         [FromRoute, Required] string fileName,
         CancellationToken cancellationToken = default)
     {
-
         try
         {
-            var request = new DownloadBlobRequest
-            {
-                ContainerName = containerName.ToLowerInvariant(),
-                FileName = fileName
-            };
-
-            var result = await _mediator.Send(request, cancellationToken);
+            // Use the blob storage service directly for better performance
+            // This avoids the overhead of MediatR for large file downloads
+            var containerNameLower = containerName.ToLowerInvariant();
             
-            if (result.Succeeded && result.Data != null)
+            // Check if blob exists first (lightweight operation)
+            if (!await _blobStorageService.ExistsAsync(containerNameLower, fileName, cancellationToken))
             {
-                return File(result.Data.FileStream, result.Data.ContentType, result.Data.FileName);
+                return NotFound(new ApiResponse<BlobDownloadDto>
+                {
+                    Message = $"Blob '{fileName}' not found in container '{containerName}'",
+                    Succeeded = false
+                });
             }
 
-            return NotFound(result);
+            // Get blob properties for content headers (optional optimization)
+            var blobClient = _blobServiceClient.GetBlobContainerClient(containerNameLower).GetBlobClient(fileName);
+            var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+
+            // Download as stream for memory efficiency
+            var blobStream = await _blobStorageService.DownloadAsync(containerNameLower, fileName, cancellationToken);
+            
+            // Determine content type
+            var contentType = properties.Value.ContentType ?? "application/octet-stream";
+            
+            // Set optimized response headers
+            Response.Headers.Append("Content-Length", properties.Value.ContentLength.ToString());
+            Response.Headers.Append("Accept-Ranges", "bytes");
+            Response.Headers.Append("Cache-Control", "public, max-age=3600"); // 1 hour cache
+            
+            // Handle ETag safely
+            try
+            {
+                var etagString = properties.Value.ETag.ToString();
+                if (!string.IsNullOrEmpty(etagString) && etagString != "\"\"")
+                {
+                    Response.Headers.Append("ETag", etagString);
+                }
+            }
+            catch
+            {
+                // ETag is optional, so we can safely ignore any issues with it
+            }
+
+            // Handle range requests for better streaming (optional advanced feature)
+            if (Request.Headers.ContainsKey("Range"))
+            {
+                // For now, we'll let the browser handle ranges
+                // Advanced implementation would parse Range header and return partial content
+                Response.StatusCode = 206; // Partial Content
+            }
+
+            // Return file with proper disposal handling
+            return File(blobStream, contentType, fileName, enableRangeProcessing: true);
         }
         catch (Exception ex)
         {

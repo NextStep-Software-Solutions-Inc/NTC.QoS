@@ -7,29 +7,33 @@ using NetTopologySuite.IO;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Persistence;
 
 namespace NTC.QoS.Infrastructure.Seed;
 
 public static class LocationSeeder
 {
-    private const string RegionGeoJsonFilePath = "Regionbdry.geojson";
-    private const string ProvinceGeoJsonFilePath = "Provincebdry.geojson";
-    private const string MunicipalityGeoJsonFilePath = "Municipalitybdry.geojson";
-    private const string BarangayGeoJsonFilePath = "Barangaybdry.geojson";
+    private const string ContainerName = "seeds";
+    private const string RegionGeoJsonFilePath = "boundaries/Regionbdry.geojson";
+    private const string ProvinceGeoJsonFilePath = "boundaries/Provincebdry.geojson";
+    private const string MunicipalityGeoJsonFilePath = "boundaries/Municipalitybdry.geojson";
+    private const string BarangayGeoJsonFilePath = "boundaries/Barangaybdry.geojson";
 
     /// <summary>
     /// Seeds all configured entities into the database.
     /// </summary>
     /// <param name="context">The DbContext instance.</param>
-    public static async Task SeedAllAsync(ApplicationDbContext context, ILogger logger)
+    /// <param name="blobStorageService">The blob storage service instance.</param>
+    /// <param name="logger">The logger instance.</param>
+    public static async Task SeedAllAsync(ApplicationDbContext context, IBlobStorageService blobStorageService, ILogger logger)
     {
         logger.LogInformation("Starting full database seeding process...");
 
-        await SeedRegionsAsync(context, logger);
-        await SeedProvincesAsync(context, logger);
-        await SeedMunicipalitiesAsync(context, logger);
-        await SeedBarangaysAsync(context, logger);
+        await SeedRegionsAsync(context, blobStorageService, logger);
+        await SeedProvincesAsync(context, blobStorageService, logger);
+        await SeedMunicipalitiesAsync(context, blobStorageService, logger);
+        await SeedBarangaysAsync(context, blobStorageService, logger);
 
         logger.LogInformation("Full database seeding process completed.");
     }
@@ -38,27 +42,29 @@ public static class LocationSeeder
     /// Seeds a specific entity type into the database based on the provided enum.
     /// </summary>
     /// <param name="context">The DbContext instance.</param>
+    /// <param name="blobStorageService">The blob storage service instance.</param>
     /// <param name="entityType">The type of entity to seed.</param>
-    public static async Task SeedEntityAsync(ApplicationDbContext context, LocationTypeToSeedEnum entityType, ILogger logger)
+    /// <param name="logger">The logger instance.</param>
+    public static async Task SeedEntityAsync(ApplicationDbContext context, IBlobStorageService blobStorageService, LocationTypeToSeedEnum entityType, ILogger logger)
     {
         logger.LogInformation("Starting seeding for entity type: {EntityType}...", entityType);
 
         switch (entityType)
         {
             case LocationTypeToSeedEnum.All:
-                await SeedAllAsync(context, logger);
+                await SeedAllAsync(context, blobStorageService, logger);
                 break;
             case LocationTypeToSeedEnum.Region:
-                await SeedRegionsAsync(context, logger);
+                await SeedRegionsAsync(context, blobStorageService, logger);
                 break;
             case LocationTypeToSeedEnum.Province:
-                await SeedProvincesAsync(context, logger);
+                await SeedProvincesAsync(context, blobStorageService, logger);
                 break;
             case LocationTypeToSeedEnum.Municipality:
-                await SeedMunicipalitiesAsync(context, logger);
+                await SeedMunicipalitiesAsync(context, blobStorageService, logger);
                 break;
             case LocationTypeToSeedEnum.Barangay:
-                await SeedBarangaysAsync(context, logger);
+                await SeedBarangaysAsync(context, blobStorageService, logger);
                 break;
             default:
                 logger.LogInformation("Unknown entity type '{EntityType}'. No seeding performed.", entityType);
@@ -69,10 +75,10 @@ public static class LocationSeeder
     }
 
     /// <summary>
-    /// Seeds Region entities from the GeoJSON file.
+    /// Seeds Region entities from the GeoJSON file in blob storage.
     /// This logic is adapted from the previous RegionSeeder.
     /// </summary>
-    public static async Task SeedRegionsAsync(ApplicationDbContext dbContext, ILogger logger)
+    public static async Task SeedRegionsAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
     {
         if (await dbContext.Regions.AnyAsync())
         {
@@ -80,23 +86,25 @@ public static class LocationSeeder
             return;
         }
 
-        logger.LogInformation("Starting region seeding from {FilePath}...", RegionGeoJsonFilePath);
+        logger.LogInformation("Starting region seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, RegionGeoJsonFilePath);
 
         FeatureCollection featureCollection = new FeatureCollection();
 
         try
         {
-            string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, RegionGeoJsonFilePath);
-
-            if (!System.IO.File.Exists(fullGeoJsonPath))
+            // Check if the file exists in blob storage
+            if (!await blobStorageService.ExistsAsync(ContainerName, RegionGeoJsonFilePath))
             {
-                logger.LogInformation("Error: GeoJSON file not found at {FilePath}. Make sure it's copied to output directory.", fullGeoJsonPath);
+                logger.LogError("GeoJSON file not found in blob storage: {ContainerName}/{FilePath}", ContainerName, RegionGeoJsonFilePath);
                 return;
             }
 
-            string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
-            var serializer = GeoJsonSerializer.Create();
+            // Download the file from blob storage
+            using var geoJsonStream = await blobStorageService.DownloadAsync(ContainerName, RegionGeoJsonFilePath);
+            using var streamReader = new StreamReader(geoJsonStream);
+            string geoJsonText = await streamReader.ReadToEndAsync();
 
+            var serializer = GeoJsonSerializer.Create();
             using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
             {
                 featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
@@ -110,7 +118,7 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogInformation("Error reading or parsing GeoJSON file for regions: {ErrorMessage}", ex.Message);
+            logger.LogError(ex, "Error reading or parsing GeoJSON file for regions from blob storage: {ErrorMessage}", ex.Message);
             return;
         }
 
@@ -166,33 +174,34 @@ public static class LocationSeeder
     }
 
     /// <summary>
-    /// Placeholder for seeding Province entities.
-    /// This method will be expanded once GeoJSON format for Provinces is provided.
+    /// Seeds Province entities from the GeoJSON file in blob storage.
     /// </summary>
-    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext, ILogger logger)
+    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
     {
         if (await dbContext.Provinces.AnyAsync())
         {
             logger.LogInformation("Database already contains provinces. Skipping province seeding.");
             return;
         }
-        logger.LogInformation("Starting province seeding from {FilePath}...", ProvinceGeoJsonFilePath);
+        logger.LogInformation("Starting province seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, ProvinceGeoJsonFilePath);
 
         FeatureCollection featureCollection = new FeatureCollection();
 
         try
         {
-            string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, ProvinceGeoJsonFilePath);
-
-            if (!System.IO.File.Exists(fullGeoJsonPath))
+            // Check if the file exists in blob storage
+            if (!await blobStorageService.ExistsAsync(ContainerName, ProvinceGeoJsonFilePath))
             {
-                logger.LogError("Error: GeoJSON file not found at {fullGeoJsonPath}. Make sure it's copied to output directory.", fullGeoJsonPath);
+                logger.LogError("GeoJSON file not found in blob storage: {ContainerName}/{FilePath}", ContainerName, ProvinceGeoJsonFilePath);
                 return;
             }
 
-            string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
-            var serializer = GeoJsonSerializer.Create();
+            // Download the file from blob storage
+            using var geoJsonStream = await blobStorageService.DownloadAsync(ContainerName, ProvinceGeoJsonFilePath);
+            using var streamReader = new StreamReader(geoJsonStream);
+            string geoJsonText = await streamReader.ReadToEndAsync();
 
+            var serializer = GeoJsonSerializer.Create();
             using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
             {
                 featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
@@ -206,7 +215,7 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogError("Error reading or parsing GeoJSON file for provinces: {ErrorMessage}", ProvinceGeoJsonFilePath);
+            logger.LogError("Error reading or parsing GeoJSON file for provinces from blob storage: {ErrorMessage}", ex.Message);
             logger.LogTrace(ex.StackTrace);
             return;
         }
@@ -286,33 +295,34 @@ public static class LocationSeeder
     }
 
     /// <summary>
-    /// Placeholder for seeding Municipality entities.
-    /// This method will be expanded once GeoJSON format for Municipalities is provided.
+    /// Seeds Municipality entities from the GeoJSON file in blob storage.
     /// </summary>
-    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext, ILogger logger)
+    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
     {
         if (await dbContext.Municipalities.AnyAsync())
         {
             logger.LogInformation("Database already contains municipalities. Skipping municipality seeding.");
             return;
         }
-        logger.LogInformation("Starting municipalities seeding from {FilePath}...", MunicipalityGeoJsonFilePath);
+        logger.LogInformation("Starting municipalities seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, MunicipalityGeoJsonFilePath);
 
         FeatureCollection featureCollection = [];
 
         try
         {
-            string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, MunicipalityGeoJsonFilePath);
-
-            if (!System.IO.File.Exists(fullGeoJsonPath))
+            // Check if the file exists in blob storage
+            if (!await blobStorageService.ExistsAsync(ContainerName, MunicipalityGeoJsonFilePath))
             {
-                logger.LogError("Error: GeoJSON file not found at {FilePath}. Make sure it's copied to output directory.", fullGeoJsonPath);
+                logger.LogError("GeoJSON file not found in blob storage: {ContainerName}/{FilePath}", ContainerName, MunicipalityGeoJsonFilePath);
                 return;
             }
 
-            string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
-            var serializer = GeoJsonSerializer.Create();
+            // Download the file from blob storage
+            using var geoJsonStream = await blobStorageService.DownloadAsync(ContainerName, MunicipalityGeoJsonFilePath);
+            using var streamReader = new StreamReader(geoJsonStream);
+            string geoJsonText = await streamReader.ReadToEndAsync();
 
+            var serializer = GeoJsonSerializer.Create();
             using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
             {
                 featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
@@ -326,7 +336,7 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogError("Error reading or parsing GeoJSON file for municipalities: {Message}", ex.Message);
+            logger.LogError("Error reading or parsing GeoJSON file for municipalities from blob storage: {Message}", ex.Message);
             logger.LogTrace(ex.StackTrace);
             return;
         }
@@ -408,33 +418,34 @@ public static class LocationSeeder
     }
 
     /// <summary>
-    /// Placeholder for seeding Barangay entities.
-    /// This method will be expanded once GeoJSON format for Barangays is provided.
+    /// Seeds Barangay entities from the GeoJSON file in blob storage.
     /// </summary>
-    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext, ILogger logger)
+    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
     {
         if (await dbContext.Barangays.AnyAsync())
         {
             logger.LogInformation("Database already contains barangays. Skipping barangay seeding.");
             return;
         }
-        logger.LogInformation("Starting barangays seeding from {FilePath}...", BarangayGeoJsonFilePath);
+        logger.LogInformation("Starting barangays seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, BarangayGeoJsonFilePath);
 
         FeatureCollection featureCollection = new FeatureCollection();
 
         try
         {
-            string fullGeoJsonPath = Path.Combine(Environment.CurrentDirectory, BarangayGeoJsonFilePath);
-
-            if (!System.IO.File.Exists(fullGeoJsonPath))
+            // Check if the file exists in blob storage
+            if (!await blobStorageService.ExistsAsync(ContainerName, BarangayGeoJsonFilePath))
             {
-                logger.LogError("Error: GeoJSON file not found at {Path}. Make sure it's copied to output directory.", fullGeoJsonPath);
+                logger.LogError("GeoJSON file not found in blob storage: {ContainerName}/{FilePath}", ContainerName, BarangayGeoJsonFilePath);
                 return;
             }
 
-            string geoJsonText = await System.IO.File.ReadAllTextAsync(fullGeoJsonPath);
-            var serializer = GeoJsonSerializer.Create();
+            // Download the file from blob storage
+            using var geoJsonStream = await blobStorageService.DownloadAsync(ContainerName, BarangayGeoJsonFilePath);
+            using var streamReader = new StreamReader(geoJsonStream);
+            string geoJsonText = await streamReader.ReadToEndAsync();
 
+            var serializer = GeoJsonSerializer.Create();
             using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
             {
                 featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
@@ -448,7 +459,7 @@ public static class LocationSeeder
         }
         catch (Exception ex)
         {
-            logger.LogInformation("Error reading or parsing GeoJSON file for provinces: {Message}", ex.Message);
+            logger.LogError(ex, "Error reading or parsing GeoJSON file for barangays from blob storage: {Message}", ex.Message);
             logger.LogTrace(ex.StackTrace);
             return;
         }
