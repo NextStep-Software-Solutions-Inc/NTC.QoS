@@ -101,7 +101,12 @@ public class ProcessCellJob : IProcessCellJob
                     _logger.LogInformation("Downloading file from blob storage: container={ContainerName}, blob={BlobName}", 
                         containerName, blobName);
                     
-                    fileStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
+                    // Download to MemoryStream to support seeking operations
+                    using var blobStream = await _blobStorageService.DownloadAsync(containerName, blobName, token);
+                    var memoryStream = new MemoryStream();
+                    await blobStream.CopyToAsync(memoryStream, token);
+                    memoryStream.Position = 0;
+                    fileStream = memoryStream;
                 }
                 else
                 {
@@ -307,7 +312,6 @@ public class ProcessCellJob : IProcessCellJob
                 // --- Step 5: Process the Excel File ---
                 _logger.LogInformation("Processing downloaded file from blob storage");
 
-                fileStream.Position = 0;
                 _logger.LogInformation("Excel processing started");
 
                 var cellRecords = CellExcelHelper.ParseExcelToCellRecords(fileStream);
