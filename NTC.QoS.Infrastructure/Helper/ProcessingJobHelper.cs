@@ -48,7 +48,7 @@ public static class ProcessingJobHelper
         string filePath,
         IBlobStorageService blobStorageService,
         ILogger logger,
-        string fileType,
+        FileTypeEnum fileType,
         CancellationToken cancellationToken = default)
     {
         try
@@ -117,7 +117,7 @@ public static class ProcessingJobHelper
         string reason,
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
-        string fileType,
+        FileTypeEnum fileType,
         CancellationToken cancellationToken = default)
     {
         file.Status = FileStatusEnum.Failed;
@@ -139,7 +139,7 @@ public static class ProcessingJobHelper
         Domain.Entities.File file,
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
-        string fileType,
+        FileTypeEnum fileType,
         string? errorMessage = null,
         CancellationToken cancellationToken = default)
     {
@@ -147,7 +147,7 @@ public static class ProcessingJobHelper
         fileRepository.Update(file);
         await fileRepository.SaveChangesAsync(cancellationToken);
         
-        logger.LogError("=== {FileType} PROCESSING TERMINATED ===", fileType.ToUpper());
+        logger.LogError("=== {FileType} PROCESSING TERMINATED ===", fileType.ToString().ToUpper());
         
         if (!string.IsNullOrEmpty(errorMessage))
         {
@@ -183,7 +183,7 @@ public static class ProcessingJobHelper
         Domain.Entities.File file,
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
-        string fileType,
+        FileTypeEnum fileType,
         CancellationToken cancellationToken = default)
     {
         file.Status = FileStatusEnum.Processing;
@@ -204,7 +204,7 @@ public static class ProcessingJobHelper
         Domain.Entities.File file,
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
-        string fileType,
+        FileTypeEnum fileType,
         CancellationToken cancellationToken = default)
     {
         file.Status = FileStatusEnum.Success;
@@ -227,7 +227,7 @@ public static class ProcessingJobHelper
         Guid fileId,
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
-        string fileType,
+        FileTypeEnum fileType,
         CancellationToken cancellationToken = default)
     {
         var fileQuery = fileRepository.Query(f => f.Id.Equals(fileId));
@@ -259,7 +259,7 @@ public static class ProcessingJobHelper
         Domain.Entities.File file,
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
-        string fileType,
+        FileTypeEnum fileType,
         CancellationToken cancellationToken = default)
     {
         string reason;
