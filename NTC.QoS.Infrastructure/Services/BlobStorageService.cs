@@ -8,7 +8,7 @@ using NTC.QoS.Infrastructure.Configuration;
 namespace NTC.QoS.Infrastructure.Services;
 
 /// <summary>
-/// Azure Blob Storage service implementation
+/// Azure Blob Storage service implementation with enhanced region support
 /// </summary>
 public class BlobStorageService : IBlobStorageService
 {
@@ -65,7 +65,7 @@ public class BlobStorageService : IBlobStorageService
             // Get or create container
             var containerClient = await GetOrCreateContainerAsync(containerName, cancellationToken);
 
-            // Upload blob
+            // Upload blob with region-aware metadata
             var blobClient = containerClient.GetBlobClient(fileName);
             
             var uploadOptions = new BlobUploadOptions
@@ -77,7 +77,10 @@ public class BlobStorageService : IBlobStorageService
                 Metadata = new Dictionary<string, string>
                 {
                     ["UploadedAt"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                    ["OriginalName"] = fileName
+                    ["OriginalName"] = Path.GetFileName(fileName),
+                    ["Region"] = ExtractRegionFromPath(fileName),
+                    ["Environment"] = ExtractEnvironmentFromPath(fileName),
+                    ["FileType"] = ExtractFileTypeFromPath(fileName)
                 }
             };
 
@@ -93,6 +96,55 @@ public class BlobStorageService : IBlobStorageService
             _logger.LogError(ex, "Failed to upload file {FileName} to container {ContainerName}", fileName, containerName);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Lists blobs by region and file type
+    /// </summary>
+    public async Task<IEnumerable<string>> ListBlobsByRegionAsync(string containerName, string region, string? fileType = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var environment = containerName; // Assuming container name matches environment
+            var prefix = fileType != null 
+                ? $"{environment}/{fileType}/{region}/"
+                : $"{environment}/";
+
+            return await ListBlobsAsync(containerName, prefix, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list blobs for region {Region} in container {ContainerName}", region, containerName);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Extracts region information from the blob path
+    /// </summary>
+    private static string ExtractRegionFromPath(string blobPath)
+    {
+        var pathParts = blobPath.Split('/');
+        var regionPart = pathParts.FirstOrDefault(part => part.StartsWith("region", StringComparison.OrdinalIgnoreCase));
+        return regionPart ?? "unknown";
+    }
+
+    /// <summary>
+    /// Extracts environment information from the blob path
+    /// </summary>
+    private static string ExtractEnvironmentFromPath(string blobPath)
+    {
+        var pathParts = blobPath.Split('/');
+        return pathParts.Length > 0 ? pathParts[0] : "unknown";
+    }
+
+    /// <summary>
+    /// Extracts file type information from the blob path
+    /// </summary>
+    private static string ExtractFileTypeFromPath(string blobPath)
+    {
+        var pathParts = blobPath.Split('/');
+        return pathParts.Length > 1 ? pathParts[1] : "unknown";
     }
 
     /// <inheritdoc />

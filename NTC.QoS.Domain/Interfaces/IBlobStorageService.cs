@@ -1,7 +1,7 @@
 namespace NTC.QoS.Domain.Interfaces;
 
 /// <summary>
-/// Interface for Azure Blob Storage operations
+/// Interface for Azure Blob Storage operations with region support
 /// </summary>
 public interface IBlobStorageService
 {
@@ -68,4 +68,14 @@ public interface IBlobStorageService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of blob names</returns>
     Task<IEnumerable<string>> ListBlobsAsync(string containerName, string? prefix = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists blobs by region and file type
+    /// </summary>
+    /// <param name="containerName">The blob container name</param>
+    /// <param name="region">Region code (e.g., "region10")</param>
+    /// <param name="fileType">Optional file type filter (e.g., "cells")</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of blob names</returns>
+    Task<IEnumerable<string>> ListBlobsByRegionAsync(string containerName, string region, string? fileType = null, CancellationToken cancellationToken = default);
 }
