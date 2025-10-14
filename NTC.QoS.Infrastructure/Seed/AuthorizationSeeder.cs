@@ -1,3 +1,4 @@
+using EFCore.BulkExtensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Authorization;
@@ -223,14 +224,15 @@ public static class AuthorizationSeeder
             new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" }
         };
 
+        var newPermissions = new List<Domain.Entities.Permission>();
+        // check what persmissions are missing
+
+        var existingPermissions = await context.Permissions.Where(p => permissions.Select(x => x.Key).Contains(p.Key)).ToListAsync();
         foreach (var permission in permissions)
         {
-            var exists = await context.Set<Domain.Entities.Permission>()
-                .AnyAsync(p => p.Key == permission.Key);
-
-            if (!exists)
+            if (!existingPermissions.Any(p => p.Key == permission.Key))
             {
-                context.Set<Domain.Entities.Permission>().Add(new Domain.Entities.Permission
+                newPermissions.Add(new Domain.Entities.Permission
                 {
                     Key = permission.Key,
                     Name = permission.Name,
@@ -239,10 +241,11 @@ public static class AuthorizationSeeder
                     UpdatedBy = "System"
                 });
 
-                logger.LogInformation("Added permission: {PermissionKey} - {PermissionName}", permission.Key, permission.Name);
+                logger.LogInformation("Prepared new permission for addition: {PermissionKey} - {PermissionName}", permission.Key, permission.Name);
             }
         }
 
+        await context.BulkInsertAsync(newPermissions);
         await context.SaveChangesAsync();
         logger.LogInformation("Permissions seeding completed.");
     }
