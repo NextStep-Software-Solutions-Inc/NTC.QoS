@@ -32,19 +32,8 @@ public class Program
             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
-        // Explicitly add user secrets in development
-        if (env.IsDevelopment())
-        {
-            builder.Configuration.AddUserSecrets<Program>();
-        }
-
         // Validate Clerk secret for both Development and Production
-        var clerkSecret = builder.Configuration["Clerk:SecretKey"];
-        if (string.IsNullOrWhiteSpace(clerkSecret))
-        {
-            throw new InvalidOperationException("Clerk Secret Key is not configured.");
-        }
-
+        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ??  throw new InvalidOperationException("Clerk Secret Key is not configured.");
         builder.Services.AddClerkApiClient(config =>
         {
             config.SecretKey = clerkSecret;
@@ -136,20 +125,11 @@ public class Program
                 }
             });
             
-            // Configure IFormFile mapping for file uploads
-            options.MapType<IFormFile>(() => new OpenApiSchema
-            {
-                Type = "string",
-                Format = "binary"
-            });
-            
-            // Support for multipart/form-data
-            options.SupportNonNullableReferenceTypes();
+       
             
             // Custom operation filter for file upload endpoints
             options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
-            options.DocumentFilter<CatchAllRouteDocumentFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
         });
 
@@ -177,10 +157,10 @@ public class Program
         await app.Services.InitializeApplicationAsync(builder.Configuration, env);
 
         app.UseSecurityHeaders();
+        bool isDevelopment = app.Environment.IsDevelopment();
+        app.UseCors(isDevelopment ? "Dev" : "Prod");
 
-        app.UseCors(env.IsDevelopment() ? "Dev" : "Prod");
-
-        if (env.IsDevelopment())
+        if (isDevelopment)
         {
             app.UseSwagger();
             app.UseSwaggerUI(s =>

@@ -38,41 +38,6 @@ public static class LocationSeeder
         logger.LogInformation("Full database seeding process completed.");
     }
 
-    /// <summary>
-    /// Seeds a specific entity type into the database based on the provided enum.
-    /// </summary>
-    /// <param name="context">The DbContext instance.</param>
-    /// <param name="blobStorageService">The blob storage service instance.</param>
-    /// <param name="entityType">The type of entity to seed.</param>
-    /// <param name="logger">The logger instance.</param>
-    public static async Task SeedEntityAsync(ApplicationDbContext context, IBlobStorageService blobStorageService, LocationTypeToSeedEnum entityType, ILogger logger)
-    {
-        logger.LogInformation("Starting seeding for entity type: {EntityType}...", entityType);
-
-        switch (entityType)
-        {
-            case LocationTypeToSeedEnum.All:
-                await SeedAllAsync(context, blobStorageService, logger);
-                break;
-            case LocationTypeToSeedEnum.Region:
-                await SeedRegionsAsync(context, blobStorageService, logger);
-                break;
-            case LocationTypeToSeedEnum.Province:
-                await SeedProvincesAsync(context, blobStorageService, logger);
-                break;
-            case LocationTypeToSeedEnum.Municipality:
-                await SeedMunicipalitiesAsync(context, blobStorageService, logger);
-                break;
-            case LocationTypeToSeedEnum.Barangay:
-                await SeedBarangaysAsync(context, blobStorageService, logger);
-                break;
-            default:
-                logger.LogInformation("Unknown entity type '{EntityType}'. No seeding performed.", entityType);
-                break;
-        }
-
-        logger.LogInformation("Seeding for entity type '{EntityType}' completed.", entityType);
-    }
 
     /// <summary>
     /// Seeds Region entities from the GeoJSON file in blob storage.

@@ -10,15 +10,6 @@ public class BlobStorageOptions
     /// </summary>
     public const string SectionName = "AzureBlobStorage";
 
-    /// <summary>
-    /// The Azure Storage connection string
-    /// </summary>
-    public string ConnectionString { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Default container name for file uploads
-    /// </summary>
-    public string DefaultContainer { get; set; } = "development";
 
     /// <summary>
     /// Maximum file size in MB

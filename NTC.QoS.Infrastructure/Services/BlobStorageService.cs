@@ -10,92 +10,92 @@ namespace NTC.QoS.Infrastructure.Services;
 /// <summary>
 /// Azure Blob Storage service implementation with enhanced region support
 /// </summary>
-public class BlobStorageService : IBlobStorageService
+public class BlobStorageService(
+    BlobServiceClient blobServiceClient,
+    IOptions<BlobStorageOptions> blobStorageOptions,
+    ILogger<BlobStorageService> logger) : IBlobStorageService
 {
-    private readonly BlobServiceClient _blobServiceClient;
-    private readonly BlobStorageOptions _options;
-    private readonly ILogger<BlobStorageService> _logger;
-
-    public BlobStorageService(
-        BlobServiceClient blobServiceClient,
-        IOptions<BlobStorageOptions> options,
-        ILogger<BlobStorageService> logger)
-    {
-        _blobServiceClient = blobServiceClient;
-        _options = options.Value;
-        _logger = logger;
-    }
+    private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
+    private readonly BlobStorageOptions _blobStorageOptions = blobStorageOptions.Value;
+    private readonly ILogger<BlobStorageService> _logger = logger;
 
     /// <inheritdoc />
     public async Task<string> UploadAsync(string containerName, string fileName, Stream fileStream, string contentType, CancellationToken cancellationToken = default)
     {
-        try
+        _logger.LogInformation("Starting upload of file {FileName} to container {ContainerName}", fileName, containerName);
+
+        ValidateFileSize(fileStream);
+        ValidateContentType(contentType);
+
+        var containerClient = await GetOrCreateContainerAsync(containerName, cancellationToken);
+        var blobClient = containerClient.GetBlobClient(fileName);
+
+        var uploadOptions = CreateUploadOptions(fileName, contentType);
+
+        await blobClient.UploadAsync(fileStream, uploadOptions, cancellationToken);
+
+        var blobUrl = blobClient.Uri.ToString();
+        _logger.LogInformation("Successfully uploaded file {FileName} to {BlobUrl}", fileName, blobUrl);
+
+        return blobUrl;
+    }
+
+    /// <summary>
+    /// Validates the file size against the configured maximum.
+    /// </summary>
+    private void ValidateFileSize(Stream fileStream)
+    {
+        long fileSize = 0;
+        if (fileStream.CanSeek)
         {
-            _logger.LogInformation("Starting upload of file {FileName} to container {ContainerName}", fileName, containerName);
-
-            // Validate file size - handle both seekable and non-seekable streams
-            long fileSize = 0;
-            if (fileStream.CanSeek)
-            {
-                fileSize = fileStream.Length;
-                _logger.LogDebug("File size from stream Length: {FileSize} bytes", fileSize);
-            }
-            else
-            {
-                // For non-seekable streams, we'll let the upload proceed and let Azure handle the size limit
-                _logger.LogDebug("Stream is not seekable, cannot pre-validate file size");
-            }
-
-            var maxFileSizeBytes = (long)_options.MaxFileSizeMB * 1024 * 1024;
-            
-            if (fileSize > 0 && fileSize > maxFileSizeBytes)
-            {
-                var fileSizeMB = (double)fileSize / (1024 * 1024);
-                _logger.LogWarning("File size validation failed: {FileSizeMB:F2}MB exceeds limit of {MaxFileSizeMB}MB", 
-                    fileSizeMB, _options.MaxFileSizeMB);
-                throw new InvalidOperationException($"File size ({fileSizeMB:F2}MB) exceeds the maximum allowed size of {_options.MaxFileSizeMB}MB");
-            }
-
-            // Validate content type
-            if (!_options.AllowedContentTypes.Contains(contentType.ToLowerInvariant()))
-            {
-                throw new InvalidOperationException($"Content type {contentType} is not allowed");
-            }
-
-            // Get or create container
-            var containerClient = await GetOrCreateContainerAsync(containerName, cancellationToken);
-
-            // Upload blob with region-aware metadata
-            var blobClient = containerClient.GetBlobClient(fileName);
-            
-            var uploadOptions = new BlobUploadOptions
-            {
-                HttpHeaders = new BlobHttpHeaders
-                {
-                    ContentType = contentType
-                },
-                Metadata = new Dictionary<string, string>
-                {
-                    ["UploadedAt"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                    ["OriginalName"] = Path.GetFileName(fileName),
-                    ["Region"] = ExtractRegionFromPath(fileName),
-                    ["Environment"] = ExtractEnvironmentFromPath(fileName),
-                    ["FileType"] = ExtractFileTypeFromPath(fileName)
-                }
-            };
-
-            await blobClient.UploadAsync(fileStream, uploadOptions, cancellationToken);
-
-            var blobUrl = blobClient.Uri.ToString();
-            _logger.LogInformation("Successfully uploaded file {FileName} to {BlobUrl}", fileName, blobUrl);
-
-            return blobUrl;
+            fileSize = fileStream.Length;
+            _logger.LogDebug("File size from stream Length: {FileSize} bytes", fileSize);
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, "Failed to upload file {FileName} to container {ContainerName}", fileName, containerName);
-            throw;
+            _logger.LogDebug("Stream is not seekable, cannot pre-validate file size");
         }
+
+        var maxFileSizeBytes = (long)_blobStorageOptions.MaxFileSizeMB * 1024 * 1024;
+        if (fileSize > 0 && fileSize > maxFileSizeBytes)
+        {
+            var fileSizeMB = (double)fileSize / (1024 * 1024);
+            _logger.LogWarning("File size validation failed: {FileSizeMB:F2}MB exceeds limit of {MaxFileSizeMB}MB", fileSizeMB, _blobStorageOptions.MaxFileSizeMB);
+            throw new InvalidOperationException($"File size ({fileSizeMB:F2}MB) exceeds the maximum allowed size of {_blobStorageOptions.MaxFileSizeMB}MB");
+        }
+    }
+
+    /// <summary>
+    /// Validates the content type against allowed types.
+    /// </summary>
+    private void ValidateContentType(string contentType)
+    {
+        if (!_blobStorageOptions.AllowedContentTypes.Contains(contentType.ToLowerInvariant()))
+        {
+            throw new InvalidOperationException($"Content type {contentType} is not allowed");
+        }
+    }
+
+    /// <summary>
+    /// Creates upload options with metadata.
+    /// </summary>
+    private static BlobUploadOptions CreateUploadOptions(string fileName, string contentType)
+    {
+        return new BlobUploadOptions
+        {
+            HttpHeaders = new BlobHttpHeaders
+            {
+                ContentType = contentType
+            },
+            Metadata = new Dictionary<string, string>
+            {
+                ["UploadedAt"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                ["OriginalName"] = Path.GetFileName(fileName),
+                ["Region"] = ExtractRegionFromPath(fileName),
+                ["Environment"] = ExtractEnvironmentFromPath(fileName),
+                ["FileType"] = ExtractFileTypeFromPath(fileName)
+            }
+        };
     }
 
     /// <summary>
@@ -300,32 +300,9 @@ public class BlobStorageService : IBlobStorageService
     private async Task<BlobContainerClient> GetOrCreateContainerAsync(string containerName, CancellationToken cancellationToken)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-
         // Create container if it doesn't exist
-        var response = await containerClient.CreateIfNotExistsAsync(
-            publicAccessType: GetPublicAccessType(_options.AccessLevel),
-            cancellationToken: cancellationToken);
-
-        if (response != null)
-        {
-            _logger.LogInformation("Created new blob container: {ContainerName}", containerName);
-        }
-
+        _ = await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken) ?? throw new InvalidOperationException("Failed to create or access blob container");
         return containerClient;
     }
 
-    /// <summary>
-    /// Converts string access level to PublicAccessType enum
-    /// </summary>
-    /// <param name="accessLevel">The access level string</param>
-    /// <returns>The corresponding PublicAccessType</returns>
-    private static PublicAccessType GetPublicAccessType(string accessLevel)
-    {
-        return accessLevel.ToLowerInvariant() switch
-        {
-            "blob" => PublicAccessType.Blob,
-            "container" => PublicAccessType.BlobContainer,
-            _ => PublicAccessType.None
-        };
-    }
 }

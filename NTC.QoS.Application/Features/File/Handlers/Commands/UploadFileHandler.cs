@@ -31,7 +31,7 @@ public class UploadFileHandler(
     {
         try
         {
-            var fileType = EnumHelper<FileTypeEnum>.GetValue(request.File.Type);
+            FileTypeEnum fileType = Enum.TryParse<FileTypeEnum>(request.File.Type, out var parsedType) ? parsedType : FileTypeEnum.Unknown;
             var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
             string originalFileName = request.File.FileName ?? request.File.File.FileName;
             string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName).Replace(" ", "-");
@@ -42,7 +42,7 @@ public class UploadFileHandler(
                 originalFileName, newFileName, request.File.File.ContentType, request.File.File.Length);
 
             // Get region information for the current user
-            var regionCode = await GetUserRegionCodeAsync(request.File.RegionId, cancellationToken);
+            var regionCode = await GetRegionCodeAsync(request.File.RegionId, cancellationToken);
             if (string.IsNullOrEmpty(regionCode))
             {
                 return new ApiResponse<FileDto>
@@ -51,7 +51,7 @@ public class UploadFileHandler(
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "Region", new[] { "Invalid region or insufficient region access." } }
+                        { "Region", ["Invalid region or insufficient region access."]}
                     }
                 };
             }
@@ -60,9 +60,9 @@ public class UploadFileHandler(
             string containerName = GetContainerName();
             
             // Create blob path with region-based folder structure
-            string blobPath = GetBlobPathWithRegion(request.File.Type, regionCode, newFileName);
-            
-            _logger.LogInformation("Uploading file {OriginalFileName} as {BlobPath} to container {ContainerName} for region {RegionCode}", 
+            string blobPath = GetBlobPathWithRegion(fileType, regionCode, newFileName);
+
+            _logger.LogInformation("Uploading file {OriginalFileName} as {BlobPath} to container {ContainerName} for region {RegionCode}",
                 originalFileName, blobPath, containerName, regionCode);
 
             // Upload file to blob storage
@@ -152,72 +152,47 @@ public class UploadFileHandler(
 
     /// <summary>
     /// Creates the blob path with region-based folder structure
-    /// Format: environment/file-type/regionXX/filename.xlsx
-    /// Example: development/cells/region10/cell_data_20241014123456.xlsx
+    /// Format: region-XX/file-type/filename
+    /// Example: region-01/cells/filename_20231010120000.xlsx
     /// </summary>
-    private string GetBlobPathWithRegion(string fileType, string regionCode, string fileName)
+    private static string GetBlobPathWithRegion(FileTypeEnum fileType, string regionCode, string fileName)
     {
-        var environment = GetContainerName();
-        
         // Create subdirectory based on file type
-        var fileTypePrefix = fileType.ToLowerInvariant() switch
+        var fileTypePrefix = fileType switch
         {
-            "cell" => "cells",
-            "nap" => "naps", 
-            "speedtest" => "speedtests",
-            "cellular" => "cellulars",
-            "cellularcoverage" => "cellular-coverages",
-            "wirelessvalidation" => "wireless-validations",
+            FileTypeEnum.Cell => "cells",
+            FileTypeEnum.NAP => "naps",
+            FileTypeEnum.Speedtest => "speedtests",
+            FileTypeEnum.Cellular => "cellulars",
+            FileTypeEnum.CellularCoverage => "cellular-coverages",
+            FileTypeEnum.WirelessValidation => "wireless-validations",
             _ => "uploads" // Default folder for unknown types
         };
 
-        // Format: environment/file-type/regionXX/filename
-        return $"{environment}/{fileTypePrefix}/{regionCode}/{fileName}";
+        // Format: region-XX/file-type/filename
+        return $"{regionCode}/{fileTypePrefix}/{fileName}";
     }
 
     /// <summary>
     /// Gets the region code for the specified region ID and validates user access
     /// </summary>
-    private async Task<string?> GetUserRegionCodeAsync(Guid? regionId, CancellationToken cancellationToken)
+    private async Task<string?> GetRegionCodeAsync(Guid regionId, CancellationToken cancellationToken)
     {
-        // If no region ID specified, try to get the user's primary region
-        if (!regionId.HasValue)
-        {
-            var accessibleRegions = await _userAuthorizationService.GetAccessibleRegionsAsync(cancellationToken);
-            if (accessibleRegions.Count == 0)
-            {
-                _logger.LogWarning("User has no accessible regions");
-                return null;
-            }
-            
-            // Use the first accessible region as default
-            regionId = accessibleRegions.First();
-            _logger.LogInformation("No region specified, using first accessible region: {RegionId}", regionId);
-        }
-
         // Verify user has access to the specified region
-        var hasAccess = await _userAuthorizationService.HasRegionAccessAsync(regionId.Value, cancellationToken);
+        var hasAccess = await _userAuthorizationService.HasRegionAccessAsync(regionId, cancellationToken);
         if (!hasAccess)
         {
             _logger.LogWarning("User does not have access to region: {RegionId}", regionId);
-            return null;
+            throw new UnauthorizedAccessException("User does not have access to the specified region.");
         }
 
         // Get region details
-        var regionQuery = _regionRepository.Query(r => r.Id == regionId.Value);
+        var regionQuery = _regionRepository.Query(r => r.Id == regionId).Select(r => new { r.Id, r.Code });
         var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
-        if (region == null)
-        {
-            _logger.LogWarning("Region not found: {RegionId}", regionId);
-            return null;
-        }
+        if (region is null) _logger.LogWarning("Region not found: {RegionId}", regionId);
 
         // Return region code in the format "regionXX" where XX is the region code
-        var regionCode = !string.IsNullOrEmpty(region.Code) 
-            ? $"region{region.Code.ToLowerInvariant()}" 
-            : $"region{region.Id.ToString().Substring(0, 8)}"; // Fallback to part of GUID
-
-        return regionCode;
+        return !string.IsNullOrWhiteSpace(region?.Code) ? $"region-{region.Code:D2}" : null;
     }
 }
