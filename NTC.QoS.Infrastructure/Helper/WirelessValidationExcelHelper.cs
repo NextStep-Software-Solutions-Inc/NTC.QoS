@@ -23,16 +23,21 @@ public class WirelessValidationExcelHelper
             // Expected format: "<municipalityName>, <provinceName>, <regionName>"
             var (Municipality, Province, Region) = ParseMunicipalityFromA1(worksheet.Cell(1, 1).GetString());
 
-            // Read headers from row 4
-            var headers = new List<string>();
+            // Read headers from row 2 (Generation), row 3 (Technology), and row 4 (Band headers)
+            var generationHeaders = new List<string>();
+            var technologyHeaders = new List<string>();
+            var bandHeaders = new List<string>();
+
             for (int col = 1; col <= lastColumn; col++)
             {
-                headers.Add(worksheet.Cell(4, col).GetString());
+                generationHeaders.Add(worksheet.Cell(2, col).GetString().Trim().ToUpperInvariant());
+                technologyHeaders.Add(worksheet.Cell(3, col).GetString().Trim().ToUpperInvariant());
+                bandHeaders.Add(worksheet.Cell(4, col).GetString().Trim().ToUpperInvariant());
             }
 
-            // Create property mapping based on headers
+            // Create property mapping based on generation + technology + band headers
             var properties = typeof(WirelessValidationRecord).GetProperties();
-            var propertyMap = CreatePropertyMapping(headers, properties);
+            var propertyMap = CreatePropertyMappingWithGenerationAndTechnology(generationHeaders, technologyHeaders, bandHeaders, properties);
 
             // Process data rows starting from row 5 (after headers in row 4)
             for (int row = 5; row <= lastRow; row++)
@@ -48,17 +53,19 @@ public class WirelessValidationExcelHelper
                 for (int col = 1; col <= lastColumn; col++)
                 {
                     var cellValue = worksheet.Cell(row, col).GetString();
-                    var header = col <= headers.Count ? headers[col - 1] : string.Empty;
 
                     if (propertyMap.TryGetValue(col, out var property) && property.CanWrite)
                     {
                         try
                         {
-                            SetPropertyValue(record, property, cellValue, header);
+                            SetPropertyValue(record, property, cellValue);
                         }
                         catch (Exception ex)
                         {
-                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at row {row}, column {col} (header: '{header}').", ex);
+                            var generation = col <= generationHeaders.Count ? generationHeaders[col - 1] : "Unknown";
+                            var technology = col <= technologyHeaders.Count ? technologyHeaders[col - 1] : "Unknown";
+                            var band = col <= bandHeaders.Count ? bandHeaders[col - 1] : "Unknown";
+                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at row {row}, column {col} (Generation: '{generation}', Technology: '{technology}', Band: '{band}').", ex);
                         }
                     }
                 }
@@ -95,47 +102,113 @@ public class WirelessValidationExcelHelper
         };
     }
 
-    private static Dictionary<int, PropertyInfo> CreatePropertyMapping(List<string> headers, PropertyInfo[] properties)
+    private static Dictionary<int, PropertyInfo> CreatePropertyMappingWithGenerationAndTechnology(
+        List<string> generationHeaders,
+        List<string> technologyHeaders,
+        List<string> bandHeaders,
+        PropertyInfo[] properties)
     {
         var propertyMap = new Dictionary<int, PropertyInfo>();
 
-        // Map standard fields first (Provider, Barangay, etc.)
-        for (int col = 0; col < headers.Count; col++)
+        // Track which properties have been used to avoid duplicate mappings
+        var usedProperties = new HashSet<string>();
+
+        for (int col = 0; col < bandHeaders.Count; col++)
         {
-            var header = headers[col];
-            var property = FindPropertyByHeader(properties, header);
+            var generation = col < generationHeaders.Count ? generationHeaders[col] : string.Empty;
+            var technology = col < technologyHeaders.Count ? technologyHeaders[col] : string.Empty;
+            var bandHeader = bandHeaders[col];
+
+            // Skip empty headers
+            if (string.IsNullOrWhiteSpace(bandHeader))
+                continue;
+
+            // Find property that matches generation, technology, and band
+            var property = FindPropertyByGenerationTechnologyAndBand(properties, generation, technology, bandHeader, usedProperties);
+
             if (property != null)
             {
                 propertyMap[col + 1] = property; // Column numbers are 1-based
+                usedProperties.Add(property.Name);
             }
         }
 
         return propertyMap;
     }
 
-    private static PropertyInfo? FindPropertyByHeader(PropertyInfo[] properties, string header)
+    private static PropertyInfo? FindPropertyByGenerationTechnologyAndBand(
+        PropertyInfo[] properties,
+        string generation,
+        string technology,
+        string bandHeader,
+        HashSet<string> usedProperties)
     {
-        if (string.IsNullOrWhiteSpace(header))
+        if (string.IsNullOrWhiteSpace(bandHeader))
             return null;
 
-        // First, check for exact property name match (case insensitive)
-        var directMatch = properties.FirstOrDefault(p => 
-            string.Equals(p.Name, header, StringComparison.OrdinalIgnoreCase));
+        // First, check for exact property name match (case insensitive) - for Provider, Barangay, etc.
+        var directMatch = properties.FirstOrDefault(p =>
+            string.Equals(p.Name, bandHeader, StringComparison.OrdinalIgnoreCase) &&
+            !usedProperties.Contains(p.Name));
+
         if (directMatch != null)
             return directMatch;
 
-        // Then check for ExcelHeader attribute matches
-        var attributeMatch = properties.FirstOrDefault(p =>
-            {
-                var excelHeaderAttr = p.GetCustomAttribute<Domain.Attributes.ExcelHeaderAttribute>();
-                return excelHeaderAttr != null && 
-                       string.Equals(excelHeaderAttr.HeaderName, header, StringComparison.OrdinalIgnoreCase);
-            });
+        // Map technology to prefix (prioritize Technology row over Generation row)
+        var technologyPrefix = string.IsNullOrEmpty(technology)
+            ? MapGenerationToTechnologyPrefix(generation)
+            : MapTechnologyToPrefix(technology);
 
-        return attributeMatch;
+        // Find property that matches the band header and hasn't been used yet
+        // Prioritize properties that match the technology prefix
+        var candidateProperties = properties.Where(p =>
+        {
+            var excelHeaderAttr = p.GetCustomAttribute<Domain.Attributes.ExcelHeaderAttribute>();
+            return excelHeaderAttr != null &&
+                   string.Equals(excelHeaderAttr.HeaderName, bandHeader, StringComparison.OrdinalIgnoreCase) &&
+                   !usedProperties.Contains(p.Name);
+        }).ToList();
+
+        // If we have a technology prefix, try to match it first
+        if (!string.IsNullOrEmpty(technologyPrefix))
+        {
+            var exactMatch = candidateProperties.FirstOrDefault(p =>
+                p.Name.StartsWith(technologyPrefix, StringComparison.OrdinalIgnoreCase));
+
+            if (exactMatch != null)
+                return exactMatch;
+        }
+
+        // Otherwise, return the first unused candidate
+        return candidateProperties.FirstOrDefault();
     }
 
-    private static void SetPropertyValue(WirelessValidationRecord record, PropertyInfo property, string cellValue, string header)
+    private static string MapGenerationToTechnologyPrefix(string generation)
+    {
+        return generation switch
+        {
+            "2G" => "Gsm",
+            "3G" => "Wcdma",
+            "4G" => "FddLte", // Default to FDD for 4G if no technology specified
+            "5G" => "Nr",
+            _ => string.Empty
+        };
+    }
+
+    private static string MapTechnologyToPrefix(string technology)
+    {
+        return technology switch
+        {
+            "GSM" => "Gsm",
+            "WCDMA" => "Wcdma",
+            "FDD-LTE" => "FddLte",
+            "TDD-LTE" => "TddLte",
+            "NR" => "Nr",
+            _ => string.Empty
+        };
+    }
+
+    private static void SetPropertyValue(WirelessValidationRecord record, PropertyInfo property, string cellValue)
     {
         if (property.PropertyType == typeof(string))
         {

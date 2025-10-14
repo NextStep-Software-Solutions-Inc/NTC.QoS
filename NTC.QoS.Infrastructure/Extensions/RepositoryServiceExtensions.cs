@@ -80,5 +80,6 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
         services.AddScoped<IConnectivityAssessmentRepository, ConnectivityAssessmentRepository>();
         services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
+        services.AddScoped<IWirelessValidationRepository, WirelessValidationRepository>();
     }
 }
