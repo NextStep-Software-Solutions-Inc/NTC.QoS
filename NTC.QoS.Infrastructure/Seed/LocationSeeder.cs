@@ -67,16 +67,9 @@ public static class LocationSeeder
             // Download the file from blob storage
             using var geoJsonStream = await blobStorageService.DownloadAsync(ContainerName, RegionGeoJsonFilePath);
             using var streamReader = new StreamReader(geoJsonStream);
-            string geoJsonText = await streamReader.ReadToEndAsync();
-            long estimatedMemoryBytes = (geoJsonText.Length * 2L) + 24; // 24 bytes for string object overhead
-            double estimatedMemoryMB = estimatedMemoryBytes / (1024.0 * 1024.0);
-            logger.LogInformation("Loaded GeoJSON text: {Length} characters, estimated memory: {MemoryMB:F2} MB", geoJsonText.Length, estimatedMemoryMB);
-
             var serializer = GeoJsonSerializer.Create();
-            using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
-            {
-                featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? [];
-            }
+            using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
+            featureCollection = serializer.Deserialize<FeatureCollection>(jsonReader) ?? [];
 
             if (featureCollection == null || !featureCollection.Any())
             {
