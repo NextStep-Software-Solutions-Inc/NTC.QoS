@@ -45,11 +45,11 @@ public static class LocationSeeder
     /// </summary>
     public static async Task SeedRegionsAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
     {
-        if (await dbContext.Regions.AnyAsync())
-        {
-            logger.LogInformation("Database already contains regions. Skipping region seeding.");
-            return;
-        }
+        // if (await dbContext.Regions.AnyAsync())
+        // {
+        //     logger.LogInformation("Database already contains regions. Skipping region seeding.");
+        //     return;
+        // }
 
         logger.LogInformation("Starting region seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, RegionGeoJsonFilePath);
 
@@ -68,11 +68,14 @@ public static class LocationSeeder
             using var geoJsonStream = await blobStorageService.DownloadAsync(ContainerName, RegionGeoJsonFilePath);
             using var streamReader = new StreamReader(geoJsonStream);
             string geoJsonText = await streamReader.ReadToEndAsync();
+            long estimatedMemoryBytes = (geoJsonText.Length * 2L) + 24; // 24 bytes for string object overhead
+            double estimatedMemoryMB = estimatedMemoryBytes / (1024.0 * 1024.0);
+            logger.LogInformation("Loaded GeoJSON text: {Length} characters, estimated memory: {MemoryMB:F2} MB", geoJsonText.Length, estimatedMemoryMB);
 
             var serializer = GeoJsonSerializer.Create();
             using (var stringReader = new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(geoJsonText)))
             {
-                featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? new FeatureCollection();
+                featureCollection = serializer.Deserialize<FeatureCollection>(stringReader) ?? [];
             }
 
             if (featureCollection == null || !featureCollection.Any())
@@ -87,57 +90,62 @@ public static class LocationSeeder
             return;
         }
 
-        // save the regions 
-        var regionsToAdd = new List<Region>();
-        foreach (var feature in featureCollection)
-        {
-            if (feature?.Geometry == null || feature.Attributes == null)
+        var existingRegionCodes = await dbContext.Regions.AsNoTracking().Select(r => r.Code).ToHashSetAsync();
+        var regionsToAdd = featureCollection
+            .Where(f => f?.Attributes != null &&
+                f.Attributes["ADM1_PCODE"] != null &&
+                f.Attributes["ADM1_EN"] != null &&
+                f.Attributes["AREA_SQKM"] != null &&
+                f.Attributes["TOTAL_POP"] != null &&
+                f.Attributes["HHOLD_POPN"] != null &&
+                f.Attributes["HHOLD_CNT"] != null)
+            .Select(f => new
             {
-                logger.LogInformation("Skipping feature due to missing geometry or attributes.");
-                continue;
-            }
-
-            var regionName = feature.Attributes["ADM1_EN"]?.ToString() ?? string.Empty;
-
-            var region = new Region
+                code = f.Attributes["ADM1_PCODE"]?.ToString(),
+                name = f.Attributes["ADM1_EN"]?.ToString(),
+                area = float.TryParse(f.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f,
+                totalPopulation = ParsePopulationValue(f.Attributes["TOTAL_POP"], logger, f.Attributes["ADM1_EN"]?.ToString() ?? string.Empty),
+                householdPopulation = ParsePopulationValue(f.Attributes["HHOLD_POPN"], logger, f.Attributes["ADM1_EN"]?.ToString() ?? string.Empty),
+                householdCount = ParsePopulationValue(f.Attributes["HHOLD_CNT"], logger, f.Attributes["ADM1_EN"]?.ToString() ?? string.Empty),
+                boundaries = GetBoundaries(f)
+                
+            })
+            .Where(region => !string.IsNullOrWhiteSpace(region.code) && !existingRegionCodes.Contains(region.code))
+            .Select(region => new Region
             {
-                Name = regionName,
+                Name = region.name ?? string.Empty,
                 Description = null,
-                Code = feature.Attributes["ADM1_PCODE"]?.ToString() ?? string.Empty,
-                Area = float.TryParse(feature.Attributes["AREA_SQKM"]?.ToString(), out float areaValue) ? areaValue : 0f,
-                TotalPopulation = ParsePopulationValue(feature.Attributes["TOTAL_POP"], logger, regionName),
-                HouseholdPopulation = ParsePopulationValue(feature.Attributes["HHOLD_POPN"], logger, regionName),
-                HouseholdCount = ParsePopulationValue(feature.Attributes["HHOLD_CNT"], logger, regionName)
-            };
+                Code = region.code ?? string.Empty,
+                Area = region.area,
+                TotalPopulation = region.totalPopulation,
+                HouseholdPopulation = region.householdPopulation,
+                HouseholdCount = region.householdCount,
+                Boundaries = region.boundaries,
+                Center = region.boundaries.Centroid
+            })
+            .ToList();
 
-            switch (feature.Geometry)
-            {
-                case MultiPolygon geoJsonMultiPolygon:
-                    region.Boundaries = geoJsonMultiPolygon;
-                    region.Center = geoJsonMultiPolygon.Centroid;
-                    break;
-                case Polygon geoJsonPolygon:
-                    region.Boundaries = GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon);
-                    region.Center = geoJsonPolygon.Centroid;
-                    break;
-                default:
-                    logger.LogInformation(
-                        "Terminated '{Name}' due to unsupported geometry type: {GeometryType}",
-                        region.Name,
-                        feature.Geometry.GeometryType
-                    );
-                    return;
-            }
-
-            regionsToAdd.Add(region);
+        if (regionsToAdd.Count == 0)
+        {
+            logger.LogInformation("No new regions to seed. All regions from the GeoJSON already exist in the database.");
+            return;
         }
 
         await dbContext.BulkInsertAsync(regionsToAdd);
-        await dbContext.SaveChangesAsync();
-
+        
         logger.LogInformation("Region seeding completed with {Count} regions added.", regionsToAdd.Count);
     }
 
+    internal static MultiPolygon GetBoundaries(IFeature feature)
+    {
+        return feature.Geometry switch
+        {
+            MultiPolygon geoJsonMultiPolygon => geoJsonMultiPolygon,
+            Polygon geoJsonPolygon => GeometryHelper.CreateMultiPolygon(null, geoJsonPolygon),
+            _ => throw new InvalidOperationException("Unsupported geometry type for boundaries. Expected MultiPolygon or Polygon."),
+        };
+    }
+  
     /// <summary>
     /// Seeds Province entities from the GeoJSON file in blob storage.
     /// </summary>

@@ -38,10 +38,10 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
-            parameters.Id, _fileRepository, _logger, "Cellular Coverage", token);
+            parameters.Id, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
 
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
-            file, _fileRepository, _logger, "Cellular Coverage", token);
+            file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
 
         try
         {
@@ -64,18 +64,18 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
             try
             {
                 fileStream = await ProcessingJobHelper.GetFileStreamAsync(
-                    parameters.Path, _blobStorageService, _logger, "Cellular Coverage", token);
+                    parameters.Path, _blobStorageService, _logger, FileTypeEnum.CellularCoverage, token);
             }
             catch (FileNotFoundException ex)
             {
                 await ProcessingJobHelper.HandleFileAccessErrorAsync(
-                    ex, parameters.Path, file, _fileRepository, _logger, "Cellular Coverage", token);
+                    ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
                 return;
             }
             catch (Exception ex)
             {
                 await ProcessingJobHelper.HandleFileAccessErrorAsync(
-                    ex, parameters.Path, file, _fileRepository, _logger, "Cellular Coverage", token);
+                    ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
                 return;
             }
 
@@ -92,7 +92,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 {
                     _logger.LogInformation("The Excel is empty.");
                     await ProcessingJobHelper.SetFileSuccessStatusAsync(
-                        file, _fileRepository, _logger, "Cellular Coverage", token);
+                        file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
                     return;
                 }
 
@@ -112,7 +112,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         {
                             _logger.LogWarning("Network {Network} not found", record.Network);
                             await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, "Cellular Coverage", 
+                                file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
                                 $"Network '{record.Network}' not found in database", token);
                             return;
                         }
@@ -154,7 +154,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 }
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
-                    file, _fileRepository, _logger, "Cellular Coverage", token);
+                    file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
 
                 _logger.LogInformation("File processing completed successfully.");
             }
@@ -163,7 +163,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         {
             _logger.LogError(ex, "Error occurred while processing Cellular Coverage file.");
             await ProcessingJobHelper.TerminateProcessAsync(
-                file, _fileRepository, _logger, "Cellular Coverage", 
+                file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
                 $"Error occurred while processing: {ex.Message}", token);
             throw;
         }

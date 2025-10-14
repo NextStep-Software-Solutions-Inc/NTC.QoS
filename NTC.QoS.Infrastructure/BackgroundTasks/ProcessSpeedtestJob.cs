@@ -45,10 +45,10 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     {
         // --- Step 1: Initial File Status Update ---
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
-            parameters.Id, _fileRepository, _logger, "Speedtest", token);
+            parameters.Id, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
-            file, _fileRepository, _logger, "Speedtest", token);
+            file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
         try
         {
@@ -139,12 +139,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             try
             {
                 fileStream = await ProcessingJobHelper.GetFileStreamAsync(
-                    parameters.Path, _blobStorageService, _logger, "Speedtest", token);
+                    parameters.Path, _blobStorageService, _logger, FileTypeEnum.Speedtest, token);
             }
             catch (Exception ex)
             {
                 await ProcessingJobHelper.HandleFileAccessErrorAsync(
-                    ex, parameters.Path, file, _fileRepository, _logger, "Speedtest", token);
+                    ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
                 return;
             }
 
@@ -162,7 +162,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 {
                     _logger.LogInformation("The Excel is empty.");
                     await ProcessingJobHelper.SetFileSuccessStatusAsync(
-                        file, _fileRepository, _logger, "Speedtest", token);
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
                     return;
                 }
 
@@ -178,7 +178,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     {
                         _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
                         await ProcessingJobHelper.TerminateProcessAsync(
-                            file, _fileRepository, _logger, "Speedtest", 
+                            file, _fileRepository, _logger, FileTypeEnum.Speedtest, 
                             $"Service Provider '{record.Provider}' not found in database", token);
                         return;
                     }
@@ -188,7 +188,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     {
                         _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
                         await ProcessingJobHelper.TerminateProcessAsync(
-                            file, _fileRepository, _logger, "Speedtest", 
+                            file, _fileRepository, _logger, FileTypeEnum.Speedtest, 
                             $"Technology '{record.NetworkType}' not found in database", token);
                         return;
                     }
@@ -271,7 +271,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 }
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
-                    file, _fileRepository, _logger, "Speedtest", token);
+                    file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
                 _logger.LogInformation("Processing completed successfully.");
             }
@@ -280,7 +280,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         {
             _logger.LogError(ex, "Error occurred during speedtest processing: {ErrorMessage}", ex.Message);
             await ProcessingJobHelper.TerminateProcessAsync(
-                file, _fileRepository, _logger, "Speedtest", 
+                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
                 $"Error occurred during processing: {ex.Message}", token);
             throw;
         }

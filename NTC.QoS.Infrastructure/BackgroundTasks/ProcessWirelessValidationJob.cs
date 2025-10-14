@@ -46,9 +46,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
-        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(parameters.Id, _fileRepository, _logger, "Wireless Validation", token);
+        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(parameters.Id, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
 
-        await ProcessingJobHelper.SetFileProcessingStatusAsync(file, _fileRepository, _logger, "Wireless Validation", token);
+        await ProcessingJobHelper.SetFileProcessingStatusAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
 
         var processingResults = new ProcessingResults();
         var startTime = DateTime.UtcNow;
@@ -61,11 +61,11 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             Stream fileStream;
             try
             {
-                fileStream = await ProcessingJobHelper.GetFileStreamAsync(parameters.Path, _blobStorageService, _logger, "Wireless Validation", token);
+                fileStream = await ProcessingJobHelper.GetFileStreamAsync(parameters.Path, _blobStorageService, _logger, FileTypeEnum.WirelessValidation, token);
             }
             catch (Exception ex)
             {
-                await ProcessingJobHelper.HandleFileAccessErrorAsync(ex, parameters.Path, file, _fileRepository, _logger, "Wireless Validation", token);
+                await ProcessingJobHelper.HandleFileAccessErrorAsync(ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
                 return;
             }
 
@@ -102,7 +102,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing wireless validation file with ID {FileId}", parameters.Id);
-            await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, "Wireless Validation", cancellationToken: token);
+            await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, cancellationToken: token);
             throw; 
         }
     }

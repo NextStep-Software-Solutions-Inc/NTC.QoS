@@ -23,52 +23,52 @@ public static class RoleSeeder
     {
         logger.LogInformation("Checking if roles need to be seeded...");
         var roles = new[]
+        {
+            new Role
             {
-                new Role
-                {
-                    Name = "Admin User",
-                    Key = "admin",
-                    Description = "Administrative user with elevated privileges",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Role
-                {
-                    Name = "SuperAdmin",
-                    Key = "super_admin",
-                    Description = "Super administrator with full system access",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Role
-                {
-                    Name = "Field Officer",
-                    Key = "field_officer",
-                    Description = "Field officer with limited operational access",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Role
-                {
-                    Name = "User",
-                    Key = "user",
-                    Description = "Standard user with basic access",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                }
-            };
+                Name = "Admin User",
+                Key = "admin",
+                Description = "Administrative user with elevated privileges",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Role
+            {
+                Name = "SuperAdmin",
+                Key = "super_admin",
+                Description = "Super administrator with full system access",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Role
+            {
+                Name = "Field Officer",
+                Key = "field_officer",
+                Description = "Field officer with limited operational access",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Role
+            {
+                Name = "User",
+                Key = "user",
+                Description = "Standard user with basic access",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            }
+        };
         
 
         logger.LogInformation("Creating missing roles if they do not exist...");
@@ -76,17 +76,12 @@ public static class RoleSeeder
         try
         {
             var baseKeys = roles.Select(r => r.Key).ToList();
-            var newRoles = new List<Role>();
-            // Check if base keys already exist
-            var existingRoles = await context.Roles
-            .AsNoTracking()
-            .Where(r => baseKeys.Contains(r.Key))
-            .Select(r => r.Key)
-            .ToListAsync();
-
-            foreach (var role in roles)
+            var existingRoles = await context.Roles.AsNoTracking().Where(r => baseKeys.Contains(r.Key)).Select(r => r.Key).ToListAsync();
+            var newRoles = roles.Where(r => !existingRoles.Contains(r.Key)).ToList();
+            if (newRoles.Count == 0)
             {
-                if (!existingRoles.Contains(role.Key)) newRoles.Add(role);
+                logger.LogInformation("No new roles to seed. All base roles already exist.");
+                return;
             }
 
             await context.BulkInsertAsync(newRoles);

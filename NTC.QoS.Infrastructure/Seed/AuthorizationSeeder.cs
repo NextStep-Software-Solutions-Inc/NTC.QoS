@@ -1,6 +1,7 @@
 using EFCore.BulkExtensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Infrastructure.Persistence;
 
@@ -224,25 +225,21 @@ public static class AuthorizationSeeder
             new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" }
         };
 
-        var newPermissions = new List<Domain.Entities.Permission>();
-        // check what persmissions are missing
 
-        var existingPermissions = await context.Permissions.Where(p => permissions.Select(x => x.Key).Contains(p.Key)).ToListAsync();
-        foreach (var permission in permissions)
-        {
-            if (!existingPermissions.Any(p => p.Key == permission.Key))
+        var existingPermissions = await context.Permissions.AsNoTracking().Where(p => permissions.Select(x => x.Key).Contains(p.Key)).ToListAsync();
+        var newPermissions = permissions.Where(p => !existingPermissions.Any(ep => ep.Key == p.Key))
+            .Select(p => new Domain.Entities.Permission
             {
-                newPermissions.Add(new Domain.Entities.Permission
-                {
-                    Key = permission.Key,
-                    Name = permission.Name,
-                    Description = permission.Description,
-                    CreatedBy = "System",
-                    UpdatedBy = "System"
-                });
-
-                logger.LogInformation("Prepared new permission for addition: {PermissionKey} - {PermissionName}", permission.Key, permission.Name);
-            }
+                Key = p.Key,
+                Name = p.Name,
+                Description = p.Description,
+                CreatedBy = "System",
+                UpdatedBy = "System"
+            }).ToList();
+        if (newPermissions.Count == 0)
+        {
+            logger.LogInformation("No new permissions to seed. All base permissions already exist.");
+            return;
         }
 
         await context.BulkInsertAsync(newPermissions);
@@ -423,33 +420,36 @@ public static class AuthorizationSeeder
 
     private static async Task AssignPermissionsToRole(ApplicationDbContext context, ILogger logger, Domain.Entities.Role role, string[] permissionKeys)
     {
-        foreach (var permissionKey in permissionKeys)
+        // Get existing role-permission assignments for this role
+        var existingAssignments = await context.RolePermissions
+            .Where(rp => rp.RoleId == role.Id)
+            .Select(rp => rp.PermissionId)
+            .ToHashSetAsync();
+
+        // Get permissions that are not yet assigned
+        var permissionsToAssign = await context.Permissions
+            .Where(p => permissionKeys.Contains(p.Key) && !existingAssignments.Contains(p.Id))
+            .ToListAsync();
+
+        if (permissionsToAssign.Count == 0)
         {
-            var permission = await context.Set<Domain.Entities.Permission>()
-                .FirstOrDefaultAsync(p => p.Key == permissionKey);
-
-            if (permission != null)
-            {
-                var exists = await context.Set<Domain.Aggregates.RolePermission>()
-                    .AnyAsync(rp => rp.RoleId == role.Id && rp.PermissionId == permission.Id);
-
-                if (!exists)
-                {
-                    context.Set<Domain.Aggregates.RolePermission>().Add(new Domain.Aggregates.RolePermission
-                    {
-                        RoleId = role.Id,
-                        PermissionId = permission.Id,
-                        CreatedBy = "System",
-                        UpdatedBy = "System"
-                    });
-
-                    logger.LogDebug("Assigned permission {PermissionKey} to role {RoleKey}", permissionKey, role.Key);
-                }
-            }
-            else
-            {
-                logger.LogWarning("Permission {PermissionKey} not found when assigning to role {RoleKey}", permissionKey, role.Key);
-            }
+            logger.LogDebug("No new permissions to assign to role {RoleKey}", role.Key);
+            return;
         }
+
+        // Create new role-permission assignments
+        var newAssignments = permissionsToAssign.Select(p => new RolePermission
+        {
+            RoleId = role.Id,
+            PermissionId = p.Id,
+            CreatedBy = "System",
+            UpdatedBy = "System"
+        }).ToList();
+
+        // Bulk insert new assignments
+        await context.BulkInsertAsync(newAssignments);
+        await context.SaveChangesAsync();
+
+        logger.LogDebug("Assigned {Count} new permissions to role {RoleKey}", newAssignments.Count, role.Key);
     }
 }
