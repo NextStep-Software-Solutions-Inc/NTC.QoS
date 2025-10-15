@@ -24,18 +24,15 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           IBlobStorageService blobStorageService
                                           ) : IProcessWirelessValidationJob
 {
-    // Fuzzy matching thresholds for hierarchical municipality resolution
     private const double MinimumMunicipalityMatchThreshold = 0.8;
     private const double MinimumProvinceMatchThreshold = 0.6;
     private const double MinimumRegionMatchThreshold = 0.5;
-    
-    // Processing batch size for wireless validation records
-    private const int ProcessingBatchSize = 2000;
+
+    // OPTIMIZED: Single batch size for processing
+    private const int ProcessingBatchSize = 1000;
 
     private readonly IFileRepository _fileRepository = fileRepository;
     private readonly ILogger<ProcessWirelessValidationJob> _logger = logger;
-    private readonly IRegionRepository _regionRepository = regionRepository;
-    private readonly IProvinceRepository _provinceRepository = provinceRepository;
     private readonly IMunicipalityRepository _municipalityRepository = municipalityRepository;
     private readonly IBarangayRepository _barangayRepository = barangayRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
@@ -47,7 +44,6 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(parameters.Id, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
-
         await ProcessingJobHelper.SetFileProcessingStatusAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
 
         var processingResults = new ProcessingResults();
@@ -57,7 +53,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         {
             _logger.LogInformation("Starting wireless validation processing for file: {FileName}", file.Name);
 
-            // Phase 1: Download and Parse Excel File
+            // Download and Parse Excel File
             Stream fileStream;
             try
             {
@@ -72,10 +68,10 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             List<WirelessValidationRecord> wirelessValidationRecords;
             using (fileStream)
             {
-                _logger.LogInformation("Processing Wireless Validation file downloaded from blob storage");
+                _logger.LogInformation("Processing Wireless Validation file from blob storage");
                 wirelessValidationRecords = WirelessValidationExcelHelper.ParseExcelToWirelessValidationRecords(fileStream);
             }
-            
+
             if (wirelessValidationRecords.Count == 0)
             {
                 _logger.LogInformation("The Excel file is empty or contains no valid data.");
@@ -86,30 +82,30 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             _logger.LogInformation("Parsed {RecordCount:N0} records from Excel file", wirelessValidationRecords.Count);
             processingResults.TotalRecords = wirelessValidationRecords.Count;
 
-            // Phase 2: Preload Reference Data with Hierarchical Structure
+            // OPTIMIZED: Preload reference data (like Speedtest approach)
             var referenceData = await PreloadReferenceData(wirelessValidationRecords, token);
             _logger.LogInformation("Reference data preloaded successfully");
 
-            // Phase 3: Resolve Municipality using Hierarchical Approach
+            // Resolve Municipality using Hierarchical Approach
             await ResolveMunicipalityHierarchical(wirelessValidationRecords, referenceData, token);
 
-            // Phase 4: Process Records in Batches
+            // OPTIMIZED: Process all records in batches (like Speedtest)
             await ProcessRecordsInBatches(wirelessValidationRecords, referenceData, processingResults, token);
 
-            // Phase 5: Complete Processing
             await CompleteProcessing(file, processingResults, startTime, token);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing wireless validation file with ID {FileId}", parameters.Id);
             await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, cancellationToken: token);
-            throw; 
+            throw;
         }
     }
 
+    // OPTIMIZED: Like Speedtest - preload only essential fields for duplicate checking
     private async Task<ReferenceData> PreloadReferenceData(List<WirelessValidationRecord> records, CancellationToken token)
     {
-        _logger.LogInformation("Preloading reference data with hierarchical structure...");
+        _logger.LogInformation("Preloading reference data with optimized approach...");
 
         // Preload wireless service providers
         var serviceProviderCache = await _serviceProviderRepository
@@ -120,15 +116,14 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 sp => sp.Id,
                 token
             );
-
         _logger.LogInformation("Preloaded {Count:N0} wireless service providers", serviceProviderCache.Count);
 
-        // Preload hierarchical municipality data with Province and Region information
+        // Preload hierarchical municipality data
         var municipalityHierarchyList = await _municipalityRepository
             .Query()
-            .Select(m => new { 
-                m.Id, 
-                m.Name, 
+            .Select(m => new {
+                m.Id,
+                m.Name,
                 ProvinceName = m.Province.Name,
                 RegionName = m.Province.Region.Name,
                 m.ProvinceId,
@@ -151,7 +146,6 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             };
         }
 
-        // Also create a simple municipality cache for fallback lookup
         var municipalityCache = new Dictionary<string, Guid>();
         foreach (var municipality in municipalityHierarchyList)
         {
@@ -161,51 +155,47 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 municipalityCache[key] = municipality.Id;
             }
         }
-
         _logger.LogInformation("Preloaded {Count:N0} municipalities with hierarchical data", municipalityHierarchyCache.Count);
 
         // Preload technologies
-        var technologyList = await _technologyRepository
+        var technologyCache = await _technologyRepository
             .Query()
             .Select(t => new { t.Id, Technology = t.Standard })
-            .ToListAsync(token);
-
-        var technologyCache = new Dictionary<string, Guid>();
-        foreach (var tech in technologyList)
-        {
-            var key = CacheKeyGenerator.GenerateTechnologyCacheKey(tech.Technology);
-            technologyCache[key] = tech.Id;
-        }
-
+            .ToDictionaryAsync(
+                t => CacheKeyGenerator.GenerateTechnologyCacheKey(t.Technology),
+                t => t.Id,
+                token
+            );
         _logger.LogInformation("Preloaded {Count:N0} technologies", technologyCache.Count);
-
-        // Log technology diagnostics for debugging
         TechnologyMappingHelper.LogTechnologyDiagnostics(technologyCache, _logger);
 
         // Preload bands
-        var bandList = await _bandRepository
+        var bandCache = await _bandRepository
             .Query()
             .Select(b => new { b.Id, Band = b.Name })
-            .ToListAsync(token);
-
-        var bandCache = new Dictionary<string, Guid>();
-        foreach (var band in bandList)
-        {
-            var key = CacheKeyGenerator.GenerateBandCacheKey(band.Band);
-            bandCache[key] = band.Id;
-        }
-
+            .ToDictionaryAsync(
+                b => CacheKeyGenerator.GenerateBandCacheKey(b.Band),
+                b => b.Id,
+                token
+            );
         _logger.LogInformation("Preloaded {Count:N0} bands", bandCache.Count);
 
-        // Preload existing wireless validation records for duplication checking
+        // OPTIMIZED: Like Speedtest - preload ONLY essential fields for duplicate checking
         var serviceProviderIds = serviceProviderCache.Values.ToList();
         var existingValidations = await _wirelessValidationRepository
             .Query(wv => serviceProviderIds.Contains(wv.ServiceProviderId))
+            .Select(wv => new {
+                wv.ServiceProviderId,
+                wv.BarangayId,
+                wv.BandId,
+                wv.TechnologyId,
+                wv.Address
+            })
             .ToListAsync(token);
 
+        // OPTIMIZED: Simple HashSet for duplicate detection (like Speedtest)
         var validationCache = new HashSet<string>();
         var duplicateCount = 0;
-        var duplicateDetails = new List<string>();
 
         foreach (var validation in existingValidations)
         {
@@ -220,33 +210,17 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             if (!validationCache.Add(key))
             {
                 duplicateCount++;
-                
-                // Log individual duplicates at debug level to avoid spam
-                _logger.LogDebug("Duplicate wireless validation found in database: ServiceProvider={ServiceProviderId}, " +
-                    "Barangay={BarangayId}, Band={BandId}, Technology={TechnologyId}, Address='{Address}'",
-                    validation.ServiceProviderId, validation.BarangayId, validation.BandId, 
-                    validation.TechnologyId, validation.Address);
-
-                // Track first few duplicates for summary logging
-                if (duplicateDetails.Count < 5)
-                {
-                    duplicateDetails.Add($"ServiceProvider={validation.ServiceProviderId}, " +
-                        $"Barangay={validation.BarangayId}, Band={validation.BandId}, " +
-                        $"Technology={validation.TechnologyId}, Address='{validation.Address}'");
-                }
+                _logger.LogDebug("Duplicate wireless validation found in database: {Key}", key);
             }
         }
 
-        // Log summary warning if duplicates were found
         if (duplicateCount > 0)
         {
             _logger.LogWarning("Found {DuplicateCount} duplicate wireless validation records in database. " +
-                "Consider cleaning up duplicate validation data. " +
-                "First few examples: {Examples}",
-                duplicateCount, string.Join("; ", duplicateDetails));
+                "Consider cleaning up duplicate validation data.", duplicateCount);
         }
 
-        _logger.LogInformation("Preloaded {Count:N0} existing wireless validation records ({DuplicateCount} duplicates found in database, {TotalValidations} total)",
+        _logger.LogInformation("Preloaded {Count:N0} existing wireless validation records ({DuplicateCount} duplicates found, {TotalValidations} total)",
             validationCache.Count, duplicateCount, existingValidations.Count);
 
         return new ReferenceData
@@ -262,33 +236,30 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
     private async Task ResolveMunicipalityHierarchical(List<WirelessValidationRecord> records, ReferenceData referenceData, CancellationToken token)
     {
-        // Group records by their hierarchical municipality information
         var municipalityGroups = records.GroupBy(r => new { r.Municipality, r.Province, r.Region }).ToList();
-        
+
         foreach (var group in municipalityGroups)
         {
             var municipalityName = group.Key.Municipality;
             var provinceName = group.Key.Province;
             var regionName = group.Key.Region;
-            
+
             MunicipalityHierarchyInfo? resolvedMunicipality = null;
 
-            // Option A: Hierarchical matching (preferred approach)
             var hierarchicalKey = GenerateHierarchicalMunicipalityKey(municipalityName, provinceName, regionName);
             if (referenceData.MunicipalityHierarchyCache.TryGetValue(hierarchicalKey, out resolvedMunicipality))
             {
-                _logger.LogInformation("Exact hierarchical match found for: {Municipality}, {Province}, {Region}", 
+                _logger.LogInformation("Exact hierarchical match found for: {Municipality}, {Province}, {Region}",
                     municipalityName, provinceName, regionName);
             }
             else
             {
-                // Option B: Fuzzy matching with hierarchical validation
                 resolvedMunicipality = await FindMunicipalityWithFuzzyMatching(municipalityName, provinceName, regionName, referenceData, token);
             }
 
             if (resolvedMunicipality != null)
             {
-                // Preload barangays for this municipality
+                // Load barangays for this municipality
                 if (!referenceData.BarangayCache.ContainsKey(resolvedMunicipality.Id))
                 {
                     var barangayList = await _barangayRepository
@@ -304,22 +275,21 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     }
 
                     referenceData.BarangayCache[resolvedMunicipality.Id] = barangayCache;
-                    _logger.LogInformation("Preloaded {Count:N0} barangays for municipality: {Municipality}", 
+                    _logger.LogInformation("Preloaded {Count:N0} barangays for municipality: {Municipality}",
                         barangayCache.Count, resolvedMunicipality.Name);
                 }
 
-                // Set municipality ID for all records in this group
                 foreach (var record in group)
                 {
                     record.MunicipalityId = resolvedMunicipality.Id;
                 }
 
-                _logger.LogInformation("Resolved {RecordCount} records for municipality: {Municipality} (ID: {MunicipalityId})", 
+                _logger.LogInformation("Resolved {RecordCount} records for municipality: {Municipality} (ID: {MunicipalityId})",
                     group.Count(), resolvedMunicipality.Name, resolvedMunicipality.Id);
             }
             else
             {
-                _logger.LogWarning("Municipality not found: {Municipality}, {Province}, {Region}. {RecordCount} records will be skipped.", 
+                _logger.LogWarning("Municipality not found: {Municipality}, {Province}, {Region}. {RecordCount} records will be skipped.",
                     municipalityName, provinceName, regionName, group.Count());
             }
         }
@@ -329,49 +299,45 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     {
         _logger.LogInformation("Attempting fuzzy match for: {Municipality}, {Province}, {Region}", municipalityName, provinceName, regionName);
 
-        // Try different variations and tolerance levels
         var possibleMatches = new List<MunicipalityHierarchyInfo>();
 
         foreach (var kvp in referenceData.MunicipalityHierarchyCache)
         {
             var municipalityInfo = kvp.Value;
-            
-            // Calculate similarity scores
+
             var municipalityScore = CalculateSimilarity(municipalityName, municipalityInfo.Name);
             var provinceScore = CalculateSimilarity(provinceName, municipalityInfo.ProvinceName);
             var regionScore = CalculateSimilarity(regionName, municipalityInfo.RegionName);
 
-            // Require high municipality match, moderate province match
-            if (municipalityScore >= MinimumMunicipalityMatchThreshold && 
-                provinceScore >= MinimumProvinceMatchThreshold && 
+            if (municipalityScore >= MinimumMunicipalityMatchThreshold &&
+                provinceScore >= MinimumProvinceMatchThreshold &&
                 regionScore >= MinimumRegionMatchThreshold)
             {
                 possibleMatches.Add(municipalityInfo);
-                _logger.LogInformation("Fuzzy match candidate: {Municipality} ({MScore:F2}), {Province} ({PScore:F2}), {Region} ({RScore:F2})", 
+                _logger.LogInformation("Fuzzy match candidate: {Municipality} ({MScore:F2}), {Province} ({PScore:F2}), {Region} ({RScore:F2})",
                     municipalityInfo.Name, municipalityScore, municipalityInfo.ProvinceName, provinceScore, municipalityInfo.RegionName, regionScore);
             }
         }
 
         if (possibleMatches.Count == 1)
         {
-            _logger.LogInformation("Single fuzzy match found: {Municipality}, {Province}, {Region}", 
+            _logger.LogInformation("Single fuzzy match found: {Municipality}, {Province}, {Region}",
                 possibleMatches[0].Name, possibleMatches[0].ProvinceName, possibleMatches[0].RegionName);
             return Task.FromResult<MunicipalityHierarchyInfo?>(possibleMatches[0]);
         }
         else if (possibleMatches.Count > 1)
         {
-            // Select the best match based on combined score
             var bestMatch = possibleMatches
                 .Select(m => new {
                     Municipality = m,
-                    Score = (CalculateSimilarity(municipalityName, m.Name) * 2) + // Weight municipality name more heavily
+                    Score = (CalculateSimilarity(municipalityName, m.Name) * 2) +
                            CalculateSimilarity(provinceName, m.ProvinceName) +
                            CalculateSimilarity(regionName, m.RegionName)
                 })
                 .OrderByDescending(x => x.Score)
                 .First();
-            
-            _logger.LogInformation("Best fuzzy match selected: {Municipality}, {Province}, {Region} (Score: {Score:F2})", 
+
+            _logger.LogInformation("Best fuzzy match selected: {Municipality}, {Province}, {Region} (Score: {Score:F2})",
                 bestMatch.Municipality.Name, bestMatch.Municipality.ProvinceName, bestMatch.Municipality.RegionName, bestMatch.Score);
             return Task.FromResult<MunicipalityHierarchyInfo?>(bestMatch.Municipality);
         }
@@ -391,11 +357,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         if (source == target)
             return 1.0;
 
-        // Check if one contains the other
         if (source.Contains(target) || target.Contains(source))
             return 0.9;
 
-        // Levenshtein distance calculation
         var distance = LevenshteinDistance(source, target);
         var maxLength = Math.Max(source.Length, target.Length);
         return 1.0 - (double)distance / maxLength;
@@ -432,39 +396,14 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         return $"{municipality.ToLowerInvariant().Trim()}|{province.ToLowerInvariant().Trim()}|{region.ToLowerInvariant().Trim()}";
     }
 
-    private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData, 
+    // OPTIMIZED: Single-pass processing like Speedtest
+    private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData,
         ProcessingResults results, CancellationToken token)
     {
         var totalBatches = (int)Math.Ceiling((double)records.Count / ProcessingBatchSize);
+        var validationsToAdd = new List<WirelessValidation>();
 
-        _logger.LogInformation("Processing {RecordCount:N0} records in {BatchCount} batches", records.Count, totalBatches);
-
-        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
-        {
-            var batch = records.Skip(batchIndex * ProcessingBatchSize).Take(ProcessingBatchSize).ToList();
-            var batchResults = await ProcessBatch(batch, referenceData, token);
-
-            // Merge batch results
-            results.SuccessfulRecords += batchResults.SuccessfulRecords;
-            results.ErrorRecords += batchResults.ErrorRecords;
-            results.SkippedRecords += batchResults.SkippedRecords;
-            results.CreatedValidations += batchResults.CreatedValidations;
-            results.SkippedDuplicates += batchResults.SkippedDuplicates;
-            results.ProcessedRecords += batch.Count;
-
-            // Progress reporting using shared helper
-            var progress = (double)(batchIndex + 1) / totalBatches * 100;
-            ProcessingJobHelper.ReportProgress($"Batch {batchIndex + 1}/{totalBatches} completed - Progress: {progress:F1}% - " +
-                "Successful: {batchResults.SuccessfulRecords:N0}, Errors: {batchResults.ErrorRecords:N0}, Validations Created: {batchResults.CreatedValidations:N0}, Duplicates Skipped: {batchResults.SkippedDuplicates:N0}", _logger);
-        }
-    }
-
-    private async Task<ProcessingResults> ProcessBatch(List<WirelessValidationRecord> batch, ReferenceData referenceData, CancellationToken token)
-    {
-        var results = new ProcessingResults();
-        var validationsToCreate = new List<WirelessValidation>();
-
-        // Get band/technology properties for processing
+        // Get band/technology properties once
         var bandTechnologyProperties = typeof(WirelessValidationRecord).GetProperties()
             .Where(p => p.PropertyType == typeof(string))
             .Select(property => new BandTechnologyProperty
@@ -477,91 +416,101 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
             .ToList();
 
-        foreach (var record in batch)
+        _logger.LogInformation("Processing {RecordCount:N0} records in {BatchCount} batches", records.Count, totalBatches);
+
+        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
-            try
+            var batch = records.Skip(batchIndex * ProcessingBatchSize).Take(ProcessingBatchSize).ToList();
+
+            foreach (var record in batch)
             {
-                // Validate municipality
-                if (!record.MunicipalityId.HasValue)
+                try
                 {
-                    results.SkippedRecords++;
-                    continue;
-                }
+                    results.ProcessedRecords++;
 
-                // Validate and resolve service provider
-                if (string.IsNullOrWhiteSpace(record.Provider))
-                {
-                    results.SkippedRecords++;
-                    continue;
-                }
-
-                var serviceProviderKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
-                if (!referenceData.ServiceProviderCache.TryGetValue(serviceProviderKey, out var serviceProviderId))
-                {
-                    _logger.LogWarning("Service Provider not found: {Provider}. Skipping record.", record.Provider);
-                    results.SkippedRecords++;
-                    continue;
-                }
-
-                record.ServiceProviderId = serviceProviderId;
-
-                // Validate and resolve barangay
-                Guid? barangayId = null;
-                if (!string.IsNullOrWhiteSpace(record.Barangay) && record.MunicipalityId.HasValue)
-                {
-                    if (referenceData.BarangayCache.TryGetValue(record.MunicipalityId.Value, out var municipalityBarangays))
+                    if (!record.MunicipalityId.HasValue || string.IsNullOrWhiteSpace(record.Provider))
                     {
-                        var barangayKey = CacheKeyGenerator.GenerateBarangayCacheKey(record.Barangay, record.MunicipalityId.Value);
-                        if (municipalityBarangays.TryGetValue(barangayKey, out var foundBarangayId))
+                        results.SkippedRecords++;
+                        continue;
+                    }
+
+                    var serviceProviderKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+                    if (!referenceData.ServiceProviderCache.TryGetValue(serviceProviderKey, out var serviceProviderId))
+                    {
+                        _logger.LogWarning("Service Provider not found: {Provider}. Skipping record.", record.Provider);
+                        results.SkippedRecords++;
+                        continue;
+                    }
+
+                    record.ServiceProviderId = serviceProviderId;
+
+                    // Resolve barangay
+                    Guid? barangayId = null;
+                    if (!string.IsNullOrWhiteSpace(record.Barangay) && record.MunicipalityId.HasValue)
+                    {
+                        if (referenceData.BarangayCache.TryGetValue(record.MunicipalityId.Value, out var municipalityBarangays))
                         {
-                            barangayId = foundBarangayId;
-                            record.BarangayId = barangayId;
+                            var barangayKey = CacheKeyGenerator.GenerateBarangayCacheKey(record.Barangay, record.MunicipalityId.Value);
+                            if (municipalityBarangays.TryGetValue(barangayKey, out var foundBarangayId))
+                            {
+                                barangayId = foundBarangayId;
+                                record.BarangayId = barangayId;
+                            }
                         }
                     }
-                }
 
-                if (!barangayId.HasValue)
+                    if (!barangayId.HasValue)
+                    {
+                        _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}",
+                            record.Provider, record.Barangay, record.Municipality);
+                        results.SkippedRecords++;
+                        continue;
+                    }
+
+                    // Process each technology/band combination
+                    var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
+                    validationsToAdd.AddRange(recordValidations);
+                    results.SkippedDuplicates += skippedDuplicates;
+
+                    if (recordValidations.Count != 0)
+                    {
+                        results.SuccessfulRecords++;
+                        results.CreatedValidations += recordValidations.Count;
+                    }
+                    else
+                    {
+                        results.SkippedRecords++;
+                    }
+                }
+                catch (Exception ex)
                 {
-                    _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}. " +
-                        "Barangay resolution is now required for wireless validation records.",
+                    _logger.LogWarning(ex, "Error processing record - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
                         record.Provider, record.Barangay, record.Municipality);
-                    results.SkippedRecords++;
-                    continue;
-                }
-
-                // Process each technology/band combination
-                var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
-                validationsToCreate.AddRange(recordValidations);
-                results.SkippedDuplicates += skippedDuplicates;
-
-                if (recordValidations.Count != 0)
-                {
-                    results.SuccessfulRecords++;
-                    results.CreatedValidations += recordValidations.Count;
-                }
-                else
-                {
-                    results.SkippedRecords++;
+                    results.ErrorRecords++;
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error processing record - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
-                    record.Provider, record.Barangay, record.Municipality);
-                results.ErrorRecords++;
-            }
+
+            // Progress reporting
+            var progress = (double)(batchIndex + 1) / totalBatches * 100;
+            ProcessingJobHelper.ReportProgress($"Batch {batchIndex + 1}/{totalBatches} completed - Progress: {progress:F1}% - " +
+                $"Successful: {results.SuccessfulRecords:N0}, Errors: {results.ErrorRecords:N0}, Validations Created: {results.CreatedValidations:N0}, Duplicates Skipped: {results.SkippedDuplicates:N0}", _logger);
         }
 
-        // Save all validations in a single batch operation
-        if (validationsToCreate.Count != 0)
+        // OPTIMIZED: Single batch insert at the end (like Speedtest)
+        if (validationsToAdd.Count != 0)
         {
-            _wirelessValidationRepository.AddRange(validationsToCreate);
+            _logger.LogInformation("Saving {Count:N0} wireless validations to database...", validationsToAdd.Count);
+            _wirelessValidationRepository.AddRange(validationsToAdd);
             await _wirelessValidationRepository.SaveChangesAsync(token);
+            _logger.LogInformation("Successfully saved all wireless validations");
         }
-
-        return results;
+        else
+        {
+            _logger.LogInformation("No wireless validations to save");
+        }
     }
 
+    // OPTIMIZED: In-memory duplicate checking only (no database queries per record)
     private (List<WirelessValidation> validations, int skippedDuplicates) ProcessTechnologyBandCombinations(WirelessValidationRecord record,
         List<BandTechnologyProperty> bandTechnologyProperties, ReferenceData referenceData)
     {
@@ -573,35 +522,31 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             try
             {
                 var propertyValue = item.Property.GetValue(record) as string;
-
                 var (shouldCreate, rsrpValue, isMarginal) = RSRPParser.ParseWirelessData(propertyValue ?? string.Empty, item.Technology);
 
-                // Skip if we shouldn't create an entity (false, empty, NBC, etc.)
                 if (!shouldCreate)
                     continue;
 
-                // Use TechnologyMappingHelper to resolve technology ID with fallbacks
                 var contextInfo = $"Provider: {record.Provider}, Municipality: {record.Municipality}, Technology: {item.Technology}, Band: {item.Band}";
                 var technologyId = TechnologyMappingHelper.ResolveTechnologyId(item.Technology, referenceData.TechnologyCache, _logger, contextInfo);
-                
+
                 if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
                 {
-                    _logger.LogWarning("Skipping technology/band combination due to unresolved technology: {Technology}/{Band}", 
+                    _logger.LogWarning("Skipping technology/band combination due to unresolved technology: {Technology}/{Band}",
                         item.Technology, item.Band);
                     continue;
                 }
 
-                // Use TechnologyMappingHelper to resolve band ID
                 var bandId = TechnologyMappingHelper.ResolveBandId(item.Band, referenceData.BandCache, _logger, contextInfo);
-                
+
                 if (!TechnologyMappingHelper.IsBandResolved(bandId))
                 {
-                    _logger.LogWarning("Skipping technology/band combination due to unresolved band: {Technology}/{Band}", 
+                    _logger.LogWarning("Skipping technology/band combination due to unresolved band: {Technology}/{Band}",
                         item.Technology, item.Band);
                     continue;
                 }
 
-                // Check for duplicate wireless validation record
+                // OPTIMIZED: Simple in-memory duplicate check (like Speedtest)
                 var validationCacheKey = CacheKeyGenerator.GenerateWirelessValidationCacheKey(
                     record.ServiceProviderId!.Value,
                     record.BarangayId!.Value,
@@ -613,13 +558,11 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 if (referenceData.WirelessValidationCache.Contains(validationCacheKey))
                 {
                     skippedDuplicates++;
-                    _logger.LogDebug("Skipping duplicate wireless validation - Provider: {Provider}, Technology: {Technology}, Band: {Band}, " +
-                        "Barangay: {Barangay}, Address: {Address}. Record already exists in database.",
-                        record.Provider, item.Technology, item.Band, record.Barangay, record.Address);
+                    _logger.LogDebug("Skipping duplicate wireless validation - Provider: {Provider}, Technology: {Technology}, Band: {Band}",
+                        record.Provider, item.Technology, item.Band);
                     continue;
                 }
 
-                // Create wireless validation entity
                 var validation = new WirelessValidation
                 {
                     ServiceProviderId = record.ServiceProviderId!.Value,
@@ -627,23 +570,20 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     BandId = bandId,
                     TechnologyId = technologyId,
                     Address = record.Address,
-                    RSRP = rsrpValue, // Use null when no RSRP value is available
+                    RSRP = rsrpValue,
                     IsMarginal = isMarginal
                 };
 
                 validations.Add(validation);
-
-                // Add to cache to prevent duplicates within the same batch
                 referenceData.WirelessValidationCache.Add(validationCacheKey);
 
-                // Log detailed information for debugging
-                var qualityDesc = rsrpValue.HasValue 
+                var qualityDesc = rsrpValue.HasValue
                     ? RSRPParser.GetSignalQualityDescription(rsrpValue.Value, item.Technology)
                     : (isMarginal ? "Marginal (No RSRP)" : "Good (No RSRP)");
-                
+
                 _logger.LogDebug("Created validation - Provider: {Provider}, Technology: {Technology}, Band: {Band}, " +
-                    "RSRP: {RSRP}, Marginal: {IsMarginal}, Quality: {Quality}", 
-                    record.Provider, item.Technology, item.Band, 
+                    "RSRP: {RSRP}, Marginal: {IsMarginal}, Quality: {Quality}",
+                    record.Provider, item.Technology, item.Band,
                     rsrpValue?.ToString() ?? "NULL", isMarginal, qualityDesc);
             }
             catch (Exception ex)
