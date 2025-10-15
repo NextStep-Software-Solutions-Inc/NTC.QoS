@@ -300,9 +300,18 @@ public class BlobStorageService(
     private async Task<BlobContainerClient> GetOrCreateContainerAsync(string containerName, CancellationToken cancellationToken)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-        // Create container if it doesn't exist
-        _ = await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken) ?? throw new InvalidOperationException("Failed to create or access blob container");
-        return containerClient;
+        
+        try
+        {
+            // Create container if it doesn't exist
+            await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            return containerClient;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create or access blob container {ContainerName}", containerName);
+            throw new InvalidOperationException($"Failed to create or access blob container '{containerName}'", ex);
+        }
     }
 
 }

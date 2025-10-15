@@ -85,10 +85,11 @@ public static class InfrastructureDependencyInjection
     private static async Task SeedInitialDataAsync(ApplicationDbContext dbContext, IServiceProvider serviceProvider, ILogger logger, CancellationToken cancellationToken)
     {
         var blobStorageService = serviceProvider.GetRequiredService<IBlobStorageService>();
+        var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
 
         var seeders = new (string Name, Func<Task> SeedAction)[]
         {
-            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger)),
+            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed)),
             ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
             ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
             ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))
