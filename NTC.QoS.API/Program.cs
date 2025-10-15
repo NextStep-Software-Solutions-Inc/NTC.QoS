@@ -33,12 +33,7 @@ public class Program
             .AddEnvironmentVariables();
 
         // Validate Clerk secret for both Development and Production
-        var clerkSecret = builder.Configuration["Clerk:SecretKey"];
-        if (string.IsNullOrWhiteSpace(clerkSecret))
-        {
-            throw new InvalidOperationException("Clerk Secret Key is not configured.");
-        }
-
+        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ??  throw new InvalidOperationException("Clerk Secret Key is not configured.");
         builder.Services.AddClerkApiClient(config =>
         {
             config.SecretKey = clerkSecret;
@@ -129,8 +124,12 @@ public class Program
                     Array.Empty<string>()
                 }
             });
+            
+            // Custom operation filter for file upload endpoints
+            options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
+            options.OperationFilter<CamelCaseOperationFilter>();
         });
 
         builder.Services.AddApplication(builder.Configuration);
@@ -157,10 +156,10 @@ public class Program
         await app.Services.InitializeApplicationAsync(builder.Configuration, env);
 
         app.UseSecurityHeaders();
+        bool isDevelopment = app.Environment.IsDevelopment();
+        app.UseCors(isDevelopment ? "Dev" : "Prod");
 
-        app.UseCors(env.IsDevelopment() ? "Dev" : "Prod");
-
-        if (env.IsDevelopment())
+        if (isDevelopment)
         {
             app.UseSwagger();
             app.UseSwaggerUI(s =>

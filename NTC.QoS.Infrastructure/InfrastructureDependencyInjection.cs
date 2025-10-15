@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
@@ -27,6 +28,7 @@ public static class InfrastructureDependencyInjection
         services.AddDatabaseServices(configuration);
         services.AddHangfireServices(configuration);
         services.AddExternalServices(configuration);
+        services.AddBlobStorageServices(configuration);
         services.AddRepositories();
         services.AddBackgroundJobServices();
 
@@ -55,7 +57,7 @@ public static class InfrastructureDependencyInjection
         {
             // Seed initial data
             logger.LogInformation("Starting data seeding process...");
-            await SeedInitialDataAsync(dbContext, logger, cancellationToken);
+            await SeedInitialDataAsync(dbContext, services, logger, cancellationToken);
             logger.LogInformation("Data seeding completed successfully");
         }
         catch (OperationCanceledException)
@@ -80,11 +82,14 @@ public static class InfrastructureDependencyInjection
     /// <summary>
     /// Seeds initial data in the correct order with error handling for each seeder
     /// </summary>
-    private static async Task SeedInitialDataAsync(ApplicationDbContext dbContext, ILogger logger, CancellationToken cancellationToken)
+    private static async Task SeedInitialDataAsync(ApplicationDbContext dbContext, IServiceProvider serviceProvider, ILogger logger, CancellationToken cancellationToken)
     {
+        var blobStorageService = serviceProvider.GetRequiredService<IBlobStorageService>();
+        var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+
         var seeders = new (string Name, Func<Task> SeedAction)[]
         {
-            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, logger)),
+            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed)),
             ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
             ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
             ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))

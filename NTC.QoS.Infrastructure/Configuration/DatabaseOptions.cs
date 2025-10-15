@@ -13,6 +13,12 @@ public class DatabaseOptions
     public bool RunMigrationsOnStartup { get; set; } = true;
 
     /// <summary>
+    /// Whether to force reseeding even if data already exists
+    /// Set to false in development to skip seeding when data is already present
+    /// </summary>
+    public bool ForceReseed { get; set; } = false;
+
+    /// <summary>
     /// Maximum retry count for database operations
     /// </summary>
     public int MaxRetryCount { get; set; } = 5;
