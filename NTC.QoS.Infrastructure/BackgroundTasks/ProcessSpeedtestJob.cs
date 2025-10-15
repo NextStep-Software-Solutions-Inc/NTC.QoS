@@ -10,6 +10,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Diagnostics;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -22,6 +23,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly IRepository<Domain.Entities.File> _fileRepository;
     private readonly IBlobStorageService _blobStorageService;
 
+    private const int BatchSize = 1000; // Process records in batches
+    private const int DuplicateLoadBatchSize = 10000; // Load existing records in batches for memory efficiency
 
     public ProcessSpeedtestJob(
         ILogger<ProcessSpeedtestJob> logger,
@@ -43,6 +46,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         // --- Step 1: Initial File Status Update ---
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
             parameters.Id, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
@@ -52,11 +57,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
         try
         {
-            // Step 2: Initialize Collections
-            var speedtestList = new List<Speedtest>();
-            var speedtestsToAdd = new List<Speedtest>();
-
-            // Step 3: Pre-load Static/Reference Data for Performance
+            // Step 2: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
             // Pre-load all wireless service providers with optimized query
@@ -89,52 +90,81 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
             _logger.LogInformation("Pre-loaded {Count} generations and technologies.", technologyCache.Count);
 
-            // Pre-load existing speedtest records for duplicate checking
+            // OPTIMIZED: Pre-load existing speedtest records for duplicate checking
             var providerIds = serviceProviderCache.Values.ToList();
-            var existingSpeedtests = await _speedtestRepository
-                .Query(s => providerIds.Contains(s.ServiceProviderId))
-                .Select(s => new { 
-                    s.ServiceProviderId, 
-                    s.GenerationId, 
-                    s.TechnologyId,
-                    s.DateTime, 
-                    s.UploadSpeed,
-                    s.DownloadSpeed,
-                    s.RSSI,
-                    s.SignalQuality,
-                    s.Location
-                })
-                .ToListAsync(token);
 
-            var speedtestLookup = new HashSet<string>();
+            // Use hash-based lookup instead of string keys (OPTIMIZED)
+            var speedtestLookup = new HashSet<int>();
             var duplicateCount = 0;
+            var totalLoadedRecords = 0;
 
-            foreach (var speedtest in existingSpeedtests)
+            // Get total count first
+            var totalSpeedtests = await _speedtestRepository
+                .Query(s => providerIds.Contains(s.ServiceProviderId))
+                .CountAsync(token);
+
+            _logger.LogInformation("Loading {TotalCount} existing speedtest records in batches of {BatchSize}...",
+                totalSpeedtests, DuplicateLoadBatchSize);
+
+            // Load existing speedtests in batches to avoid memory overload
+            var skip = 0;
+            while (true)
             {
-                // Extract coordinates safely in memory
-                var longitude = speedtest.Location?.Coordinate?.X ?? 0;
-                var latitude = speedtest.Location?.Coordinate?.Y ?? 0;
-                
-                // Simplified duplicate key with core fields only 
-                var signalQuality = string.IsNullOrEmpty(speedtest.SignalQuality) ? "NULL" : speedtest.SignalQuality;
-                var rssi = speedtest.RSSI?.ToString() ?? "NULL";
-                var technologyId = speedtest.TechnologyId?.ToString() ?? "NULL";
+                var existingBatch = await _speedtestRepository
+                    .Query(s => providerIds.Contains(s.ServiceProviderId))
+                    .OrderBy(s => s.Id)
+                    .Skip(skip)
+                    .Take(DuplicateLoadBatchSize)
+                    .Select(s => new {
+                        s.ServiceProviderId,
+                        s.GenerationId,
+                        s.TechnologyId,
+                        s.DateTime,
+                        s.UploadSpeed,
+                        s.DownloadSpeed,
+                        s.RSSI,
+                        s.SignalQuality,
+                        s.Location
+                    })
+                    .ToListAsync(token);
 
-                var key = $"{speedtest.ServiceProviderId}_{speedtest.GenerationId}_{technologyId}_{speedtest.DateTime:yyyy-MM-dd HH:mm:ss}_{speedtest.UploadSpeed}_{speedtest.DownloadSpeed}_{rssi}_{signalQuality}_{longitude:F6}_{latitude:F6}";
-                
-                // Debug logging for pre-loaded keys
-                _logger.LogDebug("Pre-loaded duplicate key: {DuplicateKey}", key);
-                
-                if (!speedtestLookup.Add(key))
+                if (existingBatch.Count == 0)
+                    break;
+
+                foreach (var speedtest in existingBatch)
                 {
-                    duplicateCount++;
+                    var longitude = speedtest.Location?.Coordinate?.X ?? 0;
+                    var latitude = speedtest.Location?.Coordinate?.Y ?? 0;
+
+                    var hash = GenerateSpeedtestHash(
+                        speedtest.ServiceProviderId,
+                        speedtest.GenerationId ?? Guid.Empty,
+                        speedtest.TechnologyId ?? Guid.Empty,
+                        speedtest.DateTime,
+                        speedtest.UploadSpeed,
+                        speedtest.DownloadSpeed,
+                        speedtest.RSSI ?? 0,
+                        speedtest.SignalQuality ?? "NULL",
+                        longitude,
+                        latitude
+                    );
+
+                    if (!speedtestLookup.Add(hash))
+                    {
+                        duplicateCount++;
+                    }
                 }
+                totalLoadedRecords += existingBatch.Count;
+                skip += DuplicateLoadBatchSize;
+
+                _logger.LogInformation("Loaded {LoadedCount}/{TotalCount} existing records...",
+                    totalLoadedRecords, totalSpeedtests);
             }
 
-            _logger.LogInformation("Pre-loaded {Count} existing speedtest records ({DuplicateCount} duplicates handled, {TotalSpeedtests} total).",
-                speedtestLookup.Count, duplicateCount, existingSpeedtests.Count);
+            _logger.LogInformation("Pre-loaded {Count} unique speedtest records ({DuplicateCount} duplicates handled in existing data).",
+                speedtestLookup.Count, duplicateCount);
 
-            // Step 4: Download file from blob storage or access local file
+            // Step 3: Download file from blob storage or access local file
             Stream fileStream;
             try
             {
@@ -148,7 +178,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 return;
             }
 
-            // Step 5: Process the Excel File
+            // Step 4: Process the Excel File
             using (fileStream)
             {
                 _logger.LogInformation("Processing Speedtest file downloaded from blob storage");
@@ -166,123 +196,183 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     return;
                 }
 
-                // Step 6: Process Each Record
-                var duplicatesSkipped = 0;
-                
-                foreach (var record in speedtestRecords)
+                // Step 5: Process Records in Batches (OPTIMIZED)
+                var totalRecords = speedtestRecords.Count;
+                var totalAdded = 0;
+                var totalDuplicatesSkipped = 0;
+
+                for (int i = 0; i < totalRecords; i += BatchSize)
                 {
-                    ProcessingJobHelper.ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}", _logger);
+                    var batch = speedtestRecords.Skip(i).Take(BatchSize).ToList();
+                    var batchNumber = (i / BatchSize) + 1;
+                    var totalBatches = (int)Math.Ceiling((double)totalRecords / BatchSize);
 
-                    var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
-                    if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
+                    _logger.LogInformation("Processing batch {BatchNumber}/{TotalBatches} ({RecordCount} records)",
+                        batchNumber, totalBatches, batch.Count);
+
+                    var speedtestsToAdd = new List<Speedtest>();
+                    var duplicatesSkipped = 0;
+
+                    foreach (var record in batch)
                     {
-                        _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
-                        await ProcessingJobHelper.TerminateProcessAsync(
-                            file, _fileRepository, _logger, FileTypeEnum.Speedtest, 
-                            $"Service Provider '{record.Provider}' not found in database", token);
-                        return;
-                    }
+                        ProcessingJobHelper.ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}", _logger);
 
-                    var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
-                    if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
-                    {
-                        _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
-                        await ProcessingJobHelper.TerminateProcessAsync(
-                            file, _fileRepository, _logger, FileTypeEnum.Speedtest, 
-                            $"Technology '{record.NetworkType}' not found in database", token);
-                        return;
-                    }
-                    var technologyId = technologyInfo.TechnologyId;
-                    var generationId = technologyInfo.GenerationId;
-
-                    // Check if all valid Ids are valid
-                    if (serviceProviderId != Guid.Empty && generationId != Guid.Empty && technologyId != Guid.Empty)
-                    {
-                        Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
-
-                        var pingValue = decimal.TryParse(record.Ping, out decimal parsedPing) ? parsedPing : 0;
-                        var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
-                        var signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
-
-                        var duplicateKey = $"{serviceProviderId}_{generationId}_{technologyId}_{record.Timestamp.ToUniversalTime():yyyy-MM-dd HH:mm:ss}_{record.Upload}_{record.Download}_{record.RSSI}_{signalQuality ?? "NULL"}_{record.Longitude:F6}_{record.Latitude:F6}";
-
-                        // Debug logging for duplicate check
-                        if (_logger.IsEnabled(LogLevel.Debug))
+                        var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+                        if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {
-                            _logger.LogDebug("Generated duplicate key: {DuplicateKey}", duplicateKey);
+                            _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                $"Service Provider '{record.Provider}' not found in database", token);
+                            return;
                         }
 
-                        // Check for duplicates
-                        if (!speedtestLookup.Contains(duplicateKey))
+                        var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
+                        if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
                         {
-                            // Create new Speedtest entity
-                            var speedtest = new Speedtest
-                            {
-                                Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
-                                ServiceProviderId = serviceProviderId,
-                                GenerationId = generationId,
-                                TechnologyId = technologyId,
-                                DateTime = record.Timestamp.ToUniversalTime(),
-                                UploadSpeed = record.Upload,
-                                DownloadSpeed = record.Download,
-                                RSSI = record.RSSI,
-                                SignalQuality = signalQuality,
-                                Location = location,
-                                PhoneModel = record.PhoneModel,
-                                CellIdentifier = record.CellIdentifier,
-                                MCC = record.MCC,
-                                MNC = record.MNC,
-                                TAC = record.TAC,
-                                Ping = pingValue,
-                                Jitter = jitterValue,
-                                IsFileUploaded = true,
-                            };
-                            speedtestsToAdd.Add(speedtest);
-                            speedtestLookup.Add(duplicateKey);
+                            _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                $"Technology '{record.NetworkType}' not found in database", token);
+                            return;
                         }
-                        else
+                        var technologyId = technologyInfo.TechnologyId;
+                        var generationId = technologyInfo.GenerationId;
+
+                        // Check if all valid Ids are valid
+                        if (serviceProviderId != Guid.Empty && generationId != Guid.Empty && technologyId != Guid.Empty)
                         {
-                            duplicatesSkipped++;
-                            _logger.LogInformation("Duplicate speedtest record found and skipped: Provider={Provider}, NetworkType={NetworkType}, DateTime={DateTime}, Location=({Lat},{Lng}), Upload={Upload}, Download={Download}", 
-                                record.Provider, record.NetworkType, record.Timestamp, record.Latitude, record.Longitude, record.Upload, record.Download);
-                            if (_logger.IsEnabled(LogLevel.Debug))
+                            Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
+
+                            var pingValue = decimal.TryParse(record.Ping, out decimal parsedPing) ? parsedPing : 0;
+                            var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
+                            var signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
+
+                            // Generate hash for duplicate check (OPTIMIZED)
+                            var duplicateHash = GenerateSpeedtestHash(
+                                serviceProviderId,
+                                generationId,
+                                technologyId,
+                                record.Timestamp.ToUniversalTime(),
+                                record.Upload,
+                                record.Download,
+                                record.RSSI,
+                                signalQuality ?? "NULL",
+                                record.Longitude,
+                                record.Latitude
+                            );
+
+                            // Check for duplicates
+                            if (!speedtestLookup.Contains(duplicateHash))
                             {
-                                _logger.LogDebug("Existing duplicate key: {DuplicateKey}", duplicateKey);
+                                // Create new Speedtest entity
+                                var speedtest = new Speedtest
+                                {
+                                    Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
+                                    ServiceProviderId = serviceProviderId,
+                                    GenerationId = generationId,
+                                    TechnologyId = technologyId,
+                                    DateTime = record.Timestamp.ToUniversalTime(),
+                                    UploadSpeed = record.Upload,
+                                    DownloadSpeed = record.Download,
+                                    RSSI = record.RSSI,
+                                    SignalQuality = signalQuality,
+                                    Location = location,
+                                    PhoneModel = record.PhoneModel,
+                                    CellIdentifier = record.CellIdentifier,
+                                    MCC = record.MCC,
+                                    MNC = record.MNC,
+                                    TAC = record.TAC,
+                                    Ping = pingValue,
+                                    Jitter = jitterValue,
+                                    IsFileUploaded = true,
+                                };
+                                speedtestsToAdd.Add(speedtest);
+                                speedtestLookup.Add(duplicateHash);
+                            }
+                            else
+                            {
+                                duplicatesSkipped++;
+                                if (_logger.IsEnabled(LogLevel.Debug))
+                                {
+                                    _logger.LogDebug("Duplicate speedtest record found and skipped: Provider={Provider}, NetworkType={NetworkType}, DateTime={DateTime}, Location=({Lat},{Lng}), Upload={Upload}, Download={Download}",
+                                        record.Provider, record.NetworkType, record.Timestamp, record.Latitude, record.Longitude, record.Upload, record.Download);
+                                }
                             }
                         }
                     }
+
+                    // Save batch (OPTIMIZED - saves periodically instead of all at once)
+                    if (speedtestsToAdd.Count > 0)
+                    {
+                        _speedtestRepository.AddRange(speedtestsToAdd);
+                        await _speedtestRepository.SaveChangesAsync(token);
+                        totalAdded += speedtestsToAdd.Count;
+                        _logger.LogInformation("Batch {BatchNumber}/{TotalBatches}: Added {Count} records, skipped {DuplicateCount} duplicates.",
+                            batchNumber, totalBatches, speedtestsToAdd.Count, duplicatesSkipped);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Batch {BatchNumber}/{TotalBatches}: No new records to add, skipped {DuplicateCount} duplicates.",
+                            batchNumber, totalBatches, duplicatesSkipped);
+                    }
+
+                    totalDuplicatesSkipped += duplicatesSkipped;
+
+                    // Optional: Report progress for Hangfire
+                    ProcessingJobHelper.ReportProgress($"Processed {Math.Min(i + BatchSize, totalRecords)}/{totalRecords} records", _logger);
                 }
 
-                // Step 7: Batch Insert New Records
-                if (speedtestsToAdd.Count != 0)
-                {
-                    _speedtestRepository.AddRange(speedtestsToAdd);
-                    await _speedtestRepository.SaveChangesAsync(token);
-                    _logger.LogInformation("Successfully added {Count} speedtest records.", speedtestsToAdd.Count);
-                }
-                else
-                {
-                    _logger.LogInformation("No valid speedtest records found to add.");
-                }
-
-                if (duplicatesSkipped > 0)
-                {
-                    _logger.LogInformation("Skipped {DuplicateCount} duplicate speedtest records.", duplicatesSkipped);
-                }
+                _logger.LogInformation("Processing completed: Added {TotalAdded} records, skipped {TotalDuplicates} duplicates out of {TotalRecords} total records.",
+                    totalAdded, totalDuplicatesSkipped, totalRecords);
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
-                _logger.LogInformation("Processing completed successfully.");
+                stopwatch.Stop();
+                _logger.LogInformation("Processing completed successfully in {ElapsedTime} ({ElapsedMilliseconds}ms).",
+                    stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), stopwatch.ElapsedMilliseconds);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred during speedtest processing: {ErrorMessage}", ex.Message);
+            stopwatch.Stop();
+            _logger.LogError(ex, "Error occurred during speedtest processing after {ElapsedTime}: {ErrorMessage}",
+                stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.Speedtest,
                 $"Error occurred during processing: {ex.Message}", token);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Generates a hash code for speedtest duplicate detection
+    /// Uses hash-based comparison instead of string concatenation for better memory efficiency
+    /// </summary>
+    private static int GenerateSpeedtestHash(
+        Guid serviceProviderId,
+        Guid generationId,
+        Guid technologyId,
+        DateTime dateTime,
+        decimal uploadSpeed,
+        decimal downloadSpeed,
+        decimal rssi,
+        string signalQuality,
+        double longitude,
+        double latitude)
+    {
+        var hash = new HashCode();
+        hash.Add(serviceProviderId);
+        hash.Add(generationId);
+        hash.Add(technologyId);
+        hash.Add(dateTime);
+        hash.Add(uploadSpeed);
+        hash.Add(downloadSpeed);
+        hash.Add(rssi);
+        hash.Add(signalQuality);
+        hash.Add(Math.Round(longitude, 6)); 
+        hash.Add(Math.Round(latitude, 6));
+        return hash.ToHashCode();
     }
 }
