@@ -118,6 +118,7 @@ jobs:
               --name ${{ env.CONTAINER_NAME }} \
               -e ConnectionStrings__PostgreSqlConnection="${{ secrets.DB_CONNECTION_STRING }}" \
               -e ConnectionStrings__HangfireConnection="${{ secrets.HANGFIRE_CONNECTION_STRING }}" \
+              -e ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
               -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
               ${{ env.IMAGE_NAME }}:dev
 
