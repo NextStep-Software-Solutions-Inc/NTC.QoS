@@ -201,6 +201,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(s => s.StudyMunicipalities)
             .HasForeignKey(sm => sm.StudyId);
 
+        // Cell configuration - reverted to original IX_Cells_Name unique constraint
         modelBuilder.Entity<Cell>()
             .HasIndex(c => c.Name)
             .IsUnique()
