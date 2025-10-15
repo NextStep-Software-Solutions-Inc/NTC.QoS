@@ -25,26 +25,78 @@ public static class LocationSeeder
     /// <param name="context">The DbContext instance.</param>
     /// <param name="blobStorageService">The blob storage service instance.</param>
     /// <param name="logger">The logger instance.</param>
-    public static async Task SeedAllAsync(ApplicationDbContext context, IBlobStorageService blobStorageService, ILogger logger)
+    /// <param name="forceReseed">If true, forces reseeding even if data exists. If false, skips seeding when data is present.</param>
+    public static async Task SeedAllAsync(ApplicationDbContext context, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
     {
-        logger.LogInformation("Starting full database seeding process...");
+        logger.LogInformation("Starting database seeding process... ForceReseed: {ForceReseed}", forceReseed);
 
-        await SeedRegionsAsync(context, blobStorageService, logger);
-        await SeedProvincesAsync(context, blobStorageService, logger);
-        await SeedMunicipalitiesAsync(context, blobStorageService, logger);
-        await SeedBarangaysAsync(context, blobStorageService, logger);
+        // Check if data already exists when forceReseed is false
+        if (!forceReseed)
+        {
+            var hasExistingData = await HasExistingLocationDataAsync(context, logger);
+            if (hasExistingData)
+            {
+                logger.LogInformation("Location data already exists in database. Skipping seeding process. Use forceReseed=true to override.");
+                return;
+            }
+        }
 
-        logger.LogInformation("Full database seeding process completed.");
+        await SeedRegionsAsync(context, blobStorageService, logger, forceReseed);
+        await SeedProvincesAsync(context, blobStorageService, logger, forceReseed);
+        await SeedMunicipalitiesAsync(context, blobStorageService, logger, forceReseed);
+        await SeedBarangaysAsync(context, blobStorageService, logger, forceReseed);
+
+        logger.LogInformation("Database seeding process completed.");
     }
 
+    /// <summary>
+    /// Checks if location data already exists in the database.
+    /// </summary>
+    /// <param name="context">The DbContext instance.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <returns>True if location data exists, false otherwise.</returns>
+    private static async Task<bool> HasExistingLocationDataAsync(ApplicationDbContext context, ILogger logger)
+    {
+        try
+        {
+            var regionCount = await context.Regions.CountAsync();
+            var provinceCount = await context.Provinces.CountAsync();
+            var municipalityCount = await context.Municipalities.CountAsync();
+            var barangayCount = await context.Barangays.CountAsync();
+
+            var hasData = regionCount > 0 || provinceCount > 0 || municipalityCount > 0 || barangayCount > 0;
+
+            logger.LogInformation("Existing location data check - Regions: {RegionCount}, Provinces: {ProvinceCount}, Municipalities: {MunicipalityCount}, Barangays: {BarangayCount}", 
+                regionCount, provinceCount, municipalityCount, barangayCount);
+
+            return hasData;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Error checking existing location data. Proceeding with seeding.");
+            return false;
+        }
+    }
 
     /// <summary>
     /// Seeds Region entities from the GeoJSON file in blob storage.
     /// This logic is adapted from the previous RegionSeeder.
     /// </summary>
-    public static async Task SeedRegionsAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
+    /// <param name="forceReseed">If true, forces reseeding even if data exists.</param>
+    public static async Task SeedRegionsAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
     {
-        logger.LogInformation("Starting region seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, RegionGeoJsonFilePath);
+        logger.LogInformation("Starting region seeding from blob storage: {ContainerName}/{FilePath}... ForceReseed: {ForceReseed}", ContainerName, RegionGeoJsonFilePath, forceReseed);
+
+        // Check if regions already exist when forceReseed is false
+        if (!forceReseed)
+        {
+            var existingRegionCount = await dbContext.Regions.CountAsync();
+            if (existingRegionCount > 0)
+            {
+                logger.LogInformation("Regions already exist in database ({Count} found). Skipping region seeding.", existingRegionCount);
+                return;
+            }
+        }
 
         FeatureCollection featureCollection = new FeatureCollection();
 
@@ -94,7 +146,7 @@ public static class LocationSeeder
                 boundaries = GetBoundaries(f)
                 
             })
-            .Where(region => !string.IsNullOrWhiteSpace(region.code) && !existingRegionCodes.Contains(region.code))
+            .Where(region => !string.IsNullOrWhiteSpace(region.code) && (forceReseed || !existingRegionCodes.Contains(region.code)))
             .Select(region => new Region
             {
                 Name = region.name ?? string.Empty,
@@ -133,9 +185,21 @@ public static class LocationSeeder
     /// <summary>
     /// Seeds Province entities from the GeoJSON file in blob storage.
     /// </summary>
-    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
+    /// <param name="forceReseed">If true, forces reseeding even if data exists.</param>
+    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
     {
-        logger.LogInformation("Starting province seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, ProvinceGeoJsonFilePath);
+        logger.LogInformation("Starting province seeding from blob storage: {ContainerName}/{FilePath}... ForceReseed: {ForceReseed}", ContainerName, ProvinceGeoJsonFilePath, forceReseed);
+
+        // Check if provinces already exist when forceReseed is false
+        if (!forceReseed)
+        {
+            var existingProvinceCount = await dbContext.Provinces.CountAsync();
+            if (existingProvinceCount > 0)
+            {
+                logger.LogInformation("Provinces already exist in database ({Count} found). Skipping province seeding.", existingProvinceCount);
+                return;
+            }
+        }
 
         FeatureCollection featureCollection = new FeatureCollection();
 
@@ -186,7 +250,7 @@ public static class LocationSeeder
                 regionCode = f.Attributes["ADM1_PCODE"]?.ToString()
             })
             .Where(province => !string.IsNullOrWhiteSpace(province.code) && 
-                !existingProvinceCodes.Contains(province.code) &&
+                (forceReseed || !existingProvinceCodes.Contains(province.code)) &&
                 !string.IsNullOrWhiteSpace(province.regionCode) && 
                 regionMap.ContainsKey(province.regionCode))
             .Select(province => new Province
@@ -218,9 +282,21 @@ public static class LocationSeeder
     /// <summary>
     /// Seeds Municipality entities from the GeoJSON file in blob storage.
     /// </summary>
-    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
+    /// <param name="forceReseed">If true, forces reseeding even if data exists.</param>
+    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
     {
-        logger.LogInformation("Starting municipality seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, MunicipalityGeoJsonFilePath);
+        logger.LogInformation("Starting municipality seeding from blob storage: {ContainerName}/{FilePath}... ForceReseed: {ForceReseed}", ContainerName, MunicipalityGeoJsonFilePath, forceReseed);
+
+        // Check if municipalities already exist when forceReseed is false
+        if (!forceReseed)
+        {
+            var existingMunicipalityCount = await dbContext.Municipalities.CountAsync();
+            if (existingMunicipalityCount > 0)
+            {
+                logger.LogInformation("Municipalities already exist in database ({Count} found). Skipping municipality seeding.", existingMunicipalityCount);
+                return;
+            }
+        }
 
         FeatureCollection featureCollection = [];
 
@@ -271,7 +347,7 @@ public static class LocationSeeder
                 provinceCode = f.Attributes["ADM2_PCODE"]?.ToString()
             })
             .Where(municipality => !string.IsNullOrWhiteSpace(municipality.code) && 
-                !existingMunicipalityCodes.Contains(municipality.code) &&
+                (forceReseed || !existingMunicipalityCodes.Contains(municipality.code)) &&
                 !string.IsNullOrWhiteSpace(municipality.provinceCode) && 
                 provinceMap.ContainsKey(municipality.provinceCode))
             .Select(municipality => new Municipality
@@ -303,9 +379,21 @@ public static class LocationSeeder
     /// <summary>
     /// Seeds Barangay entities from the GeoJSON file in blob storage.
     /// </summary>
-    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger)
+    /// <param name="forceReseed">If true, forces reseeding even if data exists.</param>
+    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
     {
-        logger.LogInformation("Starting barangay seeding from blob storage: {ContainerName}/{FilePath}...", ContainerName, BarangayGeoJsonFilePath);
+        logger.LogInformation("Starting barangay seeding from blob storage: {ContainerName}/{FilePath}... ForceReseed: {ForceReseed}", ContainerName, BarangayGeoJsonFilePath, forceReseed);
+
+        // Check if barangays already exist when forceReseed is false
+        if (!forceReseed)
+        {
+            var existingBarangayCount = await dbContext.Barangays.CountAsync();
+            if (existingBarangayCount > 0)
+            {
+                logger.LogInformation("Barangays already exist in database ({Count} found). Skipping barangay seeding.", existingBarangayCount);
+                return;
+            }
+        }
 
         FeatureCollection featureCollection = new FeatureCollection();
 
@@ -353,7 +441,7 @@ public static class LocationSeeder
                 municipalityCode = f.Attributes["ADM3_PCODE"]?.ToString()
             })
             .Where(barangay => !string.IsNullOrWhiteSpace(barangay.code) && 
-                !existingBarangayCodes.Contains(barangay.code) &&
+                (forceReseed || !existingBarangayCodes.Contains(barangay.code)) &&
                 !string.IsNullOrWhiteSpace(barangay.municipalityCode) && 
                 municipalityMap.ContainsKey(barangay.municipalityCode))
             .Select(barangay => new Barangay

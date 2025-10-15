@@ -125,10 +125,8 @@ public class Program
                 }
             });
             
-       
-            
             // Custom operation filter for file upload endpoints
-            // options.OperationFilter<FileUploadOperationFilter>();
+            options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
             options.OperationFilter<CamelCaseOperationFilter>();
