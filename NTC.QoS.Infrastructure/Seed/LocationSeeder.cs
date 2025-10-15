@@ -264,7 +264,7 @@ public static class LocationSeeder
                 HouseholdCount = province.householdCount,
                 Boundaries = province.boundaries,
                 Center = province.boundaries.Centroid,
-                RegionId = regionMap[province.regionCode]
+                RegionId = regionMap[province.regionCode!]
             })
             .ToList();
 
@@ -361,7 +361,7 @@ public static class LocationSeeder
                 HouseholdCount = municipality.householdCount,
                 Boundaries = municipality.boundaries,
                 Center = municipality.boundaries.Centroid,
-                ProvinceId = provinceMap[municipality.provinceCode]
+                ProvinceId = provinceMap[municipality.provinceCode!]
             })
             .ToList();
 
@@ -455,7 +455,7 @@ public static class LocationSeeder
                 HouseholdCount = null,
                 Boundaries = barangay.boundaries,
                 Center = barangay.boundaries.Centroid,
-                MunicipalityId = municipalityMap[barangay.municipalityCode]
+                MunicipalityId = municipalityMap[barangay.municipalityCode!]
             })
             .ToList();
 
