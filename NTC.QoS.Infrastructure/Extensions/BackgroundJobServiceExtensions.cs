@@ -27,6 +27,7 @@ internal static class BackgroundJobServiceExtensions
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
         services.AddTransient<IProcessConnectivityAssessmentJob, ProcessConnectivityAssessmentJob>();
+        services.AddTransient<IProcessWirelessValidationJob, ProcessWirelessValidationJob>();
 
         return services;
     }

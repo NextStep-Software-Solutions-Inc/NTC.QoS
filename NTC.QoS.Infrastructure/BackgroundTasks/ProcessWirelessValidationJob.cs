@@ -20,7 +20,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           IServiceProviderRepository serviceProviderRepository,
                                           ITechnologyRepository technologyRepository,
                                           IBandRepository bandRepository,
-                                          IWirelessValidationRepository wirelessValidationRepository
+                                          IWirelessValidationRepository wirelessValidationRepository,
+                                          IBlobStorageService blobStorageService
                                           ) : IProcessWirelessValidationJob
 {
     // Fuzzy matching thresholds for hierarchical municipality resolution
@@ -41,22 +42,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private readonly ITechnologyRepository _technologyRepository = technologyRepository;
     private readonly IBandRepository _bandRepository = bandRepository;
     private readonly IWirelessValidationRepository _wirelessValidationRepository = wirelessValidationRepository;
+    private readonly IBlobStorageService _blobStorageService = blobStorageService;
 
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
-        var fileQuery = _fileRepository.Query(f => f.Id.Equals(parameters.Id));
-        var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
+        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(parameters.Id, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
 
-        if (file == null)
-        {
-            const string message = "File not found.";
-            _logger.LogError(message);
-            throw new InvalidOperationException(message);
-        }
-
-        file.Status = FileStatusEnum.Processing;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(token);
+        await ProcessingJobHelper.SetFileProcessingStatusAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
 
         var processingResults = new ProcessingResults();
         var startTime = DateTime.UtcNow;
@@ -65,9 +57,24 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         {
             _logger.LogInformation("Starting wireless validation processing for file: {FileName}", file.Name);
 
-            // Phase 1: Parse Excel File
-            using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
-            var wirelessValidationRecords = WirelessValidationExcelHelper.ParseExcelToWirelessValidationRecords(fileStream);
+            // Phase 1: Download and Parse Excel File
+            Stream fileStream;
+            try
+            {
+                fileStream = await ProcessingJobHelper.GetFileStreamAsync(parameters.Path, _blobStorageService, _logger, FileTypeEnum.WirelessValidation, token);
+            }
+            catch (Exception ex)
+            {
+                await ProcessingJobHelper.HandleFileAccessErrorAsync(ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
+                return;
+            }
+
+            List<WirelessValidationRecord> wirelessValidationRecords;
+            using (fileStream)
+            {
+                _logger.LogInformation("Processing Wireless Validation file downloaded from blob storage");
+                wirelessValidationRecords = WirelessValidationExcelHelper.ParseExcelToWirelessValidationRecords(fileStream);
+            }
             
             if (wirelessValidationRecords.Count == 0)
             {
@@ -95,9 +102,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing wireless validation file with ID {FileId}", parameters.Id);
-            file.Status = FileStatusEnum.Failed;
-            _fileRepository.Update(file);
-            await _fileRepository.SaveChangesAsync(token);
+            await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, cancellationToken: token);
             throw; 
         }
     }
@@ -447,12 +452,10 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             results.SkippedDuplicates += batchResults.SkippedDuplicates;
             results.ProcessedRecords += batch.Count;
 
-            // Progress reporting
+            // Progress reporting using shared helper
             var progress = (double)(batchIndex + 1) / totalBatches * 100;
-            _logger.LogInformation("Batch {BatchNumber}/{TotalBatches} completed - Progress: {Progress:F1}% - " +
-                "Successful: {Successful:N0}, Errors: {Errors:N0}, Validations Created: {Created:N0}, Duplicates Skipped: {Duplicates:N0}",
-                batchIndex + 1, totalBatches, progress, 
-                batchResults.SuccessfulRecords, batchResults.ErrorRecords, batchResults.CreatedValidations, batchResults.SkippedDuplicates);
+            ProcessingJobHelper.ReportProgress($"Batch {batchIndex + 1}/{totalBatches} completed - Progress: {progress:F1}% - " +
+                "Successful: {batchResults.SuccessfulRecords:N0}, Errors: {batchResults.ErrorRecords:N0}, Validations Created: {batchResults.CreatedValidations:N0}, Duplicates Skipped: {batchResults.SkippedDuplicates:N0}", _logger);
         }
     }
 
@@ -709,6 +712,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        _logger.LogInformation("Processing completed successfully.");
     }
 
     // Supporting classes

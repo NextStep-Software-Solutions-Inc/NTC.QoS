@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <Folder Include="Events\" />
+    <Folder Include="Models\DTOs\BlobStorage\" />
     <Folder Include="Specifications\" />
     <Folder Include="ValueObjects\" />
   </ItemGroup>
