@@ -5,7 +5,7 @@ namespace NTC.QoS.Infrastructure.Helper;
 
 public class WirelessValidationExcelHelper
 {
-    public static List<WirelessValidationRecord> ParseExcelToWirelessValidationRecords(FileStream stream)
+    public static List<WirelessValidationRecord> ParseExcelToWirelessValidationRecords(Stream stream)
     {
         var result = new List<WirelessValidationRecord>();
         using (var workbook = new ClosedXML.Excel.XLWorkbook(stream))
