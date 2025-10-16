@@ -158,6 +158,31 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         Guid roleId = request.User.RoleId != Guid.Empty ? request.User.RoleId : (defaultRole?.Id ?? Guid.Empty);
         Guid organizationId = request.User.OrganizationId != Guid.Empty ? request.User.OrganizationId : (defaultOrg?.Id ?? Guid.Empty);
 
+        // Validate that neither roleId nor organizationId is Guid.Empty
+        if (roleId == Guid.Empty)
+        {
+            return new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "No valid role found for assignment.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "RoleId", ["No explicit or default role found."] }
+                }
+            };
+        }
+        if (organizationId == Guid.Empty)
+        {
+            return new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "No valid organization found for assignment.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "OrganizationId", ["No explicit or default organization found."] }
+                }
+            };
+        }
         var newUser = new Domain.Entities.User
         {
             RoleId = roleId,
