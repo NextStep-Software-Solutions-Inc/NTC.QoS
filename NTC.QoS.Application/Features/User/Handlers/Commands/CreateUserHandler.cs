@@ -16,57 +16,10 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        // Prepare all database queries to run in parallel
-        var tasks = new List<Task>();
-        var taskResults = new Dictionary<string, Task>();
+        // Step 1: Check if user already exists
+        var existingUser = await _userRepository.FirstOrDefaultAsync(_userRepository.Query(u => u.AuthUserId == request.User.AuthUserId), cancellationToken);
 
-        // Always check for existing user
-        var existingUserTask = _userRepository.FirstOrDefaultAsync(_userRepository.Query(u => u.AuthUserId == request.User.AuthUserId), cancellationToken);
-        tasks.Add(existingUserTask);
-        taskResults["existingUser"] = existingUserTask;
-
-        // Conditionally fetch defaults only when needed
-        Task<Domain.Entities.Role?>? defaultRoleTask = null;
-        Task<Domain.Entities.Organization?>? defaultOrgTask = null;
-
-        if (request.User.RoleId == Guid.Empty)
-        {
-            defaultRoleTask = _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Name == "user"), cancellationToken);
-            tasks.Add(defaultRoleTask);
-            taskResults["defaultRole"] = defaultRoleTask;
-        }
-
-        if (request.User.OrganizationId == Guid.Empty)
-        {
-            defaultOrgTask = _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Name == "public"), cancellationToken);
-            tasks.Add(defaultOrgTask);
-            taskResults["defaultOrg"] = defaultOrgTask;
-        }
-
-        // Conditionally validate explicit IDs
-        Task<Domain.Entities.Role?>? explicitRoleTask = null;
-        Task<Domain.Entities.Organization?>? explicitOrgTask = null;
-
-        if (request.User.RoleId != Guid.Empty)
-        {
-            explicitRoleTask = _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Id == request.User.RoleId), cancellationToken);
-            tasks.Add(explicitRoleTask);
-            taskResults["explicitRole"] = explicitRoleTask;
-        }
-
-        if (request.User.OrganizationId != Guid.Empty)
-        {
-            explicitOrgTask = _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Id == request.User.OrganizationId), cancellationToken);
-            tasks.Add(explicitOrgTask);
-            taskResults["explicitOrg"] = explicitOrgTask;
-        }
-
-        // Execute all queries in parallel
-        await Task.WhenAll(tasks);
-
-        // Process results
-        var existingUser = ((Task<Domain.Entities.User?>)taskResults["existingUser"]).Result;
-        if (existingUser is not null)
+        if (existingUser != null)
         {
             return new ApiResponse<UserDto>
             {
@@ -74,20 +27,17 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
                 Message = "User already exists.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    {
-                        "Duplicate", ["A user with this AuthUserId already exists."]
-                    }
+                    { "Duplicate", ["A user with this AuthUserId already exists."] }
                 }
             };
         }
 
-        // Get defaults only if they were fetched
+        // Step 2: Get default role if not provided
         Domain.Entities.Role? defaultRole = null;
-        Domain.Entities.Organization? defaultOrg = null;
-
-        if (defaultRoleTask != null)
+        if (request.User.RoleId == Guid.Empty)
         {
-            defaultRole = defaultRoleTask.Result;
+            defaultRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Name == "user"), cancellationToken);
+
             if (defaultRole == null)
             {
                 return new ApiResponse<UserDto>
@@ -102,9 +52,12 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             }
         }
 
-        if (defaultOrgTask != null)
+        // Step 3: Get default organization if not provided
+        Domain.Entities.Organization? defaultOrg = null;
+        if (request.User.OrganizationId == Guid.Empty)
         {
-            defaultOrg = defaultOrgTask.Result;
+            defaultOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Name == "public"), cancellationToken);
+
             if (defaultOrg == null)
             {
                 return new ApiResponse<UserDto>
@@ -119,11 +72,12 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             }
         }
 
-        // Check explicit validations
-        if (explicitRoleTask != null)
+        // Step 4: Validate explicit role if provided
+        if (request.User.RoleId != Guid.Empty)
         {
-            var explicitRole = explicitRoleTask.Result;
-            if (explicitRole == null)
+            var providedRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Id == request.User.RoleId), cancellationToken);
+
+            if (providedRole == null)
             {
                 return new ApiResponse<UserDto>
                 {
@@ -137,10 +91,12 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             }
         }
 
-        if (explicitOrgTask != null)
+        // Step 5: Validate explicit organization if provided
+        if (request.User.OrganizationId != Guid.Empty)
         {
-            var explicitOrg = explicitOrgTask.Result;
-            if (explicitOrg == null)
+            var providedOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Id == request.User.OrganizationId), cancellationToken);
+
+            if (providedOrg == null)
             {
                 return new ApiResponse<UserDto>
                 {
@@ -154,35 +110,11 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             }
         }
 
-        // Assign IDs - use defaults only if they were fetched
-        Guid roleId = request.User.RoleId != Guid.Empty ? request.User.RoleId : (defaultRole?.Id ?? Guid.Empty);
-        Guid organizationId = request.User.OrganizationId != Guid.Empty ? request.User.OrganizationId : (defaultOrg?.Id ?? Guid.Empty);
+        // Step 6: Assign final IDs
+        Guid roleId = request.User.RoleId == Guid.Empty ? defaultRole!.Id : request.User.RoleId;
+        Guid organizationId = request.User.OrganizationId == Guid.Empty ? defaultOrg!.Id : request.User.OrganizationId;
 
-        // Validate that neither roleId nor organizationId is Guid.Empty
-        if (roleId == Guid.Empty)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "No valid role found for assignment.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "RoleId", ["No explicit or default role found."] }
-                }
-            };
-        }
-        if (organizationId == Guid.Empty)
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "No valid organization found for assignment.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { "OrganizationId", ["No explicit or default organization found."] }
-                }
-            };
-        }
+        // Step 7: Create the user
         var newUser = new Domain.Entities.User
         {
             RoleId = roleId,
@@ -196,6 +128,7 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         _userRepository.Add(newUser);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
+        // Step 8: Return success response
         return new ApiResponse<UserDto>
         {
             Data = new UserDto
