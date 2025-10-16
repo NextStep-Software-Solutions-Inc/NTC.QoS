@@ -12,8 +12,8 @@ namespace NTC.QoS.API.Controllers;
 /// Handles Clerk authentication webhooks for user management
 /// </summary>
 [ApiController]
-[Route("webhooks/clerk")]
-public class ClerkWebhookController(IMediator mediator) : ControllerBase
+[Route("webhooks")]
+public class WebhookController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
 
@@ -32,12 +32,10 @@ public class ClerkWebhookController(IMediator mediator) : ControllerBase
     /// <response code="200">Webhook processed successfully</response>
     /// <response code="400">Invalid payload or missing data</response>
     /// <response code="401">Invalid webhook signature</response>
-    [HttpPost]
+    [HttpPost("clerk")]
     [AllowAnonymous]
     [ClerkWebhookVerification]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> HandleWebhook()
     {
         if (HttpContext.Items["ClerkWebhookPayload"] is not ClerkWebhookPayload payload)
