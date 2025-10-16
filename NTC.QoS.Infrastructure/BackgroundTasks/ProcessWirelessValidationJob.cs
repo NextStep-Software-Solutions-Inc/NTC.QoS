@@ -13,8 +13,6 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
 public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           ILogger<ProcessWirelessValidationJob> logger,
-                                          IRegionRepository regionRepository,
-                                          IProvinceRepository provinceRepository,
                                           IMunicipalityRepository municipalityRepository,
                                           IBarangayRepository barangayRepository,
                                           IServiceProviderRepository serviceProviderRepository,
@@ -606,39 +604,36 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         _logger.LogInformation("Processing Time: {ProcessingTime:hh\\:mm\\:ss}", processingTime);
         _logger.LogInformation("Total Records: {TotalRecords:N0}", results.TotalRecords);
         _logger.LogInformation("Processed Records: {ProcessedRecords:N0}", results.ProcessedRecords);
-        _logger.LogInformation("Successful Records: {SuccessfulRecords:N0} ({SuccessRate:F1}%)", 
+        _logger.LogInformation("Successful Records: {SuccessfulRecords:N0} ({SuccessRate:F1}%)",
             results.SuccessfulRecords, successRate);
         _logger.LogInformation("Skipped Records: {SkippedRecords:N0}", results.SkippedRecords);
         _logger.LogInformation("Error Records: {ErrorRecords:N0}", results.ErrorRecords);
         _logger.LogInformation("Wireless Validations Created: {CreatedValidations:N0}", results.CreatedValidations);
         _logger.LogInformation("Duplicate Validations Skipped: {SkippedDuplicates:N0}", results.SkippedDuplicates);
-        
+
         if (results.TotalRecords > 0)
         {
             var processingRate = results.TotalRecords / processingTime.TotalSeconds;
             _logger.LogInformation("Processing Rate: {ProcessingRate:F0} records/second", processingRate);
-            
-            // Additional statistics
-            var avgValidationsPerRecord = results.SuccessfulRecords > 0 
-                ? (double)results.CreatedValidations / results.SuccessfulRecords 
+
+            var avgValidationsPerRecord = results.SuccessfulRecords > 0
+                ? (double)results.CreatedValidations / results.SuccessfulRecords
                 : 0;
             _logger.LogInformation("Average Validations per Record: {AvgValidations:F1}", avgValidationsPerRecord);
-            
-            // Duplicate statistics
+
             var totalPotentialValidations = results.CreatedValidations + results.SkippedDuplicates;
-            var duplicateRate = totalPotentialValidations > 0 
-                ? (double)results.SkippedDuplicates / totalPotentialValidations * 100 
+            var duplicateRate = totalPotentialValidations > 0
+                ? (double)results.SkippedDuplicates / totalPotentialValidations * 100
                 : 0;
-            _logger.LogInformation("Duplicate Rate: {DuplicateRate:F1}% ({SkippedDuplicates:N0} of {TotalPotential:N0} potential validations)", 
+            _logger.LogInformation("Duplicate Rate: {DuplicateRate:F1}% ({SkippedDuplicates:N0} of {TotalPotential:N0} potential validations)",
                 duplicateRate, results.SkippedDuplicates, totalPotentialValidations);
         }
-        
+
         _logger.LogInformation("Processing Logic Applied:");
         _logger.LogInformation("- Hierarchical municipality resolution with Province and Region validation");
         _logger.LogInformation("- Fuzzy matching for address variations and spelling differences");
         _logger.LogInformation("- Barangay resolution is REQUIRED - records without resolved barangay are skipped");
         _logger.LogInformation("- Consistent address construction from all available location components");
-        _logger.LogInformation("- Duplicate validation detection and prevention");
         _logger.LogInformation("- 'false', empty, N/A values: Skipped (no entity created)");
         _logger.LogInformation("- 'marginal' values: Created with IsMarginal=true, RSRP=NULL");
         _logger.LogInformation("- 'true' values: Created with IsMarginal=false, RSRP=NULL");
@@ -648,7 +643,6 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         _logger.LogInformation("- Duplicate Detection: ServiceProvider + Barangay + Band + Technology + Address combination");
         _logger.LogInformation("=======================================");
 
-        // Update file status
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
