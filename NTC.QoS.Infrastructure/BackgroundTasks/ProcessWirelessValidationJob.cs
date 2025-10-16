@@ -7,6 +7,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Diagnostics;
 using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
@@ -103,6 +104,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     // OPTIMIZED: Like Speedtest - preload only essential fields for duplicate checking
     private async Task<ReferenceData> PreloadReferenceData(List<WirelessValidationRecord> records, CancellationToken token)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         _logger.LogInformation("Preloading reference data with optimized approach...");
 
         // Preload wireless service providers
@@ -218,8 +220,11 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 "Consider cleaning up duplicate validation data.", duplicateCount);
         }
 
-        _logger.LogInformation("Preloaded {Count:N0} existing wireless validation records ({DuplicateCount} duplicates found, {TotalValidations} total)",
-            validationCache.Count, duplicateCount, existingValidations.Count);
+        _logger.LogInformation("Preloaded {Count:N0} unique wireless validation keys for duplicate checking ({DuplicateCount:N0} duplicates found in database)",
+        validationCache.Count, duplicateCount);
+
+        stopwatch.Stop();
+        _logger.LogInformation("Reference data preloading completed in {ElapsedTime:hh\\:mm\\:ss}", stopwatch.Elapsed);
 
         return new ReferenceData
         {
@@ -398,6 +403,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData,
         ProcessingResults results, CancellationToken token)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var totalBatches = (int)Math.Ceiling((double)records.Count / ProcessingBatchSize);
         var validationsToAdd = new List<WirelessValidation>();
 
@@ -493,6 +499,9 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             ProcessingJobHelper.ReportProgress($"Batch {batchIndex + 1}/{totalBatches} completed - Progress: {progress:F1}% - " +
                 $"Successful: {results.SuccessfulRecords:N0}, Errors: {results.ErrorRecords:N0}, Validations Created: {results.CreatedValidations:N0}, Duplicates Skipped: {results.SkippedDuplicates:N0}", _logger);
         }
+
+        stopwatch.Stop();
+        _logger.LogInformation("Record processing completed in {ElapsedTime:hh\\:mm\\:ss}", stopwatch.Elapsed);
 
         // OPTIMIZED: Single batch insert at the end (like Speedtest)
         if (validationsToAdd.Count != 0)
