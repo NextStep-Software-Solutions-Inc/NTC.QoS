@@ -29,9 +29,6 @@ public class WebhookController(IMediator mediator) : ControllerBase
     /// The webhook payload is automatically verified using Svix signature verification.
     /// </remarks>
     /// <returns>OK response if the webhook was processed successfully</returns>
-    /// <response code="200">Webhook processed successfully</response>
-    /// <response code="400">Invalid payload or missing data</response>
-    /// <response code="401">Invalid webhook signature</response>
     [HttpPost("clerk")]
     [AllowAnonymous]
     [ClerkWebhookVerification]
