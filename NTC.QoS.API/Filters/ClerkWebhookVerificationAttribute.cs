@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Svix;
 using System.Net;
 using System.Text.Json;
-using NTC.QoS.API.Controllers;
+using NTC.QoS.Domain.Models;
 
 namespace NTC.QoS.API.Filters;
 
