@@ -98,6 +98,7 @@ jobs:
             --set env.ConnectionStrings__HangfireConnection="${{ secrets.HANGFIRE_CONNECTION_STRING }}" \
             --set env.ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
             --set env.Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
+            --set env.WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
             --set env.ASPNETCORE_ENVIRONMENT=Production
 
       - name: Check deployment rollout status

@@ -120,6 +120,7 @@ jobs:
               -e ConnectionStrings__HangfireConnection="${{ secrets.HANGFIRE_CONNECTION_STRING }}" \
               -e ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
               -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
+              -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
               ${{ env.IMAGE_NAME }}:dev
 
             # Verify container is running
