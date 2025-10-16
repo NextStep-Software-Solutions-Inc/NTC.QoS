@@ -24,6 +24,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IGenerationBandRepository _generationBandRepository;
     private readonly IRepository<Domain.Entities.CellSector> _cellSectorRepository;
+    private readonly IRepository<Domain.Entities.Sector> _sectorRepository;
     private readonly ITechnologyRepository _technologyRepository;
     private readonly IBandRepository _bandRepository;
     private readonly INetworkRepository _networkRepository;
@@ -45,6 +46,7 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IGenerationBandRepository generationBandRepository,
         IRepository<Domain.Entities.CellSector> cellSectorRepository,
+        IRepository<Domain.Entities.Sector> sectorRepository,
         ITechnologyRepository technologyRepository,
         IBandRepository bandRepository,
         INetworkRepository networkRepository,
@@ -61,6 +63,7 @@ public class ProcessCellJob : IProcessCellJob
         _serviceProviderRepository = serviceProviderRepository;
         _generationBandRepository = generationBandRepository;
         _cellSectorRepository = cellSectorRepository;
+        _sectorRepository = sectorRepository;
         _technologyRepository = technologyRepository;
         _bandRepository = bandRepository;
         _networkRepository = networkRepository;
@@ -129,6 +132,7 @@ public class ProcessCellJob : IProcessCellJob
                 var cellSectorList = new List<Domain.Entities.CellSector>();
                 var cellularToAdd = new List<Domain.Entities.Cellular>();
                 var cellularToDelete = new List<Domain.Entities.Cellular>();
+                var sectorsToAdd = new List<Domain.Entities.Sector>();
                 var cellSectorsCreatedForCellId = new Dictionary<Guid, List<Guid>>();
                 var networkCache = new Dictionary<string, Guid>();
                 var networksToAdd = new List<Domain.Aggregates.Network>();
@@ -712,7 +716,77 @@ public class ProcessCellJob : IProcessCellJob
                     _logger.LogInformation("{Count} cellular records deleted successfully (batched).", cellularToDelete.Count);
                 }
 
-                // --- Step 8: Final File Status Update ---
+                // --- Step 8: Create Sector entities for new CellSectors ---
+                _logger.LogInformation("Creating Sector entities for newly created CellSectors...");
+
+                // Get unique network IDs from cellular records to create sectors
+                var cellularNetworkMapping = new Dictionary<Guid, HashSet<Guid>>();
+                
+                foreach (var cellular in cellularToAdd)
+                {
+                    if (!cellularNetworkMapping.ContainsKey(cellular.CellSectorId))
+                        cellularNetworkMapping[cellular.CellSectorId] = new HashSet<Guid>();
+                    
+                    cellularNetworkMapping[cellular.CellSectorId].Add(cellular.NetworkId);
+                }
+
+                // Create Sector entities for each CellSector + Network combination
+                foreach (var cellSector in cellSectorList)
+                {
+                    if (cellularNetworkMapping.TryGetValue(cellSector.Id, out var networkIds))
+                    {
+                        foreach (var networkId in networkIds)
+                        {
+                            // Check if sector already exists to avoid duplicates
+                            var existingSector = await _sectorRepository
+                                .Query(s => s.CellSectorId == cellSector.Id && s.NetworkId == networkId)
+                                .FirstOrDefaultAsync(token);
+
+                            if (existingSector == null)
+                            {
+                                var sector = new Domain.Entities.Sector
+                                {
+                                    CellSectorId = cellSector.Id,
+                                    NetworkId = networkId,
+                                    AntennaType = cellSector.AntennaType,
+                                    TxAntennaHeight = cellSector.AntennaHeight,
+                                    TxAzimuth = cellSector.Azimuth,
+                                    TxBeamTilt = cellSector.BeamTilt,
+                                    // Set RX values same as TX initially (can be updated later)
+                                    RxAntennaHeight = cellSector.AntennaHeight,
+                                    RxAzimuth = cellSector.Azimuth,
+                                    RxBeamTilt = cellSector.BeamTilt,
+                                    IsRxEqualTx = true
+                                };
+
+                                sectorsToAdd.Add(sector);
+
+                                _logger.LogInformation(
+                                    "Marked Sector for creation: CellSectorId: {CellSectorId}, NetworkId: {NetworkId}, AntennaType: {AntennaType}",
+                                    cellSector.Id, networkId, cellSector.AntennaType);
+                            }
+                            else
+                            {
+                                _logger.LogInformation(
+                                    "Skipped Sector creation (already exists): CellSectorId: {CellSectorId}, NetworkId: {NetworkId}",
+                                    cellSector.Id, networkId);
+                            }
+                        }
+                    }
+                }
+
+                // Batch add new sectors
+                if (sectorsToAdd.Count != 0)
+                {
+                    await _sectorRepository.BulkInsertAsync(sectorsToAdd, token);
+                    _logger.LogInformation("{Count} sector entities saved successfully (batched).", sectorsToAdd.Count);
+                }
+                else
+                {
+                    _logger.LogInformation("No sector entities to add.");
+                }
+
+                // --- Step 9: Final File Status Update ---
                 file.Status = FileStatusEnum.Success;
                 _fileRepository.Update(file);
                 await _fileRepository.SaveChangesAsync(token);
