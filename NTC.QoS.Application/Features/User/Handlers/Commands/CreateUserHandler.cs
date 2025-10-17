@@ -36,17 +36,17 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         Domain.Entities.Role? defaultRole = null;
         if (request.User.RoleId == Guid.Empty)
         {
-            defaultRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Name == "user"), cancellationToken);
+            defaultRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Key == "user"), cancellationToken);
 
             if (defaultRole == null)
             {
                 return new ApiResponse<UserDto>
                 {
                     Succeeded = false,
-                    Message = "Default user role not found.",
+                    Message = "Default user role key not found.",
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "Role", ["Default 'user' role not found in database"] }
+                        { "Role", ["Default 'user' role key not found in database"] }
                     }
                 };
             }
@@ -63,10 +63,10 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
                 return new ApiResponse<UserDto>
                 {
                     Succeeded = false,
-                    Message = "Default public organization not found.",
+                    Message = "Default public organization name not found.",
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "Organization", ["Default 'public' organization not found in database"] }
+                        { "Organization", ["Default 'public' organization name not found in database"] }
                     }
                 };
             }
