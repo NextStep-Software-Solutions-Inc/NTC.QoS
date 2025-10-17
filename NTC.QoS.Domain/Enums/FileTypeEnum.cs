@@ -7,5 +7,6 @@ public enum FileTypeEnum
     NAP = 3,
     Cell = 4,
     CellularCoverage = 5,
-    Unknown = 6,
+    WirelessValidation = 6,
+    Unknown = 7,
 }

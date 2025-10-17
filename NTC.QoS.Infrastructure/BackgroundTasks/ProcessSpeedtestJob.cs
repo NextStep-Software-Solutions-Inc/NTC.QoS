@@ -20,6 +20,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly IRepository<ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.File> _fileRepository;
+    private readonly IBlobStorageService _blobStorageService;
 
 
     public ProcessSpeedtestJob(
@@ -27,7 +28,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         IRepository<Speedtest> speedtestRepository,
         IRepository<ServiceProvider> serviceProviderRepository,
         IRepository<Generation> generationRepository,
-        IRepository<Domain.Entities.File> fileRepository
+        IRepository<Domain.Entities.File> fileRepository,
+        IBlobStorageService blobStorageService
         )
     {
         _logger = logger;
@@ -35,25 +37,18 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _serviceProviderRepository = serviceProviderRepository;
         _generationRepository = generationRepository;
         _fileRepository = fileRepository;
+        _blobStorageService = blobStorageService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
         // --- Step 1: Initial File Status Update ---
-        var fileQuery = _fileRepository.Query(f => f.Id.Equals(parameters.Id));
-        var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
+        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
+            parameters.Id, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
-        if (file == null)
-        {
-            const string message = "File not found.";
-            _logger.LogError(message);
-            throw new InvalidOperationException(message);
-        }
-
-        file.Status = FileStatusEnum.Processing;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(token);
+        await ProcessingJobHelper.SetFileProcessingStatusAsync(
+            file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
         try
         {
@@ -82,8 +77,15 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 .ToListAsync(token);
 
             var technologyCache = generationCache
-                .SelectMany(g => g.Technologies.Select(t => new { t.Standard, g.Id }))
-                .ToDictionary(x => CacheKeyGenerator.GenerateGenerationCacheKey(x.Standard), x => x.Id);
+                .SelectMany(g => g.Technologies.Select(t => new {
+                    t.Standard,
+                    TechnologyId = t.Id,
+                    GenerationId = g.Id
+                }))
+                .ToDictionary(
+                    x => CacheKeyGenerator.GenerateTechnologyCacheKey(x.Standard),
+                    x => new { x.TechnologyId, x.GenerationId }
+                );
 
             _logger.LogInformation("Pre-loaded {Count} generations and technologies.", technologyCache.Count);
 
@@ -94,6 +96,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 .Select(s => new { 
                     s.ServiceProviderId, 
                     s.GenerationId, 
+                    s.TechnologyId,
                     s.DateTime, 
                     s.UploadSpeed,
                     s.DownloadSpeed,
@@ -112,11 +115,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 var longitude = speedtest.Location?.Coordinate?.X ?? 0;
                 var latitude = speedtest.Location?.Coordinate?.Y ?? 0;
                 
-                // Simplified duplicate key with core fields only
+                // Simplified duplicate key with core fields only 
                 var signalQuality = string.IsNullOrEmpty(speedtest.SignalQuality) ? "NULL" : speedtest.SignalQuality;
                 var rssi = speedtest.RSSI?.ToString() ?? "NULL";
-                
-                var key = $"{speedtest.ServiceProviderId}_{speedtest.GenerationId}_{speedtest.DateTime:yyyy-MM-dd HH:mm:ss}_{speedtest.UploadSpeed}_{speedtest.DownloadSpeed}_{rssi}_{signalQuality}_{longitude:F6}_{latitude:F6}";
+                var technologyId = speedtest.TechnologyId?.ToString() ?? "NULL";
+
+                var key = $"{speedtest.ServiceProviderId}_{speedtest.GenerationId}_{technologyId}_{speedtest.DateTime:yyyy-MM-dd HH:mm:ss}_{speedtest.UploadSpeed}_{speedtest.DownloadSpeed}_{rssi}_{signalQuality}_{longitude:F6}_{latitude:F6}";
                 
                 // Debug logging for pre-loaded keys
                 _logger.LogDebug("Pre-loaded duplicate key: {DuplicateKey}", key);
@@ -130,47 +134,69 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             _logger.LogInformation("Pre-loaded {Count} existing speedtest records ({DuplicateCount} duplicates handled, {TotalSpeedtests} total).",
                 speedtestLookup.Count, duplicateCount, existingSpeedtests.Count);
 
-            // Step 4: Process the Excel File
-            using var fileStream = new FileStream(parameters.Path, FileMode.Open, FileAccess.Read);
-            _logger.LogInformation("Processing file: {FilePath}", parameters.Path);
-
-            fileStream.Position = 0;
-            _logger.LogInformation("Excel processing started");
-
-            var speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
-
-            if (speedtestRecords.Count is 0)
+            // Step 4: Download file from blob storage or access local file
+            Stream fileStream;
+            try
             {
-                _logger.LogInformation("The Excel is empty.");
-                file.Status = FileStatusEnum.Success;
+                fileStream = await ProcessingJobHelper.GetFileStreamAsync(
+                    parameters.Path, _blobStorageService, _logger, FileTypeEnum.Speedtest, token);
             }
-            else
+            catch (Exception ex)
             {
-                // Step 5: Process Each Record
+                await ProcessingJobHelper.HandleFileAccessErrorAsync(
+                    ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
+                return;
+            }
+
+            // Step 5: Process the Excel File
+            using (fileStream)
+            {
+                _logger.LogInformation("Processing Speedtest file downloaded from blob storage");
+                
+                fileStream.Position = 0;
+                _logger.LogInformation("Excel processing started");
+
+                var speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
+
+                if (speedtestRecords.Count is 0)
+                {
+                    _logger.LogInformation("The Excel is empty.");
+                    await ProcessingJobHelper.SetFileSuccessStatusAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
+                    return;
+                }
+
+                // Step 6: Process Each Record
                 var duplicatesSkipped = 0;
                 
                 foreach (var record in speedtestRecords)
                 {
-                    ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}");
+                    ProcessingJobHelper.ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}", _logger);
 
                     var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                     if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                     {
                         _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
-                        await TerminateProcess(file, token);
+                        await ProcessingJobHelper.TerminateProcessAsync(
+                            file, _fileRepository, _logger, FileTypeEnum.Speedtest, 
+                            $"Service Provider '{record.Provider}' not found in database", token);
                         return;
                     }
 
-                    var generationKey = CacheKeyGenerator.GenerateGenerationCacheKey(record.NetworkType);
-                    if (!technologyCache.TryGetValue(generationKey, out var generationId))
+                    var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
+                    if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
                     {
-                        _logger.LogWarning("Generation not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
-                        await TerminateProcess(file, token);
+                        _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
+                        await ProcessingJobHelper.TerminateProcessAsync(
+                            file, _fileRepository, _logger, FileTypeEnum.Speedtest, 
+                            $"Technology '{record.NetworkType}' not found in database", token);
                         return;
                     }
+                    var technologyId = technologyInfo.TechnologyId;
+                    var generationId = technologyInfo.GenerationId;
 
                     // Check if all valid Ids are valid
-                    if (serviceProviderId != Guid.Empty && generationId != Guid.Empty)
+                    if (serviceProviderId != Guid.Empty && generationId != Guid.Empty && technologyId != Guid.Empty)
                     {
                         Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
 
@@ -178,7 +204,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                         var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
                         var signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
 
-                        var duplicateKey = $"{serviceProviderId}_{generationId}_{record.Timestamp.ToUniversalTime():yyyy-MM-dd HH:mm:ss}_{record.Upload}_{record.Download}_{record.RSSI}_{signalQuality ?? "NULL"}_{record.Longitude:F6}_{record.Latitude:F6}";
+                        var duplicateKey = $"{serviceProviderId}_{generationId}_{technologyId}_{record.Timestamp.ToUniversalTime():yyyy-MM-dd HH:mm:ss}_{record.Upload}_{record.Download}_{record.RSSI}_{signalQuality ?? "NULL"}_{record.Longitude:F6}_{record.Latitude:F6}";
 
                         // Debug logging for duplicate check
                         if (_logger.IsEnabled(LogLevel.Debug))
@@ -195,6 +221,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 Address = $"{record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}",
                                 ServiceProviderId = serviceProviderId,
                                 GenerationId = generationId,
+                                TechnologyId = technologyId,
                                 DateTime = record.Timestamp.ToUniversalTime(),
                                 UploadSpeed = record.Upload,
                                 DownloadSpeed = record.Download,
@@ -226,7 +253,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     }
                 }
 
-                // Step 6: Batch Insert New Records
+                // Step 7: Batch Insert New Records
                 if (speedtestsToAdd.Count != 0)
                 {
                     _speedtestRepository.AddRange(speedtestsToAdd);
@@ -243,39 +270,19 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     _logger.LogInformation("Skipped {DuplicateCount} duplicate speedtest records.", duplicatesSkipped);
                 }
 
-                file.Status = FileStatusEnum.Success;
+                await ProcessingJobHelper.SetFileSuccessStatusAsync(
+                    file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
+
+                _logger.LogInformation("Processing completed successfully.");
             }
-
-            _fileRepository.Update(file);
-            await _fileRepository.SaveChangesAsync(token);
-
-            _logger.LogInformation("Processing completed successfully.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred during speedtest processing: {ErrorMessage}", ex.Message);
-            await TerminateProcess(file, token);
+            await ProcessingJobHelper.TerminateProcessAsync(
+                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                $"Error occurred during processing: {ex.Message}", token);
             throw;
         }
-    }
-
-    void ReportProgress(string message)
-    {
-        _logger.LogInformation(message);
-    }
-
-    private async Task TerminateProcess(Domain.Entities.File file, CancellationToken cancellationToken)
-    {
-        file.Status = FileStatusEnum.Failed;
-        _fileRepository.Update(file);
-        await _fileRepository.SaveChangesAsync(cancellationToken);
-        
-        _logger.LogError("=== SPEEDTEST PROCESSING TERMINATED DUE TO MISSING DEPENDENCIES ===");
-        _logger.LogError("File processing has been terminated because required database entities are missing.");
-        _logger.LogError("Please ensure the following entities exist in your database before re-uploading the file:");
-        _logger.LogError("1. SERVICE PROVIDERS: All providers mentioned in your Excel file must exist as 'Wireless' service providers");
-        _logger.LogError("2. GENERATIONS: All network types (2G, 3G, 4G, 5G) must exist with their corresponding technologies");
-        _logger.LogError("3. TECHNOLOGIES: All technologies mentioned in your Excel file must exist in the Technologies table");
-        _logger.LogError("======================================================");
     }
 }

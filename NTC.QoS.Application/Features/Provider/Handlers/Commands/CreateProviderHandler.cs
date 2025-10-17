@@ -10,14 +10,13 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
 {
     public async Task<ApiResponse<ProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
     {
-        var providerQuery =  repository.QueryWithIgnoreQueryFilters(p => p.Name == request.Provider.Name);
-        var provider = await repository.FirstOrDefaultAsync(providerQuery, cancellationToken);
+        var providerQueryAll = repository.QueryWithIgnoreQueryFilters(p => p.Name == request.Provider.Name);
+        var provider = await repository.FirstOrDefaultAsync(providerQueryAll, cancellationToken);
 
-        if (provider is not null && provider.IsDeleted) 
+        if (provider is not null && provider.IsDeleted)
         {
-            provider.IsDeleted = false;
-            repository.Update(provider);
-            await repository.SaveChangesAsync(cancellationToken);
+            var restoreQuery = repository.QueryWithIgnoreQueryFilters(p => p.Id == provider.Id && p.IsDeleted);
+            await repository.RestoreAsync(restoreQuery, cancellationToken);
 
             return new ApiResponse<ProviderDto>
             {
