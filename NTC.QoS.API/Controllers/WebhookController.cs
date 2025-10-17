@@ -45,25 +45,17 @@ public class WebhookController(IMediator mediator) : ControllerBase
             return BadRequest("Invalid webhook payload structure");
         }
 
-        var response = new Domain.Models.DTOs.ApiResponse<UserDto>();
-        switch (payload.Type)
+        var response = payload.Type switch
         {
-            case "user.created":
-                response = await HandleUserCreated(payload.Data);
-                break;
-            case "user.updated":
-                response = await HandleUserUpdated(payload.Data);
-                break;
-            default:
-                // Ignore other events
-                response = new Domain.Models.DTOs.ApiResponse<UserDto>
-                {
-                    Succeeded = false,
-                    Message = "No action taken for this event type."
-                };
-                break;
-        }
-
+            "user.created" => await HandleUserCreated(payload.Data),
+            "user.updated" => await HandleUserUpdated(payload.Data),
+            _ => new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "No action taken for this event type."
+            },// Ignore other events
+        };
+        
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
