@@ -101,6 +101,14 @@ public class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
         {
+            // Include XML documentation
+            var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath);
+            }
+
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name = "Authorization",
@@ -110,6 +118,16 @@ public class Program
                 BearerFormat = "JWT",
                 Scheme = "Bearer"
             });
+
+            options.AddSecurityDefinition("WebhookSignature", new OpenApiSecurityScheme
+            {
+                Name = "Webhook Signature",
+                Description = "Clerk webhook signature verification (handled automatically)",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.ApiKey,
+                Scheme = "Webhook"
+            });
+
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
@@ -124,12 +142,13 @@ public class Program
                     Array.Empty<string>()
                 }
             });
-            
+
             // Custom operation filter for file upload endpoints
             options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
             options.OperationFilter<CamelCaseOperationFilter>();
+            options.OperationFilter<ClerkWebhookOperationFilter>();
         });
 
         builder.Services.AddApplication(builder.Configuration);
