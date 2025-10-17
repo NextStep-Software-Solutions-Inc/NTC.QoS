@@ -40,6 +40,11 @@ public class WebhookController(IMediator mediator) : ControllerBase
             return BadRequest("Payload not available");
         }
 
+        if (payload.Type is null || payload.Data is null)
+        {
+            return BadRequest("Invalid webhook payload structure");
+        }
+
         switch (payload.Type)
         {
             case "user.created":
@@ -58,14 +63,20 @@ public class WebhookController(IMediator mediator) : ControllerBase
 
     private async Task HandleUserCreated(ClerkUserData userData)
     {
+        if (userData.Id is null || userData.FirstName is null || userData.LastName is null)
+        {
+            // Log or handle invalid user data
+            return;
+        }
+
         var createRequest = new CreateUserRequest(new CreateUserDto
         {
             AuthUserId = userData.Id,
-            Email = userData.EmailAddresses.FirstOrDefault()?.EmailAddress ?? "",
+            Email = userData.EmailAddresses?.FirstOrDefault()?.EmailAddress ?? "",
             FirstName = userData.FirstName,
             LastName = userData.LastName,
             RoleId = Guid.Empty,
-            OrganizationId = Guid.Empty 
+            OrganizationId = Guid.Empty
         });
 
         await _mediator.Send(createRequest);
@@ -73,6 +84,12 @@ public class WebhookController(IMediator mediator) : ControllerBase
 
     private async Task HandleUserUpdated(ClerkUserData userData)
     {
+        if (userData.Id is null)
+        {
+            // Log or handle invalid user data
+            return;
+        }
+
         // Find user by AuthUserId
         var userQuery = new GetUserByAuthUserIdRequest(userData.Id);
         var userResponse = await _mediator.Send(userQuery);
@@ -86,9 +103,9 @@ public class WebhookController(IMediator mediator) : ControllerBase
         var updateRequest = new UpdateUserByIdRequest(userResponse.Data.Id, new UpdateUserDto
         {
             AuthUserId = userData.Id,
-            FirstName = userData.FirstName,
-            LastName = userData.LastName,
-            Email = userData.EmailAddresses.FirstOrDefault()?.EmailAddress ?? ""
+            FirstName = userData.FirstName ?? "",
+            LastName = userData.LastName ?? "",
+            Email = userData.EmailAddresses?.FirstOrDefault()?.EmailAddress ?? ""
         });
 
         await _mediator.Send(updateRequest);
