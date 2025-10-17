@@ -716,74 +716,93 @@ public class ProcessCellJob : IProcessCellJob
                     _logger.LogInformation("{Count} cellular records deleted successfully (batched).", cellularToDelete.Count);
                 }
 
-                // --- Step 8: Create Sector entities for new CellSectors ---
-                _logger.LogInformation("Creating Sector entities for newly created CellSectors...");
+                // --- Step 8: Create Sector entities for new CellSectors (1:1 RATIO APPROACH) ---
+                _logger.LogInformation("Creating Sector entities for newly created CellSectors (1:1 ratio)...");
 
-                // Get unique network IDs from cellular records to create sectors
-                var cellularNetworkMapping = new Dictionary<Guid, HashSet<Guid>>();
+                // Step 8a: Create base sectors (1:1 ratio with CellSectors)
+                var baseSectorsToAdd = new List<Domain.Entities.Sector>();
                 
-                foreach (var cellular in cellularToAdd)
-                {
-                    if (!cellularNetworkMapping.ContainsKey(cellular.CellSectorId))
-                        cellularNetworkMapping[cellular.CellSectorId] = new HashSet<Guid>();
-                    
-                    cellularNetworkMapping[cellular.CellSectorId].Add(cellular.NetworkId);
-                }
-
-                // Create Sector entities for each CellSector + Network combination
                 foreach (var cellSector in cellSectorList)
                 {
-                    if (cellularNetworkMapping.TryGetValue(cellSector.Id, out var networkIds))
+                    // Create one base sector per CellSector
+                    var baseSector = new Domain.Entities.Sector
                     {
-                        foreach (var networkId in networkIds)
+                        CellSectorId = cellSector.Id,
+                        NetworkId = Guid.Empty, // Will be updated later with the primary network
+                        AntennaType = cellSector.AntennaType,
+                        TxAntennaHeight = cellSector.AntennaHeight,
+                        TxAzimuth = cellSector.Azimuth,
+                        TxBeamTilt = cellSector.BeamTilt,
+                        RxAntennaHeight = cellSector.AntennaHeight,
+                        RxAzimuth = cellSector.Azimuth,
+                        RxBeamTilt = cellSector.BeamTilt,
+                        IsRxEqualTx = true
+                    };
+                    
+                    baseSectorsToAdd.Add(baseSector);
+                }
+
+                // Check for existing sectors to avoid duplicates
+                if (baseSectorsToAdd.Count > 0)
+                {
+                    var cellSectorIds = baseSectorsToAdd.Select(s => s.CellSectorId).ToList();
+                    
+                    var existingSectors = await _sectorRepository
+                        .Query(s => cellSectorIds.Contains(s.CellSectorId))
+                        .Select(s => s.CellSectorId)
+                        .ToListAsync(token);
+
+                    var existingSet = existingSectors.ToHashSet();
+
+                    // Filter out CellSectors that already have sectors
+                    var finalBaseSectorsToAdd = baseSectorsToAdd
+                        .Where(s => !existingSet.Contains(s.CellSectorId))
+                        .ToList();
+
+                    if (finalBaseSectorsToAdd.Count > 0)
+                    {
+                        // Step 8b: Assign primary network to each base sector
+                        foreach (var baseSector in finalBaseSectorsToAdd)
                         {
-                            // Check if sector already exists to avoid duplicates
-                            var existingSector = await _sectorRepository
-                                .Query(s => s.CellSectorId == cellSector.Id && s.NetworkId == networkId)
-                                .FirstOrDefaultAsync(token);
-
-                            if (existingSector == null)
+                            // Find the first (primary) network for this CellSector from cellular records
+                            var primaryCellular = cellularToAdd
+                                .FirstOrDefault(c => c.CellSectorId == baseSector.CellSectorId);
+                            
+                            if (primaryCellular != null)
                             {
-                                var sector = new Domain.Entities.Sector
-                                {
-                                    CellSectorId = cellSector.Id,
-                                    NetworkId = networkId,
-                                    AntennaType = cellSector.AntennaType,
-                                    TxAntennaHeight = cellSector.AntennaHeight,
-                                    TxAzimuth = cellSector.Azimuth,
-                                    TxBeamTilt = cellSector.BeamTilt,
-                                    // Set RX values same as TX initially (can be updated later)
-                                    RxAntennaHeight = cellSector.AntennaHeight,
-                                    RxAzimuth = cellSector.Azimuth,
-                                    RxBeamTilt = cellSector.BeamTilt,
-                                    IsRxEqualTx = true
-                                };
-
-                                sectorsToAdd.Add(sector);
-
-                                _logger.LogInformation(
-                                    "Marked Sector for creation: CellSectorId: {CellSectorId}, NetworkId: {NetworkId}, AntennaType: {AntennaType}",
-                                    cellSector.Id, networkId, cellSector.AntennaType);
+                                baseSector.NetworkId = primaryCellular.NetworkId;
+                                
+                                _logger.LogDebug("Assigned primary NetworkId {NetworkId} to Sector for CellSectorId {CellSectorId}", 
+                                    primaryCellular.NetworkId, baseSector.CellSectorId);
                             }
                             else
                             {
-                                _logger.LogInformation(
-                                    "Skipped Sector creation (already exists): CellSectorId: {CellSectorId}, NetworkId: {NetworkId}",
-                                    cellSector.Id, networkId);
+                                _logger.LogWarning("No cellular record found for CellSectorId {CellSectorId}. Sector will be created with empty NetworkId.", 
+                                    baseSector.CellSectorId);
                             }
                         }
-                    }
-                }
 
-                // Batch add new sectors
-                if (sectorsToAdd.Count != 0)
-                {
-                    await _sectorRepository.BulkInsertAsync(sectorsToAdd, token);
-                    _logger.LogInformation("{Count} sector entities saved successfully (batched).", sectorsToAdd.Count);
+                        // Bulk insert the base sectors
+                        await _sectorRepository.BulkInsertAsync(finalBaseSectorsToAdd, token);
+                        _logger.LogInformation("{Count} sector entities saved successfully (1:1 ratio with CellSectors).", finalBaseSectorsToAdd.Count);
+                        
+                        // Log the perfect 1:1 ratio
+                        _logger.LogInformation("Sector creation summary: {CellSectorCount} CellSectors resulted in {SectorCount} Sectors (perfect 1:1 ratio)", 
+                            cellSectorList.Count, finalBaseSectorsToAdd.Count);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("No new sectors to add - all CellSectors already have corresponding sectors.");
+                    }
+
+                    if (existingSectors.Count > 0)
+                    {
+                        _logger.LogInformation("Skipped {ExistingCount} sectors that already existed in database", existingSectors.Count);
+                    }
                 }
                 else
                 {
-                    _logger.LogInformation("No sector entities to add.");
+                    _logger.LogInformation("No sector entities to add (no CellSectors created).");
                 }
 
                 // --- Step 9: Final File Status Update ---
