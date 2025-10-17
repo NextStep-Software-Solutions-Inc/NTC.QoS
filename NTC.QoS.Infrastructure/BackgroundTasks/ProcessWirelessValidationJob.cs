@@ -104,7 +104,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     // OPTIMIZED: Like Speedtest - preload only essential fields for duplicate checking
     private async Task<ReferenceData> PreloadReferenceData(List<WirelessValidationRecord> records, CancellationToken token)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
         _logger.LogInformation("Preloading reference data with optimized approach...");
 
         // Preload wireless service providers
@@ -403,7 +403,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData,
         ProcessingResults results, CancellationToken token)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
         var totalBatches = (int)Math.Ceiling((double)records.Count / ProcessingBatchSize);
         var validationsToAdd = new List<WirelessValidation>();
 
