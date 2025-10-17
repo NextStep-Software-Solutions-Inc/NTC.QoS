@@ -56,7 +56,7 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         Domain.Entities.Organization? defaultOrg = null;
         if (request.User.OrganizationId == Guid.Empty)
         {
-            defaultOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Name == "public"), cancellationToken);
+            defaultOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Name == "Public"), cancellationToken);
 
             if (defaultOrg == null)
             {
