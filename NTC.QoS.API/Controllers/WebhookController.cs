@@ -40,57 +40,81 @@ public class WebhookController(IMediator mediator) : ControllerBase
             return BadRequest("Payload not available");
         }
 
-        switch (payload.Type)
+        if (payload.Type is null || payload.Data is null)
         {
-            case "user.created":
-                await HandleUserCreated(payload.Data);
-                break;
-            case "user.updated":
-                await HandleUserUpdated(payload.Data);
-                break;
-            default:
-                // Ignore other events
-                break;
+            return BadRequest("Invalid webhook payload structure");
         }
 
-        return Ok();
+        var response = payload.Type switch
+        {
+            "user.created" => await HandleUserCreated(payload.Data),
+            "user.updated" => await HandleUserUpdated(payload.Data),
+            _ => new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "No action taken for this event type."
+            },// Ignore other events
+        };
+        
+        return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
-    private async Task HandleUserCreated(ClerkUserData userData)
+    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleUserCreated(ClerkUserData userData)
     {
+        if (userData.Id is null || userData.FirstName is null || userData.LastName is null)
+        {
+            // Log or handle invalid user data
+            return new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Invalid user data in webhook payload."
+            };
+        }
+
         var createRequest = new CreateUserRequest(new CreateUserDto
         {
             AuthUserId = userData.Id,
-            Email = userData.EmailAddresses.FirstOrDefault()?.EmailAddress ?? "",
+            Email = userData.EmailAddresses?.FirstOrDefault()?.EmailAddress ?? "",
             FirstName = userData.FirstName,
             LastName = userData.LastName,
             RoleId = Guid.Empty,
-            OrganizationId = Guid.Empty 
+            OrganizationId = Guid.Empty
         });
 
-        await _mediator.Send(createRequest);
+        return await _mediator.Send(createRequest);
+
     }
 
-    private async Task HandleUserUpdated(ClerkUserData userData)
+    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleUserUpdated(ClerkUserData userData)
     {
+        if (userData.Id is null)
+        {
+            // Log or handle invalid user data
+            return new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Invalid user data in webhook payload."
+            };
+        }
+
         // Find user by AuthUserId
         var userQuery = new GetUserByAuthUserIdRequest(userData.Id);
         var userResponse = await _mediator.Send(userQuery);
         if (!userResponse.Succeeded || userResponse.Data == null)
         {
             // User not found, perhaps create
-            await HandleUserCreated(userData);
-            return;
+            return await HandleUserCreated(userData);
+            
         }
 
         var updateRequest = new UpdateUserByIdRequest(userResponse.Data.Id, new UpdateUserDto
         {
             AuthUserId = userData.Id,
-            FirstName = userData.FirstName,
-            LastName = userData.LastName,
-            Email = userData.EmailAddresses.FirstOrDefault()?.EmailAddress ?? ""
+            FirstName = userData.FirstName ?? "",
+            LastName = userData.LastName ?? "",
+            Email = userData.EmailAddresses?.FirstOrDefault()?.EmailAddress ?? ""
         });
 
-        await _mediator.Send(updateRequest);
+        return await _mediator.Send(updateRequest);
     }
 }

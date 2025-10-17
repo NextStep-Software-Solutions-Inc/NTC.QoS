@@ -30,7 +30,7 @@ public static class OrganizationSeeder
         {
             new Organization
             {
-                Name = "National",
+                Name = "national",
                 Description = "National level organization",
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System",
@@ -40,7 +40,7 @@ public static class OrganizationSeeder
             },
             new Organization
             {
-                Name = "Regional",
+                Name = "regional",
                 Description = "Regional level organization",
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System",
@@ -50,7 +50,7 @@ public static class OrganizationSeeder
             },
             new Organization
             {
-                Name = "Public",
+                Name = "public",
                 Description = "Public organization for general access",
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System",
