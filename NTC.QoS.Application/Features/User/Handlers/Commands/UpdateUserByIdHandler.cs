@@ -96,7 +96,9 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                 }
             };
         }
-
+        user.Email = request.User.Email ?? user.Email;
+        user.FirstName = request.User.FirstName ?? user.FirstName;
+        user.LastName = request.User.LastName ?? user.LastName;
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
