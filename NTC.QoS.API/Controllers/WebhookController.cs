@@ -56,6 +56,11 @@ public class WebhookController(IMediator mediator) : ControllerBase
                 break;
             default:
                 // Ignore other events
+                response = new Domain.Models.DTOs.ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "No action taken for this event type."
+                };
                 break;
         }
 
