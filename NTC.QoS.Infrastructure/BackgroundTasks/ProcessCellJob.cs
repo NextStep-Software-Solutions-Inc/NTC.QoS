@@ -468,11 +468,21 @@ public class ProcessCellJob : IProcessCellJob
                                 g => g.First().NetworkId, // Use first (primary) network
                                 token);
 
+                        var skippedSectorsCount = 0;
                         foreach (var cellSector in cellSectorsNeedingSectors)
                         {
+                            // Get NetworkId from cellular records, default to Guid.Empty if not found
                             var networkId = cellularForSectors.TryGetValue(cellSector.Id, out var nId) 
                                 ? nId 
                                 : Guid.Empty;
+
+                            if (networkId == Guid.Empty)
+                            {
+                                _logger.LogWarning("Skipping Sector creation for CellSector {CellSectorId} - No valid Network found. " +
+                                    "This may indicate missing SystemType configuration.", cellSector.Id);
+                                skippedSectorsCount++;
+                                continue;
+                            }
 
                             var baseSector = new Domain.Entities.Sector
                             {
@@ -491,10 +501,19 @@ public class ProcessCellJob : IProcessCellJob
                             sectorsToAdd.Add(baseSector);
                         }
 
-                        await _sectorRepository.BulkInsertAsync(sectorsToAdd, token);
-                        processingResults.SectorsCreated = sectorsToAdd.Count;
-                        _logger.LogInformation("Created {Count:N0} sector entities (1:1 ratio with CellSectors).", 
-                            sectorsToAdd.Count);
+                        if (sectorsToAdd.Count > 0)
+                        {
+                            await _sectorRepository.BulkInsertAsync(sectorsToAdd, token);
+                            processingResults.SectorsCreated = sectorsToAdd.Count;
+                            _logger.LogInformation("Created {Count:N0} sector entities (1:1 ratio with CellSectors).", 
+                                sectorsToAdd.Count);
+                        }
+
+                        if (skippedSectorsCount > 0)
+                        {
+                            _logger.LogWarning("Skipped {Count:N0} sectors due to missing or invalid NetworkId. " +
+                                "Please ensure all required SystemTypes are configured in the database.", skippedSectorsCount);
+                        }
                     }
                 }
 
@@ -841,6 +860,8 @@ public class ProcessCellJob : IProcessCellJob
 
                     if (networkId == Guid.Empty)
                     {
+                        _logger.LogWarning("Skipping cellular record at row {Row} due to missing network (Technology: {Technology}, Band: {Band}). " +
+                            "This may indicate a missing SystemType configuration.", rowNumber, propInfo.Technology, propInfo.Band);
                         continue;
                     }
 
