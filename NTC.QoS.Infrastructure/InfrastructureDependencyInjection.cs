@@ -8,7 +8,6 @@ using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
-using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure;
 
@@ -57,6 +56,23 @@ public static class InfrastructureDependencyInjection
 
         try
         {
+            // Try to acquire advisory lock to coordinate migrations across multiple instances
+            logger.LogInformation("Attempting to acquire advisory lock {LockKey} for migrations...", advisoryLockKey);
+            lockAcquired = await TryAcquireAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
+
+            if (!lockAcquired)
+            {
+                logger.LogWarning("Could not acquire advisory lock {LockKey}. Another instance may be running migrations. Skipping migration and seeding.", advisoryLockKey);
+                return;
+            }
+
+            logger.LogInformation("Advisory lock {LockKey} acquired successfully", advisoryLockKey);
+
+            // Apply migrations
+            logger.LogInformation("Starting database migrations...");
+            await dbContext.Database.MigrateAsync(cancellationToken);
+            logger.LogInformation("Database migrations completed successfully");
+
             // Seed initial data
             logger.LogInformation("Starting data seeding process...");
             await SeedInitialDataAsync(dbContext, services, configuration, logger, cancellationToken);
@@ -82,15 +98,49 @@ public static class InfrastructureDependencyInjection
     }
 
     /// <summary>
+    /// Attempts to acquire PostgreSQL advisory lock for migration coordination
+    /// </summary>
+    /// <returns>True if lock was acquired, false if another instance holds the lock</returns>
+    private static async Task<bool> TryAcquireAdvisoryLockAsync(ApplicationDbContext dbContext, long advisoryLockKey, ILogger logger, CancellationToken cancellationToken)
+    {
+        try
+        {
+            logger.LogDebug("Executing pg_try_advisory_lock for key {LockKey}", advisoryLockKey);
+            
+            // pg_try_advisory_lock returns true if lock was acquired, false if already held
+            // We need to alias the result as "Value" for EF Core to map it correctly
+            // Using SingleAsync since we expect exactly one boolean result
+            var lockResult = await dbContext.Database
+                .SqlQueryRaw<bool>($"SELECT pg_try_advisory_lock({advisoryLockKey}) AS \"Value\"")
+                .SingleAsync(cancellationToken);
+
+            if (lockResult)
+            {
+                logger.LogDebug("Successfully acquired advisory lock {LockKey}", advisoryLockKey);
+            }
+            else
+            {
+                logger.LogDebug("Advisory lock {LockKey} is already held by another instance", advisoryLockKey);
+            }
+
+            return lockResult;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to acquire advisory lock {LockKey}. Proceeding without lock.", advisoryLockKey);
+            // If we can't acquire the lock due to an error, we should NOT proceed with migrations
+            // to avoid potential conflicts
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Seeds initial data in the correct order with error handling for each seeder
     /// </summary>
     private static async Task SeedInitialDataAsync(ApplicationDbContext dbContext, IServiceProvider serviceProvider, IConfiguration configuration, ILogger logger, CancellationToken cancellationToken)
     {
         var blobStorageService = serviceProvider.GetRequiredService<IBlobStorageService>();
         var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
-
-        // Apply migrations first
-        await dbContext.Database.MigrateAsync(cancellationToken);
 
         var seeders = new (string Name, Func<Task> SeedAction)[]
         {
