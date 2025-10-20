@@ -25,17 +25,6 @@ public static class InfrastructureDependencyInjection
         // Register logging first
         services.AddLogging();
 
-        // Register ClerkUserService for user management
-        services.AddHttpClient<IClerkUserService, ClerkUserService>(client =>
-        {
-            // BaseAddress and DefaultRequestHeaders should ideally be set here
-            // to ensure the HttpClient instance injected into ClerkService is pre-configured.
-            // This also ensures that the HttpClient is correctly managed by HttpClientFactory.
-            client.BaseAddress = new Uri("https://api.clerk.com/v1/");
-            // The API key will be added in the ClerkUserService constructor as it depends on IConfiguration.
-            // For a more robust solution, consider passing Clerk API settings via options pattern.
-        });
-
         // Register services in logical groups
         services.AddDatabaseServices(configuration);
         services.AddHangfireServices(configuration);
