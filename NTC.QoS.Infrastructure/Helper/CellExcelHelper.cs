@@ -7,7 +7,10 @@ namespace NTC.QoS.Infrastructure.Helper;
 
 public class CellExcelHelper
 {
-    public static List<CellRecord> ParseExcelToCellRecords(FileStream stream)
+    /// <summary>
+    /// Parses Excel data from a Stream (supports both FileStream and blob storage streams)
+    /// </summary>
+    public static List<CellRecord> ParseExcelToCellRecords(Stream stream)
     {
         var result = new List<CellRecord>();
 
@@ -91,4 +94,12 @@ public class CellExcelHelper
         return result;
     }
 
+    /// <summary>
+    /// Legacy method for backward compatibility with FileStream
+    /// </summary>
+    [Obsolete("Use ParseExcelToCellRecords(Stream) instead. This method will be removed in a future version.")]
+    public static List<CellRecord> ParseExcelToCellRecords(FileStream stream)
+    {
+        return ParseExcelToCellRecords((Stream)stream);
+    }
 }

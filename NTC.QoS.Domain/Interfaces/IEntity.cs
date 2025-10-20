@@ -8,5 +8,5 @@ public interface IEntity
     string UpdatedBy { get; set; }
     bool IsDeleted { get; set; }
     DateTime? DeletedAt { get; set; } 
-    string DeletedBy { get; set; }
+    string? DeletedBy { get; set; } // made nullable to align with BaseEntity
 }

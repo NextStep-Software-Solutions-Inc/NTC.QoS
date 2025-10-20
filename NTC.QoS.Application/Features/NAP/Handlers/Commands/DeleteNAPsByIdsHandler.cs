@@ -8,12 +8,13 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Commands;
 public class DeleteNAPsByIdsHandler(IRepository<Domain.Aggregates.NAP> repository) : IRequestHandler<DeleteNAPsByIdsRequest, ApiResponse<bool>>
 {
     private readonly IRepository<Domain.Aggregates.NAP> _repository = repository;
+
     public async Task<ApiResponse<bool>> Handle(DeleteNAPsByIdsRequest request, CancellationToken cancellationToken)
     {
-        var NAPsToDeleteQuery = _repository.Query(n => request.Ids.Contains(n.Id));
-        var NAPsDeletedCount = await _repository.ExecuteDeleteAsync(NAPsToDeleteQuery, cancellationToken);
+        var napQuery = _repository.Query(n => request.Ids.Contains(n.Id));
+        var deletedCount = await _repository.ExecuteHardDeleteAsync(napQuery, cancellationToken);
 
-        if (NAPsDeletedCount is 0)
+        if (deletedCount is 0)
         {
             return new ApiResponse<bool>
             {
@@ -25,7 +26,7 @@ public class DeleteNAPsByIdsHandler(IRepository<Domain.Aggregates.NAP> repositor
         return new ApiResponse<bool>
         {
             Succeeded = true,
-            Message = $"{NAPsDeletedCount} NAPs deleted successfully."
+            Message = $"{deletedCount} NAPs deleted successfully."
         };
     }
 }

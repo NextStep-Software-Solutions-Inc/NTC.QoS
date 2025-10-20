@@ -57,7 +57,7 @@ public static class Permissions
     public const string UpdateRegions = "regions.update";
     public const string DeleteRegions = "regions.delete";
 
-    // Provice management permissions
+    // Province management permissions
     public const string ViewProvinces = "provinces.view";
     public const string CreateProvinces = "provinces.create";
     public const string UpdateProvinces = "provinces.update";

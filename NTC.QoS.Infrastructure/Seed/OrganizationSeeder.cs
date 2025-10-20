@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using EFCore.BulkExtensions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
@@ -7,10 +8,6 @@ namespace NTC.QoS.Infrastructure.Seed;
 
 public static class OrganizationSeeder
 {
-    // Fixed UUIDs for consistent organization seeding
-    public static readonly Guid NationalOrganizationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    public static readonly Guid RegionalOrganizationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    public static readonly Guid PublicOrganizationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     // Seeds organizations into the database with hardcoded data and fixed UUIDs.
     public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
@@ -28,12 +25,49 @@ public static class OrganizationSeeder
         logger.LogInformation("Checking if organizations need to be seeded...");
 
         // Check if base names already exist (using Name property instead of Key since Organization doesn't have Key)
-        var baseNames = new[] { "National", "Regional", "Public" };
-        var baseNamesExist = await context.Organizations.AsNoTracking().AnyAsync(o => baseNames.Contains(o.Name));
 
-        if (baseNamesExist)
+        var organizations = new[]
         {
-            logger.LogInformation("Base organization names already exist in database. Skipping organization seeding.");
+            new Organization
+            {
+                Name = "national",
+                Description = "National level organization",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Organization
+            {
+                Name = "regional",
+                Description = "Regional level organization",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Organization
+            {
+                Name = "public",
+                Description = "Public organization for general access",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            }
+        };
+
+
+        var baseNames = organizations.Select(o => o.Name).ToList();
+        var existingOrgs = await context.Organizations.AsNoTracking().Where(o => baseNames.Contains(o.Name)).ToListAsync();
+        var newOrgs = organizations.Where(o => !existingOrgs.Any(eo => eo.Name == o.Name)).ToList();
+
+        if (newOrgs.Count == 0)
+        {
+            logger.LogInformation("No new organizations to seed. All base organizations already exist.");
             return;
         }
 
@@ -41,45 +75,7 @@ public static class OrganizationSeeder
 
         try
         {
-            // Simple array to hold the organization data
-            var organizations = new[]
-            {
-                new Organization
-                {
-                    Id = NationalOrganizationId,
-                    Name = "National",
-                    Description = "National level organization",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Organization
-                {
-                    Id = RegionalOrganizationId,
-                    Name = "Regional",
-                    Description = "Regional level organization",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Organization
-                {
-                    Id = PublicOrganizationId,
-                    Name = "Public",
-                    Description = "Public organization for general access",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                }
-            };
-
-            await context.Organizations.AddRangeAsync(organizations);
+            await context.BulkInsertAsync(newOrgs);
             await context.SaveChangesAsync();
             logger.LogInformation("Successfully seeded {Count} organizations into the database.", organizations.Length);
         }
