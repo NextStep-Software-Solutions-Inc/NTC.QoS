@@ -9,6 +9,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Web;
@@ -76,6 +77,8 @@ public class ProcessCellJob : IProcessCellJob
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
+        var stopwatch = Stopwatch.StartNew();
+        stopwatch.Start();
         // --- Step 1: Initial File Status Update ---
         var fileQuery = _fileRepository.Query(f => f.Id.Equals(parameters.Id));
         var file = await _fileRepository.FirstOrDefaultAsync(fileQuery, token);
@@ -126,8 +129,12 @@ public class ProcessCellJob : IProcessCellJob
                 return;
             }
 
+            stopwatch.Stop();
+            _logger.LogInformation("File download completed in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
+
             using (fileStream)
             {
+                stopwatch.Start();
                 // --- Step 3: Initialize Collections ---
                 var cellSectorList = new List<Domain.Entities.CellSector>();
                 var cellularToAdd = new List<Domain.Entities.Cellular>();
@@ -141,20 +148,22 @@ public class ProcessCellJob : IProcessCellJob
                 // --- Step 4: Pre-load Static/Reference Data for Performance ---
                 _logger.LogInformation("Pre-loading reference data.");
 
-                // Pre-load all wireless service providers
-                var serviceProviderCache = await _serviceProviderRepository
-                    .Query(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
+                // Pre-load all wireless service providers with struct keys (read-only, use AsNoTracking)
+                var serviceProviderList = await _serviceProviderRepository
+                    .QueryAsNoTracking(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
                     .Select(sp => new { sp.Id, sp.Provider.Name })
-                    .ToDictionaryAsync(
-                         sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless),
-                         sp => sp.Id,
-                         token
-                    );
+                    .ToListAsync(token);
+
+                var serviceProviderCache = new Dictionary<ServiceProviderCacheKey, Guid>();
+                foreach (var sp in serviceProviderList)
+                {
+                    serviceProviderCache[new ServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless)] = sp.Id;
+                }
                 _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
 
                 // Pre-load technologies
                 var technologyList = await _technologyRepository
-                    .Query()
+                    .QueryAsNoTracking()
                     .Select(t => new
                     {
                         t.Id,
@@ -177,7 +186,7 @@ public class ProcessCellJob : IProcessCellJob
                 TechnologyMappingHelper.LogTechnologyDiagnostics(technologyCache, _logger);
 
                 var bandList = await _bandRepository
-                    .Query()
+                    .QueryAsNoTracking()
                     .Select(b => new
                     {
                         b.Id,
@@ -198,7 +207,7 @@ public class ProcessCellJob : IProcessCellJob
 
                 // Pre-load existing networks to avoid duplicates
                 var existingNetworks = await _networkRepository
-                    .Query(n => serviceProviderCache.Values.Contains(n.ServiceProviderId))
+                    .QueryAsNoTracking(n => serviceProviderCache.Values.Contains(n.ServiceProviderId))
                     .Include(n => n.SystemType)
                     .Select(n => new { n.Id, n.Name, n.ServiceProviderId, n.SystemType.TechnologyId })
                     .ToListAsync(token);
@@ -241,23 +250,24 @@ public class ProcessCellJob : IProcessCellJob
 
                 // Pre-load municipalities with boundaries for efficient lookup
                 var municipalitiesWithBoundaries = await _municipalityRepository
-                    .Query(m => m.Boundaries != null)
+                    .QueryAsNoTracking(m => m.Boundaries != null)
                     .Select(m => new { m.Id, m.Name, m.Boundaries })
                     .ToListAsync(token);
 
-                // Load existing cells for cache
+                // Load existing cells for cache (project only required fields)
                 var cellList = await _cellRepository
-                    .Query(c => providerIds.Contains(c.ServiceProviderId))
+                    .QueryAsNoTracking(c => providerIds.Contains(c.ServiceProviderId))
+                    .Select(c => new { c.Id, c.ServiceProviderId, c.TowerType, c.Location })
                     .ToListAsync(token);
 
-                var cellCache = new Dictionary<string, Guid>();
+                var cellCache = new Dictionary<CellCacheKey, Guid>();
                 var duplicateCount = 0;
 
                 foreach (var cell in cellList)
                 {
                     // Normalize TowerType to handle nulls and empty strings consistently
                     var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
-                    var key = CacheKeyGenerator.GenerateCellCacheKey(cell.ServiceProviderId, normalizedTowerType, cell.Location);
+                    var key = new CellCacheKey(cell.ServiceProviderId, normalizedTowerType, cell.Location);
 
                     if (!cellCache.TryGetValue(key, out Guid value))
                     {
@@ -266,8 +276,8 @@ public class ProcessCellJob : IProcessCellJob
                     else
                     {
                         duplicateCount++;
-                        _logger.LogWarning("Duplicate cell cache key found: {Key}. Cell ID {CellId} skipped in favor of existing Cell ID {ExistingCellId}. Consider cleaning up duplicate location data.",
-                            key, cell.Id, value);
+                        _logger.LogWarning("Duplicate cell cache key found: ServiceProviderId={ServiceProviderId}, TowerType={TowerType}. Cell ID {CellId} skipped in favor of existing Cell ID {ExistingCellId}. Consider cleaning up duplicate location data.",
+                            cell.ServiceProviderId, normalizedTowerType, cell.Id, value);
                     }
                 }
 
@@ -275,7 +285,7 @@ public class ProcessCellJob : IProcessCellJob
                     cellCache.Count, duplicateCount, cellList.Count);
 
                 var cellSectorCache = await _cellSectorRepository
-                    .Query()
+                    .QueryAsNoTracking()
                     .GroupBy(cs => cs.CellId)
                     .ToDictionaryAsync(
                         g => g.Key,
@@ -286,7 +296,7 @@ public class ProcessCellJob : IProcessCellJob
 
                 // Pre-load existing Cellular records for duplicate checking
                 var cellularList = await _cellularRepository
-                    .Query(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
+                    .QueryAsNoTracking(c => serviceProviderCache.Values.Contains(c.ServiceProviderId))
                     .ToListAsync(token);
 
                 var cellularLookup = new Dictionary<(Guid CellSectorId, Guid ServiceProviderId, Guid TechnologyId, Guid BandId), Domain.Entities.Cellular>();
@@ -316,6 +326,9 @@ public class ProcessCellJob : IProcessCellJob
 
                 // --- Step 5: Process the Excel File ---
                 _logger.LogInformation("Processing downloaded file from blob storage");
+
+                stopwatch.Stop();
+                _logger.LogInformation("Pre-loading reference data completed in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
                 _logger.LogInformation("Excel processing started");
 
@@ -349,6 +362,7 @@ public class ProcessCellJob : IProcessCellJob
                 // --- Step 6: Main Loop for Processing Each Cell Record ---
                 for (int recordIndex = 0; recordIndex < cellRecords.Count; recordIndex++)
                 {
+
                     var record = cellRecords[recordIndex];
                     var actualRowNumber = recordIndex + 4;
 
@@ -356,7 +370,9 @@ public class ProcessCellJob : IProcessCellJob
                     _logger.LogInformation("Processing record from Excel row {RowNumber}: {Provider}, {Zone} {Barangay} {Municipality} {Province} {Region}, Coordinates: ({Latitude}, {Longitude})",
                         actualRowNumber, record.Provider, record.Zone, record.Barangay, record.Municipality, record.Province, record.Region, record.Latitude, record.Longitude);
 
-                    var spCacheKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+                    var address = BuildAddress(record);
+
+                    var spCacheKey = new ServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
 
                     if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
                     {
@@ -384,12 +400,12 @@ public class ProcessCellJob : IProcessCellJob
                     // Create location with corrected coordinates
                     location = GeometryHelper.CreatePoint(new Coordinate(y: actualLatitude, x: actualLongitude));
 
-                    var address = $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
-
                     Guid cellId = Guid.Empty;
 
-                    var cellCacheKey = CacheKeyGenerator.GenerateCellCacheKey(serviceProviderId,
-                        string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType, location);
+                    var cellCacheKey = new CellCacheKey(
+                        serviceProviderId,
+                        string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType,
+                        location);
 
                     if (!cellCache.TryGetValue(cellCacheKey, out Guid cachedCellId))
                     {
@@ -566,10 +582,10 @@ public class ProcessCellJob : IProcessCellJob
                                             {
                                                 // Double-check database to ensure we don't create duplicates
                                                 var existsInDatabase = await _cellularRepository
-                                                    .Query(c => c.CellSectorId == sectorId &&
-                                                               c.ServiceProviderId == serviceProviderId &&
-                                                               c.TechnologyId == technologyId &&
-                                                               c.BandId == bandId)
+                                                    .QueryAsNoTracking(c => c.CellSectorId == sectorId &&
+                                                                           c.ServiceProviderId == serviceProviderId &&
+                                                                           c.TechnologyId == technologyId &&
+                                                                           c.BandId == bandId)
                                                     .AnyAsync(token);
 
                                                 if (!existsInDatabase)
@@ -748,7 +764,7 @@ public class ProcessCellJob : IProcessCellJob
                     var cellSectorIds = baseSectorsToAdd.Select(s => s.CellSectorId).ToList();
                     
                     var existingSectors = await _sectorRepository
-                        .Query(s => cellSectorIds.Contains(s.CellSectorId))
+                        .QueryAsNoTracking(s => cellSectorIds.Contains(s.CellSectorId))
                         .Select(s => s.CellSectorId)
                         .ToListAsync(token);
 
@@ -1255,8 +1271,8 @@ public class ProcessCellJob : IProcessCellJob
         // Check if network already exists in database
         var networkNamePattern = $"{technologyName}-{bandName}-{municipalityName}";
         var existingNetwork = await _networkRepository
-            .Query(n => n.ServiceProviderId == serviceProviderId && 
-                       n.Name.StartsWith(networkNamePattern))
+            .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && 
+                           n.Name.StartsWith(networkNamePattern))
             .FirstOrDefaultAsync(token);
 
         if (existingNetwork != null)
@@ -1267,14 +1283,14 @@ public class ProcessCellJob : IProcessCellJob
 
         // Lookup existing SystemType for this technology - DO NOT CREATE if missing
         var systemType = await _systemTypeRepository
-            .Query(st => st.TechnologyId == technologyId)
+            .QueryAsNoTracking(st => st.TechnologyId == technologyId)
             .FirstOrDefaultAsync(token);
 
         if (systemType == null)
         {
             // Look up the technology to get its generation for proper error reporting
             var technology = await _technologyRepository
-                .Query(t => t.Id == technologyId)
+                .QueryAsNoTracking(t => t.Id == technologyId)
                 .Include(t => t.Generation)
                 .FirstOrDefaultAsync(token);
 
@@ -1310,5 +1326,75 @@ public class ProcessCellJob : IProcessCellJob
             network.Name, serviceProviderId, municipalityName, technologyName, bandName, ulCenterFreq, dlCenterFreq, bandwidth);
 
         return network.Id;
+    }
+
+    private static string BuildAddress(CellRecord record)
+    {
+        // this format omits empty components, but makes parsing later difficult
+        //string.Join(", ", new[] { record.Barangay, record.Municipality, record.Province, record.Region }
+        //    .Where(component => !string.IsNullOrWhiteSpace(component)));
+
+        // use this format instead for future parsing ease
+        return $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
+    }
+
+    // Struct for service provider cache key
+    public readonly struct ServiceProviderCacheKey : IEquatable<ServiceProviderCacheKey>
+    {
+        public readonly string ProviderName;
+        public readonly ServiceTypeEnum ServiceType;
+
+        public ServiceProviderCacheKey(string providerName, ServiceTypeEnum serviceType)
+        {
+            ProviderName = providerName;
+            ServiceType = serviceType;
+        }
+
+        public bool Equals(ServiceProviderCacheKey other)
+        {
+            return ProviderName == other.ProviderName && ServiceType == other.ServiceType;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is ServiceProviderCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(ProviderName, ServiceType);
+        }
+    }
+
+    // Struct for cell cache  
+    public readonly struct CellCacheKey : IEquatable<CellCacheKey>
+    {
+        public readonly Guid ServiceProviderId;
+        public readonly string TowerType;
+        public readonly Point Location;
+
+        public CellCacheKey(Guid serviceProviderId, string towerType, Point location)
+        {
+            ServiceProviderId = serviceProviderId;
+            TowerType = towerType;
+            Location = location;
+        }
+
+        public bool Equals(CellCacheKey other)
+        {
+            return ServiceProviderId == other.ServiceProviderId &&
+                   TowerType == other.TowerType &&
+                   Location.Equals(other.Location);
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is CellCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(ServiceProviderId, TowerType, Location);
+        }
     }
 }
