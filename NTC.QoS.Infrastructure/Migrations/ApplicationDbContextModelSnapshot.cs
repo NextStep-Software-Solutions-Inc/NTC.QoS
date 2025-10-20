@@ -1951,7 +1951,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CellSectorId");
+                    b.HasIndex("CellSectorId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("MIMOId");
 

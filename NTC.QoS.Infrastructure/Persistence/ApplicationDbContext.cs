@@ -228,6 +228,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(s => s.CellSectorId);
 
         modelBuilder.Entity<Sector>()
+            .HasIndex(s => s.CellSectorId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<Sector>()
             .HasOne(s => s.TxAntennaPattern)
             .WithMany(a => a.TxSectors)
             .HasForeignKey(s => s.TxAntennaPatternId);
