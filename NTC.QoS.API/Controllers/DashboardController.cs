@@ -57,7 +57,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
 
         var cacheKey = $"{DashboardCachePrefix}all_{finalStartDate:yyyyMMdd}_{finalEndDate:yyyyMMdd}_{limit}";
 
-        if (memoryCache.TryGetValue(cacheKey, out ApiResponse<GeoEntityCellCountDto>? cached))
+        if (memoryCache.TryGetValue(cacheKey, out ApiResponse<List<GeoEntityCellCountDto>>? cached))
         {
             _logger.LogInformation("Cache HIT: {CacheKey}", cacheKey);
             return Ok(cached);
