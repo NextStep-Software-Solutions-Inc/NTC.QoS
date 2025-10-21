@@ -201,6 +201,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(s => s.StudyMunicipalities)
             .HasForeignKey(sm => sm.StudyId);
 
+        // Cell configuration - reverted to original IX_Cells_Name unique constraint
         modelBuilder.Entity<Cell>()
             .HasIndex(c => c.Name)
             .IsUnique()
@@ -225,6 +226,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(s => s.CellSector)
             .WithMany(cs => cs.Sectors)
             .HasForeignKey(s => s.CellSectorId);
+
+        modelBuilder.Entity<Sector>()
+            .HasIndex(s => s.CellSectorId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Sector>()
             .HasOne(s => s.TxAntennaPattern)
