@@ -12,9 +12,28 @@ public class CreatePermissionHandler(IRepository<Domain.Entities.Permission> rep
 
     public async Task<ApiResponse<PermissionDto>> Handle(CreatePermissionRequest request, CancellationToken cancellationToken)
     {
-        var permissionQuery = _repository.Query(p => p.Name == request.Permission.Name);
-        var permission = await _repository.FirstOrDefaultAsync(permissionQuery, cancellationToken);
-        if (permission is not null) return new ApiResponse<PermissionDto>("Permission already exists.");
+        var permissionQueryAll = _repository.QueryWithIgnoreQueryFilters(p => p.Name == request.Permission.Name);
+        var existing = await _repository.FirstOrDefaultAsync(permissionQueryAll, cancellationToken);
+
+        if (existing is not null && existing.IsDeleted)
+        {
+            var restoreQuery = _repository.QueryWithIgnoreQueryFilters(p => p.Id == existing.Id && p.IsDeleted);
+            await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            return new ApiResponse<PermissionDto>
+            {
+                Data = new PermissionDto
+                {
+                    Id = existing.Id,
+                    Name = existing.Name,
+                    Key = existing.Key,
+                    Description = existing.Description,
+                },
+                Succeeded = true,
+                Message = "Permission restored successfully."
+            };
+        }
+
+        if (existing is not null) return new ApiResponse<PermissionDto>("Permission already exists.");
                 
         var newPermission = new Domain.Entities.Permission
         {

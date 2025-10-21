@@ -43,21 +43,25 @@ public class CreateSectorHandler(
             };
         }
 
-        var networkQuery = _networkRepository.Query(n => n.Id == request.Sector.NetworkId);
-        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
-        if (network is null)
+        // Validate NetworkId if provided
+        if (request.Sector.NetworkId.HasValue)
         {
-            return new ApiResponse<SectorDto>
+            var networkQuery = _networkRepository.Query(n => n.Id == request.Sector.NetworkId.Value);
+            var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
+            if (network is null)
             {
-                Message = "Network does not exists.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
+                return new ApiResponse<SectorDto>
                 {
+                    Message = "Network does not exists.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
                     {
-                        "NullNetwork", ["Network not found."]
-                    }
-                },
-            };
+                        {
+                            "NullNetwork", ["Network not found."]
+                        }
+                    },
+                };
+            }
         }
 
         if (request.Sector.MIMOId.HasValue)
@@ -97,48 +101,56 @@ public class CreateSectorHandler(
             };
         }
 
-        var txAntennaPatternQuery = _antennaPatternRepository.Query(tap => tap.Id == request.Sector.TxAntennaPatternId);
-        var txAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(txAntennaPatternQuery, cancellationToken);
-        if (txAntennaPattern is null)
+        // Validate TxAntennaPatternId if provided
+        if (request.Sector.TxAntennaPatternId.HasValue)
         {
-            return new ApiResponse<SectorDto>
-            {
-                Message = "Tx antenna pattern does not exists.",
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
-                {
-                    {
-                        "NullTxAntennaPattern", ["Tx antenna pattern not found."]
-                    }
-                },
-            };
-        }
-
-        var newSector = CreateSectorEntity(request.Sector, request.Sector.NetworkId, cellSector, request.Sector.TxAntennaPatternId);
-
-        if (request.Sector.IsRxEqualTx)
-        {
-            CopyTxToRx(newSector, request.Sector.TxAntennaPatternId);
-        }
-        else
-        {
-            var rxAntennaPatternQuery = _antennaPatternRepository.Query(rap => rap.Id == request.Sector.RxAntennaPatternId);
-            var rxAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(rxAntennaPatternQuery, cancellationToken);
-            if (rxAntennaPattern is null)
+            var txAntennaPatternQuery = _antennaPatternRepository.Query(tap => tap.Id == request.Sector.TxAntennaPatternId.Value);
+            var txAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(txAntennaPatternQuery, cancellationToken);
+            if (txAntennaPattern is null)
             {
                 return new ApiResponse<SectorDto>
                 {
-                    Message = "Rx antenna pattern does not exists.",
+                    Message = "Tx antenna pattern does not exists.",
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                     {
                         {
-                            "NullRxAntennaPattern", ["Rx antenna pattern not found."]
+                            "NullTxAntennaPattern", ["Tx antenna pattern not found."]
                         }
                     },
                 };
             }
-            AssignRxProperties(newSector, request.Sector, request.Sector.RxAntennaPatternId);
+        }
+
+        var newSector = CreateSectorEntity(request.Sector, cellSector);
+
+        if (request.Sector.IsRxEqualTx == true)
+        {
+            CopyTxToRx(newSector);
+        }
+        else
+        {
+            // Validate RxAntennaPatternId if provided and IsRxEqualTx is false
+            if (request.Sector.RxAntennaPatternId.HasValue)
+            {
+                var rxAntennaPatternQuery = _antennaPatternRepository.Query(rap => rap.Id == request.Sector.RxAntennaPatternId.Value);
+                var rxAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(rxAntennaPatternQuery, cancellationToken);
+                if (rxAntennaPattern is null)
+                {
+                    return new ApiResponse<SectorDto>
+                    {
+                        Message = "Rx antenna pattern does not exists.",
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            {
+                                "NullRxAntennaPattern", ["Rx antenna pattern not found."]
+                            }
+                        },
+                    };
+                }
+            }
+            AssignRxProperties(newSector, request.Sector);
         }
 
         _sectorRepository.Add(newSector);
@@ -151,9 +163,9 @@ public class CreateSectorHandler(
         return CreateSectorApiResponse(sectorWithIncludes!);
     }
 
-    private static Domain.Entities.Sector CreateSectorEntity(CreateSectorDto dto, Guid networkId, Domain.Entities.CellSector cellSector, Guid txAntennaPatternId) => new()
+    private static Domain.Entities.Sector CreateSectorEntity(CreateSectorDto dto, Domain.Entities.CellSector cellSector) => new()
     {
-        NetworkId = networkId,
+        NetworkId = dto.NetworkId,
         MIMOId = dto.MIMOId,
         CellSectorId = cellSector.Id,
         AntennaType = cellSector.AntennaType,
@@ -165,15 +177,15 @@ public class CreateSectorHandler(
         TxCableLength = dto.TxCableLength,
         TxCableLoss = dto.TxCableLoss,
         TxAdditionalLoss = dto.TxAdditionalLoss,
-        TxAntennaHeight =cellSector.AntennaHeight,
+        TxAntennaHeight = cellSector.AntennaHeight,
         TxAntennaGain = dto.TxAntennaGain,
         TxAzimuth = cellSector.Azimuth,
         TxBeamTilt = cellSector.BeamTilt,
-        TxAntennaPatternId = txAntennaPatternId,
+        TxAntennaPatternId = dto.TxAntennaPatternId,
         TxEIRP = dto.TxEIRP,
     };
 
-    private static void CopyTxToRx(Domain.Entities.Sector sector, Guid txAntennaPatternId)
+    private static void CopyTxToRx(Domain.Entities.Sector sector)
     {
         sector.RxAntennaModel = sector.TxAntennaModel;
         sector.RxCableType = sector.TxCableType;
@@ -184,14 +196,14 @@ public class CreateSectorHandler(
         sector.RxAntennaGain = sector.TxAntennaGain;
         sector.RxAzimuth = sector.TxAzimuth;
         sector.RxBeamTilt = sector.TxBeamTilt;
-        sector.RxAntennaPatternId = txAntennaPatternId;
+        sector.RxAntennaPatternId = sector.TxAntennaPatternId;
         sector.RxEIRP = sector.TxEIRP;
     }
 
-    private static void AssignRxProperties(Domain.Entities.Sector sector, CreateSectorDto dto, Guid rxAntennaPatternId)
+    private static void AssignRxProperties(Domain.Entities.Sector sector, CreateSectorDto dto)
     {
-        sector.RxAntennaModel = dto.RxAntennaModel ?? string.Empty;
-        sector.RxCableType = dto.RxCableType ?? string.Empty;
+        sector.RxAntennaModel = dto.RxAntennaModel;
+        sector.RxCableType = dto.RxCableType;
         sector.RxCableLength = dto.RxCableLength;
         sector.RxCableLoss = dto.RxCableLoss;
         sector.RxAdditionalLoss = dto.RxAdditionalLoss;
@@ -199,7 +211,7 @@ public class CreateSectorHandler(
         sector.RxAntennaGain = dto.RxAntennaGain;
         sector.RxAzimuth = dto.RxAzimuth;
         sector.RxBeamTilt = dto.RxBeamTilt;
-        sector.RxAntennaPatternId = rxAntennaPatternId;
+        sector.RxAntennaPatternId = dto.RxAntennaPatternId;
         sector.RxEIRP = dto.RxEIRP;
     }
 
@@ -210,13 +222,13 @@ public class CreateSectorHandler(
             Data = new SectorDto
             {
                 Id = newSector.Id,
-                Network = new()
+                Network = newSector.NetworkId.HasValue ? new()
                 {
-                    Id = newSector.NetworkId,
+                    Id = newSector.NetworkId.Value,
                     Name = newSector.Network?.Name ?? string.Empty,
                     SystemType = newSector.Network?.SystemType.ToString() ?? string.Empty,
-                },
-                AntennaType = newSector.AntennaType.ToString(),
+                } : null,
+                AntennaType = newSector.AntennaType?.ToString() ?? AntennaTypeEnum.Unknown.ToString(),
                 MIMO = newSector.MIMO != null ? new()
                 {
                     Id = newSector.MIMO.Id,
@@ -251,15 +263,15 @@ public class CreateSectorHandler(
                 TxAntennaGain = newSector.TxAntennaGain,
                 TxAzimuth = newSector.TxAzimuth,
                 TxBeamTilt = newSector.TxBeamTilt,
-                TxAntennaPattern = new()
+                TxAntennaPattern = newSector.TxAntennaPatternId.HasValue ? new()
                 {
                     Id = newSector.TxAntennaPattern?.Id ?? Guid.Empty,
                     Name = newSector.TxAntennaPattern?.Name ?? string.Empty,
                     URL = newSector.TxAntennaPattern?.URL ?? string.Empty,
-                },
+                } : null,
                 TxEIRP = newSector.TxEIRP,
-                RxAntennaModel = newSector.RxAntennaModel ?? string.Empty,
-                RxCableType = newSector.RxCableType ?? string.Empty,
+                RxAntennaModel = newSector.RxAntennaModel,
+                RxCableType = newSector.RxCableType,
                 RxCableLength = newSector.RxCableLength,
                 RxCableLoss = newSector.RxCableLoss,
                 RxAdditionalLoss = newSector.RxAdditionalLoss,
@@ -267,12 +279,12 @@ public class CreateSectorHandler(
                 RxAntennaGain = newSector.RxAntennaGain,
                 RxAzimuth = newSector.RxAzimuth,
                 RxBeamTilt = newSector.RxBeamTilt,
-                RxAntennaPattern = new()
+                RxAntennaPattern = newSector.RxAntennaPatternId.HasValue ? new()
                 {
                     Id = newSector.RxAntennaPattern?.Id ?? Guid.Empty,
                     Name = newSector.RxAntennaPattern?.Name ?? string.Empty,
                     URL = newSector.RxAntennaPattern?.URL ?? string.Empty,
-                },
+                } : null,
                 RxEIRP = newSector.RxEIRP,
             },
             Succeeded = true,

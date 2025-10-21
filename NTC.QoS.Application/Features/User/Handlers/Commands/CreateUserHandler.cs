@@ -16,91 +16,141 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var existingUserQuery = _userRepository.Query(u => u.RoleId == request.User.RoleId
-                                                           && u.OrganizationId == request.User.OrganizationId
-                                                           && u.AuthUserId == request.User.AuthUserId);
-        var existingUser = await _userRepository.FirstOrDefaultAsync(existingUserQuery, cancellationToken);
-        if (existingUser is not null) 
-        {
-            return new ApiResponse<UserDto>
-            {
-                Succeeded = false,
-                Message = "Duplicate user found.",
-                Errors = new Dictionary<string, string[]>
-                {
-                    { 
-                        "Duplicate", ["User with the same Role, Organization, and AuthUserId already exists."] 
-                    }
-                }
-            };
-        }
-        
-        var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId);
-        var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
+        // Step 1: Check if user already exists
+        var existingUser = await _userRepository.FirstOrDefaultAsync(_userRepository.Query(u => u.AuthUserId == request.User.AuthUserId), cancellationToken);
 
-        if (role is null)
+        if (existingUser != null)
         {
             return new ApiResponse<UserDto>
             {
                 Succeeded = false,
-                Message = "Role not found.",
+                Message = "User already exists.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "RoleId", ["Role with the specified Id does not exist"] 
-                    }
+                    { "Duplicate", ["A user with this AuthUserId already exists."] }
                 }
             };
         }
 
-        var organizationQuery = _organizationRepository.Query(r => r.Id == request.User.OrganizationId);
-        var organization = await _organizationRepository.FirstOrDefaultAsync(organizationQuery, cancellationToken);
-        if (organization is null)
+        // Step 2: Get default role if not provided
+        Domain.Entities.Role? defaultRole = null;
+        if (request.User.RoleId == Guid.Empty)
         {
-            return new ApiResponse<UserDto>
+            defaultRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Key == "user"), cancellationToken);
+
+            if (defaultRole == null)
             {
-                Succeeded = false,
-                Message = "Organization not found.",
-                Errors = new Dictionary<string, string[]>
+                return new ApiResponse<UserDto>
                 {
+                    Succeeded = false,
+                    Message = "Default user role key not found.",
+                    Errors = new Dictionary<string, string[]>
                     {
-                        "OrganizationId", ["Organization with the specified Id does not exist."] 
+                        { "Role", ["Default 'user' role key not found in database"] }
                     }
-                }
-            };
+                };
+            }
         }
 
+        // Step 3: Get default organization if not provided
+        Domain.Entities.Organization? defaultOrg = null;
+        if (request.User.OrganizationId == Guid.Empty)
+        {
+            defaultOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Name == "public"), cancellationToken);
+
+            if (defaultOrg == null)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "Default public organization name not found.",
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "Organization", ["Default 'public' organization name not found in database"] }
+                    }
+                };
+            }
+        }
+
+        // Step 4: Validate explicit role if provided
+        if (request.User.RoleId != Guid.Empty)
+        {
+            var providedRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Id == request.User.RoleId), cancellationToken);
+
+            if (providedRole == null)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "Role not found.",
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "RoleId", ["Role with the specified Id does not exist"] }
+                    }
+                };
+            }
+        }
+
+        // Step 5: Validate explicit organization if provided
+        if (request.User.OrganizationId != Guid.Empty)
+        {
+            var providedOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Id == request.User.OrganizationId), cancellationToken);
+
+            if (providedOrg == null)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "Organization not found.",
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "OrganizationId", ["Organization with the specified Id does not exist."] }
+                    }
+                };
+            }
+        }
+
+        // Step 6: Assign final IDs
+        Guid roleId = request.User.RoleId == Guid.Empty ? defaultRole!.Id : request.User.RoleId;
+        Guid organizationId = request.User.OrganizationId == Guid.Empty ? defaultOrg!.Id : request.User.OrganizationId;
+
+        // Step 7: Create the user
         var newUser = new Domain.Entities.User
         {
-            RoleId = request.User.RoleId,
-            OrganizationId = request.User.OrganizationId,
+            RoleId = roleId,
+            OrganizationId = organizationId,
             AuthUserId = request.User.AuthUserId,
-            Email = request.User.Email
+            Email = request.User.Email,
+            FirstName = request.User.FirstName,
+            LastName = request.User.LastName
         };
 
         _userRepository.Add(newUser);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
+        // Step 8: Return success response
         return new ApiResponse<UserDto>
         {
             Data = new UserDto
             {
                 Id = newUser.Id,
-                Role = new ()
+                Role = new()
                 {
                     Id = newUser.Role?.Id ?? Guid.Empty,
                     Name = newUser.Role?.Name ?? string.Empty,
                     Key = newUser.Role?.Key ?? string.Empty,
                     Description = newUser.Role?.Description ?? string.Empty
                 },
-                Organization = new ()
+                Organization = new()
                 {
                     Id = newUser.Organization?.Id ?? Guid.Empty,
                     Name = newUser.Organization?.Name ?? string.Empty,
                     Description = newUser.Organization?.Description ?? string.Empty
                 },
                 AuthUserId = newUser.AuthUserId,
-                Email = newUser.Email
+                Email = newUser.Email,
+                FirstName = newUser.FirstName,
+                LastName = newUser.LastName
             },
             Message = "User created successfully.",
             Succeeded = true

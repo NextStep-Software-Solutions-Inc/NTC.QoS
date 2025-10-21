@@ -1,7 +1,9 @@
-﻿using MediatR;
+﻿using System.ComponentModel;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
@@ -17,7 +19,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile( [FromForm] UploadFileDto uploadFile)
+    public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile([FromForm] UploadFileDto uploadFile)
     {
         var file = await _mediator.Send(new UploadFileRequest(uploadFile));
 
@@ -30,16 +32,14 @@ public class FilesController(IMediator mediator) : ControllerBase
             });
         }
 
-        var fileType = Enum.Parse<FileTypeEnum>(uploadFile.Type);
+        FileTypeEnum fileType = Enum.TryParse<FileTypeEnum>(uploadFile.Type, out var parsedType) ? parsedType : FileTypeEnum.Unknown;
 
         switch (fileType)
         {
             case FileTypeEnum.NAP:
-                // Process NAP file
                 await _mediator.Send(new ProcessNAPFileRequest(file.Data));
                 break;
             case FileTypeEnum.Speedtest:
-                // Process Speedtest file
                 await _mediator.Send(new ProcessSpeedtestFileRequest(file.Data));
                 break;
 
@@ -51,9 +51,13 @@ public class FilesController(IMediator mediator) : ControllerBase
                 await _mediator.Send(new ProcessCellularCoverageFileRequest(file.Data));
                 break;
 
+            case FileTypeEnum.WirelessValidation:
+                await _mediator.Send(new ProcessWirelessValidationFileRequest(file.Data));
+                break;
+
             case FileTypeEnum.Unknown:
                 default:
-                throw new ArgumentOutOfRangeException(nameof(fileType), $"Unsupported file type: {fileType}");
+                throw new InvalidEnumArgumentException();
         }
 
         // Schedule a background job to delete the file and its database record after 1 day
@@ -111,4 +115,26 @@ public class FilesController(IMediator mediator) : ControllerBase
         return File(res.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{type}_template-file.xlsx");
     }
 
+    [HttpGet("download/wireless-validation/{municipalityId}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<Stream>>> DownloadWirelessValidationTemplate(Guid municipalityId)
+    {
+        var res = await _mediator.Send(new DownloadWirelessValidationTemplateRequest(municipalityId));
+        if(res.Succeeded is false || res.Data is null || res.Data.Length is 0)
+        {
+            return BadRequest(res);
+        }
+
+        var municipalityResponse = await _mediator.Send(new GetMunicipalityByIdRequest(municipalityId));
+
+        string name = "unknown";
+        if (municipalityResponse.Succeeded && municipalityResponse.Data is not null)
+        {
+            name = municipalityResponse.Data.Name?.Replace(" ", "_") ?? "unknown";
+        }
+
+        return File(res.Data,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        $"wireless_validation_template-{name}.xlsx");
+    }
 }

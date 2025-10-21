@@ -24,6 +24,8 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
         var allNAPsQuery = _nAPRepository.Query();
 
         var provinceDtosQuery = provincesQuery
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
             .OrderBy(p => p.Name)
             .Select(p => new ProvinceDto
             {

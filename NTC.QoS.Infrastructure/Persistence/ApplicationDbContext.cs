@@ -49,6 +49,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
     public DbSet<UserRegion> UserRegions { get; set; }
+    public DbSet<WirelessValidation> WirelessValidations { get; set; }
+    public DbSet<ConnectivityAssessment> ConnectivityAssessments { get; set; }
+    public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
@@ -74,21 +78,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         // ... any entity configuration ...
         modelBuilder.Entity<Provider>()
             .HasIndex(p => p.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Provider>()
             .HasMany(p => p.ServiceProviders);
 
         modelBuilder.Entity<Service>()
             .HasIndex(s => new { s.Name, s.Type })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Service>()
             .HasMany(s => s.ServiceProviders);
 
         modelBuilder.Entity<ServiceProvider>()
             .HasIndex(sp => new { sp.ServiceId, sp.ProviderId, sp.MNC })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<ServiceProvider>()
             .HasOne(sp => sp.Service)
@@ -166,7 +173,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<AreaStudy>()
             .HasIndex(p => p.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<AreaStudy>()
             .HasMany(a => a.Studies)
@@ -193,9 +201,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(s => s.StudyMunicipalities)
             .HasForeignKey(sm => sm.StudyId);
 
+        // Cell configuration - reverted to original IX_Cells_Name unique constraint
         modelBuilder.Entity<Cell>()
             .HasIndex(c => c.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Cell>()
             .HasOne(c => c.ServiceProvider)
@@ -216,6 +226,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(s => s.CellSector)
             .WithMany(cs => cs.Sectors)
             .HasForeignKey(s => s.CellSectorId);
+
+        modelBuilder.Entity<Sector>()
+            .HasIndex(s => s.CellSectorId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Sector>()
             .HasOne(s => s.TxAntennaPattern)
@@ -241,9 +256,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(n => n.Location)
             .HasDatabaseName("IX_NAP_Location")
             .HasMethod("GIST");
-
-        modelBuilder.Entity<Zone>()
-            .HasMany(z => z.NAPs);
 
         modelBuilder.Entity<Speedtest>()
             .HasOne(s => s.ServiceProvider)
@@ -416,7 +428,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Region>()
             .Property(r => r.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Region>()
             .HasIndex(r => r.Boundaries)
@@ -436,7 +448,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Province>()
             .Property(p => p.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Province>()
             .HasIndex(p => p.Boundaries)
@@ -456,7 +468,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Municipality>()
             .Property(m => m.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Municipality>()
             .HasIndex(m => m.Boundaries)
@@ -476,7 +488,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Boundaries)
             .HasColumnType("geography (MultiPolygon,4326)")
-            .HasDefaultValue(GeometryHelper.CreateMultiPolygon(new List<Polygon>()));
+            .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Barangay>()
             .HasIndex(b => b.Boundaries)
@@ -510,6 +522,84 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(st => st.Generation)
             .WithMany(g => g.SystemTypes)
             .HasForeignKey(st => st.GenerationId);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<ServiceProvider>()
+            .WithMany()
+            .HasForeignKey(wv => wv.ServiceProviderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Barangay>()
+            .WithMany()
+            .HasForeignKey(wv => wv.BarangayId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Band>()
+            .WithMany()
+            .HasForeignKey(wv => wv.BandId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasOne<Technology>()
+            .WithMany()
+            .HasForeignKey(wv => wv.TechnologyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.ServiceProviderId)
+            .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.BarangayId)
+            .HasDatabaseName("IX_WirelessValidation_BarangayId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => new { wv.TechnologyId, wv.BandId })
+            .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
+
+        modelBuilder.Entity<WirelessValidation>()
+            .HasIndex(wv => wv.IsMarginal)
+            .HasDatabaseName("IX_WirelessValidation_IsMarginal");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .Property(ca => ca.Location)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => ca.Location)
+            .HasDatabaseName("IX_ConnectivityAssessment_Location")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => new { ca.LocationId, ca.LocationType })
+            .IsUnique()
+            .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => ca.ConnectivityStatus)
+            .HasDatabaseName("IX_ConnectivityAssessment_Status");
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .HasOne(w => w.ServiceProvider)
+            .WithMany()
+            .HasForeignKey(w => w.ServiceProviderId);
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .Property(w => w.Location)
+            .HasColumnType("geography (Point,4326)")
+            .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .HasIndex(w => w.Location)
+            .HasDatabaseName("IX_WiFiHotspot_Location")
+            .HasMethod("GIST");
+
+        modelBuilder.Entity<WiFiHotspot>()
+            .HasIndex(w => new { w.IsActive, w.IsPublic })
+            .HasDatabaseName("IX_WiFiHotspot_Active_Public");
 
         base.OnModelCreating(modelBuilder);
     }
