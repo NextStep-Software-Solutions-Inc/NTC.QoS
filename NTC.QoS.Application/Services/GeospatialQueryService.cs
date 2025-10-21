@@ -3,7 +3,6 @@ using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 using NTC.QoS.Infrastructure.Persistence;
 using NetTopologySuite.Geometries;
-using MediatR;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
 using NTC.QoS.Domain.Enums;
 
@@ -24,7 +23,7 @@ public class GeospatialQueryService
         DateTime? endDate = null)
         where TEntity : BaseEntity, new()
     {
-        var query = _dbContext.Set<TEntity>()
+        var geoEntitiesQuery = _dbContext.Set<TEntity>()
             .Select(geoEntity => new
             {
                 Id = geoEntity.Id,
@@ -34,20 +33,28 @@ public class GeospatialQueryService
                 EntityType = typeof(TEntity).Name
             });
 
-        var results = await query
-            .Select(geo => new GeoEntityCellCountDto
+        var cellsQuery = _dbContext.Cells
+            .Where(c => !c.IsDeleted &&
+                        EF.Property<Point>(c, "Location") != null &&
+                        (startDate == null || c.CreatedAt >= startDate) &&
+                        (endDate == null || c.CreatedAt <= endDate));
+
+        var results = await (
+            from geo in geoEntitiesQuery
+            join cell in cellsQuery
+                on 1 equals 1 into cellGroup
+            from cell in cellGroup
+                .Where(c => geo.Boundaries != null &&
+                           EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0))
+                .DefaultIfEmpty()
+            group cell by new { geo.Id, geo.Name, geo.Code, geo.EntityType } into g
+            select new GeoEntityCellCountDto
             {
-                Id = geo.Id,
-                Name = geo.Name,
-                Code = geo.Code,
-                EntityType = geo.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
-                    EF.Property<Point>(c, "Location") != null &&
-                    geo.Boundaries != null &&
-                    EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0) &&
-                    (startDate == null || c.CreatedAt >= startDate) &&
-                    (endDate == null || c.CreatedAt <= endDate)
-                )
+                Id = g.Key.Id,
+                Name = g.Key.Name,
+                Code = g.Key.Code,
+                EntityType = g.Key.EntityType,
+                CellCount = g.Count(c => c != null)
             })
             .OrderByDescending(dto => dto.CellCount)
             .Take(limit > 0 ? limit : int.MaxValue)
@@ -89,20 +96,28 @@ public class GeospatialQueryService
                 EntityType = typeof(TChild).Name
             });
 
-        var results = await projectedQuery
-            .Select(dto => new GeoEntityCellCountDto
+        var cellsQuery = _dbContext.Cells
+            .Where(c => !c.IsDeleted &&
+                        EF.Property<Point>(c, "Location") != null &&
+                        (startDate == null || c.CreatedAt >= startDate) &&
+                        (endDate == null || c.CreatedAt <= endDate));
+
+        var results = await (
+            from geo in projectedQuery
+            join cell in cellsQuery
+                on 1 equals 1 into cellGroup
+            from cell in cellGroup
+                .Where(c => geo.Boundaries != null &&
+                           EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0))
+                .DefaultIfEmpty()
+            group cell by new { geo.Id, geo.Name, geo.Code, geo.EntityType } into g
+            select new GeoEntityCellCountDto
             {
-                Id = dto.Id,
-                Name = dto.Name,
-                Code = dto.Code,
-                EntityType = dto.EntityType,
-                CellCount = _dbContext.Cells.Count(c =>
-                    EF.Property<Point>(c, "Location") != null &&
-                    dto.Boundaries != null &&
-                    EF.Property<Point>(c, "Location").IsWithinDistance(dto.Boundaries, 0) &&
-                    (startDate == null || c.CreatedAt >= startDate) &&
-                    (endDate == null || c.CreatedAt <= endDate)
-                )
+                Id = g.Key.Id,
+                Name = g.Key.Name,
+                Code = g.Key.Code,
+                EntityType = g.Key.EntityType,
+                CellCount = g.Count(c => c != null)
             })
             .OrderByDescending(x => x.CellCount)
             .Take(limit > 0 ? limit : int.MaxValue)
@@ -180,7 +195,7 @@ public class GeospatialQueryService
         }
 
         var providerCellCounts = await cellQuery
-            .GroupBy(c => new { 
+            .GroupBy(c => new {
                 ServiceProviderId = c.ServiceProviderId,
                 ProviderName = c.ServiceProvider.Provider.Name,
                 ProviderColor = c.ServiceProvider.Provider.Color
@@ -197,10 +212,10 @@ public class GeospatialQueryService
             .ToListAsync(cancellationToken);
 
         var totalCellSites = providerCellCounts.Sum(p => p.CellCount);
-        
+
         foreach (var provider in providerCellCounts)
         {
-            provider.Percentage = totalCellSites > 0 
+            provider.Percentage = totalCellSites > 0
                 ? Math.Round((double)provider.CellCount / totalCellSites * 100, 2)
                 : 0;
         }
