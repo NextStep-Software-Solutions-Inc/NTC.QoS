@@ -142,30 +142,32 @@ public static class InfrastructureDependencyInjection
         var blobStorageService = serviceProvider.GetRequiredService<IBlobStorageService>();
         var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
 
-        var seeders = new (string Name, Func<Task> SeedAction)[]
+        var seeders = new (string Name, Func<Task> SeedAction, bool IsCritical)[]
         {
+            ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger), true),
+            ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger), true),
             ("User Data", async () => {
-                // Try to get ClerkUserService, but don't fail if it's not available
+                // Try to get ClerkUserService, but require it for user seeding
                 IClerkUserService? clerkUserService = null;
                 try
                 {
-                    clerkUserService = serviceProvider.GetService<IClerkUserService>();
+                    clerkUserService = serviceProvider.GetRequiredService<IClerkUserService>();
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning("ClerkUserService not available during seeding: {Message}. User seeding will proceed without Clerk integration.", ex.Message);
+                    logger.LogCritical("CRITICAL ERROR: ClerkUserService is required for user seeding but is not available. Error: {Message}", ex.Message);
+                    throw new InvalidOperationException("ClerkUserService is required for user seeding. Ensure Clerk services are properly registered.", ex);
                 }
                 
+                // UserSeeder.SeedAsync will throw exception if user cannot be created or verified
                 await UserSeeder.SeedAsync(dbContext, clerkUserService, configuration, logger);
-            }),
-            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed)),
-            ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
-            ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
-            ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))
+            }, true),
+            ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger), true),
+            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed), false)
         };
         
-        // Use the seeders array instead of calling them directly
-        foreach (var (name, seedAction) in seeders)
+        // Use the seeders array
+        foreach (var (name, seedAction, isCritical) in seeders)
         {
             try
             {
@@ -175,8 +177,18 @@ public static class InfrastructureDependencyInjection
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to seed {SeederName}", name);
-                throw;
+                if (isCritical)
+                {
+                    logger.LogCritical(ex, "CRITICAL ERROR: Failed to seed {SeederName}. Application cannot start without this data. Error: {ErrorMessage}", 
+                        name, ex.Message);
+                    // Re-throw to terminate application startup
+                    throw;
+                }
+                else
+                {
+                    logger.LogError(ex, "Failed to seed {SeederName}. Application will continue but some features may not work correctly. Error: {ErrorMessage}", 
+                        name, ex.Message);
+                }
             }
         }
     }
