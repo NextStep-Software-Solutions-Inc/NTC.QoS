@@ -162,6 +162,25 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
 
     private static LocationConnectivityDto MapToLocationDto(ConnectivityAssessment assessment, string locationName)
     {
+        // Build infrastructure stats
+        var infrastructure = new InfrastructureStatsDto
+        {
+            CellTowerCount = assessment.CellTowerCount,
+            FiberNAPCount = assessment.FiberNAPCount,
+            WiFiHotspotCount = assessment.WifiHotspotCount,
+            ServiceProviderCount = assessment.ServiceProviderCount,
+            DominantServiceProvider = assessment.DominantServiceProvider
+        };
+
+        // Calculate coverage statistics dynamically
+        var coverage = CalculateCoverageStats(
+            infrastructure,
+            assessment.AreaSizeKm2,
+            assessment.Population,
+            assessment.HouseholdCount,
+            assessment.HasReliableConnectivity
+        );
+
         return new LocationConnectivityDto
         {
             LocationId = assessment.LocationId,
@@ -177,14 +196,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 QualityOfService = assessment.QualityOfServiceScore,
                 CoverageAvailability = assessment.CoverageAvailabilityScore
             },
-            Infrastructure = new InfrastructureStatsDto
-            {
-                CellTowerCount = assessment.CellTowerCount,
-                FiberNAPCount = assessment.FiberNAPCount,
-                WiFiHotspotCount = assessment.WifiHotspotCount,
-                ServiceProviderCount = assessment.ServiceProviderCount,
-                DominantServiceProvider = assessment.DominantServiceProvider
-            },
+            Infrastructure = infrastructure,
             SpeedStats = assessment.SpeedTestCount > 0 ? new SpeedStatsDto
             {
                 AverageDownloadSpeedMbps = assessment.AverageDownloadSpeedMbps,
@@ -195,13 +207,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 SpeedTestCount = assessment.SpeedTestCount,
                 MeetsMinimumSpeedRequirement = assessment.MeetsMinimumSpeedRequirement
             } : null,
-            Coverage = new CoverageStatsDto
-            {
-                MobileCoveragePercentage = assessment.MobileCoveragePercentage,
-                FixedBroadbandCoveragePercentage = assessment.FixedBroadbandCoveragePercentage,
-                FiberCoveragePercentage = assessment.FiberCoveragePercentage,
-                HasReliableConnectivity = assessment.HasReliableConnectivity
-            },
+            Coverage = coverage,
             AreaSizeKm2 = assessment.AreaSizeKm2,
             CenterPoint = assessment.Location != null ? new PointDto
             {
@@ -214,6 +220,86 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             LastUpdated = assessment.LastUpdated,
             Notes = assessment.Notes
         };
+    }
+
+    /// <summary>
+    /// Calculates coverage statistics from infrastructure and population data
+    /// </summary>
+    private static CoverageStatsDto CalculateCoverageStats(
+        InfrastructureStatsDto infrastructure,
+        double areaKm2,
+        int? population,
+        int? householdCount,
+        bool hasReliableConnectivity)
+    {
+        var coverage = new CoverageStatsDto
+        {
+            HasReliableConnectivity = hasReliableConnectivity
+        };
+
+        // Calculate population-aware metrics if population data is available
+        if (population.HasValue && population > 0)
+        {
+            // Assets per thousand people
+            coverage.AssetsPerThousandPeople = (infrastructure.TotalAssets * 1000.0) / population.Value;
+
+            // Providers per thousand people
+            coverage.ProvidersPerThousandPeople = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
+
+            // Estimate population coverage based on infrastructure density
+            var populationDensity = areaKm2 > 0 ? population.Value / areaKm2 : 0;
+            var isUrbanArea = populationDensity > 1000;
+            var isHighDensityArea = populationDensity > 500;
+
+            double estimatedCoveragePercent;
+            var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
+            var providersPerThousand = coverage.ProvidersPerThousandPeople ?? 0;
+
+            if (isUrbanArea)
+            {
+                // Urban areas: Higher infrastructure density expected
+                estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 10000) + (providersPerThousand * 20));
+            }
+            else if (isHighDensityArea)
+            {
+                // Semi-urban areas: Moderate infrastructure density
+                estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 15000) + (providersPerThousand * 25));
+            }
+            else
+            {
+                // Rural areas: Consider both population and geographic coverage
+                var geographicDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
+                var populationCoverage = Math.Min(100, (assetsPerCapita * 20000) + (providersPerThousand * 30));
+                var geographicCoverage = Math.Min(100, geographicDensity * 100);
+                estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
+            }
+
+            coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
+
+            // Estimate household coverage (assuming similar ratio)
+            if (householdCount.HasValue && householdCount > 0)
+            {
+                var householdRatio = (double)householdCount.Value / population.Value;
+                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent * householdRatio, 2);
+            }
+        }
+
+        // Calculate basic coverage percentages based on infrastructure mix
+        var totalInfrastructure = infrastructure.TotalAssets;
+        if (totalInfrastructure > 0)
+        {
+            // Mobile coverage based on cell towers
+            coverage.MobileCoveragePercentage = Math.Round((double)infrastructure.CellTowerCount / totalInfrastructure * 100, 2);
+
+            // Fixed broadband coverage based on fiber NAPs and WiFi
+            var fixedInfrastructure = infrastructure.FiberNAPCount + infrastructure.WiFiHotspotCount;
+            coverage.FixedBroadbandCoveragePercentage = Math.Round((double)fixedInfrastructure / totalInfrastructure * 100, 2);
+
+            // Fiber coverage based on NAP presence
+            coverage.FiberCoveragePercentage = Math.Round((double)infrastructure.FiberNAPCount / totalInfrastructure * 100, 2);
+        }
+
+        return coverage;
     }
 
     private static ConnectivitySummaryDto CalculateSummary(List<LocationConnectivityDto> locations)
