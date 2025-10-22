@@ -91,19 +91,25 @@ jobs:
 
       - name: Deploy with Helm
         run: |
+          # Create or update Kubernetes secret from GitHub Secrets (safer than passing secrets via --set)
+          kubectl create secret generic ntc-qos-secrets \
+            --from-literal=DB_CONNECTION_STRING="${{ secrets.DB_CONNECTION_STRING }}" \
+            --from-literal=HANGFIRE_CONNECTION_STRING="${{ secrets.HANGFIRE_CONNECTION_STRING }}" \
+            --from-literal=BLOB_STORAGE_CONNECTION_STRING="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
+            --from-literal=Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
+            --from-literal=Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Force upgrade the Helm release, wait for resources and use an atomic upgrade
           helm upgrade --install ${{ env.RELEASE_NAME }} ./k8s \
             --set image.repository=${{ env.DOCKER_IMAGE }} \
             --set image.tag=latest \
-            --set env.ConnectionStrings__PostgreSqlConnection="${{ secrets.DB_CONNECTION_STRING }}" \
-            --set env.ConnectionStrings__HangfireConnection="${{ secrets.HANGFIRE_CONNECTION_STRING }}" \
-            --set env.ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
-            --set env.Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
-            --set env.Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \  
-            --set env.ASPNETCORE_ENVIRONMENT=Production
+            --set env.ASPNETCORE_ENVIRONMENT=Production \
+            --force --atomic --wait --timeout 1m
 
       - name: Check deployment rollout status
         run: |
-          kubectl rollout status deployment/${{ env.RELEASE_NAME }}
+          kubectl rollout status deployment/${{ env.RELEASE_NAME }} --timeout=1m
 
       - name: Get Ingress Host
         id: get_url
