@@ -1088,12 +1088,15 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             }
             
             coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
-            
-            // Estimate household coverage (assuming similar ratio)
+
+            // Estimate household coverage.
+            // Assuming the coverage is evenly distributed, the percentage of covered households 
+            // is proportional to the percentage of covered population.
             if (householdCount.HasValue && householdCount > 0)
             {
-                var householdRatio = (double)householdCount.Value / population.Value;
-                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent * householdRatio, 2);
+                // If 100% of the population is covered, 100% of households are covered.
+                // Therefore, the percentages are logically equivalent for estimation purposes.
+                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
             }
         }
         
