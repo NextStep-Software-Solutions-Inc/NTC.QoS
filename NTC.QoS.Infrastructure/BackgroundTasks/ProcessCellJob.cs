@@ -402,6 +402,18 @@ public class ProcessCellJob : IProcessCellJob
                         }
                     }
 
+                    // Save networks accumulated in this batch BEFORE saving Cellular records that reference them
+                    if (networksToAdd.Count > 0)
+                    {
+                        await _networkRepository.BulkInsertAsync(networksToAdd, token);
+                        processingResults.NetworksCreated += networksToAdd.Count;
+                        _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.", 
+                            batchNumber, networksToAdd.Count);
+                        
+                        // Clear the list for the next batch
+                        networksToAdd.Clear();
+                    }
+
                     if (batchResults.CellularToAdd.Count > 0)
                     {
                         await _cellularRepository.BulkInsertAsync(batchResults.CellularToAdd, token);
@@ -425,14 +437,8 @@ public class ProcessCellJob : IProcessCellJob
                         _logger);
                 }
 
-                // --- Step 6: Save networks (accumulated across all batches) BEFORE creating sectors ---
-                if (networksToAdd.Count > 0)
-                {
-                    await _networkRepository.BulkInsertAsync(networksToAdd, token);
-                    processingResults.NetworksCreated = networksToAdd.Count;
-                    _logger.LogInformation("Added {Count:N0} new networks (accumulated across batches).", 
-                        networksToAdd.Count);
-                }
+                // --- Step 6: All networks have been saved per-batch, this section is now for final checks only ---
+                _logger.LogInformation("All batches processed. Networks were saved per-batch before Cellular records.");
 
                 // --- Step 7: Create Sector entities for new CellSectors (1:1 ratio) ---
                 _logger.LogInformation("Creating Sector entities for newly created CellSectors (1:1 ratio)...");
