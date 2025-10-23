@@ -25,11 +25,7 @@ public class FilesController(IMediator mediator) : ControllerBase
 
         if (file.Succeeded.Equals(false) || file == null || file.Data == null)
         {
-            return BadRequest(new ApiResponse<FileDto>
-            {
-                Succeeded = false,
-                Message = "File upload failed."
-            });
+            return BadRequest(file);
         }
 
         FileTypeEnum fileType = Enum.TryParse<FileTypeEnum>(uploadFile.Type, out var parsedType) ? parsedType : FileTypeEnum.Unknown;
