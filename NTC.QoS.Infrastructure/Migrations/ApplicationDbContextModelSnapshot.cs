@@ -1102,11 +1102,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<DateTime>("AssessmentDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<double?>("AssetsPerThousandPeople")
+                        .HasColumnType("double precision");
+
                     b.Property<decimal?>("AverageDownloadSpeedMbps")
                         .HasColumnType("numeric");
 
                     b.Property<decimal?>("AverageLatencyMs")
                         .HasColumnType("numeric");
+
+                    b.Property<double?>("AverageSignalStrength")
+                        .HasColumnType("double precision");
 
                     b.Property<decimal?>("AverageUploadSpeedMbps")
                         .HasColumnType("numeric");
@@ -1135,6 +1141,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<string>("DominantServiceProvider")
                         .HasColumnType("text");
+
+                    b.Property<double?>("EstimatedHouseholdCoveragePercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("EstimatedPopulationCoveragePercent")
+                        .HasColumnType("double precision");
 
                     b.Property<double?>("FiberCoveragePercentage")
                         .HasColumnType("double precision");
@@ -1192,6 +1204,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<int?>("Population")
                         .HasColumnType("integer");
+
+                    b.Property<double?>("ProvidersPerThousandPeople")
+                        .HasColumnType("double precision");
 
                     b.Property<int>("QualityOfServiceScore")
                         .HasColumnType("integer");
