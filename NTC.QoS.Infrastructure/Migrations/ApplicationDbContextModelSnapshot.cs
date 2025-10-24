@@ -1839,7 +1839,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AntennaType")
+                    b.Property<int?>("AntennaType")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("CellSectorId")
@@ -1861,90 +1861,85 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsRxEqualTx")
+                    b.Property<bool?>("IsRxEqualTx")
                         .HasColumnType("boolean");
 
                     b.Property<Guid?>("MIMOId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("NetworkId")
+                    b.Property<Guid?>("NetworkId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("RadioEquipment")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("RxAdditionalLoss")
+                    b.Property<decimal?>("RxAdditionalLoss")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxAntennaGain")
+                    b.Property<decimal?>("RxAntennaGain")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxAntennaHeight")
+                    b.Property<decimal?>("RxAntennaHeight")
                         .HasColumnType("numeric");
 
                     b.Property<string>("RxAntennaModel")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("RxAntennaPatternId")
+                    b.Property<Guid?>("RxAntennaPatternId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("RxAzimuth")
+                    b.Property<decimal?>("RxAzimuth")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxBeamTilt")
+                    b.Property<decimal?>("RxBeamTilt")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxCableLength")
+                    b.Property<decimal?>("RxCableLength")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxCableLoss")
+                    b.Property<decimal?>("RxCableLoss")
                         .HasColumnType("numeric");
 
                     b.Property<string>("RxCableType")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("RxEIRP")
+                    b.Property<decimal?>("RxEIRP")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAdditionalLoss")
+                    b.Property<decimal?>("TxAdditionalLoss")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAntennaGain")
+                    b.Property<decimal?>("TxAntennaGain")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAntennaHeight")
+                    b.Property<decimal?>("TxAntennaHeight")
                         .HasColumnType("numeric");
 
                     b.Property<string>("TxAntennaModel")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("TxAntennaPatternId")
+                    b.Property<Guid?>("TxAntennaPatternId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("TxAzimuth")
+                    b.Property<decimal?>("TxAzimuth")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxBeamTilt")
+                    b.Property<decimal?>("TxBeamTilt")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxCableLength")
+                    b.Property<decimal?>("TxCableLength")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxCableLoss")
+                    b.Property<decimal?>("TxCableLoss")
                         .HasColumnType("numeric");
 
                     b.Property<string>("TxCableType")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("TxEIRP")
+                    b.Property<decimal?>("TxEIRP")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxPower")
+                    b.Property<decimal?>("TxPower")
                         .HasColumnType("numeric");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -1956,7 +1951,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CellSectorId");
+                    b.HasIndex("CellSectorId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("MIMOId");
 
@@ -2909,21 +2906,15 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
                         .WithMany("Sectors")
-                        .HasForeignKey("NetworkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("NetworkId");
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "RxAntennaPattern")
                         .WithMany("RxSectors")
-                        .HasForeignKey("RxAntennaPatternId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("RxAntennaPatternId");
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "TxAntennaPattern")
                         .WithMany("TxSectors")
-                        .HasForeignKey("TxAntennaPatternId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TxAntennaPatternId");
 
                     b.Navigation("CellSector");
 
