@@ -131,7 +131,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate speed test statistics
         var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
         
-        // Calculate CMTS scores based on infrastructure, speed data, and population (NEW!)
+        // Calculate CMTS scores based on infrastructure, speed data, and population
         var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
         
         // Determine connectivity status and total score
@@ -140,6 +140,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         
         var connectivityStatus = DetermineConnectivityStatus(totalScore);
 
+        // Calculate coverage statistics to be saved
+        var coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, 
+            DetermineReliableConnectivity(infrastructureStats, speedStats));
+
         // Create or update assessment entity
         var assessment = new ConnectivityAssessment
         {
@@ -147,8 +151,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             LocationType = locationType,
             Location = center,
             AreaSizeKm2 = areaKm2,
-            Population = population,               // NEW: Store population data
-            HouseholdCount = householdCount,       // NEW: Store household count
+            Population = population,
+            HouseholdCount = householdCount,
             AssessmentDate = DateTime.UtcNow,
             LastUpdated = DateTime.UtcNow,
             AssessedBy = "System",
@@ -170,8 +174,17 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             MedianDownloadSpeedMbps = speedStats?.MedianDownloadSpeedMbps,
             MedianUploadSpeedMbps = speedStats?.MedianUploadSpeedMbps,
             SpeedTestCount = speedStats?.SpeedTestCount ?? 0,
+            AverageSignalStrength = speedStats?.AverageSignalStrength,
             MeetsMinimumSpeedRequirement = speedStats?.MeetsMinimumSpeedRequirement ?? false,
-            HasReliableConnectivity = DetermineReliableConnectivity(infrastructureStats, speedStats)
+            HasReliableConnectivity = coverage.HasReliableConnectivity,
+            // Save coverage statistics
+            MobileCoveragePercentage = coverage.MobileCoveragePercentage,
+            FixedBroadbandCoveragePercentage = coverage.FixedBroadbandCoveragePercentage,
+            FiberCoveragePercentage = coverage.FiberCoveragePercentage,
+            EstimatedPopulationCoveragePercent = coverage.EstimatedPopulationCoveragePercent,
+            EstimatedHouseholdCoveragePercent = coverage.EstimatedHouseholdCoveragePercent,
+            AssetsPerThousandPeople = coverage.AssetsPerThousandPeople,
+            ProvidersPerThousandPeople = coverage.ProvidersPerThousandPeople
         };
 
         // Save assessment
@@ -181,8 +194,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Update existing
             existingRecord.AssessmentDate = assessment.AssessmentDate;
             existingRecord.LastUpdated = assessment.LastUpdated;
-            existingRecord.Population = assessment.Population;                    // NEW: Update population
-            existingRecord.HouseholdCount = assessment.HouseholdCount;            // NEW: Update household count
+            existingRecord.Population = assessment.Population;
+            existingRecord.HouseholdCount = assessment.HouseholdCount;
             existingRecord.ConnectivityStatus = assessment.ConnectivityStatus;
             existingRecord.TotalScore = assessment.TotalScore;
             existingRecord.FiberCoverageScore = assessment.FiberCoverageScore;
@@ -201,8 +214,17 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.MedianDownloadSpeedMbps = assessment.MedianDownloadSpeedMbps;
             existingRecord.MedianUploadSpeedMbps = assessment.MedianUploadSpeedMbps;
             existingRecord.SpeedTestCount = assessment.SpeedTestCount;
+            existingRecord.AverageSignalStrength = assessment.AverageSignalStrength;
             existingRecord.MeetsMinimumSpeedRequirement = assessment.MeetsMinimumSpeedRequirement;
             existingRecord.HasReliableConnectivity = assessment.HasReliableConnectivity;
+            // Update coverage statistics
+            existingRecord.MobileCoveragePercentage = assessment.MobileCoveragePercentage;
+            existingRecord.FixedBroadbandCoveragePercentage = assessment.FixedBroadbandCoveragePercentage;
+            existingRecord.FiberCoveragePercentage = assessment.FiberCoveragePercentage;
+            existingRecord.EstimatedPopulationCoveragePercent = assessment.EstimatedPopulationCoveragePercent;
+            existingRecord.EstimatedHouseholdCoveragePercent = assessment.EstimatedHouseholdCoveragePercent;
+            existingRecord.AssetsPerThousandPeople = assessment.AssetsPerThousandPeople;
+            existingRecord.ProvidersPerThousandPeople = assessment.ProvidersPerThousandPeople;
 
             _connectivityRepository.Update(existingRecord);
         }
@@ -225,10 +247,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             CMTSScores = cmtsScores,
             Infrastructure = infrastructureStats,
             SpeedStats = speedStats,
-            Coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, assessment.HasReliableConnectivity),
+            Coverage = coverage,
             AreaSizeKm2 = areaKm2,
-            Population = population,                                    // NEW: Include population data
-            HouseholdCount = householdCount,                           // NEW: Include household count  
+            Population = population,
+            HouseholdCount = householdCount,
             CenterPoint = new PointDto { Latitude = center.Y, Longitude = center.X },
             AssessmentDate = assessment.AssessmentDate,
             LastUpdated = assessment.LastUpdated
@@ -1088,12 +1110,15 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             }
             
             coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
-            
-            // Estimate household coverage (assuming similar ratio)
+
+            // Estimate household coverage.
+            // Assuming the coverage is evenly distributed, the percentage of covered households 
+            // is proportional to the percentage of covered population.
             if (householdCount.HasValue && householdCount > 0)
             {
-                var householdRatio = (double)householdCount.Value / population.Value;
-                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent * householdRatio, 2);
+                // If 100% of the population is covered, 100% of households are covered.
+                // Therefore, the percentages are logically equivalent for estimation purposes.
+                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
             }
         }
         
