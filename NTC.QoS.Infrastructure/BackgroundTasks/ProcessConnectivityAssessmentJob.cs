@@ -4,9 +4,11 @@ using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
+using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -20,10 +22,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private readonly IConnectivityAssessmentRepository _connectivityRepository;
     private readonly IBarangayRepository _barangayRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
-    private readonly IRepository<NTC.QoS.Domain.Entities.Province> _provinceRepository;
-    private readonly IRepository<NTC.QoS.Domain.Entities.Region> _regionRepository;
+    private readonly IRepository<Province> _provinceRepository;
+    private readonly IRepository<Region> _regionRepository;
     private readonly IMemoryCache _memoryCache;
     private readonly ICellRepository _cellRepository;
+    private readonly ICellularRepository _cellularRepository;
     private readonly INAPRepository _napRepository;
     private readonly IWiFiHotspotRepository _wifiRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
@@ -39,10 +42,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         IConnectivityAssessmentRepository connectivityRepository,
         IBarangayRepository barangayRepository,
         IMunicipalityRepository municipalityRepository,
-        IRepository<NTC.QoS.Domain.Entities.Province> provinceRepository,
-        IRepository<NTC.QoS.Domain.Entities.Region> regionRepository,
+        IRepository<Province> provinceRepository,
+        IRepository<Region> regionRepository,
         IMemoryCache memoryCache,
         ICellRepository cellRepository,
+        ICellularRepository cellularRepository,
         INAPRepository napRepository,
         IWiFiHotspotRepository wifiRepository,
         ISpeedtestRepository speedtestRepository)
@@ -55,6 +59,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _regionRepository = regionRepository;
         _memoryCache = memoryCache;
         _cellRepository = cellRepository;
+        _cellularRepository = cellularRepository;
         _napRepository = napRepository;
         _wifiRepository = wifiRepository;
         _speedtestRepository = speedtestRepository;
@@ -373,7 +378,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             _logger.LogDebug("Generating new assessment for {LocationType} {LocationId} (existing: {HasExisting}, force: {ForceRecalculate})", 
                 locationType, locationId, existing != null, forceRecalculate);
             
-            var newAssessmentData = await GenerateNewAssessment(locationId, locationType, cancellationToken);
+            var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, cancellationToken);
             
             if (existing != null)
             {
@@ -402,10 +407,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Generate a complete connectivity assessment with full CMTS rubric implementation
+    /// Updated to align with GenerateConnectivityAssessmentHandler implementation
     /// </summary>
     private async Task<ConnectivityAssessment> GenerateNewAssessment(
         Guid locationId, 
-        LocationTypeEnum locationType, 
+        LocationTypeEnum locationType,
+        bool forceRecalculate,
         CancellationToken cancellationToken)
     {
         try
@@ -416,7 +423,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             {
                 _logger.LogWarning("Could not get location information for location {LocationId}", locationId);
                 // Return basic assessment for unknown locations
-                return new ConnectivityAssessment
+                return new()
                 {
                     LocationId = locationId,
                     LocationType = locationType,
@@ -433,11 +440,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 };
             }
 
-            // Calculate infrastructure statistics within the boundary
-            var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, cancellationToken);
+            // Calculate infrastructure statistics within the boundary (with caching)
+            var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
             
-            // Calculate speed test statistics
-            var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, cancellationToken);
+            // Calculate speed test statistics (with caching)
+            var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
+            
+            // Get technology breakdown with caching
+            var techCacheKey = $"tech:{locationType}:{locationId}";
+            TechnologyBreakdownDto technologyBreakdown;
+            if (!forceRecalculate && _memoryCache.TryGetValue(techCacheKey, out TechnologyBreakdownDto? cachedTech) && cachedTech != null)
+            {
+                technologyBreakdown = cachedTech;
+            }
+            else
+            {
+                if (forceRecalculate)
+                {
+                    _logger.LogInformation("Force recalculating technology breakdown for {LocationType} {LocationId}", locationType, locationId);
+                }
+                technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, cancellationToken);
+                _memoryCache.Set(techCacheKey, technologyBreakdown, TimeSpan.FromHours(12));
+            }
             
             // Calculate CMTS scores based on infrastructure, speed data, and population
             var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
@@ -449,11 +473,17 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var connectivityStatus = DetermineConnectivityStatus(totalScore);
             var hasReliableConnectivity = DetermineReliableConnectivity(infrastructureStats, speedStats);
 
-            return new ConnectivityAssessment
+            // Calculate coverage statistics to be saved
+            var coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, hasReliableConnectivity);
+
+            return new()
             {
                 LocationId = locationId,
                 LocationType = locationType,
                 Location = center,
+                AreaSizeKm2 = areaKm2,
+                Population = population,
+                HouseholdCount = householdCount,
                 AssessmentDate = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow,
                 AssessedBy = "BackgroundJob",
@@ -464,9 +494,27 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 TechnologyTypeScore = cmtsScores.TechnologyType,
                 QualityOfServiceScore = cmtsScores.QualityOfService,
                 CoverageAvailabilityScore = cmtsScores.CoverageAvailability,
+                CellTowerCount = infrastructureStats.CellTowerCount,
                 FiberNAPCount = infrastructureStats.FiberNAPCount,
+                WifiHotspotCount = infrastructureStats.WiFiHotspotCount,
                 ServiceProviderCount = infrastructureStats.ServiceProviderCount,
-                HasReliableConnectivity = hasReliableConnectivity
+                DominantServiceProvider = infrastructureStats.DominantServiceProvider,
+                AverageDownloadSpeedMbps = speedStats?.AverageDownloadSpeedMbps,
+                AverageUploadSpeedMbps = speedStats?.AverageUploadSpeedMbps,
+                AverageLatencyMs = speedStats?.AverageLatencyMs,
+                MedianDownloadSpeedMbps = speedStats?.MedianDownloadSpeedMbps,
+                MedianUploadSpeedMbps = speedStats?.MedianUploadSpeedMbps,
+                SpeedTestCount = speedStats?.SpeedTestCount ?? 0,
+                AverageSignalStrength = speedStats?.AverageSignalStrength,
+                MeetsMinimumSpeedRequirement = speedStats?.MeetsMinimumSpeedRequirement ?? false,
+                HasReliableConnectivity = coverage.HasReliableConnectivity,
+                MobileCoveragePercentage = coverage.MobileCoveragePercentage,
+                FixedBroadbandCoveragePercentage = coverage.FixedBroadbandCoveragePercentage,
+                FiberCoveragePercentage = coverage.FiberCoveragePercentage,
+                EstimatedPopulationCoveragePercent = coverage.EstimatedPopulationCoveragePercent,
+                EstimatedHouseholdCoveragePercent = coverage.EstimatedHouseholdCoveragePercent,
+                AssetsPerThousandPeople = coverage.AssetsPerThousandPeople,
+                ProvidersPerThousandPeople = coverage.ProvidersPerThousandPeople
             };
         }
         catch (Exception ex)
@@ -478,220 +526,222 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Get location details including boundaries and population data
+    /// Updated to always load boundaries for government-grade accuracy
     /// </summary>
     private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetLocationDetailsAsync(
         Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken)
     {
         return locationType switch
         {
-            LocationTypeEnum.Barangay => await GetBarangayDetailsAsync(locationId, cancellationToken),
-            LocationTypeEnum.Municipality => await GetMunicipalityDetailsAsync(locationId, cancellationToken),
-            LocationTypeEnum.Provincial => await GetProvinceDetailsAsync(locationId, cancellationToken),
-            LocationTypeEnum.Regional => await GetRegionDetailsAsync(locationId, cancellationToken),
+            LocationTypeEnum.Barangay => await GetBarangayDetailsOptimizedAsync(locationId, cancellationToken),
+            LocationTypeEnum.Municipality => await GetMunicipalityDetailsOptimizedAsync(locationId, cancellationToken),
+            LocationTypeEnum.Provincial => await GetProvinceDetailsOptimizedAsync(locationId, cancellationToken),
+            LocationTypeEnum.Regional => await GetRegionDetailsOptimizedAsync(locationId, cancellationToken),
             _ => ("Unknown", null, null, 0, null, null)
         };
     }
 
     /// <summary>
-    /// Get barangay details with boundaries and population data
+    /// Optimized barangay details retrieval - always loads boundaries for government-grade accuracy
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetBarangayDetailsAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetBarangayDetailsOptimizedAsync(
         Guid barangayId, CancellationToken cancellationToken)
     {
         var barangayInfo = await _barangayRepository.FirstOrDefaultAsync(
             _barangayRepository.Query(b => b.Id == barangayId)
-                .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount, b.Boundaries }), 
+                .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount }),
             cancellationToken);
-        
+
         if (barangayInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        return (barangayInfo.Name, barangayInfo.Boundaries, barangayInfo.Center, (double)(barangayInfo.Area), 
+        // Always load boundaries for barangays - they're typically small and accuracy is important
+        Geometry? boundary = null;
+        var boundaryQuery = _barangayRepository.Query(b => b.Id == barangayId)
+            .Select(b => b.Boundaries);
+        boundary = await _barangayRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+        return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area,
                barangayInfo.TotalPopulation, barangayInfo.HouseholdCount);
     }
 
     /// <summary>
-    /// Get municipality details with boundaries and population data
+    /// Optimized municipality details - always loads boundaries for government-grade accuracy
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetMunicipalityDetailsAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetMunicipalityDetailsOptimizedAsync(
         Guid municipalityId, CancellationToken cancellationToken)
     {
         var municipalityInfo = await _municipalityRepository.FirstOrDefaultAsync(
             _municipalityRepository.Query(m => m.Id == municipalityId)
-                .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount, m.Boundaries }), 
+                .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount }),
             cancellationToken);
-        
+
         if (municipalityInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        return (municipalityInfo.Name, municipalityInfo.Boundaries, municipalityInfo.Center, (double)(municipalityInfo.Area),
+        // Always load boundaries for accurate government mapping - performance optimized with caching
+        Geometry? boundary = null;
+        var boundaryQuery = _municipalityRepository.Query(m => m.Id == municipalityId)
+            .Select(m => m.Boundaries);
+        boundary = await _municipalityRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+        return (municipalityInfo.Name, boundary, municipalityInfo.Center, municipalityInfo.Area,
                municipalityInfo.TotalPopulation, municipalityInfo.HouseholdCount);
     }
 
     /// <summary>
-    /// Get province details with boundaries and population data
+    /// Province details - always loads boundaries for government-grade accuracy
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetProvinceDetailsAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetProvinceDetailsOptimizedAsync(
         Guid provinceId, CancellationToken cancellationToken)
     {
         var provinceInfo = await _provinceRepository.FirstOrDefaultAsync(
             _provinceRepository.Query(p => p.Id == provinceId)
-                .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount, p.Boundaries }), 
+                .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount }),
             cancellationToken);
-        
+
         if (provinceInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        return (provinceInfo.Name, provinceInfo.Boundaries, provinceInfo.Center, (double)(provinceInfo.Area),
+        // Always load boundaries for accurate government mapping - performance optimized with caching
+        Geometry? boundary = null;
+        var boundaryQuery = _provinceRepository.Query(p => p.Id == provinceId)
+            .Select(p => p.Boundaries);
+        boundary = await _provinceRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+        return (provinceInfo.Name, boundary, provinceInfo.Center, provinceInfo.Area,
                provinceInfo.TotalPopulation, provinceInfo.HouseholdCount);
     }
 
     /// <summary>
-    /// Get region details with boundaries and population data
+    /// Region details - loads boundaries for maximum accuracy (performance managed via caching)
     /// </summary>
-    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetRegionDetailsAsync(
+    private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetRegionDetailsOptimizedAsync(
         Guid regionId, CancellationToken cancellationToken)
     {
         var regionInfo = await _regionRepository.FirstOrDefaultAsync(
             _regionRepository.Query(r => r.Id == regionId)
-                .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount, r.Boundaries }), 
+                .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount }),
             cancellationToken);
-        
+
         if (regionInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        return (regionInfo.Name, regionInfo.Boundaries, regionInfo.Center, (double)(regionInfo.Area),
+        // Load boundaries for accurate government mapping - large regions benefit most from caching
+        Geometry? boundary = null;
+        var boundaryQuery = _regionRepository.Query(r => r.Id == regionId)
+            .Select(r => r.Boundaries);
+        boundary = await _regionRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+        return (regionInfo.Name, boundary, regionInfo.Center, regionInfo.Area,
                regionInfo.TotalPopulation, regionInfo.HouseholdCount);
     }
 
     /// <summary>
-    /// Calculate infrastructure statistics within the location boundary
+    /// Enhanced infrastructure calculation with multi-level caching and accurate boundary usage
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureStatsAsync(
-        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken)
+        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
-        try
+        // Only check cache if not forcing recalculation
+        if (!forceRecalculate)
         {
-            List<string> cells, naps, wifiHotspots;
-
-            if (boundary != null)
+            var cacheKey = $"infra:{locationType}:{locationId}";
+            if (_memoryCache.TryGetValue(cacheKey, out InfrastructureStatsDto? cachedResult) && cachedResult != null)
             {
-                _logger.LogDebug("Using boundary-based infrastructure calculation for {LocationType} {LocationId}", locationType, locationId);
-
-                // Get cells within boundary
-                var cellQuery = _cellRepository.Query()
-                    .Where(c => boundary.Intersects(c.Location));
-                cells = await _cellRepository.ToListAsync(
-                    cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
-
-                // Get NAPs within boundary  
-                var napQuery = _napRepository.Query()
-                    .Where(n => boundary.Intersects(n.Location));
-                naps = await _napRepository.ToListAsync(
-                    napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
-
-                // Get WiFi hotspots within boundary
-                var wifiQuery = _wifiRepository.Query()
-                    .Where(w => boundary.Intersects(w.Location));
-                wifiHotspots = await _wifiRepository.ToListAsync(
-                    wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+                _logger.LogDebug("Using cached infrastructure stats for {LocationType} {LocationId}", locationType, locationId);
+                return cachedResult;
             }
-            else
-            {
-                _logger.LogWarning("No boundary available for {LocationType} {LocationId}, using center-point approximation", locationType, locationId);
-                
-                var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI); // Equivalent area circle radius
-                var searchRadiusMeters = searchRadiusKm * 1000;
-
-                // Get infrastructure using distance-based queries
-                var cellQuery = _cellRepository.Query()
-                    .Where(c => c.Location.Distance(center) <= searchRadiusMeters);
-                cells = await _cellRepository.ToListAsync(
-                    cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
-
-                var napQuery = _napRepository.Query()
-                    .Where(n => n.Location.Distance(center) <= searchRadiusMeters);
-                naps = await _napRepository.ToListAsync(
-                    napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
-
-                var wifiQuery = _wifiRepository.Query()
-                    .Where(w => w.Location.Distance(center) <= searchRadiusMeters);
-                wifiHotspots = await _wifiRepository.ToListAsync(
-                    wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
-            }
-
-            var allProviders = cells.Concat(naps).Concat(wifiHotspots).Where(p => !string.IsNullOrEmpty(p)).ToList();
-            var uniqueProviders = allProviders.Distinct().ToList();
-            var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
-
-            return new InfrastructureStatsDto
-            {
-                CellTowerCount = cells.Count,
-                FiberNAPCount = naps.Count,
-                WiFiHotspotCount = wifiHotspots.Count,
-                ServiceProviderCount = uniqueProviders.Count,
-                DominantServiceProvider = dominantProvider
-            };
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, "Error calculating infrastructure stats for {LocationType} {LocationId}", locationType, locationId);
-            return new InfrastructureStatsDto();
+            _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
+
+        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
+
+        // Use accurate boundaries with optimizations
+        var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
+
+        // Always cache the fresh result
+        var infraCacheKey = $"infra:{locationType}:{locationId}";
+        _memoryCache.Set(infraCacheKey, result, TimeSpan.FromHours(24));
+
+        return result;
     }
 
     /// <summary>
-    /// Calculate speed test statistics within the location boundary
+    /// Enhanced speed stats calculation with caching
     /// </summary>
     private async Task<SpeedStatsDto?> CalculateSpeedTestStatsAsync(
-        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken)
+        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
-        try
+        // Only check cache if not forcing recalculation
+        if (!forceRecalculate)
         {
-            List<SpeedtestDto> speedtestResults;
-
-            if (boundary != null)
+            var cacheKey = $"speed:{locationType}:{locationId}";
+            if (_memoryCache.TryGetValue(cacheKey, out SpeedStatsDto? cachedResult) && cachedResult != null)
             {
-                var query = _speedtestRepository.Query()
-                    .Where(s => boundary.Intersects(s.Location));
-
-                speedtestResults = await _speedtestRepository.ToListAsync(
-                    query.Select(s => new SpeedtestDto 
-                    { 
-                        DownloadSpeed = s.DownloadSpeed, 
-                        UploadSpeed = s.UploadSpeed, 
-                        Ping = s.Ping, 
-                        RSSI = s.RSSI, 
-                        SignalQuality = s.SignalQuality 
-                    }), 
-                    cancellationToken);
+                _logger.LogDebug("Using cached speed stats for {LocationType} {LocationId}", locationType, locationId);
+                return cachedResult;
             }
-            else
-            {
-                var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI);
-                var searchRadiusMeters = searchRadiusKm * 1000;
-
-                speedtestResults = await _speedtestRepository.ToListAsync(
-                    _speedtestRepository.Query()
-                        .Where(s => s.Location.Distance(center) <= searchRadiusMeters)
-                        .Select(s => new SpeedtestDto 
-                        { 
-                            DownloadSpeed = s.DownloadSpeed, 
-                            UploadSpeed = s.UploadSpeed, 
-                            Ping = s.Ping, 
-                            RSSI = s.RSSI, 
-                            SignalQuality = s.SignalQuality 
-                        }), 
-                    cancellationToken);
-            }
-
-            return ProcessSpeedTestResults(speedtestResults);
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, "Error calculating speed test stats for {LocationType} {LocationId}", locationType, locationId);
-            return null;
+            _logger.LogInformation("Force recalculating speed stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
+
+        SpeedStatsDto? result = null;
+
+        if (boundary != null)
+        {
+            // Use accurate boundary with envelope optimization
+            var query = _speedtestRepository.Query();
+            query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
+
+            var speedtestResults = await _speedtestRepository.ToListAsync(
+                query.Select(s => new SpeedtestDto
+                {
+                    DownloadSpeed = s.DownloadSpeed,
+                    UploadSpeed = s.UploadSpeed,
+                    Ping = s.Ping,
+                    RSSI = s.RSSI,
+                    SignalQuality = s.SignalQuality
+                }),
+                cancellationToken);
+
+            result = ProcessSpeedTestResults(speedtestResults);
+        }
+        else
+        {
+            // Radius-based fallback
+            var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI);
+            var searchRadiusMeters = searchRadiusKm * 1000;
+
+            var speedtestResults = await _speedtestRepository.ToListAsync(
+                _speedtestRepository.Query()
+                    .Where(s => s.Location.Distance(center) <= searchRadiusMeters)
+                    .Select(s => new SpeedtestDto
+                    {
+                        DownloadSpeed = s.DownloadSpeed,
+                        UploadSpeed = s.UploadSpeed,
+                        Ping = s.Ping,
+                        RSSI = s.RSSI,
+                        SignalQuality = s.SignalQuality
+                    }),
+                cancellationToken);
+
+            result = ProcessSpeedTestResults(speedtestResults);
+        }
+
+        // Always cache the fresh result
+        if (result != null)
+        {
+            var speedCacheKey = $"speed:{locationType}:{locationId}";
+            _memoryCache.Set(speedCacheKey, result, TimeSpan.FromHours(4));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -721,10 +771,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             .Select(s => s.SignalQuality!)
             .ToList();
         
-        // Determine average signal strength based on RSSI ranges
-        var averageSignalStrength = CalculateAverageSignalStrength(rssiValues, signalQualities);
+        // Determine average signal strength using SignalStrengthHelper
+        var averageSignalStrength = SignalStrengthHelper.CalculateAverageSignalStrength(rssiValues, signalQualities);
 
-        return new SpeedStatsDto
+        return new()
         {
             AverageDownloadSpeedMbps = Math.Round(downloadSpeeds.Average(), 2),
             AverageUploadSpeedMbps = Math.Round(uploadSpeeds.Average(), 2),
@@ -734,6 +784,150 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             SpeedTestCount = speedtests.Count,
             MeetsMinimumSpeedRequirement = downloadSpeeds.Average() >= 25, // 25 Mbps minimum
             AverageSignalStrength = averageSignalStrength
+        };
+    }
+
+    /// <summary>
+    /// Analyzes technology generations in the area from speedtest data and cellular infrastructure
+    /// </summary>
+    private async Task<TechnologyBreakdownDto> AnalyzeTechnologyGenerationsAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var allTechData = new List<(string GenerationName, string TechnologyStandard, Guid Id)>();
+
+            if (useBoundary && boundary != null)
+            {
+                // Use boundary-based queries for speedtest data
+                var speedtestQuery = _speedtestRepository.Query();
+                speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, speedtestQuery);
+                var speedtestResults = await _speedtestRepository.ToListAsync(
+                    speedtestQuery
+                        .Where(s => s.Generation != null && s.Technology != null)
+                        .Select(s => new {
+                            GenerationName = s.Generation!.Name,
+                            TechnologyStandard = s.Technology!.Standard,
+                            s.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
+
+                // Get cellular technology data using cell repository with spatial filter
+                var cellQuery = _cellRepository.Query();
+                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+
+                var cellularResults = await _cellRepository.ToListAsync(
+                    cellQuery
+                        .SelectMany(cell => cell.CellSectors!)
+                        .SelectMany(sector => sector.Cellulars!)
+                        .Where(c => c.Technology != null && c.Technology.Generation != null)
+                        .Select(c => new {
+                            GenerationName = c.Technology!.Generation!.Name,
+                            TechnologyStandard = c.Technology!.Standard,
+                            c.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
+            }
+            else
+            {
+                // Use radius-based queries for larger areas
+                var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
+                var searchRadiusMeters = searchRadiusKm * 1000;
+
+                var speedtestResults = await _speedtestRepository.ToListAsync(
+                    _speedtestRepository.Query()
+                        .Where(s => s.Location.Distance(center) <= searchRadiusMeters
+                                  && s.Generation != null && s.Technology != null)
+                        .Select(s => new {
+                            GenerationName = s.Generation!.Name,
+                            TechnologyStandard = s.Technology!.Standard,
+                            s.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
+
+                var cellularResults = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters)
+                        .Select(c => new {
+                            GenerationName = c.Technology!.Generation!.Name,
+                            TechnologyStandard = c.Technology!.Standard,
+                            c.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
+            }
+
+            if (allTechData.Count == 0)
+            {
+                return new();
+            }
+
+            // Analyze generation distribution
+            var generationCounts = allTechData
+                .GroupBy(t => NormalizeGenerationName(t.GenerationName))
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var technologyStandards = allTechData
+                .Select(t => t.TechnologyStandard)
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Distinct()
+                .ToList();
+
+            var generationNames = allTechData
+                .Select(t => t.GenerationName)
+                .Where(g => !string.IsNullOrEmpty(g))
+                .Distinct()
+                .ToList();
+                
+            var dominantGeneration = generationCounts.Any()
+                ? generationCounts.OrderByDescending(kvp => kvp.Value).First().Key
+                : null;
+
+            var count2G = generationCounts.GetValueOrDefault("2G", 0);
+            var count3G = generationCounts.GetValueOrDefault("3G", 0);
+            var count4G = generationCounts.GetValueOrDefault("4G", 0);
+            var count5G = generationCounts.GetValueOrDefault("5G", 0);
+
+            return new()
+            {
+                Count2G = count2G,
+                Count3G = count3G,
+                Count4G = count4G,
+                Count5G = count5G,
+                AvailableTechnologies = technologyStandards,
+                AvailableGenerations = generationNames,
+                DominantGeneration = dominantGeneration,
+                PrimaryTechnology = dominantGeneration ?? "Unknown",
+                HasModernCoverage = count4G > 0 || count5G > 0,
+                ModernCoverageRatio = allTechData.Count > 0 ? Math.Round((double)(count4G + count5G) / allTechData.Count * 100, 2) : 0
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error analyzing technology generations for area. Returning empty breakdown.");
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Normalizes generation names to standard format (2G, 3G, 4G, 5G)
+    /// </summary>
+    private static string NormalizeGenerationName(string generationName)
+    {
+        if (string.IsNullOrEmpty(generationName))
+            return "Unknown";
+
+        var normalized = generationName.ToUpperInvariant().Trim();
+
+        return normalized switch
+        {
+            var s when s.Contains("2G") || s.Contains("GSM") || s.Contains("EDGE") => "2G",
+            var s when s.Contains("3G") || s.Contains("UMTS") || s.Contains("WCDMA") || s.Contains("HSPA") => "3G",
+            var s when s.Contains("4G") || s.Contains("LTE") || s.Contains("LTE-A") => "4G",
+            var s when s.Contains("5G") || s.Contains("NR") || s.Contains("5G NR") => "5G",
+            _ => normalized
         };
     }
 
@@ -752,6 +946,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Calculate CMTS scores based on infrastructure, speed data, and population
+    /// Enhanced with technology breakdown support
     /// </summary>
     private static CMTSScoresDto CalculateCMTSScores(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats, double areaKm2, int? population, int? householdCount)
     {
@@ -863,6 +1058,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Calculate Technology Type Score (0-3 points) - CMTS Criterion 3
+    /// Enhanced with technology breakdown support
     /// </summary>
     private static int CalculateTechnologyTypeScore(InfrastructureStatsDto infrastructure)
     {
@@ -871,6 +1067,36 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                              (infrastructure.CellTowerCount > 0 ? 1 : 0) +
                              (infrastructure.WiFiHotspotCount > 0 ? 1 : 0);
 
+        // Enhanced technology scoring using actual generation data
+        if (infrastructure.TechnologyBreakdown != null && infrastructure.TechnologyBreakdown.TotalTechnologyCount > 0)
+        {
+            var tech = infrastructure.TechnologyBreakdown;
+
+            // Score based on generation analysis
+            if (tech.Count5G > 0 && tech.HasModernTechnology) // 5G present
+            {
+                return 3; // Served - 5G/LTE infrastructure active
+            }
+
+            if (tech.Count4G > 0 && !tech.IsLegacyDominated) // 4G present and not legacy-dominated
+            {
+                return 3; // Served - 4G/LTE infrastructure active  
+            }
+
+            if (tech.HasModernTechnology && tech.IsLegacyDominated) // Has 4G/5G but legacy dominates
+            {
+                return 2; // Underserved - Mixed legacy and modern
+            }
+
+            if (tech.Count3G > 0 || tech.Count2G > 0) // Only legacy technologies
+            {
+                return 2; // Underserved - Legacy technologies only
+            }
+
+            return 1; // Unserved - No identifiable technology
+        }
+
+        // Fallback to infrastructure-based scoring when no technology data available
         if (!hasModernInfra)
         {
             return 1; // Unserved - No installed broadband technology
@@ -886,6 +1112,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Calculate Quality of Service Score (0-3 points) - CMTS Criterion 4
+    /// Enhanced with 5G bonus
     /// </summary>
     private static int CalculateQualityOfServiceScore(SpeedStatsDto? speedStats, InfrastructureStatsDto infrastructure)
     {
@@ -904,7 +1131,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         if (hasConsistentSpeeds) qualityFactors++;
         if (hasGoodLatency) qualityFactors++;
         if (hasGoodSignal) qualityFactors++;
-        
+
+        // Bonus for 5G areas with excellent performance
+        if (infrastructure.TechnologyBreakdown?.Count5G > 0 &&
+            speedStats.AverageDownloadSpeedMbps >= 100 &&
+            speedStats.AverageLatencyMs <= 20)
+        {
+            qualityFactors++;
+        }
+
         return qualityFactors switch
         {
             >= 3 => 3, // Served - High quality (good speed, low latency, good signal)
@@ -915,7 +1150,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Calculate Coverage Availability Score (0-3 points) - CMTS Criterion 5
-    /// Population-aware scoring aligns with CMTS rubric requirements
+    /// Enhanced with modern technology consideration
     /// </summary>
     private static int CalculateCoverageAvailabilityScore(InfrastructureStatsDto infrastructure, double areaKm2, int? population, (double PopulationDensity, bool IsUrbanArea, bool IsHighDensityArea) context)
     {
@@ -925,17 +1160,18 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         }
 
         double coverageScore;
-        
+
         if (population.HasValue && population > 0)
         {
             // Population-based coverage calculation (aligns with CMTS rubric)
             var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
             var providersPerThousand = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
+            var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
-            
+
             // Calculate estimated coverage percentage based on infrastructure density
             double estimatedCoveragePercent;
-            
+
             if (context.IsUrbanArea)
             {
                 // Urban: High infrastructure density expected  
@@ -954,15 +1190,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 var geographicCoverage = Math.Min(100, geographicDensity * 100);
                 estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
             }
-            
+
             // Apply CMTS rubric thresholds
-            if (estimatedCoveragePercent >= 100 && hasMultipleProviders)
+            if (estimatedCoveragePercent >= 100 && hasMultipleProviders && hasModernTech)
             {
-                coverageScore = 3; // Served - 100% coverage with competition
+                coverageScore = 3; // Served - 100% coverage with competition and modern tech
             }
-            else if (estimatedCoveragePercent >= 40 && hasMultipleProviders)
+            else if (estimatedCoveragePercent >= 40 && (hasMultipleProviders || hasModernTech))
             {
-                coverageScore = 2; // Underserved - 40-99% coverage with competition
+                coverageScore = 2; // Underserved - 40-99% coverage with some positive factors
             }
             else if (estimatedCoveragePercent >= 40)
             {
@@ -978,12 +1214,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Fallback to geographic density when population data unavailable
             var assetDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
-            
-            if (hasMultipleProviders && assetDensity >= 1.0)
+            var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
+
+            if (hasMultipleProviders && hasModernTech && assetDensity >= 1.0)
             {
                 coverageScore = 3; // Served - Comprehensive coverage
             }
-            else if (hasMultipleProviders || assetDensity >= 0.5)
+            else if (hasMultipleProviders || hasModernTech || assetDensity >= 0.5)
             {
                 coverageScore = 2; // Underserved - Partial coverage
             }
@@ -992,302 +1229,87 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 coverageScore = 1; // Unserved - Limited coverage
             }
         }
-        
+
         return (int)Math.Round(coverageScore);
     }
 
     /// <summary>
-    /// Determine connectivity status based on total CMTS score
+    /// Calculates population-aware coverage statistics
     /// </summary>
-    private static ConnectivityStatusEnum DetermineConnectivityStatus(int totalScore)
+    private static CoverageStatsDto CalculatePopulationAwareCoverage(
+        InfrastructureStatsDto infrastructure,
+        double areaKm2,
+        int? population,
+        int? householdCount,
+        bool hasReliableConnectivity)
     {
-        return totalScore switch
+        var coverage = new CoverageStatsDto
         {
-            >= 11 => ConnectivityStatusEnum.Served,        // 11-15 points
-            >= 6 => ConnectivityStatusEnum.Underserved,    // 6-10 points  
-            _ => ConnectivityStatusEnum.Unserved           // ≤5 points
+            HasReliableConnectivity = hasReliableConnectivity
         };
-    }
 
-    /// <summary>
-    /// Determine if location has reliable connectivity
-    /// </summary>
-    private static bool DetermineReliableConnectivity(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats)
-    {
-        var hasInfrastructure = infrastructure.TotalAssets > 0;
-        var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
-        var hasGoodSpeeds = speedStats?.MeetsMinimumSpeedRequirement == true;
-
-        return hasInfrastructure && (hasMultipleProviders || hasGoodSpeeds);
-    }
-
-    /// <summary>
-    /// Calculate average signal strength based on RSSI values and signal quality strings
-    /// </summary>
-    private static double CalculateAverageSignalStrength(List<decimal> rssiValues, List<string> signalQualities)
-    {
-        if (rssiValues.Count == 0 && signalQualities.Count == 0)
-            return 0;
-
-        var strengthValues = new List<double>();
-
-        // Convert RSSI values to strength scale (1-5)
-        foreach (var rssi in rssiValues)
+        // Calculate population-aware metrics if population data is available
+        if (population.HasValue && population > 0)
         {
-            var strength = (double)rssi switch
+            // Assets per thousand people
+            coverage.AssetsPerThousandPeople = (infrastructure.TotalAssets * 1000.0) / population.Value;
+
+            // Providers per thousand people  
+            coverage.ProvidersPerThousandPeople = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
+
+            // Estimate population coverage based on infrastructure density
+            var populationDensity = areaKm2 > 0 ? population.Value / areaKm2 : 0;
+            var isUrbanArea = populationDensity > 1000;
+            var isHighDensityArea = populationDensity > 500;
+
+            double estimatedCoveragePercent;
+            var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
+            var providersPerThousand = coverage.ProvidersPerThousandPeople ?? 0;
+
+            if (isUrbanArea)
             {
-                >= -50 => 5.0,  // Excellent
-                >= -60 => 4.0,  // Good
-                >= -70 => 3.0,  // Fair
-                >= -80 => 2.0,  // Poor
-                _ => 1.0        // Very Poor
-            };
-            strengthValues.Add(strength);
-        }
-
-        // Convert signal quality strings to strength scale
-        foreach (var quality in signalQualities)
-        {
-            var strength = quality?.ToUpperInvariant() switch
+                // Urban areas: Higher infrastructure density expected
+                estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 10000) + (providersPerThousand * 20));
+            }
+            else if (isHighDensityArea)
             {
-                "EXCELLENT" => 5.0,
-                "GOOD" => 4.0,
-                "FAIR" => 3.0,
-                "POOR" => 2.0,
-                _ => 2.5 // Default for unknown qualities
-            };
-            strengthValues.Add(strength);
-        }
-
-        return strengthValues.Count > 0 ? strengthValues.Average() : 0;
-    }
-
-    /// <summary>
-    /// Processes hierarchical assessments for child locations with performance controls and safety measures
-    /// Updates with Option 2: Make hierarchical processing optional with performance limits
-    /// </summary>
-    private async Task<List<LocationConnectivityDto>> ProcessHierarchicalAssessments(
-        List<Guid> locationIds,
-        LocationTypeEnum locationType,
-        int hierarchicalDepth,
-        bool forceRecalculate,
-        int jobId,
-        int currentProcessedCount,
-        CancellationToken cancellationToken)
-    {
-        var results = new List<LocationConnectivityDto>();
-
-        try
-        {
-            _logger.LogInformation("Job {JobId}: Starting hierarchical processing for {LocationCount} {LocationType}s with depth {Depth}",
-                jobId, locationIds.Count, locationType, hierarchicalDepth);
-
-            // Get child locations based on location type and depth
-            var childLocations = await GetChildLocationsAsync(locationIds, locationType, hierarchicalDepth, cancellationToken);
-
-            if (childLocations.Count == 0)
+                // Semi-urban areas: Moderate infrastructure density
+                estimatedCoveragePercent = Math.Min(100, (assetsPerCapita * 15000) + (providersPerThousand * 25));
+            }
+            else
             {
-                _logger.LogInformation("Job {JobId}: No child locations found for hierarchical processing", jobId);
-                return results;
+                // Rural areas: Consider both population and geographic coverage
+                var geographicDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
+                var populationCoverage = Math.Min(100, (assetsPerCapita * 20000) + (providersPerThousand * 30));
+                var geographicCoverage = Math.Min(100, geographicDensity * 100);
+                estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
             }
 
-            _logger.LogInformation("Job {JobId}: Found {ChildCount} child locations for hierarchical processing", jobId, childLocations.Count);
+            coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
 
-            // Apply performance limits - this is critical for system stability
-            var maxLocations = 1000; // Default safety limit
-            try
+            // Estimate household coverage
+            if (householdCount.HasValue && householdCount > 0)
             {
-                var cacheKey = $"job_request_{jobId}";
-                if (_memoryCache.TryGetValue(cacheKey, out ConnectivityAssessmentJobRequestDto? jobRequest))
-                {
-                    maxLocations = jobRequest.MaxHierarchicalLocations;
-                }
+                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error getting max hierarchical locations for job {JobId}, using default", jobId);
-            }
-            
-            if (childLocations.Count > maxLocations)
-            {
-                _logger.LogWarning("Job {JobId}: Hierarchical processing limited to {MaxCount} locations (requested {RequestedCount} locations). " +
-                    "This prevents system overload. Consider processing in smaller batches.",
-                    jobId, maxLocations, childLocations.Count);
-                
-                childLocations = childLocations.Take(maxLocations).ToList();
-            }
-
-            // Process child locations in smaller batches optimized for hierarchical processing
-            var hierarchicalBatchSize = 50; // Default smaller batch size for hierarchical processing
-            try
-            {
-                var cacheKey = $"job_request_{jobId}";
-                if (_memoryCache.TryGetValue(cacheKey, out ConnectivityAssessmentJobRequestDto? jobRequest))
-                {
-                    hierarchicalBatchSize = jobRequest.HierarchicalBatchSize;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error getting hierarchical batch size for job {JobId}, using default", jobId);
-            }
-
-            var hierarchicalResults = await ProcessLocationsSequentially(
-                childLocations.Select(l => (l.Id, l.Type, l.Name)).ToList(),
-                forceRecalculate,
-                jobId,
-                "hierarchical locations",
-                cancellationToken);
-
-            results.AddRange(hierarchicalResults);
-
-            _logger.LogInformation("Job {JobId}: Completed hierarchical processing. Generated {ResultCount} assessments from {ChildCount} child locations",
-                jobId, results.Count, childLocations.Count);
-
-            return results;
         }
-        catch (Exception ex)
+
+        // Calculate basic coverage percentages based on infrastructure mix
+        var totalInfrastructure = infrastructure.TotalAssets;
+        if (totalInfrastructure > 0)
         {
-            _logger.LogError(ex, "Job {JobId}: Error in hierarchical processing. Continuing with completed primary assessments.", jobId);
-            // Return any results we managed to get before the error
-            return results;
+            // Mobile coverage based on cell towers
+            coverage.MobileCoveragePercentage = Math.Round((double)infrastructure.CellTowerCount / totalInfrastructure * 100, 2);
+
+            // Fixed broadband coverage based on fiber NAPs and WiFi
+            var fixedInfrastructure = infrastructure.FiberNAPCount + infrastructure.WiFiHotspotCount;
+            coverage.FixedBroadbandCoveragePercentage = Math.Round((double)fixedInfrastructure / totalInfrastructure * 100, 2);
+
+            // Fiber coverage based on NAP presence
+            coverage.FiberCoveragePercentage = Math.Round((double)infrastructure.FiberNAPCount / totalInfrastructure * 100, 2);
         }
-    }
 
-    /// <summary>
-    /// Get child locations based on parent location type and hierarchical depth
-    /// </summary>
-    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsAsync(
-        List<Guid> locationIds, 
-        LocationTypeEnum parentType, 
-        int hierarchicalDepth,
-        CancellationToken cancellationToken)
-    {
-        var childLocations = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
-
-        try
-        {
-            foreach (var locationId in locationIds)
-            {
-                var locationChildren = await GetChildLocationsByTypeAsync(locationId, parentType, hierarchicalDepth, cancellationToken);
-                childLocations.AddRange(locationChildren);
-            }
-
-            // Remove duplicates based on ID and Type
-            return childLocations
-                .GroupBy(l => new { l.Id, l.Type })
-                .Select(g => g.First())
-                .OrderBy(l => l.Type)
-                .ThenBy(l => l.Name)
-                .ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting child locations for {ParentType} hierarchical processing", parentType);
-            return childLocations; // Return what we have
-        }
-    }
-
-    /// <summary>
-    /// Get child locations for a specific parent location based on type and depth
-    /// </summary>
-    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsByTypeAsync(
-        Guid locationId, 
-        LocationTypeEnum parentType, 
-        int hierarchicalDepth,
-        CancellationToken cancellationToken)
-    {
-        var results = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
-
-        try
-        {
-            switch (parentType)
-            {
-                case LocationTypeEnum.Regional:
-                    // Region -> Provinces
-                    var provinces = await _provinceRepository.ToListAsync(
-                        _provinceRepository.Query(p => p.RegionId == locationId)
-                            .Select(p => new { p.Id, p.Name }), cancellationToken);
-                    
-                    results.AddRange(provinces.Select(p => (p.Id, LocationTypeEnum.Provincial, p.Name)));
-
-                    // If depth >= 2, get municipalities under provinces
-                    if (hierarchicalDepth >= 2)
-                    {
-                        foreach (var province in provinces)
-                        {
-                            var municipalities = await _municipalityRepository.ToListAsync(
-                                _municipalityRepository.Query(m => m.ProvinceId == province.Id)
-                                    .Select(m => new { m.Id, m.Name }), cancellationToken);
-                            
-                            results.AddRange(municipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
-                        }
-                    }
-
-                    // If depth >= 3, get barangays under municipalities (with limits)
-                    if (hierarchicalDepth >= 3)
-                    {
-                        var municipalityIds = results.Where(r => r.Type == LocationTypeEnum.Municipality).Select(r => r.Id).Take(50).ToList(); // Limit to prevent explosion
-                        
-                        foreach (var municipalityId in municipalityIds)
-                        {
-                            var barangays = await _barangayRepository.ToListAsync(
-                                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
-                                    .Take(100) // Limit barangays per municipality
-                                    .Select(b => new { b.Id, b.Name }), cancellationToken);
-                            
-                            results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
-                        }
-                    }
-                    break;
-
-                case LocationTypeEnum.Provincial:
-                    // Province -> Municipalities
-                    var provinceMunicipalities = await _municipalityRepository.ToListAsync(
-                        _municipalityRepository.Query(m => m.ProvinceId == locationId)
-                            .Select(m => new { m.Id, m.Name }), cancellationToken);
-                    
-                    results.AddRange(provinceMunicipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
-
-                    // If depth >= 2, get barangays under municipalities
-                    if (hierarchicalDepth >= 2)
-                    {
-                        var municipalityIds = provinceMunicipalities.Select(m => m.Id).Take(50).ToList(); // Limit to prevent explosion
-                        
-                        foreach (var municipalityId in municipalityIds)
-                        {
-                            var barangays = await _barangayRepository.ToListAsync(
-                                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
-                                    .Take(100) // Limit barangays per municipality
-                                    .Select(b => new { b.Id, b.Name }), cancellationToken);
-                            
-                            results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
-                        }
-                    }
-                    break;
-
-                case LocationTypeEnum.Municipality:
-                    // Municipality -> Barangays
-                    var municipalityBarangays = await _barangayRepository.ToListAsync(
-                        _barangayRepository.Query(b => b.MunicipalityId == locationId)
-                            .Take(200) // Reasonable limit for barangays in a municipality
-                            .Select(b => new { b.Id, b.Name }), cancellationToken);
-                    
-                    results.AddRange(municipalityBarangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
-                    break;
-
-                case LocationTypeEnum.Barangay:
-                    // Barangays have no children in our hierarchy
-                    break;
-            }
-
-            return results;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting children for {ParentType} {LocationId}", parentType, locationId);
-            return results; // Return what we have
-        }
+        return coverage;
     }
 
     /// <summary>
@@ -1311,7 +1333,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             if (currentStatus == null)
             {
                 _logger.LogWarning("Job {JobId} status not found in cache, creating new status entry", jobId);
-                currentStatus = new ConnectivityAssessmentJobStatusDto
+                currentStatus = new()
                 {
                     JobId = jobId,
                     Status = ConnectivityAssessmentJobStatusEnum.Pending,
@@ -1472,14 +1494,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     {
         try
         {
-            return new LocationConnectivityDto
+            return new()
             {
                 LocationId = assessment.LocationId,
                 LocationName = locationName,
                 LocationType = assessment.LocationType,
                 ConnectivityStatus = assessment.ConnectivityStatus,
                 TotalScore = assessment.TotalScore,
-                CMTSScores = new CMTSScoresDto
+                CMTSScores = new()
                 {
                     FiberCoverage = assessment.FiberCoverageScore,
                     InternetAccess = assessment.InternetAccessScore,
@@ -1487,27 +1509,41 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     QualityOfService = assessment.QualityOfServiceScore,
                     CoverageAvailability = assessment.CoverageAvailabilityScore
                 },
-                Infrastructure = new InfrastructureStatsDto
+                Infrastructure = new()
                 {
                     FiberNAPCount = assessment.FiberNAPCount,
                     ServiceProviderCount = assessment.ServiceProviderCount,
-                    CellTowerCount = 0, // Not stored in assessment, would need separate query
-                    WiFiHotspotCount = 0, // Not stored in assessment, would need separate query
-                    DominantServiceProvider = null // Not stored in assessment, would need separate query
+                    CellTowerCount = assessment.CellTowerCount,
+                    WiFiHotspotCount = assessment.WifiHotspotCount,
+                    DominantServiceProvider = assessment.DominantServiceProvider
                 },
-                SpeedStats = null, // Speed stats not stored in assessment entity, would need separate query
-                Coverage = new CoverageStatsDto
+                SpeedStats = new()
                 {
+                    AverageDownloadSpeedMbps = assessment.AverageDownloadSpeedMbps,
+                    AverageUploadSpeedMbps = assessment.AverageUploadSpeedMbps,
+                    AverageLatencyMs = assessment.AverageLatencyMs,
+                    SpeedTestCount = assessment.SpeedTestCount,
+                    MeetsMinimumSpeedRequirement = assessment.MeetsMinimumSpeedRequirement
+                },
+                Coverage = new()
+                {
+                    MobileCoveragePercentage = assessment.MobileCoveragePercentage,
+                    FixedBroadbandCoveragePercentage = assessment.FixedBroadbandCoveragePercentage,
+                    FiberCoveragePercentage = assessment.FiberCoveragePercentage,
+                    AssetsPerThousandPeople = assessment.AssetsPerThousandPeople,
+                    ProvidersPerThousandPeople = assessment.ProvidersPerThousandPeople,
+                    EstimatedPopulationCoveragePercent = assessment.EstimatedPopulationCoveragePercent,
+                    EstimatedHouseholdCoveragePercent = assessment.EstimatedHouseholdCoveragePercent,
                     HasReliableConnectivity = assessment.HasReliableConnectivity
                 },
-                AreaSizeKm2 = 0, // Not stored in assessment, would need location lookup
+                AreaSizeKm2 = assessment.AreaSizeKm2,
                 CenterPoint = assessment.Location != null ? new PointDto 
                 { 
                     Latitude = assessment.Location.Y, 
                     Longitude = assessment.Location.X 
                 } : null,
-                Population = null, // Not stored in assessment, would need location lookup
-                HouseholdCount = null, // Not stored in assessment, would need location lookup
+                Population = assessment.Population,
+                HouseholdCount = assessment.HouseholdCount,
                 AssessmentDate = assessment.AssessmentDate,
                 LastUpdated = assessment.LastUpdated,
                 Notes = $"Generated by background job on {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}"
@@ -1519,5 +1555,317 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 assessment.LocationType, assessment.LocationId);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Determine connectivity status based on total CMTS score
+    /// </summary>
+    private static ConnectivityStatusEnum DetermineConnectivityStatus(int totalScore)
+    {
+        return totalScore switch
+        {
+            >= 11 => ConnectivityStatusEnum.Served,        // 11-15 points
+            >= 6 => ConnectivityStatusEnum.Underserved,    // 6-10 points  
+            _ => ConnectivityStatusEnum.Unserved           // ≤5 points
+        };
+    }
+
+    /// <summary>
+    /// Determine if location has reliable connectivity
+    /// </summary>
+    private static bool DetermineReliableConnectivity(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats)
+    {
+        var hasInfrastructure = infrastructure.TotalAssets > 0;
+        var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
+        var hasGoodSpeeds = speedStats?.MeetsMinimumSpeedRequirement == true;
+
+        return hasInfrastructure && (hasMultipleProviders || hasGoodSpeeds);
+    }
+
+    /// <summary>
+    /// Processes hierarchical assessments for child locations with performance controls and safety measures
+    /// </summary>
+    private async Task<List<LocationConnectivityDto>> ProcessHierarchicalAssessments(
+        List<Guid> locationIds,
+        LocationTypeEnum locationType,
+        int hierarchicalDepth,
+        bool forceRecalculate,
+        int jobId,
+        int currentProcessedCount,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<LocationConnectivityDto>();
+
+        try
+        {
+            _logger.LogInformation("Job {JobId}: Starting hierarchical processing for {LocationCount} {LocationType}s with depth {Depth}",
+                jobId, locationIds.Count, locationType, hierarchicalDepth);
+
+            // Get child locations based on location type and depth
+            var childLocations = await GetChildLocationsAsync(locationIds, locationType, hierarchicalDepth, cancellationToken);
+
+            if (childLocations.Count == 0)
+            {
+                _logger.LogInformation("Job {JobId}: No child locations found for hierarchical processing", jobId);
+                return results;
+            }
+
+            _logger.LogInformation("Job {JobId}: Found {ChildCount} child locations for hierarchical processing", jobId, childLocations.Count);
+
+            // Apply performance limits
+            var maxLocations = 1000; // Default safety limit
+            try
+            {
+                var cacheKey = $"job_request_{jobId}";
+                if (_memoryCache.TryGetValue(cacheKey, out ConnectivityAssessmentJobRequestDto? jobRequest))
+                {
+                    maxLocations = jobRequest.MaxHierarchicalLocations;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error getting max hierarchical locations for job {JobId}, using default", jobId);
+            }
+            
+            if (childLocations.Count > maxLocations)
+            {
+                _logger.LogWarning("Job {JobId}: Hierarchical processing limited to {MaxCount} locations (requested {RequestedCount} locations)",
+                    jobId, maxLocations, childLocations.Count);
+                childLocations = childLocations.Take(maxLocations).ToList();
+            }
+
+            var hierarchicalResults = await ProcessLocationsSequentially(
+                childLocations.Select(l => (l.Id, l.Type, l.Name)).ToList(),
+                forceRecalculate,
+                jobId,
+                "hierarchical locations",
+                cancellationToken);
+
+            results.AddRange(hierarchicalResults);
+
+            _logger.LogInformation("Job {JobId}: Completed hierarchical processing. Generated {ResultCount} assessments from {ChildCount} child locations",
+                jobId, results.Count, childLocations.Count);
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Job {JobId}: Error in hierarchical processing. Continuing with completed primary assessments.", jobId);
+            return results;
+        }
+    }
+
+    /// <summary>
+    /// Get child locations based on parent location type and hierarchical depth
+    /// </summary>
+    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsAsync(
+        List<Guid> locationIds, 
+        LocationTypeEnum parentType, 
+        int hierarchicalDepth,
+        CancellationToken cancellationToken)
+    {
+        var childLocations = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
+
+        try
+        {
+            foreach (var locationId in locationIds)
+            {
+                var locationChildren = await GetChildLocationsByTypeAsync(locationId, parentType, hierarchicalDepth, cancellationToken);
+                childLocations.AddRange(locationChildren);
+            }
+
+            return childLocations
+                .GroupBy(l => new { l.Id, l.Type })
+                .Select(g => g.First())
+                .OrderBy(l => l.Type)
+                .ThenBy(l => l.Name)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting child locations for {ParentType} hierarchical processing", parentType);
+            return childLocations;
+        }
+    }
+
+    /// <summary>
+    /// Get child locations for a specific parent location based on type and depth
+    /// </summary>
+    private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsByTypeAsync(
+        Guid locationId, 
+        LocationTypeEnum parentType, 
+        int hierarchicalDepth,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<(Guid Id, LocationTypeEnum Type, string Name)>();
+
+        try
+        {
+            switch (parentType)
+            {
+                case LocationTypeEnum.Regional:
+                    var provinces = await _provinceRepository.ToListAsync(
+                        _provinceRepository.Query(p => p.RegionId == locationId)
+                            .Select(p => new { p.Id, p.Name }), cancellationToken);
+                    
+                    results.AddRange(provinces.Select(p => (p.Id, LocationTypeEnum.Provincial, p.Name)));
+
+                    if (hierarchicalDepth >= 2)
+                    {
+                        foreach (var province in provinces)
+                        {
+                            var municipalities = await _municipalityRepository.ToListAsync(
+                                _municipalityRepository.Query(m => m.ProvinceId == province.Id)
+                                    .Select(m => new { m.Id, m.Name }), cancellationToken);
+                            
+                            results.AddRange(municipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
+                        }
+                    }
+
+                    if (hierarchicalDepth >= 3)
+                    {
+                        var municipalityIds = results.Where(r => r.Type == LocationTypeEnum.Municipality).Select(r => r.Id).Take(50).ToList();
+                        
+                        foreach (var municipalityId in municipalityIds)
+                        {
+                            var barangays = await _barangayRepository.ToListAsync(
+                                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
+                                    .Take(100)
+                                    .Select(b => new { b.Id, b.Name }), cancellationToken);
+                            
+                            results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
+                        }
+                    }
+                    break;
+
+                case LocationTypeEnum.Provincial:
+                    var provinceMunicipalities = await _municipalityRepository.ToListAsync(
+                        _municipalityRepository.Query(m => m.ProvinceId == locationId)
+                            .Select(m => new { m.Id, m.Name }), cancellationToken);
+                    
+                    results.AddRange(provinceMunicipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
+
+                    if (hierarchicalDepth >= 2)
+                    {
+                        var municipalityIds = provinceMunicipalities.Select(m => m.Id).Take(50).ToList();
+                        
+                        foreach (var municipalityId in municipalityIds)
+                        {
+                            var barangays = await _barangayRepository.ToListAsync(
+                                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
+                                    .Take(100)
+                                    .Select(b => new { b.Id, b.Name }), cancellationToken);
+                            
+                            results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
+                        }
+                    }
+                    break;
+
+                case LocationTypeEnum.Municipality:
+                    var municipalityBarangays = await _barangayRepository.ToListAsync(
+                        _barangayRepository.Query(b => b.MunicipalityId == locationId)
+                            .Take(200)
+                            .Select(b => new { b.Id, b.Name }), cancellationToken);
+                    
+                    results.AddRange(municipalityBarangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
+                    break;
+
+                case LocationTypeEnum.Barangay:
+                    // Barangays have no children
+                    break;
+            }
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting children for {ParentType} {LocationId}", parentType, locationId);
+            return results;
+        }
+    }
+
+    /// <summary>
+    /// Smart boundary optimization that maintains accuracy while improving performance
+    /// </summary>
+    private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
+        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
+    {
+        List<string> cells, naps, wifiHotspots;
+        TechnologyBreakdownDto? technologyBreakdown = null;
+
+        if (boundary != null)
+        {
+            _logger.LogDebug("Using accurate MultiPolygon boundaries for precise infrastructure counting");
+
+            var cellQuery = _cellRepository.Query();
+            cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+            cells = await _cellRepository.ToListAsync(
+                cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
+
+            var napQuery = _napRepository.Query();
+            napQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, napQuery);
+            naps = await _napRepository.ToListAsync(
+                napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
+
+            var wifiQuery = _wifiRepository.Query();
+            wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
+            wifiHotspots = await _wifiRepository.ToListAsync(
+                wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+
+            var techCacheKey = $"tech:{locationType}:{locationId}";
+            if (!forceRecalculate && _memoryCache.TryGetValue(techCacheKey, out TechnologyBreakdownDto? cachedTech) && cachedTech != null)
+            {
+                technologyBreakdown = cachedTech;
+            }
+            else
+            {
+                if (forceRecalculate)
+                {
+                    _logger.LogInformation("Force recalculating technology breakdown for {LocationType} {LocationId}", locationType, locationId);
+                }
+                technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, cancellationToken);
+                _memoryCache.Set(techCacheKey, technologyBreakdown, TimeSpan.FromHours(12));
+            }
+        }
+        else
+        {
+            // Fallback for cases where boundaries couldn't be loaded (very large areas)
+            _logger.LogWarning("No boundary available for {LocationType} {LocationId}, using center-point approximation", locationType, locationId);
+
+            var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI); // Equivalent area circle radius
+            var searchRadiusMeters = searchRadiusKm * 1000;
+
+            // Get infrastructure using distance-based queries
+            var cellQuery = _cellRepository.Query()
+                .Where(c => c.Location.Distance(center) <= searchRadiusMeters);
+            cells = await _cellRepository.ToListAsync(
+                cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
+
+            var napQuery = _napRepository.Query()
+                .Where(n => n.Location.Distance(center) <= searchRadiusMeters);
+            naps = await _napRepository.ToListAsync(
+                napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
+
+            var wifiQuery = _wifiRepository.Query()
+                .Where(w => w.Location.Distance(center) <= searchRadiusMeters);
+            wifiHotspots = await _wifiRepository.ToListAsync(
+                wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+
+            technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, cancellationToken);
+        }
+
+        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Where(p => !string.IsNullOrEmpty(p)).ToList();
+        var uniqueProviders = allProviders.Distinct().ToList();
+        var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+
+        return new()
+        {
+            CellTowerCount = cells.Count,
+            FiberNAPCount = naps.Count,
+            WiFiHotspotCount = wifiHotspots.Count,
+            ServiceProviderCount = uniqueProviders.Count,
+            DominantServiceProvider = dominantProvider,
+            TechnologyBreakdown = technologyBreakdown
+        };
     }
 }

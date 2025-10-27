@@ -236,7 +236,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         await _connectivityRepository.SaveChangesAsync(cancellationToken);
 
         // Return DTO
-        return new LocationConnectivityDto
+        return new()
         {
             LocationId = locationId,
             LocationName = locationName,
@@ -250,7 +250,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             AreaSizeKm2 = areaKm2,
             Population = population,
             HouseholdCount = householdCount,
-            CenterPoint = new PointDto { Latitude = center.Y, Longitude = center.X },
+            CenterPoint = new() { Latitude = center.Y, Longitude = center.X },
             AssessmentDate = assessment.AssessmentDate,
             LastUpdated = assessment.LastUpdated
         };
@@ -474,7 +474,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
-        return new InfrastructureStatsDto
+        return new()
         {
             CellTowerCount = cells.Count,
             FiberNAPCount = naps.Count,
@@ -586,7 +586,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Determine average signal strength based on RSSI ranges
         var averageSignalStrength = CalculateAverageSignalStrength(rssiValues, signalQualities);
 
-        return new SpeedStatsDto
+        return new()
         {
             AverageDownloadSpeedMbps = Math.Round(downloadSpeeds.Average(), 2),
             AverageUploadSpeedMbps = Math.Round(uploadSpeeds.Average(), 2),
@@ -673,7 +673,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
             if (allTechData.Count == 0)
             {
-                return new TechnologyBreakdownDto();
+                return new();
             }
 
             // Analyze generation distribution
@@ -702,7 +702,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var count4G = generationCounts.GetValueOrDefault("4G", 0);
             var count5G = generationCounts.GetValueOrDefault("5G", 0);
 
-            return new TechnologyBreakdownDto
+            return new()
             {
                 Count2G = count2G,
                 Count3G = count3G,
@@ -719,7 +719,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error analyzing technology generations for area. Returning empty breakdown.");
-            return new TechnologyBreakdownDto();
+            return new();
         }
     }
 
