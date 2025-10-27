@@ -524,25 +524,25 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(st => st.GenerationId);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<ServiceProvider>()
+            .HasOne(wv => wv.ServiceProvider)
             .WithMany()
             .HasForeignKey(wv => wv.ServiceProviderId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Barangay>()
+            .HasOne(wv => wv.Barangay)
             .WithMany()
             .HasForeignKey(wv => wv.BarangayId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Band>()
+            .HasOne(wv => wv.Band)
             .WithMany()
             .HasForeignKey(wv => wv.BandId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Technology>()
+            .HasOne(wv => wv.Technology)
             .WithMany()
             .HasForeignKey(wv => wv.TechnologyId)
             .OnDelete(DeleteBehavior.Cascade);

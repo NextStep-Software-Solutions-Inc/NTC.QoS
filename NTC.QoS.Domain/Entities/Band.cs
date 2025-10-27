@@ -10,4 +10,5 @@ public class Band : BaseEntity
     public virtual List<GenerationBand> GenerationBands { get; set; } = new();
     public virtual List<Cellular> Cellulars { get; set; } = new();
     public virtual List<Link> Links { get; set; } = new();
+    public virtual List<WirelessValidation> WirelessValidations { get; set; } = new();
 }
