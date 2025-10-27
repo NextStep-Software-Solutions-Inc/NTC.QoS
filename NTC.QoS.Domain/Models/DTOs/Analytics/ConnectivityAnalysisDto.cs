@@ -124,7 +124,48 @@ public class InfrastructureStatsDto
     /// </summary>
     public TechnologyBreakdownDto? TechnologyBreakdown { get; set; }
     
+    /// <summary>
+    /// Detailed breakdown of service providers with their asset counts in descending order
+    /// </summary>
+    public List<ProviderBreakdownDto> ProviderBreakdown { get; set; } = new();
+    
     public int TotalAssets => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
+}
+
+/// <summary>
+/// Provider breakdown showing asset counts per provider
+/// </summary>
+public class ProviderBreakdownDto
+{
+    /// <summary>
+    /// Provider name
+    /// </summary>
+    public string ProviderName { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Number of cell towers from this provider
+    /// </summary>
+    public int CellTowerCount { get; set; }
+    
+    /// <summary>
+    /// Number of fiber NAPs from this provider
+    /// </summary>
+    public int FiberNAPCount { get; set; }
+    
+    /// <summary>
+    /// Number of WiFi hotspots from this provider
+    /// </summary>
+    public int WiFiHotspotCount { get; set; }
+    
+    /// <summary>
+    /// Total assets from this provider
+    /// </summary>
+    public int TotalAssetCount => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
+    
+    /// <summary>
+    /// Percentage of total assets in the area
+    /// </summary>
+    public double AssetPercentage { get; set; }
 }
 
 /// <summary>

@@ -475,6 +475,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
+        // Calculate provider breakdown with asset counts
+        var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots);
+
         return new InfrastructureStatsDto
         {
             CellTowerCount = cells.Count,
@@ -482,8 +485,67 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             WiFiHotspotCount = wifiHotspots.Count,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
-            TechnologyBreakdown = technologyBreakdown
+            TechnologyBreakdown = technologyBreakdown,
+            ProviderBreakdown = providerBreakdown
         };
+    }
+
+    /// <summary>
+    /// Calculates detailed provider breakdown showing asset counts per provider in descending order
+    /// </summary>
+    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(List<string> cells, List<string> naps, List<string> wifiHotspots)
+    {
+        // Group all assets by provider
+        var providerAssets = new Dictionary<string, (int Cells, int NAPs, int WiFi)>();
+
+        // Count cell towers per provider
+        foreach (var provider in cells.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0);
+            
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi);
+        }
+
+        // Count NAPs per provider
+        foreach (var provider in naps.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0);
+            
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi);
+        }
+
+        // Count WiFi hotspots per provider
+        foreach (var provider in wifiHotspots.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0);
+            
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1);
+        }
+
+        var totalAssets = cells.Count + naps.Count + wifiHotspots.Count;
+
+        // Create breakdown DTOs ordered by total asset count descending
+        var breakdown = providerAssets
+            .Select(kvp => new ProviderBreakdownDto
+            {
+                ProviderName = kvp.Key,
+                CellTowerCount = kvp.Value.Cells,
+                FiberNAPCount = kvp.Value.NAPs,
+                WiFiHotspotCount = kvp.Value.WiFi,
+                AssetPercentage = totalAssets > 0 
+                    ? Math.Round(((double)(kvp.Value.Cells + kvp.Value.NAPs + kvp.Value.WiFi) / totalAssets) * 100, 2)
+                    : 0
+            })
+            .OrderByDescending(p => p.TotalAssetCount)
+            .ToList();
+
+        return breakdown;
     }
 
     /// <summary>
