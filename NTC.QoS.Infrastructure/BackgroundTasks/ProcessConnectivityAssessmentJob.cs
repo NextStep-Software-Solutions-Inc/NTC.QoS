@@ -1508,10 +1508,33 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             existing.TechnologyTypeScore = newData.TechnologyTypeScore;
             existing.QualityOfServiceScore = newData.QualityOfServiceScore;
             existing.CoverageAvailabilityScore = newData.CoverageAvailabilityScore;
+            existing.AverageDownloadSpeedMbps = newData.AverageDownloadSpeedMbps;
+            existing.AverageUploadSpeedMbps = newData.AverageUploadSpeedMbps;
+            existing.AverageLatencyMs = newData.AverageLatencyMs;
+            existing.MedianDownloadSpeedMbps = newData.MedianDownloadSpeedMbps;
+            existing.MedianUploadSpeedMbps = newData.MedianUploadSpeedMbps;
+            existing.SpeedTestCount = newData.SpeedTestCount;
+            existing.AverageSignalStrength = newData.AverageSignalStrength;
+            existing.MeetsMinimumSpeedRequirement = newData.MeetsMinimumSpeedRequirement;
+            existing.MobileCoveragePercentage = newData.MobileCoveragePercentage;
+            existing.FixedBroadbandCoveragePercentage = newData.FixedBroadbandCoveragePercentage;
+            existing.FiberCoveragePercentage = newData.FiberCoveragePercentage;
+            existing.AssetsPerThousandPeople = newData.AssetsPerThousandPeople;
+            existing.ProvidersPerThousandPeople = newData.ProvidersPerThousandPeople;
+            existing.EstimatedPopulationCoveragePercent = newData.EstimatedPopulationCoveragePercent;
+            existing.EstimatedHouseholdCoveragePercent = newData.EstimatedHouseholdCoveragePercent;
+            existing.AreaSizeKm2 = newData.AreaSizeKm2;
+            existing.Population = newData.Population;
+            existing.HouseholdCount = newData.HouseholdCount;
+            existing.CellTowerCount = newData.CellTowerCount;
             existing.FiberNAPCount = newData.FiberNAPCount;
+            existing.WifiHotspotCount = newData.WifiHotspotCount;
+            existing.WirelessValidationCount = newData.WirelessValidationCount;
+            existing.DominantServiceProvider = newData.DominantServiceProvider;
             existing.ServiceProviderCount = newData.ServiceProviderCount;
             existing.HasReliableConnectivity = newData.HasReliableConnectivity;
             existing.AssessedBy = newData.AssessedBy;
+            existing.Notes = newData.Notes;
 
             _logger.LogDebug("Updated existing assessment for {LocationType} {LocationId}", 
                 existing.LocationType, existing.LocationId);
@@ -1827,7 +1850,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
-        List<string> cells, naps, wifiHotspots;
+        List<string> cells, naps, wirelessValidations, wifiHotspots;
         TechnologyBreakdownDto? technologyBreakdown = null;
 
         if (boundary != null)
@@ -1848,6 +1871,16 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+
+            // Get wireless validations using barangay center within boundary
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && boundary.Intersects(wv.Barangay.Center)
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null)
+                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             var techCacheKey = $"tech:{locationType}:{locationId}";
             if (!forceRecalculate && _memoryCache.TryGetValue(techCacheKey, out TechnologyBreakdownDto? cachedTech) && cachedTech != null)
@@ -1888,10 +1921,19 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
 
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null)
+                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
+
             technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, cancellationToken);
         }
 
-        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Where(p => !string.IsNullOrEmpty(p)).ToList();
+        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
@@ -1899,6 +1941,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             CellTowerCount = cells.Count,
             FiberNAPCount = naps.Count,
+            WirelessValidationCount = wirelessValidations.Count,
             WiFiHotspotCount = wifiHotspots.Count,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,

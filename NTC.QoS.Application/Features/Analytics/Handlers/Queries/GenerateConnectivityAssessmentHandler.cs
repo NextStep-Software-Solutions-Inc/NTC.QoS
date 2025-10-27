@@ -1,4 +1,4 @@
-ï»¿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
@@ -208,6 +208,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.CoverageAvailabilityScore = assessment.CoverageAvailabilityScore;
             existingRecord.CellTowerCount = assessment.CellTowerCount;
             existingRecord.FiberNAPCount = assessment.FiberNAPCount;
+            existingRecord.WirelessValidationCount = assessment.WirelessValidationCount;
             existingRecord.WifiHotspotCount = assessment.WifiHotspotCount;
             existingRecord.ServiceProviderCount = assessment.ServiceProviderCount;
             existingRecord.DominantServiceProvider = assessment.DominantServiceProvider;
@@ -389,7 +390,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
 
-        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} kmÂ²)", locationType, locationId, areaKm2);
+        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
 
         // Use accurate boundaries with optimizations
         var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
@@ -407,7 +408,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
-        List<string> cells, naps, wifiHotspots;
+        List<string> cells, naps, wirelessValidations, wifiHotspots;
         TechnologyBreakdownDto? technologyBreakdown = null;
 
         if (boundary != null)
@@ -432,6 +433,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+
+            // Get wireless validations using barangay center within boundary
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && boundary.Intersects(wv.Barangay.Center)
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null)
+                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             // Get technology breakdown with caching
             var techCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType);
@@ -470,10 +481,19 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
 
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null)
+                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
+
             technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, cancellationToken);
         }
 
-        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Where(p => !string.IsNullOrEmpty(p)).ToList();
+        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
@@ -481,6 +501,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             CellTowerCount = cells.Count,
             FiberNAPCount = naps.Count,
+            WirelessValidationCount = wirelessValidations.Count,
             WiFiHotspotCount = wifiHotspots.Count,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
@@ -795,7 +816,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             >= 11 => ConnectivityStatusEnum.Served,    // 11-15 points
             >= 6 => ConnectivityStatusEnum.Underserved, // 6-10 points  
-            _ => ConnectivityStatusEnum.Unserved        // â‰¤5 points
+            _ => ConnectivityStatusEnum.Unserved        // =5 points
         };
     }
 
@@ -831,8 +852,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private static (double PopulationDensity, bool IsUrbanArea, bool IsHighDensityArea) CalculatePopulationContext(int? population, double areaKm2)
     {
         var populationDensity = population.HasValue && areaKm2 > 0 ? population.Value / areaKm2 : 0;
-        var isHighDensityArea = populationDensity > 500; // >500 people per kmÂ² = high density
-        var isUrbanArea = populationDensity > 1000; // >1000 people per kmÂ² = urban
+        var isHighDensityArea = populationDensity > 500; // >500 people per km² = high density
+        var isUrbanArea = populationDensity > 1000; // >1000 people per km² = urban
 
         return (populationDensity, isUrbanArea, isHighDensityArea);
     }
