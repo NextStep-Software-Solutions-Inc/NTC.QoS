@@ -11,9 +11,11 @@ internal sealed class WirelessValidationRepository(ApplicationDbContext context)
     {
         var query = _context.Set<WirelessValidation>()
             .Include(wv => wv.Technology)
-            .Include(st => st.ServiceProvider)
+                .ThenInclude(t => t!.Generation)
+            .Include(wv => wv.Barangay)
+            .Include(wv => wv.ServiceProvider)
                 .ThenInclude(sp => sp.Service)
-            .Include(st => st.ServiceProvider)
+            .Include(wv => wv.ServiceProvider)
                 .ThenInclude(sp => sp.Provider)
             .AsQueryable();
 

@@ -30,6 +30,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private readonly INAPRepository _napRepository;
     private readonly IWiFiHotspotRepository _wifiRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
+    private readonly IWirelessValidationRepository _wirelessValidationRepository;
+
 
     // Simplified configuration for sequential processing
     private const int BATCH_SIZE = 20; // Optimal batch size for sequential processing
@@ -49,7 +51,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         ICellularRepository cellularRepository,
         INAPRepository napRepository,
         IWiFiHotspotRepository wifiRepository,
-        ISpeedtestRepository speedtestRepository)
+        ISpeedtestRepository speedtestRepository,
+        IWirelessValidationRepository wirelessValidationRepository)
     {
         _logger = logger;
         _connectivityRepository = connectivityRepository;
@@ -63,6 +66,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _napRepository = napRepository;
         _wifiRepository = wifiRepository;
         _speedtestRepository = speedtestRepository;
+        _wirelessValidationRepository = wirelessValidationRepository;
     }
 
     /// <summary>
@@ -828,6 +832,23 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         }), cancellationToken);
 
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
+
+                // Get wireless validation technology data
+                // WirelessValidation doesn't have a Location property, so we filter using Barangay.Center
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    _wirelessValidationRepository.Query()
+                        .Where(wv => wv.Barangay != null
+                                   && wv.Barangay.Center != null
+                                   && boundary.Intersects(wv.Barangay.Center)
+                                   && wv.Technology != null
+                                   && wv.Technology.Generation != null)
+                        .Select(wv => new {
+                            GenerationName = wv.Technology!.Generation!.Name,
+                            TechnologyStandard = wv.Technology!.Standard,
+                            wv.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(wirelessValidationResults.Select(wv => (wv.GenerationName, wv.TechnologyStandard, wv.Id)));
             }
             else
             {
@@ -857,6 +878,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         }), cancellationToken);
 
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
+
+                // Get wireless validation technology data using barangay center distance
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    _wirelessValidationRepository.Query()
+                        .Where(wv => wv.Barangay != null
+                                   && wv.Barangay.Center != null
+                                   && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                                   && wv.Technology != null
+                                   && wv.Technology.Generation != null)
+                        .Select(wv => new {
+                            GenerationName = wv.Technology!.Generation!.Name,
+                            TechnologyStandard = wv.Technology!.Standard,
+                            wv.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(wirelessValidationResults.Select(wv => (wv.GenerationName, wv.TechnologyStandard, wv.Id)));
             }
 
             if (allTechData.Count == 0)
