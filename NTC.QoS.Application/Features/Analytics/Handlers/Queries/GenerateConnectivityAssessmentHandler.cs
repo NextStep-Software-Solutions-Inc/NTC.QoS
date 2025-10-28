@@ -240,6 +240,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     CellTowerCount = provider.CellTowerCount,
                     FiberNAPCount = provider.FiberNAPCount,
                     WiFiHotspotCount = provider.WiFiHotspotCount,
+                    TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
                 }, cancellationToken);
             }
@@ -260,6 +261,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     CellTowerCount = provider.CellTowerCount,
                     FiberNAPCount = provider.FiberNAPCount,
                     WiFiHotspotCount = provider.WiFiHotspotCount,
+                    TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
                 }, cancellationToken);
             }
