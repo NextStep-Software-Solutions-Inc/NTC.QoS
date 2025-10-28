@@ -9,6 +9,9 @@ public interface IConnectivityAssessmentRepository : IRepository<ConnectivityAss
     Task<ConnectivityAssessment?> GetByLocationAsync(Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken = default);
     Task<List<ConnectivityAssessment>> GetByConnectivityStatusAsync(ConnectivityStatusEnum status, CancellationToken cancellationToken = default);
     Task<bool> ExistsForLocationAsync(Guid locationId, LocationTypeEnum locationType, CancellationToken cancellationToken = default);
+    Task<List<ConnectivityAssessmentProvider>> GetProvidersByAssessmentIdAsync(Guid assessmentId, CancellationToken cancellationToken = default);
+    Task DeleteProvidersByAssessmentIdAsync(Guid assessmentId, CancellationToken cancellationToken = default);
+    Task AddProviderAsync(ConnectivityAssessmentProvider provider, CancellationToken cancellationToken = default);
 }
 
 public interface IWiFiHotspotRepository : IRepository<WiFiHotspot>

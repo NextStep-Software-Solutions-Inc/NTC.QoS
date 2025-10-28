@@ -47,6 +47,34 @@ internal sealed class ConnectivityAssessmentRepository(ApplicationDbContext cont
         return await _context.Set<ConnectivityAssessment>()
             .AnyAsync(ca => ca.LocationId == locationId && ca.LocationType == locationType, cancellationToken);
     }
+
+    public async Task<List<ConnectivityAssessmentProvider>> GetProvidersByAssessmentIdAsync(
+        Guid assessmentId, 
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<ConnectivityAssessmentProvider>()
+            .Where(cap => cap.ConnectivityAssessmentId == assessmentId)
+            .OrderByDescending(cap => cap.TotalAssetCount)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task DeleteProvidersByAssessmentIdAsync(
+        Guid assessmentId, 
+        CancellationToken cancellationToken = default)
+    {
+        var providers = await _context.Set<ConnectivityAssessmentProvider>()
+            .Where(cap => cap.ConnectivityAssessmentId == assessmentId)
+            .ToListAsync(cancellationToken);
+
+        _context.Set<ConnectivityAssessmentProvider>().RemoveRange(providers);
+    }
+
+    public async Task AddProviderAsync(
+        ConnectivityAssessmentProvider provider, 
+        CancellationToken cancellationToken = default)
+    {
+        await _context.Set<ConnectivityAssessmentProvider>().AddAsync(provider, cancellationToken);
+    }
 }
 
 internal sealed class WiFiHotspotRepository(ApplicationDbContext context) 

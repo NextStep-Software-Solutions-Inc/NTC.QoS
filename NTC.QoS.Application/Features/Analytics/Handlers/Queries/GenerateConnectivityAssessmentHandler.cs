@@ -227,11 +227,42 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.ProvidersPerThousandPeople = assessment.ProvidersPerThousandPeople;
 
             _connectivityRepository.Update(existingRecord);
+            await _connectivityRepository.SaveChangesAsync(cancellationToken);
+            
+            // Update provider breakdown - delete old records and insert new ones
+            await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existingRecord.Id, cancellationToken);
+            foreach (var provider in infrastructureStats.ProviderBreakdown)
+            {
+                await _connectivityRepository.AddProviderAsync(new ConnectivityAssessmentProvider
+                {
+                    ConnectivityAssessmentId = existingRecord.Id,
+                    ProviderName = provider.ProviderName,
+                    CellTowerCount = provider.CellTowerCount,
+                    FiberNAPCount = provider.FiberNAPCount,
+                    WiFiHotspotCount = provider.WiFiHotspotCount,
+                    AssetPercentage = provider.AssetPercentage
+                }, cancellationToken);
+            }
         }
         else
         {
             // Create new
             await _connectivityRepository.AddAsync(assessment, cancellationToken);
+            await _connectivityRepository.SaveChangesAsync(cancellationToken);
+            
+            // Save provider breakdown for new assessment
+            foreach (var provider in infrastructureStats.ProviderBreakdown)
+            {
+                await _connectivityRepository.AddProviderAsync(new ConnectivityAssessmentProvider
+                {
+                    ConnectivityAssessmentId = assessment.Id,
+                    ProviderName = provider.ProviderName,
+                    CellTowerCount = provider.CellTowerCount,
+                    FiberNAPCount = provider.FiberNAPCount,
+                    WiFiHotspotCount = provider.WiFiHotspotCount,
+                    AssetPercentage = provider.AssetPercentage
+                }, cancellationToken);
+            }
         }
         
         await _connectivityRepository.SaveChangesAsync(cancellationToken);
