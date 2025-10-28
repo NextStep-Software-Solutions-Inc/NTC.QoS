@@ -56,9 +56,9 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
             .Where(p => p.Boundaries != null)
             .ToList();
         
-        if (provincesWithBoundaries.Any())
+        if (provincesWithBoundaries.Count != 0)
         {
-            // Process each province individually - reliable and translatable by EF Core
+            // Process each province individually
             foreach (var province in provincesWithBoundaries)
             {
                 var boundary = province.Boundaries!;
