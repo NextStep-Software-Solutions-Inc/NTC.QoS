@@ -66,7 +66,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
                 // Get unique service provider IDs from cells for this province
                 var cellProviderIds = await _cellRepository.Query()
                     .AsNoTracking()
-                    .Where(cell => boundary.Intersects(cell.Location))
+                    .Where(cell => boundary.IsWithinDistance(cell.Location, 0))
                     .Select(cell => cell.ServiceProviderId)
                     .Distinct()
                     .ToListAsync(cancellationToken);
@@ -74,7 +74,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
                 // Get unique service provider IDs from NAPs for this province
                 var napProviderIds = await _nAPRepository.Query()
                     .AsNoTracking()
-                    .Where(nap => boundary.Intersects(nap.Location))
+                    .Where(nap => boundary.IsWithinDistance(nap.Location, 0))
                     .Select(nap => nap.ServiceProviderId)
                     .Distinct()
                     .ToListAsync(cancellationToken);
