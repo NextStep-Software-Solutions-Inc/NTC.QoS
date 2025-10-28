@@ -29,6 +29,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private readonly IWirelessValidationRepository _wirelessValidationRepository;
     private readonly IConnectivityCacheService _cacheService;
     private readonly ILogger<GenerateConnectivityAssessmentHandler> _logger;
+    private readonly IUserContextService _userContextService;
 
     public GenerateConnectivityAssessmentHandler(
         IConnectivityAssessmentRepository connectivityRepository,
@@ -43,7 +44,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         ISpeedtestRepository speedtestRepository,
         IWirelessValidationRepository wirelessValidationRepository,
         IConnectivityCacheService cacheService,
-        ILogger<GenerateConnectivityAssessmentHandler> logger)
+        ILogger<GenerateConnectivityAssessmentHandler> logger,
+        IUserContextService userContextService)
     {
         _connectivityRepository = connectivityRepository;
         _barangayRepository = barangayRepository;
@@ -58,6 +60,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         _wirelessValidationRepository = wirelessValidationRepository;
         _cacheService = cacheService;
         _logger = logger;
+        _userContextService = userContextService;
     }
 
     public async Task<ApiResponse<List<LocationConnectivityDto>>> Handle(GenerateConnectivityAssessmentRequest request, CancellationToken cancellationToken)
@@ -148,6 +151,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, 
             DetermineReliableConnectivity(infrastructureStats, speedStats));
 
+        // Get the current user ID from context
+        var currentUserId = _userContextService.GetCurrentUserId() ?? "System";
+
         // Create or update assessment entity
         var assessment = new ConnectivityAssessment
         {
@@ -159,7 +165,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             HouseholdCount = householdCount,
             AssessmentDate = DateTime.UtcNow,
             LastUpdated = DateTime.UtcNow,
-            AssessedBy = "System",
+            AssessedBy = currentUserId,
             ConnectivityStatus = connectivityStatus,
             TotalScore = totalScore,
             FiberCoverageScore = cmtsScores.FiberCoverage,

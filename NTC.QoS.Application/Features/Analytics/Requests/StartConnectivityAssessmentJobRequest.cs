@@ -51,9 +51,4 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     /// When null, uses location-type specific defaults for performance
     /// </summary>
     public int? HierarchicalBatchSize { get; set; } = null; // null = use defaults
-    
-    /// <summary>
-    /// User ID for tracking purposes
-    /// </summary>
-    public string? UserId { get; set; }
 }

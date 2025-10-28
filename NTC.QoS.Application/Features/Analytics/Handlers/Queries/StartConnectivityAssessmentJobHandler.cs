@@ -18,16 +18,19 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<StartConnectivityAssessmentJobHandler> _logger;
+    private readonly IUserContextService _userContextService;
     private static int _jobIdCounter = 1000; // Start from 1000 for easier identification
 
     public StartConnectivityAssessmentJobHandler(
         IBackgroundJobService backgroundJobService,
         IMemoryCache memoryCache,
-        ILogger<StartConnectivityAssessmentJobHandler> logger)
+        ILogger<StartConnectivityAssessmentJobHandler> logger,
+        IUserContextService userContextService)
     {
         _backgroundJobService = backgroundJobService;
         _memoryCache = memoryCache;
         _logger = logger;
+        _userContextService = userContextService;
     }
 
     public Task<ApiResponse<ConnectivityAssessmentJobResponseDto>> Handle(
@@ -40,6 +43,9 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             var jobId = Interlocked.Increment(ref _jobIdCounter);
             var estimatedTotalLocations = CalculateEstimatedTotalLocations(request);
             var startTime = DateTime.UtcNow;
+            
+            // Get the current user ID from context (auto-captured from JWT token)
+            var currentUserId = _userContextService.GetCurrentUserId() ?? "System";
             
             var jobRequest = new ConnectivityAssessmentJobRequestDto
             {
@@ -55,7 +61,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
                 MaxHierarchicalLocations = request.MaxHierarchicalLocations ?? GetDefaultMaxHierarchicalLocations(request.LocationType),
                 HierarchicalBatchSize = request.HierarchicalBatchSize ?? GetDefaultHierarchicalBatchSize(request.LocationType),
                 
-                UserId = request.UserId ?? "System",
+                UserId = currentUserId, // Use the auto-captured user ID from context
                 RequestedAt = startTime
             };
 

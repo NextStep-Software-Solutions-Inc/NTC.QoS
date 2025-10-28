@@ -32,6 +32,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IWirelessValidationRepository _wirelessValidationRepository;
 
+    // Store the current user ID for the job execution
+    private string _currentUserId = "System";
 
     // Simplified configuration for sequential processing
     private const int BATCH_SIZE = 20; // Optimal batch size for sequential processing
@@ -78,13 +80,16 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         var jobId = jobRequest.JobId;
         var startTime = DateTime.UtcNow;
 
+        // Store the user ID for this job execution
+        _currentUserId = jobRequest.UserId ?? "System";
+
         try
         {
             _logger.LogInformation("Starting connectivity assessment job {JobId} for {LocationCount} {LocationType}s. " +
-                "Hierarchical: {Hierarchical}, Enabled: {Enabled}, Depth: {Depth}, Force: {Force}, MaxHierarchical: {MaxHierarchical}",
+                "Hierarchical: {Hierarchical}, Enabled: {Enabled}, Depth: {Depth}, Force: {Force}, MaxHierarchical: {MaxHierarchical}, User: {UserId}",
                 jobId, jobRequest.LocationIds.Count, jobRequest.LocationType, 
                 jobRequest.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing, 
-                jobRequest.HierarchicalDepth, jobRequest.ForceRecalculate, jobRequest.MaxHierarchicalLocations);
+                jobRequest.HierarchicalDepth, jobRequest.ForceRecalculate, jobRequest.MaxHierarchicalLocations, _currentUserId);
 
             // Cache the job request for later use in hierarchical processing
             var jobRequestCacheKey = $"job_request_{jobId}";
@@ -440,7 +445,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     TechnologyTypeScore = 0,
                     QualityOfServiceScore = 0,
                     CoverageAvailabilityScore = 0,
-                    AssessedBy = "BackgroundJob"
+                    AssessedBy = _currentUserId
                 };
             }
 
@@ -490,7 +495,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 HouseholdCount = householdCount,
                 AssessmentDate = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow,
-                AssessedBy = "BackgroundJob",
+                AssessedBy = _currentUserId,
                 ConnectivityStatus = connectivityStatus,
                 TotalScore = totalScore,
                 FiberCoverageScore = cmtsScores.FiberCoverage,

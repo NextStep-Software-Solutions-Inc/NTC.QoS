@@ -87,11 +87,5 @@ public class StartConnectivityAssessmentJobRequestValidator : AbstractValidator<
             // Configuration consistency check
             .Must(x => x.EnableHierarchicalProcessing != true || x.GenerateHierarchicalAssessments)
             .WithMessage("EnableHierarchicalProcessing can only be true when GenerateHierarchicalAssessments is also true.");
-
-        // User ID validation (optional but should be valid if provided)
-        RuleFor(x => x.UserId)
-            .MaximumLength(100)
-            .WithMessage("UserId cannot exceed 100 characters.")
-            .When(x => !string.IsNullOrEmpty(x.UserId));
     }
 }
