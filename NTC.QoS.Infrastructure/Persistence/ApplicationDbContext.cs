@@ -524,25 +524,25 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(st => st.GenerationId);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<ServiceProvider>()
+            .HasOne(wv => wv.ServiceProvider)
             .WithMany()
             .HasForeignKey(wv => wv.ServiceProviderId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Barangay>()
+            .HasOne(wv => wv.Barangay)
             .WithMany()
             .HasForeignKey(wv => wv.BarangayId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Band>()
+            .HasOne(wv => wv.Band)
             .WithMany()
             .HasForeignKey(wv => wv.BandId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Technology>()
+            .HasOne(wv => wv.Technology)
             .WithMany()
             .HasForeignKey(wv => wv.TechnologyId)
             .OnDelete(DeleteBehavior.Cascade);
@@ -574,9 +574,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMethod("GIST");
 
         modelBuilder.Entity<ConnectivityAssessment>()
-            .HasIndex(ca => new { ca.LocationId, ca.LocationType })
+            .HasIndex(ca => ca.LocationId)
             .IsUnique()
-            .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
+            .HasDatabaseName("IX_ConnectivityAssessment_LocationId");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => ca.LocationType)
+            .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
 
         modelBuilder.Entity<ConnectivityAssessment>()
             .HasIndex(ca => ca.ConnectivityStatus)

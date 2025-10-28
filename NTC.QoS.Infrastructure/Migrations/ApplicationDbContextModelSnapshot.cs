@@ -1233,6 +1233,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int>("WifiHotspotCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("WirelessValidationCount")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConnectivityStatus")
@@ -1243,9 +1246,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
-                    b.HasIndex("LocationId", "LocationType")
+                    b.HasIndex("LocationId")
                         .IsUnique()
-                        .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
+                        .HasDatabaseName("IX_ConnectivityAssessment_LocationId");
+
+                    b.HasIndex("LocationType")
+                        .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
 
                     b.ToTable("ConnectivityAssessments");
                 });
@@ -2498,6 +2504,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("BandId1")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("BarangayId")
                         .HasColumnType("uuid");
 
@@ -2526,7 +2535,13 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ServiceProviderId1")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TechnologyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TechnologyId1")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -2540,6 +2555,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
+                    b.HasIndex("BandId1");
+
                     b.HasIndex("BarangayId")
                         .HasDatabaseName("IX_WirelessValidation_BarangayId");
 
@@ -2548,6 +2565,10 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId")
                         .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
+
+                    b.HasIndex("ServiceProviderId1");
+
+                    b.HasIndex("TechnologyId1");
 
                     b.HasIndex("TechnologyId", "BandId")
                         .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
@@ -3050,29 +3071,49 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
                         .WithMany()
                         .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("BandId1");
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
                         .WithMany()
                         .HasForeignKey("BarangayId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
                         .WithMany()
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("ServiceProviderId1");
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
                         .WithMany()
                         .HasForeignKey("TechnologyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("TechnologyId1");
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Barangay");
+
+                    b.Navigation("ServiceProvider");
+
+                    b.Navigation("Technology");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
@@ -3124,6 +3165,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Networks");
 
                     b.Navigation("Speedtests");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>
@@ -3147,6 +3190,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Links");
 
                     b.Navigation("TechnologyBands");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
@@ -3249,6 +3294,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("SystemTypes");
 
                     b.Navigation("TechnologyBands");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>
