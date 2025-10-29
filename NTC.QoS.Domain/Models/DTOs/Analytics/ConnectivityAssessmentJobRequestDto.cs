@@ -55,6 +55,18 @@ public class ConnectivityAssessmentJobRequestDto
     public int HierarchicalBatchSize { get; set; } = 50;
 
     /// <summary>
+    /// Start date for filtering speedtest and wireless validation data (inclusive).
+    /// If null, no start date filter is applied.
+    /// </summary>
+    public DateTime? StartDate { get; set; }
+    
+    /// <summary>
+    /// End date for filtering speedtest and wireless validation data (inclusive).
+    /// If null, no end date filter is applied.
+    /// </summary>
+    public DateTime? EndDate { get; set; }
+
+    /// <summary>
     /// User ID who requested the job
     /// </summary>
     public string? UserId { get; set; }
