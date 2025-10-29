@@ -115,7 +115,6 @@ public class InfrastructureStatsDto
 {
     public int CellTowerCount { get; set; }
     public int FiberNAPCount { get; set; }
-    public int WirelessValidationCount { get; set; }
     public int WiFiHotspotCount { get; set; }
     public int ServiceProviderCount { get; set; }
     public string? DominantServiceProvider { get; set; }
@@ -125,7 +124,7 @@ public class InfrastructureStatsDto
     /// </summary>
     public TechnologyBreakdownDto? TechnologyBreakdown { get; set; }
     
-    public int TotalAssets => CellTowerCount + FiberNAPCount + WirelessValidationCount + WiFiHotspotCount;
+    public int TotalAssets => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
 }
 
 /// <summary>

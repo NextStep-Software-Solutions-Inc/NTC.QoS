@@ -177,7 +177,6 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             CoverageAvailabilityScore = cmtsScores.CoverageAvailability,
             CellTowerCount = infrastructureStats.CellTowerCount,
             FiberNAPCount = infrastructureStats.FiberNAPCount,
-            WirelessValidationCount = infrastructureStats.WirelessValidationCount,
             WifiHotspotCount = infrastructureStats.WiFiHotspotCount,
             ServiceProviderCount = infrastructureStats.ServiceProviderCount,
             DominantServiceProvider = infrastructureStats.DominantServiceProvider,
@@ -217,7 +216,6 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.CoverageAvailabilityScore = assessment.CoverageAvailabilityScore;
             existingRecord.CellTowerCount = assessment.CellTowerCount;
             existingRecord.FiberNAPCount = assessment.FiberNAPCount;
-            existingRecord.WirelessValidationCount = assessment.WirelessValidationCount;
             existingRecord.WifiHotspotCount = assessment.WifiHotspotCount;
             existingRecord.ServiceProviderCount = assessment.ServiceProviderCount;
             existingRecord.DominantServiceProvider = assessment.DominantServiceProvider;
@@ -534,7 +532,6 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             CellTowerCount = cells.Count,
             FiberNAPCount = naps.Count,
-            WirelessValidationCount = wirelessValidations.Count,
             WiFiHotspotCount = wifiHotspots.Count,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,

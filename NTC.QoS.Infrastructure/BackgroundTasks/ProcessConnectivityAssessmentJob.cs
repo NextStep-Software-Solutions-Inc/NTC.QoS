@@ -1534,7 +1534,6 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             existing.CellTowerCount = newData.CellTowerCount;
             existing.FiberNAPCount = newData.FiberNAPCount;
             existing.WifiHotspotCount = newData.WifiHotspotCount;
-            existing.WirelessValidationCount = newData.WirelessValidationCount;
             existing.DominantServiceProvider = newData.DominantServiceProvider;
             existing.ServiceProviderCount = newData.ServiceProviderCount;
             existing.HasReliableConnectivity = newData.HasReliableConnectivity;
@@ -1946,7 +1945,6 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             CellTowerCount = cells.Count,
             FiberNAPCount = naps.Count,
-            WirelessValidationCount = wirelessValidations.Count,
             WiFiHotspotCount = wifiHotspots.Count,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
