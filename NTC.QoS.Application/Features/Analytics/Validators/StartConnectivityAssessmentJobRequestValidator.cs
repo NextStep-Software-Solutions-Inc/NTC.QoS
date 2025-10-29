@@ -16,6 +16,7 @@ public class StartConnectivityAssessmentJobRequestValidator : AbstractValidator<
     private const int MAX_HIERARCHICAL_LOCATIONS = 5000; // Safety limit for hierarchical processing
     private const int MIN_BATCH_SIZE = 10;
     private const int MAX_BATCH_SIZE = 200;
+    private const int MAX_DATE_RANGE_DAYS = 365; // Maximum date range for data filtering
 
     public StartConnectivityAssessmentJobRequestValidator()
     {
@@ -59,6 +60,24 @@ public class StartConnectivityAssessmentJobRequestValidator : AbstractValidator<
             .LessThanOrEqualTo(MAX_BATCH_SIZE)
             .WithMessage($"HierarchicalBatchSize cannot exceed {MAX_BATCH_SIZE} when specified.")
             .When(x => x.HierarchicalBatchSize.HasValue);
+
+        // Date range validation
+        RuleFor(x => x.StartDate)
+            .LessThanOrEqualTo(DateTime.UtcNow)
+            .WithMessage("StartDate cannot be in the future.")
+            .When(x => x.StartDate.HasValue);
+
+        RuleFor(x => x.EndDate)
+            .LessThanOrEqualTo(DateTime.UtcNow)
+            .WithMessage("EndDate cannot be in the future.")
+            .When(x => x.EndDate.HasValue);
+
+        RuleFor(x => x)
+            .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || x.EndDate >= x.StartDate)
+            .WithMessage("EndDate must be greater than or equal to StartDate when both are provided.")
+            .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || 
+                      (x.EndDate.Value - x.StartDate.Value).TotalDays <= MAX_DATE_RANGE_DAYS)
+            .WithMessage($"Date range cannot exceed {MAX_DATE_RANGE_DAYS} days for performance reasons.");
 
         // Business rule validations - more lenient for background processing
         RuleFor(x => x)
