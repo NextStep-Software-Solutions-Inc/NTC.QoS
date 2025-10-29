@@ -74,7 +74,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
             foreach (var locationId in request.LocationIds)
             {
-                var assessment = await GenerateAssessmentForLocationAsync(locationId, request.LocationType, request.ForceRecalculate, cancellationToken);
+                var assessment = await GenerateAssessmentForLocationAsync(locationId, request.LocationType, request.ForceRecalculate, request.StartDate, request.EndDate, cancellationToken);
                 if (assessment != null)
                 {
                     generatedAssessments.Add(assessment);
@@ -109,6 +109,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         Guid locationId,
         LocationTypeEnum locationType,
         bool forceRecalculate,
+        DateTime? startDate,
+        DateTime? endDate,
         CancellationToken cancellationToken)
     {
         // Check if assessment already exists
@@ -132,10 +134,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
 
         // Calculate infrastructure counts within the boundary
-        var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
+        var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
 
         // Calculate speed test statistics
-        var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
+        var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
 
         
         // Calculate CMTS scores based on infrastructure, speed data, and population
@@ -175,6 +177,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             CoverageAvailabilityScore = cmtsScores.CoverageAvailability,
             CellTowerCount = infrastructureStats.CellTowerCount,
             FiberNAPCount = infrastructureStats.FiberNAPCount,
+            WirelessValidationCount = infrastructureStats.WirelessValidationCount,
             WifiHotspotCount = infrastructureStats.WiFiHotspotCount,
             ServiceProviderCount = infrastructureStats.ServiceProviderCount,
             DominantServiceProvider = infrastructureStats.DominantServiceProvider,
@@ -378,7 +381,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Enhanced infrastructure calculation with multi-level caching and accurate boundary usage
     /// </summary>
-    private async Task<InfrastructureStatsDto> CalculateInfrastructureStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
+    private async Task<InfrastructureStatsDto> CalculateInfrastructureStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         // Only check cache if not forcing recalculation
         if (!forceRecalculate)
@@ -399,7 +402,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
 
         // Use accurate boundaries with optimizations
-        var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
+        var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
 
         // Always cache the fresh result
         var infraCacheKey = _cacheService.GenerateInfrastructureCacheKey(locationId, locationType);
@@ -412,7 +415,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// Smart boundary optimization that maintains accuracy while improving performance
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
-        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
+        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         List<string> cells, naps, wirelessValidations, wifiHotspots;
         TechnologyBreakdownDto? technologyBreakdown = null;
@@ -440,15 +443,27 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
 
-            // Get wireless validations using barangay center within boundary
+            // Get wireless validations using barangay center within boundary with date filter
+            var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                .Where(wv => wv.Barangay != null
+                           && wv.Barangay.Center != null
+                           && boundary.Intersects(wv.Barangay.Center)
+                           && wv.ServiceProvider != null
+                           && wv.ServiceProvider.Provider != null);
+            
+            // Apply date range filter if provided
+            if (startDate.HasValue)
+            {
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+            }
+            
             wirelessValidations = await _wirelessValidationRepository.ToListAsync(
-                _wirelessValidationRepository.Query()
-                    .Where(wv => wv.Barangay != null
-                               && wv.Barangay.Center != null
-                               && boundary.Intersects(wv.Barangay.Center)
-                               && wv.ServiceProvider != null
-                               && wv.ServiceProvider.Provider != null)
-                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
+                wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             // Get technology breakdown with caching
             var techCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType);
@@ -459,7 +474,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 {
                     _logger.LogInformation("Force recalculating technology breakdown for {LocationType} {LocationId}", locationType, locationId);
                 }
-                technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, cancellationToken);
+                technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
                 await _cacheService.SetCachedResultAsync(techCacheKey, technologyBreakdown);
             }
         }
@@ -487,16 +502,28 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
 
+            var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                .Where(wv => wv.Barangay != null
+                           && wv.Barangay.Center != null
+                           && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                           && wv.ServiceProvider != null
+                           && wv.ServiceProvider.Provider != null);
+            
+            // Apply date range filter if provided
+            if (startDate.HasValue)
+            {
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+            }
+            
             wirelessValidations = await _wirelessValidationRepository.ToListAsync(
-                _wirelessValidationRepository.Query()
-                    .Where(wv => wv.Barangay != null
-                               && wv.Barangay.Center != null
-                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
-                               && wv.ServiceProvider != null
-                               && wv.ServiceProvider.Provider != null)
-                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
+                wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
-            technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, cancellationToken);
+            technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
         }
 
         var allProviders = cells.Concat(naps).Concat(wifiHotspots).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
@@ -518,7 +545,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Enhanced speed stats calculation with caching
     /// </summary>
-    private async Task<SpeedStatsDto?> CalculateSpeedTestStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
+    private async Task<SpeedStatsDto?> CalculateSpeedTestStatsAsync(Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         // Only check cache if not forcing recalculation
         if (!forceRecalculate)
@@ -543,6 +570,17 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Use accurate boundary with envelope optimization
             var query = _speedtestRepository.Query();
             query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
+            
+            // Apply date range filter if provided
+            if (startDate.HasValue)
+            {
+                query = query.Where(s => s.CreatedAt >= startDate.Value);
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(s => s.CreatedAt <= endOfDay);
+            }
 
             var speedtestResults = await _speedtestRepository.ToListAsync(
                 query.Select(s => new SpeedtestDto
@@ -563,17 +601,29 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI);
             var searchRadiusMeters = searchRadiusKm * 1000;
 
+            var query = _speedtestRepository.Query()
+                .Where(s => s.Location.Distance(center) <= searchRadiusMeters);
+            
+            // Apply date range filter if provided
+            if (startDate.HasValue)
+            {
+                query = query.Where(s => s.CreatedAt >= startDate.Value);
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(s => s.CreatedAt <= endOfDay);
+            }
+
             var speedtestResults = await _speedtestRepository.ToListAsync(
-                _speedtestRepository.Query()
-                    .Where(s => s.Location.Distance(center) <= searchRadiusMeters)
-                    .Select(s => new SpeedtestDto
-                    {
-                        DownloadSpeed = s.DownloadSpeed,
-                        UploadSpeed = s.UploadSpeed,
-                        Ping = s.Ping,
-                        RSSI = s.RSSI,
-                        SignalQuality = s.SignalQuality
-                    }),
+                query.Select(s => new SpeedtestDto
+                {
+                    DownloadSpeed = s.DownloadSpeed,
+                    UploadSpeed = s.UploadSpeed,
+                    Ping = s.Ping,
+                    RSSI = s.RSSI,
+                    SignalQuality = s.SignalQuality
+                }),
                 cancellationToken);
 
             result = ProcessSpeedTestResults(speedtestResults);
@@ -632,7 +682,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Analyzes technology generations in the area from speedtest data and cellular infrastructure
     /// </summary>
-    private async Task<TechnologyBreakdownDto> AnalyzeTechnologyGenerationsAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, CancellationToken cancellationToken)
+    private async Task<TechnologyBreakdownDto> AnalyzeTechnologyGenerationsAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         try
         {
@@ -643,6 +693,18 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 // Use boundary-based queries for speedtest data
                 var speedtestQuery = _speedtestRepository.Query();
                 speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, speedtestQuery);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    speedtestQuery = speedtestQuery.Where(s => s.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    speedtestQuery = speedtestQuery.Where(s => s.CreatedAt <= endOfDay);
+                }
+                
                 var speedtestResults = await _speedtestRepository.ToListAsync(
                     speedtestQuery
                         .Where(s => s.Generation != null && s.Technology != null)
@@ -672,19 +734,30 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
 
                 // Get wireless validation technology data
-                // WirelessValidation doesn't have a Location property, so we filter using Barangay.Center
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null 
+                               && wv.Barangay.Center != null
+                               && boundary.Intersects(wv.Barangay.Center)
+                               && wv.Technology != null 
+                               && wv.Technology.Generation != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
                 var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
-                    _wirelessValidationRepository.Query()
-                        .Where(wv => wv.Barangay != null 
-                                   && wv.Barangay.Center != null
-                                   && boundary.Intersects(wv.Barangay.Center)
-                                   && wv.Technology != null 
-                                   && wv.Technology.Generation != null)
-                        .Select(wv => new {
-                            GenerationName = wv.Technology!.Generation!.Name,
-                            TechnologyStandard = wv.Technology!.Standard,
-                            wv.Id
-                        }), cancellationToken);
+                    wirelessValidationQuery.Select(wv => new {
+                        GenerationName = wv.Technology!.Generation!.Name,
+                        TechnologyStandard = wv.Technology!.Standard,
+                        wv.Id
+                    }), cancellationToken);
 
                 allTechData.AddRange(wirelessValidationResults.Select(wv => (wv.GenerationName, wv.TechnologyStandard, wv.Id)));
             }
@@ -694,15 +767,27 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
                 var searchRadiusMeters = searchRadiusKm * 1000;
 
+                var speedtestQuery = _speedtestRepository.Query()
+                    .Where(s => s.Location.Distance(center) <= searchRadiusMeters
+                              && s.Generation != null && s.Technology != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    speedtestQuery = speedtestQuery.Where(s => s.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    speedtestQuery = speedtestQuery.Where(s => s.CreatedAt <= endOfDay);
+                }
+                
                 var speedtestResults = await _speedtestRepository.ToListAsync(
-                    _speedtestRepository.Query()
-                        .Where(s => s.Location.Distance(center) <= searchRadiusMeters
-                                  && s.Generation != null && s.Technology != null)
-                        .Select(s => new {
-                            GenerationName = s.Generation!.Name,
-                            TechnologyStandard = s.Technology!.Standard,
-                            s.Id
-                        }), cancellationToken);
+                    speedtestQuery.Select(s => new {
+                        GenerationName = s.Generation!.Name,
+                        TechnologyStandard = s.Technology!.Standard,
+                        s.Id
+                    }), cancellationToken);
 
                 allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
 
@@ -718,18 +803,30 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
 
                 // Get wireless validation technology data using barangay center distance
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                               && wv.Technology != null 
+                               && wv.Technology.Generation != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
                 var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
-                    _wirelessValidationRepository.Query()
-                        .Where(wv => wv.Barangay != null
-                                   && wv.Barangay.Center != null
-                                   && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
-                                   && wv.Technology != null 
-                                   && wv.Technology.Generation != null)
-                        .Select(wv => new {
-                            GenerationName = wv.Technology!.Generation!.Name,
-                            TechnologyStandard = wv.Technology!.Standard,
-                            wv.Id
-                        }), cancellationToken);
+                    wirelessValidationQuery.Select(wv => new {
+                        GenerationName = wv.Technology!.Generation!.Name,
+                        TechnologyStandard = wv.Technology!.Standard,
+                        wv.Id
+                    }), cancellationToken);
 
                 allTechData.AddRange(wirelessValidationResults.Select(wv => (wv.GenerationName, wv.TechnologyStandard, wv.Id)));
             }
