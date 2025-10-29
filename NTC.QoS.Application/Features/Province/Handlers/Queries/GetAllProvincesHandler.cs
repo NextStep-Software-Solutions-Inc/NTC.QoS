@@ -1,5 +1,4 @@
 ﻿using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Province.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Province;
@@ -14,22 +13,16 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
-        var provincesQuery = _provinceRepository.Query();
+        var provincesQuery = _provinceRepository.QueryAsNoTracking();
 
         if (request.RegionId.HasValue)
         {
             provincesQuery = provincesQuery.Where(p => p.RegionId == request.RegionId.Value);
         }
 
-        // Get total count before pagination
-        var totalCount = await provincesQuery.CountAsync(cancellationToken);
+        provincesQuery = provincesQuery.OrderBy(p => p.Name);
 
-        // Apply pagination early and use AsNoTracking
-        var paginatedProvinces = await provincesQuery
-            .AsNoTracking()
-            .OrderBy(p => p.Name)
-            .Skip((request.PageNumber - 1) * request.PageSize)
-            .Take(request.PageSize)
+        var paginatedProvincesQuery = provincesQuery
             .Select(p => new
             {
                 p.Id,
@@ -46,38 +39,41 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
                 MunicipalityCount = p.Municipalities.Count(),
                 BarangayCount = p.Municipalities.Sum(m => m.Barangays.Count),
                 p.Boundaries
-            })
-            .ToListAsync(cancellationToken);
+            });
+
+        var paginatedResult = await _provinceRepository.PaginateAsync(paginatedProvincesQuery, request.PageNumber, request.PageSize, cancellationToken);
 
         // Calculate ISP counts - simple per-province approach that always works
         var ispCountsByProvince = new Dictionary<Guid, int>();
         
-        var provincesWithBoundaries = paginatedProvinces
+        var provincesWithBoundaries = paginatedResult.Data?
             .Where(p => p.Boundaries != null)
             .ToList();
-        
-        if (provincesWithBoundaries.Count != 0)
+
+        if (provincesWithBoundaries != null && provincesWithBoundaries.Count != 0)
         {
             // Process each province individually
             foreach (var province in provincesWithBoundaries)
             {
-                var boundary = province.Boundaries!;
-                
+                var boundary = province.Boundaries;
+                if (boundary == null)
+                    continue;
+
                 // Get unique service provider IDs from cells for this province
-                var cellProviderIds = await _cellRepository.Query()
-                    .AsNoTracking()
+                var cellProviderQuery = _cellRepository.QueryAsNoTracking()
                     .Where(cell => boundary.IsWithinDistance(cell.Location, 0))
                     .Select(cell => cell.ServiceProviderId)
-                    .Distinct()
-                    .ToListAsync(cancellationToken);
+                    .Distinct();
+
+                var cellProviderIds = await _cellRepository.ToListAsync(cellProviderQuery, cancellationToken);
 
                 // Get unique service provider IDs from NAPs for this province
-                var napProviderIds = await _nAPRepository.Query()
-                    .AsNoTracking()
+                var napProviderQuery = _nAPRepository.QueryAsNoTracking()
                     .Where(nap => boundary.IsWithinDistance(nap.Location, 0))
                     .Select(nap => nap.ServiceProviderId)
-                    .Distinct()
-                    .ToListAsync(cancellationToken);
+                    .Distinct();
+
+                var napProviderIds = await _nAPRepository.ToListAsync(napProviderQuery, cancellationToken);
 
                 // Combine and count unique service providers
                 var allProviderIds = new HashSet<Guid>(cellProviderIds);
@@ -87,8 +83,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
             }
         }
 
-        // Map to DTOs
-        var provinceDtos = paginatedProvinces.Select(p => new ProvinceDto
+        var provinceDtos = paginatedResult.Data?.Select(p => new ProvinceDto
         {
             Id = p.Id,
             Name = p.Name,
@@ -104,8 +99,8 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
             MunicipalityCount = p.MunicipalityCount,
             BarangayCount = p.BarangayCount,
             ISPCount = ispCountsByProvince.GetValueOrDefault(p.Id, 0)
-        }).ToList();
+        }).ToList() ?? new List<ProvinceDto>();
 
-        return new PaginatedResponse<ProvinceDto>(provinceDtos, request.PageNumber, request.PageSize, totalCount);
+        return new PaginatedResponse<ProvinceDto>(provinceDtos, paginatedResult.PageNumber, paginatedResult.PageSize, paginatedResult.TotalRows);
     }
 }
