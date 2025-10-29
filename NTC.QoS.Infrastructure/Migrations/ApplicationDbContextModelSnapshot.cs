@@ -1102,11 +1102,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<DateTime>("AssessmentDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<double?>("AssetsPerThousandPeople")
+                        .HasColumnType("double precision");
+
                     b.Property<decimal?>("AverageDownloadSpeedMbps")
                         .HasColumnType("numeric");
 
                     b.Property<decimal?>("AverageLatencyMs")
                         .HasColumnType("numeric");
+
+                    b.Property<double?>("AverageSignalStrength")
+                        .HasColumnType("double precision");
 
                     b.Property<decimal?>("AverageUploadSpeedMbps")
                         .HasColumnType("numeric");
@@ -1135,6 +1141,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<string>("DominantServiceProvider")
                         .HasColumnType("text");
+
+                    b.Property<double?>("EstimatedHouseholdCoveragePercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("EstimatedPopulationCoveragePercent")
+                        .HasColumnType("double precision");
 
                     b.Property<double?>("FiberCoveragePercentage")
                         .HasColumnType("double precision");
@@ -1193,6 +1205,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int?>("Population")
                         .HasColumnType("integer");
 
+                    b.Property<double?>("ProvidersPerThousandPeople")
+                        .HasColumnType("double precision");
+
                     b.Property<int>("QualityOfServiceScore")
                         .HasColumnType("integer");
 
@@ -1218,6 +1233,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int>("WifiHotspotCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("WirelessValidationCount")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConnectivityStatus")
@@ -1228,9 +1246,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
-                    b.HasIndex("LocationId", "LocationType")
+                    b.HasIndex("LocationId")
                         .IsUnique()
-                        .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
+                        .HasDatabaseName("IX_ConnectivityAssessment_LocationId");
+
+                    b.HasIndex("LocationType")
+                        .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
 
                     b.ToTable("ConnectivityAssessments");
                 });
@@ -1839,7 +1860,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AntennaType")
+                    b.Property<int?>("AntennaType")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("CellSectorId")
@@ -1861,90 +1882,85 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsRxEqualTx")
+                    b.Property<bool?>("IsRxEqualTx")
                         .HasColumnType("boolean");
 
                     b.Property<Guid?>("MIMOId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("NetworkId")
+                    b.Property<Guid?>("NetworkId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("RadioEquipment")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("RxAdditionalLoss")
+                    b.Property<decimal?>("RxAdditionalLoss")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxAntennaGain")
+                    b.Property<decimal?>("RxAntennaGain")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxAntennaHeight")
+                    b.Property<decimal?>("RxAntennaHeight")
                         .HasColumnType("numeric");
 
                     b.Property<string>("RxAntennaModel")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("RxAntennaPatternId")
+                    b.Property<Guid?>("RxAntennaPatternId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("RxAzimuth")
+                    b.Property<decimal?>("RxAzimuth")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxBeamTilt")
+                    b.Property<decimal?>("RxBeamTilt")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxCableLength")
+                    b.Property<decimal?>("RxCableLength")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxCableLoss")
+                    b.Property<decimal?>("RxCableLoss")
                         .HasColumnType("numeric");
 
                     b.Property<string>("RxCableType")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("RxEIRP")
+                    b.Property<decimal?>("RxEIRP")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAdditionalLoss")
+                    b.Property<decimal?>("TxAdditionalLoss")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAntennaGain")
+                    b.Property<decimal?>("TxAntennaGain")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAntennaHeight")
+                    b.Property<decimal?>("TxAntennaHeight")
                         .HasColumnType("numeric");
 
                     b.Property<string>("TxAntennaModel")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("TxAntennaPatternId")
+                    b.Property<Guid?>("TxAntennaPatternId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("TxAzimuth")
+                    b.Property<decimal?>("TxAzimuth")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxBeamTilt")
+                    b.Property<decimal?>("TxBeamTilt")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxCableLength")
+                    b.Property<decimal?>("TxCableLength")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxCableLoss")
+                    b.Property<decimal?>("TxCableLoss")
                         .HasColumnType("numeric");
 
                     b.Property<string>("TxCableType")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("TxEIRP")
+                    b.Property<decimal?>("TxEIRP")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxPower")
+                    b.Property<decimal?>("TxPower")
                         .HasColumnType("numeric");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -1956,7 +1972,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CellSectorId");
+                    b.HasIndex("CellSectorId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("MIMOId");
 
@@ -2309,8 +2327,14 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("FirstName")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
@@ -2480,6 +2504,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("BandId1")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("BarangayId")
                         .HasColumnType("uuid");
 
@@ -2508,7 +2535,13 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ServiceProviderId1")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TechnologyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TechnologyId1")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -2522,6 +2555,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
+                    b.HasIndex("BandId1");
+
                     b.HasIndex("BarangayId")
                         .HasDatabaseName("IX_WirelessValidation_BarangayId");
 
@@ -2530,6 +2565,10 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId")
                         .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
+
+                    b.HasIndex("ServiceProviderId1");
+
+                    b.HasIndex("TechnologyId1");
 
                     b.HasIndex("TechnologyId", "BandId")
                         .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
@@ -2903,21 +2942,15 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
                         .WithMany("Sectors")
-                        .HasForeignKey("NetworkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("NetworkId");
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "RxAntennaPattern")
                         .WithMany("RxSectors")
-                        .HasForeignKey("RxAntennaPatternId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("RxAntennaPatternId");
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "TxAntennaPattern")
                         .WithMany("TxSectors")
-                        .HasForeignKey("TxAntennaPatternId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TxAntennaPatternId");
 
                     b.Navigation("CellSector");
 
@@ -3038,29 +3071,49 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
                 {
-                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
                         .WithMany()
                         .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("BandId1");
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
                         .WithMany()
                         .HasForeignKey("BarangayId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
                         .WithMany()
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("ServiceProviderId1");
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
                         .WithMany()
                         .HasForeignKey("TechnologyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("TechnologyId1");
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Barangay");
+
+                    b.Navigation("ServiceProvider");
+
+                    b.Navigation("Technology");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
@@ -3112,6 +3165,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Networks");
 
                     b.Navigation("Speedtests");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>
@@ -3135,6 +3190,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Links");
 
                     b.Navigation("TechnologyBands");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
@@ -3237,6 +3294,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("SystemTypes");
 
                     b.Navigation("TechnologyBands");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>

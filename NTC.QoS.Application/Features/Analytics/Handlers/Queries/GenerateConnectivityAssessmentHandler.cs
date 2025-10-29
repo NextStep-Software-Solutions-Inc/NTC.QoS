@@ -1,4 +1,4 @@
-ï»¿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
@@ -26,8 +26,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private readonly INAPRepository _napRepository;
     private readonly IWiFiHotspotRepository _wifiRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
+    private readonly IWirelessValidationRepository _wirelessValidationRepository;
     private readonly IConnectivityCacheService _cacheService;
     private readonly ILogger<GenerateConnectivityAssessmentHandler> _logger;
+    private readonly IUserContextService _userContextService;
 
     public GenerateConnectivityAssessmentHandler(
         IConnectivityAssessmentRepository connectivityRepository,
@@ -40,8 +42,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         INAPRepository napRepository,
         IWiFiHotspotRepository wifiRepository,
         ISpeedtestRepository speedtestRepository,
+        IWirelessValidationRepository wirelessValidationRepository,
         IConnectivityCacheService cacheService,
-        ILogger<GenerateConnectivityAssessmentHandler> logger)
+        ILogger<GenerateConnectivityAssessmentHandler> logger,
+        IUserContextService userContextService)
     {
         _connectivityRepository = connectivityRepository;
         _barangayRepository = barangayRepository;
@@ -53,19 +57,21 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         _napRepository = napRepository;
         _wifiRepository = wifiRepository;
         _speedtestRepository = speedtestRepository;
+        _wirelessValidationRepository = wirelessValidationRepository;
         _cacheService = cacheService;
         _logger = logger;
+        _userContextService = userContextService;
     }
 
     public async Task<ApiResponse<List<LocationConnectivityDto>>> Handle(GenerateConnectivityAssessmentRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            _logger.LogInformation("Generating connectivity assessments for {LocationCount} {LocationType}s", 
+            _logger.LogInformation("Generating connectivity assessments for {LocationCount} {LocationType}s",
                 request.LocationIds.Count, request.LocationType);
 
             var generatedAssessments = new List<LocationConnectivityDto>();
-            
+
             foreach (var locationId in request.LocationIds)
             {
                 var assessment = await GenerateAssessmentForLocationAsync(locationId, request.LocationType, request.ForceRecalculate, cancellationToken);
@@ -100,9 +106,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     }
 
     private async Task<LocationConnectivityDto?> GenerateAssessmentForLocationAsync(
-        Guid locationId, 
-        LocationTypeEnum locationType, 
-        bool forceRecalculate, 
+        Guid locationId,
+        LocationTypeEnum locationType,
+        bool forceRecalculate,
         CancellationToken cancellationToken)
     {
         // Check if assessment already exists
@@ -111,7 +117,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var existingAssessment = await _connectivityRepository.GetByLocationAsync(locationId, locationType, cancellationToken);
             if (existingAssessment != null && existingAssessment.LastUpdated > DateTime.UtcNow.AddDays(-30))
             {
-                _logger.LogInformation("Using existing assessment for location {LocationId} (last updated: {LastUpdated})", 
+                _logger.LogInformation("Using existing assessment for location {LocationId} (last updated: {LastUpdated})",
                     locationId, existingAssessment.LastUpdated);
                 return null; // Skip generation, use existing
             }
@@ -127,18 +133,26 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
         // Calculate infrastructure counts within the boundary
         var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
-        
+
         // Calculate speed test statistics
         var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
+
         
-        // Calculate CMTS scores based on infrastructure, speed data, and population (NEW!)
+        // Calculate CMTS scores based on infrastructure, speed data, and population
         var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
-        
+
         // Determine connectivity status and total score
-        var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess + 
+        var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess +
                         cmtsScores.TechnologyType + cmtsScores.QualityOfService + cmtsScores.CoverageAvailability;
-        
+
         var connectivityStatus = DetermineConnectivityStatus(totalScore);
+
+        // Calculate coverage statistics to be saved
+        var coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, 
+            DetermineReliableConnectivity(infrastructureStats, speedStats));
+
+        // Get the current user ID from context
+        var currentUserId = _userContextService.GetCurrentUserId() ?? "System";
 
         // Create or update assessment entity
         var assessment = new ConnectivityAssessment
@@ -147,11 +161,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             LocationType = locationType,
             Location = center,
             AreaSizeKm2 = areaKm2,
-            Population = population,               // NEW: Store population data
-            HouseholdCount = householdCount,       // NEW: Store household count
+            Population = population,
+            HouseholdCount = householdCount,
             AssessmentDate = DateTime.UtcNow,
             LastUpdated = DateTime.UtcNow,
-            AssessedBy = "System",
+            AssessedBy = currentUserId,
             ConnectivityStatus = connectivityStatus,
             TotalScore = totalScore,
             FiberCoverageScore = cmtsScores.FiberCoverage,
@@ -170,8 +184,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             MedianDownloadSpeedMbps = speedStats?.MedianDownloadSpeedMbps,
             MedianUploadSpeedMbps = speedStats?.MedianUploadSpeedMbps,
             SpeedTestCount = speedStats?.SpeedTestCount ?? 0,
+            AverageSignalStrength = speedStats?.AverageSignalStrength,
             MeetsMinimumSpeedRequirement = speedStats?.MeetsMinimumSpeedRequirement ?? false,
-            HasReliableConnectivity = DetermineReliableConnectivity(infrastructureStats, speedStats)
+            HasReliableConnectivity = coverage.HasReliableConnectivity,
+            MobileCoveragePercentage = coverage.MobileCoveragePercentage,
+            FixedBroadbandCoveragePercentage = coverage.FixedBroadbandCoveragePercentage,
+            FiberCoveragePercentage = coverage.FiberCoveragePercentage,
+            EstimatedPopulationCoveragePercent = coverage.EstimatedPopulationCoveragePercent,
+            EstimatedHouseholdCoveragePercent = coverage.EstimatedHouseholdCoveragePercent,
+            AssetsPerThousandPeople = coverage.AssetsPerThousandPeople,
+            ProvidersPerThousandPeople = coverage.ProvidersPerThousandPeople
         };
 
         // Save assessment
@@ -181,8 +203,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Update existing
             existingRecord.AssessmentDate = assessment.AssessmentDate;
             existingRecord.LastUpdated = assessment.LastUpdated;
-            existingRecord.Population = assessment.Population;                    // NEW: Update population
-            existingRecord.HouseholdCount = assessment.HouseholdCount;            // NEW: Update household count
+            existingRecord.Population = assessment.Population;
+            existingRecord.HouseholdCount = assessment.HouseholdCount;
             existingRecord.ConnectivityStatus = assessment.ConnectivityStatus;
             existingRecord.TotalScore = assessment.TotalScore;
             existingRecord.FiberCoverageScore = assessment.FiberCoverageScore;
@@ -192,6 +214,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.CoverageAvailabilityScore = assessment.CoverageAvailabilityScore;
             existingRecord.CellTowerCount = assessment.CellTowerCount;
             existingRecord.FiberNAPCount = assessment.FiberNAPCount;
+            existingRecord.WirelessValidationCount = assessment.WirelessValidationCount;
             existingRecord.WifiHotspotCount = assessment.WifiHotspotCount;
             existingRecord.ServiceProviderCount = assessment.ServiceProviderCount;
             existingRecord.DominantServiceProvider = assessment.DominantServiceProvider;
@@ -201,8 +224,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.MedianDownloadSpeedMbps = assessment.MedianDownloadSpeedMbps;
             existingRecord.MedianUploadSpeedMbps = assessment.MedianUploadSpeedMbps;
             existingRecord.SpeedTestCount = assessment.SpeedTestCount;
+            existingRecord.AverageSignalStrength = assessment.AverageSignalStrength;
             existingRecord.MeetsMinimumSpeedRequirement = assessment.MeetsMinimumSpeedRequirement;
             existingRecord.HasReliableConnectivity = assessment.HasReliableConnectivity;
+            existingRecord.MobileCoveragePercentage = assessment.MobileCoveragePercentage;
+            existingRecord.FixedBroadbandCoveragePercentage = assessment.FixedBroadbandCoveragePercentage;
+            existingRecord.FiberCoveragePercentage = assessment.FiberCoveragePercentage;
+            existingRecord.EstimatedPopulationCoveragePercent = assessment.EstimatedPopulationCoveragePercent;
+            existingRecord.EstimatedHouseholdCoveragePercent = assessment.EstimatedHouseholdCoveragePercent;
+            existingRecord.AssetsPerThousandPeople = assessment.AssetsPerThousandPeople;
+            existingRecord.ProvidersPerThousandPeople = assessment.ProvidersPerThousandPeople;
 
             _connectivityRepository.Update(existingRecord);
         }
@@ -211,11 +242,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Create new
             await _connectivityRepository.AddAsync(assessment, cancellationToken);
         }
-        
+
         await _connectivityRepository.SaveChangesAsync(cancellationToken);
 
         // Return DTO
-        return new LocationConnectivityDto
+        return new()
         {
             LocationId = locationId,
             LocationName = locationName,
@@ -225,11 +256,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             CMTSScores = cmtsScores,
             Infrastructure = infrastructureStats,
             SpeedStats = speedStats,
-            Coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, assessment.HasReliableConnectivity),
+            Coverage = coverage,
             AreaSizeKm2 = areaKm2,
-            Population = population,                                    // NEW: Include population data
-            HouseholdCount = householdCount,                           // NEW: Include household count  
-            CenterPoint = new PointDto { Latitude = center.Y, Longitude = center.X },
+            Population = population,
+            HouseholdCount = householdCount,
+            CenterPoint = new() { Latitude = center.Y, Longitude = center.X },
             AssessmentDate = assessment.AssessmentDate,
             LastUpdated = assessment.LastUpdated
         };
@@ -256,9 +287,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var barangayInfo = await _barangayRepository.FirstOrDefaultAsync(
             _barangayRepository.Query(b => b.Id == barangayId)
-                .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount }), 
+                .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount }),
             cancellationToken);
-        
+
         if (barangayInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -268,7 +299,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Select(b => b.Boundaries);
         boundary = await _barangayRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
-        return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area, 
+        return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area,
                barangayInfo.TotalPopulation, barangayInfo.HouseholdCount);
     }
 
@@ -280,9 +311,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var municipalityInfo = await _municipalityRepository.FirstOrDefaultAsync(
             _municipalityRepository.Query(m => m.Id == municipalityId)
-                .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount }), 
+                .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount }),
             cancellationToken);
-        
+
         if (municipalityInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -304,9 +335,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var provinceInfo = await _provinceRepository.FirstOrDefaultAsync(
             _provinceRepository.Query(p => p.Id == provinceId)
-                .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount }), 
+                .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount }),
             cancellationToken);
-        
+
         if (provinceInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -328,9 +359,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         var regionInfo = await _regionRepository.FirstOrDefaultAsync(
             _regionRepository.Query(r => r.Id == regionId)
-                .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount }), 
+                .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount }),
             cancellationToken);
-        
+
         if (regionInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
@@ -365,15 +396,15 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
 
-        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} kmÂ²)", locationType, locationId, areaKm2);
+        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
 
         // Use accurate boundaries with optimizations
         var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, cancellationToken);
-        
+
         // Always cache the fresh result
         var infraCacheKey = _cacheService.GenerateInfrastructureCacheKey(locationId, locationType);
         await _cacheService.SetCachedResultAsync(infraCacheKey, result);
-        
+
         return result;
     }
 
@@ -383,7 +414,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, CancellationToken cancellationToken)
     {
-        List<string> cells, naps, wifiHotspots;
+        List<string> cells, naps, wirelessValidations, wifiHotspots;
         TechnologyBreakdownDto? technologyBreakdown = null;
 
         if (boundary != null)
@@ -409,6 +440,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
 
+            // Get wireless validations using barangay center within boundary
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && boundary.Intersects(wv.Barangay.Center)
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null)
+                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
+
             // Get technology breakdown with caching
             var techCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType);
             technologyBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBreakdownDto>(techCacheKey);
@@ -426,7 +467,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             // Fallback for cases where boundaries couldn't be loaded (very large areas)
             _logger.LogWarning("No boundary available for {LocationType} {LocationId}, using center-point approximation", locationType, locationId);
-            
+
             var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI); // Equivalent area circle radius
             var searchRadiusMeters = searchRadiusKm * 1000;
 
@@ -446,17 +487,27 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
 
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null)
+                    .Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
+
             technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, cancellationToken);
         }
 
-        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Where(p => !string.IsNullOrEmpty(p)).ToList();
+        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
-        return new InfrastructureStatsDto
+        return new()
         {
             CellTowerCount = cells.Count,
             FiberNAPCount = naps.Count,
+            WirelessValidationCount = wirelessValidations.Count,
             WiFiHotspotCount = wifiHotspots.Count,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
@@ -494,16 +545,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
 
             var speedtestResults = await _speedtestRepository.ToListAsync(
-                query.Select(s => new SpeedtestDto 
-                { 
-                    DownloadSpeed = s.DownloadSpeed, 
-                    UploadSpeed = s.UploadSpeed, 
-                    Ping = s.Ping, 
-                    RSSI = s.RSSI, 
-                    SignalQuality = s.SignalQuality 
-                }), 
+                query.Select(s => new SpeedtestDto
+                {
+                    DownloadSpeed = s.DownloadSpeed,
+                    UploadSpeed = s.UploadSpeed,
+                    Ping = s.Ping,
+                    RSSI = s.RSSI,
+                    SignalQuality = s.SignalQuality
+                }),
                 cancellationToken);
-            
+
             result = ProcessSpeedTestResults(speedtestResults);
         }
         else
@@ -515,16 +566,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var speedtestResults = await _speedtestRepository.ToListAsync(
                 _speedtestRepository.Query()
                     .Where(s => s.Location.Distance(center) <= searchRadiusMeters)
-                    .Select(s => new SpeedtestDto 
-                    { 
-                        DownloadSpeed = s.DownloadSpeed, 
-                        UploadSpeed = s.UploadSpeed, 
-                        Ping = s.Ping, 
-                        RSSI = s.RSSI, 
-                        SignalQuality = s.SignalQuality 
-                    }), 
+                    .Select(s => new SpeedtestDto
+                    {
+                        DownloadSpeed = s.DownloadSpeed,
+                        UploadSpeed = s.UploadSpeed,
+                        Ping = s.Ping,
+                        RSSI = s.RSSI,
+                        SignalQuality = s.SignalQuality
+                    }),
                 cancellationToken);
-            
+
             result = ProcessSpeedTestResults(speedtestResults);
         }
 
@@ -550,7 +601,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var uploadSpeeds = speedtests
             .Select(s => s.UploadSpeed)
             .OrderBy(s => s).ToList();
-        
+
         // Calculate signal quality metrics from RSSI data
         var rssiValues = speedtests
             .Where(s => s.RSSI.HasValue)
@@ -561,11 +612,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             .Where(s => !string.IsNullOrEmpty(s.SignalQuality))
             .Select(s => s.SignalQuality!)
             .ToList();
-        
+
         // Determine average signal strength based on RSSI ranges
         var averageSignalStrength = CalculateAverageSignalStrength(rssiValues, signalQualities);
-        
-        return new SpeedStatsDto
+
+        return new()
         {
             AverageDownloadSpeedMbps = Math.Round(downloadSpeeds.Average(), 2),
             AverageUploadSpeedMbps = Math.Round(uploadSpeeds.Average(), 2),
@@ -595,7 +646,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var speedtestResults = await _speedtestRepository.ToListAsync(
                     speedtestQuery
                         .Where(s => s.Generation != null && s.Technology != null)
-                        .Select(s => new { 
+                        .Select(s => new {
                             GenerationName = s.Generation!.Name,
                             TechnologyStandard = s.Technology!.Standard,
                             s.Id
@@ -619,6 +670,23 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                         }), cancellationToken);
 
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
+
+                // Get wireless validation technology data
+                // WirelessValidation doesn't have a Location property, so we filter using Barangay.Center
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    _wirelessValidationRepository.Query()
+                        .Where(wv => wv.Barangay != null 
+                                   && wv.Barangay.Center != null
+                                   && boundary.Intersects(wv.Barangay.Center)
+                                   && wv.Technology != null 
+                                   && wv.Technology.Generation != null)
+                        .Select(wv => new {
+                            GenerationName = wv.Technology!.Generation!.Name,
+                            TechnologyStandard = wv.Technology!.Standard,
+                            wv.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(wirelessValidationResults.Select(wv => (wv.GenerationName, wv.TechnologyStandard, wv.Id)));
             }
             else
             {
@@ -628,9 +696,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
                 var speedtestResults = await _speedtestRepository.ToListAsync(
                     _speedtestRepository.Query()
-                        .Where(s => s.Location.Distance(center) <= searchRadiusMeters 
+                        .Where(s => s.Location.Distance(center) <= searchRadiusMeters
                                   && s.Generation != null && s.Technology != null)
-                        .Select(s => new { 
+                        .Select(s => new {
                             GenerationName = s.Generation!.Name,
                             TechnologyStandard = s.Technology!.Standard,
                             s.Id
@@ -648,11 +716,27 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                         }), cancellationToken);
 
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
+
+                // Get wireless validation technology data using barangay center distance
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    _wirelessValidationRepository.Query()
+                        .Where(wv => wv.Barangay != null
+                                   && wv.Barangay.Center != null
+                                   && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                                   && wv.Technology != null 
+                                   && wv.Technology.Generation != null)
+                        .Select(wv => new {
+                            GenerationName = wv.Technology!.Generation!.Name,
+                            TechnologyStandard = wv.Technology!.Standard,
+                            wv.Id
+                        }), cancellationToken);
+
+                allTechData.AddRange(wirelessValidationResults.Select(wv => (wv.GenerationName, wv.TechnologyStandard, wv.Id)));
             }
 
             if (allTechData.Count == 0)
             {
-                return new TechnologyBreakdownDto();
+                return new();
             }
 
             // Analyze generation distribution
@@ -672,7 +756,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 .Distinct()
                 .ToList();
 
-            var dominantGeneration = generationCounts.Any() 
+            var dominantGeneration = generationCounts.Any()
                 ? generationCounts.OrderByDescending(kvp => kvp.Value).First().Key
                 : null;
 
@@ -681,7 +765,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var count4G = generationCounts.GetValueOrDefault("4G", 0);
             var count5G = generationCounts.GetValueOrDefault("5G", 0);
 
-            return new TechnologyBreakdownDto
+            return new()
             {
                 Count2G = count2G,
                 Count3G = count3G,
@@ -698,7 +782,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error analyzing technology generations for area. Returning empty breakdown.");
-            return new TechnologyBreakdownDto();
+            return new();
         }
     }
 
@@ -711,11 +795,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             return "Unknown";
 
         var normalized = generationName.ToUpperInvariant().Trim();
-        
+
         return normalized switch
         {
             var s when s.Contains("2G") || s.Contains("GSM") || s.Contains("EDGE") => "2G",
-            var s when s.Contains("3G") || s.Contains("UMTS") || s.Contains("WCDMA") || s.Contains("HSPA") => "3G", 
+            var s when s.Contains("3G") || s.Contains("UMTS") || s.Contains("WCDMA") || s.Contains("HSPA") => "3G",
             var s when s.Contains("4G") || s.Contains("LTE") || s.Contains("LTE-A") => "4G",
             var s when s.Contains("5G") || s.Contains("NR") || s.Contains("5G NR") => "5G",
             _ => normalized
@@ -725,9 +809,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private static decimal CalculateMedian(List<decimal> values)
     {
         if (values.Count == 0) return 0;
-        
+
         int mid = values.Count / 2;
-        return values.Count % 2 == 0 
+        return values.Count % 2 == 0
             ? Math.Round((values[mid - 1] + values[mid]) / 2, 2)
             : Math.Round(values[mid], 2);
     }
@@ -738,7 +822,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             >= 11 => ConnectivityStatusEnum.Served,    // 11-15 points
             >= 6 => ConnectivityStatusEnum.Underserved, // 6-10 points  
-            _ => ConnectivityStatusEnum.Unserved        // â‰¤5 points
+            _ => ConnectivityStatusEnum.Unserved        // =5 points
         };
     }
 
@@ -774,8 +858,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private static (double PopulationDensity, bool IsUrbanArea, bool IsHighDensityArea) CalculatePopulationContext(int? population, double areaKm2)
     {
         var populationDensity = population.HasValue && areaKm2 > 0 ? population.Value / areaKm2 : 0;
-        var isHighDensityArea = populationDensity > 500; // >500 people per kmÂ² = high density
-        var isUrbanArea = populationDensity > 1000; // >1000 people per kmÂ² = urban
+        var isHighDensityArea = populationDensity > 500; // >500 people per km² = high density
+        var isUrbanArea = populationDensity > 1000; // >1000 people per km² = urban
 
         return (populationDensity, isUrbanArea, isHighDensityArea);
     }
@@ -925,7 +1009,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var hasGoodLatency = speedStats.AverageLatencyMs <= 50; // Under 50ms
         var hasConsistentSpeeds = speedStats.MeetsMinimumSpeedRequirement;
         var hasGoodSignal = speedStats.AverageSignalStrength >= 3.5; // Average or better signal
-        
+
 
         // Enhanced quality scoring with signal strength consideration
         var qualityFactors = 0;
@@ -933,15 +1017,15 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         if (hasConsistentSpeeds) qualityFactors++;
         if (hasGoodLatency) qualityFactors++;
         if (hasGoodSignal) qualityFactors++;
-        
+
         // Bonus for 5G areas with excellent performance
-        if (infrastructure.TechnologyBreakdown?.Count5G > 0 && 
-            speedStats.AverageDownloadSpeedMbps >= 100 && 
+        if (infrastructure.TechnologyBreakdown?.Count5G > 0 &&
+            speedStats.AverageDownloadSpeedMbps >= 100 &&
             speedStats.AverageLatencyMs <= 20)
         {
             qualityFactors++;
         }
-        
+
         return qualityFactors switch
         {
             >= 3 => 3, // Served - High quality (good speed, low latency, good signal)
@@ -962,7 +1046,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
 
         double coverageScore;
-        
+
         if (population.HasValue && population > 0)
         {
             // Population-based coverage calculation (aligns with CMTS rubric)
@@ -970,10 +1054,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var providersPerThousand = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
             var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
-            
+
             // Calculate estimated coverage percentage based on infrastructure density
             double estimatedCoveragePercent;
-            
+
             if (context.IsUrbanArea)
             {
                 // Urban: High infrastructure density expected  
@@ -992,7 +1076,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var geographicCoverage = Math.Min(100, geographicDensity * 100);
                 estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
             }
-            
+
             // Apply CMTS rubric thresholds
             if (estimatedCoveragePercent >= 100 && hasMultipleProviders && hasModernTech)
             {
@@ -1017,7 +1101,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var assetDensity = areaKm2 > 0 ? infrastructure.TotalAssets / areaKm2 : 0;
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
             var hasModernTech = infrastructure.TechnologyBreakdown?.HasModernTechnology == true;
-            
+
             if (hasMultipleProviders && hasModernTech && assetDensity >= 1.0)
             {
                 coverageScore = 3; // Served - Comprehensive coverage
@@ -1031,7 +1115,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 coverageScore = 1; // Unserved - Limited coverage
             }
         }
-        
+
         return (int)Math.Round(coverageScore);
     }
 
@@ -1039,10 +1123,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// Calculates population-aware coverage statistics
     /// </summary>
     private static CoverageStatsDto CalculatePopulationAwareCoverage(
-        InfrastructureStatsDto infrastructure, 
-        double areaKm2, 
-        int? population, 
-        int? householdCount, 
+        InfrastructureStatsDto infrastructure,
+        double areaKm2,
+        int? population,
+        int? householdCount,
         bool hasReliableConnectivity)
     {
         var coverage = new CoverageStatsDto
@@ -1055,19 +1139,19 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             // Assets per thousand people
             coverage.AssetsPerThousandPeople = (infrastructure.TotalAssets * 1000.0) / population.Value;
-            
+
             // Providers per thousand people  
             coverage.ProvidersPerThousandPeople = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
-            
+
             // Estimate population coverage based on infrastructure density
             var populationDensity = areaKm2 > 0 ? population.Value / areaKm2 : 0;
             var isUrbanArea = populationDensity > 1000;
             var isHighDensityArea = populationDensity > 500;
-            
+
             double estimatedCoveragePercent;
             var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
             var providersPerThousand = coverage.ProvidersPerThousandPeople ?? 0;
-            
+
             if (isUrbanArea)
             {
                 // Urban areas: Higher infrastructure density expected
@@ -1086,32 +1170,36 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var geographicCoverage = Math.Min(100, geographicDensity * 100);
                 estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
             }
-            
+
             coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
-            
-            // Estimate household coverage (assuming similar ratio)
+
+
+            // Estimate household coverage.
+            // Assuming the coverage is evenly distributed, the percentage of covered households 
+            // is proportional to the percentage of covered population.
             if (householdCount.HasValue && householdCount > 0)
             {
-                var householdRatio = (double)householdCount.Value / population.Value;
-                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent * householdRatio, 2);
+                // If 100% of the population is covered, 100% of households are covered.
+                // Therefore, the percentages are logically equivalent for estimation purposes.
+                coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
             }
         }
-        
+
         // Calculate basic coverage percentages based on infrastructure mix
         var totalInfrastructure = infrastructure.TotalAssets;
         if (totalInfrastructure > 0)
         {
             // Mobile coverage based on cell towers
             coverage.MobileCoveragePercentage = Math.Round((double)infrastructure.CellTowerCount / totalInfrastructure * 100, 2);
-            
+
             // Fixed broadband coverage based on fiber NAPs and WiFi
             var fixedInfrastructure = infrastructure.FiberNAPCount + infrastructure.WiFiHotspotCount;
             coverage.FixedBroadbandCoveragePercentage = Math.Round((double)fixedInfrastructure / totalInfrastructure * 100, 2);
-            
+
             // Fiber coverage based on NAP presence
             coverage.FiberCoveragePercentage = Math.Round((double)infrastructure.FiberNAPCount / totalInfrastructure * 100, 2);
         }
-        
+
         return coverage;
     }
 

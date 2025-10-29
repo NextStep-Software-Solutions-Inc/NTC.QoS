@@ -16,4 +16,5 @@ public class ServiceProvider : BaseEntity
     public virtual List<NAP> NAPs { get; set; } = new();
     public virtual List<Cell> Cells { get; set; } = new();
     public virtual List<Network> Networks { get; set; } = new();
+    public virtual List<WirelessValidation> WirelessValidations { get; set; } = new();
 }

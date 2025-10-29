@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Sector.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Sector;
@@ -38,7 +39,7 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 Name = sector.Network.Name ?? string.Empty,
                 SystemType = sector.Network.SystemType.ToString() ?? string.Empty,
             } : null,
-            AntennaType = sector.AntennaType.ToString(),
+            AntennaType = sector.AntennaType?.ToString() ?? AntennaTypeEnum.Unknown.ToString(),
             MIMO = sector.MIMO != null ? new()
             {
                 Id = sector.MIMO.Id,
@@ -61,11 +62,11 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 Azimuth = sector.CellSector.Azimuth,
                 BeamTilt = sector.CellSector.BeamTilt,
             } : null,
-            RadioEquipment = sector.RadioEquipment ?? string.Empty,
+            RadioEquipment = sector.RadioEquipment,
             IsRxEqualTx = sector.IsRxEqualTx,
             TxPower = sector.TxPower,
-            TxAntennaModel = sector.TxAntennaModel ?? string.Empty,
-            TxCableType = sector.TxCableType ?? string.Empty,
+            TxAntennaModel = sector.TxAntennaModel,
+            TxCableType = sector.TxCableType,
             TxCableLength = sector.TxCableLength,
             TxCableLoss = sector.TxCableLoss,
             TxAdditionalLoss = sector.TxAdditionalLoss,
@@ -80,8 +81,8 @@ public class GetSectorByIdHandler(ISectorRepository sectorRepository) : IRequest
                 URL = sector.TxAntennaPattern.URL ?? string.Empty,
             } : null,
             TxEIRP = sector.TxEIRP,
-            RxAntennaModel = sector.RxAntennaModel ?? string.Empty,
-            RxCableType = sector.RxCableType ?? string.Empty,
+            RxAntennaModel = sector.RxAntennaModel,
+            RxCableType = sector.RxCableType,
             RxCableLength = sector.RxCableLength,
             RxCableLoss = sector.RxCableLoss,
             RxAdditionalLoss = sector.RxAdditionalLoss,

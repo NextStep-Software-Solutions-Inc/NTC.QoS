@@ -56,6 +56,8 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
                 {
                     Id = ur.User.Id,
                     AuthUserId = ur.User.AuthUserId,
+                    FirstName = ur.User.FirstName,
+                    LastName = ur.User.LastName,
                     Email = ur.User.Email,
                     Role = new()
                     {

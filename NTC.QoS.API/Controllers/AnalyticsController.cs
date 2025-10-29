@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Models.DTOs;
@@ -278,5 +279,37 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
             Message = "CMTS Broadband Mapping Rubric retrieved successfully.",
             Data = rubric
         });
+    }
+
+    /// <summary>
+    /// Start a background job to generate connectivity assessments
+    /// Use this for large-scale processing that would timeout in regular API calls
+    /// </summary>
+    /// <param name="request">Background job request parameters</param>
+    /// <returns>Job ID and tracking information</returns>
+    [HttpPost("connectivity-assessment/background")]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobResponseDto>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobResponseDto>>> StartConnectivityAssessmentJob(
+        [FromBody] StartConnectivityAssessmentJobRequest request)
+    {
+        var response = await mediator.Send(request);
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    /// <summary>
+    /// Get the status of a background connectivity assessment job
+    /// </summary>
+    /// <param name="jobId">Job identifier returned from the start job endpoint</param>
+    /// <returns>Current job status and progress information</returns>
+    [HttpGet("connectivity-assessment/job/{jobId}/status")]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobStatusDto>>> GetConnectivityAssessmentJobStatus(
+        [FromRoute] int jobId)
+    {
+        var request = new GetConnectivityAssessmentJobStatusRequest { JobId = jobId };
+        var response = await mediator.Send(request);
+        return response.Succeeded ? Ok(response) : NotFound(response);
     }
 }

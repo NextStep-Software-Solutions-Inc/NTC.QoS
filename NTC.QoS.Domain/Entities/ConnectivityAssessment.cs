@@ -84,6 +84,7 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     // Infrastructure Counts
     public int CellTowerCount { get; set; }
     public int FiberNAPCount { get; set; }
+    public int WirelessValidationCount { get; set; }
     public int WifiHotspotCount { get; set; }
 
     // Speed Test Statistics
@@ -94,14 +95,41 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     public decimal? MedianUploadSpeedMbps { get; set; }
     public int SpeedTestCount { get; set; }
 
+    /// <summary>
+    /// Average signal strength score (1-5) based on RSSI data
+    /// 5 = Good, 4 = Average, 3 = Weak, 2 = Very Weak, 1 = No Broadband Coverage
+    /// </summary>
+    public double? AverageSignalStrength { get; set; }
+
     // Service Provider Information
     public int ServiceProviderCount { get; set; }
     public string? DominantServiceProvider { get; set; }
 
-    // Coverage Percentages
+    // Coverage Percentages - Infrastructure Mix
     public double? MobileCoveragePercentage { get; set; }
     public double? FixedBroadbandCoveragePercentage { get; set; }
     public double? FiberCoveragePercentage { get; set; }
+
+    // Population-Aware Coverage Metrics
+    /// <summary>
+    /// Estimated percentage of population with broadband access
+    /// </summary>
+    public double? EstimatedPopulationCoveragePercent { get; set; }
+
+    /// <summary>
+    /// Estimated percentage of households with broadband access
+    /// </summary>
+    public double? EstimatedHouseholdCoveragePercent { get; set; }
+
+    /// <summary>
+    /// Infrastructure assets per 1000 people
+    /// </summary>
+    public double? AssetsPerThousandPeople { get; set; }
+
+    /// <summary>
+    /// Service providers per thousand people
+    /// </summary>
+    public double? ProvidersPerThousandPeople { get; set; }
 
     // Additional Metrics
     public string? Notes { get; set; }

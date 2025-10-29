@@ -1,9 +1,9 @@
-﻿using MediatR;
+﻿using System.ComponentModel;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Application.Features.Municipality.Requests;
-using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.File;
@@ -19,20 +19,16 @@ public class FilesController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile( [FromForm] UploadFileDto uploadFile)
+    public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile([FromForm] UploadFileDto uploadFile)
     {
         var file = await _mediator.Send(new UploadFileRequest(uploadFile));
 
         if (file.Succeeded.Equals(false) || file == null || file.Data == null)
         {
-            return BadRequest(new ApiResponse<FileDto>
-            {
-                Succeeded = false,
-                Message = "File upload failed."
-            });
+            return BadRequest(file);
         }
 
-        var fileType = Enum.Parse<FileTypeEnum>(uploadFile.Type);
+        FileTypeEnum fileType = Enum.TryParse<FileTypeEnum>(uploadFile.Type, out var parsedType) ? parsedType : FileTypeEnum.Unknown;
 
         switch (fileType)
         {
@@ -57,7 +53,7 @@ public class FilesController(IMediator mediator) : ControllerBase
 
             case FileTypeEnum.Unknown:
                 default:
-                throw new ArgumentOutOfRangeException(nameof(fileType), $"Unsupported file type: {fileType}");
+                throw new InvalidEnumArgumentException();
         }
 
         // Schedule a background job to delete the file and its database record after 1 day
