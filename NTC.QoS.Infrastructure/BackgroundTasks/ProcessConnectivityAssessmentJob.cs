@@ -1765,7 +1765,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             try
             {
                 var cacheKey = $"job_request_{jobId}";
-                if (_memoryCache.TryGetValue(cacheKey, out ConnectivityAssessmentJobRequestDto? jobRequest))
+                if (_memoryCache.TryGetValue(cacheKey, out ConnectivityAssessmentJobRequestDto? jobRequest) && jobRequest != null)
                 {
                     maxLocations = jobRequest.MaxHierarchicalLocations;
                 }
