@@ -236,13 +236,13 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.ProvidersPerThousandPeople = assessment.ProvidersPerThousandPeople;
 
             _connectivityRepository.Update(existingRecord);
-            await _connectivityRepository.SaveChangesAsync(cancellationToken);
             
             // Update provider breakdown - delete old records and insert new ones
             await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existingRecord.Id, cancellationToken);
-            foreach (var provider in infrastructureStats.ProviderBreakdown)
-            {
-                await _connectivityRepository.AddProviderAsync(new ConnectivityAssessmentProvider
+            
+            // Batch insert all providers at once for better performance
+            var providers = infrastructureStats.ProviderBreakdown
+                .Select(provider => new ConnectivityAssessmentProvider
                 {
                     ConnectivityAssessmentId = existingRecord.Id,
                     ProviderName = provider.ProviderName,
@@ -251,19 +251,19 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     WiFiHotspotCount = provider.WiFiHotspotCount,
                     TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
-                }, cancellationToken);
-            }
+                })
+                .ToList();
+            
+            await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
         }
         else
         {
             // Create new
             await _connectivityRepository.AddAsync(assessment, cancellationToken);
-            await _connectivityRepository.SaveChangesAsync(cancellationToken);
             
-            // Save provider breakdown for new assessment
-            foreach (var provider in infrastructureStats.ProviderBreakdown)
-            {
-                await _connectivityRepository.AddProviderAsync(new ConnectivityAssessmentProvider
+            // Save provider breakdown for new assessment - batch insert for better performance
+            var providers = infrastructureStats.ProviderBreakdown
+                .Select(provider => new ConnectivityAssessmentProvider
                 {
                     ConnectivityAssessmentId = assessment.Id,
                     ProviderName = provider.ProviderName,
@@ -272,10 +272,13 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     WiFiHotspotCount = provider.WiFiHotspotCount,
                     TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
-                }, cancellationToken);
-            }
+                })
+                .ToList();
+            
+            await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
         }
 
+        // Save all changes atomically in a single transaction
         await _connectivityRepository.SaveChangesAsync(cancellationToken);
 
         // Return DTO

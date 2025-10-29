@@ -176,9 +176,18 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             var techCacheKey = _cacheService.GenerateTechnologyCacheKey(assessment.LocationId, assessment.LocationType);
             technologyBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBreakdownDto>(techCacheKey);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Failed to retrieve technology breakdown from cache for location {LocationId}", assessment.LocationId);
+            _logger.LogWarning(ex, "Cache operation failed while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving technology breakdown from cache for location {LocationId}",assessment.LocationId);
         }
 
         // Load provider breakdown from database
@@ -195,9 +204,18 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 AssetPercentage = p.AssetPercentage
             }).ToList();
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Failed to retrieve provider breakdown for assessment {AssessmentId}", assessment.Id);
+            _logger.LogWarning(ex, "Database operation failed while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
         }
 
         return new LocationConnectivityDto

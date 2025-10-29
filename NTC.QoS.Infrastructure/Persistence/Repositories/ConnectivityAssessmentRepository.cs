@@ -73,11 +73,9 @@ internal sealed class ConnectivityAssessmentRepository(ApplicationDbContext cont
         Guid assessmentId, 
         CancellationToken cancellationToken = default)
     {
-        var providers = await _context.Set<ConnectivityAssessmentProvider>()
+        await _context.Set<ConnectivityAssessmentProvider>()
             .Where(cap => cap.ConnectivityAssessmentId == assessmentId)
-            .ToListAsync(cancellationToken);
-
-        _context.Set<ConnectivityAssessmentProvider>().RemoveRange(providers);
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     public async Task AddProviderAsync(
@@ -85,6 +83,13 @@ internal sealed class ConnectivityAssessmentRepository(ApplicationDbContext cont
         CancellationToken cancellationToken = default)
     {
         await _context.Set<ConnectivityAssessmentProvider>().AddAsync(provider, cancellationToken);
+    }
+
+    public async Task AddProvidersRangeAsync(
+        List<ConnectivityAssessmentProvider> providers, 
+        CancellationToken cancellationToken = default)
+    {
+        await _context.Set<ConnectivityAssessmentProvider>().AddRangeAsync(providers, cancellationToken);
     }
 }
 

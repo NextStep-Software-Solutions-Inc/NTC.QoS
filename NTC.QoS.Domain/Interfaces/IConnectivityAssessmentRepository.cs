@@ -13,6 +13,7 @@ public interface IConnectivityAssessmentRepository : IRepository<ConnectivityAss
     Task<List<ConnectivityAssessmentProvider>> GetProvidersByAssessmentIdAsync(Guid assessmentId, CancellationToken cancellationToken = default);
     Task DeleteProvidersByAssessmentIdAsync(Guid assessmentId, CancellationToken cancellationToken = default);
     Task AddProviderAsync(ConnectivityAssessmentProvider provider, CancellationToken cancellationToken = default);
+    Task AddProvidersRangeAsync(List<ConnectivityAssessmentProvider> providers, CancellationToken cancellationToken = default);
 }
 
 public interface IWiFiHotspotRepository : IRepository<WiFiHotspot>
