@@ -9,11 +9,13 @@ using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Cells.Requests;
+using Microsoft.AspNetCore.Authorization;
 
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
 [Route("public")]
+[AllowAnonymous]
 public class PublicController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -230,6 +232,24 @@ public class PublicController : ControllerBase
             TrackCacheKey(cacheKey);
         }
         return cellularCoverages.Succeeded ? Ok(cellularCoverages) : BadRequest(cellularCoverages);
+    }
+
+    /// <summary>
+    /// Test endpoint for rate limiting functionality.
+    /// Returns basic request information for testing purposes.
+    /// </summary>
+    [HttpGet("rate-limit-test")]
+    public IActionResult TestRateLimit()
+    {
+        var response = new
+        {
+            message = "Rate limiting test endpoint",
+            timestamp = DateTime.UtcNow,
+            requestId = Guid.NewGuid().ToString(),
+            server = Environment.MachineName
+        };
+
+        return Ok(response);
     }
 
     private void TrackCacheKey(string key)
