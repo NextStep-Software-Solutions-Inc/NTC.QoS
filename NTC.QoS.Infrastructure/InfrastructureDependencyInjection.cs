@@ -8,6 +8,8 @@ using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace NTC.QoS.Infrastructure;
 
@@ -50,7 +52,7 @@ public static class InfrastructureDependencyInjection
         var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
         var databaseOptions = services.GetRequiredService<IOptions<DatabaseOptions>>().Value;
 
-        var advisoryLockKey = databaseOptions.AdvisoryLockKey;
+        var advisoryLockKey = GenerateAdvisoryLockKey();
         var lockAcquired = false;
 
         try
@@ -101,7 +103,7 @@ public static class InfrastructureDependencyInjection
         {
             var result = await dbContext.Database.ExecuteSqlRawAsync(
                 "SELECT pg_try_advisory_lock({0});",
-                new object[] { advisoryLockKey },
+                [advisoryLockKey],
                 cancellationToken
             );
             
@@ -168,7 +170,7 @@ public static class InfrastructureDependencyInjection
             logger.LogInformation("Releasing advisory lock {LockKey}", advisoryLockKey);
             await dbContext.Database.ExecuteSqlRawAsync(
                 "SELECT pg_advisory_unlock({0});", 
-                new object[] { advisoryLockKey }, 
+                [advisoryLockKey], 
                 cancellationToken
             );
             logger.LogInformation("Advisory lock {LockKey} released successfully", advisoryLockKey);
@@ -178,5 +180,16 @@ public static class InfrastructureDependencyInjection
             logger.LogWarning(ex, "Failed to release advisory lock {LockKey}. This may cause issues if the application restarts quickly", advisoryLockKey);
             // Don't re-throw as this is cleanup code
         }
+    }
+
+    /// <summary>
+    /// Generates a consistent advisory lock key using a hash of a fixed string
+    /// </summary>
+    /// <returns>A 64-bit advisory lock key</returns>
+    private static long GenerateAdvisoryLockKey()
+    {
+        using var sha256 = SHA256.Create();
+        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes("migration-advisory-lock"));
+        return BitConverter.ToInt64(hash, 0);
     }
 }
