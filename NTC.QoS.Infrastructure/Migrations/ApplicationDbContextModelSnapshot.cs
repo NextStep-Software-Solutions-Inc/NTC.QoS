@@ -1307,6 +1307,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int>("WiFiHotspotCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("WirelessValidationCount")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConnectivityAssessmentId");

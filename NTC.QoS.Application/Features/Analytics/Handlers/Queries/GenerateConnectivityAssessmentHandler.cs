@@ -249,6 +249,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     CellTowerCount = provider.CellTowerCount,
                     FiberNAPCount = provider.FiberNAPCount,
                     WiFiHotspotCount = provider.WiFiHotspotCount,
+                    WirelessValidationCount = provider.WirelessValidationCount,
                     TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
                 })
@@ -270,6 +271,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     CellTowerCount = provider.CellTowerCount,
                     FiberNAPCount = provider.FiberNAPCount,
                     WiFiHotspotCount = provider.WiFiHotspotCount,
+                    WirelessValidationCount = provider.WirelessValidationCount,
                     TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
                 })
@@ -539,8 +541,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
-        // Calculate provider breakdown with asset counts
-        var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots);
+        // Calculate provider breakdown with asset counts including wireless validations
+        var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots, wirelessValidations);
 
         return new ()
         {
@@ -558,41 +560,53 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Calculates detailed provider breakdown showing asset counts per provider in descending order
     /// </summary>
-    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(List<string> cells, List<string> naps, List<string> wifiHotspots)
+    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(List<string> cells, List<string> naps, List<string> wifiHotspots, List<string> wirelessValidations)
     {
         // Group all assets by provider
-        var providerAssets = new Dictionary<string, (int Cells, int NAPs, int WiFi)>();
+        var providerAssets = new Dictionary<string, (int Cells, int NAPs, int WiFi, int WirelessValidations)>();
+        var allAssets = new List<string>();
 
         // Count cell towers per provider
         foreach (var provider in cells.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
-                providerAssets[provider] = (0, 0, 0);
+                providerAssets[provider] = (0, 0, 0, 0);
             
             var current = providerAssets[provider];
-            providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi);
+            providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi, current.WirelessValidations);
         }
 
         // Count NAPs per provider
         foreach (var provider in naps.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
-                providerAssets[provider] = (0, 0, 0);
+                providerAssets[provider] = (0, 0, 0, 0);
             
             var current = providerAssets[provider];
-            providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi);
+            providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi, current.WirelessValidations);
         }
 
         // Count WiFi hotspots per provider
         foreach (var provider in wifiHotspots.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
-                providerAssets[provider] = (0, 0, 0);
+                providerAssets[provider] = (0, 0, 0, 0);
             
             var current = providerAssets[provider];
-            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1);
+            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1, current.WirelessValidations);
         }
 
+        // Count wireless validations per provider (not included in total assets)
+        foreach (var provider in wirelessValidations.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0, 0);
+            
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi, current.WirelessValidations + 1);
+        }
+
+        // Total assets excludes wireless validations
         var totalAssets = cells.Count + naps.Count + wifiHotspots.Count;
 
         // Create breakdown DTOs ordered by total asset count descending
@@ -603,6 +617,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 CellTowerCount = kvp.Value.Cells,
                 FiberNAPCount = kvp.Value.NAPs,
                 WiFiHotspotCount = kvp.Value.WiFi,
+                WirelessValidationCount = kvp.Value.WirelessValidations,
                 AssetPercentage = totalAssets > 0 
                     ? Math.Round(((double)(kvp.Value.Cells + kvp.Value.NAPs + kvp.Value.WiFi) / totalAssets) * 100, 2)
                     : 0

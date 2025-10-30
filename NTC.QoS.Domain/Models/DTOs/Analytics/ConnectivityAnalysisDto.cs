@@ -158,6 +158,11 @@ public class ProviderBreakdownDto
     public int WiFiHotspotCount { get; set; }
     
     /// <summary>
+    /// Number of wireless validations from this provider (not included in TotalAssetCount)
+    /// </summary>
+    public int WirelessValidationCount { get; set; }
+    
+    /// <summary>
     /// Total assets from this provider
     /// </summary>
     public int TotalAssetCount => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
