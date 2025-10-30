@@ -84,7 +84,6 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     // Infrastructure Counts
     public int CellTowerCount { get; set; }
     public int FiberNAPCount { get; set; }
-    public int WirelessValidationCount { get; set; }
     public int WifiHotspotCount { get; set; }
 
     // Speed Test Statistics

@@ -51,4 +51,16 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     /// When null, uses location-type specific defaults for performance
     /// </summary>
     public int? HierarchicalBatchSize { get; set; } = null; // null = use defaults
+    
+    /// <summary>
+    /// Start date for filtering speedtest and wireless validation data (inclusive).
+    /// If null, no start date filter is applied.
+    /// </summary>
+    public DateTime? StartDate { get; set; }
+    
+    /// <summary>
+    /// End date for filtering speedtest and wireless validation data (inclusive).
+    /// If null, no end date filter is applied.
+    /// </summary>
+    public DateTime? EndDate { get; set; }
 }

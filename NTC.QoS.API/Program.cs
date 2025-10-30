@@ -1,4 +1,6 @@
+using AspNetCoreRateLimit;
 using Clerk.Net.DependencyInjection;
+using NTC.QoS.API.Middleware;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -154,14 +156,18 @@ public class Program
         builder.Services.AddApplication(builder.Configuration);
         builder.Services.AddInfrastructure(builder.Configuration);
 
+        // Add API-specific services
+        builder.Services.AddApiRateLimiting();
+
         builder.Services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-            options.Providers.Add<GzipCompressionProvider>();
-            options.Providers.Add<BrotliCompressionProvider>();
-        });
+            {
+                options.EnableForHttps = true;
+                options.Providers.Add<GzipCompressionProvider>();
+                options.Providers.Add<BrotliCompressionProvider>();
+            });
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
+
         builder.Services.AddScoped<GeospatialQueryService>();
 
         // Health checks
@@ -200,6 +206,9 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Enable client-based rate limiting (per user)
+        app.UseClientRateLimiting();
 
         // Hangfire dashboard with authorization
         app.UseHangfireDashboard("/hangfire", new DashboardOptions

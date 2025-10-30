@@ -61,6 +61,10 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
                 MaxHierarchicalLocations = request.MaxHierarchicalLocations ?? GetDefaultMaxHierarchicalLocations(request.LocationType),
                 HierarchicalBatchSize = request.HierarchicalBatchSize ?? GetDefaultHierarchicalBatchSize(request.LocationType),
                 
+                // Date range filtering for speedtest and wireless validation data
+                StartDate = request.StartDate,
+                EndDate = request.EndDate,
+                
                 UserId = currentUserId, // Use the auto-captured user ID from context
                 RequestedAt = startTime
             };
