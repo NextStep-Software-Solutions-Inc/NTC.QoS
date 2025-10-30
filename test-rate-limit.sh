@@ -89,8 +89,6 @@ process_result() {
 echo "🚀 Launching $REQUESTS_TO_TEST requests simultaneously..."
 start_time=$(date +%s%3N 2>/dev/null || date +%s000)
 
-# Create temporary file for results
-temp_file=$(mktemp)
 
 # Create temporary file for results
 temp_file=$(mktemp)
@@ -118,90 +116,6 @@ done
 end_time=$(date +%s%3N 2>/dev/null || date +%s000)
 duration_ms=$((end_time - start_time))
 duration=$(echo "scale=3; $duration_ms / 1000" | bc 2>/dev/null || echo "$duration_ms")
-
-echo -e "${BLUE}⏱️  All requests completed in ${duration}s${NC}"
-
-# Process results
-while IFS= read -r line; do
-    if [ -n "$line" ]; then
-        result=$(echo "$line" | cut -d'|' -f1-5)
-        i=$(echo "$line" | cut -d'|' -f6)
-        process_result "$result" "$i"
-        total_requests=$((total_requests + 1))
-    fi
-done < "$temp_file"
-
-# Clean up
-rm -f "$temp_file"
-
-rate_limited_count=0
-successful_count=0
-total_requests=0
-
-# Function to process a single request result
-process_result() {
-    local result="$1"
-    local i="$2"
-    local status=$(echo "$result" | cut -d'|' -f1)
-    local remaining=$(echo "$result" | cut -d'|' -f3)
-
-    if [ "$status" = "200" ]; then
-        successful_count=$((successful_count + 1))
-        if [ $((successful_count % 10)) -eq 0 ] || [ "${remaining:-0}" -le 5 ] 2>/dev/null; then
-            echo -e "${GREEN}✅ Request $i: Status $status, Remaining: ${remaining:-N/A}${NC}"
-        fi
-    elif [ "$status" = "429" ]; then
-        rate_limited_count=$((rate_limited_count + 1))
-        if [ $rate_limited_count -le 5 ]; then
-            echo -e "${RED}❌ Request $i: RATE LIMITED (Status: $status)${NC}"
-        fi
-    else
-        echo -e "${YELLOW}⚠️  Request $i: Unexpected status $status${NC}"
-    fi
-}
-
-# Start all requests in parallel
-echo "🚀 Launching $REQUESTS_TO_TEST requests simultaneously..."
-start_time=$(date +%s.%3N)
-
-for i in $(seq 1 "$REQUESTS_TO_TEST"); do
-    (
-        result=$(make_request)
-        echo "$result|$i"
-    ) &
-done
-
-# Wait for all background processes to complete and collect results
-wait
-
-# Collect results from background processes
-results=$(jobs -l 2>/dev/null | grep -o "Done.*" | sed 's/Done.*echo //' || true)
-
-# Since jobs -l doesn't work well for capturing output, let's use a different approach
-# We'll run the requests and capture output directly
-
-# Clear previous background jobs
-wait 2>/dev/null || true
-
-# Run requests in parallel and collect results
-temp_file=$(mktemp)
-for i in $(seq 1 "$REQUESTS_TO_TEST"); do
-    (
-        result=$(make_request)
-        echo "$result|$i" >> "$temp_file"
-    ) &
-    
-    # Limit concurrent processes to avoid overwhelming the system
-    if [ $((i % 50)) -eq 0 ]; then
-        sleep 0.01
-    fi
-done
-
-# Wait for all requests to complete
-wait
-
-end_time=$(date +%s.%3N)
-duration=$(echo "$end_time - $start_time" | bc 2>/dev/null || echo "0")
 
 echo -e "${BLUE}⏱️  All requests completed in ${duration}s${NC}"
 
