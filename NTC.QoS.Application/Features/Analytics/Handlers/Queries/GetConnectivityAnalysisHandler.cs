@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Entities;
@@ -7,6 +8,8 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Infrastructure.Helper;
+using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -173,9 +176,46 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             var techCacheKey = _cacheService.GenerateTechnologyCacheKey(assessment.LocationId, assessment.LocationType);
             technologyBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBreakdownDto>(techCacheKey);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Failed to retrieve technology breakdown from cache for location {LocationId}", assessment.LocationId);
+            _logger.LogWarning(ex, "Cache operation failed while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving technology breakdown from cache for location {LocationId}",assessment.LocationId);
+        }
+
+        // Load provider breakdown from database
+        var providerBreakdown = new List<ProviderBreakdownDto>();
+        try
+        {
+            var providers = await _connectivityRepository.GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
+            providerBreakdown = providers.Select(p => new ProviderBreakdownDto
+            {
+                ProviderName = p.ProviderName,
+                CellTowerCount = p.CellTowerCount,
+                FiberNAPCount = p.FiberNAPCount,
+                WiFiHotspotCount = p.WiFiHotspotCount,
+                AssetPercentage = p.AssetPercentage
+            }).ToList();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Database operation failed while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
         }
 
         return new LocationConnectivityDto
@@ -200,7 +240,8 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 WiFiHotspotCount = assessment.WifiHotspotCount,
                 ServiceProviderCount = assessment.ServiceProviderCount,
                 DominantServiceProvider = assessment.DominantServiceProvider,
-                TechnologyBreakdown = technologyBreakdown
+                TechnologyBreakdown = technologyBreakdown,
+                ProviderBreakdown = providerBreakdown
             },
             SpeedStats = assessment.SpeedTestCount > 0 ? new SpeedStatsDto
             {
