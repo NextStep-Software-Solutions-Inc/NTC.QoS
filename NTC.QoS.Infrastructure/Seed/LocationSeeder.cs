@@ -30,15 +30,20 @@ public static class LocationSeeder
     {
         logger.LogInformation("Starting database seeding process... ForceReseed: {ForceReseed}", forceReseed);
 
-        // Check if data already exists when forceReseed is false
-        if (!forceReseed)
+        // ALWAYS check if data already exists as a safety measure
+        // Even with forceReseed=true, we should not duplicate data
+        var hasExistingData = await HasExistingLocationDataAsync(context, logger);
+        
+        if (hasExistingData && !forceReseed)
         {
-            var hasExistingData = await HasExistingLocationDataAsync(context, logger);
-            if (hasExistingData)
-            {
-                logger.LogInformation("Location data already exists in database. Skipping seeding process. Use forceReseed=true to override.");
-                return;
-            }
+            logger.LogInformation("Location data already exists in database. Skipping seeding process. Use forceReseed=true to override.");
+            return;
+        }
+        
+        if (hasExistingData && forceReseed)
+        {
+            logger.LogWarning("⚠️ ForceReseed is enabled but data already exists. This should only be used for data corrections, not regular seeding.");
+            logger.LogWarning("⚠️ Existing data counts - Regions: will be checked individually to avoid duplicates");
         }
 
         await SeedRegionsAsync(context, blobStorageService, logger, forceReseed);

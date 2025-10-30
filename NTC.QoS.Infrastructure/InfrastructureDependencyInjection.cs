@@ -55,6 +55,18 @@ public static class InfrastructureDependencyInjection
 
         try
         {
+            // Attempt to acquire advisory lock to prevent concurrent seeding
+            logger.LogInformation("Attempting to acquire advisory lock {LockKey}...", advisoryLockKey);
+            lockAcquired = await TryAcquireAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
+            
+            if (!lockAcquired)
+            {
+                logger.LogWarning("Could not acquire advisory lock {LockKey}. Another instance may be running migrations. Skipping seeding.", advisoryLockKey);
+                return;
+            }
+
+            logger.LogInformation("Advisory lock {LockKey} acquired successfully", advisoryLockKey);
+
             // Seed initial data
             logger.LogInformation("Starting data seeding process...");
             await SeedInitialDataAsync(dbContext, services, logger, cancellationToken);
@@ -76,6 +88,37 @@ public static class InfrastructureDependencyInjection
             {
                 await ReleaseAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
             }
+        }
+    }
+
+    /// <summary>
+    /// Attempts to acquire a PostgreSQL advisory lock
+    /// </summary>
+    /// <returns>True if lock was acquired, false otherwise</returns>
+    private static async Task<bool> TryAcquireAdvisoryLockAsync(ApplicationDbContext dbContext, long advisoryLockKey, ILogger logger, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await dbContext.Database.ExecuteSqlRawAsync(
+                "SELECT pg_try_advisory_lock({0});",
+                new object[] { advisoryLockKey },
+                cancellationToken
+            );
+            
+            // pg_try_advisory_lock returns true if lock was acquired, false otherwise
+            // ExecuteSqlRawAsync returns the number of rows affected (1 in this case)
+            // We need to actually query the result
+            var lockResult = await dbContext.Database.SqlQueryRaw<bool>(
+                "SELECT pg_try_advisory_lock({0});",
+                advisoryLockKey
+            ).FirstOrDefaultAsync(cancellationToken);
+            
+            return lockResult;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to acquire advisory lock {LockKey}. Error: {ErrorMessage}", advisoryLockKey, ex.Message);
+            return false;
         }
     }
 
@@ -122,13 +165,13 @@ public static class InfrastructureDependencyInjection
     {
         try
         {
-            logger.LogDebug("Releasing advisory lock {LockKey}", advisoryLockKey);
+            logger.LogInformation("Releasing advisory lock {LockKey}", advisoryLockKey);
             await dbContext.Database.ExecuteSqlRawAsync(
                 "SELECT pg_advisory_unlock({0});", 
                 new object[] { advisoryLockKey }, 
                 cancellationToken
             );
-            logger.LogDebug("Advisory lock {LockKey} released successfully", advisoryLockKey);
+            logger.LogInformation("Advisory lock {LockKey} released successfully", advisoryLockKey);
         }
         catch (Exception ex)
         {
