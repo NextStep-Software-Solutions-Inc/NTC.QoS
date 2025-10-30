@@ -1,6 +1,6 @@
 # Rate Limiting Test
 
-This script tests the API rate limiting functionality that limits requests to 100 per second per user/IP.
+This script tests the API rate limiting functionality that limits requests to 100 per 10 seconds per user/IP.
 
 ## Usage
 
@@ -23,7 +23,7 @@ REQUESTS_TO_TEST=50 ./test-rate-limit.sh
 ## What It Tests
 
 1. **API Connectivity**: Verifies the API is responding
-2. **Rate Limiting**: Makes 105 requests to trigger rate limiting
+2. **Rate Limiting**: By default, makes 50 requests to trigger rate limiting (configurable via REQUESTS_TO_TEST)
 3. **Response Codes**: Checks for 200 (allowed) and 429 (rate limited) responses
 4. **Headers**: Validates X-Rate-Limit-* headers are present
 
