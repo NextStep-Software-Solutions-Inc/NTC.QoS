@@ -2,10 +2,107 @@
 
 # NTC.QoS Viewport API Testing Script
 # Tests the v2 viewport endpoints for infinite query behavior
-# Usage: ./test-viewport-api.sh
+# Usage: ./test-viewport-api.sh [entity]
+# Entities: naps, speedtests, cells, cellular-coverages, all
+# Or run without arguments for interactive mode
 
 API_BASE="http://localhost:5113"
-VIEWPORT_ENDPOINT="/v2/NAPs/viewport/public"
+
+# Function to show interactive menu
+show_menu() {
+    echo "=========================================="
+    echo "🚀 NTC.QoS Viewport API Testing"
+    echo "=========================================="
+    echo
+    echo "Select entity to test:"
+    echo
+    echo "  1) NAPs"
+    echo "  2) Speedtests"
+    echo "  3) Cells"
+    echo "  4) Cellular Coverages"
+    echo "  5) All Endpoints"
+    echo "  6) Exit"
+    echo
+    echo -n "Enter your choice [1-6]: "
+}
+
+# Function to get user choice
+get_entity_choice() {
+    local choice
+    read -r choice
+    
+    case "$choice" in
+        1)
+            ENTITY_TYPE="naps"
+            ;;
+        2)
+            ENTITY_TYPE="speedtests"
+            ;;
+        3)
+            ENTITY_TYPE="cells"
+            ;;
+        4)
+            ENTITY_TYPE="cellular-coverages"
+            ;;
+        5)
+            ENTITY_TYPE="all"
+            ;;
+        6)
+            echo
+            echo "👋 Goodbye!"
+            exit 0
+            ;;
+        *)
+            echo
+            echo "❌ Invalid choice. Please select 1-6."
+            echo
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+# Interactive mode if no argument provided
+if [ $# -eq 0 ]; then
+    while true; do
+        show_menu
+        if get_entity_choice; then
+            break
+        fi
+    done
+    echo
+else
+    # Command-line argument mode
+    ENTITY_TYPE="$1"
+fi
+
+# Map entity type to endpoint
+case "$ENTITY_TYPE" in
+    "naps")
+        VIEWPORT_ENDPOINT="/v2/NAPs/viewport/public"
+        ENTITY_NAME="NAPs"
+        ;;
+    "speedtests")
+        VIEWPORT_ENDPOINT="/v2/speedtests/viewport/public"
+        ENTITY_NAME="Speedtests"
+        ;;
+    "cells")
+        VIEWPORT_ENDPOINT="/v2/cells/viewport/public"
+        ENTITY_NAME="Cells"
+        ;;
+    "cellular-coverages")
+        VIEWPORT_ENDPOINT="/v2/cellular-coverages/viewport/public"
+        ENTITY_NAME="Cellular Coverages"
+        ;;
+    "all")
+        # Will be handled separately
+        ;;
+    *)
+        echo "❌ Invalid entity type: $ENTITY_TYPE"
+        echo "Usage: ./test-viewport-api.sh [naps|speedtests|cells|cellular-coverages|all]"
+        exit 1
+        ;;
+esac
 
 # Function to extract JSON value
 extract_json_value() {
@@ -14,10 +111,14 @@ extract_json_value() {
     echo "$json" | sed -n "s/.*\"$key\": *\([0-9]*\).*/\1/p" | head -1
 }
 
-# Function to extract ISP from data array
+# Function to extract ISP from data array (handles both ISP and isp)
 extract_first_isp() {
     local json="$1"
-    result=$(echo "$json" | grep -o '"ISP": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+    # Try lowercase first (new endpoints), then uppercase (legacy)
+    result=$(echo "$json" | grep -o '"isp": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+    if [ -z "$result" ]; then
+        result=$(echo "$json" | grep -o '"ISP": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+    fi
     echo "${result:-No data}"
 }
 
@@ -49,8 +150,18 @@ validate_response_structure() {
         return 1
     fi
 
-    # Check data array structure
-    data_count=$(echo "$response" | grep -c '"ISP":')
+    # Check data array structure (handle both ISP and isp)
+    data_count=$(echo "$response" | grep -c '"isp":')
+    if [ "$data_count" -eq 0 ]; then
+        data_count=$(echo "$response" | grep -c '"ISP":')
+    fi
+    
+    # Empty data array is valid (just means no data in viewport)
+    if echo "$response" | grep -q '"data": \[\]'; then
+        echo "   ✅ Response structure valid (empty data array)"
+        return 0
+    fi
+    
     if [ "$data_count" -eq 0 ]; then
         echo "   ❌ No ISP data found in response"
         return 1
@@ -73,7 +184,7 @@ test_infinite_query_behavior() {
     # Get total count first for percentage calculations
     total_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=1&$viewport")
     total_rows=$(extract_json_value "$total_response" "totalRows")
-    echo "   📊 Total NAPs in viewport: $total_rows"
+    echo "   📊 Total ${ENTITY_NAME:-items} in viewport: $total_rows"
 
     local total_collected=0
     local page=1
@@ -98,7 +209,10 @@ test_infinite_query_behavior() {
         fi
 
         # Extract page data immediately upon response (optimized)
-        page_count=$(echo "$response" | grep -c '"ISP":')
+        page_count=$(echo "$response" | grep -c '"isp":')
+        if [ "$page_count" -eq 0 ]; then
+            page_count=$(echo "$response" | grep -c '"ISP":')
+        fi
         load_more=$(echo "$response" | grep -o '"loadMore": *[^,}]*' | cut -d: -f2 | tr -d ' ')
 
         response_time=$((end_time - start_time))
@@ -252,9 +366,12 @@ test_viewport() {
         total_rows=$(extract_json_value "$response" "totalRows")
         page_size=$(extract_json_value "$response" "pageSize")
         total_pages=$(extract_json_value "$response" "totalPageNumber")
-        data_count=$(echo "$response" | grep -c '"ISP":')
+        data_count=$(echo "$response" | grep -c '"isp":')
+        if [ "$data_count" -eq 0 ]; then
+            data_count=$(echo "$response" | grep -c '"ISP":')
+        fi
 
-        echo "   📊 Total NAPs: ${total_rows:-'N/A'}"
+        echo "   📊 Total ${ENTITY_NAME:-items}: ${total_rows:-'N/A'}"
         echo "   📄 Page Size: ${page_size:-'N/A'}"
         echo "   📖 Total Pages: ${total_pages:-'N/A'}"
         echo "   📦 Data Items: $data_count"
@@ -299,23 +416,119 @@ compare_regions() {
     # Manila CBD
     manila_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05")
     manila_count=$(extract_json_value "$manila_response" "totalRows")
-    echo "   🏙️  Manila CBD: ${manila_count:-'N/A'} NAPs"
+    echo "   🏙️  Manila CBD: ${manila_count:-'N/A'} ${ENTITY_NAME:-items}"
 
     # Cebu City
     cebu_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=10.30&maxLatitude=10.35&minLongitude=123.88&maxLongitude=123.92")
     cebu_count=$(extract_json_value "$cebu_response" "totalRows")
-    echo "   🏝️  Cebu City: ${cebu_count:-'N/A'} NAPs"
+    echo "   🏝️  Cebu City: ${cebu_count:-'N/A'} ${ENTITY_NAME:-items}"
 
     # Davao City
     davao_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=7.05&maxLatitude=7.15&minLongitude=125.55&maxLongitude=125.65")
     davao_count=$(extract_json_value "$davao_response" "totalRows")
-    echo "   🌆 Davao City: ${davao_count:-'N/A'} NAPs"
+    echo "   🌆 Davao City: ${davao_count:-'N/A'} ${ENTITY_NAME:-items}"
     echo
+}
+
+# Function to test all entities
+test_all_entities() {
+    echo "=========================================="
+    echo "🚀 Testing ALL Viewport Endpoints"
+    echo "=========================================="
+    echo
+
+    local entities=("naps" "speedtests" "cells" "cellular-coverages")
+    local failed_tests=()
+
+    for entity in "${entities[@]}"; do
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📊 Testing: $(echo "$entity" | tr '[:lower:]' '[:upper:]')"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo
+
+        # Set entity-specific variables
+        case "$entity" in
+            "naps")
+                VIEWPORT_ENDPOINT="/v2/NAPs/viewport/public"
+                ENTITY_NAME="NAPs"
+                ;;
+            "speedtests")
+                VIEWPORT_ENDPOINT="/v2/speedtests/viewport/public"
+                ENTITY_NAME="Speedtests"
+                ;;
+            "cells")
+                VIEWPORT_ENDPOINT="/v2/cells/viewport/public"
+                ENTITY_NAME="Cells"
+                ;;
+            "cellular-coverages")
+                VIEWPORT_ENDPOINT="/v2/cellular-coverages/viewport/public"
+                ENTITY_NAME="Cellular Coverages"
+                ;;
+        esac
+
+        # Test basic endpoint with appropriate viewport
+        echo "🔍 Testing endpoint: $VIEWPORT_ENDPOINT"
+        if [ "$entity" = "naps" ]; then
+            test_viewport="minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05"
+        else
+            test_viewport="minLatitude=12.0&maxLatitude=19.0&minLongitude=119.0&maxLongitude=123.0"
+        fi
+        test_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=5&$test_viewport")
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=5&$test_viewport")
+
+        if [ "$http_code" -eq 200 ]; then
+            echo "   ✅ HTTP 200 - Endpoint accessible"
+            
+            # Validate structure
+            if validate_response_structure "$test_response" "$ENTITY_NAME"; then
+                echo "   ✅ Response structure valid"
+            else
+                echo "   ❌ Response structure invalid"
+                failed_tests+=("$entity")
+            fi
+
+            # Show count
+            total_rows=$(extract_json_value "$test_response" "totalRows")
+            if [ "$entity" = "naps" ]; then
+                echo "   📊 Total in Manila CBD: ${total_rows:-'N/A'} $ENTITY_NAME"
+            else
+                echo "   📊 Total in Luzon Region: ${total_rows:-'N/A'} $ENTITY_NAME"
+            fi
+        else
+            echo "   ❌ HTTP $http_code - Endpoint failed"
+            failed_tests+=("$entity")
+        fi
+
+        echo
+        sleep 0.5
+    done
+
+    echo "=========================================="
+    echo "📊 MULTI-ENTITY TEST SUMMARY"
+    echo "=========================================="
+    echo
+
+    if [ ${#failed_tests[@]} -eq 0 ]; then
+        echo "✅ All ${#entities[@]} viewport endpoints passed!"
+        echo "   • NAPs: /v2/NAPs/viewport/public"
+        echo "   • Speedtests: /v2/speedtests/viewport/public"
+        echo "   • Cells: /v2/cells/viewport/public"
+        echo "   • Cellular Coverages: /v2/cellular-coverages/viewport/public"
+        return 0
+    else
+        echo "❌ ${#failed_tests[@]} endpoint(s) failed:"
+        for failed in "${failed_tests[@]}"; do
+            echo "   • $failed"
+        done
+        return 1
+    fi
 }
 
 # Main script execution starts here
 echo "=========================================="
 echo "🚀 NTC.QoS Viewport API - Comprehensive Testing"
+echo "=========================================="
+echo "Testing Entity: ${ENTITY_NAME:-All Entities}"
 echo "=========================================="
 echo
 echo "🎯 Testing Objectives:"
@@ -340,11 +553,24 @@ else
 fi
 echo
 
+# Handle "all" entity type
+if [ "$ENTITY_TYPE" = "all" ]; then
+    test_all_entities
+    exit $?
+fi
+
 # Test 1: Response Structure Validation
 echo "📋 TEST 1: Response Structure Validation"
 echo "========================================"
 
-test_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=5&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05")
+# Use wider viewport for Cells/Speedtests/Coverages (they have less data)
+if [ "$ENTITY_TYPE" = "naps" ]; then
+    test_viewport="minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05"
+else
+    test_viewport="minLatitude=12.0&maxLatitude=19.0&minLongitude=119.0&maxLongitude=123.0"
+fi
+
+test_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=5&$test_viewport")
 if validate_response_structure "$test_response" "Basic Viewport"; then
     echo "✅ Basic response structure validation passed"
 else
@@ -357,7 +583,16 @@ echo
 echo "🔄 TEST 2: Infinite Query Behavior"
 echo "==================================="
 
-if test_infinite_query_behavior "minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05" "Manila CBD"; then
+# Use appropriate viewport based on entity type
+if [ "$ENTITY_TYPE" = "naps" ]; then
+    test_viewport_params="minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05"
+    test_name="Manila CBD"
+else
+    test_viewport_params="minLatitude=12.0&maxLatitude=19.0&minLongitude=119.0&maxLongitude=123.0"
+    test_name="Luzon Region"
+fi
+
+if test_infinite_query_behavior "$test_viewport_params" "$test_name"; then
     echo "✅ Infinite query behavior validation passed"
 else
     echo "❌ Infinite query behavior validation failed"
@@ -386,9 +621,12 @@ for scale in "${scales[@]}"; do
     if [ "$http_code" -eq 200 ]; then
         total_rows=$(extract_json_value "$response" "totalRows")
         page_size=$(extract_json_value "$response" "pageSize")
-        data_count=$(echo "$response" | grep -c '"ISP":')
+        data_count=$(echo "$response" | grep -c '"isp":')
+        if [ "$data_count" -eq 0 ]; then
+            data_count=$(echo "$response" | grep -c '"ISP":')
+        fi
 
-        echo "   📊 Total NAPs: $total_rows | Page Size: $page_size | Data Items: $data_count"
+        echo "   📊 Total ${ENTITY_NAME:-items}: $total_rows | Page Size: $page_size | Data Items: $data_count"
 
         if [ "$data_count" -gt 0 ]; then
             echo "   ✅ Scale handling successful"
@@ -437,15 +675,21 @@ total1=$(extract_json_value "$response1" "totalRows")
 total2=$(extract_json_value "$response2" "totalRows")
 
 if [ "$total1" = "$total2" ]; then
-    echo "   ✅ Consistent total counts: $total1 NAPs"
+    echo "   ✅ Consistent total counts: $total1 ${ENTITY_NAME:-items}"
 else
     echo "   ❌ Inconsistent total counts: $total1 vs $total2"
     exit 1
 fi
 
 # Check first few ISPs are the same (deterministic ordering)
-isp1=$(echo "$response1" | grep -o '"ISP": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
-isp2=$(echo "$response2" | grep -o '"ISP": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+isp1=$(echo "$response1" | grep -o '"isp": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+if [ -z "$isp1" ]; then
+    isp1=$(echo "$response1" | grep -o '"ISP": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+fi
+isp2=$(echo "$response2" | grep -o '"isp": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+if [ -z "$isp2" ]; then
+    isp2=$(echo "$response2" | grep -o '"ISP": "[^"]*"' | head -1 | cut -d: -f2 | tr -d '"' | sed 's/^ *//')
+fi
 
 if [ "$isp1" = "$isp2" ]; then
     echo "   ✅ Consistent ordering: First ISP '$isp1'"
@@ -458,7 +702,7 @@ echo "=========================================="
 echo "🎉 ALL TESTS COMPLETED SUCCESSFULLY!"
 echo "=========================================="
 echo
-echo "📊 SUMMARY:"
+echo "📊 SUMMARY for ${ENTITY_NAME}:"
 echo "   ✅ Response structure validation"
 echo "   ✅ Infinite query behavior (continuous loading)"
 echo "   ✅ Viewport scaling (street → regional)"
@@ -466,4 +710,11 @@ echo "   ✅ Resource limits & security"
 echo "   ✅ Performance under load"
 echo "   ✅ Data consistency"
 echo
-echo "🚀 Viewport API is production-ready for infinite query patterns!"
+echo "🚀 ${ENTITY_NAME} Viewport API is production-ready for infinite query patterns!"
+echo
+echo "💡 TIP: Test other endpoints with:"
+echo "   ./test-viewport-api.sh naps              # Test NAPs only"
+echo "   ./test-viewport-api.sh speedtests        # Test Speedtests only"
+echo "   ./test-viewport-api.sh cells             # Test Cells only"
+echo "   ./test-viewport-api.sh cellular-coverages # Test Cellular Coverages only"
+echo "   ./test-viewport-api.sh all               # Test all endpoints"

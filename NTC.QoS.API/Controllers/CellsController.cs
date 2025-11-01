@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using NTC.QoS.Domain.Models.RequestParams;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -29,6 +30,30 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
         RemoveAllCellsCache();
         return CreatedAtAction(nameof(GetCellById), new { id = cell.Data.Id }, cell);
+    }
+
+    /// <summary>
+    /// v2 Viewport API: Get cells within viewport bounds (OPTIMIZED FOR MILLIONS OF DATA POINTS)
+    /// </summary>
+    [HttpGet("/v2/cells/viewport/public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLatitude", "maxLatitude", "minLongitude", "maxLongitude", 
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<CellViewportDto>>> GetAllPublicCellsViewport([FromQuery] ViewportQueryParams query)
+    {
+        if (!query.IsViewportValid())
+        {
+            return BadRequest(new PaginatedResponse<CellViewportDto>([], 1, query.PageSize, 0)
+            {
+                Succeeded = false,
+                Message = "Invalid viewport bounds"
+            });
+        }
+
+        var request = new GetAllCellsViewportRequest(query);
+        var result = await mediator.Send(request);
+        return Ok(result);
     }
 
     [HttpGet("public")]
@@ -89,13 +114,13 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     private async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(CellsQueryParams query)
     {
         var cacheKey = $"{CellsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{query.Status}_" +
-               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ServiceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.BarangayIds ?? [])}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+               $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+               $"{string.Join(",", query.RegionIds ?? [])}_" +
+               $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+               $"{string.Join(",", query.ProviderIds ?? [])}_" +
+               $"{string.Join(",", query.ServiceIds ?? [])}_" +
                $"{query.Longitude}_{query.Latitude}_{query.Distance}";
 
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
@@ -126,7 +151,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     }
     private void TrackCacheKey(string key)
     {
-        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellsCacheKeysSet, _ => new HashSet<string>());
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellsCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);
