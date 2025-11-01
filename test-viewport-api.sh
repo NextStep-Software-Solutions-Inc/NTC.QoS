@@ -256,7 +256,7 @@ test_infinite_query_behavior() {
     echo "   ⚡ Performance Notes:"
     echo "      • Realistic page size (500 items) optimized for millions of spatial points"
     echo "      • Reduced processing overhead between requests for faster pagination"
-    echo "      • Minimal network delay simulation (50ms) for realistic testing"
+    echo "      • Minimal network delay simulation (20ms) for realistic testing"
     echo "      • Response times vary due to PostGIS spatial query complexity"
     echo "      • Optimized for high-throughput infinite scroll testing"
 

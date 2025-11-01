@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.NAP.Requests;
-using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
@@ -46,14 +45,14 @@ public class NAPsController : ControllerBase
     [HttpGet("public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllPublicNAPs([FromQuery] CellsQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllPublicNAPs([FromQuery] LocationQueryParams query)
     {
         return await GetAllNAPs(query);
     }
 
     [HttpGet]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllInternalNAPs([FromQuery] CellsQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllInternalNAPs([FromQuery] LocationQueryParams query)
     {
         return await GetAllNAPs(query);
     }
@@ -79,7 +78,7 @@ public class NAPsController : ControllerBase
         return BadRequest(NAP);
     }
 
-    private async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(CellsQueryParams query)
+    private async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(LocationQueryParams query)
     {
         var cacheKey = $"{NAPsCachePrefix}{query.PageSize}_{query.PageNumber}_" +
                $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
@@ -224,100 +223,5 @@ public class NAPsController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllPublicNAPsViewport([FromQuery] ViewportQueryParams query)
     {
         return await GetAllNAPsViewport(query);
-    }
-
-    // ============================================================================
-    // QUERY PARAMETER CLASSES
-    // ============================================================================
-
-    /// <summary>
-    /// Query parameters for v2 viewport-based NAP queries.
-    /// Uses rectangular bounding box instead of radius-based distance filtering.
-    /// Enforces resource limits for environments handling millions of data points.
-    /// </summary>
-    public sealed class ViewportQueryParams
-    {
-        [JsonPropertyName("pageNumber")]
-        [Range(1, int.MaxValue, ErrorMessage = "PageNumber must be at least 1")]
-        public int PageNumber { get; set; } = 1;
-
-        [JsonPropertyName("pageSize")]
-        [Range(1, GeoSpatialConstants.MaxViewportPageSize, 
-            ErrorMessage = "PageSize must be between 1 and " + nameof(GeoSpatialConstants.MaxViewportPageSize))]
-        public int PageSize { get; set; } = GeoSpatialConstants.RecommendedViewportPageSize;
-
-        [JsonPropertyName("minLatitude")]
-        [Range(-90, 90)]
-        public double MinLatitude { get; set; }
-
-        [JsonPropertyName("maxLatitude")]
-        [Range(-90, 90)]
-        public double MaxLatitude { get; set; }
-
-        [JsonPropertyName("minLongitude")]
-        [Range(-180, 180)]
-        public double MinLongitude { get; set; }
-
-        [JsonPropertyName("maxLongitude")]
-        [Range(-180, 180)]
-        public double MaxLongitude { get; set; }
-
-        [JsonPropertyName("serviceProviderIds")]
-        public List<Guid>? ServiceProviderIds { get; set; }
-
-        [JsonPropertyName("barangayIds")]
-        public List<Guid>? BarangayIds { get; set; }
-
-        [JsonPropertyName("municipalityIds")]
-        public List<Guid>? MunicipalityIds { get; set; }
-
-        [JsonPropertyName("provinceIds")]
-        public List<Guid>? ProvinceIds { get; set; }
-
-        [JsonPropertyName("regionIds")]
-        public List<Guid>? RegionIds { get; set; }
-
-        /// <summary>
-        /// Validates that viewport bounds are logically correct
-        /// </summary>
-        public bool IsViewportValid()
-        {
-            return MinLatitude < MaxLatitude && MinLongitude < MaxLongitude;
-        }
-    }
-
-    /// <summary>
-    /// Query parameters for v1 distance-based NAP queries (legacy - maintained for backward compatibility).
-    /// </summary>
-    public sealed class CellsQueryParams
-    {
-        [JsonPropertyName("pageNumber")]
-        public int PageNumber { get; set; } = 1;
-        [JsonPropertyName("pageSize")]
-        public int PageSize { get; set; } = 10;
-        [JsonPropertyName("search")]
-        public string? Search { get; set; }
-        [JsonPropertyName("status")]
-        public string? Status { get; set; }
-        [JsonPropertyName("serviceProviderIds")]
-        public List<Guid>? ServiceProviderIds { get; set; }
-        [JsonPropertyName("providerIds")]
-        public List<Guid>? ProviderIds { get; set; }
-        [JsonPropertyName("serviceIds")]
-        public List<Guid>? ServiceIds { get; set; }
-        [JsonPropertyName("longitude")]
-        public double Longitude { get; set; } = 0;
-        [JsonPropertyName("latitude")]
-        public double Latitude { get; set; } = 0;
-        [JsonPropertyName("distance")]
-        public double Distance { get; set; } = 15000000;
-        [JsonPropertyName("barangayIds")]
-        public List<Guid>? BarangayIds { get; set; }
-        [JsonPropertyName("municipalityIds")]
-        public List<Guid>? MunicipalityIds { get; set; }
-        [JsonPropertyName("provinceIds")]
-        public List<Guid>? ProvinceIds { get; set; }
-        [JsonPropertyName("regionIds")]
-        public List<Guid>? RegionIds { get; set; }
     }
 }

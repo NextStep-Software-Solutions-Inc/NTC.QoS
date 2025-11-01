@@ -117,14 +117,14 @@ public static class GeoSpatialConstants
     
     /// <summary>
     /// Conversion factor from degrees to radians.
-    /// Formula: radians = degrees � (? / 180)
+    /// Formula: radians = degrees * (PI / 180)
     /// Reference: https://en.wikipedia.org/wiki/Radian
     /// </summary>
     public const double DegreesToRadians = Math.PI / 180.0;
     
     /// <summary>
     /// Conversion factor from radians to degrees.
-    /// Formula: degrees = radians � (180 / ?)
+    /// Formula: degrees = radians * (180 / ?)
     /// </summary>
     public const double RadiansToDegrees = 180.0 / Math.PI;
 
@@ -157,7 +157,7 @@ public static class GeoSpatialConstants
     /// <summary>
     /// Calculates the approximate distance in kilometers for one degree of longitude at a given latitude.
     /// At the equator, 1 degree longitude ? 111.32 km. This decreases as you move toward the poles.
-    /// Formula: km_per_degree_lon = 111.32 � cos(latitude_in_radians)
+    /// Formula: km_per_degree_lon = 111.32 * cos(latitude_in_radians)
     /// </summary>
     /// <param name="latitudeInDegrees">Latitude in degrees</param>
     /// <returns>Kilometers per degree of longitude at the specified latitude</returns>
