@@ -7,6 +7,8 @@ namespace NTC.QoS.Domain.Models.DTOs.Cell;
 /// </summary>
 public class CellViewportDto
 {
+    public string Id { get; set; } = string.Empty;
+
     /// <summary>
     /// Service provider name (e.g., "Globe", "Smart")
     /// </summary>

@@ -71,6 +71,7 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
 
         var cellViewportDtoQuery = cellQuery.Select(c => new CellViewportDto
         {
+            Id = c.Id.ToString(),
             ISP = c.ServiceProvider.Provider.Name,
             ISPColor = c.ServiceProvider.Provider.Color,
             Lat = c.Location.Coordinate.Y,
