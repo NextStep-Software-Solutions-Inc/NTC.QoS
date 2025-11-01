@@ -101,7 +101,7 @@ public class PublicController : ControllerBase
                $"{string.Join(",", regionIds ?? [])}_" +
                $"{string.Join(",", serviceProviderIds ?? [])}_" +
                $"{string.Join(",", providerIds ?? [])}_" +
-               $"{string.Join(",", serviceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", serviceIds ?? [])}_" +
                $"{longitude}_{latitude}_{distance}";
 
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
@@ -254,7 +254,7 @@ public class PublicController : ControllerBase
 
     private void TrackCacheKey(string key)
     {
-        var keys = _memoryCache.GetOrCreate<HashSet<string>>(PublicCacheKeysSet, _ => new HashSet<string>());
+        var keys = _memoryCache.GetOrCreate<HashSet<string>>(PublicCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);

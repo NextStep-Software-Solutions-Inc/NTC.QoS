@@ -50,6 +50,60 @@ public static class GeoSpatialConstants
     public const double MaxLongitudeDifference = 15.0;
 
     // ============================================================================
+    // VIEWPORT API LIMITS (V2 - Performance Protection for Limited Resources)
+    // ============================================================================
+    
+    /// <summary>
+    /// Maximum page size for viewport queries.
+    /// Prevents excessive memory consumption on limited infrastructure.
+    /// At millions of data points, larger page sizes can cause OOM.
+    /// </summary>
+    public const int MaxViewportPageSize = 5000;
+
+    /// <summary>
+    /// Recommended page size for optimal performance.
+    /// Balances UI responsiveness with server load.
+    /// </summary>
+    public const int RecommendedViewportPageSize = 1000;
+
+    /// <summary>
+    /// Maximum viewport area in square degrees.
+    /// Prevents queries that span too large an area.
+    /// ~1,100 km Ã— 1,500 km at Philippines latitude (~1.65M kmÂ²)
+    /// </summary>
+    public const double MaxViewportAreaSquareDegrees = 150.0; // 10Â° Ã— 15Â°
+
+    /// <summary>
+    /// Small viewport threshold in square degrees.
+    /// Viewports smaller than this are considered "zoomed in" and can return more results.
+    /// ~110 km Ã— 150 km at Philippines latitude (~16,500 kmÂ²)
+    /// </summary>
+    public const double SmallViewportThresholdSquareDegrees = 1.0; // 1Â° Ã— 1Â°
+
+    /// <summary>
+    /// Medium viewport threshold in square degrees.
+    /// ~330 km Ã— 450 km at Philippines latitude (~148,500 kmÂ²)
+    /// </summary>
+    public const double MediumViewportThresholdSquareDegrees = 10.0; // ~3.3Â° Ã— 3Â°
+
+    /// <summary>
+    /// Maximum results for large viewports (area > medium threshold).
+    /// Forces aggressive pagination for resource conservation.
+    /// </summary>
+    public const int MaxResultsForLargeViewport = 1000;
+
+    /// <summary>
+    /// Maximum results for medium viewports.
+    /// </summary>
+    public const int MaxResultsForMediumViewport = 2500;
+
+    /// <summary>
+    /// Query timeout in seconds for viewport queries.
+    /// Prevents long-running queries from consuming resources.
+    /// </summary>
+    public const int ViewportQueryTimeoutSeconds = 30;
+
+    // ============================================================================
     // MATHEMATICAL CONSTANTS FOR COORDINATE CONVERSIONS
     // ============================================================================
     
@@ -63,14 +117,14 @@ public static class GeoSpatialConstants
     
     /// <summary>
     /// Conversion factor from degrees to radians.
-    /// Formula: radians = degrees × (? / 180)
+    /// Formula: radians = degrees * (PI / 180)
     /// Reference: https://en.wikipedia.org/wiki/Radian
     /// </summary>
     public const double DegreesToRadians = Math.PI / 180.0;
     
     /// <summary>
     /// Conversion factor from radians to degrees.
-    /// Formula: degrees = radians × (180 / ?)
+    /// Formula: degrees = radians * (180 / ?)
     /// </summary>
     public const double RadiansToDegrees = 180.0 / Math.PI;
 
@@ -93,8 +147,8 @@ public static class GeoSpatialConstants
     /// <param name="actualLonDiff">Actual longitude difference</param>
     /// <returns>Formatted error message</returns>
     public static string GetAreaSizeErrorMessage(double actualLatDiff, double actualLonDiff) =>
-        $"Maximum area size: {MaxLatitudeDifference}° latitude × {MaxLongitudeDifference}° longitude. " +
-        $"Current: {actualLatDiff:F2}° × {actualLonDiff:F2}°";
+        $"Maximum area size: {MaxLatitudeDifference}ï¿½ latitude ï¿½ {MaxLongitudeDifference}ï¿½ longitude. " +
+        $"Current: {actualLatDiff:F2}ï¿½ ï¿½ {actualLonDiff:F2}ï¿½";
 
     // ============================================================================
     // UTILITY METHODS
@@ -103,7 +157,7 @@ public static class GeoSpatialConstants
     /// <summary>
     /// Calculates the approximate distance in kilometers for one degree of longitude at a given latitude.
     /// At the equator, 1 degree longitude ? 111.32 km. This decreases as you move toward the poles.
-    /// Formula: km_per_degree_lon = 111.32 × cos(latitude_in_radians)
+    /// Formula: km_per_degree_lon = 111.32 * cos(latitude_in_radians)
     /// </summary>
     /// <param name="latitudeInDegrees">Latitude in degrees</param>
     /// <returns>Kilometers per degree of longitude at the specified latitude</returns>

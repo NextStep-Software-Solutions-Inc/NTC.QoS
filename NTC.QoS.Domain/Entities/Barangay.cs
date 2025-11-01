@@ -42,6 +42,6 @@ public class Barangay : BaseEntity, IGeoBoundaryEntity
     public double AverageHouseholdSize => HouseholdPopulation.HasValue && HouseholdCount.HasValue && HouseholdCount.Value > 0 
         ? (double)HouseholdPopulation.Value / HouseholdCount.Value : 0;
 
-    public virtual List<Speedtest> Speedtests { get; set; } = new();
-    public virtual List<Zone> Zones { get; set; } = new();
+    public virtual List<Speedtest> Speedtests { get; set; } = [];
+    public virtual List<Zone> Zones { get; set; } = [];
 }

@@ -127,7 +127,7 @@ public class InfrastructureStatsDto
     /// <summary>
     /// Detailed breakdown of service providers with their asset counts in descending order
     /// </summary>
-    public List<ProviderBreakdownDto> ProviderBreakdown { get; set; } = new();
+    public List<ProviderBreakdownDto> ProviderBreakdown { get; set; } = [];
     public int TotalAssets => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
 }
 
