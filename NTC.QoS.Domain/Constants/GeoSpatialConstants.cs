@@ -124,7 +124,7 @@ public static class GeoSpatialConstants
     
     /// <summary>
     /// Conversion factor from radians to degrees.
-    /// Formula: degrees = radians * (180 / ?)
+    /// Formula: degrees = radians * (180 / PI)
     /// </summary>
     public const double RadiansToDegrees = 180.0 / Math.PI;
 
