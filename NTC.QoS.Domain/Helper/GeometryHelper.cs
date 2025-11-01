@@ -48,7 +48,7 @@ public static class GeometryHelper
         List<LinearRing>? holes = null;
         if (holeCoordinates != null)
         {
-            holes = new List<LinearRing>();
+            holes = [];
             foreach (var holeCoords in holeCoordinates)
             {
                 if (holeCoords != null)

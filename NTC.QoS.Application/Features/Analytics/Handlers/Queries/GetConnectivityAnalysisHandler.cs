@@ -131,7 +131,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             LocationTypeEnum.Municipality => await GetMunicipalityNamesAsync(locationIds, cancellationToken),
             LocationTypeEnum.Provincial => await GetProvinceNamesAsync(locationIds, cancellationToken),
             LocationTypeEnum.Regional => await GetRegionNamesAsync(locationIds, cancellationToken),
-            _ => new Dictionary<Guid, string>()
+            _ => []
         };
     }
 

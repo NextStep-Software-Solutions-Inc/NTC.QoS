@@ -222,7 +222,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
 
     private void TrackCacheKey(string key)
     {
-        var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => new HashSet<string>());
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);

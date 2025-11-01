@@ -50,7 +50,7 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         if (!request.Viewport.IsValidForLimitedResources(out var validationError))
         {
             return new PaginatedResponse<NAPViewportDto>(
-                new List<NAPViewportDto>(),
+                [],
                 request.PageNumber,
                 request.PageSize,
                 0)

@@ -19,7 +19,7 @@ public class ClerkUserData
     [JsonPropertyName("last_name")]
     public required string LastName { get; set; }
     [JsonPropertyName("email_addresses")]
-    public required List<ClerkEmailAddress> EmailAddresses { get; set; } = new();
+    public required List<ClerkEmailAddress> EmailAddresses { get; set; } = [];
 }
 
 public class ClerkEmailAddress

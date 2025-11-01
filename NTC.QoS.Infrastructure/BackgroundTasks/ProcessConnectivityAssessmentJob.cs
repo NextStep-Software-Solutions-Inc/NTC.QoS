@@ -218,7 +218,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         CancellationToken cancellationToken)
     {
         if (locations.Count == 0)
-            return new List<LocationConnectivityDto>();
+            return [];
 
         _logger.LogInformation("Job {JobId}: Processing {LocationCount} {Context}",
             jobId, locations.Count, processingContext);

@@ -245,7 +245,7 @@ public static class GeoQueryHelper
     {
         var idList = entityIds?.ToList();
         if (idList == null || idList.Count == 0)
-            return new Dictionary<Guid, Point>();
+            return [];
 
         var centersQuery = repository.Query(e => idList.Contains(e.Id))
             .Select(e => new { e.Id, e.Center })
@@ -271,7 +271,7 @@ public static class GeoQueryHelper
     {
         var idList = entityIds?.ToList();
         if (idList == null || idList.Count == 0)
-            return new Dictionary<Guid, Point>();
+            return [];
 
         var centersQuery = repository.Query(e => idList.Contains(e.Id))
             .Select(e => new { e.Id, e.Center })
@@ -297,7 +297,7 @@ public static class GeoQueryHelper
     {
         var idList = entityIds?.ToList();
         if (idList == null || idList.Count == 0)
-            return new Dictionary<Guid, Point>();
+            return [];
 
         var centersQuery = repository.Query(e => idList.Contains(e.Id))
             .Select(e => new { e.Id, e.Center })
@@ -323,7 +323,7 @@ public static class GeoQueryHelper
     {
         var idList = entityIds?.ToList();
         if (idList == null || idList.Count == 0)
-            return new Dictionary<Guid, Point>();
+            return [];
 
         var centersQuery = repository.Query(e => idList.Contains(e.Id))
             .Select(e => new { e.Id, e.Center })
@@ -365,7 +365,7 @@ public static class GeoQueryHelper
     public static List<Point?> GetGeometryCentroids(IEnumerable<Geometry> geometries)
     {
         if (geometries == null)
-            return new List<Point?>();
+            return [];
 
         return geometries.Select(GetGeometryCentroid).ToList();
     }
@@ -470,7 +470,7 @@ public static class GeoQueryHelper
     {
         if (geometry?.IsValid != true)
         {
-            return new List<(Guid? Id, string Name, bool IsCovered)>();
+            return [];
         }
 
         try
@@ -487,7 +487,7 @@ public static class GeoQueryHelper
         catch (Exception)
         {
             // Return empty list on any spatial query errors
-            return new List<(Guid? Id, string Name, bool IsCovered)>();
+            return [];
         }
     }
 

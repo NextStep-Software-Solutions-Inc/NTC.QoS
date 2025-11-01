@@ -108,7 +108,7 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     /// Provider breakdown - detailed asset counts per provider
     /// Ordered by TotalAssetCount descending
     /// </summary>
-    public virtual List<ConnectivityAssessmentProvider> Providers { get; set; } = new();
+    public virtual List<ConnectivityAssessmentProvider> Providers { get; set; } = [];
 
     // Coverage Percentages - Infrastructure Mix
     public double? MobileCoveragePercentage { get; set; }

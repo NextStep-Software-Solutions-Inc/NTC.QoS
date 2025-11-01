@@ -9,6 +9,7 @@ using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
+using NTC.QoS.Domain.Models.RequestParams;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -81,11 +82,11 @@ public class NAPsController : ControllerBase
     private async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(CellsQueryParams query)
     {
         var cacheKey = $"{NAPsCachePrefix}{query.PageSize}_{query.PageNumber}_" +
-               $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+               $"{string.Join(",", query.BarangayIds ?? [])}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+               $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+               $"{string.Join(",", query.RegionIds ?? [])}_" +
                $"_{query.Longitude}_{query.Latitude}_{query.Distance}";
 
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
@@ -112,7 +113,7 @@ public class NAPsController : ControllerBase
     }
     private void TrackCacheKey(string key)
     {
-        var keys = _memoryCache.GetOrCreate<HashSet<string>>(NAPsCacheKeysSet, _ => new HashSet<string>());
+        var keys = _memoryCache.GetOrCreate<HashSet<string>>(NAPsCacheKeysSet, _ => []);
         if (keys != null) // Ensure keys is not null before dereferencing  
         {
             keys.Add(key);
@@ -163,11 +164,11 @@ public class NAPsController : ControllerBase
         // Generate cache key based on viewport
         var cacheKey = $"{NAPsCachePrefix}v2_viewport_{query.PageNumber}_{query.PageSize}_" +
                       $"{query.MinLatitude:F6}_{query.MaxLatitude:F6}_{query.MinLongitude:F6}_{query.MaxLongitude:F6}_" +
-                      $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
-                      $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
-                      $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
-                      $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
-                      $"{string.Join(",", query.RegionIds ?? new List<Guid>())}";
+                      $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+                      $"{string.Join(",", query.BarangayIds ?? [])}_" +
+                      $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+                      $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+                      $"{string.Join(",", query.RegionIds ?? [])}";
 
         // Check cache
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPViewportDto>? cachedNAPs))

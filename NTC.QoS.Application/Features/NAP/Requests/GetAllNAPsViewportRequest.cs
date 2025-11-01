@@ -1,6 +1,7 @@
 using MediatR;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
+using NTC.QoS.Domain.Models.RequestParams;
 
 namespace NTC.QoS.Application.Features.NAP.Requests;
 

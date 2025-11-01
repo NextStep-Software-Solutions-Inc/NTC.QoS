@@ -12,5 +12,5 @@ public class CellSitesByProviderDto
 public class CellSitesByProviderResponseDto
 {
     public int TotalCellSites { get; set; }
-    public List<CellSitesByProviderDto> Providers { get; set; } = new();
+    public List<CellSitesByProviderDto> Providers { get; set; } = [];
 }
