@@ -69,9 +69,10 @@ public static class GeoSpatialConstants
     /// <summary>
     /// Maximum viewport area in square degrees.
     /// Prevents queries that span too large an area.
-    /// ~1,100 km × 1,500 km at Philippines latitude (~1.65M km²)
+    /// ~1,650 km × 2,000 km at Philippines latitude (~3.3M km²)
+    /// Allows wide screens to display entire Philippines comfortably.
     /// </summary>
-    public const double MaxViewportAreaSquareDegrees = 150.0; // 10° × 15°
+    public const double MaxViewportAreaSquareDegrees = 300.0; // 15° × 20°
 
     /// <summary>
     /// Small viewport threshold in square degrees.
