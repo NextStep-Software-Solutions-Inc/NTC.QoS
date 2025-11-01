@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.NAP.Requests;
+using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
 
 namespace NTC.QoS.API.Controllers;
@@ -129,6 +131,163 @@ public class NAPsController : ControllerBase
     }
 
 
+    // ============================================================================
+    // V2 VIEWPORT-BASED ENDPOINTS (Optimized for map rendering)
+    // ============================================================================
+
+    /// <summary>
+    /// Get NAPs within a map viewport bounding box (v2 API - viewport-optimized).
+    /// This endpoint is optimized for map UI rendering and prevents OOM issues.
+    /// Uses spatial indexes and bounding box filtering instead of radius-based queries.
+    /// Returns lightweight data without Guid IDs for optimal payload size.
+    /// Route: GET /v2/NAPs/viewport
+    /// </summary>
+    /// <param name="query">Viewport query parameters including bounding box</param>
+    /// <returns>Paginated list of NAPs within the viewport (without IDs)</returns>
+    [HttpGet("/v2/NAPs/viewport")]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, 
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLatitude", "maxLatitude", "minLongitude", "maxLongitude", 
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllNAPsViewport([FromQuery] ViewportQueryParams query)
+    {
+        // Validate viewport bounds
+        if (!query.IsViewportValid())
+        {
+            return BadRequest(new ApiResponse<PaginatedResponse<NAPViewportDto>>
+            {
+                Succeeded = false,
+                Message = "Invalid viewport bounds. Ensure minLatitude < maxLatitude and minLongitude < maxLongitude."
+            });
+        }
+
+        // Generate cache key based on viewport
+        var cacheKey = $"{NAPsCachePrefix}v2_viewport_{query.PageNumber}_{query.PageSize}_" +
+                      $"{query.MinLatitude:F6}_{query.MaxLatitude:F6}_{query.MinLongitude:F6}_{query.MaxLongitude:F6}_" +
+                      $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
+                      $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
+                      $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
+                      $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
+                      $"{string.Join(",", query.RegionIds ?? new List<Guid>())}";
+
+        // Check cache
+        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPViewportDto>? cachedNAPs))
+        {
+            return Ok(cachedNAPs);
+        }
+
+        // Create viewport bounds DTO
+        var viewport = new ViewportBoundsDto
+        {
+            MinLatitude = query.MinLatitude,
+            MaxLatitude = query.MaxLatitude,
+            MinLongitude = query.MinLongitude,
+            MaxLongitude = query.MaxLongitude
+        };
+
+        // Create and send request
+        var request = new GetAllNAPsViewportRequest(query.PageNumber, query.PageSize, viewport)
+        {
+            Viewport = viewport,
+            ServiceProviderIds = query.ServiceProviderIds,
+            BarangayIds = query.BarangayIds,
+            MunicipalityIds = query.MunicipalityIds,
+            ProvinceIds = query.ProvinceIds,
+            RegionIds = query.RegionIds
+        };
+
+        var naps = await _mediator.Send(request);
+
+        // Cache successful results
+        if (naps.Succeeded && naps.Data != null)
+        {
+            _memoryCache.Set(cacheKey, naps, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
+
+        return naps.Succeeded ? Ok(naps) : BadRequest(naps);
+    }
+
+    /// <summary>
+    /// Get NAPs within a map viewport bounding box - public endpoint (v2 API - viewport-optimized).
+    /// Allows anonymous access for public map displays.
+    /// Returns lightweight data without Guid IDs for optimal payload size.
+    /// Route: GET /v2/NAPs/viewport/public
+    /// </summary>
+    /// <param name="query">Viewport query parameters including bounding box</param>
+    /// <returns>Paginated list of NAPs within the viewport (without IDs)</returns>
+    [HttpGet("/v2/NAPs/viewport/public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLatitude", "maxLatitude", "minLongitude", "maxLongitude",
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllPublicNAPsViewport([FromQuery] ViewportQueryParams query)
+    {
+        return await GetAllNAPsViewport(query);
+    }
+
+    // ============================================================================
+    // QUERY PARAMETER CLASSES
+    // ============================================================================
+
+    /// <summary>
+    /// Query parameters for v2 viewport-based NAP queries.
+    /// Uses rectangular bounding box instead of radius-based distance filtering.
+    /// Enforces resource limits for environments handling millions of data points.
+    /// </summary>
+    public sealed class ViewportQueryParams
+    {
+        [JsonPropertyName("pageNumber")]
+        [Range(1, int.MaxValue, ErrorMessage = "PageNumber must be at least 1")]
+        public int PageNumber { get; set; } = 1;
+
+        [JsonPropertyName("pageSize")]
+        [Range(1, GeoSpatialConstants.MaxViewportPageSize, 
+            ErrorMessage = "PageSize must be between 1 and " + nameof(GeoSpatialConstants.MaxViewportPageSize))]
+        public int PageSize { get; set; } = GeoSpatialConstants.RecommendedViewportPageSize;
+
+        [JsonPropertyName("minLatitude")]
+        [Range(-90, 90)]
+        public double MinLatitude { get; set; }
+
+        [JsonPropertyName("maxLatitude")]
+        [Range(-90, 90)]
+        public double MaxLatitude { get; set; }
+
+        [JsonPropertyName("minLongitude")]
+        [Range(-180, 180)]
+        public double MinLongitude { get; set; }
+
+        [JsonPropertyName("maxLongitude")]
+        [Range(-180, 180)]
+        public double MaxLongitude { get; set; }
+
+        [JsonPropertyName("serviceProviderIds")]
+        public List<Guid>? ServiceProviderIds { get; set; }
+
+        [JsonPropertyName("barangayIds")]
+        public List<Guid>? BarangayIds { get; set; }
+
+        [JsonPropertyName("municipalityIds")]
+        public List<Guid>? MunicipalityIds { get; set; }
+
+        [JsonPropertyName("provinceIds")]
+        public List<Guid>? ProvinceIds { get; set; }
+
+        [JsonPropertyName("regionIds")]
+        public List<Guid>? RegionIds { get; set; }
+
+        /// <summary>
+        /// Validates that viewport bounds are logically correct
+        /// </summary>
+        public bool IsViewportValid()
+        {
+            return MinLatitude < MaxLatitude && MinLongitude < MaxLongitude;
+        }
+    }
+
+    /// <summary>
+    /// Query parameters for v1 distance-based NAP queries (legacy - maintained for backward compatibility).
+    /// </summary>
     public sealed class CellsQueryParams
     {
         [JsonPropertyName("pageNumber")]

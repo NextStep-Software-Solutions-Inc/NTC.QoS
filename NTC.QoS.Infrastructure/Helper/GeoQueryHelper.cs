@@ -1,6 +1,8 @@
 ﻿using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Common;
 
 namespace NTC.QoS.Infrastructure.Helper;
 
@@ -487,5 +489,124 @@ public static class GeoQueryHelper
             // Return empty list on any spatial query errors
             return new List<(Guid? Id, string Name, bool IsCovered)>();
         }
+    }
+
+    // ============================================================================
+    // VIEWPORT-OPTIMIZED FILTERING METHODS (V2 API)
+    // ============================================================================
+
+    /// <summary>
+    /// Applies viewport-based spatial filtering using a rectangular bounding box.
+    /// OPTIMIZED for map viewport queries - leverages PostGIS bounding box operator (&&) for index scan.
+    /// This is significantly faster than distance-based queries for map rendering scenarios.
+    /// 
+    /// Performance characteristics:
+    /// - Uses spatial index with bounding box operator
+    /// - Avoids expensive distance calculations
+    /// - Optimized for rectangular viewport areas
+    /// - Space efficient: only returns visible entities
+    /// 
+    /// Use this method for v2 viewport-based APIs to prevent OOM and improve UI performance.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <param name="viewport">The viewport bounding box defining the visible map area</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable containing only entities within the viewport</returns>
+    /// <exception cref="ArgumentNullException">Thrown when viewport is null</exception>
+    /// <exception cref="ArgumentException">Thrown when viewport bounds are invalid</exception>
+    public static IQueryable<TSource> ApplyViewportFilter<TSource>(
+        ViewportBoundsDto viewport,
+        IQueryable<TSource> query)
+        where TSource : IGeoLocatedEntity
+    {
+        if (viewport == null)
+        {
+            throw new ArgumentNullException(nameof(viewport), "Viewport cannot be null for viewport filtering.");
+        }
+
+        if (!viewport.IsValid())
+        {
+            throw new ArgumentException(
+                $"Invalid viewport bounds: MinLatitude must be < MaxLatitude and MinLongitude must be < MaxLongitude. " +
+                $"Received: [{viewport.MinLatitude}, {viewport.MaxLatitude}] x [{viewport.MinLongitude}, {viewport.MaxLongitude}]",
+                nameof(viewport));
+        }
+
+        // Create envelope polygon from viewport bounds
+        var envelope = GeometryHelper.CreateEnvelopeFromViewport(viewport);
+
+        // Use the existing comprehensive envelope predicate which leverages spatial indexes
+        var predicate = SpatialFilterBuilder.BuildComprehensiveEnvelopePredicate<TSource>(envelope);
+        return query.Where(predicate);
+    }
+
+    /// <summary>
+    /// Applies viewport-based spatial filtering with additional boundary entity filtering.
+    /// Combines viewport bounds with administrative boundary constraints (Region, Province, Municipality, Barangay).
+    /// Use this when the UI needs to filter by both viewport AND administrative boundaries.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <typeparam name="TBoundary">The boundary entity type (Region, Province, Municipality, Barangay)</typeparam>
+    /// <param name="viewport">The viewport bounding box defining the visible map area</param>
+    /// <param name="boundaryIds">List of boundary entity IDs to filter by</param>
+    /// <param name="boundaryRepository">Repository for the boundary entities</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Filtered queryable containing entities within both viewport and boundaries</returns>
+    public static async Task<IQueryable<TSource>> ApplyViewportWithBoundaryFilter<TSource, TBoundary>(
+        ViewportBoundsDto viewport,
+        List<Guid> boundaryIds,
+        IRepository<TBoundary> boundaryRepository,
+        IQueryable<TSource> query,
+        CancellationToken cancellationToken)
+        where TSource : IGeoLocatedEntity
+        where TBoundary : BaseEntity, IGeoBoundaryEntity
+    {
+        // First apply viewport filter for broad spatial filtering
+        query = ApplyViewportFilter(viewport, query);
+
+        // Then apply boundary filter for precise administrative filtering
+        if (boundaryIds != null && boundaryIds.Count > 0)
+        {
+            query = await ApplyBoundaryFilterAsync(boundaryIds, boundaryRepository, query, cancellationToken);
+        }
+
+        return query;
+    }
+
+    /// <summary>
+    /// Applies viewport filtering with service provider filtering.
+    /// Optimized for scenarios where both spatial and provider filters are needed.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity and has ServiceProviderId</typeparam>
+    /// <param name="viewport">The viewport bounding box</param>
+    /// <param name="serviceProviderIds">Optional list of service provider IDs to filter by</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable</returns>
+    public static IQueryable<TSource> ApplyViewportWithProviderFilter<TSource>(
+        ViewportBoundsDto viewport,
+        List<Guid>? serviceProviderIds,
+        IQueryable<TSource> query)
+        where TSource : class, IGeoLocatedEntity
+    {
+        // Apply viewport filter first (spatial index optimization)
+        query = ApplyViewportFilter(viewport, query);
+
+        // Then apply provider filter if specified
+        if (serviceProviderIds != null && serviceProviderIds.Count > 0)
+        {
+            // Use dynamic expression for ServiceProviderId property
+            var parameter = System.Linq.Expressions.Expression.Parameter(typeof(TSource), "entity");
+            var property = System.Linq.Expressions.Expression.Property(parameter, "ServiceProviderId");
+            var containsMethod = typeof(List<Guid>).GetMethod("Contains", new[] { typeof(Guid) });
+            var containsCall = System.Linq.Expressions.Expression.Call(
+                System.Linq.Expressions.Expression.Constant(serviceProviderIds),
+                containsMethod!,
+                property);
+            var lambda = System.Linq.Expressions.Expression.Lambda<Func<TSource, bool>>(containsCall, parameter);
+            query = query.Where(lambda);
+        }
+
+        return query;
     }
 }
