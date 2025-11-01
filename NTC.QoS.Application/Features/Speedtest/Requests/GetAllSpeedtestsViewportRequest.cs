@@ -12,7 +12,7 @@ namespace NTC.QoS.Application.Features.Speedtest.Requests;
 public record GetAllSpeedtestsViewportRequest(ViewportQueryParams QueryParams) 
     : IRequest<PaginatedResponse<SpeedtestViewportDto>>
 {
-    public ViewportBoundsDto Viewport => QueryParams.Viewport;
+    public ViewportBoundsDto Viewport => QueryParams.ToViewportBounds();
     public int PageNumber => QueryParams.PageNumber;
     public int PageSize => QueryParams.PageSize;
     public List<Guid>? ServiceProviderIds => QueryParams.ServiceProviderIds;

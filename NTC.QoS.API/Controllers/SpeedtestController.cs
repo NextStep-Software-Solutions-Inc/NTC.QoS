@@ -39,7 +39,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     [HttpGet("/v2/speedtests/viewport/public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLatitude", "maxLatitude", "minLongitude", "maxLongitude", 
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] ViewportQueryParams query)
     {

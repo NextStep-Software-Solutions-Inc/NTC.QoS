@@ -146,7 +146,7 @@ public class NAPsController : ControllerBase
     /// <returns>Paginated list of NAPs within the viewport (without IDs)</returns>
     [HttpGet("/v2/NAPs/viewport")]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, 
-        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLatitude", "maxLatitude", "minLongitude", "maxLongitude", 
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
     public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllNAPsViewport([FromQuery] ViewportQueryParams query)
     {
@@ -162,7 +162,7 @@ public class NAPsController : ControllerBase
 
         // Generate cache key based on viewport
         var cacheKey = $"{NAPsCachePrefix}v2_viewport_{query.PageNumber}_{query.PageSize}_" +
-                      $"{query.MinLatitude:F6}_{query.MaxLatitude:F6}_{query.MinLongitude:F6}_{query.MaxLongitude:F6}_" +
+                      $"{query.MinLat:F6}_{query.MaxLat:F6}_{query.MinLng:F6}_{query.MaxLng:F6}_" +
                       $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
                       $"{string.Join(",", query.BarangayIds ?? [])}_" +
                       $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
@@ -176,13 +176,7 @@ public class NAPsController : ControllerBase
         }
 
         // Create viewport bounds DTO
-        var viewport = new ViewportBoundsDto
-        {
-            MinLatitude = query.MinLatitude,
-            MaxLatitude = query.MaxLatitude,
-            MinLongitude = query.MinLongitude,
-            MaxLongitude = query.MaxLongitude
-        };
+        var viewport = query.ToViewportBounds();
 
         // Create and send request
         var request = new GetAllNAPsViewportRequest(query.PageNumber, query.PageSize, viewport)
@@ -218,7 +212,7 @@ public class NAPsController : ControllerBase
     [HttpGet("/v2/NAPs/viewport/public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLatitude", "maxLatitude", "minLongitude", "maxLongitude",
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
     public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllPublicNAPsViewport([FromQuery] ViewportQueryParams query)
     {

@@ -269,7 +269,7 @@ test_resource_limits() {
 
     # Test viewport area limit (150 sq°)
     echo "   Testing viewport area limit..."
-    large_area_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=10.0&maxLatitude=20.5&minLongitude=115.0&maxLongitude=130.0")
+    large_area_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLat=10.0&maxLat=20.5&minLng=115.0&maxLng=130.0")
     if echo "$large_area_response" | grep -q '"succeeded": *false'; then
         echo "   ✅ Large viewport properly rejected (area limit)"
     else
@@ -279,7 +279,7 @@ test_resource_limits() {
 
     # Test page size limit (5000)
     echo "   Testing page size limit..."
-    large_page_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10000&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05")
+    large_page_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10000&minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05")
     if echo "$large_page_response" | grep -q '"PageSize"'; then
         echo "   ✅ Large page size properly rejected (size limit)"
     else
@@ -289,7 +289,7 @@ test_resource_limits() {
 
     # Test invalid coordinates
     echo "   Testing invalid coordinates..."
-    invalid_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=15.0&maxLatitude=14.0&minLongitude=120.0&maxLongitude=122.0")
+    invalid_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLat=15.0&maxLat=14.0&minLng=120.0&maxLng=122.0")
     if echo "$invalid_response" | grep -q '"succeeded": *false'; then
         echo "   ✅ Invalid coordinates properly rejected"
     else
@@ -414,17 +414,17 @@ compare_regions() {
     echo "🌍 Regional Comparison"
 
     # Manila CBD
-    manila_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05")
+    manila_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05")
     manila_count=$(extract_json_value "$manila_response" "totalRows")
     echo "   🏙️  Manila CBD: ${manila_count:-'N/A'} ${ENTITY_NAME:-items}"
 
     # Cebu City
-    cebu_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=10.30&maxLatitude=10.35&minLongitude=123.88&maxLongitude=123.92")
+    cebu_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLat=10.30&maxLat=10.35&minLng=123.88&maxLng=123.92")
     cebu_count=$(extract_json_value "$cebu_response" "totalRows")
     echo "   🏝️  Cebu City: ${cebu_count:-'N/A'} ${ENTITY_NAME:-items}"
 
     # Davao City
-    davao_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=7.05&maxLatitude=7.15&minLongitude=125.55&maxLongitude=125.65")
+    davao_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLat=7.05&maxLat=7.15&minLng=125.55&maxLng=125.65")
     davao_count=$(extract_json_value "$davao_response" "totalRows")
     echo "   🌆 Davao City: ${davao_count:-'N/A'} ${ENTITY_NAME:-items}"
     echo
@@ -469,9 +469,9 @@ test_all_entities() {
         # Test basic endpoint with appropriate viewport
         echo "🔍 Testing endpoint: $VIEWPORT_ENDPOINT"
         if [ "$entity" = "naps" ]; then
-            test_viewport="minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05"
+            test_viewport="minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05"
         else
-            test_viewport="minLatitude=12.0&maxLatitude=19.0&minLongitude=119.0&maxLongitude=123.0"
+            test_viewport="minLat=12.0&maxLat=19.0&minLng=119.0&maxLng=123.0"
         fi
         test_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=5&$test_viewport")
         http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=5&$test_viewport")
@@ -565,9 +565,9 @@ echo "========================================"
 
 # Use wider viewport for Cells/Speedtests/Coverages (they have less data)
 if [ "$ENTITY_TYPE" = "naps" ]; then
-    test_viewport="minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05"
+    test_viewport="minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05"
 else
-    test_viewport="minLatitude=12.0&maxLatitude=19.0&minLongitude=119.0&maxLongitude=123.0"
+    test_viewport="minLat=12.0&maxLat=19.0&minLng=119.0&maxLng=123.0"
 fi
 
 test_response=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=5&$test_viewport")
@@ -585,10 +585,10 @@ echo "==================================="
 
 # Use appropriate viewport based on entity type
 if [ "$ENTITY_TYPE" = "naps" ]; then
-    test_viewport_params="minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05"
+    test_viewport_params="minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05"
     test_name="Manila CBD"
 else
-    test_viewport_params="minLatitude=12.0&maxLatitude=19.0&minLongitude=119.0&maxLongitude=123.0"
+    test_viewport_params="minLat=12.0&maxLat=19.0&minLng=119.0&maxLng=123.0"
     test_name="Luzon Region"
 fi
 
@@ -606,9 +606,9 @@ echo "=========================================="
 
 echo "Testing different viewport scales..."
 scales=(
-    "Street Level|pageNumber=1&pageSize=50&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05"
-    "City Level|pageNumber=1&pageSize=50&minLatitude=14.4&maxLatitude=14.8&minLongitude=120.8&maxLongitude=121.2"
-    "Regional Level|pageNumber=1&pageSize=50&minLatitude=14.0&maxLatitude=16.0&minLongitude=120.0&maxLongitude=122.0"
+    "Street Level|pageNumber=1&pageSize=50&minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05"
+    "City Level|pageNumber=1&pageSize=50&minLat=14.4&maxLat=14.8&minLng=120.8&maxLng=121.2"
+    "Regional Level|pageNumber=1&pageSize=50&minLat=14.0&maxLat=16.0&minLng=120.0&maxLng=122.0"
 )
 
 for scale in "${scales[@]}"; do
@@ -655,7 +655,7 @@ echo
 echo "⚡ TEST 5: Performance Under Load"
 echo "=================================="
 
-if test_performance_load "pageNumber=1&pageSize=50&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05" "Manila CBD Load Test"; then
+if test_performance_load "pageNumber=1&pageSize=50&minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05" "Manila CBD Load Test"; then
     echo "✅ Performance load test passed"
 else
     echo "❌ Performance load test failed"
@@ -668,8 +668,8 @@ echo "🔍 TEST 6: Data Consistency Check"
 echo "=================================="
 
 echo "Checking data consistency across requests..."
-response1=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05")
-response2=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLatitude=14.55&maxLatitude=14.65&minLongitude=120.95&maxLongitude=121.05")
+response1=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05")
+response2=$(curl -s "$API_BASE$VIEWPORT_ENDPOINT?pageNumber=1&pageSize=10&minLat=14.55&maxLat=14.65&minLng=120.95&maxLng=121.05")
 
 total1=$(extract_json_value "$response1" "totalRows")
 total2=$(extract_json_value "$response2" "totalRows")

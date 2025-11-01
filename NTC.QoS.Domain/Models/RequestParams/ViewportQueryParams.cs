@@ -20,21 +20,21 @@ public sealed class ViewportQueryParams
         ErrorMessage = "PageSize must be between 1 and " + nameof(GeoSpatialConstants.MaxViewportPageSize))]
     public int PageSize { get; set; } = GeoSpatialConstants.RecommendedViewportPageSize;
 
-    [JsonPropertyName("minLatitude")]
+    [JsonPropertyName("minLat")]
     [Range(-90, 90)]
-    public double MinLatitude { get; set; }
+    public double MinLat { get; set; }
 
-    [JsonPropertyName("maxLatitude")]
+    [JsonPropertyName("maxLat")]
     [Range(-90, 90)]
-    public double MaxLatitude { get; set; }
+    public double MaxLat { get; set; }
 
-    [JsonPropertyName("minLongitude")]
+    [JsonPropertyName("minLng")]
     [Range(-180, 180)]
-    public double MinLongitude { get; set; }
+    public double MinLng { get; set; }
 
-    [JsonPropertyName("maxLongitude")]
+    [JsonPropertyName("maxLng")]
     [Range(-180, 180)]
-    public double MaxLongitude { get; set; }
+    public double MaxLng { get; set; }
 
     [JsonPropertyName("serviceProviderIds")]
     public List<Guid>? ServiceProviderIds { get; set; }
@@ -52,21 +52,24 @@ public sealed class ViewportQueryParams
     public List<Guid>? RegionIds { get; set; }
 
     /// <summary>
-    /// Gets the viewport bounds for spatial filtering
-    /// </summary>
-    public ViewportBoundsDto Viewport => new()
-    {
-        MinLatitude = MinLatitude,
-        MaxLatitude = MaxLatitude,
-        MinLongitude = MinLongitude,
-        MaxLongitude = MaxLongitude
-    };
-
-    /// <summary>
     /// Validates that viewport bounds are logically correct
     /// </summary>
     public bool IsViewportValid()
     {
-        return MinLatitude < MaxLatitude && MinLongitude < MaxLongitude;
+        return MinLat < MaxLat && MinLng < MaxLng;
+    }
+    
+    /// <summary>
+    /// Creates a ViewportBoundsDto from the query parameters
+    /// </summary>
+    public ViewportBoundsDto ToViewportBounds()
+    {
+        return new ViewportBoundsDto
+        {
+            MinLatitude = MinLat,
+            MaxLatitude = MaxLat,
+            MinLongitude = MinLng,
+            MaxLongitude = MaxLng
+        };
     }
 }
