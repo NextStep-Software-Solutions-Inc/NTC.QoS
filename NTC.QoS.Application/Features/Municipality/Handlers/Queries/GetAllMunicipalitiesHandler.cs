@@ -11,7 +11,7 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
 
     public async Task<PaginatedResponse<MunicipalityDto>> Handle(GetAllMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
-        var allMunicipalities = _municipalityRepository.Query();
+        var allMunicipalities = _municipalityRepository.QueryAsNoTracking();
 
         allMunicipalities = allMunicipalities
             .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));
