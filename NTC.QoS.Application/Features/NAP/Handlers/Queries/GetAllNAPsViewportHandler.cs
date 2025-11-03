@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.NAP;
@@ -70,7 +71,7 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
 
         // Start with base query using AsNoTracking for read-only optimization`
         // This eliminates change tracking overhead for millions of entities
-        var napQuery = _napRepository.QueryAsNoTracking();
+        var napQuery = _napRepository.Query().AsNoTracking();
     
         // Apply service provider filter if specified
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
