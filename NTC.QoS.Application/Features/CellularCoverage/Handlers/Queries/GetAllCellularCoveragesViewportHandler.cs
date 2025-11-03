@@ -49,7 +49,7 @@ public class GetAllCellularCoveragesViewportHandler : IRequestHandler<GetAllCell
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
 
         var coverageQuery = _coverageRepository.Query().AsNoTracking();
-        coverageQuery = GeoQueryHelper.ApplyViewportFilter(request.Viewport, coverageQuery);
+        coverageQuery = coverageQuery.ApplyViewportFilter(request.Viewport);
 
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
         {

@@ -12,7 +12,7 @@ namespace NTC.QoS.Application.Features.CellularCoverage.Requests;
 public record GetAllCellularCoveragesViewportRequest(ViewportQueryParams QueryParams) 
     : IRequest<PaginatedResponse<CellularCoverageViewportDto>>
 {
-    public ViewportBoundsDto Viewport => QueryParams.ToViewportBounds();
+    public ViewportBounds Viewport => QueryParams.ToViewportBounds();
     public int PageNumber => QueryParams.PageNumber;
     public int PageSize => QueryParams.PageSize;
     public List<Guid>? ServiceProviderIds => QueryParams.ServiceProviderIds;

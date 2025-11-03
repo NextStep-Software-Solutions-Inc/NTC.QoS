@@ -8,7 +8,7 @@ namespace NTC.QoS.Domain.Models.DTOs.Common;
 /// Optimized for UI map viewport filtering to reduce data transfer and prevent OOM.
 /// Includes validation for limited resource environments handling millions of data points.
 /// </summary>
-public class ViewportBoundsDto
+public class ViewportBounds
 {
     /// <summary>
     /// Minimum latitude (southern boundary) of the viewport.

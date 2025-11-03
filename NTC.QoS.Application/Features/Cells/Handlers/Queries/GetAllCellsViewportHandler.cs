@@ -51,7 +51,7 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
 
         var cellQuery = _cellRepository.Query().AsNoTracking();
-        cellQuery = GeoQueryHelper.ApplyViewportFilter(request.Viewport, cellQuery);
+        cellQuery = cellQuery.ApplyViewportFilter(request.Viewport);
 
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
         {

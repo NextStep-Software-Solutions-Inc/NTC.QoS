@@ -61,21 +61,22 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         // Enforce viewport-size-aware pagination limits
         var maxAllowedPageSize = request.Viewport.GetRecommendedMaxResults();
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
-        
+
         if (effectivePageSize < request.PageSize)
         {
             // Log or track that page size was reduced due to viewport size
             // This prevents excessive memory consumption on large viewports
         }
 
-        // Start with base query using AsNoTracking for read-only optimization
+        // Start with base query using AsNoTracking for read-only optimization`
         // This eliminates change tracking overhead for millions of entities
         var napQuery = _napRepository.QueryAsNoTracking();
-
+        
         // Apply viewport spatial filter (leverages PostGIS spatial index via && operator)
         // This is the primary performance optimization - uses bounding box index scan
-        napQuery = GeoQueryHelper.ApplyViewportFilter(request.Viewport, napQuery);
-
+        napQuery = napQuery.ApplyViewportFilter(request.Viewport);
+        
+     
         // Apply service provider filter if specified
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
         {
@@ -83,38 +84,12 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         }
 
         // Apply administrative boundary filters (hierarchical - only one level is applied)
-        if (request.BarangayIds is { Count: > 0 })
-        {
-            napQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(
-                request.BarangayIds,
-                _barangayRepository,
-                napQuery,
-                cancellationToken);
-        }
-        else if (request.MunicipalityIds is { Count: > 0 })
-        {
-            napQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(
-                request.MunicipalityIds,
-                _municipalityRepository,
-                napQuery,
-                cancellationToken);
-        }
-        else if (request.ProvinceIds is { Count: > 0 })
-        {
-            napQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(
-                request.ProvinceIds,
-                _provinceRepository,
-                napQuery,
-                cancellationToken);
-        }
-        else if (request.RegionIds is { Count: > 0 })
-        {
-            napQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(
-                request.RegionIds,
-                _regionRepository,
-                napQuery,
-                cancellationToken);
-        }
+        napQuery = _napRepository.QueryNAPsWithinBoundaries(
+            regionIds: request.RegionIds,
+            provinceIds: request.ProvinceIds,
+            municipalityIds: request.MunicipalityIds,
+            barangayIds: request.BarangayIds);
+
 
         // Order by ID for consistent pagination (no distance ordering needed in viewport)
         // ID ordering is fast with primary key index
