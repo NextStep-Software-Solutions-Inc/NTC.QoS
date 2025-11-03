@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Constants;
 
 namespace NTC.QoS.Domain.Models.DTOs.Common;
@@ -96,13 +97,13 @@ public class ViewportBounds
     public ViewportSizeCategory GetSizeCategory()
     {
         var area = GetAreaInSquareDegrees();
-        
+
         if (area <= GeoSpatialConstants.SmallViewportThresholdSquareDegrees)
             return ViewportSizeCategory.Small;
-        
+
         if (area <= GeoSpatialConstants.MediumViewportThresholdSquareDegrees)
             return ViewportSizeCategory.Medium;
-        
+
         return ViewportSizeCategory.Large;
     }
 
@@ -148,6 +149,7 @@ public class ViewportBounds
     {
         return $"Viewport[({MinLatitude}, {MinLongitude}) to ({MaxLatitude}, {MaxLongitude})]";
     }
+
 }
 
 /// <summary>

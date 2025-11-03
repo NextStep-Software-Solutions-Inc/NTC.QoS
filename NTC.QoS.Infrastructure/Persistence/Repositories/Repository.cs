@@ -264,8 +264,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         if (viewport is not null)
         {
             // Filter by viewport bounds
-            var envelope = GeometryHelper.CreateEnvelopeFromViewport(viewport);
-            query = query.Where(entity => entity.Location != null && entity.Location.Intersects(envelope));
+            query = query.Where(entity => entity.Location != null && entity.Location.Intersects(viewport.CreateEnvelopeFromViewport()));
         }
 
         if (regionIds is not null && regionIds.Count > 0)

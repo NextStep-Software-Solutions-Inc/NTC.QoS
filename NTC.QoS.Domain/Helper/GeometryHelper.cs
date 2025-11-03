@@ -124,7 +124,7 @@ public static class GeometryHelper
     /// <returns>A rectangular Polygon representing the viewport envelope with SRID 4326</returns>
     /// <exception cref="ArgumentNullException">Thrown when viewport is null</exception>
     /// <exception cref="ArgumentException">Thrown when viewport bounds are invalid</exception>
-    public static Polygon CreateEnvelopeFromViewport(ViewportBounds viewport)
+    public static Polygon CreateEnvelopeFromViewport(this ViewportBounds viewport)
     {
         if (viewport == null)
         {
