@@ -1,4 +1,4 @@
-using Hangfire;
+﻿using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
@@ -281,7 +281,6 @@ public class ProcessCellJob : IProcessCellJob
                 var networkCache = new Dictionary<string, Guid>();
                 var existingNetworks = await _networkRepository
                     .QueryAsNoTracking(n => serviceProviderCache.Values.Contains(n.ServiceProviderId))
-                    .Include(n => n.SystemType)
                     .Select(n => new { n.Id, n.Name, n.ServiceProviderId, n.SystemType.TechnologyId })
                     .ToListAsync(token);
 
@@ -308,6 +307,23 @@ public class ProcessCellJob : IProcessCellJob
                     }
                 }
                 _logger.LogInformation("Pre-loaded {Count} existing networks.", networkCache.Count);
+
+                // Pre-load SystemTypes - handle potential duplicates by taking the first occurrence
+                var systemTypeList = await _systemTypeRepository
+                    .QueryAsNoTracking()
+                    .Select(st => new { st.Id, st.TechnologyId })
+                    .ToListAsync(token);
+
+                var systemTypeCache = new Dictionary<Guid, Guid>();
+                foreach (var systemType in systemTypeList)
+                {
+                    // Only add if TechnologyId doesn't already exist (take first occurrence)
+                    if (!systemTypeCache.ContainsKey(systemType.TechnologyId))
+                    {
+                        systemTypeCache[systemType.TechnologyId] = systemType.Id;
+                    }
+                }
+                _logger.LogInformation("Pre-loaded {Count} system types.", systemTypeCache.Count);
 
                 stopwatch.Stop();
                 _logger.LogInformation("Pre-loading reference data completed in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
@@ -375,6 +391,7 @@ public class ProcessCellJob : IProcessCellJob
                         cellSectorCache,
                         cellularLookup,
                         networkCache,
+                        systemTypeCache,  // ✅ Pass systemTypeCache
                         bandTechnologyProperties,
                         cellSectorsCreatedForCellId,
                         networksToAdd,
@@ -468,10 +485,11 @@ public class ProcessCellJob : IProcessCellJob
                         // Load all cellular records to determine primary network for each CellSector
                         var cellularForSectors = await _cellularRepository
                             .QueryAsNoTracking(c => cellSectorsNeedingSectors.Select(cs => cs.Id).Contains(c.CellSectorId))
+                            .Select(c => new { c.CellSectorId, c.NetworkId })
                             .GroupBy(c => c.CellSectorId)
                             .ToDictionaryAsync(
                                 g => g.Key,
-                                g => g.First().NetworkId, // Use first (primary) network
+                                g => g.First().NetworkId,  // Use first (primary) network
                                 token);
 
                         var skippedSectorsCount = 0;
@@ -624,6 +642,7 @@ public class ProcessCellJob : IProcessCellJob
         Dictionary<Guid, List<Guid>> cellSectorCache,
         HashSet<int> cellularLookup,
         Dictionary<string, Guid> networkCache,
+        Dictionary<Guid, Guid> systemTypeCache,  // ✅ Added parameter
         List<BandTechnologyPropertyInfo> bandTechnologyProperties,
         Dictionary<Guid, List<Guid>> cellSectorsCreatedForCellId,
         List<Domain.Aggregates.Network> networksToAdd,
@@ -749,6 +768,7 @@ public class ProcessCellJob : IProcessCellJob
                         cellSectorCache,
                         cellularLookup,
                         networkCache,
+                        systemTypeCache,  // ✅ Pass systemTypeCache
                         cellSectorsCreatedForCellId,
                         networksToAdd,
                         bandTechnologyProperties,
@@ -786,6 +806,7 @@ public class ProcessCellJob : IProcessCellJob
         Dictionary<Guid, List<Guid>> cellSectorCache,
         HashSet<int> cellularLookup,
         Dictionary<string, Guid> networkCache,
+        Dictionary<Guid, Guid> systemTypeCache,  // ✅ Added parameter
         Dictionary<Guid, List<Guid>> cellSectorsCreatedForCellId,
         List<Domain.Aggregates.Network> networksToAdd,
         List<BandTechnologyPropertyInfo> bandTechnologyProperties,
@@ -859,6 +880,7 @@ public class ProcessCellJob : IProcessCellJob
                         networksToAdd,
                         technologyCache,
                         bandCache,
+                        systemTypeCache,  // ✅ Pass systemTypeCache
                         dlCenterFreq,
                         ulCenterFreq,
                         bandwidth,
@@ -1170,6 +1192,7 @@ public class ProcessCellJob : IProcessCellJob
         List<Domain.Aggregates.Network> networksToAdd,
         Dictionary<string, Guid> technologyCache,
         Dictionary<string, Guid> bandCache,
+        Dictionary<Guid, Guid> systemTypeCache,
         decimal dlCenterFreq,
         decimal ulCenterFreq,
         decimal bandwidth,
@@ -1198,13 +1221,11 @@ public class ProcessCellJob : IProcessCellJob
             return existingNetwork.Id;
         }
 
-        var systemType = await _systemTypeRepository
-            .QueryAsNoTracking(st => st.TechnologyId == technologyId)
-            .FirstOrDefaultAsync(token);
-
-        if (systemType == null)
+        // Use pre-loaded systemTypeCache instead of database query
+        if (!systemTypeCache.TryGetValue(technologyId, out var systemTypeId))
         {
-            _logger.LogWarning("SystemType not found for Technology: {Technology}", technologyName);
+            _logger.LogWarning("SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})", 
+                technologyId, technologyName);
             return Guid.Empty;
         }
 
@@ -1212,7 +1233,7 @@ public class ProcessCellJob : IProcessCellJob
         {
             Name = $"{technologyName}-{bandName}-{municipalityName}",
             ServiceProviderId = serviceProviderId,
-            SystemTypeId = systemType.Id,
+            SystemTypeId = systemTypeId,  // ✅ From cache
             ULCenterFreq = ulCenterFreq,
             DLCenterFreq = dlCenterFreq,
             Bandwidth = bandwidth
@@ -1220,7 +1241,6 @@ public class ProcessCellJob : IProcessCellJob
 
         networksToAdd.Add(network);
         networkCache[networkCacheKey] = network.Id;
-
         return network.Id;
     }
 
