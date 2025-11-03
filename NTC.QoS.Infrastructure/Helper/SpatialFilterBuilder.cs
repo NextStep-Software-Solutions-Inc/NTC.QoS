@@ -22,8 +22,10 @@ public static class SpatialFilterBuilder
                 // IMPORTANT: GetGeometryN doesn't preserve SRID, so we need to set it explicitly
                 // Copy SRID from parent MultiPolygon to extracted polygon
                 singlePolygon.SRID = multiPolygon.SRID;
-                
-                predicate = predicate.Or(entity => entity.Location.IsWithinDistance(singlePolygon, 0));
+
+                // Use Intersects instead of Within for geography compatibility
+                // For points, Intersects is equivalent to Within (point inside polygon)
+                predicate = predicate.Or(entity => singlePolygon.Intersects(entity.Location));
             }
         }
 
@@ -38,8 +40,8 @@ public static class SpatialFilterBuilder
 
     /// <summary>
     /// Builds a comprehensive predicate for spatial filtering using a geometry envelope.
-    /// Combines both intersection and within-boundary checks, similar to the boundaries predicate implementation.
-    /// Uses IsWithinDistance(0) which effectively combines containment and intersection checks.
+    /// Uses Intersects for geography compatibility instead of Within.
+    /// For viewport queries, we want points that are inside the bounding box.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <param name="envelope">The geometry envelope to filter by</param>
@@ -50,20 +52,19 @@ public static class SpatialFilterBuilder
         if (envelope == null)
             return entity => true;
 
-        // Use IsWithinDistance(0) which matches the pattern used in BuildWithinBoundariesPredicate
-        // This effectively includes both contained and intersecting points
-        return entity => entity.Location.IsWithinDistance(envelope, 0);
+        // Use Intersects for geography compatibility - for points, equivalent to Within
+        return entity => envelope.Intersects(entity.Location);
     }
 
     /// <summary>
     /// Builds a predicate for spatial filtering using multiple geometry envelopes.
-    /// Combines both intersection and within-boundary checks for multiple envelopes using the same pattern as boundaries.
+    /// Uses Intersects for fast bounding box queries instead of distance calculations.
     ///
     /// Behavior:
     /// - If envelopes collection is null or empty, returns a predicate that matches no entities (false)
     /// - If envelopes collection contains only null values, returns a predicate that matches no entities (false)
     /// - If envelopes collection contains valid geometries, returns a predicate that matches entities within any of the envelopes
-    /// - Uses single enumeration for efficiency to avoid multiple iterations over the collection
+    /// - OPTIMIZED: Avoids materializing geometries to reduce memory usage and DB roundtrips
     /// </summary>
     /// <typeparam name="T">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <param name="envelopes">Collection of geometry envelopes to filter by</param>
@@ -73,20 +74,20 @@ public static class SpatialFilterBuilder
     {
         var predicate = PredicateBuilder.New<T>(false);
 
-        // Materialize the collection once to avoid multiple enumeration
-        // Filter out null values during materialization
-        var envelopeList = envelopes?.Where(e => e != null).ToList();
+        // Filter out null/invalid values without materializing the entire collection
+        var validEnvelopes = envelopes?.Where(e => e != null && e.IsValid);
 
-        if (envelopeList == null || envelopeList.Count == 0)
+        if (validEnvelopes == null || !validEnvelopes.Any())
         {
-            // Return a predicate that matches no entities when collection is empty or contains only nulls
+            // Return a predicate that matches no entities when collection is empty or contains only nulls/invalids
             return predicate;
         }
 
-        foreach (var envelope in envelopeList)
+        // Build OR predicate for each valid envelope without materializing
+        foreach (var envelope in validEnvelopes)
         {
-            // Use the same pattern as BuildWithinBoundariesPredicate for consistency
-            predicate = predicate.Or(entity => entity.Location.IsWithinDistance(envelope, 0));
+            // Use Intersects for geography compatibility - for points, equivalent to Within
+            predicate = predicate.Or(entity => envelope.Intersects(entity.Location));
         }
 
         return predicate;

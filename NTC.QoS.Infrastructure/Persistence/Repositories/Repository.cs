@@ -205,7 +205,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         return query;
     }
 
-    public IQueryable<TEntity> QueryAsNoTracking(Expression<Func<TEntity, bool>>? expression = null)
+    public virtual IQueryable<TEntity> QueryAsNoTracking(Expression<Func<TEntity, bool>>? expression = null)
     {
         var query = _context.Set<TEntity>().AsNoTracking();
         if (expression != null) query = query.Where(expression);

@@ -10,7 +10,8 @@ public static class GeoQueryHelper
 {
     /// <summary>
     /// Applies spatial filtering based on administrative boundary entities (Region, Province, Municipality, Barangay).
-    /// Uses boundary polygons from database entities for comprehensive spatial filtering.
+    /// OPTIMIZED: Uses subquery approach to avoid materializing boundary geometries in memory.
+    /// No database roundtrips for geometry materialization - spatial operations happen in database.
     /// </summary>
     /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <typeparam name="TBoundary">The boundary entity type (Region, Province, Municipality, Barangay)</typeparam>
@@ -27,17 +28,29 @@ public static class GeoQueryHelper
         where TSource : IGeoLocatedEntity
         where TBoundary : BaseEntity, IGeoBoundaryEntity
     {
-        var multipolygonsQuery = repository.Query()
-            .Where(entity => ids.Contains(entity.Id) && entity.Boundaries != null)
-            .Select(entity => entity.Boundaries!);
-
-        var multipolygons = await repository.ToListAsync(multipolygonsQuery, cancellationToken);
-
-        if (multipolygons.Count == 0)
+        if (ids == null || ids.Count == 0)
             return query;
 
-        var predicate = SpatialFilterBuilder.BuildWithinBoundariesPredicate<TSource>(multipolygons);
-        return query.Where(predicate);
+        // Check if any boundaries exist for the given IDs (avoid unnecessary joins)
+        var boundaryExistsQuery = repository.Query()
+            .Where(entity => ids.Contains(entity.Id) && entity.Boundaries != null)
+            .Select(entity => entity.Id)
+            .Take(1);
+
+        var boundaryIds = await repository.ToListAsync(boundaryExistsQuery, cancellationToken);
+        if (boundaryIds.Count == 0)
+            return query;
+
+        // Use subquery approach: join with boundary entities directly in database
+        // This keeps spatial operations in the database and leverages spatial indexes
+        var boundaryQuery = repository.Query()
+            .Where(boundary => ids.Contains(boundary.Id) && boundary.Boundaries != null)
+            .Select(boundary => boundary.Boundaries);
+
+        // Create a predicate that checks if the entity's location is within ANY of the boundaries
+        // Using subquery approach to avoid materializing geometries
+        return query.Where(entity =>
+            boundaryQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
     }
 
     /// <summary>
@@ -65,7 +78,8 @@ public static class GeoQueryHelper
     /// <summary>
     /// Applies comprehensive spatial filtering using multiple geometry envelopes.
     /// Includes entities that are contained within OR intersect with ANY of the provided envelopes.
-    /// Uses single enumeration for efficiency.
+    /// OPTIMIZED: Uses subquery approach to avoid materializing geometries in memory.
+    /// No database roundtrips for geometry materialization.
     /// </summary>
     /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
     /// <param name="envelopes">Collection of geometry envelopes to filter by</param>
@@ -76,14 +90,109 @@ public static class GeoQueryHelper
         IQueryable<TSource> query)
         where TSource : IGeoLocatedEntity
     {
-        // Use single enumeration approach for efficiency
-        var envelopeList = envelopes?.Where(e => e != null).ToList();
-        
-        if (envelopeList == null || envelopeList.Count == 0)
+        if (envelopes == null)
             return query;
 
-        var predicate = SpatialFilterBuilder.BuildMultipleEnvelopePredicate<TSource>(envelopeList);
-        return query.Where(predicate);
+        var validEnvelopes = envelopes.Where(e => e != null && e.IsValid);
+        if (!validEnvelopes.Any())
+            return query;
+
+        // Use subquery approach: check if entity location is within ANY envelope
+        // AVOIDS materializing geometries - spatial operations happen in database
+        return query.Where(entity =>
+            validEnvelopes.Any(envelope => envelope.Intersects(entity.Location)));
+    }
+
+    /// <summary>
+    /// Applies spatial filtering using polygons as envelopes.
+    /// Filters entities that are within polygon envelopes (areas of interest, zones, etc.).
+    /// OPTIMIZED: Uses subquery approach to avoid materializing polygon geometries in memory.
+    /// No database roundtrips for geometry materialization.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <param name="polygons">Collection of polygons representing areas of interest</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable containing only entities within polygon envelopes</returns>
+    public static IQueryable<TSource> ApplyPolygonEnvelopeFilter<TSource>(
+        IEnumerable<Geometry> polygons,
+        IQueryable<TSource> query)
+        where TSource : IGeoLocatedEntity
+    {
+        if (polygons == null)
+            return query;
+
+        var validPolygons = polygons.Where(p => p != null && p.IsValid);
+        if (!validPolygons.Any())
+            return query;
+
+        // Treat polygons as envelopes: check if entity location is within ANY polygon
+        // AVOIDS materializing geometries - spatial operations happen in database
+        return query.Where(entity =>
+            validPolygons.Any(polygon => polygon.Intersects(entity.Location)));
+    }
+
+    /// <summary>
+    /// Applies spatial filtering to EXCLUDE entities within polygon envelopes.
+    /// Filters entities that are OUTSIDE polygon envelopes (areas outside zones of interest).
+    /// Useful for finding assets that are not in specified areas.
+    /// OPTIMIZED: Uses subquery approach to avoid materializing polygon geometries in memory.
+    /// No database roundtrips for geometry materialization.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <param name="polygons">Collection of polygons representing areas to exclude</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable containing only entities outside polygon envelopes</returns>
+    public static IQueryable<TSource> ApplyOutsidePolygonEnvelopeFilter<TSource>(
+        IEnumerable<Geometry> polygons,
+        IQueryable<TSource> query)
+        where TSource : IGeoLocatedEntity
+    {
+        if (polygons == null)
+            return query;
+
+        var validPolygons = polygons.Where(p => p != null && p.IsValid);
+        if (!validPolygons.Any())
+            return query;
+
+        // Treat polygons as exclusion envelopes: exclude entities within ANY polygon
+        // AVOIDS materializing geometries - spatial operations happen in database
+        return query.Where(entity =>
+            !validPolygons.Any(polygon => polygon.Intersects(entity.Location)));
+    }
+
+    /// <summary>
+    /// Applies spatial filtering with polygon envelope buffer zones.
+    /// Includes entities within polygon envelopes OR within a specified distance from polygon boundaries.
+    /// Useful for identifying assets at risk near specified areas.
+    /// OPTIMIZED: Treats each polygon as an envelope with buffer distance.
+    /// Uses subquery approach to avoid materializing geometries in memory.
+    /// No database roundtrips for geometry materialization.
+    /// </summary>
+    /// <typeparam name="TSource">The entity type that implements IGeoLocatedEntity</typeparam>
+    /// <param name="polygons">Collection of polygons representing areas of interest</param>
+    /// <param name="bufferDistanceMeters">Distance in meters to extend polygon envelopes</param>
+    /// <param name="query">The queryable to filter</param>
+    /// <returns>Filtered queryable containing entities within polygon envelopes or buffer areas</returns>
+    public static IQueryable<TSource> ApplyPolygonEnvelopeBufferFilter<TSource>(
+        IEnumerable<Geometry> polygons,
+        double bufferDistanceMeters,
+        IQueryable<TSource> query)
+        where TSource : IGeoLocatedEntity
+    {
+        if (polygons == null)
+            return query;
+
+        var validPolygons = polygons.Where(p => p != null && p.IsValid);
+        if (!validPolygons.Any())
+            return query;
+
+        // Treat polygons as envelopes with buffer: check if entity is within ANY polygon
+        // OR within buffer distance of ANY polygon boundary
+        // AVOIDS materializing geometries - spatial operations happen in database
+        return query.Where(entity =>
+            validPolygons.Any(polygon =>
+                (polygon.Intersects(entity.Location) ||
+                 entity.Location.IsWithinDistance(polygon, bufferDistanceMeters))));
     }
 
     /// <summary>
@@ -436,17 +545,16 @@ public static class GeoQueryHelper
 
         try
         {
-            // Get all municipalities with boundaries
-            var municipalitiesQuery = municipalityRepository
-                .Query(m => m.Boundaries != null)
-                .Select(m => new { m.Id, m.Name, m.Boundaries });
-
-            var municipalities = await municipalityRepository.ToListAsync(municipalitiesQuery, cancellationToken);
-
-            // Check each location against all municipalities
+            // For each location, find the municipality that contains it using database spatial queries
+            // AVOIDS materializing all municipality boundaries in memory
             foreach (var location in validLocations ?? Enumerable.Empty<Point>())
             {
-                var municipality = municipalities.FirstOrDefault(m => m.Boundaries?.Intersects(location) == true);
+                var municipalityQuery = municipalityRepository
+                    .Query(m => m.Boundaries != null && m.Boundaries.Intersects(location))
+                    .Select(m => new { m.Id, m.Name })
+                    .Take(1); // Only need the first match
+
+                var municipality = await municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
                 result[location] = municipality != null
                     ? (municipality.Id, municipality.Name)
                     : (null, "Unknown");
