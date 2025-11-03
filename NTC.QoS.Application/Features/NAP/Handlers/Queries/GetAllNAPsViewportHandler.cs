@@ -1,7 +1,5 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.NAP.Requests;
-using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.NAP;
 using NTC.QoS.Infrastructure.Helper;
@@ -72,7 +70,7 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
 
         // Start with base query using AsNoTracking for read-only optimization
         // This eliminates change tracking overhead for millions of entities
-        var napQuery = _napRepository.Query().AsNoTracking();
+        var napQuery = _napRepository.QueryAsNoTracking();
 
         // Apply viewport spatial filter (leverages PostGIS spatial index via && operator)
         // This is the primary performance optimization - uses bounding box index scan

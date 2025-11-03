@@ -45,7 +45,7 @@ public class GeospatialQueryService
                 on 1 equals 1 into cellGroup
             from cell in cellGroup
                 .Where(c => geo.Boundaries != null &&
-                           EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0))
+                           EF.Property<Point>(c, "Location").Within(geo.Boundaries))
                 .DefaultIfEmpty()
             group cell by new { geo.Id, geo.Name, geo.Code, geo.EntityType } into g
             select new GeoEntityCellCountDto
@@ -108,7 +108,7 @@ public class GeospatialQueryService
                 on 1 equals 1 into cellGroup
             from cell in cellGroup
                 .Where(c => geo.Boundaries != null &&
-                           EF.Property<Point>(c, "Location").IsWithinDistance(geo.Boundaries, 0))
+                           EF.Property<Point>(c, "Location").Within(geo.Boundaries))
                 .DefaultIfEmpty()
             group cell by new { geo.Id, geo.Name, geo.Code, geo.EntityType } into g
             select new GeoEntityCellCountDto

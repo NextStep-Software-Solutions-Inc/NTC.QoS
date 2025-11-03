@@ -7,14 +7,14 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class NAPRepository(ApplicationDbContext context) : Repository<NAP>(context), INAPRepository
 {
-    public override IQueryable<NAP> Query(Expression<Func<NAP, bool>>? expression = null)
+    public override IQueryable<NAP> QueryAsNoTracking(Expression<Func<NAP, bool>>? expression = null)
     {
         var query = _context.Set<NAP>()
             .Include(c => c.ServiceProvider)
                 .ThenInclude(sp => sp!.Provider)
             .Include(c => c.ServiceProvider)
                 .ThenInclude(sp => sp!.Service)
-            .AsQueryable();
+            .AsNoTracking();
 
         if (expression != null)
         {
