@@ -18,8 +18,9 @@ public static class SpatialFilterBuilder
             for (int i = 0; i < multiPolygon.NumGeometries; i++)
             {
                 var singlePolygon = multiPolygon.GetGeometryN(i);
-                // OPTIMIZED: Use Within instead of IsWithinDistance(0) for better performance
-                predicate = predicate.Or(entity => entity.Location.Within(singlePolygon));
+                // Use Intersects instead of Within for geography compatibility
+                // For points, Intersects is equivalent to Within (point inside polygon)
+                predicate = predicate.Or(entity => singlePolygon.Intersects(entity.Location));
             }
         }
 
@@ -34,7 +35,7 @@ public static class SpatialFilterBuilder
 
     /// <summary>
     /// Builds a comprehensive predicate for spatial filtering using a geometry envelope.
-    /// Uses Within for precise point-in-polygon tests instead of intersection.
+    /// Uses Intersects for geography compatibility instead of Within.
     /// For viewport queries, we want points that are inside the bounding box.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IGeoLocatedEntity</typeparam>
@@ -46,8 +47,8 @@ public static class SpatialFilterBuilder
         if (envelope == null)
             return entity => true;
 
-        // Use Within for precise point-in-envelope containment - point must be inside the envelope
-        return entity => entity.Location.Within(envelope);
+        // Use Intersects for geography compatibility - for points, equivalent to Within
+        return entity => envelope.Intersects(entity.Location);
     }
 
     /// <summary>
@@ -80,8 +81,8 @@ public static class SpatialFilterBuilder
         // Build OR predicate for each valid envelope without materializing
         foreach (var envelope in validEnvelopes)
         {
-            // Use Within for precise point-in-envelope containment - point must be inside the envelope
-            predicate = predicate.Or(entity => entity.Location.Within(envelope));
+            // Use Intersects for geography compatibility - for points, equivalent to Within
+            predicate = predicate.Or(entity => envelope.Intersects(entity.Location));
         }
 
         return predicate;
