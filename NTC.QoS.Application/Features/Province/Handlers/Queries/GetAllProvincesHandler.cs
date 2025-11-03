@@ -13,7 +13,7 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
-        var provincesQuery = _provinceRepository.Query();
+        var provincesQuery = _provinceRepository.QueryAsNoTracking();
 
         if (request.RegionId.HasValue)
         {
