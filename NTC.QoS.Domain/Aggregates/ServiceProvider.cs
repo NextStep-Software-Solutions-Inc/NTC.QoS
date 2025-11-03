@@ -10,11 +10,11 @@ public class ServiceProvider : BaseEntity
     public virtual Service Service { get; set; } = null!;
     public string MNC { get; set; } = string.Empty;
     public string MCC { get; set; } = string.Empty;
-    public virtual List<Speedtest> Speedtests { get; set; } = new();
-    public virtual List<Link> Links { get; set; } = new();
-    public virtual List<Cellular> Cellulars { get; set; } = new();
-    public virtual List<NAP> NAPs { get; set; } = new();
-    public virtual List<Cell> Cells { get; set; } = new();
-    public virtual List<Network> Networks { get; set; } = new();
-    public virtual List<WirelessValidation> WirelessValidations { get; set; } = new();
+    public virtual List<Speedtest> Speedtests { get; set; } = [];
+    public virtual List<Link> Links { get; set; } = [];
+    public virtual List<Cellular> Cellulars { get; set; } = [];
+    public virtual List<NAP> NAPs { get; set; } = [];
+    public virtual List<Cell> Cells { get; set; } = [];
+    public virtual List<Network> Networks { get; set; } = [];
+    public virtual List<WirelessValidation> WirelessValidations { get; set; } = [];
 }

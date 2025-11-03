@@ -1,6 +1,6 @@
 replicaCount: 2
 
-restartPolicy: Always
+restartPolicy: UnlessStopped
 
 image:
   repository: wacanam20/ntc-qos-api
@@ -13,6 +13,7 @@ service:
   targetPort: 8080
 
 ntc_domain: api.qos.ntc.gov.ph
+ntc_qos_fe_domain: qos.ntc.gov.ph
             
 env:
   ASPNETCORE_ENVIRONMENT: Production

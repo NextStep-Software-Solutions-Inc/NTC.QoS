@@ -103,7 +103,7 @@ public static class LocationSeeder
             }
         }
 
-        FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = [];
 
         try
         {
@@ -206,7 +206,7 @@ public static class LocationSeeder
             }
         }
 
-        FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = [];
 
         try
         {
@@ -400,7 +400,7 @@ public static class LocationSeeder
             }
         }
 
-        FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = [];
 
         try
         {

@@ -7,8 +7,8 @@ public class Technology : BaseEntity
     public virtual Generation Generation { get; set; } = null!;
     public string Standard { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public virtual List<SystemType> SystemTypes { get; set; } = new();
-    public virtual List<TechnologyBand> TechnologyBands { get; set; } = new();
-    public virtual List<Cellular> Cellulars { get; set; } = new();
-    public virtual List<WirelessValidation> WirelessValidations { get; set; } = new();
+    public virtual List<SystemType> SystemTypes { get; set; } = [];
+    public virtual List<TechnologyBand> TechnologyBands { get; set; } = [];
+    public virtual List<Cellular> Cellulars { get; set; } = [];
+    public virtual List<WirelessValidation> WirelessValidations { get; set; } = [];
 }
