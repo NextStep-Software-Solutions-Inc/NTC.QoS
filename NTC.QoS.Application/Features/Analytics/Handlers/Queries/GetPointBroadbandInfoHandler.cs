@@ -363,6 +363,10 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         // Create a circular buffer around the point
         // NetTopologySuite buffer operation creates a polygon approximating a circle
         var bufferedGeometry = centerPoint.Buffer(ConvertMetersToDegreesApprox(radiusMeters, centerPoint.Y));
+        
+        // IMPORTANT: Buffer operation doesn't preserve SRID, so we need to set it explicitly
+        bufferedGeometry.SRID = 4326;
+        
         return bufferedGeometry;
     }
 

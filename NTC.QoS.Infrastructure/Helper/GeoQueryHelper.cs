@@ -347,7 +347,12 @@ public static class GeoQueryHelper
 
         try
         {
-            return geometry.Centroid;
+            var centroid = geometry.Centroid;
+            
+            // IMPORTANT: Centroid property doesn't preserve SRID, so we need to set it explicitly
+            centroid.SRID = geometry.SRID;
+            
+            return centroid;
         }
         catch (Exception)
         {
