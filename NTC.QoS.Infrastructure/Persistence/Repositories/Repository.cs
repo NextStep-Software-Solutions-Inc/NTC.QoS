@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Infrastructure.Exceptions;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -248,9 +250,57 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         return list.Count(e => !e.IsDeleted);
     }
 
-    public Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => SoftDeleteAsync(queryable, GetUserContextService()?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
+    public Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default) => SoftDeleteAsync(queryable, GetUserContextService()?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
 
-    public Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default)
-        => RestoreAsync(queryable, GetUserContextService()?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
+    public Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default) => RestoreAsync(queryable, GetUserContextService()?.GetCurrentUserId(), DateTime.UtcNow, cancellationToken);
+    public IQueryable<T> GetEntitiesWithinBoundaries<T>(
+        IQueryable<T> query,
+        ViewportBounds? viewport = null,
+        List<Guid>? regionIds = null,
+        List<Guid>? provinceIds = null,
+        List<Guid>? municipalityIds = null,
+        List<Guid>? barangayIds = null) where T : IGeoLocatedEntity
+    {
+        if (viewport is not null)
+        {
+            // Filter by viewport bounds
+            var envelope = GeometryHelper.CreateEnvelopeFromViewport(viewport);
+            query = query.Where(entity => entity.Location != null && entity.Location.Intersects(envelope));
+        }
+
+        if (regionIds is not null && regionIds.Count > 0)
+        {
+            var regionBoundariesQuery = _context.Regions
+                .Where(r => regionIds.Contains(r.Id))
+                .Select(r => r.Boundaries);
+
+            query = query.Where(entity => regionBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
+        }
+        if (provinceIds is not null && provinceIds.Count > 0)
+        {
+            var provinceBoundariesQuery = _context.Provinces
+                .Where(p => provinceIds.Contains(p.Id))
+                .Select(p => p.Boundaries);
+
+            query = query.Where(entity => provinceBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
+        }
+        if (municipalityIds is not null && municipalityIds.Count > 0)
+        {
+            var municipalityBoundariesQuery = _context.Municipalities
+                .Where(m => municipalityIds.Contains(m.Id))
+                .Select(m => m.Boundaries);
+
+            query = query.Where(entity => municipalityBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
+        }
+        if (barangayIds is not null && barangayIds.Count > 0)
+        {
+            var barangayBoundariesQuery = _context.Barangays
+                .Where(b => barangayIds.Contains(b.Id))
+                .Select(b => b.Boundaries);
+
+            query = query.Where(entity => barangayBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
+        }
+        return query;
+    }
+
 }

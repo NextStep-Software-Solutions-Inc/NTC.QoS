@@ -71,12 +71,7 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         // Start with base query using AsNoTracking for read-only optimization`
         // This eliminates change tracking overhead for millions of entities
         var napQuery = _napRepository.QueryAsNoTracking();
-        
-        // Apply viewport spatial filter (leverages PostGIS spatial index via && operator)
-        // This is the primary performance optimization - uses bounding box index scan
-        napQuery = napQuery.ApplyViewportFilter(request.Viewport);
-        
-     
+    
         // Apply service provider filter if specified
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
         {
@@ -84,7 +79,9 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         }
 
         // Apply administrative boundary filters (hierarchical - only one level is applied)
-        napQuery = _napRepository.QueryNAPsWithinBoundaries(
+        napQuery = _napRepository.GetEntitiesWithinBoundaries(
+            napQuery,
+            viewport: request.Viewport,
             regionIds: request.RegionIds,
             provinceIds: request.ProvinceIds,
             municipalityIds: request.MunicipalityIds,
