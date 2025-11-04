@@ -11,7 +11,7 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
 
     public async Task<PaginatedResponse<MunicipalityDto>> Handle(GetAllMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
-        var allMunicipalities = _municipalityRepository.QueryAsNoTracking();
+        var allMunicipalities = _municipalityRepository.Query();
 
         allMunicipalities = allMunicipalities
             .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));
@@ -25,13 +25,13 @@ public class GetAllMunicipalitiesHandler(IMunicipalityRepository municipalityRep
             Province = new()
             {
                 Id = m.ProvinceId,
-                Name = m.Province?.Name ?? string.Empty,
-                Description = m.Province?.Description,
+                Name = m.Province != null ? m.Province.Name : string.Empty,
+                Description = m.Province != null ? m.Province.Description : null,
                 Region = new()
                 {
-                    Id = m.Province?.Region?.Id ?? Guid.Empty,
-                    Name = m.Province?.Region?.Name ?? string.Empty,
-                    Description = m.Province?.Region?.Description,
+                    Id = m.Province != null && m.Province.Region != null ? m.Province.Region.Id : Guid.Empty,
+                    Name = m.Province != null && m.Province.Region != null ? m.Province.Region.Name : string.Empty,
+                    Description = m.Province != null && m.Province.Region != null ? m.Province.Region.Description : null,
                 }
             },
             Code = m.Code ?? string.Empty,
