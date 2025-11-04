@@ -36,4 +36,28 @@ internal sealed class BarangayRepository(ApplicationDbContext context) : Reposit
             .Where(b => b.Boundaries != null && b.Boundaries.Contains(point))
             .FirstOrDefaultAsync();
     }
+
+    /// <summary>
+    /// Applies case-insensitive search filter on barangay name using EF.Functions.ILike
+    /// </summary>
+    public IQueryable<Barangay> SearchByName(IQueryable<Barangay> query, string name)
+    {
+        return query.Where(b => EF.Functions.ILike(b.Name, $"%{name}%"));
+    }
+
+    /// <summary>
+    /// Applies case-insensitive search filter on municipality name using EF.Functions.ILike
+    /// </summary>
+    public IQueryable<Barangay> SearchByMunicipalityName(IQueryable<Barangay> query, string municipalityName)
+    {
+        return query.Where(b => EF.Functions.ILike(b.Municipality.Name, $"%{municipalityName}%"));
+    }
+
+    /// <summary>
+    /// Applies case-insensitive search filter on province name using EF.Functions.ILike
+    /// </summary>
+    public IQueryable<Barangay> SearchByProvinceName(IQueryable<Barangay> query, string provinceName)
+    {
+        return query.Where(b => EF.Functions.ILike(b.Municipality.Province.Name, $"%{provinceName}%"));
+    }
 }
