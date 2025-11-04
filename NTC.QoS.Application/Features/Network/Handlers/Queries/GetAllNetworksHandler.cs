@@ -11,10 +11,14 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
 
     public async Task<PaginatedResponse<NetworkDto>> Handle(GetAllNetworksRequest request, CancellationToken cancellationToken)
     {
-        var networksQuery = _networkRepository.Query();
+        var networksQuery = _networkRepository.QueryAsNoTracking();
+
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            networksQuery = _networkRepository.SearchByName(networksQuery, request.Search);
+        }
 
         networksQuery = networksQuery
-            .Where(n => string.IsNullOrEmpty(request.Search) || (n.Name != null && n.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase)))
             .Where(n => !request.NetworkTemplateId.HasValue || n.NetworkTemplate.Id == request.NetworkTemplateId)
             .OrderBy(n => n.Name);
 

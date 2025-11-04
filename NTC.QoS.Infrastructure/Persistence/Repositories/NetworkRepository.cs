@@ -27,5 +27,13 @@ internal sealed class NetworkRepository(ApplicationDbContext context)
 
         return query;
     }
+
+    /// <summary>
+    /// Applies case-insensitive search filter on network name using EF.Functions.ILike
+    /// </summary>
+    public IQueryable<Network> SearchByName(IQueryable<Network> query, string name)
+    {
+        return query.Where(n => n.Name != null && EF.Functions.ILike(n.Name, $"%{name}%"));
+    }
 }
 
