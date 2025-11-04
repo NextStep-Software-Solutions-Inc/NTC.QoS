@@ -16,6 +16,7 @@ internal sealed class FileRepository(ApplicationDbContext context) : Repository<
 
         return await query.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id, cancellationToken);
     }
+    
     public new async Task<List<Domain.Entities.File>> ListAsync(
         Expression<Func<Domain.Entities.File, bool>>? expression = null,
         CancellationToken cancellationToken = default)
@@ -32,5 +33,13 @@ internal sealed class FileRepository(ApplicationDbContext context) : Repository<
             query = query.Where(expression);
         }
         return await query.ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies case-insensitive search filter on file name using EF.Functions.ILike
+    /// </summary>
+    public IQueryable<Domain.Entities.File> SearchByName(IQueryable<Domain.Entities.File> query, string name)
+    {
+        return query.Where(f => EF.Functions.ILike(f.Name, $"%{name}%"));
     }
 }
