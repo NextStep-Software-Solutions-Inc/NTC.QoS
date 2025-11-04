@@ -628,8 +628,9 @@ public static class GeoQueryHelper
     /// <exception cref="ArgumentNullException">Thrown when viewport is null</exception>
     /// <exception cref="ArgumentException">Thrown when viewport bounds are invalid</exception>
     public static IQueryable<TSource> ApplyViewportFilter<TSource>(
-        ViewportBoundsDto viewport,
-        IQueryable<TSource> query)
+        this IQueryable<TSource> query,
+        ViewportBounds viewport
+        )
         where TSource : IGeoLocatedEntity
     {
         if (viewport == null)
@@ -667,7 +668,7 @@ public static class GeoQueryHelper
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Filtered queryable containing entities within both viewport and boundaries</returns>
     public static async Task<IQueryable<TSource>> ApplyViewportWithBoundaryFilter<TSource, TBoundary>(
-        ViewportBoundsDto viewport,
+        ViewportBounds viewport,
         List<Guid> boundaryIds,
         IRepository<TBoundary> boundaryRepository,
         IQueryable<TSource> query,
@@ -676,7 +677,7 @@ public static class GeoQueryHelper
         where TBoundary : BaseEntity, IGeoBoundaryEntity
     {
         // First apply viewport filter for broad spatial filtering
-        query = ApplyViewportFilter(viewport, query);
+        query = query.ApplyViewportFilter(viewport);
 
         // Then apply boundary filter for precise administrative filtering
         if (boundaryIds != null && boundaryIds.Count > 0)
@@ -697,13 +698,13 @@ public static class GeoQueryHelper
     /// <param name="query">The queryable to filter</param>
     /// <returns>Filtered queryable</returns>
     public static IQueryable<TSource> ApplyViewportWithProviderFilter<TSource>(
-        ViewportBoundsDto viewport,
+        ViewportBounds viewport,
         List<Guid>? serviceProviderIds,
         IQueryable<TSource> query)
         where TSource : class, IGeoLocatedEntity
     {
         // Apply viewport filter first (spatial index optimization)
-        query = ApplyViewportFilter(viewport, query);
+        query = query.ApplyViewportFilter(viewport);
 
         // Then apply provider filter if specified
         if (serviceProviderIds != null && serviceProviderIds.Count > 0)

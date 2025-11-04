@@ -62,9 +62,9 @@ public sealed class ViewportQueryParams
     /// <summary>
     /// Creates a ViewportBoundsDto from the query parameters
     /// </summary>
-    public ViewportBoundsDto ToViewportBounds()
+    public ViewportBounds ToViewportBounds()
     {
-        return new ViewportBoundsDto
+        return new ViewportBounds
         {
             MinLatitude = MinLat,
             MaxLatitude = MaxLat,

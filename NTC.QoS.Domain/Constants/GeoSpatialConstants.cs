@@ -58,13 +58,13 @@ public static class GeoSpatialConstants
     /// Prevents excessive memory consumption on limited infrastructure.
     /// At millions of data points, larger page sizes can cause OOM.
     /// </summary>
-    public const int MaxViewportPageSize = 5000;
+    public const int MaxViewportPageSize = 10000;
 
     /// <summary>
     /// Recommended page size for optimal performance.
     /// Balances UI responsiveness with server load.
     /// </summary>
-    public const int RecommendedViewportPageSize = 1000;
+    public const int RecommendedViewportPageSize = 2000;
 
     /// <summary>
     /// Maximum viewport area in square degrees.
@@ -91,12 +91,12 @@ public static class GeoSpatialConstants
     /// Maximum results for large viewports (area > medium threshold).
     /// Forces aggressive pagination for resource conservation.
     /// </summary>
-    public const int MaxResultsForLargeViewport = 1000;
+    public const int MaxResultsForLargeViewport = 2000;
 
     /// <summary>
     /// Maximum results for medium viewports.
     /// </summary>
-    public const int MaxResultsForMediumViewport = 2500;
+    public const int MaxResultsForMediumViewport = 5000;
 
     /// <summary>
     /// Query timeout in seconds for viewport queries.

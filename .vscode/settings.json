@@ -1,0 +1,5 @@
+{
+    "github-actions.workflows.pinned.workflows": [
+        "dynamic/copilot-pull-request-reviewer/copilot-pull-request-reviewer"
+    ]
+}
