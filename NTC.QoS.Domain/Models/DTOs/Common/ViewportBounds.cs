@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Constants;
 
 namespace NTC.QoS.Domain.Models.DTOs.Common;
