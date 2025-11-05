@@ -315,13 +315,9 @@ public class ProcessCellJob : IProcessCellJob
                     .ToListAsync(token);
 
                 var systemTypeCache = new Dictionary<Guid, Guid>();
-                foreach (var systemType in systemTypeList)
+                foreach (var systemType in systemTypeList.Where(st => !systemTypeCache.ContainsKey(st.TechnologyId)))
                 {
-                    // Only add if TechnologyId doesn't already exist (take first occurrence)
-                    if (!systemTypeCache.ContainsKey(systemType.TechnologyId))
-                    {
-                        systemTypeCache[systemType.TechnologyId] = systemType.Id;
-                    }
+                    systemTypeCache[systemType.TechnologyId] = systemType.Id;
                 }
                 _logger.LogInformation("Pre-loaded {Count} system types.", systemTypeCache.Count);
 
@@ -880,7 +876,7 @@ public class ProcessCellJob : IProcessCellJob
                         networksToAdd,
                         technologyCache,
                         bandCache,
-                        systemTypeCache,  // ✅ Pass systemTypeCache
+                        systemTypeCache,
                         dlCenterFreq,
                         ulCenterFreq,
                         bandwidth,
