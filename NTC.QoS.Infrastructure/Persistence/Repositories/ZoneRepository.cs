@@ -32,22 +32,22 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
     private IQueryable<Zone> BuildFilteredQuery(string? municipalityName, string? provinceName, string? regionName, bool applyAllFilters)
     {
         IQueryable<Zone> query = _context.Set<Zone>()
-      .Where(z => !EF.Property<bool>(z, "IsDeleted"));
+            .Where(z => !EF.Property<bool>(z, "IsDeleted"));
 
         if (applyAllFilters)
         {
             // Apply all filters (AND logic)
             query = ApplySearch(query, municipalityName,
-               z => z.Barangay!.Municipality.Name,
-             z => z.Barangay!.Municipality.Description);
+                z => z.Barangay!.Municipality.Name,
+                z => z.Barangay!.Municipality.Description);
 
             query = ApplySearch(query, provinceName,
-      z => z.Barangay!.Municipality.Province.Name,
-         z => z.Barangay!.Municipality.Province.Description);
+                z => z.Barangay!.Municipality.Province.Name,
+                z => z.Barangay!.Municipality.Province.Description);
 
             query = ApplySearch(query, regionName,
-             z => z.Barangay!.Municipality.Province.Region.Name,
-            z => z.Barangay!.Municipality.Province.Region.Description);
+                z => z.Barangay!.Municipality.Province.Region.Name,
+                z => z.Barangay!.Municipality.Province.Region.Description);
         }
         else
         {
@@ -55,20 +55,20 @@ internal sealed class ZoneRepository(ApplicationDbContext context) : Repository<
             if (!string.IsNullOrEmpty(municipalityName))
             {
                 query = ApplySearch(query, municipalityName,
-            z => z.Barangay!.Municipality.Name,
-                   z => z.Barangay!.Municipality.Description);
+                    z => z.Barangay!.Municipality.Name,
+                    z => z.Barangay!.Municipality.Description);
             }
             else if (!string.IsNullOrEmpty(provinceName))
             {
                 query = ApplySearch(query, provinceName,
-                z => z.Barangay!.Municipality.Province.Name,
-                  z => z.Barangay!.Municipality.Province.Description);
+                    z => z.Barangay!.Municipality.Province.Name,
+                    z => z.Barangay!.Municipality.Province.Description);
             }
             else if (!string.IsNullOrEmpty(regionName))
             {
                 query = ApplySearch(query, regionName,
-                           z => z.Barangay!.Municipality.Province.Region.Name,
-                     z => z.Barangay!.Municipality.Province.Region.Description);
+                    z => z.Barangay!.Municipality.Province.Region.Name,
+                    z => z.Barangay!.Municipality.Province.Region.Description);
             }
         }
 
