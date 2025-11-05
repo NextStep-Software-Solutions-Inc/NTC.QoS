@@ -4,8 +4,6 @@ namespace NTC.QoS.Domain.Interfaces;
 
 public interface IBarangayRepository : IRepository<Barangay>
 {
-    Task<Barangay?> FindByLocationAsync(double latitude, double longitude);
-    
     /// <summary>
     /// Applies case-insensitive search filter on barangay name
     /// </summary>
