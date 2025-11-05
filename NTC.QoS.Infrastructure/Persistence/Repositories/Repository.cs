@@ -304,7 +304,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
 
             // Combine with OR
             combinedPredicate = combinedPredicate == null
-            ? predicate
+                ? predicate
                 : CombineWithOr(combinedPredicate, predicate);
         }
 
