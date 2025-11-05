@@ -719,13 +719,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     // Supporting classes
     private class ReferenceData
     {
-        public Dictionary<string, Guid> ServiceProviderCache { get; set; } = new();
-        public Dictionary<string, Guid> MunicipalityCache { get; set; } = new();
-        public Dictionary<string, MunicipalityHierarchyInfo> MunicipalityHierarchyCache { get; set; } = new();
-        public Dictionary<string, Guid> TechnologyCache { get; set; } = new();
-        public Dictionary<string, Guid> BandCache { get; set; } = new();
-        public Dictionary<Guid, Dictionary<string, Guid>> BarangayCache { get; set; } = new();
-        public HashSet<int> WirelessValidationLookup { get; set; } = new(); // Changed from HashSet<string> to HashSet<int>
+        public Dictionary<string, Guid> ServiceProviderCache { get; set; } = [];
+        public Dictionary<string, Guid> MunicipalityCache { get; set; } = [];
+        public Dictionary<string, MunicipalityHierarchyInfo> MunicipalityHierarchyCache { get; set; } = [];
+        public Dictionary<string, Guid> TechnologyCache { get; set; } = [];
+        public Dictionary<string, Guid> BandCache { get; set; } = [];
+        public Dictionary<Guid, Dictionary<string, Guid>> BarangayCache { get; set; } = [];
+        public HashSet<int> WirelessValidationLookup { get; set; } = []; // Changed from HashSet<string> to HashSet<int>
     }
 
     private class MunicipalityHierarchyInfo

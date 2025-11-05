@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
+using NTC.QoS.Domain.Models.RequestParams;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json.Serialization;
@@ -31,6 +32,31 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
 
         RemoveAllCellularCoverageCache();
         return CreatedAtAction(nameof(GetCellularCoverageById), new { id = request.Data.Id }, request);
+    }
+
+    /// <summary>
+    /// V2 API: Get cellular coverages within viewport (bounding box) - Public
+    /// Returns minimal DTOs optimized for rendering millions of points on a map.
+    /// </summary>
+    [HttpGet("/v2/cellular-coverages/viewport/public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<CellularCoverageViewportDto>>> GetAllPublicCellularCoveragesViewport([FromQuery] ViewportQueryParams query)
+    {
+        if (!query.IsViewportValid())
+        {
+            return BadRequest(new PaginatedResponse<CellularCoverageViewportDto>([], 1, query.PageSize, 0)
+            {
+                Succeeded = false,
+                Message = "Invalid viewport bounds"
+            });
+        }
+
+        var request = new GetAllCellularCoveragesViewportRequest(query);
+        var result = await mediator.Send(request);
+        return Ok(result);
     }
 
     [HttpGet("public")]
@@ -85,10 +111,10 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
     private async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(CellularCoverageQueryParams query)
     {
         var cacheKey = $"{CellularCoverageCachePrefix}{query.PageSize}_{query.PageNumber}_{string.Join(",", query.NetworkIds ?? [])}" +
-               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.BarangayIds ?? [])}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+               $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+               $"{string.Join(",", query.RegionIds ?? [])}_" +
                $"_{query.Longitude}_{query.Latitude}_{query.Distance}";
 
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellularCoverageDto>? cachedCellularCoverage))
@@ -117,7 +143,7 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
     }
     private void TrackCacheKey(string key)
     {
-        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellularCoverageCacheKeysSet, _ => new HashSet<string>());
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellularCoverageCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);

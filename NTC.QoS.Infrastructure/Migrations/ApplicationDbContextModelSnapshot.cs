@@ -78,7 +78,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Name")
@@ -310,7 +310,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("ServiceProviderId")
@@ -825,13 +825,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1058,7 +1058,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("NetworkId")
@@ -1178,7 +1178,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("LocationId")
@@ -1233,9 +1233,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int>("WifiHotspotCount")
                         .HasColumnType("integer");
 
-                    b.Property<int>("WirelessValidationCount")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ConnectivityStatus")
@@ -1254,6 +1251,64 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
 
                     b.ToTable("ConnectivityAssessments");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("AssetPercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("CellTowerCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ConnectivityAssessmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("FiberNAPCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ProviderName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TotalAssetCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("WiFiHotspotCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConnectivityAssessmentId");
+
+                    b.ToTable("ConnectivityAssessmentProvider");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
@@ -1378,13 +1433,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1659,13 +1714,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1742,13 +1797,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -2089,7 +2144,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("MCC")
@@ -2454,7 +2509,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<decimal?>("MaxBandwidthMbps")
@@ -2906,6 +2961,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Network");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.ConnectivityAssessment", "ConnectivityAssessment")
+                        .WithMany("Providers")
+                        .HasForeignKey("ConnectivityAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConnectivityAssessment");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Province", "Province")
@@ -3206,6 +3272,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Cellulars");
 
                     b.Navigation("Sectors");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
+                {
+                    b.Navigation("Providers");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>

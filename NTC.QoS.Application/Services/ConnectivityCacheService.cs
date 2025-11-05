@@ -86,7 +86,7 @@ public class ConnectivityCacheService : IConnectivityCacheService
             }
             
             // Clear the bag (thread-safe operation)
-            _cacheKeyPatterns.TryUpdate(pattern, new ConcurrentBag<string>(), keyBag);
+            _cacheKeyPatterns.TryUpdate(pattern, [], keyBag);
             
             _logger.LogInformation("Invalidated {Count} cache entries for pattern {Pattern}", keys.Length, pattern);
         }
@@ -133,7 +133,7 @@ public class ConnectivityCacheService : IConnectivityCacheService
         var pattern = cacheKey.Split(':')[0];
         _cacheKeyPatterns.AddOrUpdate(
             pattern, 
-            new ConcurrentBag<string> { cacheKey },
+            [cacheKey],
             (key, existing) => 
             {
                 existing.Add(cacheKey);

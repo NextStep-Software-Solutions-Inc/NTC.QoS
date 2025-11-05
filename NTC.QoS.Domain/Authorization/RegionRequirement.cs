@@ -12,7 +12,7 @@ public class RegionRequirement : Microsoft.AspNetCore.Authorization.IAuthorizati
 
     public RegionRequirement(List<Guid>? allowedRegionIds = null, bool requireAnyRegion = false)
     {
-        AllowedRegionIds = allowedRegionIds ?? new List<Guid>();
+        AllowedRegionIds = allowedRegionIds ?? [];
         RequireAnyRegion = requireAnyRegion;
     }
 }

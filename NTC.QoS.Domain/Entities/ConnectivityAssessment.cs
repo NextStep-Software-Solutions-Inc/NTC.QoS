@@ -84,7 +84,6 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     // Infrastructure Counts
     public int CellTowerCount { get; set; }
     public int FiberNAPCount { get; set; }
-    public int WirelessValidationCount { get; set; }
     public int WifiHotspotCount { get; set; }
 
     // Speed Test Statistics
@@ -104,6 +103,12 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     // Service Provider Information
     public int ServiceProviderCount { get; set; }
     public string? DominantServiceProvider { get; set; }
+    
+    /// <summary>
+    /// Provider breakdown - detailed asset counts per provider
+    /// Ordered by TotalAssetCount descending
+    /// </summary>
+    public virtual List<ConnectivityAssessmentProvider> Providers { get; set; } = [];
 
     // Coverage Percentages - Infrastructure Mix
     public double? MobileCoveragePercentage { get; set; }

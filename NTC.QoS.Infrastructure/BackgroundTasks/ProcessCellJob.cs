@@ -397,7 +397,7 @@ public class ProcessCellJob : IProcessCellJob
                         foreach (var sector in batchResults.CellSectorsToAdd)
                         {
                             if (!cellSectorCache.ContainsKey(sector.CellId))
-                                cellSectorCache[sector.CellId] = new List<Guid>();
+                                cellSectorCache[sector.CellId] = [];
                             cellSectorCache[sector.CellId].Add(sector.Id);
                         }
                     }
@@ -721,7 +721,7 @@ public class ProcessCellJob : IProcessCellJob
                                 result.CellSectorsToAdd.Add(cellSector);
 
                                 if (!cellSectorsCreatedForCellId.ContainsKey(cellId))
-                                    cellSectorsCreatedForCellId[cellId] = new List<Guid>();
+                                    cellSectorsCreatedForCellId[cellId] = [];
                                 cellSectorsCreatedForCellId[cellId].Add(cellSector.Id);
                             }
                         }
@@ -1250,10 +1250,10 @@ public class ProcessCellJob : IProcessCellJob
     /// </summary>
     private class BatchProcessingResult
     {
-        public List<Domain.Aggregates.Cell> CellsToAdd { get; set; } = new();
-        public List<Domain.Entities.CellSector> CellSectorsToAdd { get; set; } = new();
-        public List<Domain.Entities.Cellular> CellularToAdd { get; set; } = new();
-        public List<Domain.Entities.Cellular> CellularToDelete { get; set; } = new();
+        public List<Domain.Aggregates.Cell> CellsToAdd { get; set; } = [];
+        public List<Domain.Entities.CellSector> CellSectorsToAdd { get; set; } = [];
+        public List<Domain.Entities.Cellular> CellularToAdd { get; set; } = [];
+        public List<Domain.Entities.Cellular> CellularToDelete { get; set; } = [];
     }
 
     /// <summary>
