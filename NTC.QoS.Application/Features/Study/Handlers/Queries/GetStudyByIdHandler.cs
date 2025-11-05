@@ -23,12 +23,7 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
                     Id = study.AreaStudyId,
                     Name = study.AreaStudy.Name,
                     Description = study.AreaStudy.Description
-                } : new()
-                {
-                    Id = study.AreaStudyId,
-                    Name = string.Empty,
-                    Description = null
-                },
+                } : null,
                 StudyRadius = study.StudyRadius
             });
 

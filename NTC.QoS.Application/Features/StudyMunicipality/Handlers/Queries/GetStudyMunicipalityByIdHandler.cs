@@ -27,78 +27,15 @@ public class GetStudyMunicipalityByIdHandler(IStudyMunicipalityRepository studyM
                         Id = studyMunicipality.Study.AreaStudyId,
                         Name = studyMunicipality.Study.AreaStudy.Name,
                         Description = studyMunicipality.Study.AreaStudy.Description
-                    } : new()
-                    {
-                        Id = studyMunicipality.Study.AreaStudyId,
-                        Name = string.Empty,
-                        Description = null
-                    }
-                } : new()
-                {
-                    Id = studyMunicipality.StudyId,
-                    Name = string.Empty,
-                    Description = string.Empty,
-                    StudyRadius = 0,
-                    AreaStudy = new()
-                    {
-                        Id = Guid.Empty,
-                        Name = string.Empty,
-                        Description = null
-                    }
-                },
+                    } : null
+                } : null,
                 Municipality = studyMunicipality.Municipality != null ? new()
                 {
                     Id = studyMunicipality.MunicipalityId,
                     Name = studyMunicipality.Municipality.Name,
                     IsCity = studyMunicipality.Municipality.IsCity,
-                    Description = studyMunicipality.Municipality.Description,
-                    Province = studyMunicipality.Municipality.Province != null ? new()
-                    {
-                        Id = studyMunicipality.Municipality.ProvinceId,
-                        Name = studyMunicipality.Municipality.Province.Name,
-                        Description = studyMunicipality.Municipality.Province.Description,
-                        Region = studyMunicipality.Municipality.Province.Region != null ? new()
-                        {
-                            Id = studyMunicipality.Municipality.Province.RegionId,
-                            Name = studyMunicipality.Municipality.Province.Region.Name,
-                            Description = studyMunicipality.Municipality.Province.Region.Description
-                        } : new()
-                        {
-                            Id = studyMunicipality.Municipality.ProvinceId,
-                            Name = string.Empty,
-                            Description = null
-                        }
-                    } : new()
-                    {
-                        Id = studyMunicipality.MunicipalityId,
-                        Name = string.Empty,
-                        Description = null,
-                        Region = new()
-                        {
-                            Id = Guid.Empty,
-                            Name = string.Empty,
-                            Description = null
-                        }
-                    }
-                } : new()
-                {
-                    Id = studyMunicipality.MunicipalityId,
-                    Name = string.Empty,
-                    IsCity = false,
-                    Description = null,
-                    Province = new()
-                    {
-                        Id = Guid.Empty,
-                        Name = string.Empty,
-                        Description = null,
-                        Region = new()
-                        {
-                            Id = Guid.Empty,
-                            Name = string.Empty,
-                            Description = null
-                        }
-                    }
-                }
+                    Description = studyMunicipality.Municipality.Description
+                } : null
             });
 
         var studyMunicipalityDto = await _studyMunicipalityRepository.FirstOrDefaultAsync(studyMunicipalityDtoQuery, cancellationToken);

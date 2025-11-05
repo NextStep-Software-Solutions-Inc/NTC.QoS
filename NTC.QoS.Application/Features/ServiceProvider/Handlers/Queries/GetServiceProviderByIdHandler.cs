@@ -23,25 +23,13 @@ public class GetServiceProviderByIdHandler(IServiceProviderRepository servicePro
                     Description = serviceProvider.Provider.Description,
                     LicenseNumber = serviceProvider.Provider.LicenseNumber,
                     Color = serviceProvider.Provider.Color
-                } : new()
-                {
-                    Id = serviceProvider.ProviderId,
-                    Name = string.Empty,
-                    Description = string.Empty,
-                    LicenseNumber = string.Empty,
-                    Color = string.Empty
-                },
+                } : null,
                 Service = serviceProvider.Service != null ? new()
                 {
                     Id = serviceProvider.ServiceId,
                     Name = serviceProvider.Service.Name,
                     Type = serviceProvider.Service.Type.ToString()
-                } : new()
-                {
-                    Id = serviceProvider.ServiceId,
-                    Name = string.Empty,
-                    Type = string.Empty
-                },
+                } : null,
                 MNC = serviceProvider.MNC,
                 MCC = serviceProvider.MCC
             });
