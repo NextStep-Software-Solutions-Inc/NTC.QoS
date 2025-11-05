@@ -2,14 +2,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Infrastructure.Exceptions;
 using System.Linq.Expressions;
-using System.Reflection;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -291,15 +289,14 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
 
             // EF.Functions.Like(property, pattern)
             var likeMethod = typeof(DbFunctionsExtensions).GetMethod(
-     nameof(DbFunctionsExtensions.Like),
-          new[] { typeof(DbFunctions), typeof(string), typeof(string) })!;
+                nameof(DbFunctionsExtensions.Like),
+                new[] { typeof(DbFunctions), typeof(string), typeof(string) })!;
 
-            var likeCall = Expression.Call(
-               likeMethod,
-                           Expression.Property(null, typeof(EF), nameof(EF.Functions)),
+            var likeCall = Expression.Call(likeMethod,
+                Expression.Property(null, typeof(EF), nameof(EF.Functions)),
                 propertyExpression,
-                     Expression.Constant(searchPattern)
-                       );
+                Expression.Constant(searchPattern)
+                );
 
             // Combine: property != null && EF.Functions.Like(property, pattern)
             var condition = Expression.AndAlso(nullCheck, likeCall);
