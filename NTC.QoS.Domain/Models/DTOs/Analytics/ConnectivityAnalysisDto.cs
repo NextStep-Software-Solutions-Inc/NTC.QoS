@@ -159,7 +159,7 @@ public class ProviderBreakdownDto
     /// <summary>
     /// Number of wireless validations from this provider
     /// </summary>
-  public int WirelessValidationCount { get; set; }
+    public int WirelessValidationCount { get; set; }
     
     /// <summary>
     /// Total assets from this provider
