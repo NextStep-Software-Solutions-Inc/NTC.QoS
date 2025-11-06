@@ -307,11 +307,11 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// </summary>
     private async Task<BarangayBroadbandDto> CreateBarangayDtoFromAssessmentAsync(
         Domain.Entities.Barangay barangay,
-     Domain.Entities.ConnectivityAssessment assessment,
+        Domain.Entities.ConnectivityAssessment assessment,
         bool isBarangayLevel,
         CancellationToken cancellationToken)
     {
-      var providers = new List<string>();
+        var providers = new List<string>();
 
         // Extract ALL provider information from assessment (not just dominant + fiber check)
         if (assessment.ServiceProviderCount > 0)
@@ -320,36 +320,36 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             var providerBreakdown = await _connectivityAssessmentRepository
                 .GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
 
-   // Add all providers that have wired infrastructure (fiber NAPs)
+            // Add all providers that have wired infrastructure (fiber NAPs)
             providers.AddRange(providerBreakdown
-         .Where(p => p.FiberNAPCount > 0)
-  .Select(p => p.ProviderName));
+                .Where(p => p.FiberNAPCount > 0)
+                .Select(p => p.ProviderName));
 
-         // If no providers with fiber, but we have a dominant service provider, include it
-     if (providers.Count == 0 && !string.IsNullOrEmpty(assessment.DominantServiceProvider))
+            // If no providers with fiber, but we have a dominant service provider, include it
+            if (providers.Count == 0 && !string.IsNullOrEmpty(assessment.DominantServiceProvider))
             {
-      providers.Add(assessment.DominantServiceProvider);
+                providers.Add(assessment.DominantServiceProvider);
             }
         }
 
         var providerAvailability = new ServiceProviderAvailabilityDto();
-    foreach (var provider in providers.Distinct())
+        foreach (var provider in providers.Distinct())
         {
             providerAvailability.Providers[provider] = true;
         }
 
-  // Map connectivity status to service status
-     var serviceStatus = MapConnectivityStatusToServiceStatus(assessment.ConnectivityStatus);
+        // Map connectivity status to service status
+        var serviceStatus = MapConnectivityStatusToServiceStatus(assessment.ConnectivityStatus);
         var remarks = GenerateRemarksFromAssessment(assessment, isBarangayLevel);
 
         return new BarangayBroadbandDto
         {
-         Id = barangay.Id,
-    Name = barangay.Name,
-    Code = barangay.Code,
-   ProviderAvailability = providerAvailability,
+            Id = barangay.Id,
+            Name = barangay.Name,
+            Code = barangay.Code,
+            ProviderAvailability = providerAvailability,
             ServiceStatus = serviceStatus,
-   Remarks = remarks
+            Remarks = remarks
         };
     }
 
@@ -358,8 +358,8 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// </summary>
     private async Task<BarangayBroadbandDto> CreateBarangayDtoFromMunicipalityAssessmentAsync(
         Domain.Entities.Barangay barangay,
-Domain.Entities.ConnectivityAssessment municipalityAssessment,
-      CancellationToken cancellationToken)
+        Domain.Entities.ConnectivityAssessment municipalityAssessment,
+        CancellationToken cancellationToken)
     {
         var providers = new List<string>();
 
@@ -367,40 +367,40 @@ Domain.Entities.ConnectivityAssessment municipalityAssessment,
         if (municipalityAssessment.ServiceProviderCount > 0)
         {
             // Get all providers from municipality assessment
-          var providerBreakdown = await _connectivityAssessmentRepository
-     .GetProvidersByAssessmentIdAsync(municipalityAssessment.Id, cancellationToken);
+            var providerBreakdown = await _connectivityAssessmentRepository
+                .GetProvidersByAssessmentIdAsync(municipalityAssessment.Id, cancellationToken);
 
- // Add all providers that have wired infrastructure
-        providers.AddRange(providerBreakdown
-     .Where(p => p.FiberNAPCount > 0)
-        .Select(p => p.ProviderName));
+            // Add all providers that have wired infrastructure
+            providers.AddRange(providerBreakdown
+                .Where(p => p.FiberNAPCount > 0)
+                .Select(p => p.ProviderName));
 
-    // Fallback to dominant provider
+            // Fallback to dominant provider
             if (providers.Count == 0 && !string.IsNullOrEmpty(municipalityAssessment.DominantServiceProvider))
-          {
-           providers.Add(municipalityAssessment.DominantServiceProvider);
+            {
+                providers.Add(municipalityAssessment.DominantServiceProvider);
             }
-  }
+        }
 
         var providerAvailability = new ServiceProviderAvailabilityDto();
-     foreach (var provider in providers.Distinct())
+        foreach (var provider in providers.Distinct())
         {
-providerAvailability.Providers[provider] = true;
- }
+            providerAvailability.Providers[provider] = true;
+        }
 
-    // Use municipality status as approximation
-    var serviceStatus = MapConnectivityStatusToServiceStatus(municipalityAssessment.ConnectivityStatus);
+        // Use municipality status as approximation
+        var serviceStatus = MapConnectivityStatusToServiceStatus(municipalityAssessment.ConnectivityStatus);
         var remarks = GenerateRemarksFromMunicipalityAssessment(municipalityAssessment);
 
         return new BarangayBroadbandDto
- {
-  Id = barangay.Id,
+        {
+            Id = barangay.Id,
             Name = barangay.Name,
-     Code = barangay.Code,
-   ProviderAvailability = providerAvailability,
+            Code = barangay.Code,
+            ProviderAvailability = providerAvailability,
             ServiceStatus = serviceStatus,
             Remarks = remarks
-    };
+        };
     }
 
     /// <summary>
@@ -410,11 +410,11 @@ providerAvailability.Providers[provider] = true;
     {
         return connectivityStatus switch
         {
-  ConnectivityStatusEnum.Served => ServiceStatusEnum.Served,
+            ConnectivityStatusEnum.Served => ServiceStatusEnum.Served,
             ConnectivityStatusEnum.Underserved => ServiceStatusEnum.Underserved,
-   ConnectivityStatusEnum.Unserved => ServiceStatusEnum.Unserved,
-         _ => ServiceStatusEnum.Unserved
-  };
+            ConnectivityStatusEnum.Unserved => ServiceStatusEnum.Unserved,
+            _ => ServiceStatusEnum.Unserved
+        };
     }
 
     /// <summary>
@@ -423,30 +423,30 @@ providerAvailability.Providers[provider] = true;
     private static string GenerateRemarksFromAssessment(Domain.Entities.ConnectivityAssessment assessment, bool isBarangayLevel)
     {
         var remarks = assessment.ConnectivityStatus switch
-   {
-        ConnectivityStatusEnum.Served => "SERVED",
-          ConnectivityStatusEnum.Underserved => "UNDERSERVED",
-     ConnectivityStatusEnum.Unserved => "UNSERVED",
+        {
+            ConnectivityStatusEnum.Served => "SERVED",
+            ConnectivityStatusEnum.Underserved => "UNDERSERVED",
+            ConnectivityStatusEnum.Unserved => "UNSERVED",
             _ => "UNSERVED"
         };
 
         // Enhance remarks with assessment details
         if (assessment.FiberNAPCount > 0)
         {
-    remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
-     }
+            remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
+        }
 
         if (assessment.ServiceProviderCount > 1)
-   {
-       remarks += $" - {assessment.ServiceProviderCount} providers";
-   }
+        {
+            remarks += $" - {assessment.ServiceProviderCount} providers";
+        }
 
         if (assessment.MeetsMinimumSpeedRequirement)
         {
-      remarks += " - Meets speed requirements";
+            remarks += " - Meets speed requirements";
         }
 
-      var levelIndicator = isBarangayLevel ? "Barangay" : "Municipality";
+        var levelIndicator = isBarangayLevel ? "Barangay" : "Municipality";
         remarks += $" ({levelIndicator} Assessment: {assessment.LastUpdated:MMM dd})";
 
         return remarks;
@@ -458,18 +458,18 @@ providerAvailability.Providers[provider] = true;
     private static string GenerateRemarksFromMunicipalityAssessment(Domain.Entities.ConnectivityAssessment assessment)
     {
         var remarks = assessment.ConnectivityStatus switch
-     {
+        {
             ConnectivityStatusEnum.Served => "SERVED",
-     ConnectivityStatusEnum.Underserved => "UNDERSERVED",
-    ConnectivityStatusEnum.Unserved => "UNSERVED",
-     _ => "UNSERVED"
+            ConnectivityStatusEnum.Underserved => "UNDERSERVED",
+            ConnectivityStatusEnum.Unserved => "UNSERVED",
+            _ => "UNSERVED"
         };
 
         remarks += " (Municipality estimate)";
 
- if (assessment.ServiceProviderCount > 0)
+        if (assessment.ServiceProviderCount > 0)
         {
-  remarks += $" - {assessment.ServiceProviderCount} providers in area";
+            remarks += $" - {assessment.ServiceProviderCount} providers in area";
         }
 
         return remarks;
@@ -480,24 +480,24 @@ providerAvailability.Providers[provider] = true;
         var allBarangays = municipalities.SelectMany(m => m.Barangays).ToList();
 
         // Calculate provider coverage
-      var providerCoverage = new Dictionary<string, int>();
+        var providerCoverage = new Dictionary<string, int>();
         foreach (var provider in allProviders)
         {
             var coverageCount = allBarangays.Count(b => b.ProviderAvailability.Providers.ContainsKey(provider) &&
-         b.ProviderAvailability.Providers[provider]);
-  providerCoverage[provider] = coverageCount;
+                b.ProviderAvailability.Providers[provider]);
+            providerCoverage[provider] = coverageCount;
         }
 
         return new WiredBroadbandSummaryDto
         {
-      TotalMunicipalities = municipalities.Count(),
-TotalBarangays = allBarangays.Count,
-     ServedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Served),
-    UnderservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Underserved),
-       UnservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Unserved),
+            TotalMunicipalities = municipalities.Count(),
+            TotalBarangays = allBarangays.Count,
+            ServedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Served),
+            UnderservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Underserved),
+            UnservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Unserved),
             AllProviders = allProviders,
-        ProviderCoverage = providerCoverage,
-        GeneratedAt = DateTime.UtcNow
-    };
+            ProviderCoverage = providerCoverage,
+            GeneratedAt = DateTime.UtcNow
+        };
     }
 }
