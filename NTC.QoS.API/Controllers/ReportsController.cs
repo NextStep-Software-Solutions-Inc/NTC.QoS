@@ -42,20 +42,23 @@ public class ReportsController : ControllerBase
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
     /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
+    /// <param name="forceGenerateConnectivityAssessment">If true, forces generation of new connectivity assessments even if recent ones exist</param>
     /// <returns>Wired broadband coverage report with municipality/barangay breakdown</returns>
     [HttpGet("wired-broadband")]
     public async Task<ActionResult<ApiResponse<WiredBroadbandReportDto>>> GetWiredBroadbandReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] bool includeOnlyServedAreas = false)
+        [FromQuery] bool includeOnlyServedAreas = false,
+        [FromQuery] bool forceGenerateConnectivityAssessment = false)
     {
         var request = new GetWiredBroadbandReportQuery
         {
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
-            IncludeOnlyServedAreas = includeOnlyServedAreas
+            IncludeOnlyServedAreas = includeOnlyServedAreas,
+            ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment
         };
 
         var report = await _mediator.Send(request);
