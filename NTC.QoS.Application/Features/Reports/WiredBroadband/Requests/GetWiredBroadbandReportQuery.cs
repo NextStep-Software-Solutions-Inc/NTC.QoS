@@ -9,8 +9,6 @@ public class GetWiredBroadbandReportQuery : IRequest<ApiResponse<WiredBroadbandR
     public Guid? RegionId { get; set; }
     public Guid? ProvinceId { get; set; }
     public Guid? MunicipalityId { get; set; }
-    public DateTime? StartDate { get; set; }
-    public DateTime? EndDate { get; set; }
     public bool IncludeOnlyServedAreas { get; set; } = false;
     /// <summary>
     /// When true, forces generation of new connectivity assessments even if recent ones exist.

@@ -39,20 +39,6 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             _logger.LogInformation("Generating wired broadband report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, ForceAssessment={ForceAssessment}",
                 request.RegionId, request.ProvinceId, request.MunicipalityId, request.ForceGenerateConnectivityAssessment);
 
-            // Date filters are not supported when using assessments
-            if (HasDateFilters(request))
-            {
-                return new ApiResponse<WiredBroadbandReportDto>
-                {
-                    Succeeded = false,
-                    Message = "Date range filters are not supported for wired broadband reports. Reports are based on pre-calculated connectivity assessments.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "DateFiltersNotSupported", ["Date filters (StartDate/EndDate) cannot be used with assessment-based reports. Please remove date filters."] }
-                    }
-                };
-            }
-
             // Build municipality query with geographic filters
             var municipalityQuery = _municipalityRepository.Query()
                 .Include(m => m.Province)
@@ -415,14 +401,6 @@ providerAvailability.Providers[provider] = true;
             ServiceStatus = serviceStatus,
             Remarks = remarks
     };
-    }
-
-    /// <summary>
-    /// Check if the request has date filters
-    /// </summary>
-    private static bool HasDateFilters(GetWiredBroadbandReportQuery request)
-    {
-        return request.StartDate.HasValue || request.EndDate.HasValue;
     }
 
     /// <summary>

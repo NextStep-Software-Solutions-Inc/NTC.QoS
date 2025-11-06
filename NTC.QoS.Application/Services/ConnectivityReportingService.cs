@@ -15,8 +15,6 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null, 
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         bool includeOnlyServedAreas = false,
         CancellationToken cancellationToken = default);
 
@@ -24,8 +22,6 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         CancellationToken cancellationToken = default);
 
     Task<ConnectivityGapReportDto> GenerateConnectivityGapReportAsync(
@@ -40,8 +36,6 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         bool includeOnlyServedAreas = false,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default);
@@ -53,8 +47,6 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         bool includeOnlyServedAreas = false,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default);
@@ -113,8 +105,6 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         bool includeOnlyServedAreas = false,
         CancellationToken cancellationToken = default)
     {
@@ -123,14 +113,6 @@ public class ConnectivityReportingService : IConnectivityReportingService
         // Get relevant assessments based on geographic filters
         var assessments = await GetFilteredAssessmentsAsync(
             regionId, provinceId, municipalityId, LocationTypeEnum.Barangay, cancellationToken);
-
-        // Filter by date if specified
-        if (startDate.HasValue || endDate.HasValue)
-        {
-            assessments = assessments.Where(a => 
-                (!startDate.HasValue || a.AssessmentDate >= startDate.Value) &&
-                (!endDate.HasValue || a.AssessmentDate <= endDate.Value)).ToList();
-        }
 
         // Transform assessments to report format
         var municipalities = await TransformAssessmentsToMunicipalitiesAsync(assessments, cancellationToken);
@@ -166,8 +148,6 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         CancellationToken cancellationToken = default)
     {
         // Simulate async operation to avoid CS1998 warning
@@ -220,8 +200,6 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         bool includeOnlyServedAreas = false,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default)
@@ -229,7 +207,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         _logger.LogInformation("Generating wired broadband PDF report");
 
         var reportData = await GenerateWiredBroadbandReportAsync(
-            regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, cancellationToken);
+            regionId, provinceId, municipalityId, includeOnlyServedAreas, cancellationToken);
 
         return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(reportData, reportTitle, cancellationToken);
     }
@@ -238,8 +216,6 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
         bool includeOnlyServedAreas = false,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default)
@@ -247,7 +223,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         _logger.LogInformation("Generating wired broadband Excel report");
 
         var reportData = await GenerateWiredBroadbandReportAsync(
-            regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, cancellationToken);
+            regionId, provinceId, municipalityId, includeOnlyServedAreas, cancellationToken);
 
         return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(reportData, reportTitle, cancellationToken);
     }

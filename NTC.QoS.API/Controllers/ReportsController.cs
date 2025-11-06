@@ -41,8 +41,6 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="startDate">Optional start date filter for infrastructure data</param>
-    /// <param name="endDate">Optional end date filter for infrastructure data</param>
     /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
     /// <returns>Wired broadband coverage report with municipality/barangay breakdown</returns>
     [HttpGet("wired-broadband")]
@@ -50,8 +48,6 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null,
         [FromQuery] bool includeOnlyServedAreas = false)
     {
         var request = new GetWiredBroadbandReportQuery
@@ -59,8 +55,6 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
-            StartDate = startDate,
-            EndDate = endDate,
             IncludeOnlyServedAreas = includeOnlyServedAreas
         };
 
@@ -74,8 +68,6 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="startDate">Optional start date filter for infrastructure data</param>
-    /// <param name="endDate">Optional end date filter for infrastructure data</param>
     /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
     /// <param name="reportTitle">Custom title for the report</param>
     /// <returns>PDF file download</returns>
@@ -84,14 +76,12 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null,
         [FromQuery] bool includeOnlyServedAreas = false,
         [FromQuery] string? reportTitle = null)
     {
         var title = reportTitle ?? "Wired Broadband Coverage Report";
         var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
-            regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, title);
+            regionId, provinceId, municipalityId, includeOnlyServedAreas, title);
 
         var fileName = await GenerateFileNameAsync("WiredBroadband", "pdf", regionId, provinceId, municipalityId);
         return File(pdfBytes, "application/pdf", fileName);
@@ -103,8 +93,6 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="startDate">Optional start date filter for infrastructure data</param>
-    /// <param name="endDate">Optional end date filter for infrastructure data</param>
     /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
     /// <param name="reportTitle">Custom title for the report</param>
     /// <returns>Excel file download</returns>
@@ -113,14 +101,12 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null,
         [FromQuery] bool includeOnlyServedAreas = false,
         [FromQuery] string? reportTitle = null)
     {
         var title = reportTitle ?? "Wired Broadband Coverage Report";
         var excelBytes = await _connectivityReportingService.GenerateWiredBroadbandExcelAsync(
-            regionId, provinceId, municipalityId, startDate, endDate, includeOnlyServedAreas, title);
+            regionId, provinceId, municipalityId, includeOnlyServedAreas, title);
 
         var fileName = await GenerateFileNameAsync("WiredBroadband", "xlsx", regionId, provinceId, municipalityId);
         return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
