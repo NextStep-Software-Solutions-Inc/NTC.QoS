@@ -12,9 +12,24 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
 
     public async Task<ApiResponse<StudyDto>> Handle(GetStudyByIdRequest request, CancellationToken cancellationToken)
     {
-        var studyQuery = _studyRepository.Query(s => s.Id == request.Id && !s.IsDeleted);
-        var study = await _studyRepository.FirstOrDefaultAsync(studyQuery, cancellationToken);
-        if (study is null)
+        var studyDtoQuery = _studyRepository.Query(s => s.Id == request.Id)
+            .Select(study => new StudyDto
+            {
+                Id = study.Id,
+                Name = study.Name,
+                Description = study.Description,
+                AreaStudy = study.AreaStudy != null ? new()
+                {
+                    Id = study.AreaStudyId,
+                    Name = study.AreaStudy.Name,
+                    Description = study.AreaStudy.Description
+                } : null,
+                StudyRadius = study.StudyRadius
+            });
+
+        var studyDto = await _studyRepository.FirstOrDefaultAsync(studyDtoQuery, cancellationToken);
+        
+        if (studyDto is null)
         {
             return new ApiResponse<StudyDto>
             { 
@@ -28,20 +43,6 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
                 Succeeded = false
             };
         }
-
-        var studyDto = new StudyDto
-        {
-            Id = study.Id,
-            Name = study.Name,
-            Description = study.Description,
-            AreaStudy = new()
-            {
-                Id = study.AreaStudyId,
-                Name = study.AreaStudy?.Name ?? string.Empty,
-                Description = study.AreaStudy?.Description
-            },
-            StudyRadius = study.StudyRadius
-        };
 
         return new ApiResponse<StudyDto> 
         { 

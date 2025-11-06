@@ -571,7 +571,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         Guid barangayId, CancellationToken cancellationToken)
     {
         var barangayInfo = await _barangayRepository.FirstOrDefaultAsync(
-            _barangayRepository.Query(b => b.Id == barangayId)
+            _barangayRepository.QueryAsNoTracking(b => b.Id == barangayId)
                 .Select(b => new { b.Name, b.Center, b.Area, b.TotalPopulation, b.HouseholdCount }),
             cancellationToken);
 
@@ -580,7 +580,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         // Always load boundaries for barangays - they're typically small and accuracy is important
         Geometry? boundary = null;
-        var boundaryQuery = _barangayRepository.Query(b => b.Id == barangayId)
+        var boundaryQuery = _barangayRepository.QueryAsNoTracking(b => b.Id == barangayId)
             .Select(b => b.Boundaries);
         boundary = await _barangayRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
@@ -595,7 +595,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         Guid municipalityId, CancellationToken cancellationToken)
     {
         var municipalityInfo = await _municipalityRepository.FirstOrDefaultAsync(
-            _municipalityRepository.Query(m => m.Id == municipalityId)
+            _municipalityRepository.QueryAsNoTracking(m => m.Id == municipalityId)
                 .Select(m => new { m.Name, m.Center, m.Area, m.TotalPopulation, m.HouseholdCount }),
             cancellationToken);
 
@@ -604,7 +604,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         // Always load boundaries for accurate government mapping - performance optimized with caching
         Geometry? boundary = null;
-        var boundaryQuery = _municipalityRepository.Query(m => m.Id == municipalityId)
+        var boundaryQuery = _municipalityRepository.QueryAsNoTracking(m => m.Id == municipalityId)
             .Select(m => m.Boundaries);
         boundary = await _municipalityRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
@@ -619,7 +619,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         Guid provinceId, CancellationToken cancellationToken)
     {
         var provinceInfo = await _provinceRepository.FirstOrDefaultAsync(
-            _provinceRepository.Query(p => p.Id == provinceId)
+            _provinceRepository.QueryAsNoTracking(p => p.Id == provinceId)
                 .Select(p => new { p.Name, p.Center, p.Area, p.TotalPopulation, p.HouseholdCount }),
             cancellationToken);
 
@@ -628,7 +628,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         // Always load boundaries for accurate government mapping - performance optimized with caching
         Geometry? boundary = null;
-        var boundaryQuery = _provinceRepository.Query(p => p.Id == provinceId)
+        var boundaryQuery = _provinceRepository.QueryAsNoTracking(p => p.Id == provinceId)
             .Select(p => p.Boundaries);
         boundary = await _provinceRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
@@ -643,7 +643,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         Guid regionId, CancellationToken cancellationToken)
     {
         var regionInfo = await _regionRepository.FirstOrDefaultAsync(
-            _regionRepository.Query(r => r.Id == regionId)
+            _regionRepository.QueryAsNoTracking(r => r.Id == regionId)
                 .Select(r => new { r.Name, r.Center, r.Area, r.TotalPopulation, r.HouseholdCount }),
             cancellationToken);
 
@@ -652,7 +652,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         // Load boundaries for accurate government mapping - large regions benefit most from caching
         Geometry? boundary = null;
-        var boundaryQuery = _regionRepository.Query(r => r.Id == regionId)
+        var boundaryQuery = _regionRepository.QueryAsNoTracking(r => r.Id == regionId)
             .Select(r => r.Boundaries);
         boundary = await _regionRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
 
@@ -719,7 +719,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         if (boundary != null)
         {
             // Use accurate boundary with envelope optimization
-            var query = _speedtestRepository.Query();
+            var query = _speedtestRepository.QueryAsNoTracking();
             query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
             
             // Apply date range filter if provided
@@ -752,7 +752,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI);
             var searchRadiusMeters = searchRadiusKm * 1000;
 
-            var query = _speedtestRepository.Query()
+            var query = _speedtestRepository.QueryAsNoTracking()
                 .Where(s => s.Location.Distance(center) <= searchRadiusMeters);
             
             // Apply date range filter if provided
@@ -845,7 +845,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             if (useBoundary && boundary != null)
             {
                 // Use boundary-based queries for speedtest data
-                var speedtestQuery = _speedtestRepository.Query();
+                var speedtestQuery = _speedtestRepository.QueryAsNoTracking();
                 speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, speedtestQuery);
                 
                 // Apply date range filter if provided
@@ -871,7 +871,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
 
                 // Get cellular technology data using cell repository with spatial filter
-                var cellQuery = _cellRepository.Query();
+                var cellQuery = _cellRepository.QueryAsNoTracking();
                 cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
 
                 var cellularResults = await _cellRepository.ToListAsync(
@@ -888,7 +888,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
 
                 // Get wireless validation technology data
-                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
                     .Where(wv => wv.Barangay != null
                                && wv.Barangay.Center != null
                                && boundary.Intersects(wv.Barangay.Center)
@@ -921,7 +921,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
                 var searchRadiusMeters = searchRadiusKm * 1000;
 
-                var speedtestQuery = _speedtestRepository.Query()
+                var speedtestQuery = _speedtestRepository.QueryAsNoTracking()
                     .Where(s => s.Location.Distance(center) <= searchRadiusMeters
                               && s.Generation != null && s.Technology != null);
                 
@@ -946,7 +946,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
 
                 var cellularResults = await _cellularRepository.ToListAsync(
-                    _cellularRepository.Query()
+                    _cellularRepository.QueryAsNoTracking()
                         .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters)
                         .Select(c => new {
                             GenerationName = c.Technology!.Generation!.Name,
@@ -957,7 +957,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
 
                 // Get wireless validation technology data using barangay center distance
-                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
                     .Where(wv => wv.Barangay != null
                                && wv.Barangay.Center != null
                                && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
@@ -1855,7 +1855,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             {
                 case LocationTypeEnum.Regional:
                     var provinces = await _provinceRepository.ToListAsync(
-                        _provinceRepository.Query(p => p.RegionId == locationId)
+                        _provinceRepository.QueryAsNoTracking(p => p.RegionId == locationId)
                             .Select(p => new { p.Id, p.Name }), cancellationToken);
                     
                     results.AddRange(provinces.Select(p => (p.Id, LocationTypeEnum.Provincial, p.Name)));
@@ -1865,7 +1865,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         foreach (var province in provinces)
                         {
                             var municipalities = await _municipalityRepository.ToListAsync(
-                                _municipalityRepository.Query(m => m.ProvinceId == province.Id)
+                                _municipalityRepository.QueryAsNoTracking(m => m.ProvinceId == province.Id)
                                     .Select(m => new { m.Id, m.Name }), cancellationToken);
                             
                             results.AddRange(municipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
@@ -1879,7 +1879,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         foreach (var municipalityId in municipalityIds)
                         {
                             var barangays = await _barangayRepository.ToListAsync(
-                                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
+                                _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
                                     .Take(100)
                                     .Select(b => new { b.Id, b.Name }), cancellationToken);
                             
@@ -1890,7 +1890,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 case LocationTypeEnum.Provincial:
                     var provinceMunicipalities = await _municipalityRepository.ToListAsync(
-                        _municipalityRepository.Query(m => m.ProvinceId == locationId)
+                        _municipalityRepository.QueryAsNoTracking(m => m.ProvinceId == locationId)
                             .Select(m => new { m.Id, m.Name }), cancellationToken);
                     
                     results.AddRange(provinceMunicipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
@@ -1902,7 +1902,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         foreach (var municipalityId in municipalityIds)
                         {
                             var barangays = await _barangayRepository.ToListAsync(
-                                _barangayRepository.Query(b => b.MunicipalityId == municipalityId)
+                                _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
                                     .Take(100)
                                     .Select(b => new { b.Id, b.Name }), cancellationToken);
                             
@@ -1913,7 +1913,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 case LocationTypeEnum.Municipality:
                     var municipalityBarangays = await _barangayRepository.ToListAsync(
-                        _barangayRepository.Query(b => b.MunicipalityId == locationId)
+                        _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == locationId)
                             .Take(200)
                             .Select(b => new { b.Id, b.Name }), cancellationToken);
                     
@@ -1947,17 +1947,17 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             _logger.LogDebug("Using accurate MultiPolygon boundaries for precise infrastructure counting");
 
-            var cellQuery = _cellRepository.Query();
+            var cellQuery = _cellRepository.QueryAsNoTracking();
             cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
             cells = await _cellRepository.ToListAsync(
                 cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
 
-            var napQuery = _napRepository.Query();
+            var napQuery = _napRepository.QueryAsNoTracking();
             napQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, napQuery);
             naps = await _napRepository.ToListAsync(
                 napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
 
-            var wifiQuery = _wifiRepository.Query();
+            var wifiQuery = _wifiRepository.QueryAsNoTracking();
             wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
@@ -1986,17 +1986,17 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var searchRadiusMeters = searchRadiusKm * 1000;
 
             // Get infrastructure using distance-based queries
-            var cellQuery = _cellRepository.Query()
+            var cellQuery = _cellRepository.QueryAsNoTracking()
                 .Where(c => c.Location.Distance(center) <= searchRadiusMeters);
             cells = await _cellRepository.ToListAsync(
                 cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
 
-            var napQuery = _napRepository.Query()
+            var napQuery = _napRepository.QueryAsNoTracking()
                 .Where(n => n.Location.Distance(center) <= searchRadiusMeters);
             naps = await _napRepository.ToListAsync(
                 napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
 
-            var wifiQuery = _wifiRepository.Query()
+            var wifiQuery = _wifiRepository.QueryAsNoTracking()
                 .Where(w => w.Location.Distance(center) <= searchRadiusMeters);
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);

@@ -1,11 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.ServiceProvider.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Provider;
-using NTC.QoS.Domain.Models.DTOs.Service;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
@@ -13,12 +9,34 @@ namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
 public class GetServiceProviderByIdHandler(IServiceProviderRepository serviceProviderRepository) : IRequestHandler<GetServiceProviderByIdRequest, ApiResponse<ServiceProviderDto>>
 {
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
+    
     public async Task<ApiResponse<ServiceProviderDto>> Handle(GetServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
-        var serviceProviderQuery = _serviceProviderRepository.Query(sp => sp.Id.Equals(request.Id));
-        var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
+        var serviceProviderDtoQuery = _serviceProviderRepository.Query(sp => sp.Id.Equals(request.Id))
+            .Select(serviceProvider => new ServiceProviderDto
+            {
+                Id = serviceProvider.Id,
+                Provider = serviceProvider.Provider != null ? new()
+                {
+                    Id = serviceProvider.ProviderId,
+                    Name = serviceProvider.Provider.Name,
+                    Description = serviceProvider.Provider.Description,
+                    LicenseNumber = serviceProvider.Provider.LicenseNumber,
+                    Color = serviceProvider.Provider.Color
+                } : null,
+                Service = serviceProvider.Service != null ? new()
+                {
+                    Id = serviceProvider.ServiceId,
+                    Name = serviceProvider.Service.Name,
+                    Type = serviceProvider.Service.Type.ToString()
+                } : null,
+                MNC = serviceProvider.MNC,
+                MCC = serviceProvider.MCC
+            });
 
-        if (serviceProvider is null)
+        var serviceProviderDto = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderDtoQuery, cancellationToken);
+
+        if (serviceProviderDto is null)
         {
             return new ApiResponse<ServiceProviderDto>
             {
@@ -35,26 +53,7 @@ public class GetServiceProviderByIdHandler(IServiceProviderRepository servicePro
 
         return new ApiResponse<ServiceProviderDto>
         {
-            Data = new ServiceProviderDto
-            {
-                Id = serviceProvider.Id,
-                Provider = new ProviderDto
-                {
-                    Id = serviceProvider.ProviderId,
-                    Name = serviceProvider.Provider?.Name ?? string.Empty,
-                    Description = serviceProvider.Provider?.Description ?? string.Empty,
-                    LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty,
-                    Color = serviceProvider.Provider?.Color ?? string.Empty
-                },
-                Service = new ServiceDto
-                {
-                    Id = serviceProvider.ServiceId,
-                    Name = serviceProvider.Service?.Name ?? string.Empty,
-                    Type = serviceProvider.Service?.Type.ToString() ?? string.Empty
-                },
-                MNC = serviceProvider.MNC,
-                MCC = serviceProvider.MCC
-            },
+            Data = serviceProviderDto,
             Succeeded = true,
             Message = "Service provider retrieved successfully."
         };

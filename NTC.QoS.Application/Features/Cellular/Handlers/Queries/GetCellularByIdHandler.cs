@@ -12,9 +12,62 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
 
     public async Task<ApiResponse<CellularDto>> Handle(GetCellularByIdRequest request, CancellationToken cancellationToken)
     {
-        var cellularQuery = _cellularRepository.Query(c => c.Id.Equals(request.Id));
-        var cellular = await _cellularRepository.FirstOrDefaultAsync(cellularQuery, cancellationToken);
-        if (cellular is null)
+        var cellularDtoQuery = _cellularRepository.Query(c => c.Id.Equals(request.Id))
+            .Select(cellular => new CellularDto
+            {
+                Id = cellular.Id,
+                CellSector = cellular.CellSector != null ? new()
+                {
+                    Id = cellular.CellSectorId,
+                    Cell = new()
+                    {
+                        Id = cellular.CellSector.Cell.Id,
+                        Name = cellular.CellSector.Cell.Name,
+                        Description = cellular.CellSector.Cell.Description,
+                        Longitude = cellular.CellSector.Cell.Location.Coordinate.X,
+                        Latitude = cellular.CellSector.Cell.Location.Coordinate.Y,
+                        LAC = cellular.CellSector.Cell.LAC,
+                        CID = cellular.CellSector.Cell.CID
+                    },
+                    AntennaType = cellular.CellSector.AntennaType.ToString(),
+                    AntennaHeight = cellular.CellSector.AntennaHeight,
+                    Azimuth = cellular.CellSector.Azimuth,
+                    BeamTilt = cellular.CellSector.BeamTilt
+                } : null,
+                ServiceProvider = cellular.ServiceProvider != null ? new()
+                {
+                    Id = cellular.ServiceProviderId,
+                    Provider = new()
+                    {
+                        Id = cellular.ServiceProvider.ProviderId,
+                        Name = cellular.ServiceProvider.Provider.Name,
+                        Color = cellular.ServiceProvider.Provider.Color
+                    },
+                    Service = new()
+                    {
+                        Id = cellular.ServiceProvider.ServiceId,
+                        Name = cellular.ServiceProvider.Service.Name,
+                        Type = cellular.ServiceProvider.Service.Type.ToString()
+                    }
+                } : null,
+                Technology = cellular.Technology != null ? new()
+                {
+                    Id = cellular.TechnologyId,
+                    Standard = cellular.Technology.Standard,
+                    Description = cellular.Technology.Description
+                } : null,
+                Band = cellular.Band != null ? new()
+                {
+                    Id = cellular.BandId,
+                    Name = cellular.Band.Name,
+                    Description = cellular.Band.Description
+                } : null,
+                Address = cellular.Address
+            });
+
+        var cellularDto = await _cellularRepository.FirstOrDefaultAsync(cellularDtoQuery, cancellationToken);
+        
+        if (cellularDto is null)
         {
             return new ApiResponse<CellularDto>
             {
@@ -31,57 +84,7 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
         {
             Succeeded = true,
             Message = "Cellular record retrieved successfully.",
-            Data = new CellularDto
-            {
-                Id = cellular.Id,
-                CellSector = cellular.CellSector != null ? new()
-                {
-                    Id = cellular.CellSectorId,
-                    Cell = new()
-                    {
-                        Id = cellular.CellSector.Cell.Id,
-                        Name = cellular.CellSector.Cell.Name,
-                        Description = cellular.CellSector.Cell.Description,
-                        Longitude = cellular.CellSector.Cell.Location.Coordinate.X,
-                        Latitude = cellular.CellSector.Cell.Location.Coordinate.Y,
-                        LAC = cellular.CellSector.Cell.LAC,
-                        CID = cellular.CellSector.Cell.CID,
-                    },
-                    AntennaType = cellular.CellSector.AntennaType.ToString(),
-                    AntennaHeight = cellular.CellSector.AntennaHeight,
-                    Azimuth = cellular.CellSector.Azimuth,
-                    BeamTilt = cellular.CellSector.BeamTilt
-                } : null,
-                ServiceProvider = cellular.ServiceProvider != null && cellular.ServiceProvider.Provider != null && cellular.ServiceProvider.Service != null ? new()
-                {
-                    Id = cellular.ServiceProviderId,
-                    Provider = new()
-                    {
-                        Id = cellular.ServiceProvider.ProviderId,
-                        Name = cellular.ServiceProvider.Provider.Name,
-                        Color = cellular.ServiceProvider.Provider.Color,
-                    },
-                    Service = new()
-                    {
-                        Id = cellular.ServiceProvider.ServiceId,
-                        Name = cellular.ServiceProvider.Service.Name,
-                        Type = cellular.ServiceProvider.Service.Type.ToString(),
-                    },
-                } : null,
-                Technology = cellular.Technology != null ? new()
-                {
-                    Id = cellular.TechnologyId,
-                    Standard = cellular.Technology.Standard,
-                    Description = cellular.Technology.Description
-                } : null,
-                Band = cellular.Band != null ? new()
-                {
-                    Id = cellular.BandId,
-                    Name = cellular.Band.Name,
-                    Description = cellular.Band.Description
-                } : null,
-                Address = cellular.Address
-            }
+            Data = cellularDto
         };
     }
 }
