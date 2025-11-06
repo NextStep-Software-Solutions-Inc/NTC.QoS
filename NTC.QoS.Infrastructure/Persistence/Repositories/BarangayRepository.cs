@@ -1,39 +1,22 @@
-﻿using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Entities;
-using NTC.QoS.Domain.Helper;
+﻿using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
-using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 internal sealed class BarangayRepository(ApplicationDbContext context) : Repository<Barangay>(context), IBarangayRepository
 {
-    public override IQueryable<Barangay> Query(Expression<Func<Barangay, bool>>? expression = null)
+    public IQueryable<Barangay> SearchByName(IQueryable<Barangay> query, string name)
     {
-        var query = _context.Set<Barangay>()
-            .Include(b => b.Municipality)
-                .ThenInclude(m => m.Province)
-                    .ThenInclude(p => p.Region)
-            .AsQueryable();
-
-        if (expression != null)
-        {
-            query = query.Where(expression);
-        }
-
-        return query;
+        return ApplySearch(query, name, b => b.Name);
     }
 
-    public async Task<Barangay?> FindByLocationAsync(double latitude, double longitude)
+    public IQueryable<Barangay> SearchByMunicipalityName(IQueryable<Barangay> query, string municipalityName)
     {
-        var point = GeometryHelper.CreatePoint(new Coordinate(longitude, latitude));
+        return ApplySearch(query, municipalityName, b => b.Municipality.Name);
+    }
 
-        return await _context.Set<Barangay>()
-            .Include(b => b.Municipality)
-                .ThenInclude(m => m.Province)
-                    .ThenInclude(p => p.Region)
-            .Where(b => b.Boundaries != null && b.Boundaries.Contains(point))
-            .FirstOrDefaultAsync();
+    public IQueryable<Barangay> SearchByProvinceName(IQueryable<Barangay> query, string provinceName)
+    {
+        return ApplySearch(query, provinceName, b => b.Municipality.Province.Name);
     }
 }

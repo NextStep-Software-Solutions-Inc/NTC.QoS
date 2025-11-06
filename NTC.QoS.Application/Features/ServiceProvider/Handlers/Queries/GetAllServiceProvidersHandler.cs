@@ -12,7 +12,7 @@ public class GetAllServiceProvidersHandler (IServiceProviderRepository servicePr
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     public async Task<PaginatedResponse<ServiceProviderDto>> Handle(GetAllServiceProvidersRequest request, CancellationToken cancellationToken)
     {
-        var allServiceProvidersQuery = _serviceProviderRepository.Query();
+        var allServiceProvidersQuery = _serviceProviderRepository.QueryAsNoTracking();
 
         var requestedServiceTypes = request.ServiceTypes?
             .Select(st => EnumHelper<ServiceTypeEnum>.GetValue(st))
