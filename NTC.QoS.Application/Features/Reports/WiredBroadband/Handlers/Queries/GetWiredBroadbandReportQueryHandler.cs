@@ -315,7 +315,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
         // Extract ALL provider information from assessment (not just dominant + fiber check)
         if (assessment.ServiceProviderCount > 0)
-    {
+        {
             // Get all providers from the provider breakdown
             var providerBreakdown = await _connectivityAssessmentRepository
                 .GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
@@ -338,8 +338,8 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             providerAvailability.Providers[provider] = true;
         }
 
-        // Map connectivity status to service status
-        var serviceStatus = MapConnectivityStatusToServiceStatus(assessment.ConnectivityStatus);
+        // For wired broadband, use fiber coverage score to determine status
+        var serviceStatus = DetermineWiredBroadbandStatus(assessment.FiberCoverageScore);
         var remarks = GenerateRemarksFromAssessment(assessment, isBarangayLevel);
 
         return new BarangayBroadbandDto
@@ -388,8 +388,8 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             providerAvailability.Providers[provider] = true;
         }
 
-        // Use municipality status as approximation
-        var serviceStatus = MapConnectivityStatusToServiceStatus(municipalityAssessment.ConnectivityStatus);
+        // For wired broadband, use fiber coverage score to determine status
+        var serviceStatus = DetermineWiredBroadbandStatus(municipalityAssessment.FiberCoverageScore);
         var remarks = GenerateRemarksFromMunicipalityAssessment(municipalityAssessment);
 
         return new BarangayBroadbandDto
@@ -405,6 +405,8 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
     /// <summary>
     /// Map connectivity status from assessment to report service status
+    /// For wired broadband, status is determined solely by Fiber Coverage Score
+    /// Score 3 = Served, Score 2 = Underserved, Score 1 = Unserved
     /// </summary>
     private static ServiceStatusEnum MapConnectivityStatusToServiceStatus(ConnectivityStatusEnum connectivityStatus)
     {
@@ -418,15 +420,31 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     }
 
     /// <summary>
+    /// Determine wired broadband service status based solely on Fiber Coverage Score
+    /// This is specific to wired broadband reporting and differs from general connectivity assessment
+    /// Score 3 = Served, Score 2 = Underserved, Score 1 = Unserved
+    /// </summary>
+    private static ServiceStatusEnum DetermineWiredBroadbandStatus(int fiberCoverageScore)
+    {
+        return fiberCoverageScore switch
+        {
+            3 => ServiceStatusEnum.Served,
+            2 => ServiceStatusEnum.Underserved,
+            _ => ServiceStatusEnum.Unserved  // 1 or 0
+        };
+    }
+
+    /// <summary>
     /// Generate remarks based on assessment data with level indicator
+    /// For wired broadband, remarks emphasize fiber coverage
     /// </summary>
     private static string GenerateRemarksFromAssessment(Domain.Entities.ConnectivityAssessment assessment, bool isBarangayLevel)
     {
-        var remarks = assessment.ConnectivityStatus switch
+        // For wired broadband, status is determined by Fiber Coverage Score
+        var remarks = assessment.FiberCoverageScore switch
         {
-            ConnectivityStatusEnum.Served => "SERVED",
-            ConnectivityStatusEnum.Underserved => "UNDERSERVED",
-            ConnectivityStatusEnum.Unserved => "UNSERVED",
+            3 => "SERVED",
+            2 => "UNDERSERVED",
             _ => "UNSERVED"
         };
 
@@ -454,14 +472,15 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
     /// <summary>
     /// Generate remarks based on municipality-level assessment used as approximation
+    /// For wired broadband, remarks emphasize fiber coverage
     /// </summary>
     private static string GenerateRemarksFromMunicipalityAssessment(Domain.Entities.ConnectivityAssessment assessment)
     {
-        var remarks = assessment.ConnectivityStatus switch
+        // For wired broadband, status is determined by Fiber Coverage Score
+        var remarks = assessment.FiberCoverageScore switch
         {
-            ConnectivityStatusEnum.Served => "SERVED",
-            ConnectivityStatusEnum.Underserved => "UNDERSERVED",
-            ConnectivityStatusEnum.Unserved => "UNSERVED",
+            3 => "SERVED",
+            2 => "UNDERSERVED",
             _ => "UNSERVED"
         };
 

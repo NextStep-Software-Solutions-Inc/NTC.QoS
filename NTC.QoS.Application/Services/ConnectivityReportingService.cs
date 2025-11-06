@@ -335,10 +335,11 @@ public class ConnectivityReportingService : IConnectivityReportingService
             providers.Providers[assessment.DominantServiceProvider] = true;
         }
 
-        var serviceStatus = assessment.ConnectivityStatus switch
+        // For wired broadband, use fiber coverage score to determine status
+        var serviceStatus = assessment.FiberCoverageScore switch
         {
-            ConnectivityStatusEnum.Served => ServiceStatusEnum.Served,
-            ConnectivityStatusEnum.Underserved => ServiceStatusEnum.Underserved,
+            3 => ServiceStatusEnum.Served,
+            2 => ServiceStatusEnum.Underserved,
             _ => ServiceStatusEnum.Unserved
         };
 
