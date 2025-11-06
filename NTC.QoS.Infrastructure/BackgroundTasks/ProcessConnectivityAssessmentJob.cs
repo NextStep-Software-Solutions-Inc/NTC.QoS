@@ -424,7 +424,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
          
             // Update provider breakdown - delete old records and insert new ones
             await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existing.Id, cancellationToken);
-              
+     
             // Batch insert all providers at once for better performance
             var providers = infrastructureStats.ProviderBreakdown
                 .Select(provider => new ConnectivityAssessmentProvider
@@ -434,13 +434,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     CellTowerCount = provider.CellTowerCount,
                     FiberNAPCount = provider.FiberNAPCount,
                     WiFiHotspotCount = provider.WiFiHotspotCount,
+                    WirelessValidationCount = provider.WirelessValidationCount,
                     TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
                 })
                 .ToList();
-                
+       
             await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
-                
+ 
             await _connectivityRepository.SaveChangesAsync(cancellationToken);
             return CreateLocationConnectivityDto(existing, locationName);
         }
@@ -448,7 +449,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             // Create new assessment
             await _connectivityRepository.AddAsync(newAssessmentData, cancellationToken);
-                
+        
             // Save provider breakdown for new assessment - batch insert for better performance
             var providers = infrastructureStats.ProviderBreakdown
                 .Select(provider => new ConnectivityAssessmentProvider
@@ -458,13 +459,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     CellTowerCount = provider.CellTowerCount,
                     FiberNAPCount = provider.FiberNAPCount,
                     WiFiHotspotCount = provider.WiFiHotspotCount,
+                    WirelessValidationCount = provider.WirelessValidationCount,
                     TotalAssetCount = provider.TotalAssetCount,
                     AssetPercentage = provider.AssetPercentage
                 })
-            .ToList();
-              
+                .ToList();
+
             await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
-       
+ 
             // Save all changes atomically in a single transaction
             await _connectivityRepository.SaveChangesAsync(cancellationToken);
          
@@ -1992,7 +1994,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
-        List<string> cells, naps, wirelessValidations, wifiHotspots;
+        List<string> cells, naps, wifiHotspots, wirelessValidations;
         TechnologyBreakdownDto? technologyBreakdown = null;
 
         if (boundary != null)
@@ -2106,7 +2108,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
         // Calculate provider breakdown with asset counts
-        var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots);
+        var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots, wirelessValidations);
 
         return new()
         {
@@ -2123,42 +2125,52 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// <summary>
     /// Calculates detailed provider breakdown showing asset counts per provider in descending order
     /// </summary>
-    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(List<string> cells, List<string> naps, List<string> wifiHotspots)
+    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(List<string> cells, List<string> naps, List<string> wifiHotspots, List<string> wirelessValidations)
     {
         // Group all assets by provider
-        var providerAssets = new Dictionary<string, (int Cells, int NAPs, int WiFi)>();
+        var providerAssets = new Dictionary<string, (int Cells, int NAPs, int WiFi, int WirelessValidations)>();
 
         // Count cell towers per provider
         foreach (var provider in cells.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
-                providerAssets[provider] = (0, 0, 0);
+                providerAssets[provider] = (0, 0, 0, 0);
    
             var current = providerAssets[provider];
-            providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi);
+            providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi, current.WirelessValidations);
         }
 
         // Count NAPs per provider
         foreach (var provider in naps.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
-                providerAssets[provider] = (0, 0, 0);
+                providerAssets[provider] = (0, 0, 0, 0);
             
             var current = providerAssets[provider];
-            providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi);
+            providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi, current.WirelessValidations);
         }
 
         // Count WiFi hotspots per provider
         foreach (var provider in wifiHotspots.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
-                providerAssets[provider] = (0, 0, 0);
-            
+                providerAssets[provider] = (0, 0, 0, 0);
+    
             var current = providerAssets[provider];
-            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1);
+            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1, current.WirelessValidations);
         }
 
-        var totalAssets = cells.Count + naps.Count + wifiHotspots.Count;
+        // Count wireless validations per provider
+        foreach (var provider in wirelessValidations.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0, 0);
+            
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi, current.WirelessValidations + 1);
+        }
+
+        var totalAssets = cells.Count + naps.Count + wifiHotspots.Count + wirelessValidations.Count;
 
         // Create breakdown DTOs ordered by total asset count descending
         var breakdown = providerAssets
@@ -2168,12 +2180,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 CellTowerCount = kvp.Value.Cells,
                 FiberNAPCount = kvp.Value.NAPs,
                 WiFiHotspotCount = kvp.Value.WiFi,
+                WirelessValidationCount = kvp.Value.WirelessValidations,
                 AssetPercentage = totalAssets > 0 
-                    ? Math.Round(((double)(kvp.Value.Cells + kvp.Value.NAPs + kvp.Value.WiFi) / totalAssets) * 100, 2)
+                    ? Math.Round(((double)(kvp.Value.Cells + kvp.Value.NAPs + kvp.Value.WiFi + kvp.Value.WirelessValidations) / totalAssets) * 100, 2)
                     : 0
             })
             .OrderByDescending(p => p.TotalAssetCount)
-            .ToList();
+       .ToList();
 
         return breakdown;
     }
