@@ -356,7 +356,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Process a single location assessment
+    /// Process a single location assessment - NOW SAVES PROVIDER BREAKDOWN
     /// </summary>
     private async Task<LocationConnectivityDto?> ProcessSingleLocation(
         Guid locationId, 
@@ -371,52 +371,104 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         try
         {
             ConnectivityAssessment? existing = null;
-            
+          
             // First check the pre-loaded cache
-            if (existingAssessments.TryGetValue((locationId, locationType), out existing))
+        if (existingAssessments.TryGetValue((locationId, locationType), out existing))
+        {
+            // If not forcing recalculation and assessment is recent, use it
+            if (!forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
             {
-                // If not forcing recalculation and assessment is recent, use it
-                if (!forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
-                {
-                    _logger.LogDebug("Using existing recent assessment for {LocationType} {LocationId}", locationType, locationId);
-                    return CreateLocationConnectivityDto(existing, locationName);
-                }
-            }
-            else
-            {
-                // If not in cache, check database directly to avoid duplicate key errors
-                existing = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
-                
-                // If found and not forcing recalculation and is recent, use it
-                if (existing != null && !forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
-                {
-                    _logger.LogDebug("Using existing recent assessment (from DB) for {LocationType} {LocationId}", locationType, locationId);
-                    return CreateLocationConnectivityDto(existing, locationName);
-                }
-            }
-
-            // Generate new assessment
-            _logger.LogDebug("Generating new assessment for {LocationType} {LocationId} (existing: {HasExisting}, force: {ForceRecalculate})", 
-                locationType, locationId, existing != null, forceRecalculate);
-            
-            var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
-            
-            if (existing != null)
-            {
-                // Update existing assessment
-                UpdateExistingAssessment(existing, newAssessmentData);
-                _connectivityRepository.Update(existing);
-                
-                await _connectivityRepository.SaveChangesAsync(cancellationToken);
+                _logger.LogDebug("Using existing recent assessment for {LocationType} {LocationId}", locationType, locationId);
                 return CreateLocationConnectivityDto(existing, locationName);
             }
-            else
+        }
+        else
+        {
+            // If not in cache, check database directly to avoid duplicate key errors
+            existing = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
+      
+            // If found and not forcing recalculation and is recent, use it
+            if (existing != null && !forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
             {
-                // Create new assessment
-                await _connectivityRepository.AddAsync(newAssessmentData, cancellationToken);
-                await _connectivityRepository.SaveChangesAsync(cancellationToken);
+                _logger.LogDebug("Using existing recent assessment (from DB) for {LocationType} {LocationId}", locationType, locationId);
+                return CreateLocationConnectivityDto(existing, locationName);
+            }
+        }
+
+        // Generate new assessment
+        _logger.LogDebug("Generating new assessment for {LocationType} {LocationId} (existing: {HasExisting}, force: {ForceRecalculate})", 
+           locationType, locationId, existing != null, forceRecalculate);
+      
+        var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
+            
+        // Get location details to retrieve boundary for infrastructure calculation
+        var (_, boundary, center, areaKm2, _, _) = await GetLocationDetailsAsync(locationId, locationType, cancellationToken);
+            
+        // Calculate infrastructure stats to get provider breakdown
+        var infrastructureStats = await CalculateInfrastructureStatsAsync(
+            boundary, 
+            center ?? new Point(0, 0), 
+            areaKm2, 
+            locationId, 
+            locationType, 
+            forceRecalculate, 
+            startDate, 
+            endDate, 
+            cancellationToken);
+     
+        if (existing != null)
+        {
+            // Update existing assessment
+            UpdateExistingAssessment(existing, newAssessmentData);
+            _connectivityRepository.Update(existing);
+         
+            // Update provider breakdown - delete old records and insert new ones
+            await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existing.Id, cancellationToken);
+              
+            // Batch insert all providers at once for better performance
+            var providers = infrastructureStats.ProviderBreakdown
+                .Select(provider => new ConnectivityAssessmentProvider
+                {
+                    ConnectivityAssessmentId = existing.Id,
+                    ProviderName = provider.ProviderName,
+                    CellTowerCount = provider.CellTowerCount,
+                    FiberNAPCount = provider.FiberNAPCount,
+                    WiFiHotspotCount = provider.WiFiHotspotCount,
+                    TotalAssetCount = provider.TotalAssetCount,
+                    AssetPercentage = provider.AssetPercentage
+                })
+                .ToList();
                 
-                return CreateLocationConnectivityDto(newAssessmentData, locationName);
+            await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
+                
+            await _connectivityRepository.SaveChangesAsync(cancellationToken);
+            return CreateLocationConnectivityDto(existing, locationName);
+        }
+        else
+        {
+            // Create new assessment
+            await _connectivityRepository.AddAsync(newAssessmentData, cancellationToken);
+                
+            // Save provider breakdown for new assessment - batch insert for better performance
+            var providers = infrastructureStats.ProviderBreakdown
+                .Select(provider => new ConnectivityAssessmentProvider
+                {
+                    ConnectivityAssessmentId = newAssessmentData.Id,
+                    ProviderName = provider.ProviderName,
+                    CellTowerCount = provider.CellTowerCount,
+                    FiberNAPCount = provider.FiberNAPCount,
+                    WiFiHotspotCount = provider.WiFiHotspotCount,
+                    TotalAssetCount = provider.TotalAssetCount,
+                    AssetPercentage = provider.AssetPercentage
+                })
+            .ToList();
+              
+            await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
+       
+            // Save all changes atomically in a single transaction
+            await _connectivityRepository.SaveChangesAsync(cancellationToken);
+         
+            return CreateLocationConnectivityDto(newAssessmentData, locationName);
             }
         }
         catch (Exception ex)
@@ -1570,7 +1622,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             }
 
             // Clear memory cache entries that might be stale
-            _memoryCache.Remove($"assessment_cache_{jobId}");
+            _memoryCache.Remove($"assessment_cache_" + jobId);
 
             await Task.Delay(10); // Small delay to allow GC to complete
         }
@@ -1940,7 +1992,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
-        List<string> cells, naps, wifiHotspots;
+        List<string> cells, naps, wirelessValidations, wifiHotspots;
         TechnologyBreakdownDto? technologyBreakdown = null;
 
         if (boundary != null)
@@ -1961,6 +2013,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+
+            // Get wireless validations using barangay center within boundary with date filter
+            var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
+                .Where(wv => wv.Barangay != null
+                           && wv.Barangay.Center != null
+                           && boundary.Intersects(wv.Barangay.Center)
+                           && wv.ServiceProvider != null
+                           && wv.ServiceProvider.Provider != null);
+
+            // Apply date range filter if provided
+            if (startDate.HasValue)
+            {
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+            }
+
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             var techCacheKey = $"tech:{locationType}:{locationId}";
             if (!forceRecalculate && _memoryCache.TryGetValue(techCacheKey, out TechnologyBreakdownDto? cachedTech) && cachedTech != null)
@@ -2001,12 +2075,38 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             wifiHotspots = await _wifiRepository.ToListAsync(
                 wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
 
+            // Get wireless validation technology data using barangay center distance
+            var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
+                .Where(wv => wv.Barangay != null
+                           && wv.Barangay.Center != null
+                           && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                           && wv.ServiceProvider != null
+                           && wv.ServiceProvider.Provider != null);
+            
+            // Apply date range filter if provided
+            if (startDate.HasValue)
+            {
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+            }
+            
+            wirelessValidations = await _wirelessValidationRepository.ToListAsync(
+                wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
+
             technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
         }
 
-        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Where(p => !string.IsNullOrEmpty(p)).ToList();
+        // Include wireless validations in provider list
+        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+
+        // Calculate provider breakdown with asset counts
+        var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots);
 
         return new()
         {
@@ -2015,7 +2115,66 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             WiFiHotspotCount = wifiHotspots.Count,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
-            TechnologyBreakdown = technologyBreakdown
+            TechnologyBreakdown = technologyBreakdown,
+            ProviderBreakdown = providerBreakdown
         };
+    }
+
+    /// <summary>
+    /// Calculates detailed provider breakdown showing asset counts per provider in descending order
+    /// </summary>
+    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(List<string> cells, List<string> naps, List<string> wifiHotspots)
+    {
+        // Group all assets by provider
+        var providerAssets = new Dictionary<string, (int Cells, int NAPs, int WiFi)>();
+
+        // Count cell towers per provider
+        foreach (var provider in cells.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0);
+   
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi);
+        }
+
+        // Count NAPs per provider
+        foreach (var provider in naps.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0);
+            
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi);
+        }
+
+        // Count WiFi hotspots per provider
+        foreach (var provider in wifiHotspots.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            if (!providerAssets.ContainsKey(provider))
+                providerAssets[provider] = (0, 0, 0);
+            
+            var current = providerAssets[provider];
+            providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1);
+        }
+
+        var totalAssets = cells.Count + naps.Count + wifiHotspots.Count;
+
+        // Create breakdown DTOs ordered by total asset count descending
+        var breakdown = providerAssets
+            .Select(kvp => new ProviderBreakdownDto
+            {
+                ProviderName = kvp.Key,
+                CellTowerCount = kvp.Value.Cells,
+                FiberNAPCount = kvp.Value.NAPs,
+                WiFiHotspotCount = kvp.Value.WiFi,
+                AssetPercentage = totalAssets > 0 
+                    ? Math.Round(((double)(kvp.Value.Cells + kvp.Value.NAPs + kvp.Value.WiFi) / totalAssets) * 100, 2)
+                    : 0
+            })
+            .OrderByDescending(p => p.TotalAssetCount)
+            .ToList();
+
+        return breakdown;
     }
 }

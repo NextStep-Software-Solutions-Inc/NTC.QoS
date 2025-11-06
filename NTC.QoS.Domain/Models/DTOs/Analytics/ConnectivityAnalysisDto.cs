@@ -150,16 +150,21 @@ public class ProviderBreakdownDto
     /// Number of fiber NAPs from this provider
     /// </summary>
     public int FiberNAPCount { get; set; }
-    
+  
     /// <summary>
     /// Number of WiFi hotspots from this provider
     /// </summary>
     public int WiFiHotspotCount { get; set; }
     
     /// <summary>
+    /// Number of wireless validations from this provider
+    /// </summary>
+  public int WirelessValidationCount { get; set; }
+    
+    /// <summary>
     /// Total assets from this provider
     /// </summary>
-    public int TotalAssetCount => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
+    public int TotalAssetCount => CellTowerCount + FiberNAPCount + WiFiHotspotCount + WirelessValidationCount;
     
     /// <summary>
     /// Percentage of total assets in the area
