@@ -18,6 +18,10 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
             filesQuery = _repository.SearchByName(filesQuery, request.Search);
         }
 
+        filesQuery = filesQuery
+            .Where(f => request.Types == null || request.Types.Length == 0 || request.Types.Contains(f.Type.ToString()))
+            .Where(f => request.Statuses == null || request.Statuses.Length == 0 || request.Statuses.Contains(f.Status.ToString()));
+
         var filesDtoQuery = filesQuery
             .OrderByDescending(file => file.UploadDate)
             .Select(file => new FileDto
@@ -30,10 +34,6 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
                 Type = file.Type.ToString() ?? string.Empty,
                 Status = file.Status.ToString() ?? string.Empty
             });
-
-        filesDtoQuery = filesDtoQuery
-            .Where(f => request.Types == null || request.Types.Length == 0 || request.Types.Contains(f.Type))
-            .Where(f => request.Statuses == null || request.Statuses.Length == 0 || request.Statuses.Contains(f.Status));
 
         return await _repository.PaginateAsync(filesDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     }
