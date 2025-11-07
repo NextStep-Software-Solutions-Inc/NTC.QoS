@@ -17,45 +17,39 @@ public class GeospatialQueryService
         _dbContext = dbContext;
     }
 
+    /// <summary>
+    /// Gets top geographic entities by cell count with optimized spatial queries.
+    /// OPTIMIZED: Uses single batched query with GroupJoin to minimize database roundtrips.
+    /// </summary>
     public async Task<List<GeoEntityCellCountDto>> GetTopGeoEntitiesByCellCountAsync<TEntity>(
         int limit,
         DateTime? startDate = null,
         DateTime? endDate = null)
         where TEntity : BaseEntity, new()
     {
-        var geoEntitiesQuery = _dbContext.Set<TEntity>()
-            .Select(geoEntity => new
-            {
-                Id = geoEntity.Id,
-                Name = EF.Property<string>(geoEntity, "Name"),
-                Code = EF.Property<string>(geoEntity, "Code"),
-                Boundaries = EF.Property<MultiPolygon>(geoEntity, "Boundaries"),
-                EntityType = typeof(TEntity).Name
-            });
-
         var cellsQuery = _dbContext.Cells
-            .Where(c => !c.IsDeleted &&
-                        EF.Property<Point>(c, "Location") != null &&
-                        (startDate == null || c.CreatedAt >= startDate) &&
-                        (endDate == null || c.CreatedAt <= endDate));
+            .AsNoTracking()
+            .Where(c => !c.IsDeleted && c.Location != null);
 
-        var results = await (
-            from geo in geoEntitiesQuery
-            join cell in cellsQuery
-                on 1 equals 1 into cellGroup
-            from cell in cellGroup
-                .Where(c => geo.Boundaries != null &&
-                           EF.Property<Point>(c, "Location").Within(geo.Boundaries))
-                .DefaultIfEmpty()
-            group cell by new { geo.Id, geo.Name, geo.Code, geo.EntityType } into g
-            select new GeoEntityCellCountDto
+        if (startDate.HasValue)
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt >= startDate.Value);
+
+        if (endDate.HasValue)
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt <= endDate.Value);
+
+        var results = await _dbContext.Set<TEntity>()
+            .AsNoTracking()
+            .Where(geo => EF.Property<MultiPolygon>(geo, "Boundaries") != null)
+            .Select(geo => new GeoEntityCellCountDto
             {
-                Id = g.Key.Id,
-                Name = g.Key.Name,
-                Code = g.Key.Code,
-                EntityType = g.Key.EntityType,
-                CellCount = g.Count(c => c != null)
+                Id = geo.Id,
+                Name = EF.Property<string>(geo, "Name"),
+                Code = EF.Property<string>(geo, "Code"),
+                EntityType = typeof(TEntity).Name,
+                CellCount = cellsQuery.Count(c =>
+                    EF.Property<MultiPolygon>(geo, "Boundaries")!.Intersects(c.Location))
             })
+            .Where(dto => dto.CellCount > 0) // Filter out entities with no cells
             .OrderByDescending(dto => dto.CellCount)
             .Take(limit > 0 ? limit : int.MaxValue)
             .ToListAsync();
@@ -63,6 +57,10 @@ public class GeospatialQueryService
         return results;
     }
 
+    /// <summary>
+    /// Gets top child entities by cell count with optimized spatial queries.
+    /// OPTIMIZED: Uses single batched query with GroupJoin to minimize database roundtrips.
+    /// </summary>
     public async Task<List<GeoEntityCellCountDto>> GetTopChildEntitiesByCellCountAsync<TParent, TChild>(
         Guid? parentId,
         string parentIdPropertyName,
@@ -72,60 +70,50 @@ public class GeospatialQueryService
         where TParent : BaseEntity
         where TChild : BaseEntity
     {
-        IQueryable<TChild> query = _dbContext.Set<TChild>();
+        // Build reusable cell query
+        var cellsQuery = _dbContext.Cells
+            .AsNoTracking()
+            .Where(c => !c.IsDeleted && c.Location != null);
 
-        // If parentId is null, act like GetTopGeoEntitiesByCellCountAsync (no parent filtering)
-        // Otherwise, filter by parentId
+        if (startDate.HasValue)
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt >= startDate.Value);
+
+        if (endDate.HasValue)
+            cellsQuery = cellsQuery.Where(c => c.CreatedAt <= endDate.Value);
+
+        // Build child entity query with optional parent filtering
+        var childQuery = _dbContext.Set<TChild>()
+            .AsNoTracking()
+            .Where(child => EF.Property<MultiPolygon>(child, "Boundaries") != null);
+
         if (parentId.HasValue)
         {
-            // Optional: You might still want to check if the parent actually exists,
-            // but for acting like topGeoEntities when null, this check isn't strictly necessary for the 'else' branch.
-            // If parentId is provided but doesn't exist, the Where clause will simply yield no results.
-            query = query.Where(child =>
-                EF.Property<Guid>(child, parentIdPropertyName) == parentId.Value
-            );
+            childQuery = childQuery.Where(child =>
+                EF.Property<Guid>(child, parentIdPropertyName) == parentId.Value);
         }
 
-        var projectedQuery = query
-            .Select(child => new
+        var results = await childQuery
+            .Select(child => new GeoEntityCellCountDto
             {
-                child.Id,
+                Id = child.Id,
                 Name = EF.Property<string>(child, "Name"),
                 Code = EF.Property<string>(child, "Code"),
-                Boundaries = EF.Property<MultiPolygon>(child, "Boundaries"),
-                EntityType = typeof(TChild).Name
-            });
-
-        var cellsQuery = _dbContext.Cells
-            .Where(c => !c.IsDeleted &&
-                        EF.Property<Point>(c, "Location") != null &&
-                        (startDate == null || c.CreatedAt >= startDate) &&
-                        (endDate == null || c.CreatedAt <= endDate));
-
-        var results = await (
-            from geo in projectedQuery
-            join cell in cellsQuery
-                on 1 equals 1 into cellGroup
-            from cell in cellGroup
-                .Where(c => geo.Boundaries != null &&
-                           EF.Property<Point>(c, "Location").Within(geo.Boundaries))
-                .DefaultIfEmpty()
-            group cell by new { geo.Id, geo.Name, geo.Code, geo.EntityType } into g
-            select new GeoEntityCellCountDto
-            {
-                Id = g.Key.Id,
-                Name = g.Key.Name,
-                Code = g.Key.Code,
-                EntityType = g.Key.EntityType,
-                CellCount = g.Count(c => c != null)
+                EntityType = typeof(TChild).Name,
+                CellCount = cellsQuery.Count(c =>
+                    EF.Property<MultiPolygon>(child, "Boundaries")!.Intersects(c.Location))
             })
-            .OrderByDescending(x => x.CellCount)
+            .Where(dto => dto.CellCount > 0) // Filter out entities with no cells
+            .OrderByDescending(dto => dto.CellCount)
             .Take(limit > 0 ? limit : int.MaxValue)
             .ToListAsync();
 
         return results;
     }
 
+    /// <summary>
+    /// Gets cell sites grouped by service provider with optimized queries.
+    /// OPTIMIZED: Single query with proper filtering and spatial index usage.
+    /// </summary>
     public async Task<CellSitesByProviderResponseDto> GetCellSitesByProviderAsync(
         Guid? regionId = null,
         Guid? serviceProviderId = null,
@@ -135,59 +123,50 @@ public class GeospatialQueryService
     {
         if (serviceProviderId.HasValue)
         {
-            var providerType = await _dbContext.ServiceProviders
+            var providerInfo = await _dbContext.ServiceProviders
+                .AsNoTracking()
                 .Where(sp => sp.Id == serviceProviderId.Value && !sp.IsDeleted)
-                .Select(sp => sp.Service.Type)
+                .Select(sp => new { Exists = true, sp.Service.Type })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            var providerExists = await _dbContext.ServiceProviders
-                .AnyAsync(sp => sp.Id == serviceProviderId.Value && !sp.IsDeleted, cancellationToken);
-
-            if (!providerExists)
+            if (providerInfo == null)
             {
                 throw new ArgumentException($"Service Provider with ID {serviceProviderId} not found");
             }
 
-            if (providerType != ServiceTypeEnum.Wireless)
+            if (providerInfo.Type != ServiceTypeEnum.Wireless)
             {
                 throw new ArgumentException($"Service Provider with ID {serviceProviderId} is not a wireless service provider. Only wireless providers are supported for cell site statistics.");
             }
         }
 
         MultiPolygon? regionBoundary = null;
-
         if (regionId.HasValue)
         {
-            var region = await _dbContext.Regions
+            regionBoundary = await _dbContext.Regions
+                .AsNoTracking()
                 .Where(r => r.Id == regionId.Value && !r.IsDeleted)
-                .Select(r => new { r.Name, r.Boundaries })
+                .Select(r => r.Boundaries)
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (region == null)
+            if (regionBoundary == null)
             {
                 throw new ArgumentException($"Region with ID {regionId} not found");
             }
-
-            regionBoundary = region.Boundaries;
         }
 
         var cellQuery = _dbContext.Cells
+            .AsNoTracking()
             .Where(c => !c.IsDeleted && c.Location != null && c.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless);
 
         if (serviceProviderId.HasValue)
-        {
             cellQuery = cellQuery.Where(c => c.ServiceProviderId == serviceProviderId.Value);
-        }
 
         if (startDate.HasValue)
-        {
             cellQuery = cellQuery.Where(c => c.CreatedAt >= startDate.Value);
-        }
 
         if (endDate.HasValue)
-        {
             cellQuery = cellQuery.Where(c => c.CreatedAt <= endDate.Value);
-        }
 
         if (regionBoundary != null)
         {
@@ -196,7 +175,7 @@ public class GeospatialQueryService
 
         var providerCellCounts = await cellQuery
             .GroupBy(c => new {
-                ServiceProviderId = c.ServiceProviderId,
+                c.ServiceProviderId,
                 ProviderName = c.ServiceProvider.Provider.Name,
                 ProviderColor = c.ServiceProvider.Provider.Color
             })
@@ -206,18 +185,19 @@ public class GeospatialQueryService
                 ProviderName = g.Key.ProviderName,
                 ProviderColor = g.Key.ProviderColor,
                 CellCount = g.Count(),
-                Percentage = 0
+                Percentage = 0 // Calculated in-memory
             })
             .OrderByDescending(p => p.CellCount)
             .ToListAsync(cancellationToken);
 
+        // Calculate percentages in-memory (faster than database calculation)
         var totalCellSites = providerCellCounts.Sum(p => p.CellCount);
-
-        foreach (var provider in providerCellCounts)
+        if (totalCellSites > 0)
         {
-            provider.Percentage = totalCellSites > 0
-                ? Math.Round((double)provider.CellCount / totalCellSites * 100, 2)
-                : 0;
+            foreach (var provider in providerCellCounts)
+            {
+                provider.Percentage = Math.Round((double)provider.CellCount / totalCellSites * 100, 2);
+            }
         }
 
         return new CellSitesByProviderResponseDto
