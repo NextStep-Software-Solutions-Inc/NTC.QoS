@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
@@ -35,17 +34,15 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
             }
         }
 
-        // Get region boundary if specified
-        MultiPolygon? regionBoundary = null;
+        // Validate region if specified (without materializing the boundary)
         if (regionId.HasValue)
         {
-            regionBoundary = await _context.Regions
+            var regionExists = await _context.Regions
                 .AsNoTracking()
                 .Where(r => r.Id == regionId.Value && !r.IsDeleted)
-                .Select(r => r.Boundaries)
-                .FirstOrDefaultAsync(cancellationToken);
+                .AnyAsync(cancellationToken);
 
-            if (regionBoundary == null)
+            if (!regionExists)
             {
                 throw new ArgumentException($"Region with ID {regionId} not found");
             }
@@ -65,9 +62,14 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
         if (endDate.HasValue)
             cellQuery = cellQuery.Where(c => c.CreatedAt <= endDate.Value);
 
-        if (regionBoundary != null)
+        // Apply spatial filter using subquery to leverage spatial indexes
+        if (regionId.HasValue)
         {
-            cellQuery = cellQuery.Where(c => regionBoundary.Intersects(c.Location));
+            cellQuery = cellQuery.Where(c => 
+                _context.Regions
+                    .Where(r => r.Id == regionId.Value && !r.IsDeleted)
+                    .Any(r => r.Boundaries != null && r.Boundaries.Intersects(c.Location))
+            );
         }
 
         // Group by provider and get counts
