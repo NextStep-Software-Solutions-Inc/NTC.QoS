@@ -12,7 +12,6 @@ using NTC.QoS.API.Extensions;
 using NTC.QoS.API.Filters;
 using NTC.QoS.API.Infrastructure;
 using NTC.QoS.Application;
-using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.HealthChecks;
@@ -167,8 +166,6 @@ public class Program
             });
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
-
-        builder.Services.AddScoped<GeospatialQueryService>();
 
         // Health checks
         builder.Services.AddHealthChecks()

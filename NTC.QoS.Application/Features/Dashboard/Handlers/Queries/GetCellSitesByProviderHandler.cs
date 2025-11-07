@@ -1,20 +1,20 @@
 using MediatR;
 using NTC.QoS.Application.Features.Dashboard.Requests;
-using NTC.QoS.Application.Services;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
 
 namespace NTC.QoS.Application.Features.Dashboard.Handlers.Queries;
 
-public class GetCellSitesByProviderHandler(GeospatialQueryService geospatialQueryService) : IRequestHandler<GetCellSitesByProviderRequest, ApiResponse<CellSitesByProviderResponseDto>>
+public class GetCellSitesByProviderHandler(ICellRepository cellRepository) : IRequestHandler<GetCellSitesByProviderRequest, ApiResponse<CellSitesByProviderResponseDto>>
 {
-    private readonly GeospatialQueryService _geospatialQueryService = geospatialQueryService;
+    private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<CellSitesByProviderResponseDto>> Handle(
         GetCellSitesByProviderRequest request, 
         CancellationToken cancellationToken)
     {
-        var result = await _geospatialQueryService.GetCellSitesByProviderAsync(
+        var result = await _cellRepository.GetCellSitesByProviderAsync(
             request.RegionId,
             request.ServiceProviderId,
             request.StartDate,
