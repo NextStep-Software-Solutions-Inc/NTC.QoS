@@ -18,16 +18,18 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
             filesQuery = _repository.SearchByName(filesQuery, request.Search);
         }
 
-        var filesDtoQuery = filesQuery.Select(file => new FileDto
-        {
-            Id = file.Id,
-            Name = file.Name,
-            Path = file.Path,
-            UploadedBy = file.UploadedBy,
-            UploadDate = file.UploadDate,
-            Type = file.Type.ToString() ?? string.Empty,
-            Status = file.Status.ToString() ?? string.Empty
-        });
+        var filesDtoQuery = filesQuery
+            .OrderByDescending(file => file.UploadDate)
+            .Select(file => new FileDto
+            {
+                Id = file.Id,
+                Name = file.Name,
+                Path = file.Path,
+                UploadedBy = file.UploadedBy,
+                UploadDate = file.UploadDate,
+                Type = file.Type.ToString() ?? string.Empty,
+                Status = file.Status.ToString() ?? string.Empty
+            });
 
         filesDtoQuery = filesDtoQuery
             .Where(f => request.Types == null || request.Types.Length == 0 || request.Types.Contains(f.Type))
