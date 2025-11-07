@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Application.Behaviors;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Interfaces;
 using System.Reflection;
 
