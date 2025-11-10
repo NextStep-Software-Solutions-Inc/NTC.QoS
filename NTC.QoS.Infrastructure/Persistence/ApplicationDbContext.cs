@@ -249,7 +249,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<NAP>()
             .Property(n => n.Location)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<NAP>()
@@ -269,7 +269,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Speedtest>()
             .Property(n => n.Location)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Speedtest>()
@@ -377,7 +377,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Cell>()
             .Property(c => c.Location)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<Cell>()
@@ -392,7 +392,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<CellularCoverage>()
             .Property(cc => cc.Location)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<CellularCoverage>()
@@ -427,7 +427,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Region>()
             .Property(r => r.Boundaries)
-            .HasColumnType("geometry (MultiPolygon,4326)")
+            .HasColumnType("geography (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Region>()
@@ -437,7 +437,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         
         modelBuilder.Entity<Region>()
             .Property(r => r.Center)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Region>()
@@ -447,7 +447,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Province>()
             .Property(p => p.Boundaries)
-            .HasColumnType("geometry (MultiPolygon,4326)")
+            .HasColumnType("geography (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Province>()
@@ -457,7 +457,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Province>()
             .Property(p => p.Center)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Province>()
@@ -467,7 +467,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Municipality>()
             .Property(m => m.Boundaries)
-            .HasColumnType("geometry (MultiPolygon,4326)")
+            .HasColumnType("geography (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Municipality>()
@@ -477,7 +477,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Municipality>()
             .Property(m => m.Center)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Municipality>()
@@ -487,7 +487,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Boundaries)
-            .HasColumnType("geometry (MultiPolygon,4326)")
+            .HasColumnType("geography (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Barangay>()
@@ -497,7 +497,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Center)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Barangay>()
@@ -565,7 +565,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<ConnectivityAssessment>()
             .Property(ca => ca.Location)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<ConnectivityAssessment>()
@@ -593,7 +593,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<WiFiHotspot>()
             .Property(w => w.Location)
-            .HasColumnType("geometry (Point,4326)")
+            .HasColumnType("geography (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<WiFiHotspot>()

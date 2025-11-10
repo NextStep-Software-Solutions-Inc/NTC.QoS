@@ -78,7 +78,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Name")
@@ -310,7 +310,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("ServiceProviderId")
@@ -825,13 +825,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (MultiPolygon,4326)")
+                        .HasColumnType("geography (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1058,7 +1058,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("NetworkId")
@@ -1178,7 +1178,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("LocationId")
@@ -1302,6 +1302,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("WiFiHotspotCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WirelessValidationCount")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -1433,13 +1436,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (MultiPolygon,4326)")
+                        .HasColumnType("geography (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1714,13 +1717,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (MultiPolygon,4326)")
+                        .HasColumnType("geography (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1797,13 +1800,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (MultiPolygon,4326)")
+                        .HasColumnType("geography (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -2144,7 +2147,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("MCC")
@@ -2509,7 +2512,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geometry (Point,4326)")
+                        .HasColumnType("geography (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<decimal?>("MaxBandwidthMbps")

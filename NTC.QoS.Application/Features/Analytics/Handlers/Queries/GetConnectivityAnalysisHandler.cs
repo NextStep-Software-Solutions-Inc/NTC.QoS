@@ -201,6 +201,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 CellTowerCount = p.CellTowerCount,
                 FiberNAPCount = p.FiberNAPCount,
                 WiFiHotspotCount = p.WiFiHotspotCount,
+                WirelessValidationCount = p.WirelessValidationCount,
                 AssetPercentage = p.AssetPercentage
             }).ToList();
         }

@@ -18,20 +18,22 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
             filesQuery = _repository.SearchByName(filesQuery, request.Search);
         }
 
-        var filesDtoQuery = filesQuery.Select(file => new FileDto
-        {
-            Id = file.Id,
-            Name = file.Name,
-            Path = file.Path,
-            UploadedBy = file.UploadedBy,
-            UploadDate = file.UploadDate,
-            Type = file.Type.ToString() ?? string.Empty,
-            Status = file.Status.ToString() ?? string.Empty
-        });
+        filesQuery = filesQuery
+            .Where(f => request.Types == null || request.Types.Length == 0 || request.Types.Contains(f.Type.ToString()))
+            .Where(f => request.Statuses == null || request.Statuses.Length == 0 || request.Statuses.Contains(f.Status.ToString()));
 
-        filesDtoQuery = filesDtoQuery
-            .Where(f => request.Types == null || request.Types.Length == 0 || request.Types.Contains(f.Type))
-            .Where(f => request.Statuses == null || request.Statuses.Length == 0 || request.Statuses.Contains(f.Status));
+        var filesDtoQuery = filesQuery
+            .OrderByDescending(file => file.UploadDate)
+            .Select(file => new FileDto
+            {
+                Id = file.Id,
+                Name = file.Name,
+                Path = file.Path,
+                UploadedBy = file.UploadedBy,
+                UploadDate = file.UploadDate,
+                Type = file.Type.ToString() ?? string.Empty,
+                Status = file.Status.ToString() ?? string.Empty
+            });
 
         return await _repository.PaginateAsync(filesDtoQuery, request.PageNumber, request.PageSize, cancellationToken);
     }

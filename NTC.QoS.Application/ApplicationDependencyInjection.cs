@@ -9,6 +9,7 @@ using NTC.QoS.Domain.Interfaces;
 using System.Reflection;
 
 namespace NTC.QoS.Application;
+
 public static class ApplicationDependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
