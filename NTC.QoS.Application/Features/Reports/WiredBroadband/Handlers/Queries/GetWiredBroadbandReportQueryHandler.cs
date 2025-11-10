@@ -306,67 +306,67 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// Create BarangayBroadbandDto from barangay-level connectivity assessment data
     /// </summary>
     private async Task<BarangayBroadbandDto> CreateBarangayDtoFromAssessmentAsync(
-     Domain.Entities.Barangay barangay,
-     Domain.Entities.ConnectivityAssessment assessment,
+        Domain.Entities.Barangay barangay,
+        Domain.Entities.ConnectivityAssessment assessment,
         bool isBarangayLevel,
         CancellationToken cancellationToken)
     {
         var providers = new List<string>();
 
-   // Extract ALL provider information from assessment (not just dominant + fiber check)
+        // Extract ALL provider information from assessment (not just dominant + fiber check)
         if (assessment.ServiceProviderCount > 0)
-   {
-      // Get all providers from the provider breakdown
-         var providerBreakdown = await _connectivityAssessmentRepository
-      .GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
+        {
+            // Get all providers from the provider breakdown
+            var providerBreakdown = await _connectivityAssessmentRepository
+                .GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
 
-   _logger.LogDebug("Barangay {BarangayName}: Found {ProviderCount} providers in breakdown, {FiberProviderCount} with fiber NAPs",
+            _logger.LogDebug("Barangay {BarangayName}: Found {ProviderCount} providers in breakdown, {FiberProviderCount} with fiber NAPs",
                 barangay.Name, providerBreakdown.Count, providerBreakdown.Count(p => p.FiberNAPCount > 0));
 
             // Add all providers that have wired infrastructure (fiber NAPs)
             var fiberProviders = providerBreakdown
                 .Where(p => p.FiberNAPCount > 0)
-   .Select(p => p.ProviderName)
-      .ToList();
+                .Select(p => p.ProviderName)
+                .ToList();
         
             providers.AddRange(fiberProviders);
 
-         // Log the providers found
+            // Log the providers found
             if (fiberProviders.Count != 0)
-      {
-_logger.LogDebug("Barangay {BarangayName}: Fiber providers: {Providers}",
-     barangay.Name, string.Join(", ", fiberProviders));
-     }
-
-     // If no providers with fiber, but we have a dominant service provider, include it
-        if (providers.Count == 0 && !string.IsNullOrEmpty(assessment.DominantServiceProvider))
             {
-        providers.Add(assessment.DominantServiceProvider);
-     _logger.LogDebug("Barangay {BarangayName}: No fiber providers found, using dominant provider: {Provider}",
-            barangay.Name, assessment.DominantServiceProvider);
+                _logger.LogDebug("Barangay {BarangayName}: Fiber providers: {Providers}",
+                barangay.Name, string.Join(", ", fiberProviders));
+            }
+
+            // If no providers with fiber, but we have a dominant service provider, include it
+            if (providers.Count == 0 && !string.IsNullOrEmpty(assessment.DominantServiceProvider))
+            {
+                providers.Add(assessment.DominantServiceProvider);
+                _logger.LogDebug("Barangay {BarangayName}: No fiber providers found, using dominant provider: {Provider}",
+                barangay.Name, assessment.DominantServiceProvider);
             }
         }
 
         var providerAvailability = new ServiceProviderAvailabilityDto();
         foreach (var provider in providers.Distinct())
-      {
-     providerAvailability.Providers[provider] = true;
+        {
+            providerAvailability.Providers[provider] = true;
         }
 
         // For wired broadband, use fiber coverage score to determine status
         var serviceStatus = DetermineWiredBroadbandStatus(assessment.FiberCoverageScore);
         
-    // Pass actual fiber provider count instead of total ServiceProviderCount
-      var actualFiberProviderCount = providerAvailability.ProviderCount;
-    var remarks = GenerateRemarksFromAssessment(assessment, actualFiberProviderCount, isBarangayLevel);
+        // Pass actual fiber provider count instead of total ServiceProviderCount
+        var actualFiberProviderCount = providerAvailability.ProviderCount;
+        var remarks = GenerateRemarksFromAssessment(assessment, actualFiberProviderCount, isBarangayLevel);
 
         return new BarangayBroadbandDto
-      {
+        {
             Id = barangay.Id,
-         Name = barangay.Name,
-          Code = barangay.Code,
+            Name = barangay.Name,
+            Code = barangay.Code,
             ProviderAvailability = providerAvailability,
- ServiceStatus = serviceStatus,
+            ServiceStatus = serviceStatus,
             Remarks = remarks
         };
     }
@@ -377,66 +377,66 @@ _logger.LogDebug("Barangay {BarangayName}: Fiber providers: {Providers}",
     private async Task<BarangayBroadbandDto> CreateBarangayDtoFromMunicipalityAssessmentAsync(
         Domain.Entities.Barangay barangay,
         Domain.Entities.ConnectivityAssessment municipalityAssessment,
-  CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
-      var providers = new List<string>();
+        var providers = new List<string>();
 
-      // Use municipality assessment as approximation for barangay
+        // Use municipality assessment as approximation for barangay
         if (municipalityAssessment.ServiceProviderCount > 0)
         {
             // Get all providers from municipality assessment
-var providerBreakdown = await _connectivityAssessmentRepository
-            .GetProvidersByAssessmentIdAsync(municipalityAssessment.Id, cancellationToken);
+            var providerBreakdown = await _connectivityAssessmentRepository
+                .GetProvidersByAssessmentIdAsync(municipalityAssessment.Id, cancellationToken);
 
-_logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Found {ProviderCount} providers in breakdown, {FiberProviderCount} with fiber NAPs",
-     barangay.Name, providerBreakdown.Count, providerBreakdown.Count(p => p.FiberNAPCount > 0));
+            _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Found {ProviderCount} providers in breakdown, {FiberProviderCount} with fiber NAPs",
+                barangay.Name, providerBreakdown.Count, providerBreakdown.Count(p => p.FiberNAPCount > 0));
 
             // Add all providers that have wired infrastructure
             var fiberProviders = providerBreakdown
-          .Where(p => p.FiberNAPCount > 0)
- .Select(p => p.ProviderName)
-    .ToList();
+                .Where(p => p.FiberNAPCount > 0)
+                .Select(p => p.ProviderName)
+                .ToList();
 
-        providers.AddRange(fiberProviders);
+            providers.AddRange(fiberProviders);
 
-          // Log the providers found
-    if (fiberProviders.Any())
-   {
-             _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Fiber providers: {Providers}",
-           barangay.Name, string.Join(", ", fiberProviders));
+            // Log the providers found
+            if (fiberProviders.Any())
+            {
+                _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Fiber providers: {Providers}",
+                barangay.Name, string.Join(", ", fiberProviders));
             }
 
-          // Fallback to dominant provider
-  if (providers.Count == 0 && !string.IsNullOrEmpty(municipalityAssessment.DominantServiceProvider))
-      {
-       providers.Add(municipalityAssessment.DominantServiceProvider);
-         _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): No fiber providers found, using dominant provider: {Provider}",
-      barangay.Name, municipalityAssessment.DominantServiceProvider);
+            // Fallback to dominant provider
+            if (providers.Count == 0 && !string.IsNullOrEmpty(municipalityAssessment.DominantServiceProvider))
+            {
+                providers.Add(municipalityAssessment.DominantServiceProvider);
+                _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): No fiber providers found, using dominant provider: {Provider}",
+                    barangay.Name, municipalityAssessment.DominantServiceProvider);
             }
         }
 
         var providerAvailability = new ServiceProviderAvailabilityDto();
         foreach (var provider in providers.Distinct())
         {
-      providerAvailability.Providers[provider] = true;
+            providerAvailability.Providers[provider] = true;
         }
 
-   // For wired broadband, use fiber coverage score to determine status
+        // For wired broadband, use fiber coverage score to determine status
         var serviceStatus = DetermineWiredBroadbandStatus(municipalityAssessment.FiberCoverageScore);
         
-      // Pass actual fiber provider count instead of total ServiceProviderCount
-     var actualFiberProviderCount = providerAvailability.ProviderCount;
+        // Pass actual fiber provider count instead of total ServiceProviderCount
+        var actualFiberProviderCount = providerAvailability.ProviderCount;
         var remarks = GenerateRemarksFromMunicipalityAssessment(municipalityAssessment, actualFiberProviderCount);
 
-      return new BarangayBroadbandDto
+        return new BarangayBroadbandDto
         {
-  Id = barangay.Id,
-       Name = barangay.Name,
-        Code = barangay.Code,
-  ProviderAvailability = providerAvailability,
-     ServiceStatus = serviceStatus,
+            Id = barangay.Id,
+            Name = barangay.Name,
+            Code = barangay.Code,
+            ProviderAvailability = providerAvailability,
+            ServiceStatus = serviceStatus,
             Remarks = remarks
-};
+        };
     }
 
     /// <summary>
@@ -476,9 +476,9 @@ _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Found {
     /// </summary>
     private static string GenerateRemarksFromAssessment(Domain.Entities.ConnectivityAssessment assessment, int actualFiberProviderCount, bool isBarangayLevel)
     {
- // For wired broadband, status is determined by Fiber Coverage Score
+        // For wired broadband, status is determined by Fiber Coverage Score
         var remarks = assessment.FiberCoverageScore switch
-     {
+        {
             3 => "SERVED",
             2 => "UNDERSERVED",
             _ => "UNSERVED"
@@ -486,19 +486,19 @@ _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Found {
 
         // Enhance remarks with assessment details
         if (assessment.FiberNAPCount > 0)
-   {
+        {
             remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
         }
 
         // Use actual fiber provider count from providerAvailability instead of total ServiceProviderCount
-     if (actualFiberProviderCount > 1)
+        if (actualFiberProviderCount > 1)
         {
-   remarks += $" - {actualFiberProviderCount} providers";
+            remarks += $" - {actualFiberProviderCount} providers";
         }
 
         if (assessment.MeetsMinimumSpeedRequirement)
-     {
-     remarks += " - Meets speed requirements";
+        {
+            remarks += " - Meets speed requirements";
         }
 
         var levelIndicator = isBarangayLevel ? "Barangay" : "Municipality";
@@ -513,12 +513,12 @@ _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Found {
     /// </summary>
     private static string GenerateRemarksFromMunicipalityAssessment(Domain.Entities.ConnectivityAssessment assessment, int actualFiberProviderCount)
     {
-    // For wired broadband, status is determined by Fiber Coverage Score
+        // For wired broadband, status is determined by Fiber Coverage Score
         var remarks = assessment.FiberCoverageScore switch
         {
-        3 => "SERVED",
-  2 => "UNDERSERVED",
-   _ => "UNSERVED"
+            3 => "SERVED",
+            2 => "UNDERSERVED",
+            _ => "UNSERVED"
         };
 
         remarks += " (Municipality estimate)";
@@ -526,7 +526,7 @@ _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Found {
         // Use actual fiber provider count instead of total ServiceProviderCount
         if (actualFiberProviderCount > 0)
         {
- remarks += $" - {actualFiberProviderCount} providers in area";
+            remarks += $" - {actualFiberProviderCount} providers in area";
         }
 
         return remarks;
