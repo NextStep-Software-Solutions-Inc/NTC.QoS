@@ -461,64 +461,166 @@ public class ReportGenerationService : IReportGenerationService
     private void CreateDetailedDataWorksheet(XLWorkbook workbook, WiredBroadbandReportDto reportData)
     {
         var worksheet = workbook.Worksheets.Add("Detailed Data");
+ 
+// Get ordered providers (alphabetically for consistency)
+        var providerHeaders = reportData.Summary.AllProviders.OrderBy(p => p).ToArray();
+  
+        // Define provider colors (matching the sample report)
+   var providerColors = new Dictionary<string, XLColor>
+   {
+      ["PLDT COMMUNICATIONS INC."] = XLColor.FromArgb(255, 99, 71),   // Red
+            ["GLOBE COMMUNICATIONS INC."] = XLColor.FromArgb(0, 123, 255),  // Blue
+            ["Converge ICT Solutions Inc."] = XLColor.FromArgb(255, 0, 255), // Magenta
+            ["PARASAT"] = XLColor.FromArgb(173, 216, 230),         // Light Blue
+            ["Others"] = XLColor.FromArgb(255, 165, 0)        // Orange
+        };
         
-        // Headers
-        var headers = new[] { "Municipality", "Barangay" };
-        var providerHeaders = reportData.Summary.AllProviders.Take(10).ToArray(); // Limit to top 10 providers
-        var finalHeaders = headers.Concat(providerHeaders).Concat(new[] { "Service Status", "Remarks" }).ToArray();
+   int currentRow = 1;
+     
+  // ROW 1: "WIRED BROADBAND" header spanning all provider columns
+   worksheet.Cell(currentRow, 1).Value = "Municipality";
+        worksheet.Cell(currentRow, 2).Value = "Barangay";
         
-        for (int i = 0; i < finalHeaders.Length; i++)
+    var wiredBroadbandStartCol = 3;
+        var wiredBroadbandEndCol = 2 + providerHeaders.Length;
+        
+        worksheet.Range(currentRow, wiredBroadbandStartCol, currentRow, wiredBroadbandEndCol).Merge();
+      worksheet.Cell(currentRow, wiredBroadbandStartCol).Value = "WIRED BROADBAND";
+ worksheet.Cell(currentRow, wiredBroadbandStartCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Cell(currentRow, wiredBroadbandStartCol).Style.Font.Bold = true;
+    worksheet.Cell(currentRow, wiredBroadbandStartCol).Style.Font.FontSize = 14;
+        worksheet.Cell(currentRow, wiredBroadbandStartCol).Style.Fill.BackgroundColor = XLColor.Orange;
+      
+  worksheet.Cell(currentRow, wiredBroadbandEndCol + 1).Value = "REMARKS";
+        worksheet.Cell(currentRow, wiredBroadbandEndCol + 1).Style.Font.Bold = true;
+
+    currentRow++;
+   
+        // ROW 2: Provider names with colors
+        for (int i = 0; i < providerHeaders.Length; i++)
         {
-            worksheet.Cell(1, i + 1).Value = finalHeaders[i];
-            worksheet.Cell(1, i + 1).Style.Font.Bold = true;
-            worksheet.Cell(1, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+        var cell = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
+            cell.Value = providerHeaders[i];
+     cell.Style.Font.Bold = true;
+ cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            
+       // Apply provider color if available
+          if (providerColors.TryGetValue(providerHeaders[i], out var color))
+  {
+ cell.Style.Fill.BackgroundColor = color;
+      cell.Style.Font.FontColor = XLColor.White;
         }
+ else
+      {
+       cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+   }
+    }
         
-        // Data rows
-        int row = 2;
+        currentRow++;
+        
+   // ROW 3: "FTTH" labels under each provider
+        worksheet.Cell(currentRow, 1).Value = "Municipality";
+        worksheet.Cell(currentRow, 1).Style.Font.Bold = true;
+        worksheet.Cell(currentRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        
+        worksheet.Cell(currentRow, 2).Value = "Barangay";
+        worksheet.Cell(currentRow, 2).Style.Font.Bold = true;
+        worksheet.Cell(currentRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        
+        for (int i = 0; i < providerHeaders.Length; i++)
+        {
+            var cell = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
+      cell.Value = "FTTH";
+     cell.Style.Font.Bold = true;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+   }
+        
+    worksheet.Cell(currentRow, wiredBroadbandEndCol + 1).Value = "";
+worksheet.Cell(currentRow, wiredBroadbandEndCol + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+        
+        currentRow++;
+        
+        // Data rows with merged municipality cells
         foreach (var municipality in reportData.Municipalities)
         {
-            foreach (var barangay in municipality.Barangays)
+        var municipalityStartRow = currentRow;
+            var barangayCount = municipality.Barangays.Count;
+  
+ foreach (var barangay in municipality.Barangays)
             {
-                worksheet.Cell(row, 1).Value = municipality.Name;
-                worksheet.Cell(row, 2).Value = barangay.Name;
+    // Barangay name
+   worksheet.Cell(currentRow, 2).Value = barangay.Name;
                 
-                // Provider availability
-                for (int i = 0; i < providerHeaders.Length; i++)
-                {
-                    var hasProvider = barangay.ProviderAvailability.Providers.GetValueOrDefault(providerHeaders[i], false);
-                    worksheet.Cell(row, i + 3).Value = hasProvider ? "?" : "";
-                    if (hasProvider)
-                    {
-                        worksheet.Cell(row, i + 3).Style.Font.FontColor = XLColor.Green;
-                        worksheet.Cell(row, i + 3).Style.Font.Bold = true;
-                    }
+          // Provider checkmarks - CHECK ALL PROVIDERS
+       for (int i = 0; i < providerHeaders.Length; i++)
+         {
+    var hasProvider = barangay.ProviderAvailability.Providers.GetValueOrDefault(providerHeaders[i], false);
+          var cell = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
+        
+         if (hasProvider)
+      {
+   cell.Value = "YES";
+    cell.Style.Font.FontSize = 11;
+      cell.Style.Font.Bold = true;
+             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    cell.Style.Font.FontColor = XLColor.Green;
+         }
+    }
+  
+             // Service status in Remarks column (color-coded)
+          var remarksCell = worksheet.Cell(currentRow, wiredBroadbandEndCol + 1);
+                remarksCell.Value = barangay.ServiceStatus.ToString().ToUpper();
+   remarksCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+remarksCell.Style.Font.Bold = true;
+     
+  switch (barangay.ServiceStatus)
+      {
+  case ServiceStatusEnum.Served:
+             remarksCell.Style.Fill.BackgroundColor = XLColor.LightGreen;
+         break;
+           case ServiceStatusEnum.Underserved:
+     remarksCell.Style.Fill.BackgroundColor = XLColor.Orange;
+           break;
+    case ServiceStatusEnum.Unserved:
+  remarksCell.Style.Fill.BackgroundColor = XLColor.LightPink;
+  break;
                 }
-                
-                worksheet.Cell(row, providerHeaders.Length + 3).Value = barangay.ServiceStatus.ToString();
-                worksheet.Cell(row, providerHeaders.Length + 4).Value = barangay.Remarks;
-                
-                // Color code status
-                var statusCell = worksheet.Cell(row, providerHeaders.Length + 3);
-                switch (barangay.ServiceStatus)
-                {
-                    case ServiceStatusEnum.Served:
-                        statusCell.Style.Fill.BackgroundColor = XLColor.LightGreen;
-                        break;
-                    case ServiceStatusEnum.Underserved:
-                        statusCell.Style.Fill.BackgroundColor = XLColor.LightYellow;
-                        break;
-                    case ServiceStatusEnum.Unserved:
-                        statusCell.Style.Fill.BackgroundColor = XLColor.LightPink;
-                        break;
-                }
-                
-                row++;
+           
+  currentRow++;
             }
+            
+            // Merge municipality cells for all barangays in this municipality
+  if (barangayCount > 1)
+       {
+       worksheet.Range(municipalityStartRow, 1, currentRow - 1, 1).Merge();
+       }
+          
+    worksheet.Cell(municipalityStartRow, 1).Value = municipality.Name;
+            worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+     worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            worksheet.Cell(municipalityStartRow, 1).Style.Font.Bold = true;
+    }
+    
+        // Apply borders to all cells
+        var dataRange = worksheet.Range(1, 1, currentRow - 1, wiredBroadbandEndCol + 1);
+        dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
+        dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+      
+      // Set column widths
+    worksheet.Column(1).Width = 20; // Municipality
+     worksheet.Column(2).Width = 25; // Barangay
+      
+     for (int i = 0; i < providerHeaders.Length; i++)
+     {
+            worksheet.Column(wiredBroadbandStartCol + i).Width = 12; // Provider columns
         }
         
-        // Auto-fit columns
-        worksheet.ColumnsUsed().AdjustToContents();
+     worksheet.Column(wiredBroadbandEndCol + 1).Width = 15; // Remarks
+  
+        // Freeze first 3 rows (headers) and first 2 columns
+        worksheet.SheetView.FreezeRows(3);
+        worksheet.SheetView.FreezeColumns(2);
     }
 
     private void CreateProviderCoverageWorksheet(XLWorkbook workbook, WiredBroadbandReportDto reportData)

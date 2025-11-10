@@ -329,8 +329,19 @@ public class ConnectivityReportingService : IConnectivityReportingService
     {
         var providers = new ServiceProviderAvailabilityDto();
         
-        // Extract provider information from assessment
-        if (!string.IsNullOrEmpty(assessment.DominantServiceProvider) && assessment.FiberNAPCount > 0)
+        // Extract ALL provider information from the assessment's Providers collection
+        if (assessment.Providers != null && assessment.Providers.Any())
+        {
+            foreach (var provider in assessment.Providers)
+            {
+                if (!string.IsNullOrEmpty(provider.ProviderName) && provider.TotalAssetCount > 0)
+                {
+                    providers.Providers[provider.ProviderName] = true;
+                }
+            }
+        }
+        // Fallback: If Providers collection is empty but DominantServiceProvider is set
+        else if (!string.IsNullOrEmpty(assessment.DominantServiceProvider) && assessment.FiberNAPCount > 0)
         {
             providers.Providers[assessment.DominantServiceProvider] = true;
         }
@@ -343,11 +354,23 @@ public class ConnectivityReportingService : IConnectivityReportingService
             _ => ServiceStatusEnum.Unserved
         };
 
-        var remarks = $"{serviceStatus.ToString().ToUpper()}";
+        // Build dynamic remarks based on actual provider data
+        var remarksParts = new List<string> { serviceStatus.ToString().ToUpper() };
+        
         if (assessment.FiberNAPCount > 0)
-            remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
-        if (assessment.ServiceProviderCount > 1)
-            remarks += $" - {assessment.ServiceProviderCount} providers";
+        {
+            remarksParts.Add($"({assessment.FiberNAPCount} fiber NAPs)");
+        }
+        
+        if (providers.ProviderCount > 1)
+        {
+            remarksParts.Add($" - {providers.ProviderCount} providers");
+        }
+        
+        // Add assessment date information
+        remarksParts.Add($"(Barangay Assessment: {assessment.AssessmentDate:MMM dd})");
+        
+        var remarks = string.Join(" ", remarksParts);
 
         return new BarangayBroadbandDto
         {

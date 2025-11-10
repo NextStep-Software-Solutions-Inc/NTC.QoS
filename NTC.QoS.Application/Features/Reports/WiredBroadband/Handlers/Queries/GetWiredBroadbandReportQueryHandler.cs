@@ -479,33 +479,35 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         // For wired broadband, status is determined by Fiber Coverage Score
         var remarks = assessment.FiberCoverageScore switch
         {
-            3 => "SERVED",
-            2 => "UNDERSERVED",
-            _ => "UNSERVED"
-        };
+     3 => "SERVED",
+       2 => "UNDERSERVED",
+       _ => "UNSERVED"
+  };
 
         // Enhance remarks with assessment details
         if (assessment.FiberNAPCount > 0)
         {
-            remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
+         remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
         }
 
         // Use actual fiber provider count from providerAvailability instead of total ServiceProviderCount
-        if (actualFiberProviderCount > 1)
+        // Show provider count for 1 or more providers (changed from > 1 to >= 1)
+        if (actualFiberProviderCount >= 1)
         {
-            remarks += $" - {actualFiberProviderCount} providers";
-        }
+      var providerWord = actualFiberProviderCount == 1 ? "provider" : "providers";
+        remarks += $" - {actualFiberProviderCount} {providerWord}";
+  }
 
         if (assessment.MeetsMinimumSpeedRequirement)
         {
-            remarks += " - Meets speed requirements";
+        remarks += " - Meets speed requirements";
         }
 
         var levelIndicator = isBarangayLevel ? "Barangay" : "Municipality";
         remarks += $" ({levelIndicator} Assessment: {assessment.LastUpdated:MMM dd})";
 
-        return remarks;
-  }
+    return remarks;
+    }
 
     /// <summary>
     /// Generate remarks based on municipality-level assessment used as approximation
@@ -513,20 +515,22 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// </summary>
     private static string GenerateRemarksFromMunicipalityAssessment(Domain.Entities.ConnectivityAssessment assessment, int actualFiberProviderCount)
     {
-        // For wired broadband, status is determined by Fiber Coverage Score
-        var remarks = assessment.FiberCoverageScore switch
+      // For wired broadband, status is determined by Fiber Coverage Score
+   var remarks = assessment.FiberCoverageScore switch
         {
-            3 => "SERVED",
-            2 => "UNDERSERVED",
-            _ => "UNSERVED"
-        };
+       3 => "SERVED",
+   2 => "UNDERSERVED",
+_ => "UNSERVED"
+      };
 
-        remarks += " (Municipality estimate)";
+   remarks += " (Municipality estimate)";
 
-        // Use actual fiber provider count instead of total ServiceProviderCount
-        if (actualFiberProviderCount > 0)
+ // Use actual fiber provider count instead of total ServiceProviderCount
+     // Show provider count for 1 or more providers (changed from > 0 to >= 1 for consistency)
+        if (actualFiberProviderCount >= 1)
         {
-            remarks += $" - {actualFiberProviderCount} providers in area";
+            var providerWord = actualFiberProviderCount == 1 ? "provider" : "providers";
+     remarks += $" - {actualFiberProviderCount} {providerWord} in area";
         }
 
         return remarks;
