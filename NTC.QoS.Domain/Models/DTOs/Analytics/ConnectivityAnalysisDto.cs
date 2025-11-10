@@ -125,6 +125,11 @@ public class InfrastructureStatsDto
     public TechnologyBreakdownDto? TechnologyBreakdown { get; set; }
     
     /// <summary>
+    /// Band frequency breakdown based on cellular deployment data
+    /// </summary>
+    public BandBreakdownDto? BandBreakdown { get; set; }
+    
+    /// <summary>
     /// Detailed breakdown of service providers with their asset counts in descending order
     /// </summary>
     public List<ProviderBreakdownDto> ProviderBreakdown { get; set; } = [];

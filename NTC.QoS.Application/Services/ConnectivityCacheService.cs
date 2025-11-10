@@ -16,6 +16,7 @@ public interface IConnectivityCacheService
     string GenerateInfrastructureCacheKey(Guid locationId, LocationTypeEnum locationType);
     string GenerateSpeedStatsCacheKey(Guid locationId, LocationTypeEnum locationType);
     string GenerateTechnologyCacheKey(Guid locationId, LocationTypeEnum locationType);
+    string GenerateBandCacheKey(Guid locationId, LocationTypeEnum locationType);
     string GenerateAssessmentCacheKey(Guid locationId, LocationTypeEnum locationType);
 }
 
@@ -24,6 +25,7 @@ public class ConnectivityCacheOptions
     public int InfrastructureCacheHours { get; set; } = 24;
     public int SpeedStatsCacheHours { get; set; } = 4;
     public int TechnologyCacheHours { get; set; } = 12;
+    public int BandCacheHours { get; set; } = 12;
     public int AssessmentCacheHours { get; set; } = 8;
     public int MaxCacheSizeMB { get; set; } = 200;
 }
@@ -102,6 +104,9 @@ public class ConnectivityCacheService : IConnectivityCacheService
     public string GenerateTechnologyCacheKey(Guid locationId, LocationTypeEnum locationType)
         => $"tech:{locationType}:{locationId}";
 
+    public string GenerateBandCacheKey(Guid locationId, LocationTypeEnum locationType)
+        => $"band:{locationType}:{locationId}";
+
     public string GenerateAssessmentCacheKey(Guid locationId, LocationTypeEnum locationType)
         => $"assessment:{locationType}:{locationId}";
 
@@ -112,6 +117,7 @@ public class ConnectivityCacheService : IConnectivityCacheService
             nameof(InfrastructureStatsDto) => TimeSpan.FromHours(_options.InfrastructureCacheHours),
             nameof(SpeedStatsDto) => TimeSpan.FromHours(_options.SpeedStatsCacheHours),
             nameof(TechnologyBreakdownDto) => TimeSpan.FromHours(_options.TechnologyCacheHours),
+            nameof(BandBreakdownDto) => TimeSpan.FromHours(_options.BandCacheHours),
             nameof(ConnectivityAssessment) => TimeSpan.FromHours(_options.AssessmentCacheHours),
             _ => TimeSpan.FromHours(1)
         };
@@ -150,6 +156,7 @@ public class ConnectivityCacheService : IConnectivityCacheService
             nameof(InfrastructureStatsDto) => 2, // 2KB estimated
             nameof(SpeedStatsDto) => 1, // 1KB estimated
             nameof(TechnologyBreakdownDto) => 1, // 1KB estimated
+            nameof(BandBreakdownDto) => 1, // 1KB estimated
             _ => 1 // Default 1KB
         };
     }
