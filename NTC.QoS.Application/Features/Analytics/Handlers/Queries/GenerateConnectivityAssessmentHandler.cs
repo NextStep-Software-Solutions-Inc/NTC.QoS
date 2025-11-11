@@ -22,6 +22,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private readonly IRepository<NTC.QoS.Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<NTC.QoS.Domain.Entities.Region> _regionRepository;
     private readonly ICellRepository _cellRepository;
+    private readonly ICellSectorRepository _cellSectorRepository;
     private readonly ICellularRepository _cellularRepository;
     private readonly INAPRepository _napRepository;
     private readonly IWiFiHotspotRepository _wifiRepository;
@@ -38,6 +39,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         IRepository<NTC.QoS.Domain.Entities.Province> provinceRepository,
         IRepository<NTC.QoS.Domain.Entities.Region> regionRepository,
         ICellRepository cellRepository,
+        ICellSectorRepository cellSectorRepository,
         ICellularRepository cellularRepository,
         INAPRepository napRepository,
         IWiFiHotspotRepository wifiRepository,
@@ -53,6 +55,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
         _cellRepository = cellRepository;
+        _cellSectorRepository = cellSectorRepository;
         _cellularRepository = cellularRepository;
         _napRepository = napRepository;
         _wifiRepository = wifiRepository;
@@ -435,7 +438,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
 
-        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
+        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} kmï¿½)", locationType, locationId, areaKm2);
 
         // Use accurate boundaries with optimizations
         var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
@@ -569,6 +572,20 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate provider breakdown with asset counts
         var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots, wirelessValidations);
 
+        // Get band breakdown with caching
+        BandBreakdownDto? bandBreakdown = null;
+        var bandCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType) + "_bands";
+        bandBreakdown = await _cacheService.GetCachedResultAsync<BandBreakdownDto>(bandCacheKey);
+        if (bandBreakdown == null || forceRecalculate)
+        {
+            if (forceRecalculate)
+            {
+                _logger.LogInformation("Force recalculating band breakdown for {LocationType} {LocationId}", locationType, locationId);
+            }
+            bandBreakdown = await AnalyzeBandFrequencyAsync(boundary, center, areaKm2, boundary != null, startDate, endDate, cancellationToken);
+            await _cacheService.SetCachedResultAsync(bandCacheKey, bandBreakdown);
+        }
+
         return new ()
         {
             CellTowerCount = cells.Count,
@@ -577,6 +594,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
             TechnologyBreakdown = technologyBreakdown,
+            BandBreakdown = bandBreakdown,
             ProviderBreakdown = providerBreakdown
         };
     }
@@ -788,6 +806,190 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     }
 
     /// <summary>
+    /// Analyzes band frequency distribution from cellular deployments in the area
+    /// </summary>
+    private async Task<BandBreakdownDto> AnalyzeBandFrequencyAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var allBandData = new List<string>();
+
+            if (useBoundary && boundary != null)
+            {
+                // Use boundary-based queries for cellular data
+                // First get the cell IDs within the boundary
+                var cellQuery = _cellRepository.Query();
+                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                var cellIds = await _cellRepository.ToListAsync(
+                    cellQuery.Select(c => c.Id), cancellationToken);
+
+                // Get cell sector IDs from those cells using CellSector repository
+                var cellSectorIds = await _cellSectorRepository.ToListAsync(
+                    _cellSectorRepository.Query()
+                        .Where(cs => cellIds.Contains(cs.CellId))
+                        .Select(cs => cs.Id), cancellationToken);
+
+                // Query cellulars using the cell sector IDs (direct relationship)
+                var cellularResults = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => cellSectorIds.Contains(c.CellSectorId) && c.Band != null)
+                        .Select(c => c.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(cellularResults);
+
+                // Get wireless validation band data
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null 
+                               && wv.Barangay.Center != null
+                               && boundary.Intersects(wv.Barangay.Center)
+                               && wv.Band != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(wirelessValidationResults);
+            }
+            else
+            {
+                // Use radius-based queries for larger areas
+                var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
+                var searchRadiusMeters = searchRadiusKm * 1000;
+
+                var cellularResults = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters
+                                 && c.Band != null)
+                        .Select(c => c.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(cellularResults);
+
+                // Get wireless validation band data using barangay center distance
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                               && wv.Band != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(wirelessValidationResults);
+            }
+
+            if (allBandData.Count == 0)
+            {
+                return new BandBreakdownDto();
+            }
+
+            // Count bands by frequency
+            var bandCounts = new Dictionary<string, int>();
+            foreach (var bandName in allBandData.Where(b => !string.IsNullOrEmpty(b)))
+            {
+                var normalizedBand = NormalizeBandName(bandName);
+                if (!string.IsNullOrEmpty(normalizedBand))
+                {
+                    bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
+                }
+            }
+
+            // Get unique band names for available bands list
+            var availableBands = bandCounts.Keys.OrderBy(b => b).ToList();
+            
+            // Find dominant band
+            var dominantBand = bandCounts.Any() 
+                ? bandCounts.OrderByDescending(kvp => kvp.Value).First().Key 
+                : null;
+
+            return new BandBreakdownDto
+            {
+                Count700MHz = bandCounts.GetValueOrDefault("700MHz", 0),
+                Count850MHz = bandCounts.GetValueOrDefault("850MHz", 0),
+                Count900MHz = bandCounts.GetValueOrDefault("900MHz", 0),
+                Count1800MHz = bandCounts.GetValueOrDefault("1800MHz", 0),
+                Count2100MHz = bandCounts.GetValueOrDefault("2100MHz", 0),
+                Count2300MHz = bandCounts.GetValueOrDefault("2300MHz", 0),
+                Count2500MHz = bandCounts.GetValueOrDefault("2500MHz", 0),
+                Count2600MHz = bandCounts.GetValueOrDefault("2600MHz", 0),
+                Count3500MHz = bandCounts.GetValueOrDefault("3500MHz", 0),
+                AvailableBands = availableBands,
+                DominantBand = dominantBand
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error analyzing band frequency for area. Returning empty breakdown.");
+            return new BandBreakdownDto();
+        }
+    }
+
+    /// <summary>
+    /// Normalizes band names to standard frequency format (700MHz, 850MHz, etc.)
+    /// Handles various band naming conventions including Band numbers and frequency descriptions
+    /// </summary>
+    private static string NormalizeBandName(string bandName)
+    {
+        if (string.IsNullOrEmpty(bandName))
+            return string.Empty;
+
+        var normalized = bandName.ToUpperInvariant().Trim();
+
+        // Map band numbers and frequencies to standard names
+        return normalized switch
+        {
+            // 700 MHz (Band 28)
+            var s when s.Contains("700") || s.Contains("BAND 28") || s.Contains("B28") => "700MHz",
+            
+            // 850 MHz (Band 5)
+            var s when s.Contains("850") || s.Contains("BAND 5") || s.Contains("B5") && !s.Contains("2500") => "850MHz",
+            
+            // 900 MHz (Band 8)
+            var s when s.Contains("900") || s.Contains("BAND 8") || s.Contains("B8") => "900MHz",
+            
+            // 1800 MHz (Band 3)
+            var s when s.Contains("1800") || s.Contains("BAND 3") || s.Contains("B3") => "1800MHz",
+            
+            // 2100 MHz (Band 1)
+            var s when s.Contains("2100") || s.Contains("BAND 1") || s.Contains("B1") && !s.Contains("2100") => "2100MHz",
+            
+            // 2300 MHz (Band 40)
+            var s when s.Contains("2300") || s.Contains("BAND 40") || s.Contains("B40") => "2300MHz",
+            
+            // 2500 MHz (Band 41)
+            var s when s.Contains("2500") || s.Contains("BAND 41") || s.Contains("B41") => "2500MHz",
+            
+            // 2600 MHz (Band 38/42)
+            var s when s.Contains("2600") || s.Contains("BAND 38") || s.Contains("B38") || s.Contains("BAND 42") || s.Contains("B42") => "2600MHz",
+            
+            // 3500 MHz (Band 78)
+            var s when s.Contains("3500") || s.Contains("BAND 78") || s.Contains("B78") => "3500MHz",
+            
+            _ => string.Empty // Unknown band
+        };
+    }
+
+    /// <summary>
     /// Analyzes technology generations in the area from speedtest data and cellular infrastructure
     /// </summary>
     private async Task<TechnologyBreakdownDto> AnalyzeTechnologyGenerationsAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
@@ -825,14 +1027,24 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 allTechData.AddRange(speedtestResults.Select(s => (s.GenerationName, s.TechnologyStandard, s.Id)));
 
                 // Get cellular technology data using cell repository with spatial filter
+                // First get the cell IDs within the boundary
                 var cellQuery = _cellRepository.Query();
                 cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                var cellIds = await _cellRepository.ToListAsync(
+                    cellQuery.Select(c => c.Id), cancellationToken);
 
-                var cellularResults = await _cellRepository.ToListAsync(
-                    cellQuery
-                        .SelectMany(cell => cell.CellSectors!)
-                        .SelectMany(sector => sector.Cellulars!)
-                        .Where(c => c.Technology != null && c.Technology.Generation != null)
+                // Get cell sector IDs from those cells using CellSector repository
+                var cellSectorIds = await _cellSectorRepository.ToListAsync(
+                    _cellSectorRepository.Query()
+                        .Where(cs => cellIds.Contains(cs.CellId))
+                        .Select(cs => cs.Id), cancellationToken);
+
+                // Query cellulars using the cell sector IDs (direct relationship)
+                var cellularResults = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => cellSectorIds.Contains(c.CellSectorId)
+                                 && c.Technology != null 
+                                 && c.Technology.Generation != null)
                         .Select(c => new {
                             GenerationName = c.Technology!.Generation!.Name,
                             TechnologyStandard = c.Technology!.Standard,
@@ -1063,8 +1275,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     private static (double PopulationDensity, bool IsUrbanArea, bool IsHighDensityArea) CalculatePopulationContext(int? population, double areaKm2)
     {
         var populationDensity = population.HasValue && areaKm2 > 0 ? population.Value / areaKm2 : 0;
-        var isHighDensityArea = populationDensity > 500; // >500 people per km² = high density
-        var isUrbanArea = populationDensity > 1000; // >1000 people per km² = urban
+        var isHighDensityArea = populationDensity > 500; // >500 people per kmï¿½ = high density
+        var isUrbanArea = populationDensity > 1000; // >1000 people per kmï¿½ = urban
 
         return (populationDensity, isUrbanArea, isHighDensityArea);
     }
