@@ -464,16 +464,27 @@ public class ReportGenerationService : IReportGenerationService
     {
         var worksheet = workbook.Worksheets.Add("Detailed Data");
  
-        // Get ordered providers (alphabetically for consistency) - MUST match report data exactly
-        var providerHeaders = reportData.Summary.AllProviders.OrderBy(p => p).ToArray();
+ // CRITICAL FIX: Use ProviderCoverage.Keys instead of AllProviders
+        // ProviderCoverage only contains providers with actual coverage (FiberNAPCount > 0)
+   // AllProviders may include providers with zero coverage
+      var providerHeaders = reportData.Summary.ProviderCoverage.Keys.OrderBy(p => p).ToArray();
      
- _logger.LogInformation("Provider headers (alphabetical): {Providers}", string.Join(", ", providerHeaders));
+  _logger.LogWarning("EXCEL GENERATION - Using ProviderCoverage.Keys for columns");
+        _logger.LogWarning("EXCEL GENERATION - Provider count: {Count}", providerHeaders.Length);
+  _logger.LogWarning("EXCEL GENERATION - Providers: {Providers}", string.Join(", ", providerHeaders));
+   _logger.LogWarning("EXCEL GENERATION - AllProviders list (should be longer): {AllProviders}", 
+    string.Join(", ", reportData.Summary.AllProviders));
+   _logger.LogWarning("EXCEL GENERATION - ProviderCoverage dictionary:");
+        foreach (var kvp in reportData.Summary.ProviderCoverage.OrderBy(p => p.Key))
+   {
+      _logger.LogWarning("  - {Provider}: {Coverage} barangays", kvp.Key, kvp.Value);
+        }
 
-        // Fetch provider colors from database
-        var providerColors = await FetchProviderColorsAsync(providerHeaders, cancellationToken);
+      // Fetch provider colors from database
+  var providerColors = await FetchProviderColorsAsync(providerHeaders, cancellationToken);
  
-        int currentRow = 1;
-        var wiredBroadbandStartCol = 3;
+   int currentRow = 1;
+      var wiredBroadbandStartCol = 3;
         var wiredBroadbandEndCol = 2 + providerHeaders.Length;
       var remarksCol = wiredBroadbandEndCol + 1;
      
@@ -482,27 +493,27 @@ public class ReportGenerationService : IReportGenerationService
     worksheet.Cell(1, 1).Value = "Municipality";
    worksheet.Range(1, 1, 3, 1).Merge();
       worksheet.Cell(1, 1).Style.Font.Bold = true;
-        worksheet.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Cell(1, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+  worksheet.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+  worksheet.Cell(1, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
  
         // Barangay header (spans rows 1-3)
   worksheet.Cell(1, 2).Value = "Barangay";
         worksheet.Range(1, 2, 3, 2).Merge();
         worksheet.Cell(1, 2).Style.Font.Bold = true;
-        worksheet.Cell(1, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+  worksheet.Cell(1, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         worksheet.Cell(1, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-        
+   
     // "WIRED BROADBAND" header spanning all provider columns (row 1 only)
-        worksheet.Range(1, wiredBroadbandStartCol, 1, wiredBroadbandEndCol).Merge();
-        worksheet.Cell(1, wiredBroadbandStartCol).Value = "WIRED BROADBAND";
-        worksheet.Cell(1, wiredBroadbandStartCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+     worksheet.Range(1, wiredBroadbandStartCol, 1, wiredBroadbandEndCol).Merge();
+  worksheet.Cell(1, wiredBroadbandStartCol).Value = "WIRED BROADBAND";
+ worksheet.Cell(1, wiredBroadbandStartCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         worksheet.Cell(1, wiredBroadbandStartCol).Style.Font.Bold = true;
-    worksheet.Cell(1, wiredBroadbandStartCol).Style.Font.FontSize = 14;
+  worksheet.Cell(1, wiredBroadbandStartCol).Style.Font.FontSize = 14;
 worksheet.Cell(1, wiredBroadbandStartCol).Style.Fill.BackgroundColor = XLColor.Orange;
     
-        // REMARKS header (spans rows 1-3)
+    // REMARKS header (spans rows 1-3)
       worksheet.Cell(1, remarksCol).Value = "REMARKS";
-        worksheet.Range(1, remarksCol, 3, remarksCol).Merge();
+    worksheet.Range(1, remarksCol, 3, remarksCol).Merge();
  worksheet.Cell(1, remarksCol).Style.Font.Bold = true;
         worksheet.Cell(1, remarksCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
   worksheet.Cell(1, remarksCol).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
@@ -513,40 +524,40 @@ worksheet.Cell(1, wiredBroadbandStartCol).Style.Fill.BackgroundColor = XLColor.O
        var cell = worksheet.Cell(2, wiredBroadbandStartCol + i);
       cell.Value = providerHeaders[i];
       cell.Style.Font.Bold = true;
-        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        cell.Style.Alignment.WrapText = true; // Enable text wrapping for long names
-        
+      cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+     cell.Style.Alignment.WrapText = true; // Enable text wrapping for long names
+
        // Apply provider color if available
-        if (providerColors.TryGetValue(providerHeaders[i], out var color))
+  if (providerColors.TryGetValue(providerHeaders[i], out var color))
     {
        cell.Style.Fill.BackgroundColor = color;
         cell.Style.Font.FontColor = XLColor.White;
    }
-   else
+else
   {
-           cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+      cell.Style.Fill.BackgroundColor = XLColor.LightGray;
  }
         }
-        
+   
         // ROW 3: "FTTH" labels under each provider
-        for (int i = 0; i < providerHeaders.Length; i++)
-        {
+   for (int i = 0; i < providerHeaders.Length; i++)
+   {
    var cell = worksheet.Cell(3, wiredBroadbandStartCol + i);
       cell.Value = "FTTH";
    cell.Style.Font.Bold = true;
   cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
    cell.Style.Fill.BackgroundColor = XLColor.LightGray;
-      }
+    }
         
      currentRow = 4; // Data starts from row 4
      
-        // Data rows with merged municipality cells
+      // Data rows with merged municipality cells
     foreach (var municipality in reportData.Municipalities)
         {
  var municipalityStartRow = currentRow;
       var barangayCount = municipality.Barangays.Count;
   
-          foreach (var barangay in municipality.Barangays)
+        foreach (var barangay in municipality.Barangays)
        {
      // Barangay name
   worksheet.Cell(currentRow, 2).Value = barangay.Name;
@@ -555,78 +566,78 @@ worksheet.Cell(1, wiredBroadbandStartCol).Style.Fill.BackgroundColor = XLColor.O
    for (int i = 0; i < providerHeaders.Length; i++)
        {
       var providerName = providerHeaders[i];
-        var hasProvider = barangay.ProviderAvailability.Providers.GetValueOrDefault(providerName, false);
-          var cell = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
-        
-        // Log first row for debugging
+var hasProvider = barangay.ProviderAvailability.Providers.GetValueOrDefault(providerName, false);
+     var cell = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
+   
+     // Log first row for debugging
   if (currentRow == 4)
      {
-     _logger.LogDebug("Barangay: {BarangayName}, Provider: {ProviderName}, HasProvider: {HasProvider}, Available Providers: {AvailableProviders}",
-   barangay.Name, providerName, hasProvider, string.Join(", ", barangay.ProviderAvailability.AvailableProviders));
+_logger.LogDebug("Row {Row} - Barangay: {BarangayName}, Provider: {ProviderName}, HasProvider: {HasProvider}",
+    currentRow, barangay.Name, providerName, hasProvider);
  }
 
      if (hasProvider)
-       {
-        cell.Value = "YES";
-         cell.Style.Font.FontSize = 11;
+     {
+  cell.Value = "YES";
+      cell.Style.Font.FontSize = 11;
   cell.Style.Font.Bold = true;
  cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
     cell.Style.Font.FontColor = XLColor.Green;
-         }
+   }
         }
   
-     // Service status in Remarks column (color-coded)
-           var remarksCell = worksheet.Cell(currentRow, remarksCol);
+  // Service status in Remarks column (color-coded)
+    var remarksCell = worksheet.Cell(currentRow, remarksCol);
         remarksCell.Value = barangay.ServiceStatus.ToString().ToUpper();
    remarksCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 remarksCell.Style.Font.Bold = true;
      
-  switch (barangay.ServiceStatus)
+switch (barangay.ServiceStatus)
   {
  case ServiceStatusEnum.Served:
-     remarksCell.Style.Fill.BackgroundColor = XLColor.LightGreen;
+  remarksCell.Style.Fill.BackgroundColor = XLColor.LightGreen;
         break;
-    case ServiceStatusEnum.Underserved:
-          remarksCell.Style.Fill.BackgroundColor = XLColor.Orange;
+  case ServiceStatusEnum.Underserved:
+ remarksCell.Style.Fill.BackgroundColor = XLColor.Orange;
       break;
   case ServiceStatusEnum.Unserved:
   remarksCell.Style.Fill.BackgroundColor = XLColor.LightPink;
   break;
-           }
+}
     
  currentRow++;
-            }
+   }
 
        // Merge municipality cells for all barangays in this municipality
-      if (barangayCount > 1)
+    if (barangayCount > 1)
          {
      worksheet.Range(municipalityStartRow, 1, currentRow - 1, 1).Merge();
         }
        
        worksheet.Cell(municipalityStartRow, 1).Value = municipality.Name;
         worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-         worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-         worksheet.Cell(municipalityStartRow, 1).Style.Font.Bold = true;
-        }
+worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+  worksheet.Cell(municipalityStartRow, 1).Style.Font.Bold = true;
+   }
     
-        // Apply borders to all cells
-  var dataRange = worksheet.Range(1, 1, currentRow - 1, remarksCol);
+   // Apply borders to all cells
+var dataRange = worksheet.Range(1, 1, currentRow - 1, remarksCol);
  dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
-        dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-      
-        // Set column widths
+      dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+  
+    // Set column widths
      worksheet.Column(1).Width = 20; // Municipality
-        worksheet.Column(2).Width = 30; // Barangay - increased for longer names
-    
+   worksheet.Column(2).Width = 30; // Barangay - increased for longer names
+
       for (int i = 0; i < providerHeaders.Length; i++)
     {
-      worksheet.Column(wiredBroadbandStartCol + i).Width = 25; // Increased width for provider names
+    worksheet.Column(wiredBroadbandStartCol + i).Width = 25; // Increased width for provider names
     }
-        
+      
      worksheet.Column(remarksCol).Width = 18; // Remarks
   
  // Freeze first 3 rows (headers) and first 2 columns
-        worksheet.SheetView.FreezeRows(3);
+    worksheet.SheetView.FreezeRows(3);
     worksheet.SheetView.FreezeColumns(2);
     }
 
@@ -762,6 +773,7 @@ remarksCell.Style.Font.Bold = true;
 
     /// <summary>
     /// Fetches provider colors from the database and converts them to XLColor
+    /// Uses ONLY the providers that appear in the report's ProviderCoverage (providers with actual coverage)
     /// </summary>
     private async Task<Dictionary<string, XLColor>> FetchProviderColorsAsync(
           string[] providerNames,
@@ -771,41 +783,47 @@ remarksCell.Style.Font.Bold = true;
 
         try
         {
-            // Fetch all providers that match the names in the report
-            var providersQuery = _providerRepository.Query(p => providerNames.Contains(p.Name));
-            var providers = await providersQuery.ToListAsync(cancellationToken);
+        // Fetch ONLY providers that are in the provider names list (from ProviderCoverage)
+         // This ensures we don't fetch providers with zero coverage
+ var providersQuery = _providerRepository.Query(p => providerNames.Contains(p.Name));
+       var providers = await providersQuery.ToListAsync(cancellationToken);
 
-            foreach (var provider in providers)
-            {
-                if (!string.IsNullOrWhiteSpace(provider.Color))
-                {
-                    try
-                    {
-                        var xlColor = ParseHexToXLColor(provider.Color);
-                        providerColors[provider.Name] = xlColor;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex,
-                           "Failed to parse color '{Color}' for provider '{Provider}'. Using default gray.",
-                            provider.Color, provider.Name);
-                        providerColors[provider.Name] = XLColor.LightGray;
-                    }
-                }
-                else
-                {
-                    providerColors[provider.Name] = XLColor.LightGray;
-                }
-            }
+            _logger.LogInformation("Fetched {Count} provider colors from database for providers: {Providers}", 
+          providers.Count, string.Join(", ", providerNames));
 
-            _logger.LogDebug("Loaded colors for {Count} providers from database", providerColors.Count);
+          foreach (var provider in providers)
+    {
+  if (!string.IsNullOrWhiteSpace(provider.Color))
+      {
+          try
+      {
+      var xlColor = ParseHexToXLColor(provider.Color);
+            providerColors[provider.Name] = xlColor;
+        _logger.LogDebug("Provider '{Provider}' color: {Color}", provider.Name, provider.Color);
+   }
+  catch (Exception ex)
+       {
+      _logger.LogWarning(ex,
+     "Failed to parse color '{Color}' for provider '{Provider}'. Using default gray.",
+            provider.Color, provider.Name);
+               providerColors[provider.Name] = XLColor.LightGray;
+    }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching provider colors from database. Using default colors.");
+    else
+    {
+      _logger.LogDebug("Provider '{Provider}' has no color defined, using gray", provider.Name);
+      providerColors[provider.Name] = XLColor.LightGray;
+   }
+       }
+
+    _logger.LogInformation("Successfully loaded colors for {Count} providers from database", providerColors.Count);
+        }
+     catch (Exception ex)
+      {
+          _logger.LogError(ex, "Error fetching provider colors from database. Using default colors.");
         }
 
-        return providerColors;
+  return providerColors;
     }
 
     /// <summary>

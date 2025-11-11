@@ -293,7 +293,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         var barangayIds = assessments.Select(a => a.LocationId).ToList();
         var barangays = await _barangayRepository.ToListAsync(
             _barangayRepository.Query(b => barangayIds.Contains(b.Id))
-                .Select(b => new { b.Id, b.Name, b.Code, b.MunicipalityId, Municipality = new { b.Municipality.Id, b.Municipality.Name, b.Municipality.Code } }),
+                               .Select(b => new { b.Id, b.Name, b.Code, b.MunicipalityId, Municipality = new { b.Municipality.Id, b.Municipality.Name, b.Municipality.Code } }),
             cancellationToken);
 
         var municipalityGroups = barangays.GroupBy(b => b.Municipality.Id).ToList();
