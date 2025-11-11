@@ -971,7 +971,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             var s when s.Contains("1800") || s.Contains("BAND 3") || s.Contains("B3") => "1800MHz",
             
             // 2100 MHz (Band 1)
-            var s when s.Contains("2100") || s.Contains("BAND 1") || s.Contains("B1") && !s.Contains("2100") => "2100MHz",
+            var s when s.Contains("2100") || s.Contains("BAND 1") || s.Contains("B1") && !s.Contains("41") => "2100MHz",
             
             // 2300 MHz (Band 40)
             var s when s.Contains("2300") || s.Contains("BAND 40") || s.Contains("B40") => "2300MHz",
@@ -979,11 +979,12 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // 2500 MHz (Band 41)
             var s when s.Contains("2500") || s.Contains("BAND 41") || s.Contains("B41") => "2500MHz",
             
-            // 2600 MHz (Band 38/42)
-            var s when s.Contains("2600") || s.Contains("BAND 38") || s.Contains("B38") || s.Contains("BAND 42") || s.Contains("B42") => "2600MHz",
+            // 2600 MHz (Band 38) - SEPARATED from Band 42
+            var s when s.Contains("2600") || s.Contains("BAND 38") || s.Contains("B38") => "2600MHz",
             
-            // 3500 MHz (Band 78)
-            var s when s.Contains("3500") || s.Contains("BAND 78") || s.Contains("B78") => "3500MHz",
+            // 3500 MHz (Band 78, Band 42) - Combined as they're all in 3.4-3.8 GHz range
+            var s when s.Contains("3500") || s.Contains("3400") || s.Contains("BAND 78") || s.Contains("B78") || 
+                       s.Contains("BAND 42") || s.Contains("B42") => "3500MHz",
             
             _ => string.Empty // Unknown band
         };
