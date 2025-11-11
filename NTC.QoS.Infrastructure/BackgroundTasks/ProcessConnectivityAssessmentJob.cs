@@ -26,6 +26,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private readonly IRepository<Region> _regionRepository;
     private readonly IMemoryCache _memoryCache;
     private readonly ICellRepository _cellRepository;
+    private readonly ICellSectorRepository _cellSectorRepository;
     private readonly ICellularRepository _cellularRepository;
     private readonly INAPRepository _napRepository;
     private readonly IWiFiHotspotRepository _wifiRepository;
@@ -50,6 +51,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         IRepository<Region> regionRepository,
         IMemoryCache memoryCache,
         ICellRepository cellRepository,
+        ICellSectorRepository cellSectorRepository,
         ICellularRepository cellularRepository,
         INAPRepository napRepository,
         IWiFiHotspotRepository wifiRepository,
@@ -64,6 +66,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _regionRepository = regionRepository;
         _memoryCache = memoryCache;
         _cellRepository = cellRepository;
+        _cellSectorRepository = cellSectorRepository;
         _cellularRepository = cellularRepository;
         _napRepository = napRepository;
         _wifiRepository = wifiRepository;
@@ -1112,6 +1115,191 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
+    /// Analyzes band frequency distribution in the area from cellular infrastructure
+    /// Mirrors implementation from GenerateConnectivityAssessmentHandler
+    /// </summary>
+    private async Task<BandBreakdownDto> AnalyzeBandFrequencyAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var allBandData = new List<string>();
+
+            if (useBoundary && boundary != null)
+            {
+                // Use boundary-based queries for cellular data
+                // First get the cell IDs within the boundary
+                var cellQuery = _cellRepository.Query();
+                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                var cellIds = await _cellRepository.ToListAsync(
+                    cellQuery.Select(c => c.Id), cancellationToken);
+
+                // Get cell sector IDs from those cells using CellSector repository
+                var cellSectorIds = await _cellSectorRepository.ToListAsync(
+                    _cellSectorRepository.Query()
+                        .Where(cs => cellIds.Contains(cs.CellId))
+                        .Select(cs => cs.Id), cancellationToken);
+
+                // Query cellulars using the cell sector IDs (direct relationship)
+                var cellularResults = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => cellSectorIds.Contains(c.CellSectorId) && c.Band != null)
+                        .Select(c => c.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(cellularResults);
+
+                // Get wireless validation band data
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null 
+                               && wv.Barangay.Center != null
+                               && boundary.Intersects(wv.Barangay.Center)
+                               && wv.Band != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(wirelessValidationResults);
+            }
+            else
+            {
+                // Use radius-based queries for larger areas
+                var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
+                var searchRadiusMeters = searchRadiusKm * 1000;
+
+                var cellularResults = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters
+                                 && c.Band != null)
+                        .Select(c => c.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(cellularResults);
+
+                // Get wireless validation band data using barangay center distance
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                               && wv.Band != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
+                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                    wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
+
+                allBandData.AddRange(wirelessValidationResults);
+            }
+
+            if (allBandData.Count == 0)
+            {
+                return new BandBreakdownDto();
+            }
+
+            // Count bands by frequency
+            var bandCounts = new Dictionary<string, int>();
+            foreach (var bandName in allBandData.Where(b => !string.IsNullOrEmpty(b)))
+            {
+                var normalizedBand = NormalizeBandName(bandName);
+                if (!string.IsNullOrEmpty(normalizedBand))
+                {
+                    bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
+                }
+            }
+
+            // Get unique band names for available bands list
+            var availableBands = bandCounts.Keys.OrderBy(b => b).ToList();
+            
+            // Find dominant band
+            var dominantBand = bandCounts.Any() 
+                ? bandCounts.OrderByDescending(kvp => kvp.Value).First().Key 
+                : null;
+
+            return new BandBreakdownDto
+            {
+                Count700MHz = bandCounts.GetValueOrDefault("700MHz", 0),
+                Count850MHz = bandCounts.GetValueOrDefault("850MHz", 0),
+                Count900MHz = bandCounts.GetValueOrDefault("900MHz", 0),
+                Count1800MHz = bandCounts.GetValueOrDefault("1800MHz", 0),
+                Count2100MHz = bandCounts.GetValueOrDefault("2100MHz", 0),
+                Count2300MHz = bandCounts.GetValueOrDefault("2300MHz", 0),
+                Count2500MHz = bandCounts.GetValueOrDefault("2500MHz", 0),
+                Count2600MHz = bandCounts.GetValueOrDefault("2600MHz", 0),
+                Count3500MHz = bandCounts.GetValueOrDefault("3500MHz", 0),
+                AvailableBands = availableBands,
+                DominantBand = dominantBand
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error analyzing band frequency for area. Returning empty breakdown.");
+            return new BandBreakdownDto();
+        }
+    }
+
+    /// <summary>
+    /// Normalizes band names to standard frequency format (700MHz, 850MHz, etc.)
+    /// Handles various band naming conventions including Band numbers and frequency descriptions
+    /// </summary>
+    private static string NormalizeBandName(string bandName)
+    {
+        if (string.IsNullOrEmpty(bandName))
+            return string.Empty;
+
+        var normalized = bandName.ToUpperInvariant().Trim();
+
+        // Map band numbers and frequencies to standard names
+        return normalized switch
+        {
+            // 700 MHz (Band 28)
+            var s when s.Contains("700") || s.Contains("BAND 28") || s.Contains("B28") => "700MHz",
+            
+            // 850 MHz (Band 5)
+            var s when s.Contains("850") || s.Contains("BAND 5") || s.Contains("B5") && !s.Contains("2500") => "850MHz",
+            
+            // 900 MHz (Band 8)
+            var s when s.Contains("900") || s.Contains("BAND 8") || s.Contains("B8") => "900MHz",
+            
+            // 1800 MHz (Band 3)
+            var s when s.Contains("1800") || s.Contains("BAND 3") || s.Contains("B3") => "1800MHz",
+            
+            // 2100 MHz (Band 1)
+            var s when s.Contains("2100") || s.Contains("BAND 1") || s.Contains("B1") && !s.Contains("2100") => "2100MHz",
+            
+            // 2300 MHz (Band 40)
+            var s when s.Contains("2300") || s.Contains("BAND 40") || s.Contains("B40") => "2300MHz",
+            
+            // 2500 MHz (Band 41)
+            var s when s.Contains("2500") || s.Contains("BAND 41") || s.Contains("B41") => "2500MHz",
+            
+            // 2600 MHz (Band 38/42)
+            var s when s.Contains("2600") || s.Contains("BAND 38") || s.Contains("B38") || s.Contains("BAND 42") || s.Contains("B42") => "2600MHz",
+            
+            // 3500 MHz (Band 78)
+            var s when s.Contains("3500") || s.Contains("BAND 78") || s.Contains("B78") => "3500MHz",
+            
+            _ => string.Empty // Unknown band
+        };
+    }
+
+    /// <summary>
     /// Calculate median value from ordered list
     /// </summary>
     private static decimal CalculateMedian(List<decimal> values)
@@ -1996,6 +2184,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     {
         List<string> cells, naps, wifiHotspots, wirelessValidations;
         TechnologyBreakdownDto? technologyBreakdown = null;
+        BandBreakdownDto? bandBreakdown = null;
 
         if (boundary != null)
         {
@@ -2038,6 +2227,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             wirelessValidations = await _wirelessValidationRepository.ToListAsync(
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
+            // Technology breakdown with caching
             var techCacheKey = $"tech:{locationType}:{locationId}";
             if (!forceRecalculate && _memoryCache.TryGetValue(techCacheKey, out TechnologyBreakdownDto? cachedTech) && cachedTech != null)
             {
@@ -2051,6 +2241,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 }
                 technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
                 _memoryCache.Set(techCacheKey, technologyBreakdown, TimeSpan.FromHours(12));
+            }
+
+            // Band breakdown with caching
+            var bandCacheKey = $"{techCacheKey}_bands";
+            if (!forceRecalculate && _memoryCache.TryGetValue(bandCacheKey, out BandBreakdownDto? cachedBand) && cachedBand != null)
+            {
+                bandBreakdown = cachedBand;
+            }
+            else
+            {
+                if (forceRecalculate)
+                {
+                    _logger.LogInformation("Force recalculating band breakdown for {LocationType} {LocationId}", locationType, locationId);
+                }
+                bandBreakdown = await AnalyzeBandFrequencyAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
+                _memoryCache.Set(bandCacheKey, bandBreakdown, TimeSpan.FromHours(12));
             }
         }
         else
@@ -2099,7 +2305,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             wirelessValidations = await _wirelessValidationRepository.ToListAsync(
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
+            // Calculate technology and band breakdowns for radius-based queries
             technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
+            bandBreakdown = await AnalyzeBandFrequencyAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
         }
 
         // Include wireless validations in provider list
@@ -2118,6 +2326,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
             TechnologyBreakdown = technologyBreakdown,
+            BandBreakdown = bandBreakdown,
             ProviderBreakdown = providerBreakdown
         };
     }
