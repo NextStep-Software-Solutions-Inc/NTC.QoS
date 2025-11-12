@@ -101,19 +101,11 @@ public static class InfrastructureDependencyInjection
     {
         try
         {
-            var result = await dbContext.Database.ExecuteSqlRawAsync(
-                "SELECT pg_try_advisory_lock({0});",
-                [advisoryLockKey],
-                cancellationToken
-            );
-            
-            // pg_try_advisory_lock returns true if lock was acquired, false otherwise
-            // ExecuteSqlRawAsync returns the number of rows affected (1 in this case)
-            // We need to actually query the result
-            var lockResult = await dbContext.Database.SqlQueryRaw<bool>(
-                "SELECT pg_try_advisory_lock({0});",
-                advisoryLockKey
-            ).FirstOrDefaultAsync(cancellationToken);
+            // Use raw SQL execution with proper column aliasing for EF Core
+            // pg_try_advisory_lock returns a boolean value, we need to alias it as a column
+            var lockResult = await dbContext.Database
+                .SqlQuery<bool>($"SELECT pg_try_advisory_lock({advisoryLockKey}) AS \"Value\"")
+                .FirstOrDefaultAsync(cancellationToken);
             
             return lockResult;
         }
@@ -168,8 +160,9 @@ public static class InfrastructureDependencyInjection
         try
         {
             logger.LogInformation("Releasing advisory lock {LockKey}", advisoryLockKey);
+            // Use ExecuteSqlRaw which doesn't expect a return value
             await dbContext.Database.ExecuteSqlRawAsync(
-                "SELECT pg_advisory_unlock({0});", 
+                "SELECT pg_advisory_unlock({0})", 
                 [advisoryLockKey], 
                 cancellationToken
             );
