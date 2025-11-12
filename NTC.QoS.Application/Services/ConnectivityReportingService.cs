@@ -3,6 +3,8 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using MediatR;
+using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
 
 namespace NTC.QoS.Application.Services;
 
@@ -78,6 +80,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
     private readonly IProvinceRepository _provinceRepository;
     private readonly IRegionRepository _regionRepository;
     private readonly IReportGenerationService _reportGenerationService;
+    private readonly IMediator _mediator;
     private readonly ILogger<ConnectivityReportingService> _logger;
 
     // Cache for location names during the request lifetime
@@ -90,6 +93,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         IProvinceRepository provinceRepository,
         IRegionRepository regionRepository,
         IReportGenerationService reportGenerationService,
+        IMediator mediator,
         ILogger<ConnectivityReportingService> logger)
     {
         _assessmentRepository = assessmentRepository;
@@ -98,6 +102,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
         _reportGenerationService = reportGenerationService;
+        _mediator = mediator;
         _logger = logger;
     }
 
@@ -206,10 +211,24 @@ public class ConnectivityReportingService : IConnectivityReportingService
     {
         _logger.LogInformation("Generating wired broadband PDF report");
 
-        var reportData = await GenerateWiredBroadbandReportAsync(
-            regionId, provinceId, municipalityId, includeOnlyServedAreas, cancellationToken);
+        // Use the MediatR handler for consistent data processing
+        var query = new GetWiredBroadbandReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            IncludeOnlyServedAreas = includeOnlyServedAreas,
+            ForceGenerateConnectivityAssessment = false // Don't force assessment for file exports
+        };
 
-        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(reportData, reportTitle, cancellationToken);
+        var response = await _mediator.Send(query, cancellationToken);
+
+        if (!response.Succeeded || response.Data == null)
+        {
+            throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
+        }
+
+        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, cancellationToken);
     }
 
     public async Task<byte[]> GenerateWiredBroadbandExcelAsync(
@@ -222,10 +241,24 @@ public class ConnectivityReportingService : IConnectivityReportingService
     {
         _logger.LogInformation("Generating wired broadband Excel report");
 
-        var reportData = await GenerateWiredBroadbandReportAsync(
-            regionId, provinceId, municipalityId, includeOnlyServedAreas, cancellationToken);
+        // Use the MediatR handler for consistent data processing
+        var query = new GetWiredBroadbandReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            IncludeOnlyServedAreas = includeOnlyServedAreas,
+            ForceGenerateConnectivityAssessment = false // Don't force assessment for file exports
+        };
 
-        return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(reportData, reportTitle, cancellationToken);
+        var response = await _mediator.Send(query, cancellationToken);
+
+        if (!response.Succeeded || response.Data == null)
+        {
+            throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
+        }
+
+        return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(response.Data, reportTitle, cancellationToken);
     }
 
     public async Task<byte[]> GenerateConnectivityGapPdfAsync(
