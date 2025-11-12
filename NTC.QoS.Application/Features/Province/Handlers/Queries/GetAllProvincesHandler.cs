@@ -38,28 +38,29 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IR
                 ISPCount = 0 // Placeholder, will be calculated below
             });
 
-        var paginatedProvinces = await _provinceRepository.PaginateAsync(provinceProjection, request.PageNumber, request.PageSize, cancellationToken);
+        return await _provinceRepository.PaginateAsync(provinceProjection, request.PageNumber, request.PageSize, cancellationToken);
 
         // Step 2: Get province IDs for current page
-        var provinceIds = paginatedProvinces.Data?.Select(p => p.Id).ToList() ?? [];
+        //var provinceIds = paginatedProvinces.Data?.Select(p => p.Id).ToList() ?? [];
 
         // Step 3: Compute ISP counts using database subqueries (NO boundary or location materialization)
-        var ispCounts = await _provinceRepository.GetIspCountsForProvincesAsync(provinceIds, cancellationToken);
+        //var ispCounts = await _provinceRepository.GetIspCountsForProvincesAsync(provinceIds, cancellationToken);
 
         // Step 4: Combine results
-        var provinceDtos = paginatedProvinces.Data?.Select(p => new ProvinceDto
-        {
-            Id = p.Id,
-            Name = p.Name,
-            Description = p.Description,
-            Code = p.Code,
-            Area = p.Area,
-            Region = p.Region,
-            BarangayCount = p.BarangayCount,
-            MunicipalityCount = p.MunicipalityCount,
-            ISPCount = ispCounts.GetValueOrDefault(p.Id, 0)
-        }).ToList() ?? [];
+        //var provinceDtos = paginatedProvinces.Data?.Select(p => new ProvinceDto
+        //{
+        //    Id = p.Id,
+        //    Name = p.Name,
+        //    Description = p.Description,
+        //    Code = p.Code,
+        //    Area = p.Area,
+        //    Region = p.Region,
+        //    BarangayCount = p.BarangayCount,
+        //    MunicipalityCount = p.MunicipalityCount,
+        //    ISPCount = 0
+        //    //ISPCount = ispCounts.GetValueOrDefault(p.Id, 0)
+        //}).ToList() ?? [];
 
-        return new PaginatedResponse<ProvinceDto>(provinceDtos, paginatedProvinces.PageNumber, paginatedProvinces.PageSize, paginatedProvinces.TotalRows);
+        //return new PaginatedResponse<ProvinceDto>(provinceDtos, paginatedProvinces.PageNumber, paginatedProvinces.PageSize, paginatedProvinces.TotalRows);
     }
 }
