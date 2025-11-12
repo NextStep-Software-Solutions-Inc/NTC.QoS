@@ -8,11 +8,16 @@ using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace NTC.QoS.Infrastructure;
 
 public static class InfrastructureDependencyInjection
 {
+    // Default advisory lock identifier - can be overridden via configuration
+    private const string DefaultAdvisoryLockIdentifier = "migration-advisory-lock";
+
     /// <summary>
     /// Registers all infrastructure services with improved organization and configuration support
     /// </summary>
@@ -48,13 +53,28 @@ public static class InfrastructureDependencyInjection
         
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
         var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
-        var databaseOptions = services.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+        var configuration = services.GetRequiredService<IConfiguration>();
 
-        var advisoryLockKey = databaseOptions.AdvisoryLockKey;
+        // Get configurable advisory lock identifier
+        var lockIdentifier = configuration.GetValue<string>("Database:AdvisoryLockIdentifier") ?? DefaultAdvisoryLockIdentifier;
+        var advisoryLockKey = GenerateAdvisoryLockKey(lockIdentifier);
         var lockAcquired = false;
 
         try
         {
+            // Attempt to acquire advisory lock to prevent concurrent seeding
+            logger.LogInformation("Attempting to acquire advisory lock {LockKey} for identifier '{Identifier}'...", 
+                advisoryLockKey, lockIdentifier);
+            lockAcquired = await TryAcquireAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
+            
+            if (!lockAcquired)
+            {
+                logger.LogWarning("Could not acquire advisory lock {LockKey}. Another instance may be running migrations. Skipping seeding.", advisoryLockKey);
+                return;
+            }
+
+            logger.LogInformation("Advisory lock {LockKey} acquired successfully", advisoryLockKey);
+
             // Seed initial data
             logger.LogInformation("Starting data seeding process...");
             await SeedInitialDataAsync(dbContext, services, logger, cancellationToken);
@@ -76,6 +96,28 @@ public static class InfrastructureDependencyInjection
             {
                 await ReleaseAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
             }
+        }
+    }
+
+    /// <summary>
+    /// Attempts to acquire a PostgreSQL advisory lock using parameterized query
+    /// </summary>
+    /// <returns>True if lock was acquired, false otherwise</returns>
+    private static async Task<bool> TryAcquireAdvisoryLockAsync(ApplicationDbContext dbContext, long advisoryLockKey, ILogger logger, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Use SqlQueryRaw with parameters to prevent SQL injection
+            var lockResult = await dbContext.Database
+                .SqlQueryRaw<bool>("SELECT pg_try_advisory_lock({0}) AS \"Value\"", advisoryLockKey)
+                .FirstOrDefaultAsync(cancellationToken);
+            
+            return lockResult;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to acquire advisory lock {LockKey}. Error: {ErrorMessage}", advisoryLockKey, ex.Message);
+            return false;
         }
     }
 
@@ -122,18 +164,32 @@ public static class InfrastructureDependencyInjection
     {
         try
         {
-            logger.LogDebug("Releasing advisory lock {LockKey}", advisoryLockKey);
+            logger.LogInformation("Releasing advisory lock {LockKey}", advisoryLockKey);
+            // Use ExecuteSqlRaw which doesn't expect a return value
             await dbContext.Database.ExecuteSqlRawAsync(
-                "SELECT pg_advisory_unlock({0});", 
-                new object[] { advisoryLockKey }, 
+                "SELECT pg_advisory_unlock({0})", 
+                [advisoryLockKey], 
                 cancellationToken
             );
-            logger.LogDebug("Advisory lock {LockKey} released successfully", advisoryLockKey);
+            logger.LogInformation("Advisory lock {LockKey} released successfully", advisoryLockKey);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to release advisory lock {LockKey}. This may cause issues if the application restarts quickly", advisoryLockKey);
             // Don't re-throw as this is cleanup code
         }
+    }
+
+    /// <summary>
+    /// Generates a consistent advisory lock key using a hash of a configurable string.
+    /// This allows different applications sharing the same database to use different locks.
+    /// </summary>
+    /// <param name="identifier">The string identifier to hash (e.g., "migration-advisory-lock" or "app1-migration-lock")</param>
+    /// <returns>A 64-bit advisory lock key</returns>
+    private static long GenerateAdvisoryLockKey(string identifier)
+    {
+        using var sha256 = SHA256.Create();
+        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(identifier));
+        return BitConverter.ToInt64(hash, 0);
     }
 }
