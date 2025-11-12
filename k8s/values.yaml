@@ -1,6 +1,6 @@
 replicaCount: 2
 
-restartPolicy: UnlessStopped
+restartPolicy: Always
 
 image:
   repository: wacanam20/ntc-qos-api
