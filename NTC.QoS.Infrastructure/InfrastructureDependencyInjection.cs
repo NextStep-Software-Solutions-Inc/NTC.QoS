@@ -8,12 +8,8 @@ using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
-<<<<<<< HEAD
-using NTC.QoS.Infrastructure.Services;
-=======
 using System.Security.Cryptography;
 using System.Text;
->>>>>>> development
 
 namespace NTC.QoS.Infrastructure;
 
@@ -42,15 +38,6 @@ public static class InfrastructureDependencyInjection
         services.AddBackgroundJobServices();
         services.AddReportingServices();
 
-        return services;
-    }
-
-    /// <summary>
-    /// Registers reporting services
-    /// </summary>
-    private static IServiceCollection AddReportingServices(this IServiceCollection services)
-    {
-        services.AddScoped<IReportGenerationService, ReportGenerationService>();
         return services;
     }
 
