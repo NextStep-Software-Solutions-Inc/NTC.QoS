@@ -159,7 +159,11 @@ public static class LocationSeeder
             return;
         }
 
-        var existingRegionCodes = await dbContext.Regions.AsNoTracking().Select(r => r.Code).ToHashSetAsync();
+        // Load existing regions with IDs for proper update matching
+        var existingRegions = await dbContext.Regions.AsNoTracking()
+            .Select(r => new { r.Id, r.Code })
+            .ToDictionaryAsync(r => r.Code, r => r.Id);
+
         var now = DateTime.UtcNow;
         var userId = "System"; // Seeding is always done by System
 
@@ -197,7 +201,7 @@ public static class LocationSeeder
 
         foreach (var region in allRegionsFromGeoJson)
         {
-            var isExisting = existingRegionCodes.Contains(region.code!);
+            var isExisting = existingRegions.ContainsKey(region.code!);
 
             var regionEntity = new Region
             {
@@ -218,6 +222,8 @@ public static class LocationSeeder
 
             if (isExisting && forceReseed)
             {
+                // Set the ID from existing entity for proper update
+                regionEntity.Id = existingRegions[region.code!];
                 regionsToUpdate.Add(regionEntity);
             }
             else if (!isExisting)
@@ -238,7 +244,6 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(regionsToUpdate, config => 
             {
-                config.UpdateByProperties = new List<string> { nameof(Region.Code) };
                 config.PropertiesToInclude = new List<string> 
                 { 
                     nameof(Region.Name),
@@ -336,7 +341,11 @@ public static class LocationSeeder
             logger.LogInformation("Loaded {Count} regions.", regionMap.Count);
         }
         
-        var existingProvinceCodes = await dbContext.Provinces.AsNoTracking().Select(p => p.Code).ToHashSetAsync();
+        // Load existing provinces with IDs for proper update matching
+        var existingProvinces = await dbContext.Provinces.AsNoTracking()
+            .Select(p => new { p.Id, p.Code })
+            .ToDictionaryAsync(p => p.Code, p => p.Id);
+
         var now = DateTime.UtcNow;
         var userId = "System";
      
@@ -375,7 +384,7 @@ public static class LocationSeeder
 
         foreach (var province in allProvincesFromGeoJson)
         {
-            var isExisting = existingProvinceCodes.Contains(province.code!);
+            var isExisting = existingProvinces.ContainsKey(province.code!);
 
             var provinceEntity = new Province
             {
@@ -397,6 +406,8 @@ public static class LocationSeeder
 
             if (isExisting && forceReseed)
             {
+                // Set the ID from existing entity for proper update
+                provinceEntity.Id = existingProvinces[province.code!];
                 provincesToUpdate.Add(provinceEntity);
             }
             else if (!isExisting)
@@ -417,7 +428,6 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(provincesToUpdate, config => 
             {
-                config.UpdateByProperties = new List<string> { nameof(Province.Code) };
                 config.PropertiesToInclude = new List<string> 
                 { 
                     nameof(Province.Name),
@@ -506,7 +516,11 @@ public static class LocationSeeder
             logger.LogInformation("Loaded {Count} provinces.", provinceMap.Count);
         }
         
-        var existingMunicipalityCodes = await dbContext.Municipalities.AsNoTracking().Select(m => m.Code).ToHashSetAsync();
+        // Load existing municipalities with IDs for proper update matching
+        var existingMunicipalities = await dbContext.Municipalities.AsNoTracking()
+            .Select(m => new { m.Id, m.Code })
+            .ToDictionaryAsync(m => m.Code, m => m.Id);
+
         var now = DateTime.UtcNow;
         var userId = "System";
 
@@ -545,7 +559,7 @@ public static class LocationSeeder
 
         foreach (var municipality in allMunicipalitiesFromGeoJson)
         {
-            var isExisting = existingMunicipalityCodes.Contains(municipality.code!);
+            var isExisting = existingMunicipalities.ContainsKey(municipality.code!);
             var isCity = !string.IsNullOrWhiteSpace(municipality.name) && 
                          (municipality.name.Contains("City", StringComparison.OrdinalIgnoreCase) || 
                           municipality.name.Contains("Capital", StringComparison.OrdinalIgnoreCase));
@@ -571,6 +585,8 @@ public static class LocationSeeder
 
             if (isExisting && forceReseed)
             {
+                // Set the ID from existing entity for proper update
+                municipalityEntity.Id = existingMunicipalities[municipality.code!];
                 municipalitiesToUpdate.Add(municipalityEntity);
             }
             else if (!isExisting)
@@ -591,7 +607,6 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(municipalitiesToUpdate, config => 
             {
-                config.UpdateByProperties = new List<string> { nameof(Municipality.Code) };
                 config.PropertiesToInclude = new List<string> 
                 { 
                     nameof(Municipality.IsCity),
@@ -602,6 +617,7 @@ public static class LocationSeeder
                     nameof(Municipality.HouseholdCount),
                     nameof(Municipality.Boundaries),
                     nameof(Municipality.Center),
+                    nameof(Municipality.ProvinceId),
                     nameof(Municipality.UpdatedAt),
                     nameof(Municipality.UpdatedBy)
                 };
@@ -680,7 +696,11 @@ public static class LocationSeeder
             logger.LogInformation("Loaded {Count} municipalities.", municipalityMap.Count);
         }
         
-        var existingBarangayCodes = await dbContext.Barangays.AsNoTracking().Select(b => b.Code).ToHashSetAsync();
+        // Load existing barangays with IDs for proper update matching
+        var existingBarangays = await dbContext.Barangays.AsNoTracking()
+            .Select(b => new { b.Id, b.Code })
+            .ToDictionaryAsync(b => b.Code, b => b.Id);
+
         var now = DateTime.UtcNow;
         var userId = "System";
 
@@ -716,7 +736,7 @@ public static class LocationSeeder
 
         foreach (var barangay in allBarangaysFromGeoJson)
         {
-            var isExisting = existingBarangayCodes.Contains(barangay.code!);
+            var isExisting = existingBarangays.ContainsKey(barangay.code!);
 
             var barangayEntity = new Barangay
             {
@@ -738,6 +758,8 @@ public static class LocationSeeder
 
             if (isExisting && forceReseed)
             {
+                // Set the ID from existing entity for proper update
+                barangayEntity.Id = existingBarangays[barangay.code!];
                 barangaysToUpdate.Add(barangayEntity);
             }
             else if (!isExisting)
@@ -758,7 +780,6 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(barangaysToUpdate, config => 
             {
-                config.UpdateByProperties = new List<string> { nameof(Barangay.Code) };
                 config.PropertiesToInclude = new List<string> 
                 { 
                     nameof(Barangay.Name),

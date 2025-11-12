@@ -15,6 +15,9 @@ namespace NTC.QoS.Infrastructure;
 
 public static class InfrastructureDependencyInjection
 {
+    // Default advisory lock identifier - can be overridden via configuration
+    private const string DefaultAdvisoryLockIdentifier = "migration-advisory-lock";
+
     /// <summary>
     /// Registers all infrastructure services with improved organization and configuration support
     /// </summary>
@@ -51,14 +54,18 @@ public static class InfrastructureDependencyInjection
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
         var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
         var databaseOptions = services.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+        var configuration = services.GetRequiredService<IConfiguration>();
 
-        var advisoryLockKey = GenerateAdvisoryLockKey();
+        // Get configurable advisory lock identifier
+        var lockIdentifier = configuration.GetValue<string>("Database:AdvisoryLockIdentifier") ?? DefaultAdvisoryLockIdentifier;
+        var advisoryLockKey = GenerateAdvisoryLockKey(lockIdentifier);
         var lockAcquired = false;
 
         try
         {
             // Attempt to acquire advisory lock to prevent concurrent seeding
-            logger.LogInformation("Attempting to acquire advisory lock {LockKey}...", advisoryLockKey);
+            logger.LogInformation("Attempting to acquire advisory lock {LockKey} for identifier '{Identifier}'...", 
+                advisoryLockKey, lockIdentifier);
             lockAcquired = await TryAcquireAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
             
             if (!lockAcquired)
@@ -94,17 +101,16 @@ public static class InfrastructureDependencyInjection
     }
 
     /// <summary>
-    /// Attempts to acquire a PostgreSQL advisory lock
+    /// Attempts to acquire a PostgreSQL advisory lock using parameterized query
     /// </summary>
     /// <returns>True if lock was acquired, false otherwise</returns>
     private static async Task<bool> TryAcquireAdvisoryLockAsync(ApplicationDbContext dbContext, long advisoryLockKey, ILogger logger, CancellationToken cancellationToken)
     {
         try
         {
-            // Use raw SQL execution with proper column aliasing for EF Core
-            // pg_try_advisory_lock returns a boolean value, we need to alias it as a column
+            // Use SqlQueryRaw with parameters to prevent SQL injection
             var lockResult = await dbContext.Database
-                .SqlQuery<bool>($"SELECT pg_try_advisory_lock({advisoryLockKey}) AS \"Value\"")
+                .SqlQueryRaw<bool>("SELECT pg_try_advisory_lock({0}) AS \"Value\"", advisoryLockKey)
                 .FirstOrDefaultAsync(cancellationToken);
             
             return lockResult;
@@ -176,13 +182,15 @@ public static class InfrastructureDependencyInjection
     }
 
     /// <summary>
-    /// Generates a consistent advisory lock key using a hash of a fixed string
+    /// Generates a consistent advisory lock key using a hash of a configurable string.
+    /// This allows different applications sharing the same database to use different locks.
     /// </summary>
+    /// <param name="identifier">The string identifier to hash (e.g., "migration-advisory-lock" or "app1-migration-lock")</param>
     /// <returns>A 64-bit advisory lock key</returns>
-    private static long GenerateAdvisoryLockKey()
+    private static long GenerateAdvisoryLockKey(string identifier)
     {
         using var sha256 = SHA256.Create();
-        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes("migration-advisory-lock"));
+        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(identifier));
         return BitConverter.ToInt64(hash, 0);
     }
 }
