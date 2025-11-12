@@ -18,10 +18,20 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
             allBarangaysQuery = allBarangaysQuery.Where(b => request.MunicipalityIds.Contains(b.MunicipalityId));
         }
 
-        allBarangaysQuery = allBarangaysQuery
-            .Where(b => request.Name == null || b.Name.ToLower().Contains(request.Name.ToLower()))
-            .Where(b => request.Municipality == null || b.Municipality.Name.ToLower().Contains(request.Municipality.ToLower()))
-            .Where(b => request.Province == null || b.Municipality.Province.Name.ToLower().Contains(request.Province.ToLower()));
+        if (!string.IsNullOrEmpty(request.Name))
+        {
+            allBarangaysQuery = _barangayRepository.SearchByName(allBarangaysQuery, request.Name);
+        }
+
+        if (!string.IsNullOrEmpty(request.Municipality))
+        {
+            allBarangaysQuery = _barangayRepository.SearchByMunicipalityName(allBarangaysQuery, request.Municipality);
+        }
+
+        if (!string.IsNullOrEmpty(request.Province))
+        {
+            allBarangaysQuery = _barangayRepository.SearchByProvinceName(allBarangaysQuery, request.Province);
+        }
 
         var barangayDtosQuery = allBarangaysQuery
             .OrderBy(b => b.Name)

@@ -8,7 +8,7 @@ namespace NTC.QoS.Domain.Models.DTOs.Common;
 /// Optimized for UI map viewport filtering to reduce data transfer and prevent OOM.
 /// Includes validation for limited resource environments handling millions of data points.
 /// </summary>
-public class ViewportBoundsDto
+public class ViewportBounds
 {
     /// <summary>
     /// Minimum latitude (southern boundary) of the viewport.
@@ -96,13 +96,13 @@ public class ViewportBoundsDto
     public ViewportSizeCategory GetSizeCategory()
     {
         var area = GetAreaInSquareDegrees();
-        
+
         if (area <= GeoSpatialConstants.SmallViewportThresholdSquareDegrees)
             return ViewportSizeCategory.Small;
-        
+
         if (area <= GeoSpatialConstants.MediumViewportThresholdSquareDegrees)
             return ViewportSizeCategory.Medium;
-        
+
         return ViewportSizeCategory.Large;
     }
 
@@ -148,6 +148,7 @@ public class ViewportBoundsDto
     {
         return $"Viewport[({MinLatitude}, {MinLongitude}) to ({MaxLatitude}, {MaxLongitude})]";
     }
+
 }
 
 /// <summary>

@@ -132,6 +132,9 @@ public static class LocationSeeder
         }
 
         var existingRegionCodes = await dbContext.Regions.AsNoTracking().Select(r => r.Code).ToHashSetAsync();
+        var now = DateTime.UtcNow;
+        var userId = "System"; // Seeding is always done by System
+
         var regionsToAdd = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM1_PCODE"] != null &&
@@ -162,7 +165,11 @@ public static class LocationSeeder
                 HouseholdPopulation = region.householdPopulation,
                 HouseholdCount = region.householdCount,
                 Boundaries = region.boundaries,
-                Center = region.boundaries.Centroid
+                Center = region.boundaries.Centroid,
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
             })
             .ToList();
 
@@ -236,7 +243,9 @@ public static class LocationSeeder
 
         var regionMap = await dbContext.Regions.AsNoTracking().Select(r => new { r.Code, r.Id }).ToDictionaryAsync(r => r.Code, r => r.Id);
         var existingProvinceCodes = await dbContext.Provinces.AsNoTracking().Select(p => p.Code).ToHashSetAsync();
-        
+        var now = DateTime.UtcNow;
+        var userId = "System";
+     
         var provincesToAdd = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM2_PCODE"] != null &&
@@ -256,8 +265,8 @@ public static class LocationSeeder
             })
             .Where(province => !string.IsNullOrWhiteSpace(province.code) && 
                 (forceReseed || !existingProvinceCodes.Contains(province.code)) &&
-                !string.IsNullOrWhiteSpace(province.regionCode) && 
-                regionMap.ContainsKey(province.regionCode))
+                    !string.IsNullOrWhiteSpace(province.regionCode) && 
+                    regionMap.ContainsKey(province.regionCode))
             .Select(province => new Province
             {
                 Name = province.name ?? string.Empty,
@@ -269,7 +278,11 @@ public static class LocationSeeder
                 HouseholdCount = province.householdCount,
                 Boundaries = province.boundaries,
                 Center = province.boundaries.Centroid,
-                RegionId = regionMap[province.regionCode!]
+                RegionId = regionMap[province.regionCode!],
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
             })
             .ToList();
 
@@ -333,6 +346,8 @@ public static class LocationSeeder
 
         var provinceMap = await dbContext.Provinces.AsNoTracking().Select(p => new { p.Code, p.Id }).ToDictionaryAsync(p => p.Code, p => p.Id);
         var existingMunicipalityCodes = await dbContext.Municipalities.AsNoTracking().Select(m => m.Code).ToHashSetAsync();
+        var now = DateTime.UtcNow;
+        var userId = "System";
 
         var municipalitiesToAdd = featureCollection
             .Where(f => f?.Attributes != null &&
@@ -353,8 +368,8 @@ public static class LocationSeeder
             })
             .Where(municipality => !string.IsNullOrWhiteSpace(municipality.code) && 
                 (forceReseed || !existingMunicipalityCodes.Contains(municipality.code)) &&
-                !string.IsNullOrWhiteSpace(municipality.provinceCode) && 
-                provinceMap.ContainsKey(municipality.provinceCode))
+                    !string.IsNullOrWhiteSpace(municipality.provinceCode) && 
+                    provinceMap.ContainsKey(municipality.provinceCode))
             .Select(municipality => new Municipality
             {
                 Name = municipality.name ?? string.Empty,
@@ -366,7 +381,11 @@ public static class LocationSeeder
                 HouseholdCount = municipality.householdCount,
                 Boundaries = municipality.boundaries,
                 Center = municipality.boundaries.Centroid,
-                ProvinceId = provinceMap[municipality.provinceCode!]
+                ProvinceId = provinceMap[municipality.provinceCode!],
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
             })
             .ToList();
 
@@ -430,6 +449,8 @@ public static class LocationSeeder
 
         var municipalityMap = await dbContext.Municipalities.AsNoTracking().Select(m => new { m.Code, m.Id }).ToDictionaryAsync(m => m.Code, m => m.Id);
         var existingBarangayCodes = await dbContext.Barangays.AsNoTracking().Select(b => b.Code).ToHashSetAsync();
+        var now = DateTime.UtcNow;
+        var userId = "System";
 
         var barangaysToAdd = featureCollection
             .Where(f => f?.Attributes != null &&
@@ -447,8 +468,8 @@ public static class LocationSeeder
             })
             .Where(barangay => !string.IsNullOrWhiteSpace(barangay.code) && 
                 (forceReseed || !existingBarangayCodes.Contains(barangay.code)) &&
-                !string.IsNullOrWhiteSpace(barangay.municipalityCode) && 
-                municipalityMap.ContainsKey(barangay.municipalityCode))
+                    !string.IsNullOrWhiteSpace(barangay.municipalityCode) && 
+                    municipalityMap.ContainsKey(barangay.municipalityCode))
             .Select(barangay => new Barangay
             {
                 Name = barangay.name ?? string.Empty,
@@ -460,7 +481,11 @@ public static class LocationSeeder
                 HouseholdCount = null,
                 Boundaries = barangay.boundaries,
                 Center = barangay.boundaries.Centroid,
-                MunicipalityId = municipalityMap[barangay.municipalityCode!]
+                MunicipalityId = municipalityMap[barangay.municipalityCode!],
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
             })
             .ToList();
 

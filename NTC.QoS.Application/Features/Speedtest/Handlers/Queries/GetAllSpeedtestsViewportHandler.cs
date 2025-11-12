@@ -68,7 +68,7 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
         var speedtestQuery = _speedtestRepository.Query().AsNoTracking();
 
         // Apply viewport spatial filter (leverages PostGIS spatial index)
-        speedtestQuery = GeoQueryHelper.ApplyViewportFilter(request.Viewport, speedtestQuery);
+        speedtestQuery = speedtestQuery.ApplyViewportFilter(request.Viewport);
 
         // Apply service provider filter if specified
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)

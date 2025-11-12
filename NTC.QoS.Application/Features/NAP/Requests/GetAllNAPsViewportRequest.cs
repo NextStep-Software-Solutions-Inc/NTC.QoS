@@ -1,7 +1,6 @@
 using MediatR;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
-using NTC.QoS.Domain.Models.RequestParams;
 
 namespace NTC.QoS.Application.Features.NAP.Requests;
 
@@ -27,7 +26,7 @@ public class GetAllNAPsViewportRequest : IRequest<PaginatedResponse<NAPViewportD
     /// Viewport bounding box defining the visible map area.
     /// Only NAPs within this viewport will be returned.
     /// </summary>
-    public required ViewportBoundsDto Viewport { get; set; }
+    public required ViewportBounds Viewport { get; set; }
 
     /// <summary>
     /// Optional: Filter by specific service provider IDs.
@@ -59,7 +58,7 @@ public class GetAllNAPsViewportRequest : IRequest<PaginatedResponse<NAPViewportD
     /// </summary>
     public List<Guid>? RegionIds { get; set; }
 
-    public GetAllNAPsViewportRequest(int pageNumber, int pageSize, ViewportBoundsDto viewport)
+    public GetAllNAPsViewportRequest(int pageNumber, int pageSize, ViewportBounds viewport)
     {
         PageNumber = pageNumber;
         PageSize = pageSize;
