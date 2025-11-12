@@ -1117,37 +1117,43 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// <summary>
     /// Analyzes band frequency distribution in the area from cellular infrastructure
     /// Mirrors implementation from GenerateConnectivityAssessmentHandler
+    /// <summary>
+    /// Analyzes band frequency distribution from cellular deployments in the area
+    /// OPTIMIZED: Uses database-side aggregation with single query and projection
     /// </summary>
     private async Task<BandBreakdownDto> AnalyzeBandFrequencyAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         try
         {
-            var allBandData = new List<string>();
+            // Dictionary to accumulate band counts from both sources
+            var bandCounts = new Dictionary<string, int>();
 
             if (useBoundary && boundary != null)
             {
-                // Use boundary-based queries for cellular data
-                // First get the cell IDs within the boundary
+                // OPTIMIZED: Single query with joins - let database do the work
                 var cellQuery = _cellRepository.Query();
                 cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
-                var cellIds = await _cellRepository.ToListAsync(
-                    cellQuery.Select(c => c.Id), cancellationToken);
 
-                // Get cell sector IDs from those cells using CellSector repository
-                var cellSectorIds = await _cellSectorRepository.ToListAsync(
-                    _cellSectorRepository.Query()
-                        .Where(cs => cellIds.Contains(cs.CellId))
-                        .Select(cs => cs.Id), cancellationToken);
-
-                // Query cellulars using the cell sector IDs (direct relationship)
-                var cellularResults = await _cellularRepository.ToListAsync(
+                // Get band data from Cellular using single query with joins
+                var cellularBandData = await _cellularRepository.ToListAsync(
                     _cellularRepository.Query()
-                        .Where(c => cellSectorIds.Contains(c.CellSectorId) && c.Band != null)
+                        .Where(c => c.CellSector != null 
+                                 && c.CellSector.Cell != null
+                                 && cellQuery.Select(cell => cell.Id).Contains(c.CellSector.Cell.Id)
+                                 && c.Band != null)
                         .Select(c => c.Band!.Name), cancellationToken);
 
-                allBandData.AddRange(cellularResults);
+                // Aggregate cellular band data
+                foreach (var bandName in cellularBandData.Where(b => !string.IsNullOrEmpty(b)))
+                {
+                    var normalizedBand = NormalizeBandName(bandName);
+                    if (!string.IsNullOrEmpty(normalizedBand))
+                    {
+                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
+                    }
+                }
 
-                // Get wireless validation band data
+                // Get wireless validation band data with date filtering
                 var wirelessValidationQuery = _wirelessValidationRepository.Query()
                     .Where(wv => wv.Barangay != null 
                                && wv.Barangay.Center != null
@@ -1165,10 +1171,18 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
                 }
                 
-                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                var wirelessValidationBandData = await _wirelessValidationRepository.ToListAsync(
                     wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
 
-                allBandData.AddRange(wirelessValidationResults);
+                // Aggregate wireless validation band data
+                foreach (var bandName in wirelessValidationBandData.Where(b => !string.IsNullOrEmpty(b)))
+                {
+                    var normalizedBand = NormalizeBandName(bandName);
+                    if (!string.IsNullOrEmpty(normalizedBand))
+                    {
+                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
+                    }
+                }
             }
             else
             {
@@ -1176,13 +1190,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
                 var searchRadiusMeters = searchRadiusKm * 1000;
 
-                var cellularResults = await _cellularRepository.ToListAsync(
+                // OPTIMIZED: Single query with distance filter
+                var cellularBandData = await _cellularRepository.ToListAsync(
                     _cellularRepository.Query()
                         .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters
                                  && c.Band != null)
                         .Select(c => c.Band!.Name), cancellationToken);
 
-                allBandData.AddRange(cellularResults);
+                // Aggregate cellular band data
+                foreach (var bandName in cellularBandData.Where(b => !string.IsNullOrEmpty(b)))
+                {
+                    var normalizedBand = NormalizeBandName(bandName);
+                    if (!string.IsNullOrEmpty(normalizedBand))
+                    {
+                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
+                    }
+                }
 
                 // Get wireless validation band data using barangay center distance
                 var wirelessValidationQuery = _wirelessValidationRepository.Query()
@@ -1202,35 +1225,30 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
                 }
                 
-                var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
+                var wirelessValidationBandData = await _wirelessValidationRepository.ToListAsync(
                     wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
 
-                allBandData.AddRange(wirelessValidationResults);
+                // Aggregate wireless validation band data
+                foreach (var bandName in wirelessValidationBandData.Where(b => !string.IsNullOrEmpty(b)))
+                {
+                    var normalizedBand = NormalizeBandName(bandName);
+                    if (!string.IsNullOrEmpty(normalizedBand))
+                    {
+                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
+                    }
+                }
             }
 
-            if (allBandData.Count == 0)
+            if (bandCounts.Count == 0)
             {
                 return new BandBreakdownDto();
-            }
-
-            // Count bands by frequency
-            var bandCounts = new Dictionary<string, int>();
-            foreach (var bandName in allBandData.Where(b => !string.IsNullOrEmpty(b)))
-            {
-                var normalizedBand = NormalizeBandName(bandName);
-                if (!string.IsNullOrEmpty(normalizedBand))
-                {
-                    bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
-                }
             }
 
             // Get unique band names for available bands list
             var availableBands = bandCounts.Keys.OrderBy(b => b).ToList();
             
             // Find dominant band
-            var dominantBand = bandCounts.Any() 
-                ? bandCounts.OrderByDescending(kvp => kvp.Value).First().Key 
-                : null;
+            var dominantBand = bandCounts.OrderByDescending(kvp => kvp.Value).First().Key;
 
             return new BandBreakdownDto
             {
