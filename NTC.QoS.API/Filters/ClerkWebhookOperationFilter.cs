@@ -23,8 +23,8 @@ public class ClerkWebhookOperationFilter : IOperationFilter
                                   "The request is automatically verified using Svix signature verification.";
 
             // Add webhook security scheme
-            operation.Security = new List<OpenApiSecurityRequirement>
-            {
+            operation.Security =
+            [
                 new OpenApiSecurityRequirement
                 {
                     {
@@ -39,7 +39,7 @@ public class ClerkWebhookOperationFilter : IOperationFilter
                         Array.Empty<string>()
                     }
                 }
-            };
+            ];
 
             // Add example request body
             if (operation.RequestBody == null)

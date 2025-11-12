@@ -51,7 +51,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount(
        [FromQuery] DateTime? startDate,
        [FromQuery] DateTime? endDate,
-       [FromQuery] int limit = 0)
+       [FromQuery] int limit = 5)
     {
         var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger);
 
@@ -78,7 +78,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
        [FromQuery] DateTime? startDate,
        [FromQuery] DateTime? endDate,
        [FromQuery] Guid regionId,
-       [FromQuery] int limit = 0)
+       [FromQuery] int limit = 5)
     {
         var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger);
 
@@ -222,7 +222,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
 
     private void TrackCacheKey(string key)
     {
-        var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => new HashSet<string>());
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);

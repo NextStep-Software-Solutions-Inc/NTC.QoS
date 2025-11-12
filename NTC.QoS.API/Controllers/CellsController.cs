@@ -5,8 +5,8 @@ using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using NTC.QoS.Domain.Models.RequestParams;
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -31,16 +31,40 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return CreatedAtAction(nameof(GetCellById), new { id = cell.Data.Id }, cell);
     }
 
+    /// <summary>
+    /// v2 Viewport API: Get cells within viewport bounds (OPTIMIZED FOR MILLIONS OF DATA POINTS)
+    /// </summary>
+    [HttpGet("/v2/cells/viewport/public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<CellViewportDto>>> GetAllPublicCellsViewport([FromQuery] ViewportQueryParams query)
+    {
+        if (!query.IsViewportValid())
+        {
+            return BadRequest(new PaginatedResponse<CellViewportDto>([], 1, query.PageSize, 0)
+            {
+                Succeeded = false,
+                Message = "Invalid viewport bounds"
+            });
+        }
+
+        var request = new GetAllCellsViewportRequest(query);
+        var result = await mediator.Send(request);
+        return Ok(result);
+    }
+
     [HttpGet("public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] CellsQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] LocationQueryParams query)
     {
         return await GetAllCells(query);
     }
     [HttpGet]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] CellsQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] LocationQueryParams query)
     {
         return await GetAllCells(query);
     }
@@ -86,16 +110,16 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return Ok(cells);
     }
     
-    private async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(CellsQueryParams query)
+    private async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(LocationQueryParams query)
     {
         var cacheKey = $"{CellsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{query.Status}_" +
-               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ServiceIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.BarangayIds ?? [])}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+               $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+               $"{string.Join(",", query.RegionIds ?? [])}_" +
+               $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+               $"{string.Join(",", query.ProviderIds ?? [])}_" +
+               $"{string.Join(",", query.ServiceIds ?? [])}_" +
                $"{query.Longitude}_{query.Latitude}_{query.Distance}";
 
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
@@ -126,7 +150,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     }
     private void TrackCacheKey(string key)
     {
-        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellsCacheKeysSet, _ => new HashSet<string>());
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(CellsCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);
@@ -143,38 +167,5 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
             memoryCache.Remove(CellsCacheKeysSet);
         }
     }
-
-    public sealed class CellsQueryParams
-    {
-        [JsonPropertyName("pageNumber")]
-        public int PageNumber { get; set; } = 1;
-        [JsonPropertyName("pageSize")]
-        public int PageSize { get; set; } = 10;
-        [JsonPropertyName("search")]
-        public string? Search { get; set; }
-        [JsonPropertyName("status")]
-        public string? Status { get; set; }
-        [JsonPropertyName("barangayIds")]
-        public List<Guid>? BarangayIds { get; set; }
-        [JsonPropertyName("municipalityIds")]
-        public List<Guid>? MunicipalityIds { get; set; }
-        [JsonPropertyName("provinceIds")]
-        public List<Guid>? ProvinceIds { get; set; }
-        [JsonPropertyName("regionIds")]
-        public List<Guid>? RegionIds { get; set; }
-        [JsonPropertyName("serviceProviderIds")]
-        public List<Guid>? ServiceProviderIds { get; set; }
-        [JsonPropertyName("providerIds")]
-        public List<Guid>? ProviderIds { get; set; }
-        [JsonPropertyName("serviceIds")]
-        public List<Guid>? ServiceIds { get; set; }
-        [JsonPropertyName("longitude")]
-        public double Longitude { get; set; } = 0;
-        [JsonPropertyName("latitude")]
-        public double Latitude { get; set; } = 0;
-        [JsonPropertyName("distance")]
-        public double Distance { get; set; } = 180000000;
-    }
-    
 }
 

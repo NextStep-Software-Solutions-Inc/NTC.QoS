@@ -5,27 +5,20 @@ using NTC.QoS.Domain.Models.DTOs.Province;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
 
-public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICellRepository cellRepository, INAPRepository nAPRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
+public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
 {
     private readonly IProvinceRepository _provinceRepository = provinceRepository;
-    private readonly ICellRepository _cellRepository = cellRepository;
-    private readonly INAPRepository _nAPRepository = nAPRepository;
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
-        var provincesQuery = _provinceRepository.Query();
-
+        // Step 1: Get paginated provinces WITHOUT ISP counts (to avoid N+1 queries and boundary materialization)
+        var provincesQuery = _provinceRepository.QueryAsNoTracking();
         if (request.RegionId.HasValue)
         {
             provincesQuery = provincesQuery.Where(p => p.RegionId == request.RegionId.Value);
         }
 
-        var allCellsQuery = _cellRepository.Query();
-        var allNAPsQuery = _nAPRepository.Query();
-
-        var provinceDtosQuery = provincesQuery
-            .Skip((request.PageNumber - 1) * request.PageSize)
-            .Take(request.PageSize)
+        var provinceProjection = provincesQuery
             .OrderBy(p => p.Name)
             .Select(p => new ProvinceDto
             {
@@ -36,26 +29,38 @@ public class GetAllProvincesHandler(IProvinceRepository provinceRepository, ICel
                 Area = p.Area,
                 Region = new()
                 {
-                    Id = p.Region.Id,         
-                    Name = p.Region.Name,    
-                    Description = p.Region.Description,
+                    Id = p.Region!.Id,
+                    Name = p.Region.Name,
+                    Description = p.Region.Description
                 },
-                MunicipalityCount = p.Municipalities.Count(),
-                BarangayCount = p.Municipalities.Sum(m => m.Barangays.Count),
-                ISPCount = p.Boundaries != null
-                    ? allCellsQuery
-                        .Where(cell => p.Boundaries.Intersects(cell.Location))
-                        .Select(cell => cell.ServiceProviderId)
-                        .Concat( // <--- Merge with ServiceProviderIds from NAPs
-                            allNAPsQuery
-                                .Where(nap => p.Boundaries.Intersects(nap.Location))
-                                .Select(nap => nap.ServiceProviderId)
-                        )
-                        .Distinct() // <--- Get distinct IDs from the combined list
-                        .Count()
-                    : 0
-            }); 
+                BarangayCount = p.Municipalities!.SelectMany(m => m.Barangays!).Count(),
+                MunicipalityCount = p.Municipalities!.Count(),
+                ISPCount = 0 // Placeholder, will be calculated below
+            });
 
-        return await _provinceRepository.PaginateAsync(provinceDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
+        return await _provinceRepository.PaginateAsync(provinceProjection, request.PageNumber, request.PageSize, cancellationToken);
+
+        // Step 2: Get province IDs for current page
+        //var provinceIds = paginatedProvinces.Data?.Select(p => p.Id).ToList() ?? [];
+
+        // Step 3: Compute ISP counts using database subqueries (NO boundary or location materialization)
+        //var ispCounts = await _provinceRepository.GetIspCountsForProvincesAsync(provinceIds, cancellationToken);
+
+        // Step 4: Combine results
+        //var provinceDtos = paginatedProvinces.Data?.Select(p => new ProvinceDto
+        //{
+        //    Id = p.Id,
+        //    Name = p.Name,
+        //    Description = p.Description,
+        //    Code = p.Code,
+        //    Area = p.Area,
+        //    Region = p.Region,
+        //    BarangayCount = p.BarangayCount,
+        //    MunicipalityCount = p.MunicipalityCount,
+        //    ISPCount = 0
+        //    //ISPCount = ispCounts.GetValueOrDefault(p.Id, 0)
+        //}).ToList() ?? [];
+
+        //return new PaginatedResponse<ProvinceDto>(provinceDtos, paginatedProvinces.PageNumber, paginatedProvinces.PageSize, paginatedProvinces.TotalRows);
     }
 }

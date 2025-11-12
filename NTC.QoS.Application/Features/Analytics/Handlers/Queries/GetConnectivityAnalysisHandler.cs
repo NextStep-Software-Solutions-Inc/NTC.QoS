@@ -1,11 +1,15 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Infrastructure.Helper;
+using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -16,6 +20,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<NTC.QoS.Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<NTC.QoS.Domain.Entities.Region> _regionRepository;
+    private readonly IConnectivityCacheService _cacheService;
     private readonly ILogger<GetConnectivityAnalysisHandler> _logger;
 
     public GetConnectivityAnalysisHandler(
@@ -24,6 +29,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
         IMunicipalityRepository municipalityRepository,
         IRepository<NTC.QoS.Domain.Entities.Province> provinceRepository,
         IRepository<NTC.QoS.Domain.Entities.Region> regionRepository,
+        IConnectivityCacheService cacheService,
         ILogger<GetConnectivityAnalysisHandler> logger)
     {
         _connectivityRepository = connectivityRepository;
@@ -31,6 +37,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _cacheService = cacheService;
         _logger = logger;
     }
 
@@ -55,7 +62,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
 
                 if (assessment != null)
                 {
-                    locations.Add(MapToLocationDto(assessment, locationName));
+                    locations.Add(await MapToLocationDtoAsync(assessment, locationName, cancellationToken));
                 }
                 else
                 {
@@ -124,7 +131,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             LocationTypeEnum.Municipality => await GetMunicipalityNamesAsync(locationIds, cancellationToken),
             LocationTypeEnum.Provincial => await GetProvinceNamesAsync(locationIds, cancellationToken),
             LocationTypeEnum.Regional => await GetRegionNamesAsync(locationIds, cancellationToken),
-            _ => new Dictionary<Guid, string>()
+            _ => []
         };
     }
 
@@ -160,8 +167,58 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
         return regions.ToDictionary(x => x.Id, x => x.Name);
     }
 
-    private static LocationConnectivityDto MapToLocationDto(ConnectivityAssessment assessment, string locationName)
+    private async Task<LocationConnectivityDto> MapToLocationDtoAsync(ConnectivityAssessment assessment, string locationName, CancellationToken cancellationToken)
     {
+        // Retrieve technology breakdown from cache if available
+        TechnologyBreakdownDto? technologyBreakdown = null;
+        try
+        {
+            var techCacheKey = _cacheService.GenerateTechnologyCacheKey(assessment.LocationId, assessment.LocationType);
+            technologyBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBreakdownDto>(techCacheKey);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Cache operation failed while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving technology breakdown from cache for location {LocationId}",assessment.LocationId);
+        }
+
+        // Load provider breakdown from database
+        var providerBreakdown = new List<ProviderBreakdownDto>();
+        try
+        {
+            var providers = await _connectivityRepository.GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
+            providerBreakdown = providers.Select(p => new ProviderBreakdownDto
+            {
+                ProviderName = p.ProviderName,
+                CellTowerCount = p.CellTowerCount,
+                FiberNAPCount = p.FiberNAPCount,
+                WiFiHotspotCount = p.WiFiHotspotCount,
+                WirelessValidationCount = p.WirelessValidationCount,
+                AssetPercentage = p.AssetPercentage
+            }).ToList();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Database operation failed while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+        }
+
         return new LocationConnectivityDto
         {
             LocationId = assessment.LocationId,
@@ -183,7 +240,9 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 FiberNAPCount = assessment.FiberNAPCount,
                 WiFiHotspotCount = assessment.WifiHotspotCount,
                 ServiceProviderCount = assessment.ServiceProviderCount,
-                DominantServiceProvider = assessment.DominantServiceProvider
+                DominantServiceProvider = assessment.DominantServiceProvider,
+                TechnologyBreakdown = technologyBreakdown,
+                ProviderBreakdown = providerBreakdown
             },
             SpeedStats = assessment.SpeedTestCount > 0 ? new SpeedStatsDto
             {
@@ -193,14 +252,19 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 MedianDownloadSpeedMbps = assessment.MedianDownloadSpeedMbps,
                 MedianUploadSpeedMbps = assessment.MedianUploadSpeedMbps,
                 SpeedTestCount = assessment.SpeedTestCount,
-                MeetsMinimumSpeedRequirement = assessment.MeetsMinimumSpeedRequirement
+                MeetsMinimumSpeedRequirement = assessment.MeetsMinimumSpeedRequirement,
+                AverageSignalStrength = assessment.AverageSignalStrength ?? 0
             } : null,
             Coverage = new CoverageStatsDto
             {
                 MobileCoveragePercentage = assessment.MobileCoveragePercentage,
                 FixedBroadbandCoveragePercentage = assessment.FixedBroadbandCoveragePercentage,
                 FiberCoveragePercentage = assessment.FiberCoveragePercentage,
-                HasReliableConnectivity = assessment.HasReliableConnectivity
+                HasReliableConnectivity = assessment.HasReliableConnectivity,
+                EstimatedPopulationCoveragePercent = assessment.EstimatedPopulationCoveragePercent,
+                EstimatedHouseholdCoveragePercent = assessment.EstimatedHouseholdCoveragePercent,
+                AssetsPerThousandPeople = assessment.AssetsPerThousandPeople,
+                ProvidersPerThousandPeople = assessment.ProvidersPerThousandPeople
             },
             AreaSizeKm2 = assessment.AreaSizeKm2,
             CenterPoint = assessment.Location != null ? new PointDto

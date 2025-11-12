@@ -8,9 +8,9 @@ public class GeographicAnalysisDto
 
 public class CoverageHeatMapDto
 {
-    public List<DensityZoneDto> HighDensityZones { get; set; } = new();
-    public List<DensityZoneDto> MediumDensityZones { get; set; } = new();
-    public List<DensityZoneDto> LowDensityZones { get; set; } = new();
+    public List<DensityZoneDto> HighDensityZones { get; set; } = [];
+    public List<DensityZoneDto> MediumDensityZones { get; set; } = [];
+    public List<DensityZoneDto> LowDensityZones { get; set; } = [];
 }
 
 public class DensityZoneDto

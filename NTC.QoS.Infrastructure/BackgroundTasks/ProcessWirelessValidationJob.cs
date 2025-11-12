@@ -21,7 +21,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           ITechnologyRepository technologyRepository,
                                           IBandRepository bandRepository,
                                           IWirelessValidationRepository wirelessValidationRepository,
-                                          IBlobStorageService blobStorageService
+                                          IBlobStorageService blobStorageService,
+                                          IUserContextService userContextService
                                           ) : IProcessWirelessValidationJob
 {
     private const double MinimumMunicipalityMatchThreshold = 0.8;
@@ -41,6 +42,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private readonly IBandRepository _bandRepository = bandRepository;
     private readonly IWirelessValidationRepository _wirelessValidationRepository = wirelessValidationRepository;
     private readonly IBlobStorageService _blobStorageService = blobStorageService;
+    private readonly IUserContextService _userContextService = userContextService;
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -453,6 +455,10 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData,
         ProcessingResults results, CancellationToken token)
     {
+        // Get user context once for all batches
+        var userId = _userContextService.GetCurrentUserId() ?? "System";
+        var now = DateTime.UtcNow;
+
         var totalRecords = records.Count;
         var totalBatches = (int)Math.Ceiling((double)totalRecords / BATCH_SIZE);
 
@@ -469,105 +475,115 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
             .ToList();
 
-        _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
-            totalRecords, totalBatches, BATCH_SIZE);
+     _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
+   totalRecords, totalBatches, BATCH_SIZE);
 
         for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
-            var batch = records.Skip(batchIndex * BATCH_SIZE).Take(BATCH_SIZE).ToList();
-            var batchNumber = batchIndex + 1;
+     var batch = records.Skip(batchIndex * BATCH_SIZE).Take(BATCH_SIZE).ToList();
+     var batchNumber = batchIndex + 1;
 
             _logger.LogInformation("Processing batch {BatchNumber}/{TotalBatches} ({RecordCount} records)",
-                batchNumber, totalBatches, batch.Count);
+           batchNumber, totalBatches, batch.Count);
 
-            var validationsToAdd = new List<WirelessValidation>();
+      var validationsToAdd = new List<WirelessValidation>();
 
             foreach (var record in batch)
-            {
-                try
+      {
+    try
                 {
-                    results.ProcessedRecords++;
+results.ProcessedRecords++;
 
-                    if (!record.MunicipalityId.HasValue || string.IsNullOrWhiteSpace(record.Provider))
-                    {
-                        results.SkippedRecords++;
-                        continue;
-                    }
+        if (!record.MunicipalityId.HasValue || string.IsNullOrWhiteSpace(record.Provider))
+         {
+           results.SkippedRecords++;
+    continue;
+   }
 
-                    var serviceProviderKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
-                    if (!referenceData.ServiceProviderCache.TryGetValue(serviceProviderKey, out var serviceProviderId))
-                    {
-                        _logger.LogWarning("Service Provider not found: {Provider}. Skipping record.", record.Provider);
-                        results.SkippedRecords++;
-                        continue;
-                    }
+        var serviceProviderKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+                 if (!referenceData.ServiceProviderCache.TryGetValue(serviceProviderKey, out var serviceProviderId))
+      {
+   _logger.LogWarning("Service Provider not found: {Provider}. Skipping record.", record.Provider);
+          results.SkippedRecords++;
+        continue;
+       }
 
-                    record.ServiceProviderId = serviceProviderId;
+    record.ServiceProviderId = serviceProviderId;
 
-                    // Resolve barangay
-                    Guid? barangayId = null;
-                    if (!string.IsNullOrWhiteSpace(record.Barangay) && record.MunicipalityId.HasValue)
-                    {
-                        if (referenceData.BarangayCache.TryGetValue(record.MunicipalityId.Value, out var municipalityBarangays))
-                        {
-                            var barangayKey = CacheKeyGenerator.GenerateBarangayCacheKey(record.Barangay, record.MunicipalityId.Value);
-                            if (municipalityBarangays.TryGetValue(barangayKey, out var foundBarangayId))
-                            {
-                                barangayId = foundBarangayId;
-                                record.BarangayId = barangayId;
-                            }
-                        }
-                    }
+        // Resolve barangay
+      Guid? barangayId = null;
+if (!string.IsNullOrWhiteSpace(record.Barangay) && record.MunicipalityId.HasValue)
+          {
+     if (referenceData.BarangayCache.TryGetValue(record.MunicipalityId.Value, out var municipalityBarangays))
+  {
+             var barangayKey = CacheKeyGenerator.GenerateBarangayCacheKey(record.Barangay, record.MunicipalityId.Value);
+        if (municipalityBarangays.TryGetValue(barangayKey, out var foundBarangayId))
+  {
+      barangayId = foundBarangayId;
+                record.BarangayId = barangayId;
+          }
+        }
+               }
 
-                    if (!barangayId.HasValue)
-                    {
-                        _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}",
-                            record.Provider, record.Barangay, record.Municipality);
-                        results.SkippedRecords++;
-                        continue;
-                    }
+          if (!barangayId.HasValue)
+           {
+              _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}",
+      record.Provider, record.Barangay, record.Municipality);
+            results.SkippedRecords++;
+       continue;
+      }
 
-                    // Process each technology/band combination
-                    var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
-                    validationsToAdd.AddRange(recordValidations);
-                    results.SkippedDuplicates += skippedDuplicates;
+ // Process each technology/band combination
+      var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
+          
+   // CRITICAL: Set audit properties before adding to list
+        foreach (var validation in recordValidations)
+   {
+           validation.CreatedAt = now;
+      validation.CreatedBy = userId;
+        validation.UpdatedAt = now;
+      validation.UpdatedBy = userId;
+           }
+     
+         validationsToAdd.AddRange(recordValidations);
+           results.SkippedDuplicates += skippedDuplicates;
 
-                    if (recordValidations.Count != 0)
-                    {
-                        results.SuccessfulRecords++;
-                        results.CreatedValidations += recordValidations.Count;
-                    }
-                    else
-                    {
-                        results.SkippedRecords++;
-                    }
+     if (recordValidations.Count != 0)
+   {
+          results.SuccessfulRecords++;
+         results.CreatedValidations += recordValidations.Count;
+        }
+       else
+       {
+          results.SkippedRecords++;
+      }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error processing record - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
-                        record.Provider, record.Barangay, record.Municipality);
-                    results.ErrorRecords++;
-                }
-            }
+       catch (Exception ex)
+       {
+  _logger.LogWarning(ex, "Error processing record - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
+   record.Provider, record.Barangay, record.Municipality);
+      results.ErrorRecords++;
+        }
+}
 
-            // OPTIMIZED: Save batch periodically (like ProcessCellJob)
-            if (validationsToAdd.Count > 0)
-            {
-                await _wirelessValidationRepository.BulkInsertAsync(validationsToAdd, token);
-                _logger.LogInformation("Batch {BatchNumber}/{TotalBatches}: Added {Count:N0} validations",
-                    batchNumber, totalBatches, validationsToAdd.Count);
+        // OPTIMIZED: Save batch periodically (like ProcessCellJob)
+    if (validationsToAdd.Count > 0)
+        {
+         await _wirelessValidationRepository.BulkInsertAsync(validationsToAdd, token);
+      _logger.LogInformation("Batch {BatchNumber}/{TotalBatches}: Added {Count:N0} validations",
+       batchNumber, totalBatches, validationsToAdd.Count);
             }
 
             // Detailed progress reporting (like ProcessCellJob)
-            var processedCount = Math.Min((batchIndex + 1) * BATCH_SIZE, totalRecords);
+   var processedCount = Math.Min((batchIndex + 1) * BATCH_SIZE, totalRecords);
             var progress = (double)processedCount / totalRecords * 100;
             ProcessingJobHelper.ReportProgress(
                 $"Batch {batchNumber}/{totalBatches} completed - Progress: {progress:F1}% - " +
-                $"Successful: {results.SuccessfulRecords:N0}, Errors: {results.ErrorRecords:N0}, " +
+             $"Successful: {results.SuccessfulRecords:N0}, Errors: {results.ErrorRecords:N0}, " +
                 $"Validations Created: {results.CreatedValidations:N0}, Duplicates Skipped: {results.SkippedDuplicates:N0}", 
-                _logger);
-        }
-    }
+      _logger);
+ }
+  }
 
     // OPTIMIZED: Hash-based duplicate checking (like ProcessCellJob)
     private (List<WirelessValidation> validations, int skippedDuplicates) ProcessTechnologyBandCombinations(WirelessValidationRecord record,
@@ -719,13 +735,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     // Supporting classes
     private class ReferenceData
     {
-        public Dictionary<string, Guid> ServiceProviderCache { get; set; } = new();
-        public Dictionary<string, Guid> MunicipalityCache { get; set; } = new();
-        public Dictionary<string, MunicipalityHierarchyInfo> MunicipalityHierarchyCache { get; set; } = new();
-        public Dictionary<string, Guid> TechnologyCache { get; set; } = new();
-        public Dictionary<string, Guid> BandCache { get; set; } = new();
-        public Dictionary<Guid, Dictionary<string, Guid>> BarangayCache { get; set; } = new();
-        public HashSet<int> WirelessValidationLookup { get; set; } = new(); // Changed from HashSet<string> to HashSet<int>
+        public Dictionary<string, Guid> ServiceProviderCache { get; set; } = [];
+        public Dictionary<string, Guid> MunicipalityCache { get; set; } = [];
+        public Dictionary<string, MunicipalityHierarchyInfo> MunicipalityHierarchyCache { get; set; } = [];
+        public Dictionary<string, Guid> TechnologyCache { get; set; } = [];
+        public Dictionary<string, Guid> BandCache { get; set; } = [];
+        public Dictionary<Guid, Dictionary<string, Guid>> BarangayCache { get; set; } = [];
+        public HashSet<int> WirelessValidationLookup { get; set; } = []; // Changed from HashSet<string> to HashSet<int>
     }
 
     private class MunicipalityHierarchyInfo
