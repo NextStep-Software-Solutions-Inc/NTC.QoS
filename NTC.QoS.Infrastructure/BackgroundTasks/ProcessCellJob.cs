@@ -30,6 +30,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository;
     private readonly IBlobStorageService _blobStorageService;
+    private readonly IUserContextService _userContextService;
 
     // Batch processing configuration
     private const int BATCH_SIZE = 500; // Process 500 cell records per batch
@@ -53,7 +54,8 @@ public class ProcessCellJob : IProcessCellJob
         INetworkRepository networkRepository,
         IMunicipalityRepository municipalityRepository,
         IRepository<Domain.Entities.SystemType> systemTypeRepository,
-        IBlobStorageService blobStorageService
+        IBlobStorageService blobStorageService,
+        IUserContextService userContextService
         )
     {
         _logger = logger;
@@ -69,6 +71,7 @@ public class ProcessCellJob : IProcessCellJob
         _municipalityRepository = municipalityRepository;
         _systemTypeRepository = systemTypeRepository;
         _blobStorageService = blobStorageService;
+        _userContextService = userContextService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -78,6 +81,10 @@ public class ProcessCellJob : IProcessCellJob
         var startTime = DateTime.UtcNow;
         var processingResults = new ProcessingResults();
         
+        // Get user context once for all batches
+        var userId = _userContextService.GetCurrentUserId() ?? "System";
+        var now = DateTime.UtcNow;
+
         // --- Step 1: Initial File Status Update ---
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
             parameters.Id, _fileRepository, _logger, FileTypeEnum.Cell, token);
@@ -378,7 +385,7 @@ public class ProcessCellJob : IProcessCellJob
                         cellSectorCache,
                         cellularLookup,
                         networkCache,
-                        systemTypeCache,  // ✅ Pass systemTypeCache
+                        systemTypeCache,
                         bandTechnologyProperties,
                         cellSectorsCreatedForCellId,
                         networksToAdd,
@@ -388,12 +395,30 @@ public class ProcessCellJob : IProcessCellJob
                     // Save batch results
                     if (batchResults.CellsToAdd.Count > 0)
                     {
+                        // CRITICAL: Set audit properties before BulkInsertAsync
+                        foreach (var cell in batchResults.CellsToAdd)
+                        {
+                            cell.CreatedAt = now;
+                            cell.CreatedBy = userId;
+                            cell.UpdatedAt = now;
+                            cell.UpdatedBy = userId;
+                        }
+
                         await _cellRepository.BulkInsertAsync(batchResults.CellsToAdd, token);
                         processingResults.CellsCreated += batchResults.CellsToAdd.Count;
                     }
 
                     if (batchResults.CellSectorsToAdd.Count > 0)
                     {
+                        // CRITICAL: Set audit properties before BulkInsertAsync
+                        foreach (var cellSector in batchResults.CellSectorsToAdd)
+                        {
+                            cellSector.CreatedAt = now;
+                            cellSector.CreatedBy = userId;
+                            cellSector.UpdatedAt = now;
+                            cellSector.UpdatedBy = userId;
+                        }
+
                         await _cellSectorRepository.BulkInsertAsync(batchResults.CellSectorsToAdd, token);
                         processingResults.CellSectorsCreated += batchResults.CellSectorsToAdd.Count;
                         
@@ -409,6 +434,15 @@ public class ProcessCellJob : IProcessCellJob
                     // Save networks accumulated in this batch BEFORE saving Cellular records that reference them
                     if (networksToAdd.Count > 0)
                     {
+                        // CRITICAL: Set audit properties before BulkInsertAsync
+                        foreach (var network in networksToAdd)
+                        {
+                            network.CreatedAt = now;
+                            network.CreatedBy = userId;
+                            network.UpdatedAt = now;
+                            network.UpdatedBy = userId;
+                        }
+
                         await _networkRepository.BulkInsertAsync(networksToAdd, token);
                         processingResults.NetworksCreated += networksToAdd.Count;
                         _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.", 
@@ -420,6 +454,15 @@ public class ProcessCellJob : IProcessCellJob
 
                     if (batchResults.CellularToAdd.Count > 0)
                     {
+                        // CRITICAL: Set audit properties before BulkInsertAsync
+                        foreach (var cellular in batchResults.CellularToAdd)
+                        {
+                            cellular.CreatedAt = now;
+                            cellular.CreatedBy = userId;
+                            cellular.UpdatedAt = now;
+                            cellular.UpdatedBy = userId;
+                        }
+
                         await _cellularRepository.BulkInsertAsync(batchResults.CellularToAdd, token);
                         processingResults.CellularCreated += batchResults.CellularToAdd.Count;
                     }
@@ -506,7 +549,11 @@ public class ProcessCellJob : IProcessCellJob
                                 RxAntennaHeight = cellSector.AntennaHeight,
                                 RxAzimuth = cellSector.Azimuth,
                                 RxBeamTilt = cellSector.BeamTilt,
-                                IsRxEqualTx = true
+                                IsRxEqualTx = true,
+                                CreatedAt = now,
+                                CreatedBy = userId,
+                                UpdatedAt = now,
+                                UpdatedBy = userId
                             };
                             
                             sectorsToAdd.Add(baseSector);
@@ -605,7 +652,7 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("- Hierarchical cell -> sector -> cellular creation");
         _logger.LogInformation("- Network auto-creation with SystemType validation");
         _logger.LogInformation("- 1:1 Sector to CellSector ratio");
-        _logger.LogInformation("=======================================");
+        _logger.LogInformation("=======================================\n");
 
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
@@ -619,20 +666,20 @@ public class ProcessCellJob : IProcessCellJob
     /// </summary>
     private async Task<BatchProcessingResult> ProcessBatchAsync(
         List<CellRecord> batch,
-      int startingRowNumber,
+        int startingRowNumber,
         Dictionary<string, Guid> serviceProviderCache,
         Dictionary<string, Guid> technologyCache,
         Dictionary<string, Guid> bandCache,
         HashSet<int> cellLookup,
-      Dictionary<int, Guid> cellIdMapping,
-   Dictionary<Guid, List<Guid>> cellSectorCache,
-   HashSet<int> cellularLookup,
+        Dictionary<int, Guid> cellIdMapping,
+        Dictionary<Guid, List<Guid>> cellSectorCache,
+        HashSet<int> cellularLookup,
         Dictionary<string, Guid> networkCache,
         Dictionary<Guid, Guid> systemTypeCache,
         List<BandTechnologyPropertyInfo> bandTechnologyProperties,
         Dictionary<Guid, List<Guid>> cellSectorsCreatedForCellId,
-      List<Domain.Aggregates.Network> networksToAdd,
-     ProcessingResults processingResults,
+        List<Domain.Aggregates.Network> networksToAdd,
+        ProcessingResults processingResults,
         CancellationToken token)
     {
         var result = new BatchProcessingResult();
@@ -790,9 +837,9 @@ public class ProcessCellJob : IProcessCellJob
         Dictionary<Guid, List<Guid>> cellSectorCache,
         HashSet<int> cellularLookup,
         Dictionary<string, Guid> networkCache,
-        Dictionary<Guid, Guid> systemTypeCache,  // ✅ Added parameter
+        Dictionary<Guid, Guid> systemTypeCache,
         Dictionary<Guid, List<Guid>> cellSectorsCreatedForCellId,
-  List<Domain.Aggregates.Network> networksToAdd,
+        List<Domain.Aggregates.Network> networksToAdd,
         List<BandTechnologyPropertyInfo> bandTechnologyProperties,
         BatchProcessingResult result,
         ProcessingResults processingResults,
@@ -800,102 +847,102 @@ public class ProcessCellJob : IProcessCellJob
     {
         foreach (var propInfo in bandTechnologyProperties)
         {
-    var technologyId = TechnologyMappingHelper.ResolveTechnologyId(
-  propInfo.Technology, technologyCache, _logger, $"Excel row {rowNumber}");
+            var technologyId = TechnologyMappingHelper.ResolveTechnologyId(
+                propInfo.Technology, technologyCache, _logger, $"Excel row {rowNumber}");
             
- if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
-         {
-    continue;
-     }
-
-    var bandId = TechnologyMappingHelper.ResolveBandId(
-           propInfo.Band, bandCache, _logger, $"Excel row {rowNumber}");
-  
-         if (!TechnologyMappingHelper.IsBandResolved(bandId))
-     {
-        continue;
-         }
-
-       var value = propInfo.Property.GetValue(record);
-            var parseResult = ParseBandTechnologyValue(value, propInfo.Technology, propInfo.Band, rowNumber);
-
-    // Get all sector IDs for this cell
-       var allSectorIds = new List<Guid>();
-            if (cellSectorCache.TryGetValue(cellId, out var existingSectorIds))
-         {
-         allSectorIds.AddRange(existingSectorIds);
- }
-            if (cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectorIds))
-          {
-  allSectorIds.AddRange(newSectorIds);
-        }
-
-    if (allSectorIds.Count == 0)
-     {
-       continue;
-   }
-
-     foreach (var sectorId in allSectorIds)
-    {
-                var cellularHash = GenerateCellularHash(sectorId, serviceProviderId, technologyId, bandId);
-
-        if (cellularLookup.Contains(cellularHash))
-          {
-  processingResults.SkippedDuplicates++;
-      continue;
+            if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
+            {
+                continue;
             }
 
-    if (parseResult.IsActive)
-  {
-    // Create new cellular record
+            var bandId = TechnologyMappingHelper.ResolveBandId(
+                propInfo.Band, bandCache, _logger, $"Excel row {rowNumber}");
+  
+            if (!TechnologyMappingHelper.IsBandResolved(bandId))
+            {
+                continue;
+            }
+
+            var value = propInfo.Property.GetValue(record);
+            var parseResult = ParseBandTechnologyValue(value, propInfo.Technology, propInfo.Band, rowNumber);
+
+            // Get all sector IDs for this cell
+            var allSectorIds = new List<Guid>();
+            if (cellSectorCache.TryGetValue(cellId, out var existingSectorIds))
+            {
+                allSectorIds.AddRange(existingSectorIds);
+            }
+
+            if (cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectorIds))
+            {
+                allSectorIds.AddRange(newSectorIds);
+            }
+
+            if (allSectorIds.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (var sectorId in allSectorIds)
+            {
+                var cellularHash = GenerateCellularHash(sectorId, serviceProviderId, technologyId, bandId);
+
+                if (cellularLookup.Contains(cellularHash))
+                {
+                    processingResults.SkippedDuplicates++;
+                    continue;
+                }
+
+                if (parseResult.IsActive)
+                {
+                    // Create new cellular record
                     var dlCenterFreq = parseResult.DLCenterFreq ?? GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band);
-   var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
-              var ulCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band);
+                    var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
+                    var ulCenterFreq = CalculateULCenterFreq(dlCenterFreq, propInfo.Technology, propInfo.Band);
 
-            // Use database query for municipality lookup instead of pre-loaded boundaries
-      var (municipalityId, municipalityName) = await GetMunicipalityByLocationAsync(
-        location, token);
+                    // Use database query for municipality lookup instead of pre-loaded boundaries
+                    var (municipalityId, municipalityName) = await GetMunicipalityByLocationAsync(location, token);
 
-          var networkId = await GetOrCreateNetworkAsync(
-      serviceProviderId,
-        municipalityName,
-        technologyId,
-     bandId,
-     networkCache,
-         networksToAdd,
-      technologyCache,
-     bandCache,
-  systemTypeCache,
-      dlCenterFreq,
- ulCenterFreq,
-              bandwidth,
-             token);
+                    var networkId = await GetOrCreateNetworkAsync(
+                        serviceProviderId,
+                        municipalityName,
+                        technologyId,
+                        bandId,
+                        networkCache,
+                        networksToAdd,
+                        technologyCache,
+                        bandCache,
+                        systemTypeCache,
+                        dlCenterFreq,
+                        ulCenterFreq,
+                        bandwidth,
+                        token);
 
-          if (networkId == Guid.Empty)
-         {
-      _logger.LogWarning("Skipping cellular record at row {Row} due to missing network (Technology: {Technology}, Band: {Band}). " +
-      "This may indicate a missing SystemType configuration.", rowNumber, propInfo.Technology, propInfo.Band);
-               continue;
-}
+                    if (networkId == Guid.Empty)
+                    {
+                        _logger.LogWarning("Skipping cellular record at row {Row} due to missing network (Technology: {Technology}, Band: {Band}). " +
+                            "This may indicate a missing SystemType configuration.", rowNumber, propInfo.Technology, propInfo.Band);
+                        continue;
+                    }
 
-         var newCellular = new Domain.Entities.Cellular
-   {
-   CellSectorId = sectorId,
-       ServiceProviderId = serviceProviderId,
-  TechnologyId = technologyId,
-     BandId = bandId,
-            NetworkId = networkId,
-  Address = address,
-         IsFileUploaded = true,
-       DLCenterFreq = dlCenterFreq,
-           Bandwidth = bandwidth,
-         ULCenterFreq = ulCenterFreq
-      };
+                    var newCellular = new Domain.Entities.Cellular
+                    {
+                        CellSectorId = sectorId,
+                        ServiceProviderId = serviceProviderId,
+                        TechnologyId = technologyId,
+                        BandId = bandId,
+                        NetworkId = networkId,
+                        Address = address,
+                        IsFileUploaded = true,
+                        DLCenterFreq = dlCenterFreq,
+                        Bandwidth = bandwidth,
+                        ULCenterFreq = ulCenterFreq
+                    };
 
-     result.CellularToAdd.Add(newCellular);
- cellularLookup.Add(cellularHash);
-         }
-}
+                    result.CellularToAdd.Add(newCellular);
+                    cellularLookup.Add(cellularHash);
+                }
+            }
         }
     }
 
@@ -1131,14 +1178,14 @@ public class ProcessCellJob : IProcessCellJob
 
     private static decimal CalculateNrFddULFreq(decimal dlCenterFreq, string band)
     {
-      return band switch
-   {
-       "Band 28" => dlCenterFreq - 55,
-         "Band 1" => dlCenterFreq - 190,
-   "Band 3" => dlCenterFreq - 95,
-    _ => dlCenterFreq - 45
+        return band switch
+        {
+            "Band 28" => dlCenterFreq - 55,
+            "Band 1" => dlCenterFreq - 190,
+            "Band 3" => dlCenterFreq - 95,
+            _ => dlCenterFreq - 45
         };
-}
+    }
 
     /// <summary>
     /// Gets municipality by location using database spatial query with indexes.
@@ -1146,50 +1193,47 @@ public class ProcessCellJob : IProcessCellJob
     /// </summary>
     private async Task<(Guid? Id, string Name)> GetMunicipalityByLocationAsync(
         Point location,
-    CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
- try
-   {
-     if (location?.IsValid != true)
-  {
-    return (null, "Unknown");
-   }
+        try
+        {
+            if (location?.IsValid != true)
+            {
+                return (null, "Unknown");
+            }
 
-     // Use database query with spatial index - let PostgreSQL/PostGIS handle intersection
+            // Use database query with spatial index - let PostgreSQL/PostGIS handle intersection
             var municipality = await _municipalityRepository.FirstOrDefaultAsync(
-           _municipalityRepository.Query(m =>
-         m.Boundaries != null && m.Boundaries.Intersects(location))
-  .Select(m => new { m.Id, m.Name }),
-   cancellationToken);
+            _municipalityRepository
+                .Query(m => m.Boundaries != null && m.Boundaries.Intersects(location))
+                .Select(m => new { m.Id, m.Name }), cancellationToken);
 
-      return municipality != null
-                ? (municipality.Id, municipality.Name)
-    : (null, "Unknown");
+            return municipality != null ? (municipality.Id, municipality.Name) : (null, "Unknown");
         }
-    catch (Exception ex)
-  {
-       _logger.LogError(ex, "Error looking up municipality for location: {Location}", location);
-      return (null, "Unknown");
-  }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error looking up municipality for location: {Location}", location);
+            return (null, "Unknown");
+        }
     }
 
     private async Task<Guid> GetOrCreateNetworkAsync(
         Guid serviceProviderId,
- string municipalityName,
-   Guid technologyId, 
+        string municipalityName,
+        Guid technologyId, 
         Guid bandId,
         Dictionary<string, Guid> networkCache,
-     List<Domain.Aggregates.Network> networksToAdd,
+        List<Domain.Aggregates.Network> networksToAdd,
         Dictionary<string, Guid> technologyCache,
         Dictionary<string, Guid> bandCache,
         Dictionary<Guid, Guid> systemTypeCache,
-      decimal dlCenterFreq,
+        decimal dlCenterFreq,
         decimal ulCenterFreq,
         decimal bandwidth,
         CancellationToken token)
     {
-      var networkCacheKey = CacheKeyGenerator.GenerateNetworkCacheKey(
-       serviceProviderId, municipalityName, technologyId, bandId);
+        var networkCacheKey = CacheKeyGenerator.GenerateNetworkCacheKey(
+        serviceProviderId, municipalityName, technologyId, bandId);
         
         if (networkCache.TryGetValue(networkCacheKey, out var existingNetworkId))
         {
@@ -1201,38 +1245,38 @@ public class ProcessCellJob : IProcessCellJob
 
         var networkNamePattern = $"{technologyName}-{bandName}-{municipalityName}";
         var existingNetwork = await _networkRepository
-  .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && 
-     n.Name.StartsWith(networkNamePattern))
-         .FirstOrDefaultAsync(token);
+            .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
+            .FirstOrDefaultAsync(token);
 
         if (existingNetwork != null)
-    {
-   networkCache[networkCacheKey] = existingNetwork.Id;
-   return existingNetwork.Id;
+        {
+           networkCache[networkCacheKey] = existingNetwork.Id;
+           return existingNetwork.Id;
         }
 
         // Use pre-loaded systemTypeCache instead of database query
-      if (!systemTypeCache.TryGetValue(technologyId, out var systemTypeId))
-     {
-    _logger.LogWarning("SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})", 
-           technologyId, technologyName);
-         return Guid.Empty;
+        if (!systemTypeCache.TryGetValue(technologyId, out var systemTypeId))
+        {
+            _logger.LogWarning("SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})", 
+                technologyId, technologyName);
+            return Guid.Empty;
         }
 
         var network = new Domain.Aggregates.Network
         {
             Name = $"{technologyName}-{bandName}-{municipalityName}",
-          ServiceProviderId = serviceProviderId,
+            ServiceProviderId = serviceProviderId,
             SystemTypeId = systemTypeId,  // ✅ From cache
-     ULCenterFreq = ulCenterFreq,
+            ULCenterFreq = ulCenterFreq,
             DLCenterFreq = dlCenterFreq,
-      Bandwidth = bandwidth
- };
+            Bandwidth = bandwidth
+        };
 
         networksToAdd.Add(network);
-     networkCache[networkCacheKey] = network.Id;
+        networkCache[networkCacheKey] = network.Id;
         return network.Id;
     }
+
     /// <summary>
     /// DTO for band/technology property information extracted from CellRecord
     /// </summary>
@@ -1271,12 +1315,12 @@ public class ProcessCellJob : IProcessCellJob
     private class ProcessingResults
     {
         public int TotalRecords { get; set; }
-    public int ProcessedRecords { get; set; }
+        public int ProcessedRecords { get; set; }
         public int SuccessfulRecords { get; set; }
         public int SkippedRecords { get; set; }
         public int ErrorRecords { get; set; }
         public int CellsCreated { get; set; }
-      public int CellSectorsCreated { get; set; }
+        public int CellSectorsCreated { get; set; }
         public int CellularCreated { get; set; }
         public int NetworksCreated { get; set; }
         public int SectorsCreated { get; set; }
