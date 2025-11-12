@@ -53,7 +53,6 @@ public static class InfrastructureDependencyInjection
         
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
         var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
-        var databaseOptions = services.GetRequiredService<IOptions<DatabaseOptions>>().Value;
         var configuration = services.GetRequiredService<IConfiguration>();
 
         // Get configurable advisory lock identifier
