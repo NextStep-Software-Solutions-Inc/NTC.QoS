@@ -53,6 +53,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
                 LocationIds = request.LocationIds,
                 LocationType = request.LocationType,
                 ForceRecalculate = request.ForceRecalculate,
+                IncludeBandBreakdown = request.IncludeBandBreakdown,
                 GenerateHierarchicalAssessments = request.GenerateHierarchicalAssessments,
                 HierarchicalDepth = request.HierarchicalDepth,
                 

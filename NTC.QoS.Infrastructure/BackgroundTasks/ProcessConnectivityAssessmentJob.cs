@@ -132,6 +132,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var primaryResults = await ProcessLocationsSequentially(
                 jobRequest.LocationIds.Select(id => (id, jobRequest.LocationType, "Primary")).ToList(),
                 jobRequest.ForceRecalculate,
+                jobRequest.IncludeBandBreakdown,
                 jobId,
                 "primary locations",
                 jobRequest.StartDate,
@@ -159,6 +160,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     jobRequest.LocationType, 
                     jobRequest.HierarchicalDepth,
                     jobRequest.ForceRecalculate,
+                    jobRequest.IncludeBandBreakdown,
                     jobId,
                     results.Count, // Start counting from primary results
                     jobRequest.StartDate,
@@ -214,6 +216,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<List<LocationConnectivityDto>> ProcessLocationsSequentially(
         List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
         bool forceRecalculate,
+        bool includeBandBreakdown,
         int jobId,
         string processingContext,
         DateTime? startDate,
@@ -243,7 +246,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             try
             {
-                var batchResults = await ProcessBatch(batch, forceRecalculate, existingAssessments, startDate, endDate, cancellationToken);
+                var batchResults = await ProcessBatch(batch, forceRecalculate, includeBandBreakdown, existingAssessments, startDate, endDate, cancellationToken);
                 results.AddRange(batchResults.Where(r => r != null)!);
 
                 // Report progress with updated processed count
@@ -325,6 +328,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<List<LocationConnectivityDto?>> ProcessBatch(
         List<(Guid Id, LocationTypeEnum Type, string Name)> batchLocations,
         bool forceRecalculate,
+        bool includeBandBreakdown,
         Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment> existingAssessments,
         DateTime? startDate,
         DateTime? endDate,
@@ -341,6 +345,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     location.Type, 
                     location.Name,
                     forceRecalculate,
+                    includeBandBreakdown,
                     existingAssessments,
                     startDate,
                     endDate,
@@ -366,6 +371,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         LocationTypeEnum locationType, 
         string locationName,
         bool forceRecalculate,
+        bool includeBandBreakdown,
         Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment> existingAssessments,
         DateTime? startDate,
         DateTime? endDate,
@@ -402,7 +408,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _logger.LogDebug("Generating new assessment for {LocationType} {LocationId} (existing: {HasExisting}, force: {ForceRecalculate})", 
            locationType, locationId, existing != null, forceRecalculate);
       
-        var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
+        var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, includeBandBreakdown, startDate, endDate, cancellationToken);
             
         // Get location details to retrieve boundary for infrastructure calculation
         var (_, boundary, center, areaKm2, _, _) = await GetLocationDetailsAsync(locationId, locationType, cancellationToken);
@@ -415,6 +421,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             locationId, 
             locationType, 
             forceRecalculate, 
+            includeBandBreakdown,
             startDate, 
             endDate, 
             cancellationToken);
@@ -491,6 +498,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         Guid locationId, 
         LocationTypeEnum locationType,
         bool forceRecalculate,
+        bool includeBandBreakdown,
         DateTime? startDate,
         DateTime? endDate,
         CancellationToken cancellationToken)
@@ -521,7 +529,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             }
 
             // Calculate infrastructure statistics within the boundary (with caching)
-            var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
+            var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, includeBandBreakdown, startDate, endDate, cancellationToken);
             
             // Calculate speed test statistics (with caching)
             var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
@@ -721,7 +729,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Enhanced infrastructure calculation with multi-level caching and accurate boundary usage
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureStatsAsync(
-        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, bool includeBandBreakdown, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         // Only check cache if not forcing recalculation
         if (!forceRecalculate)
@@ -741,7 +749,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
 
         // Use accurate boundaries with optimizations
-        var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
+        var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, includeBandBreakdown, startDate, endDate, cancellationToken);
 
         // Always cache the fresh result
         var infraCacheKey = $"infra:{locationType}:{locationId}";
@@ -1997,6 +2005,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         LocationTypeEnum locationType,
         int hierarchicalDepth,
         bool forceRecalculate,
+        bool includeBandBreakdown,
         int jobId,
         int currentProcessedCount,
         DateTime? startDate,
@@ -2046,6 +2055,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var hierarchicalResults = await ProcessLocationsSequentially(
                 childLocations.Select(l => (l.Id, l.Type, l.Name)).ToList(),
                 forceRecalculate,
+                includeBandBreakdown,
                 jobId,
                 "hierarchical locations",
                 startDate,
@@ -2199,7 +2209,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Smart boundary optimization that maintains accuracy while improving performance
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
-        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+        Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, bool includeBandBreakdown, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         List<string> cells, naps, wifiHotspots, wirelessValidations;
         TechnologyBreakdownDto? technologyBreakdown = null;
@@ -2262,20 +2272,24 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 _memoryCache.Set(techCacheKey, technologyBreakdown, TimeSpan.FromHours(12));
             }
 
-            // Band breakdown with caching
-            var bandCacheKey = $"{techCacheKey}_bands";
-            if (!forceRecalculate && _memoryCache.TryGetValue(bandCacheKey, out BandBreakdownDto? cachedBand) && cachedBand != null)
+            // Band breakdown with caching (only if requested)
+            if (includeBandBreakdown)
             {
-                bandBreakdown = cachedBand;
-            }
-            else
-            {
-                if (forceRecalculate)
+                var bandCacheKey = $"{techCacheKey}_bands";
+                if (!forceRecalculate && _memoryCache.TryGetValue(bandCacheKey, out BandBreakdownDto? cachedBand) && cachedBand != null)
                 {
-                    _logger.LogInformation("Force recalculating band breakdown for {LocationType} {LocationId}", locationType, locationId);
+                    bandBreakdown = cachedBand;
                 }
-                bandBreakdown = await AnalyzeBandFrequencyAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
-                _memoryCache.Set(bandCacheKey, bandBreakdown, TimeSpan.FromHours(12));
+                else
+                {
+                    if (forceRecalculate)
+                    {
+                        _logger.LogInformation("Force recalculating band breakdown for {LocationType} {LocationId}", locationType, locationId);
+                    }
+                    
+                    bandBreakdown = await AnalyzeBandFrequencyAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
+                    _memoryCache.Set(bandCacheKey, bandBreakdown, TimeSpan.FromHours(12));
+                }
             }
         }
         else
@@ -2326,7 +2340,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             // Calculate technology and band breakdowns for radius-based queries
             technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
-            bandBreakdown = await AnalyzeBandFrequencyAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
+            
+            if (includeBandBreakdown)
+            {
+                bandBreakdown = await AnalyzeBandFrequencyAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
+            }
         }
 
         // Include wireless validations in provider list

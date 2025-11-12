@@ -12,6 +12,13 @@ public class GenerateConnectivityAssessmentRequest : IRequest<ApiResponse<List<L
     public bool ForceRecalculate { get; set; } = false;
     
     /// <summary>
+    /// Include band frequency breakdown in the assessment results.
+    /// Set to false for bulk operations to improve performance (saves ~2 queries per location).
+    /// Default: true
+    /// </summary>
+    public bool IncludeBandBreakdown { get; set; } = true;
+    
+    /// <summary>
     /// Start date for filtering speedtest and wireless validation data (inclusive).
     /// If null, no start date filter is applied.
     /// </summary>
