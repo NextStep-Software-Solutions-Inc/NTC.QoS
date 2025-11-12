@@ -201,8 +201,6 @@ public static class LocationSeeder
 
         foreach (var region in allRegionsFromGeoJson)
         {
-            var isExisting = existingRegions.ContainsKey(region.code!);
-
             var regionEntity = new Region
             {
                 Name = region.name ?? string.Empty,
@@ -220,13 +218,18 @@ public static class LocationSeeder
                 UpdatedBy = userId
             };
 
-            if (isExisting && forceReseed)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingRegions.TryGetValue(region.code!, out var existingId))
             {
-                // Set the ID from existing entity for proper update
-                regionEntity.Id = existingRegions[region.code!];
-                regionsToUpdate.Add(regionEntity);
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    regionEntity.Id = existingId;
+                    regionsToUpdate.Add(regionEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
             }
-            else if (!isExisting)
+            else
             {
                 regionsToInsert.Add(regionEntity);
             }
@@ -349,7 +352,7 @@ public static class LocationSeeder
         var now = DateTime.UtcNow;
         var userId = "System";
      
-        // Parse all provinces from GeoJSON
+        // OPTIMIZED: Parse all provinces from GeoJSON with TryGetValue for regionMap lookup
         var allProvincesFromGeoJson = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM2_PCODE"] != null &&
@@ -368,8 +371,21 @@ public static class LocationSeeder
                 regionCode = f.Attributes["ADM1_PCODE"]?.ToString()
             })
             .Where(province => !string.IsNullOrWhiteSpace(province.code) && 
-                    !string.IsNullOrWhiteSpace(province.regionCode) && 
-                    regionMap.ContainsKey(province.regionCode))
+                    !string.IsNullOrWhiteSpace(province.regionCode))
+            .Select(province => new
+            {
+                province.code,
+                province.name,
+                province.area,
+                province.totalPopulation,
+                province.householdPopulation,
+                province.householdCount,
+                province.boundaries,
+                province.regionCode,
+                // OPTIMIZED: Use TryGetValue to get regionId (null if not found)
+                regionId = regionMap.TryGetValue(province.regionCode!, out var rId) ? rId : (Guid?)null
+            })
+            .Where(province => province.regionId.HasValue)
             .ToList();
 
         if (allProvincesFromGeoJson.Count == 0)
@@ -384,8 +400,6 @@ public static class LocationSeeder
 
         foreach (var province in allProvincesFromGeoJson)
         {
-            var isExisting = existingProvinces.ContainsKey(province.code!);
-
             var provinceEntity = new Province
             {
                 Name = province.name ?? string.Empty,
@@ -397,20 +411,25 @@ public static class LocationSeeder
                 HouseholdCount = province.householdCount,
                 Boundaries = province.boundaries,
                 Center = province.boundaries.Centroid,
-                RegionId = regionMap[province.regionCode!],
+                RegionId = province.regionId!.Value,
                 CreatedAt = now,
                 CreatedBy = userId,
                 UpdatedAt = now,
                 UpdatedBy = userId
             };
 
-            if (isExisting && forceReseed)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingProvinces.TryGetValue(province.code!, out var existingId))
             {
-                // Set the ID from existing entity for proper update
-                provinceEntity.Id = existingProvinces[province.code!];
-                provincesToUpdate.Add(provinceEntity);
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    provinceEntity.Id = existingId;
+                    provincesToUpdate.Add(provinceEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
             }
-            else if (!isExisting)
+            else
             {
                 provincesToInsert.Add(provinceEntity);
             }
@@ -524,7 +543,7 @@ public static class LocationSeeder
         var now = DateTime.UtcNow;
         var userId = "System";
 
-        // Parse all municipalities from GeoJSON
+        // OPTIMIZED: Parse all municipalities from GeoJSON with TryGetValue for provinceMap lookup
         var allMunicipalitiesFromGeoJson = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM3_PCODE"] != null &&
@@ -543,8 +562,21 @@ public static class LocationSeeder
                 provinceCode = f.Attributes["ADM2_PCODE"]?.ToString()
             })
             .Where(municipality => !string.IsNullOrWhiteSpace(municipality.code) &&
-                    !string.IsNullOrWhiteSpace(municipality.provinceCode) && 
-                    provinceMap.ContainsKey(municipality.provinceCode))
+                    !string.IsNullOrWhiteSpace(municipality.provinceCode))
+            .Select(municipality => new
+            {
+                municipality.code,
+                municipality.name,
+                municipality.area,
+                municipality.totalPopulation,
+                municipality.householdPopulation,
+                municipality.householdCount,
+                municipality.boundaries,
+                municipality.provinceCode,
+                // OPTIMIZED: Use TryGetValue to get provinceId (null if not found)
+                provinceId = provinceMap.TryGetValue(municipality.provinceCode!, out var pId) ? pId : (Guid?)null
+            })
+            .Where(municipality => municipality.provinceId.HasValue)
             .ToList();
 
         if (allMunicipalitiesFromGeoJson.Count == 0)
@@ -559,7 +591,6 @@ public static class LocationSeeder
 
         foreach (var municipality in allMunicipalitiesFromGeoJson)
         {
-            var isExisting = existingMunicipalities.ContainsKey(municipality.code!);
             var isCity = !string.IsNullOrWhiteSpace(municipality.name) && 
                          (municipality.name.Contains("City", StringComparison.OrdinalIgnoreCase) || 
                           municipality.name.Contains("Capital", StringComparison.OrdinalIgnoreCase));
@@ -575,7 +606,7 @@ public static class LocationSeeder
                 HouseholdCount = municipality.householdCount,
                 Boundaries = municipality.boundaries,
                 Center = municipality.boundaries.Centroid,
-                ProvinceId = provinceMap[municipality.provinceCode!],
+                ProvinceId = municipality.provinceId!.Value,
                 IsCity = isCity,
                 CreatedAt = now,
                 CreatedBy = userId,
@@ -583,13 +614,18 @@ public static class LocationSeeder
                 UpdatedBy = userId
             };
 
-            if (isExisting && forceReseed)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingMunicipalities.TryGetValue(municipality.code!, out var existingId))
             {
-                // Set the ID from existing entity for proper update
-                municipalityEntity.Id = existingMunicipalities[municipality.code!];
-                municipalitiesToUpdate.Add(municipalityEntity);
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    municipalityEntity.Id = existingId;
+                    municipalitiesToUpdate.Add(municipalityEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
             }
-            else if (!isExisting)
+            else
             {
                 municipalitiesToInsert.Add(municipalityEntity);
             }
@@ -704,7 +740,7 @@ public static class LocationSeeder
         var now = DateTime.UtcNow;
         var userId = "System";
 
-        // Parse all barangays from GeoJSON
+        // OPTIMIZED: Parse all barangays from GeoJSON with TryGetValue for municipalityMap lookup
         var allBarangaysFromGeoJson = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM4_PCODE"] != null &&
@@ -720,8 +756,18 @@ public static class LocationSeeder
                 municipalityCode = f.Attributes["ADM3_PCODE"]?.ToString()
             })
             .Where(barangay => !string.IsNullOrWhiteSpace(barangay.code) && 
-                    !string.IsNullOrWhiteSpace(barangay.municipalityCode) && 
-                    municipalityMap.ContainsKey(barangay.municipalityCode))
+                    !string.IsNullOrWhiteSpace(barangay.municipalityCode))
+            .Select(barangay => new
+            {
+                barangay.code,
+                barangay.name,
+                barangay.area,
+                barangay.boundaries,
+                barangay.municipalityCode,
+                // OPTIMIZED: Use TryGetValue to get municipalityId (null if not found)
+                municipalityId = municipalityMap.TryGetValue(barangay.municipalityCode!, out var mId) ? mId : (Guid?)null
+            })
+            .Where(barangay => barangay.municipalityId.HasValue)
             .ToList();
 
         if (allBarangaysFromGeoJson.Count == 0)
@@ -736,8 +782,6 @@ public static class LocationSeeder
 
         foreach (var barangay in allBarangaysFromGeoJson)
         {
-            var isExisting = existingBarangays.ContainsKey(barangay.code!);
-
             var barangayEntity = new Barangay
             {
                 Name = barangay.name ?? string.Empty,
@@ -749,20 +793,25 @@ public static class LocationSeeder
                 HouseholdCount = null,
                 Boundaries = barangay.boundaries,
                 Center = barangay.boundaries.Centroid,
-                MunicipalityId = municipalityMap[barangay.municipalityCode!],
+                MunicipalityId = barangay.municipalityId!.Value,
                 CreatedAt = now,
                 CreatedBy = userId,
                 UpdatedAt = now,
                 UpdatedBy = userId
             };
 
-            if (isExisting && forceReseed)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingBarangays.TryGetValue(barangay.code!, out var existingId))
             {
-                // Set the ID from existing entity for proper update
-                barangayEntity.Id = existingBarangays[barangay.code!];
-                barangaysToUpdate.Add(barangayEntity);
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    barangayEntity.Id = existingId;
+                    barangaysToUpdate.Add(barangayEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
             }
-            else if (!isExisting)
+            else
             {
                 barangaysToInsert.Add(barangayEntity);
             }
