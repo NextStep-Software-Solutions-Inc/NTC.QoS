@@ -30,8 +30,8 @@ public class RegionSeedingStrategy : LocationSeedingStrategy<Region>
 
     protected override WriteOptions GetWriteOptions() => new()
     {
-        BatchSize = 100,
-        TimeoutSeconds = 120,
+        BatchSize = 5,  // Very small batches for geometry writes
+        TimeoutSeconds = 300,
         EnableStreaming = true
     };
 
@@ -75,8 +75,8 @@ public class ProvinceSeedingStrategy : LocationSeedingStrategy<Province>
 
     protected override WriteOptions GetWriteOptions() => new()
     {
-        BatchSize = 100,
-        TimeoutSeconds = 120,
+        BatchSize = 5,  // Very small batches for geometry writes
+        TimeoutSeconds = 300,
         EnableStreaming = true
     };
 
@@ -120,8 +120,8 @@ public class MunicipalitySeedingStrategy : LocationSeedingStrategy<Municipality>
 
     protected override WriteOptions GetWriteOptions() => new()
     {
-        BatchSize = 50,  // Smaller batches for geometry-heavy data
-        TimeoutSeconds = 300,
+        BatchSize = 10,  // Smaller batches for geometry-heavy data
+        TimeoutSeconds = 600,
         EnableStreaming = true
     };
 
@@ -165,8 +165,8 @@ public class BarangaySeedingStrategy : LocationSeedingStrategy<Barangay>
 
     protected override WriteOptions GetWriteOptions() => new()
     {
-        BatchSize = 25,  // Very small batches for 42k+ records with complex geometries
-        TimeoutSeconds = 600,
+        BatchSize = 5,  // Very small batches for 42k+ records with complex geometries
+        TimeoutSeconds = 900,
         EnableStreaming = true
     };
 
