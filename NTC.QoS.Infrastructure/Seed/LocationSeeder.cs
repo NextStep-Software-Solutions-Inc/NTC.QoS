@@ -634,7 +634,18 @@ public static class LocationSeeder
         // Insert new municipalities
         if (municipalitiesToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(municipalitiesToInsert);
+            // Configure bulk insert for large geometry data
+            var bulkConfig = new BulkConfig
+            {
+                BatchSize = 50,  // Smaller batch size for geometry data
+                BulkCopyTimeout = 300,  // 5 minutes timeout
+                EnableStreaming = true,
+                UseTempDB = false,
+                PropertiesToIncludeOnUpdate = new List<string>(),
+                PropertiesToExcludeOnUpdate = new List<string>()
+            };
+            
+            await dbContext.BulkInsertAsync(municipalitiesToInsert, bulkConfig);
             logger.LogInformation("Inserted {Count} new municipalities.", municipalitiesToInsert.Count);
         }
 
@@ -820,7 +831,18 @@ public static class LocationSeeder
         // Insert new barangays
         if (barangaysToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(barangaysToInsert);
+            // Configure bulk insert for large geometry data (barangays have ~40k records)
+            var bulkConfig = new BulkConfig
+            {
+                BatchSize = 25,  // Even smaller batch size for barangays (most records)
+                BulkCopyTimeout = 600,  // 10 minutes timeout for large dataset
+                EnableStreaming = true,
+                UseTempDB = false,
+                PropertiesToIncludeOnUpdate = new List<string>(),
+                PropertiesToExcludeOnUpdate = new List<string>()
+            };
+            
+            await dbContext.BulkInsertAsync(barangaysToInsert, bulkConfig);
             logger.LogInformation("Inserted {Count} new barangays.", barangaysToInsert.Count);
         }
 
