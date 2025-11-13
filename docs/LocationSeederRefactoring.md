@@ -7,11 +7,13 @@ The LocationSeeder has been completely refactored to address performance issues,
 ## Key Improvements
 
 ### 1. **Streaming Architecture** (80%+ Memory Reduction)
+
 - **Before**: Loaded entire GeoJSON files (~40k+ barangays) into memory at once
 - **After**: Streams and processes features one batch at a time
 - **Benefit**: Memory usage reduced from ~2GB to ~200MB for full seeding
 
 ### 2. **Batch Processing** (Prevents Database Timeouts)
+
 - **Before**: Single large transaction for all records
 - **After**: Configurable batch sizes (25-100 records per batch)
 - **Benefit**: No more timeout exceptions, better progress tracking
@@ -19,16 +21,19 @@ The LocationSeeder has been completely refactored to address performance issues,
 ### 3. **SOLID Principles Applied**
 
 #### Single Responsibility Principle
+
 - `ILocationDataParser`: Only handles GeoJSON parsing
 - `ILocationDataTransformer`: Only transforms features to entities  
 - `ILocationDataWriter`: Only persists to database
 - `LocationSeedingStrategy`: Orchestrates the three above
 
 #### Open/Closed Principle
+
 - Abstract `LocationSeedingStrategy<TEntity>` base class
 - Easy to extend with new entity types without modifying existing code
 
 #### Dependency Inversion Principle
+
 - Depends on abstractions (interfaces) not concrete implementations
 - Easy to mock for testing
 - Can swap implementations (e.g., different parsers, writers)
@@ -182,6 +187,7 @@ If issues occur, set `UseOptimizedLocationSeeder: false` in configuration and re
 ## Performance Benchmarks
 
 ### Test Environment
+
 - Node: DigitalOcean 1vCPU 2GB RAM
 - Database: PostgreSQL with PostGIS
 - Data: Philippine boundaries (17 regions, 88 provinces, ~1,500 municipalities, ~42,000 barangays)
@@ -204,16 +210,19 @@ If issues occur, set `UseOptimizedLocationSeeder: false` in configuration and re
 ## Code Quality Improvements
 
 ### Testability
+
 - All components have interfaces
 - Easy to mock for unit testing
 - Dependency injection throughout
 
 ### Maintainability
+
 - Clear separation of concerns
 - Each class has single responsibility
 - Easy to understand and modify
 
 ### Extensibility
+
 - Add new entity types by implementing strategy
 - Swap parsers or writers without changing orchestrator
 - Configure batch sizes per entity type
@@ -285,6 +294,7 @@ protected override WriteOptions GetWriteOptions() => new()
 ### Issue: High Memory Usage
 
 **Possible Causes**:
+
 1. Not using `IAsyncEnumerable` properly (materializing with `.ToList()`)
 2. Holding references to entities after writing
 3. Database context not disposing batches
@@ -294,11 +304,13 @@ protected override WriteOptions GetWriteOptions() => new()
 ### Issue: Slow Performance
 
 **Possible Causes**:
+
 1. Batch size too small (too many round-trips)
 2. Database connection too slow
 3. Complex geometry calculations
 
-**Solution**: 
+**Solution**:
+
 - Increase batch size (balance with memory)
 - Check database connection pool settings
 - Consider geometry simplification
