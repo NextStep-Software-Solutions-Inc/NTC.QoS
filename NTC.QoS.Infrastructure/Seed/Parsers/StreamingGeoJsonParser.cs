@@ -40,6 +40,8 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         
         try
         {
+            // Async yield to allow compiler to understand this is truly async
+            await Task.Yield();
             featureCollection = serializer.Deserialize<FeatureCollection>(jsonReader);
         }
         catch (Exception ex)

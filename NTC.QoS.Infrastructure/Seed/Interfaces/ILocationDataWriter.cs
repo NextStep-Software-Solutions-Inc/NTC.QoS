@@ -22,7 +22,7 @@ public interface ILocationDataWriter<TEntity> where TEntity : class
 /// <summary>
 /// Options for batch writing operations.
 /// </summary>
-public class WriteOptions
+public record WriteOptions
 {
     public int BatchSize { get; init; } = 100;
     public int TimeoutSeconds { get; init; } = 300;
