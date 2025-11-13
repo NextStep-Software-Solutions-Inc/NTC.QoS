@@ -130,6 +130,11 @@ public class InfrastructureStatsDto
     public BandBreakdownDto? BandBreakdown { get; set; }
     
     /// <summary>
+    /// Technology-specific band breakdown showing deployment counts for each frequency band by technology generation
+    /// </summary>
+    public TechnologyBandBreakdownDto? TechnologyBandBreakdown { get; set; }
+    
+    /// <summary>
     /// Detailed breakdown of service providers with their asset counts in descending order
     /// </summary>
     public List<ProviderBreakdownDto> ProviderBreakdown { get; set; } = [];

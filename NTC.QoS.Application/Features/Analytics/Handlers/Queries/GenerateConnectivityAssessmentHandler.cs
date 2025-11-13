@@ -608,6 +608,27 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             _logger.LogDebug("Skipping band breakdown calculation for {LocationType} {LocationId} (IncludeBandBreakdown=false)", locationType, locationId);
         }
 
+        // Get technology-band breakdown with caching (optional based on request parameter)
+        TechnologyBandBreakdownDto? technologyBandBreakdown = null;
+        if (includeBandBreakdown)
+        {
+            var techBandCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType) + "_tech_bands";
+            technologyBandBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBandBreakdownDto>(techBandCacheKey);
+            if (technologyBandBreakdown == null || forceRecalculate)
+            {
+                if (forceRecalculate)
+                {
+                    _logger.LogInformation("Force recalculating technology-band breakdown for {LocationType} {LocationId}", locationType, locationId);
+                }
+                technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(boundary, center, areaKm2, boundary != null, startDate, endDate, cancellationToken);
+                await _cacheService.SetCachedResultAsync(techBandCacheKey, technologyBandBreakdown);
+            }
+        }
+        else
+        {
+            _logger.LogDebug("Skipping technology-band breakdown calculation for {LocationType} {LocationId} (IncludeBandBreakdown=false)", locationType, locationId);
+        }
+
         return new ()
         {
             CellTowerCount = cells.Count,
@@ -617,6 +638,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             DominantServiceProvider = dominantProvider,
             TechnologyBreakdown = technologyBreakdown,
             BandBreakdown = bandBreakdown,
+            TechnologyBandBreakdown = technologyBandBreakdown,
             ProviderBreakdown = providerBreakdown
         };
     }
@@ -896,7 +918,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             }
             else
             {
-                // Use radius-based queries for larger areas
+                // Use radius-based queries for larger areas (AnalyzeBandFrequencyAsync - Handler)
                 var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
                 var searchRadiusMeters = searchRadiusKm * 1000;
 
@@ -1029,6 +1051,190 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     }
 
     /// <summary>
+    /// Analyzes technology-specific band frequency distribution from cellular deployments
+    /// Returns deployment counts for each frequency band broken down by technology generation (5G, LTE, 3G, 2G)
+    /// OPTIMIZED: Uses database-side aggregation with single query and joins
+    /// </summary>
+    private async Task<TechnologyBandBreakdownDto> AnalyzeTechnologyBandBreakdownAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Dictionary to accumulate unique bands per technology standard
+            var techBandSets = new Dictionary<string, HashSet<string>>();
+
+            if (useBoundary && boundary != null)
+            {
+                // OPTIMIZED: Single query with joins - let database do the work
+                var cellQuery = _cellRepository.Query();
+                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+
+                // Get technology-band data from Cellular using single query with joins
+                var cellularTechBandData = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => c.CellSector != null 
+                                 && c.CellSector.Cell != null
+                                 && cellQuery.Select(cell => cell.Id).Contains(c.CellSector.Cell.Id)
+                                 && c.Band != null
+                                 && c.Technology != null
+                                 && c.Technology.Standard != null)
+                        .Select(c => new { 
+                            BandName = c.Band!.Name, 
+                            TechnologyStandard = c.Technology!.Standard 
+                        }), cancellationToken);
+
+                // Collect unique bands for each technology
+                foreach (var item in cellularTechBandData.Where(b => !string.IsNullOrEmpty(b.BandName) && !string.IsNullOrEmpty(b.TechnologyStandard)))
+                {
+                    if (!techBandSets.ContainsKey(item.TechnologyStandard))
+                    {
+                        techBandSets[item.TechnologyStandard] = new HashSet<string>();
+                    }
+                    techBandSets[item.TechnologyStandard].Add(item.BandName);
+                }
+
+                // Get wireless validation technology-band data with date filtering
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null 
+                               && wv.Barangay.Center != null
+                               && boundary.Intersects(wv.Barangay.Center)
+                               && wv.Band != null
+                               && wv.Technology != null
+                               && wv.Technology.Standard != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
+                var wirelessValidationTechBandData = await _wirelessValidationRepository.ToListAsync(
+                    wirelessValidationQuery.Select(wv => new { 
+                        BandName = wv.Band!.Name, 
+                        TechnologyStandard = wv.Technology!.Standard 
+                    }), cancellationToken);
+
+                // Collect unique bands for each technology from wireless validations
+                foreach (var item in wirelessValidationTechBandData.Where(b => !string.IsNullOrEmpty(b.BandName) && !string.IsNullOrEmpty(b.TechnologyStandard)))
+                {
+                    if (!techBandSets.ContainsKey(item.TechnologyStandard))
+                    {
+                        techBandSets[item.TechnologyStandard] = new HashSet<string>();
+                    }
+                    techBandSets[item.TechnologyStandard].Add(item.BandName);
+                }
+            }
+            else
+            {
+                // Use radius-based queries for larger areas (AnalyzeTechnologyBandBreakdownAsync - Handler)
+                var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
+                var searchRadiusMeters = searchRadiusKm * 1000;
+
+                // OPTIMIZED: Single query with distance filter
+                var cellularTechBandData = await _cellularRepository.ToListAsync(
+                    _cellularRepository.Query()
+                        .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters
+                                 && c.Band != null
+                                 && c.Technology != null
+                                 && c.Technology.Standard != null)
+                        .Select(c => new { 
+                            BandName = c.Band!.Name, 
+                            TechnologyStandard = c.Technology!.Standard 
+                        }), cancellationToken);
+
+                // Collect unique bands for each technology
+                foreach (var item in cellularTechBandData.Where(b => !string.IsNullOrEmpty(b.BandName) && !string.IsNullOrEmpty(b.TechnologyStandard)))
+                {
+                    if (!techBandSets.ContainsKey(item.TechnologyStandard))
+                    {
+                        techBandSets[item.TechnologyStandard] = new HashSet<string>();
+                    }
+                    techBandSets[item.TechnologyStandard].Add(item.BandName);
+                }
+
+                // Get wireless validation technology-band data using barangay center distance
+                var wirelessValidationQuery = _wirelessValidationRepository.Query()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
+                               && wv.Band != null
+                               && wv.Technology != null
+                               && wv.Technology.Standard != null);
+                
+                // Apply date range filter if provided
+                if (startDate.HasValue)
+                {
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt >= startDate.Value);
+                }
+                if (endDate.HasValue)
+                {
+                    var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                    wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
+                }
+                
+                var wirelessValidationTechBandData = await _wirelessValidationRepository.ToListAsync(
+                    wirelessValidationQuery.Select(wv => new { 
+                        BandName = wv.Band!.Name, 
+                        TechnologyStandard = wv.Technology!.Standard 
+                    }), cancellationToken);
+
+                // Collect unique bands for each technology from wireless validations
+                foreach (var item in wirelessValidationTechBandData.Where(b => !string.IsNullOrEmpty(b.BandName) && !string.IsNullOrEmpty(b.TechnologyStandard)))
+                {
+                    if (!techBandSets.ContainsKey(item.TechnologyStandard))
+                    {
+                        techBandSets[item.TechnologyStandard] = new HashSet<string>();
+                    }
+                    techBandSets[item.TechnologyStandard].Add(item.BandName);
+                }
+            }
+
+            if (!techBandSets.Any() || techBandSets.All(kvp => kvp.Value.Count == 0))
+            {
+                return new TechnologyBandBreakdownDto();
+            }
+
+            // Build the DTO by converting HashSets to sorted Lists for each technology standard
+            var result = new TechnologyBandBreakdownDto();
+            foreach (var kvp in techBandSets.Where(x => x.Value.Any()))
+            {
+                result[kvp.Key] = kvp.Value.OrderBy(b => b).ToList();
+            }
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error analyzing technology-band breakdown for area. Returning empty breakdown.");
+            return new TechnologyBandBreakdownDto();
+        }
+    }
+
+    /// <summary>
+    /// Normalizes generation names to standard format (5G, LTE, 3G, 2G)
+    /// </summary>
+    private static string NormalizeGenerationName(string generationName)
+    {
+        if (string.IsNullOrEmpty(generationName))
+            return string.Empty;
+
+        var normalized = generationName.ToUpperInvariant().Trim();
+
+        return normalized switch
+        {
+            var s when s.Contains("5G") || s.Contains("NR") || s.Contains("FIFTH") => "5G",
+            var s when s.Contains("4G") || s.Contains("LTE") || s.Contains("FOURTH") => "LTE",
+            var s when s.Contains("3G") || s.Contains("UMTS") || s.Contains("WCDMA") || s.Contains("HSPA") || s.Contains("THIRD") => "3G",
+            var s when s.Contains("2G") || s.Contains("GSM") || s.Contains("EDGE") || s.Contains("GPRS") || s.Contains("SECOND") => "2G",
+            _ => string.Empty
+        };
+    }
+
+    /// <summary>
     /// Analyzes technology generations in the area from speedtest data and cellular infrastructure
     /// </summary>
     private async Task<TechnologyBreakdownDto> AnalyzeTechnologyGenerationsAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
@@ -1122,8 +1328,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             }
             else
             {
-                // Use radius-based queries for larger areas
-                var searchRadiusKm = Math.Min(Math.Sqrt(areaKm2 / Math.PI), 50);
+                // Use radius-based queries for larger areas (no cap for technology generations)
+                var searchRadiusKm = Math.Sqrt(areaKm2 / Math.PI);
                 var searchRadiusMeters = searchRadiusKm * 1000;
 
                 var speedtestQuery = _speedtestRepository.Query()
@@ -1245,23 +1451,6 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Normalizes generation names to standard format (2G, 3G, 4G, 5G)
     /// </summary>
-    private static string NormalizeGenerationName(string generationName)
-    {
-        if (string.IsNullOrEmpty(generationName))
-            return "Unknown";
-
-        var normalized = generationName.ToUpperInvariant().Trim();
-
-        return normalized switch
-        {
-            var s when s.Contains("2G") || s.Contains("GSM") || s.Contains("EDGE") => "2G",
-            var s when s.Contains("3G") || s.Contains("UMTS") || s.Contains("WCDMA") || s.Contains("HSPA") => "3G",
-            var s when s.Contains("4G") || s.Contains("LTE") || s.Contains("LTE-A") => "4G",
-            var s when s.Contains("5G") || s.Contains("NR") || s.Contains("5G NR") => "5G",
-            _ => normalized
-        };
-    }
-
     private static decimal CalculateMedian(List<decimal> values)
     {
         if (values.Count == 0) return 0;
