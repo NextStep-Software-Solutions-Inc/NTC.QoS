@@ -70,21 +70,33 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
 
         try
         {
-            var bulkConfig = new BulkConfig
+            // Set command timeout specifically for seeding operations to handle large geometry data
+            var originalTimeout = _dbContext.Database.GetCommandTimeout();
+            _dbContext.Database.SetCommandTimeout(options.TimeoutSeconds);
+            
+            try
             {
-                BatchSize = batch.Count,
-                BulkCopyTimeout = options.TimeoutSeconds,
-                EnableStreaming = options.EnableStreaming,
-                UseTempDB = false,
-                TrackingEntities = false
-            };
+                var bulkConfig = new BulkConfig
+                {
+                    BatchSize = batch.Count,
+                    BulkCopyTimeout = options.TimeoutSeconds,
+                    EnableStreaming = options.EnableStreaming,
+                    UseTempDB = false,
+                    TrackingEntities = false
+                };
 
-            await _dbContext.BulkInsertAsync(batch, bulkConfig, cancellationToken: cancellationToken);
+                await _dbContext.BulkInsertAsync(batch, bulkConfig, cancellationToken: cancellationToken);
 
-            _logger.LogDebug("Successfully wrote batch of {Count} {EntityType} entities", 
-                batch.Count, typeof(TEntity).Name);
+                _logger.LogDebug("Successfully wrote batch of {Count} {EntityType} entities", 
+                    batch.Count, typeof(TEntity).Name);
 
-            return batch.Count;
+                return batch.Count;
+            }
+            finally
+            {
+                // Restore original timeout
+                _dbContext.Database.SetCommandTimeout(originalTimeout);
+            }
         }
         catch (Exception ex)
         {
