@@ -338,13 +338,6 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 barangay.Name, string.Join(", ", fiberProviders));
             }
 
-            // If no providers with fiber, but we have a dominant service provider, include it
-            if (providers.Count == 0 && !string.IsNullOrEmpty(assessment.DominantServiceProvider))
-            {
-                providers.Add(assessment.DominantServiceProvider);
-                _logger.LogDebug("Barangay {BarangayName}: No fiber providers found, using dominant provider: {Provider}",
-                barangay.Name, assessment.DominantServiceProvider);
-            }
         }
 
         var providerAvailability = new ServiceProviderAvailabilityDto();
@@ -400,7 +393,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             providers.AddRange(fiberProviders);
 
             // Log the providers found
-            if (fiberProviders.Any())
+            if (fiberProviders.Count != 0)
             {
                 _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Fiber providers: {Providers}",
                 barangay.Name, string.Join(", ", fiberProviders));
@@ -479,10 +472,10 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         // For wired broadband, status is determined by Fiber Coverage Score
         var remarks = assessment.FiberCoverageScore switch
         {
-     3 => "SERVED",
-       2 => "UNDERSERVED",
-       _ => "UNSERVED"
-  };
+            3 => "SERVED",
+            2 => "UNDERSERVED",
+            _ => "UNSERVED"
+        };
 
         // Enhance remarks with assessment details
         if (assessment.FiberNAPCount > 0)
@@ -494,19 +487,19 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         // Show provider count for 1 or more providers (changed from > 1 to >= 1)
         if (actualFiberProviderCount >= 1)
         {
-      var providerWord = actualFiberProviderCount == 1 ? "provider" : "providers";
-        remarks += $" - {actualFiberProviderCount} {providerWord}";
-  }
+            var providerWord = actualFiberProviderCount == 1 ? "provider" : "providers";
+            remarks += $" - {actualFiberProviderCount} {providerWord}";
+        }
 
         if (assessment.MeetsMinimumSpeedRequirement)
         {
-        remarks += " - Meets speed requirements";
+            remarks += " - Meets speed requirements";
         }
 
         var levelIndicator = isBarangayLevel ? "Barangay" : "Municipality";
         remarks += $" ({levelIndicator} Assessment: {assessment.LastUpdated:MMM dd})";
 
-    return remarks;
+        return remarks;
     }
 
     /// <summary>
@@ -516,21 +509,21 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     private static string GenerateRemarksFromMunicipalityAssessment(Domain.Entities.ConnectivityAssessment assessment, int actualFiberProviderCount)
     {
       // For wired broadband, status is determined by Fiber Coverage Score
-   var remarks = assessment.FiberCoverageScore switch
+        var remarks = assessment.FiberCoverageScore switch
         {
-       3 => "SERVED",
-   2 => "UNDERSERVED",
-_ => "UNSERVED"
-      };
+            3 => "SERVED",
+            2 => "UNDERSERVED",
+            _ => "UNSERVED"
+        };
 
-   remarks += " (Municipality estimate)";
+        remarks += " (Municipality estimate)";
 
- // Use actual fiber provider count instead of total ServiceProviderCount
-     // Show provider count for 1 or more providers (changed from > 0 to >= 1 for consistency)
+        // Use actual fiber provider count instead of total ServiceProviderCount
+        // Show provider count for 1 or more providers (changed from > 0 to >= 1 for consistency)
         if (actualFiberProviderCount >= 1)
         {
             var providerWord = actualFiberProviderCount == 1 ? "provider" : "providers";
-     remarks += $" - {actualFiberProviderCount} {providerWord} in area";
+            remarks += $" - {actualFiberProviderCount} {providerWord} in area";
         }
 
         return remarks;
