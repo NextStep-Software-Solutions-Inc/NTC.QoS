@@ -283,8 +283,6 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 WiFiHotspotCount = assessment.WifiHotspotCount,
                 ServiceProviderCount = assessment.ServiceProviderCount,
                 DominantServiceProvider = assessment.DominantServiceProvider,
-                TechnologyBreakdown = technologyBreakdown,
-                BandBreakdown = bandBreakdown,
                 TechnologyBandBreakdown = technologyBandBreakdown,
                 ProviderBreakdown = providerBreakdown
             },

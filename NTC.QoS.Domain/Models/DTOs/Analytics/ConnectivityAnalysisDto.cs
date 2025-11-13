@@ -120,17 +120,9 @@ public class InfrastructureStatsDto
     public string? DominantServiceProvider { get; set; }
     
     /// <summary>
-    /// Technology generation breakdown based on speedtest and cellular data
-    /// </summary>
-    public TechnologyBreakdownDto? TechnologyBreakdown { get; set; }
-    
-    /// <summary>
-    /// Band frequency breakdown based on cellular deployment data
-    /// </summary>
-    public BandBreakdownDto? BandBreakdown { get; set; }
-    
-    /// <summary>
-    /// Technology-specific band breakdown showing deployment counts for each frequency band by technology generation
+    /// Technology-band breakdown showing available bands for each technology standard,
+    /// plus technology generation summary (counts, dominant generation, modern coverage ratio, etc.)
+    /// Replaces the separate TechnologyBreakdown and BandBreakdown DTOs
     /// </summary>
     public TechnologyBandBreakdownDto? TechnologyBandBreakdown { get; set; }
     
