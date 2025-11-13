@@ -27,4 +27,11 @@ public class DatabaseOptions
     /// Maximum retry delay in seconds
     /// </summary>
     public int MaxRetryDelaySeconds { get; set; } = 5;
+
+    /// <summary>
+    /// Whether to use the optimized LocationSeederV2 with streaming architecture.
+    /// Set to true for better performance and lower memory usage (default).
+    /// Set to false to use legacy LocationSeeder.
+    /// </summary>
+    public bool? UseOptimizedLocationSeeder { get; set; } = true;
 }

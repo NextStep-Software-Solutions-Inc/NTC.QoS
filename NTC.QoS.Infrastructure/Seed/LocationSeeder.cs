@@ -247,8 +247,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(regionsToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Region.Name),
                     nameof(Region.Area),
                     nameof(Region.TotalPopulation),
@@ -258,7 +258,7 @@ public static class LocationSeeder
                     nameof(Region.Center),
                     nameof(Region.UpdatedAt),
                     nameof(Region.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing regions.", regionsToUpdate.Count);
         }
@@ -447,8 +447,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(provincesToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Province.Name),
                     nameof(Province.Area),
                     nameof(Province.TotalPopulation),
@@ -459,7 +459,7 @@ public static class LocationSeeder
                     nameof(Province.RegionId),
                     nameof(Province.UpdatedAt),
                     nameof(Province.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing provinces.", provincesToUpdate.Count);
         }
@@ -634,7 +634,18 @@ public static class LocationSeeder
         // Insert new municipalities
         if (municipalitiesToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(municipalitiesToInsert, new BulkConfig { BulkCopyTimeout = 600 });
+            // Configure bulk insert for large geometry data
+            var bulkConfig = new BulkConfig
+            {
+                BatchSize = 50,  // Smaller batch size for geometry data
+                BulkCopyTimeout = 300,  // 5 minutes timeout
+                EnableStreaming = true,
+                UseTempDB = false,
+                PropertiesToIncludeOnUpdate = [],
+                PropertiesToExcludeOnUpdate = []
+            };
+            
+            await dbContext.BulkInsertAsync(municipalitiesToInsert, bulkConfig);
             logger.LogInformation("Inserted {Count} new municipalities.", municipalitiesToInsert.Count);
         }
 
@@ -643,8 +654,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(municipalitiesToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Municipality.IsCity),
                     nameof(Municipality.Name),
                     nameof(Municipality.Area),
@@ -656,7 +667,7 @@ public static class LocationSeeder
                     nameof(Municipality.ProvinceId),
                     nameof(Municipality.UpdatedAt),
                     nameof(Municipality.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing municipalities with IsCity and other properties.", municipalitiesToUpdate.Count);
         }
@@ -820,7 +831,18 @@ public static class LocationSeeder
         // Insert new barangays
         if (barangaysToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(barangaysToInsert, new BulkConfig { BulkCopyTimeout = 600 });
+            // Configure bulk insert for large geometry data (barangays have ~40k records)
+            var bulkConfig = new BulkConfig
+            {
+                BatchSize = 25,  // Even smaller batch size for barangays (most records)
+                BulkCopyTimeout = 600,  // 10 minutes timeout for large dataset
+                EnableStreaming = true,
+                UseTempDB = false,
+                PropertiesToIncludeOnUpdate = [],
+                PropertiesToExcludeOnUpdate = []
+            };
+            
+            await dbContext.BulkInsertAsync(barangaysToInsert, bulkConfig);
             logger.LogInformation("Inserted {Count} new barangays.", barangaysToInsert.Count);
         }
 
@@ -829,8 +851,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(barangaysToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Barangay.Name),
                     nameof(Barangay.Area),
                     nameof(Barangay.Boundaries),
@@ -838,7 +860,7 @@ public static class LocationSeeder
                     nameof(Barangay.MunicipalityId),
                     nameof(Barangay.UpdatedAt),
                     nameof(Barangay.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing barangays.", barangaysToUpdate.Count);
         }
