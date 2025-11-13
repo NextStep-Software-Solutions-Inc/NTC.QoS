@@ -122,16 +122,35 @@ public static class InfrastructureDependencyInjection
     }
 
     /// <summary>
-    /// Seeds initial data in the correct order with error handling for each seeder
+    /// Seeds initial data in the correct order with error handling for each seeder.
+    /// Uses the optimized LocationSeederV2 by default, falls back to LocationSeeder if needed.
     /// </summary>
     private static async Task SeedInitialDataAsync(ApplicationDbContext dbContext, IServiceProvider serviceProvider, ILogger logger, CancellationToken cancellationToken)
     {
         var blobStorageService = serviceProvider.GetRequiredService<IBlobStorageService>();
         var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+
+        // Use configuration to determine which seeder version to use
+        var useOptimizedSeeder = databaseOptions.UseOptimizedLocationSeeder ?? true;
 
         var seeders = new (string Name, Func<Task> SeedAction)[]
         {
-            ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed)),
+            ("Location Data", async () =>
+            {
+                if (useOptimizedSeeder)
+                {
+                    logger.LogInformation("Using optimized LocationSeederV2 with streaming architecture");
+                    var seederV2 = new LocationSeederV2(dbContext, blobStorageService, 
+                        loggerFactory.CreateLogger<LocationSeederV2>(), loggerFactory);
+                    await seederV2.SeedAllAsync(databaseOptions.ForceReseed, cancellationToken);
+                }
+                else
+                {
+                    logger.LogInformation("Using legacy LocationSeeder");
+                    await LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed);
+                }
+            }),
             ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
             ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
             ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))

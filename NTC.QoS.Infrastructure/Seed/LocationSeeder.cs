@@ -247,8 +247,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(regionsToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Region.Name),
                     nameof(Region.Area),
                     nameof(Region.TotalPopulation),
@@ -258,7 +258,7 @@ public static class LocationSeeder
                     nameof(Region.Center),
                     nameof(Region.UpdatedAt),
                     nameof(Region.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing regions.", regionsToUpdate.Count);
         }
@@ -447,8 +447,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(provincesToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Province.Name),
                     nameof(Province.Area),
                     nameof(Province.TotalPopulation),
@@ -459,7 +459,7 @@ public static class LocationSeeder
                     nameof(Province.RegionId),
                     nameof(Province.UpdatedAt),
                     nameof(Province.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing provinces.", provincesToUpdate.Count);
         }
@@ -641,8 +641,8 @@ public static class LocationSeeder
                 BulkCopyTimeout = 300,  // 5 minutes timeout
                 EnableStreaming = true,
                 UseTempDB = false,
-                PropertiesToIncludeOnUpdate = new List<string>(),
-                PropertiesToExcludeOnUpdate = new List<string>()
+                PropertiesToIncludeOnUpdate = [],
+                PropertiesToExcludeOnUpdate = []
             };
             
             await dbContext.BulkInsertAsync(municipalitiesToInsert, bulkConfig);
@@ -654,8 +654,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(municipalitiesToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Municipality.IsCity),
                     nameof(Municipality.Name),
                     nameof(Municipality.Area),
@@ -667,7 +667,7 @@ public static class LocationSeeder
                     nameof(Municipality.ProvinceId),
                     nameof(Municipality.UpdatedAt),
                     nameof(Municipality.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing municipalities with IsCity and other properties.", municipalitiesToUpdate.Count);
         }
@@ -838,8 +838,8 @@ public static class LocationSeeder
                 BulkCopyTimeout = 600,  // 10 minutes timeout for large dataset
                 EnableStreaming = true,
                 UseTempDB = false,
-                PropertiesToIncludeOnUpdate = new List<string>(),
-                PropertiesToExcludeOnUpdate = new List<string>()
+                PropertiesToIncludeOnUpdate = [],
+                PropertiesToExcludeOnUpdate = []
             };
             
             await dbContext.BulkInsertAsync(barangaysToInsert, bulkConfig);
@@ -851,8 +851,8 @@ public static class LocationSeeder
         {
             await dbContext.BulkUpdateAsync(barangaysToUpdate, config => 
             {
-                config.PropertiesToInclude = new List<string> 
-                { 
+                config.PropertiesToInclude =
+                [
                     nameof(Barangay.Name),
                     nameof(Barangay.Area),
                     nameof(Barangay.Boundaries),
@@ -860,7 +860,7 @@ public static class LocationSeeder
                     nameof(Barangay.MunicipalityId),
                     nameof(Barangay.UpdatedAt),
                     nameof(Barangay.UpdatedBy)
-                };
+                ];
             });
             logger.LogInformation("Updated {Count} existing barangays.", barangaysToUpdate.Count);
         }
