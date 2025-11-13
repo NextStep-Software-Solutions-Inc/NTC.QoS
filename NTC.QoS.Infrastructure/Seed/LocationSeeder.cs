@@ -97,7 +97,7 @@ public static class LocationSeeder
             var municipalityCount = await context.Municipalities.CountAsync();
             var barangayCount = await context.Barangays.CountAsync();
 
-            var hasData = regionCount > 0 || provinceCount > 0 || municipalityCount > 0 || barangayCount > 0;
+            var hasData = regionCount > 0 && provinceCount > 0 && municipalityCount > 0 && barangayCount > 0;
 
             logger.LogInformation("Existing location data check - Regions: {RegionCount}, Provinces: {ProvinceCount}, Municipalities: {MunicipalityCount}, Barangays: {BarangayCount}", 
                 regionCount, provinceCount, municipalityCount, barangayCount);
