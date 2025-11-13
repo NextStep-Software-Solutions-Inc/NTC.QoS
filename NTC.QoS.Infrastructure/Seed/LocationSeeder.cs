@@ -238,7 +238,7 @@ public static class LocationSeeder
         // Insert new regions
         if (regionsToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(regionsToInsert);
+            await dbContext.BulkInsertAsync(regionsToInsert, new BulkConfig { BulkCopyTimeout = 600 });
             logger.LogInformation("Inserted {Count} new regions.", regionsToInsert.Count);
         }
 
@@ -438,7 +438,7 @@ public static class LocationSeeder
         // Insert new provinces
         if (provincesToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(provincesToInsert);
+            await dbContext.BulkInsertAsync(provincesToInsert, new BulkConfig { BulkCopyTimeout = 600 });
             logger.LogInformation("Inserted {Count} new provinces.", provincesToInsert.Count);
         }
 
@@ -634,7 +634,7 @@ public static class LocationSeeder
         // Insert new municipalities
         if (municipalitiesToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(municipalitiesToInsert);
+            await dbContext.BulkInsertAsync(municipalitiesToInsert, new BulkConfig { BulkCopyTimeout = 600 });
             logger.LogInformation("Inserted {Count} new municipalities.", municipalitiesToInsert.Count);
         }
 
@@ -820,7 +820,7 @@ public static class LocationSeeder
         // Insert new barangays
         if (barangaysToInsert.Count > 0)
         {
-            await dbContext.BulkInsertAsync(barangaysToInsert);
+            await dbContext.BulkInsertAsync(barangaysToInsert, new BulkConfig { BulkCopyTimeout = 600 });
             logger.LogInformation("Inserted {Count} new barangays.", barangaysToInsert.Count);
         }
 
