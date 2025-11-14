@@ -11,297 +11,378 @@ namespace NTC.QoS.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "WiFiHotspots",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Helper function to safely convert column type
+            // Checks if column exists and converts it, or creates it if it doesn't exist
+            
+            // WiFiHotspots - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'WiFiHotspots' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""WiFiHotspots"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "Speedtests",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Speedtests - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Speedtests' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""Speedtests"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Regions",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Regions - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Regions' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Regions",
-                type: "geometry (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geography (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Regions - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Regions' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Provinces",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Provinces - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Provinces' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Provinces",
-                type: "geometry (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geography (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Provinces - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Provinces' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "NAPs",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // NAPs - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'NAPs' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""NAPs"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Municipalities",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Municipalities - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Municipalities' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Municipalities",
-                type: "geometry (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geography (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Municipalities - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Municipalities' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "ConnectivityAssessments",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // ConnectivityAssessments - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'ConnectivityAssessments' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""ConnectivityAssessments"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "CellularCoverages",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // CellularCoverages - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'CellularCoverages' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""CellularCoverages"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "Cells",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Cells - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Cells' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""Cells"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Barangays",
-                type: "geometry (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geography (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Barangays - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Barangays' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Barangays",
-                type: "geometry (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geography (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Barangays - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Barangays' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
+                    END IF;
+                END $$;
+            ");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "WiFiHotspots",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Reverse: geometry back to geography
+            
+            // WiFiHotspots - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'WiFiHotspots' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""WiFiHotspots"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "Speedtests",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Speedtests - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Speedtests' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""Speedtests"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Regions",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Regions - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Regions' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Regions",
-                type: "geography (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geometry (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Regions - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Regions' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Provinces",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Provinces - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Provinces' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Provinces",
-                type: "geography (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geometry (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Provinces - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Provinces' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "NAPs",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // NAPs - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'NAPs' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""NAPs"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Municipalities",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Municipalities - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Municipalities' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Municipalities",
-                type: "geography (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geometry (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Municipalities - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Municipalities' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "ConnectivityAssessments",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // ConnectivityAssessments - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'ConnectivityAssessments' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""ConnectivityAssessments"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "CellularCoverages",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // CellularCoverages - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'CellularCoverages' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""CellularCoverages"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Location",
-                table: "Cells",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Cells - Location
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Cells' AND column_name = 'Location'
+                    ) THEN
+                        ALTER TABLE ""Cells"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<Point>(
-                name: "Center",
-                table: "Barangays",
-                type: "geography (Point,4326)",
-                nullable: false,
-                defaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"),
-                oldClrType: typeof(Point),
-                oldType: "geometry (Point,4326)",
-                oldDefaultValue: (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+            // Barangays - Center
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Barangays' AND column_name = 'Center'
+                    ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AlterColumn<MultiPolygon>(
-                name: "Boundaries",
-                table: "Barangays",
-                type: "geography (MultiPolygon,4326)",
-                nullable: true,
-                defaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"),
-                oldClrType: typeof(MultiPolygon),
-                oldType: "geometry (MultiPolygon,4326)",
-                oldNullable: true,
-                oldDefaultValue: (NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
+            // Barangays - Boundaries
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Barangays' AND column_name = 'Boundaries'
+                    ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
+                    END IF;
+                END $$;
+            ");
         }
     }
 }
