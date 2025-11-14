@@ -37,12 +37,7 @@ public class ConnectivityAssessmentProvider : BaseEntity
     public int WiFiHotspotCount { get; set; }
     
     /// <summary>
-    /// Number of wireless validations from this provider
-    /// </summary>
-    public int WirelessValidationCount { get; set; }
-    
-    /// <summary>
-    /// Total assets from this provider (Cells + NAPs + WiFi + Wireless Validations)
+    /// Total assets from this provider (Cells + NAPs + WiFi)
     /// </summary>
     public int TotalAssetCount { get; set; }
     
