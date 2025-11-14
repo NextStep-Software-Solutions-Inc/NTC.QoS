@@ -32,31 +32,61 @@ public class TechnologyBandBreakdownDto : Dictionary<string, List<string>>
     [JsonPropertyName("allBands")]
     public List<string> AllBands => this.Values.SelectMany(v => v).Distinct().OrderBy(b => b).ToList();
     
-    // ===== Generation Counts =====
+    // ===== Generation Counts (Deployment Density) =====
     
     /// <summary>
-    /// Count of 2G technology deployments
+    /// Count of 2G technology deployments (total infrastructure)
     /// </summary>
     [JsonPropertyName("count2G")]
     public int Count2G { get; set; }
     
     /// <summary>
-    /// Count of 3G technology deployments  
+    /// Count of 3G technology deployments (total infrastructure)
     /// </summary>
     [JsonPropertyName("count3G")]
     public int Count3G { get; set; }
     
     /// <summary>
-    /// Count of 4G/LTE technology deployments
+    /// Count of 4G/LTE technology deployments (total infrastructure)
     /// </summary>
     [JsonPropertyName("count4G")]
     public int Count4G { get; set; }
     
     /// <summary>
-    /// Count of 5G technology deployments
+    /// Count of 5G technology deployments (total infrastructure)
     /// </summary>
     [JsonPropertyName("count5G")]
     public int Count5G { get; set; }
+    
+    // ===== Unique Technology Availability (Yes/No Presence) =====
+    
+    /// <summary>
+    /// Whether 2G technology is available in this area (true/false)
+    /// Used for availability reports and tables
+    /// </summary>
+    [JsonPropertyName("has2G")]
+    public bool Has2G => Count2G > 0;
+    
+    /// <summary>
+    /// Whether 3G technology is available in this area (true/false)
+    /// Used for availability reports and tables
+    /// </summary>
+    [JsonPropertyName("has3G")]
+    public bool Has3G => Count3G > 0;
+    
+    /// <summary>
+    /// Whether 4G/LTE technology is available in this area (true/false)
+    /// Used for availability reports and tables
+    /// </summary>
+    [JsonPropertyName("has4G")]
+    public bool Has4G => Count4G > 0;
+    
+    /// <summary>
+    /// Whether 5G technology is available in this area (true/false)
+    /// Used for availability reports and tables
+    /// </summary>
+    [JsonPropertyName("has5G")]
+    public bool Has5G => Count5G > 0;
     
     // ===== Dominant/Primary Technology =====
     

@@ -50,6 +50,13 @@ public class TechnologyBandBreakdownDtoJsonConverter : JsonConverter<TechnologyB
                 case "count5G":
                     result.Count5G = reader.GetInt32();
                     break;
+                // Boolean availability properties (computed from counts, skip during deserialization)
+                case "has2G":
+                case "has3G":
+                case "has4G":
+                case "has5G":
+                    reader.Skip();
+                    break;
                 case "dominantGeneration":
                     result.DominantGeneration = reader.GetString();
                     break;
@@ -113,6 +120,12 @@ public class TechnologyBandBreakdownDtoJsonConverter : JsonConverter<TechnologyB
         writer.WriteNumber("count3G", value.Count3G);
         writer.WriteNumber("count4G", value.Count4G);
         writer.WriteNumber("count5G", value.Count5G);
+
+        // Write boolean availability properties
+        writer.WriteBoolean("has2G", value.Has2G);
+        writer.WriteBoolean("has3G", value.Has3G);
+        writer.WriteBoolean("has4G", value.Has4G);
+        writer.WriteBoolean("has5G", value.Has5G);
 
         if (!string.IsNullOrEmpty(value.DominantGeneration))
         {
