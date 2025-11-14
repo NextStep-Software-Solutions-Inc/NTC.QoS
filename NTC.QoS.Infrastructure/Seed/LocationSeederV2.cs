@@ -99,6 +99,7 @@ public class LocationSeederV2
         _logger.LogInformation("Loading region map for province seeding...");
         var regionMap = await _dbContext.Regions
             .AsNoTracking()
+            .Where(r => !r.IsDeleted)
             .Select(r => new { r.Code, r.Id })
             .ToDictionaryAsync(r => r.Code, r => r.Id, cancellationToken);
         _logger.LogInformation("Loaded {Count} regions", regionMap.Count);
@@ -133,6 +134,7 @@ public class LocationSeederV2
         _logger.LogInformation("Loading province map for municipality seeding...");
         var provinceMap = await _dbContext.Provinces
             .AsNoTracking()
+            .Where(p => !p.IsDeleted)
             .Select(p => new { p.Code, p.Id })
             .ToDictionaryAsync(p => p.Code, p => p.Id, cancellationToken);
         _logger.LogInformation("Loaded {Count} provinces", provinceMap.Count);
@@ -167,6 +169,7 @@ public class LocationSeederV2
         _logger.LogInformation("Loading municipality map for barangay seeding...");
         var municipalityMap = await _dbContext.Municipalities
             .AsNoTracking()
+            .Where(m => !m.IsDeleted)
             .Select(m => new { m.Code, m.Id })
             .ToDictionaryAsync(m => m.Code, m => m.Id, cancellationToken);
         _logger.LogInformation("Loaded {Count} municipalities", municipalityMap.Count);
