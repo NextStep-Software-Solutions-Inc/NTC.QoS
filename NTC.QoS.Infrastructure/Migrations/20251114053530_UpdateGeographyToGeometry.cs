@@ -12,7 +12,7 @@ namespace NTC.QoS.Infrastructure.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Helper function to safely convert column type
-            // Checks if column exists and converts it, or creates it if it doesn't exist
+            // Drops default constraints, converts type, then restores defaults if needed
             
             // WiFiHotspots - Location
             migrationBuilder.Sql(@"
@@ -22,6 +22,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'WiFiHotspots' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""WiFiHotspots"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""WiFiHotspots"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
                     END IF;
                 END $$;
@@ -35,6 +36,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Speedtests' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""Speedtests"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""Speedtests"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
                     END IF;
                 END $$;
@@ -48,6 +50,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Regions' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Regions"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
                     END IF;
                 END $$;
@@ -61,6 +64,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Regions' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Regions"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
                     END IF;
                 END $$;
@@ -74,6 +78,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Provinces' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Provinces"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
                     END IF;
                 END $$;
@@ -87,6 +92,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Provinces' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Provinces"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
                     END IF;
                 END $$;
@@ -100,6 +106,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'NAPs' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""NAPs"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""NAPs"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
                     END IF;
                 END $$;
@@ -113,6 +120,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Municipalities' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Municipalities"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
                     END IF;
                 END $$;
@@ -126,6 +134,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Municipalities' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Municipalities"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
                     END IF;
                 END $$;
@@ -139,6 +148,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'ConnectivityAssessments' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""ConnectivityAssessments"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""ConnectivityAssessments"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
                     END IF;
                 END $$;
@@ -152,6 +162,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'CellularCoverages' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""CellularCoverages"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""CellularCoverages"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
                     END IF;
                 END $$;
@@ -165,6 +176,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Cells' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""Cells"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""Cells"" ALTER COLUMN ""Location"" TYPE geometry(Point,4326) USING ""Location""::geometry;
                     END IF;
                 END $$;
@@ -178,6 +190,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Barangays' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Barangays"" ALTER COLUMN ""Center"" TYPE geometry(Point,4326) USING ""Center""::geometry;
                     END IF;
                 END $$;
@@ -191,6 +204,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Barangays' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Barangays"" ALTER COLUMN ""Boundaries"" TYPE geometry(MultiPolygon,4326) USING ""Boundaries""::geometry;
                     END IF;
                 END $$;
@@ -210,6 +224,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'WiFiHotspots' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""WiFiHotspots"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""WiFiHotspots"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
                     END IF;
                 END $$;
@@ -223,6 +238,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Speedtests' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""Speedtests"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""Speedtests"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
                     END IF;
                 END $$;
@@ -236,6 +252,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Regions' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Regions"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
                     END IF;
                 END $$;
@@ -249,6 +266,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Regions' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Regions"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Regions"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
                     END IF;
                 END $$;
@@ -262,6 +280,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Provinces' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Provinces"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
                     END IF;
                 END $$;
@@ -275,6 +294,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Provinces' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Provinces"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Provinces"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
                     END IF;
                 END $$;
@@ -288,6 +308,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'NAPs' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""NAPs"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""NAPs"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
                     END IF;
                 END $$;
@@ -301,6 +322,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Municipalities' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Municipalities"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
                     END IF;
                 END $$;
@@ -314,6 +336,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Municipalities' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Municipalities"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Municipalities"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
                     END IF;
                 END $$;
@@ -327,6 +350,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'ConnectivityAssessments' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""ConnectivityAssessments"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""ConnectivityAssessments"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
                     END IF;
                 END $$;
@@ -340,6 +364,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'CellularCoverages' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""CellularCoverages"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""CellularCoverages"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
                     END IF;
                 END $$;
@@ -353,6 +378,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Cells' AND column_name = 'Location'
                     ) THEN
+                        ALTER TABLE ""Cells"" ALTER COLUMN ""Location"" DROP DEFAULT;
                         ALTER TABLE ""Cells"" ALTER COLUMN ""Location"" TYPE geography(Point,4326) USING ""Location""::geography;
                     END IF;
                 END $$;
@@ -366,6 +392,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Barangays' AND column_name = 'Center'
                     ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Center"" DROP DEFAULT;
                         ALTER TABLE ""Barangays"" ALTER COLUMN ""Center"" TYPE geography(Point,4326) USING ""Center""::geography;
                     END IF;
                 END $$;
@@ -379,6 +406,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         SELECT 1 FROM information_schema.columns 
                         WHERE table_name = 'Barangays' AND column_name = 'Boundaries'
                     ) THEN
+                        ALTER TABLE ""Barangays"" ALTER COLUMN ""Boundaries"" DROP DEFAULT;
                         ALTER TABLE ""Barangays"" ALTER COLUMN ""Boundaries"" TYPE geography(MultiPolygon,4326) USING ""Boundaries""::geography;
                     END IF;
                 END $$;
