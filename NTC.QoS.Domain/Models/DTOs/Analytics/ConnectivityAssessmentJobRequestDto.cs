@@ -29,13 +29,6 @@ public class ConnectivityAssessmentJobRequestDto
     public bool ForceRecalculate { get; set; } = false;
 
     /// <summary>
-    /// Include band frequency breakdown in the assessment results.
-    /// Set to false for bulk operations to improve performance (saves ~1 query per location).
-    /// Default: true
-    /// </summary>
-    public bool IncludeBandBreakdown { get; set; } = true;
-
-    /// <summary>
     /// Whether to generate assessments for child locations hierarchically
     /// </summary>
     public bool GenerateHierarchicalAssessments { get; set; } = false;

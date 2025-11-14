@@ -16,13 +16,6 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     public bool ForceRecalculate { get; set; } = false;
     
     /// <summary>
-    /// Include band frequency breakdown in the assessment results.
-    /// Set to false for bulk operations to improve performance (saves ~1 query per location).
-    /// Default: true
-    /// </summary>
-    public bool IncludeBandBreakdown { get; set; } = true;
-    
-    /// <summary>
     /// When true, automatically generates assessments for child locations:
     /// - Region -> Provinces, Municipalities, Barangays
     /// - Province -> Municipalities, Barangays  

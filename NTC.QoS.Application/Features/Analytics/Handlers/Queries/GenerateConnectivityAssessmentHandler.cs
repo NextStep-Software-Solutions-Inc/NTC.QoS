@@ -80,8 +80,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var assessment = await GenerateAssessmentForLocationAsync(
                     locationId, 
                     request.LocationType, 
-                    request.ForceRecalculate, 
-                    request.IncludeBandBreakdown,
+                    request.ForceRecalculate,
                     request.StartDate, 
                     request.EndDate, 
                     cancellationToken);
@@ -119,7 +118,6 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         Guid locationId,
         LocationTypeEnum locationType,
         bool forceRecalculate,
-        bool includeBandBreakdown,
         DateTime? startDate,
         DateTime? endDate,
         CancellationToken cancellationToken)
@@ -147,7 +145,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate infrastructure counts within the boundary
         var infrastructureStats = await CalculateInfrastructureStatsAsync(
             boundary, center, areaKm2, locationId, locationType, 
-            forceRecalculate, includeBandBreakdown, startDate, endDate, cancellationToken);
+            forceRecalculate, startDate, endDate, cancellationToken);
 
         // Calculate speed test statistics
         var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
@@ -432,7 +430,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureStatsAsync(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, 
-        bool forceRecalculate, bool includeBandBreakdown, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+        bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         // Only check cache if not forcing recalculation
         if (!forceRecalculate)
@@ -455,7 +453,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Use accurate boundaries with optimizations
         var result = await CalculateInfrastructureWithBoundaryOptimization(
             boundary, center, areaKm2, locationId, locationType, 
-            forceRecalculate, includeBandBreakdown, startDate, endDate, cancellationToken);
+            forceRecalculate, startDate, endDate, cancellationToken);
 
         // Always cache the fresh result
         var infraCacheKey = _cacheService.GenerateInfrastructureCacheKey(locationId, locationType);
@@ -469,7 +467,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, 
-        bool forceRecalculate, bool includeBandBreakdown, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+        bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         List<string> cells, naps, wirelessValidations, wifiHotspots;
         TechnologyBandBreakdownDto? technologyBandBreakdown = null;
@@ -520,19 +518,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             // Technology-band breakdown with caching (replaces separate technology and band breakdowns)
-            if (includeBandBreakdown)
+            var techBandCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType) + "_tech_band";
+            technologyBandBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBandBreakdownDto>(techBandCacheKey);
+            if (technologyBandBreakdown == null || forceRecalculate)
             {
-                var techBandCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType) + "_tech_band";
-                technologyBandBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBandBreakdownDto>(techBandCacheKey);
-                if (technologyBandBreakdown == null || forceRecalculate)
+                if (forceRecalculate)
                 {
-                    if (forceRecalculate)
-                    {
-                        _logger.LogInformation("Force recalculating technology-band breakdown for {LocationType} {LocationId}", locationType, locationId);
-                    }
-                    technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(boundary, center, areaKm2, boundary != null, startDate, endDate, cancellationToken);
-                    await _cacheService.SetCachedResultAsync(techBandCacheKey, technologyBandBreakdown);
+                    _logger.LogInformation("Force recalculating technology-band breakdown for {LocationType} {LocationId}", locationType, locationId);
                 }
+                technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(boundary, center, areaKm2, boundary != null, startDate, endDate, cancellationToken);
+                await _cacheService.SetCachedResultAsync(techBandCacheKey, technologyBandBreakdown);
             }
         }
         else
@@ -581,10 +576,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             // Calculate consolidated technology-band breakdown for radius-based queries
-            if (includeBandBreakdown)
-            {
-                technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
-            }
+            technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
         }
 
         var allProviders = cells.Concat(naps).Concat(wifiHotspots).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
