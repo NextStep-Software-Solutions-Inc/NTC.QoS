@@ -1608,181 +1608,287 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// </summary>
     private static int CalculateFiberCoverageScore(InfrastructureStatsDto infrastructure, double areaKm2, int? population, (double PopulationDensity, bool IsUrbanArea, bool IsHighDensityArea) context)
     {
+        // Unserved: No fiber infrastructure at all
         if (infrastructure.FiberNAPCount == 0)
         {
             return 1; // Unserved - No installed or present FTTH facilities
         }
 
-        // Population-aware fiber coverage calculation
-        double fiberDensityScore;
+        // Get providers with fiber presence
+        var fiberProviders = infrastructure.ProviderBreakdown
+            .Where(p => p.FiberNAPCount > 0)
+            .ToList();
 
-        if (population.HasValue && population > 0)
+        if (fiberProviders.Count == 0)
         {
-            // Calculate fiber NAPs per 1000 people
-            var fiberPer1000People = (infrastructure.FiberNAPCount * 1000.0) / population.Value;
-
-            if (context.IsUrbanArea)
-            {
-                // Urban areas need higher fiber density
-                fiberDensityScore = fiberPer1000People >= 2.0 ? 3 :    // 2+ NAPs per 1000 people = Served
-                                   fiberPer1000People >= 0.5 ? 2 :     // 0.5-2 NAPs per 1000 people = Underserved
-                                   1;                                   // <0.5 NAPs per 1000 people = Unserved
-            }
-            else if (context.IsHighDensityArea)
-            {
-                // Semi-urban areas
-                fiberDensityScore = fiberPer1000People >= 1.0 ? 3 :    // 1+ NAPs per 1000 people = Served
-                                   fiberPer1000People >= 0.3 ? 2 :     // 0.3-1 NAPs per 1000 people = Underserved  
-                                   1;                                   // <0.3 NAPs per 1000 people = Unserved
-            }
-            else
-            {
-                // Rural areas - lower per-capita requirements but consider geographic coverage
-                var geographicDensity = areaKm2 > 0 ? infrastructure.FiberNAPCount / areaKm2 : 0;
-                var populationDensityScore = fiberPer1000People >= 0.5 ? 3 :
-                                           fiberPer1000People >= 0.2 ? 2 : 1;
-                var geographicDensityScore = geographicDensity >= 0.1 ? 3 :
-                                           geographicDensity >= 0.05 ? 2 : 1;
-
-                // Use the higher of the two scores for rural areas
-                fiberDensityScore = Math.Max(populationDensityScore, geographicDensityScore);
-            }
-        }
-        else
-        {
-            // Fallback to geographic density when population data unavailable
-            var geographicDensity = areaKm2 > 0 ? infrastructure.FiberNAPCount / areaKm2 : 0;
-            fiberDensityScore = geographicDensity >= 0.1 ? 3 :
-                              geographicDensity >= 0.05 ? 2 : 1;
+            return 1; // No fiber providers
         }
 
-        return (int)Math.Round(fiberDensityScore);
+        // Identify major telco providers (Globe, Smart, DITO)
+        var majorTelcoProviders = fiberProviders
+            .Where(p => IsMajorTelcoProvider(p.ProviderName))
+            .ToList();
+
+        var localVasProviders = fiberProviders
+            .Where(p => !IsMajorTelcoProvider(p.ProviderName))
+            .ToList();
+
+        // Count distinct major telcos with fiber presence
+        var majorTelcoCount = majorTelcoProviders.Count;
+        var totalFiberProviderCount = fiberProviders.Count;
+
+        // SERVED (3 points): All major service providers have fiber infrastructure
+        // Interpretation: At least 2-3 major telcos present (Globe, Smart, DITO)
+        if (majorTelcoCount >= 2)
+        {
+            return 3; // Served - Fiber facilities for all/most major service providers present
+        }
+
+        // UNDERSERVED (2 points): Few major telcos OR only local/VAS providers
+        // Case 1: Only 1 major telco with fiber
+        if (majorTelcoCount == 1)
+        {
+            return 2; // Underserved - Few major telcos with fiber
+        }
+
+        // Case 2: No major telcos, but local/VAS providers have fiber
+        if (majorTelcoCount == 0 && localVasProviders.Any())
+        {
+            return 2; // Underserved - Only local or VAS providers with fiber
+        }
+
+        // Fallback: Has fiber but doesn't fit clear categories
+        return 1; // Unserved - Minimal fiber presence
+    }
+
+    /// <summary>
+    /// Identifies if a provider is a major telecommunications company in the Philippines
+    /// Major telcos: Globe, Smart, DITO
+    /// </summary>
+    private static bool IsMajorTelcoProvider(string providerName)
+    {
+        if (string.IsNullOrWhiteSpace(providerName))
+            return false;
+
+        // Major telco providers in the Philippines
+        var majorTelcos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Globe", "Smart", "DITO",
+            // Include common variations and subsidiaries
+            "Globe Telecom", "Smart Communications", "DITO Telecommunity",
+            "PLDT", "Globe Broadband", "Smart Broadband"
+        };
+
+        return majorTelcos.Any(telco => providerName.Contains(telco, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
     /// Calculate Internet Access Score (0-3 points) - CMTS Criterion 2
+    /// Evaluates internet availability, speed, and reliability per CMTS rubric
     /// </summary>
     private static int CalculateInternetAccessScore(SpeedStatsDto? speedStats)
     {
+        // Unserved: No internet access or only minimal access
         if (speedStats == null || speedStats.SpeedTestCount == 0)
         {
-            return 1; // No data - assume unserved
+            return 1; // No data - no broadband infrastructure
         }
 
-        if (speedStats.AverageDownloadSpeedMbps < 25)
+        // Insufficient data to make reliable assessment
+        if (speedStats.SpeedTestCount < 3)
         {
-            return 1; // Unserved - No internet access or minimal
+            return 1; // Too few tests to assess reliability
         }
 
-        if (speedStats.AverageDownloadSpeedMbps >= 25 && speedStats.AverageDownloadSpeedMbps < 100)
+        var avgDownloadSpeed = speedStats.AverageDownloadSpeedMbps ?? 0;
+        var medianDownloadSpeed = speedStats.MedianDownloadSpeedMbps ?? 0;
+
+        // Calculate speed consistency (variability indicator)
+        // Large difference between average and median indicates unreliability
+        var speedVariability = avgDownloadSpeed > 0
+            ? Math.Abs((avgDownloadSpeed - medianDownloadSpeed) / avgDownloadSpeed)
+            : 0;
+        var isUnreliable = speedVariability > 0.3m; // >30% variance = unreliable
+
+        // SERVED (3 points): Stable internet meeting/exceeding national broadband standards
+        // Criteria: ?25 Mbps AND reliable (low variability)
+        if (avgDownloadSpeed >= 25 && !isUnreliable)
         {
-            return 2; // Underserved - Available but slow/unreliable
+            return 3; // Served - Stable internet meeting or exceeding standards (25+ Mbps)
         }
 
-        return 3; // Served - Stable internet meeting/exceeding standards
+        // UNDERSERVED (2 points): Internet available but slow, unreliable, or below standards
+        // Case 1: Speed ?25 Mbps but unreliable
+        if (avgDownloadSpeed >= 25 && isUnreliable)
+        {
+            return 2; // Underserved - Available but unreliable
+        }
+
+        // Case 2: Speed between 10-25 Mbps (below standards but functional)
+        if (avgDownloadSpeed >= 10 && avgDownloadSpeed < 25)
+        {
+            return 2; // Underserved - Available but below national broadband standards
+        }
+
+        // UNSERVED (1 point): No internet access or only minimal access
+        // Speed <10 Mbps = minimal/no practical broadband access
+        return 1; // Unserved - No or minimal internet access (<10 Mbps)
     }
 
     /// <summary>
     /// Calculate Technology Type Score (0-3 points) - CMTS Criterion 3
-    /// Enhanced with technology breakdown support
+    /// Evaluates broadband technology infrastructure presence and quality per CMTS rubric
     /// </summary>
     private static int CalculateTechnologyTypeScore(InfrastructureStatsDto infrastructure)
     {
-        var hasModernInfra = infrastructure.FiberNAPCount > 0 || infrastructure.CellTowerCount > 0;
-        var hasDiverseInfra = (infrastructure.FiberNAPCount > 0 ? 1 : 0) +
-                             (infrastructure.CellTowerCount > 0 ? 1 : 0) +
-                             (infrastructure.WiFiHotspotCount > 0 ? 1 : 0);
+        var hasFiberInfra = infrastructure.FiberNAPCount > 0;
+        var hasCellTowerInfra = infrastructure.CellTowerCount > 0;
+        var hasWiFiInfra = infrastructure.WiFiHotspotCount > 0;
 
+        // SERVED (3 points): Fiber optic, LTE/5G, or high-speed DSL infrastructure in place and active
+
+        // Case 1: Fiber optic infrastructure present (meets rubric directly)
+        if (hasFiberInfra)
+        {
+            return 3; // Served - Fiber optic infrastructure present
+        }
+
+        // Case 2: Modern wireless technology (LTE/5G) active
         // Enhanced technology scoring using actual generation data
         if (infrastructure.TechnologyBandBreakdown != null && infrastructure.TechnologyBandBreakdown.TotalTechnologyCount > 0)
         {
             var tech = infrastructure.TechnologyBandBreakdown;
 
-            // Score based on generation analysis
-            if (tech.Count5G > 0 && tech.HasModernTechnology) // 5G present
+            // 5G infrastructure present and active
+            if (tech.Count5G > 0)
             {
-                return 3; // Served - 5G/LTE infrastructure active
+                return 3; // Served - 5G infrastructure in place and active
             }
 
-            if (tech.Count4G > 0 && !tech.IsLegacyDominated) // 4G present and not legacy-dominated
+            // 4G/LTE infrastructure present and dominant (not just occasional)
+            if (tech.Count4G > 0 && !tech.IsLegacyDominated)
             {
-                return 3; // Served - 4G/LTE infrastructure active  
+                return 3; // Served - LTE/4G infrastructure in place and active
             }
 
-            if (tech.HasModernTechnology && tech.IsLegacyDominated) // Has 4G/5G but legacy dominates
+            // UNDERSERVED (2 points): Legacy technologies (2G/3G, dial-up, outdated satellite)
+
+            // Has modern tech but legacy dominates
+            if (tech.HasModernTechnology && tech.IsLegacyDominated)
             {
-                return 2; // Underserved - Mixed legacy and modern
+                return 2; // Underserved - Mixed modern and legacy, but legacy dominates
             }
 
-            if (tech.Count3G > 0 || tech.Count2G > 0) // Only legacy technologies
+            // Only legacy technologies (2G/3G)
+            if (tech.Count3G > 0 || tech.Count2G > 0)
             {
-                return 2; // Underserved - Legacy technologies only
+                return 2; // Underserved - Only legacy technologies (2G/3G) available
             }
 
-            return 1; // Unserved - No identifiable technology
+            // No identifiable technology generation
+            return 1; // Unserved - No identifiable broadband technology
         }
 
-        // Fallback to infrastructure-based scoring when no technology data available
-        if (!hasModernInfra)
-        {
-            return 1; // Unserved - No installed broadband technology
-        }
+        // FALLBACK: No technology breakdown data available, use infrastructure presence
 
-        if (hasDiverseInfra == 1)
+        // Has some modern infrastructure (cell towers or WiFi)
+        if (hasCellTowerInfra || hasWiFiInfra)
         {
+            // Multiple infrastructure types suggest better service
+            var infraTypes = (hasCellTowerInfra ? 1 : 0) + (hasWiFiInfra ? 1 : 0);
+
+            if (infraTypes >= 2)
+            {
+                return 3; // Served - Multiple infrastructure types present
+            }
+
             return 2; // Underserved - Limited infrastructure diversity
         }
 
-        return 3; // Served - Diverse infrastructure present
+        // UNSERVED (1 point): No installed broadband technology
+        return 1; // Unserved - No broadband infrastructure detected
     }
 
     /// <summary>
     /// Calculate Quality of Service Score (0-3 points) - CMTS Criterion 4
-    /// Enhanced with 5G bonus
+    /// Evaluates latency, signal strength, and service reliability per CMTS rubric
     /// </summary>
     private static int CalculateQualityOfServiceScore(SpeedStatsDto? speedStats, InfrastructureStatsDto infrastructure)
     {
-        if (speedStats == null || speedStats.SpeedTestCount < 5) // Insufficient data
+        // Insufficient data to assess quality
+        if (speedStats == null || speedStats.SpeedTestCount < 3)
         {
-            return 1; // Assume poor quality without data
+            return 1; // Unserved - Cannot assess quality without sufficient data
         }
 
-        var hasGoodLatency = speedStats.AverageLatencyMs <= 50; // Under 50ms
+        var latency = speedStats.AverageLatencyMs ?? decimal.MaxValue;
+        var signalStrength = speedStats.AverageSignalStrength;
         var hasConsistentSpeeds = speedStats.MeetsMinimumSpeedRequirement;
-        var hasGoodSignal = speedStats.AverageSignalStrength >= 3.5; // Average or better signal
 
-        // Enhanced quality scoring with signal strength consideration
-        var qualityFactors = 0;
+        // Map signal strength (1-5 scale) to dBm ranges per rubric
+        // 5 = Good (-44 to -70 dBm), 4 = Average (-70 to -85 dBm), 
+        // 3 = Weak (-85 to -90 dBm), 2 = Very Weak (-90 to -100 dBm), 
+        // 1 = No Coverage (-100+ dBm)
 
-        if (hasConsistentSpeeds) qualityFactors++;
-        if (hasGoodLatency) qualityFactors++;
-        if (hasGoodSignal) qualityFactors++;
-
-        // Bonus for 5G areas with excellent performance
-        if (infrastructure.TechnologyBandBreakdown?.Count5G > 0 &&
-            speedStats.AverageDownloadSpeedMbps >= 100 &&
-            speedStats.AverageLatencyMs <= 20)
+        // UNSERVED (1 point): Poor to nonexistent quality
+        // Criteria: Latency >100ms OR signal ≤ 2 (worse than -90 dBm) OR very poor speeds
+        if (latency > 100 || signalStrength <= 2.0 || speedStats.AverageDownloadSpeedMbps < 5)
         {
-            qualityFactors++;
+            return 1; // Unserved - Poor quality, unusable for essential tasks
         }
 
-        return qualityFactors switch
+        // SERVED (3 points): High quality service
+        // Criteria: Latency <50ms AND good signal (≥4 = -44 to -89 dBm)
+        var hasLowLatency = latency < 50;
+        var hasGoodSignal = signalStrength >= 4.0; // Average to Good signal (-44 to -89 dBm)
+
+        if (hasLowLatency && hasGoodSignal && hasConsistentSpeeds)
         {
-            >= 3 => 3, // Served - High quality (good speed, low latency, good signal)
-            2 => 2,    // Underserved - Fair quality but some issues
-            _ => 1     // Unserved - Poor quality
-        };
+            return 3; // Served - High quality, suitable for online learning, remote work, streaming
+        }
+
+        // Additional quality check for excellent 5G performance
+        if (infrastructure.TechnologyBandBreakdown?.Count5G > 0 &&
+            latency <= 20 &&
+            speedStats.AverageDownloadSpeedMbps >= 100 &&
+            signalStrength >= 4.5)
+        {
+            return 3; // Served - Exceptional 5G quality
+        }
+
+        // UNDERSERVED (2 points): Fair quality with issues
+        // Criteria: Latency 50-100ms OR moderate signal (-90 to -99 dBm) OR inconsistent speeds
+        // This catches the "middle ground" cases
+        var hasModerateLatency = latency >= 50 && latency <= 100;
+        var hasModerateSignal = signalStrength >= 2.0 && signalStrength < 4.0; // -90 to -99 dBm range
+
+        if (hasModerateLatency || hasModerateSignal || !hasConsistentSpeeds)
+        {
+            return 2; // Underserved - Fair quality but suffers from congestion or poor signal
+        }
+
+        // Edge case: Has good latency OR good signal but not both
+        if (hasLowLatency || hasGoodSignal)
+        {
+            return 2; // Underserved - Some quality indicators are good but not comprehensive
+        }
+
+        // Fallback
+        return 1; // Unserved - Quality issues detected
     }
 
     /// <summary>
     /// Calculate Coverage Availability Score (0-3 points) - CMTS Criterion 5
-    /// Enhanced with modern technology consideration
+    /// Based on CMTS Radioplanner Coverage rubric:
+    /// - Served (3): 100% of households/population have access to fixed or mobile broadband
+    /// - Underserved (2): Only 40% to 99% of the population has access, often clustered in urban centers or specific areas
+    /// - Unserved (1): Less than 40% have access; infrastructure (towers, cables, etc.) is sparse or non-existent
     /// </summary>
     private static int CalculateCoverageAvailabilityScore(InfrastructureStatsDto infrastructure, double areaKm2, int? population, (double PopulationDensity, bool IsUrbanArea, bool IsHighDensityArea) context)
     {
         if (infrastructure.TotalAssets == 0)
         {
-            return 1; // Unserved - No coverage
+            return 1; // Unserved - No coverage (no infrastructure)
         }
 
         double coverageScore;
@@ -1817,22 +1923,21 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 estimatedCoveragePercent = Math.Max(populationCoverage, geographicCoverage);
             }
 
-            // Apply CMTS rubric thresholds
-            if (estimatedCoveragePercent >= 100 && hasMultipleProviders && hasModernTech)
+            // Apply CMTS rubric thresholds strictly based on coverage percentage
+            // SERVED (3 points): 100% of households/population have access
+            if (estimatedCoveragePercent >= 100)
             {
-                coverageScore = 3; // Served - 100% coverage with competition and modern tech
+                coverageScore = 3; // Served - 100% coverage per CMTS rubric
             }
-            else if (estimatedCoveragePercent >= 40 && (hasMultipleProviders || hasModernTech))
-            {
-                coverageScore = 2; // Underserved - 40-99% coverage with some positive factors
-            }
+            // UNDERSERVED (2 points): 40% to 99% of the population has access
             else if (estimatedCoveragePercent >= 40)
             {
-                coverageScore = 2; // Underserved - 40-99% coverage
+                coverageScore = 2; // Underserved - 40-99% coverage per CMTS rubric
             }
+            // UNSERVED (1 point): Less than 40% have access; infrastructure is sparse
             else
             {
-                coverageScore = 1; // Unserved - <40% coverage
+                coverageScore = 1; // Unserved - <40% coverage per CMTS rubric
             }
         }
         else
@@ -1842,17 +1947,21 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
             var hasModernTech = infrastructure.TechnologyBandBreakdown?.HasModernTechnology == true;
 
+            // Estimate coverage category based on infrastructure presence
+            // High density with good provider diversity suggests comprehensive coverage (100%)
             if (hasMultipleProviders && hasModernTech && assetDensity >= 1.0)
             {
-                coverageScore = 3; // Served - Comprehensive coverage
+                coverageScore = 3; // Served - Comprehensive coverage estimated
             }
+            // Moderate infrastructure suggests partial coverage (40-99%)
             else if (hasMultipleProviders || hasModernTech || assetDensity >= 0.5)
             {
-                coverageScore = 2; // Underserved - Partial coverage
+                coverageScore = 2; // Underserved - Partial coverage estimated
             }
+            // Sparse infrastructure suggests minimal coverage (<40%)
             else
             {
-                coverageScore = 1; // Unserved - Limited coverage
+                coverageScore = 1; // Unserved - Limited/sparse coverage estimated
             }
         }
 
@@ -1913,9 +2022,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             coverage.EstimatedPopulationCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
 
-            // Estimate household coverage
+            // Estimate household coverage.
+            // Assuming the coverage is evenly distributed, the percentage of covered households 
+            // is proportional to the percentage of covered population.
             if (householdCount.HasValue && householdCount > 0)
             {
+                // If 100% of the population is covered, 100% of households are covered.
+                // Therefore, the percentages are logically equivalent for estimation purposes.
                 coverage.EstimatedHouseholdCoveragePercent = Math.Round(estimatedCoveragePercent, 2);
             }
         }
