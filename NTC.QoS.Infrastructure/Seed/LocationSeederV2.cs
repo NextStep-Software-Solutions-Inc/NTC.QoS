@@ -97,12 +97,18 @@ public class LocationSeederV2
     {
         // Load region ID map
         _logger.LogInformation("Loading region map for province seeding...");
-        var regionMap = await _dbContext.Regions
+        var regions = await _dbContext.Regions
             .AsNoTracking()
             .Where(r => !r.IsDeleted)
             .Select(r => new { r.Code, r.Id })
-            .ToDictionaryAsync(r => r.Code, r => r.Id, cancellationToken);
-        _logger.LogInformation("Loaded {Count} regions", regionMap.Count);
+            .ToListAsync(cancellationToken);
+        
+        // Group by code and take the first occurrence to handle duplicates
+        var regionMap = regions
+            .GroupBy(r => r.Code)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+        
+        _logger.LogInformation("Loaded {Count} unique regions", regionMap.Count);
 
         var parser = new StreamingGeoJsonParser(
             _loggerFactory.CreateLogger<StreamingGeoJsonParser>(),
@@ -132,12 +138,18 @@ public class LocationSeederV2
     {
         // Load province ID map
         _logger.LogInformation("Loading province map for municipality seeding...");
-        var provinceMap = await _dbContext.Provinces
+        var provinces = await _dbContext.Provinces
             .AsNoTracking()
             .Where(p => !p.IsDeleted)
             .Select(p => new { p.Code, p.Id })
-            .ToDictionaryAsync(p => p.Code, p => p.Id, cancellationToken);
-        _logger.LogInformation("Loaded {Count} provinces", provinceMap.Count);
+            .ToListAsync(cancellationToken);
+        
+        // Group by code and take the first occurrence to handle duplicates
+        var provinceMap = provinces
+            .GroupBy(p => p.Code)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+        
+        _logger.LogInformation("Loaded {Count} unique provinces", provinceMap.Count);
 
         var parser = new StreamingGeoJsonParser(
             _loggerFactory.CreateLogger<StreamingGeoJsonParser>(),
@@ -167,12 +179,18 @@ public class LocationSeederV2
     {
         // Load municipality ID map
         _logger.LogInformation("Loading municipality map for barangay seeding...");
-        var municipalityMap = await _dbContext.Municipalities
+        var municipalities = await _dbContext.Municipalities
             .AsNoTracking()
             .Where(m => !m.IsDeleted)
             .Select(m => new { m.Code, m.Id })
-            .ToDictionaryAsync(m => m.Code, m => m.Id, cancellationToken);
-        _logger.LogInformation("Loaded {Count} municipalities", municipalityMap.Count);
+            .ToListAsync(cancellationToken);
+        
+        // Group by code and take the first occurrence to handle duplicates
+        var municipalityMap = municipalities
+            .GroupBy(m => m.Code)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+        
+        _logger.LogInformation("Loaded {Count} unique municipalities", municipalityMap.Count);
 
         var parser = new StreamingGeoJsonParser(
             _loggerFactory.CreateLogger<StreamingGeoJsonParser>(),
