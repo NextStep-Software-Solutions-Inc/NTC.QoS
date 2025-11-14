@@ -215,7 +215,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
         TechnologyBandBreakdownDto? technologyBandBreakdown = null;
         try
         {
-            var techBandCacheKey = _cacheService.GenerateTechnologyCacheKey(assessment.LocationId, assessment.LocationType) + "_tech_bands";
+            var techBandCacheKey = $"tech_band:{assessment.LocationType}:{assessment.LocationId}";
             technologyBandBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBandBreakdownDto>(techBandCacheKey);
         }
         catch (InvalidOperationException ex)

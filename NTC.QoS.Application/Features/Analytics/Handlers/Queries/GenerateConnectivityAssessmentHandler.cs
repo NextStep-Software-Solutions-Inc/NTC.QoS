@@ -518,7 +518,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             // Technology-band breakdown with caching (replaces separate technology and band breakdowns)
-            var techBandCacheKey = _cacheService.GenerateTechnologyCacheKey(locationId, locationType) + "_tech_band";
+            var techBandCacheKey = $"tech_band:{locationType}:{locationId}";
             technologyBandBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBandBreakdownDto>(techBandCacheKey);
             if (technologyBandBreakdown == null || forceRecalculate)
             {
