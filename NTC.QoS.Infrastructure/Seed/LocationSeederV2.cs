@@ -69,10 +69,7 @@ public class LocationSeederV2
 
     private async Task SeedRegionsAsync(bool forceReseed, CancellationToken cancellationToken)
     {
-        var parser = new StreamingGeoJsonParser(
-            _loggerFactory.CreateLogger<StreamingGeoJsonParser>(),
-            "ADM1",
-            null);
+        var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM1", null);
 
         var transformer = new RegionTransformer();
         var writer = new BatchedLocationWriter<Region>(_dbContext, _loggerFactory.CreateLogger<BatchedLocationWriter<Region>>());
