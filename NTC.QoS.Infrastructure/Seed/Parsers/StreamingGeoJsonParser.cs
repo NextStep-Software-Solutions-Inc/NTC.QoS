@@ -90,20 +90,10 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                         {
                             _logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
                         }
-
-                        // Force garbage collection after each feature to free memory from large geometries
-                        feature = null;
-                        GC.Collect();
-                        GC.WaitForPendingFinalizers();
-                        GC.Collect();
-                        _logger.LogDebug("Garbage collection completed after processing feature {Count}", processedCount);
                     }
                     else
                     {
                         skippedCount++;
-                        // Force GC even for skipped features
-                        feature = null;
-                        GC.Collect();
                     }
                 }
             }
