@@ -5,6 +5,7 @@ using NetTopologySuite.IO;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
 using NTC.QoS.Infrastructure.Seed.Models;
+using System.Diagnostics;
 
 namespace NTC.QoS.Infrastructure.Seed.Parsers;
 
@@ -69,8 +70,10 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                 try
                 {
                     // Deserialize individual feature on a background thread to avoid blocking
+                    var stopwatch = Stopwatch.StartNew();
                     feature = await Task.Run(() => serializer.Deserialize<IFeature>(jsonReader));
-                    _logger.LogDebug("Successfully deserialized GeoJSON feature");
+                    stopwatch.Stop();
+                    _logger.LogDebug("Successfully deserialized GeoJSON feature in {Time}ms", stopwatch.ElapsedMilliseconds);
                 }
                 catch (Exception ex)
                 {

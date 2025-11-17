@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
+using System.Diagnostics;
 
 namespace NTC.QoS.Infrastructure.Seed.Writers;
 
@@ -77,10 +78,12 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
             try
             {
                 _logger.LogDebug("Starting to save {Count} {EntityType} entities", batch.Count, typeof(TEntity).Name);
+                var stopwatch = Stopwatch.StartNew();
                 // Use regular EF insert instead of bulk for large geometries to avoid WKT conversion OOM
                 _dbContext.AddRange(batch);
                 await _dbContext.SaveChangesAsync(cancellationToken);
-                _logger.LogDebug("Successfully saved {Count} {EntityType} entities", batch.Count, typeof(TEntity).Name);
+                stopwatch.Stop();
+                _logger.LogDebug("Successfully saved {Count} {EntityType} entities in {Time}ms", batch.Count, typeof(TEntity).Name, stopwatch.ElapsedMilliseconds);
 
                 return batch.Count;
             }
