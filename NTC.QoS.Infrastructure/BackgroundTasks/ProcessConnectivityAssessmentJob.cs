@@ -1138,13 +1138,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         .Select(c => c.Band!.Name), cancellationToken);
 
                 // Aggregate cellular band data
-                foreach (var bandName in cellularBandData.Where(b => !string.IsNullOrEmpty(b)))
+                foreach (var normalizedBand in cellularBandData
+                    .Where(b => !string.IsNullOrEmpty(b))
+                    .Select(b => NormalizeBandName(b))
+                    .Where(nb => !string.IsNullOrEmpty(nb)))
                 {
-                    var normalizedBand = NormalizeBandName(bandName);
-                    if (!string.IsNullOrEmpty(normalizedBand))
-                    {
-                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
-                    }
+                    bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
                 }
 
                 // Get wireless validation band data with date filtering
@@ -1169,13 +1168,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
 
                 // Aggregate wireless validation band data
-                foreach (var bandName in wirelessValidationBandData.Where(b => !string.IsNullOrEmpty(b)))
+                foreach (var normalizedBand in wirelessValidationBandData
+                    .Where(b => !string.IsNullOrEmpty(b))
+                    .Select(b => NormalizeBandName(b))
+                    .Where(nb => !string.IsNullOrEmpty(nb)))
                 {
-                    var normalizedBand = NormalizeBandName(bandName);
-                    if (!string.IsNullOrEmpty(normalizedBand))
-                    {
-                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
-                    }
+                    bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
                 }
             }
             else
@@ -1192,13 +1190,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         .Select(c => c.Band!.Name), cancellationToken);
 
                 // Aggregate cellular band data
-                foreach (var bandName in cellularBandData.Where(b => !string.IsNullOrEmpty(b)))
+                foreach (var normalizedBand in cellularBandData
+                    .Where(b => !string.IsNullOrEmpty(b))
+                    .Select(b => NormalizeBandName(b))
+                    .Where(nb => !string.IsNullOrEmpty(nb)))
                 {
-                    var normalizedBand = NormalizeBandName(bandName);
-                    if (!string.IsNullOrEmpty(normalizedBand))
-                    {
-                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
-                    }
+                    bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
                 }
 
                 // Get wireless validation band data using barangay center distance
@@ -1223,13 +1220,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     wirelessValidationQuery.Select(wv => wv.Band!.Name), cancellationToken);
 
                 // Aggregate wireless validation band data
-                foreach (var bandName in wirelessValidationBandData.Where(b => !string.IsNullOrEmpty(b)))
+                foreach (var normalizedBand in wirelessValidationBandData
+                    .Where(b => !string.IsNullOrEmpty(b))
+                    .Select(b => NormalizeBandName(b))
+                    .Where(nb => !string.IsNullOrEmpty(nb)))
                 {
-                    var normalizedBand = NormalizeBandName(bandName);
-                    if (!string.IsNullOrEmpty(normalizedBand))
-                    {
-                        bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
-                    }
+                    bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
                 }
             }
 
