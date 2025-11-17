@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
 using System.Diagnostics;
+using Npgsql;
+using NetTopologySuite.IO;
 
 namespace NTC.QoS.Infrastructure.Seed.Writers;
 
@@ -79,9 +81,33 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
             {
                 _logger.LogDebug("Starting to save {Count} {EntityType} entities", batch.Count, typeof(TEntity).Name);
                 var stopwatch = Stopwatch.StartNew();
-                // Use regular EF insert instead of bulk for large geometries to avoid WKT conversion OOM
-                _dbContext.AddRange(batch);
-                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                // Use raw SQL insert to avoid EF geometry copying and OOM
+                foreach (var entity in batch)
+                {
+                    var wkb = GetGeometryWkb(entity);
+                    var sql = GetInsertSql(typeof(TEntity).Name);
+                    await _dbContext.Database.ExecuteSqlRawAsync(sql,
+                        new NpgsqlParameter("@code", entity.GetType().GetProperty("Code")?.GetValue(entity)),
+                        new NpgsqlParameter("@name", entity.GetType().GetProperty("Name")?.GetValue(entity)),
+                        new NpgsqlParameter("@description", entity.GetType().GetProperty("Description")?.GetValue(entity) ?? DBNull.Value),
+                        new NpgsqlParameter("@area", entity.GetType().GetProperty("Area")?.GetValue(entity) ?? 0f),
+                        new NpgsqlParameter("@totalPopulation", entity.GetType().GetProperty("TotalPopulation")?.GetValue(entity) ?? DBNull.Value),
+                        new NpgsqlParameter("@householdPopulation", entity.GetType().GetProperty("HouseholdPopulation")?.GetValue(entity) ?? DBNull.Value),
+                        new NpgsqlParameter("@householdCount", entity.GetType().GetProperty("HouseholdCount")?.GetValue(entity) ?? DBNull.Value),
+                        new NpgsqlParameter("@boundaries", wkb),
+                        new NpgsqlParameter("@center", GetCenterWkb(entity)),
+                        new NpgsqlParameter("@regionId", GetRegionId(entity)),
+                        new NpgsqlParameter("@provinceId", GetProvinceId(entity)),
+                        new NpgsqlParameter("@municipalityId", GetMunicipalityId(entity)),
+                        new NpgsqlParameter("@isCity", GetIsCity(entity)),
+                        new NpgsqlParameter("@createdAt", entity.GetType().GetProperty("CreatedAt")?.GetValue(entity)),
+                        new NpgsqlParameter("@createdBy", entity.GetType().GetProperty("CreatedBy")?.GetValue(entity)),
+                        new NpgsqlParameter("@updatedAt", entity.GetType().GetProperty("UpdatedAt")?.GetValue(entity)),
+                        new NpgsqlParameter("@updatedBy", entity.GetType().GetProperty("UpdatedBy")?.GetValue(entity))
+                    );
+                }
+
                 stopwatch.Stop();
                 _logger.LogDebug("Successfully saved {Count} {EntityType} entities in {Time}ms", batch.Count, typeof(TEntity).Name, stopwatch.ElapsedMilliseconds);
 
@@ -100,4 +126,30 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
             throw;
         }
     }
+
+    private static byte[] GetGeometryWkb(object entity)
+    {
+        var boundaries = entity.GetType().GetProperty("Boundaries")?.GetValue(entity) as NetTopologySuite.Geometries.Geometry;
+        return boundaries?.ToBinary() ?? Array.Empty<byte>();
+    }
+
+    private static byte[] GetCenterWkb(object entity)
+    {
+        var center = entity.GetType().GetProperty("Center")?.GetValue(entity) as NetTopologySuite.Geometries.Point;
+        return center?.ToBinary() ?? Array.Empty<byte>();
+    }
+
+    private static Guid? GetRegionId(object entity) => entity.GetType().GetProperty("RegionId")?.GetValue(entity) as Guid?;
+    private static Guid? GetProvinceId(object entity) => entity.GetType().GetProperty("ProvinceId")?.GetValue(entity) as Guid?;
+    private static Guid? GetMunicipalityId(object entity) => entity.GetType().GetProperty("MunicipalityId")?.GetValue(entity) as Guid?;
+    private static bool? GetIsCity(object entity) => entity.GetType().GetProperty("IsCity")?.GetValue(entity) as bool?;
+
+    private static string GetInsertSql(string entityType) => entityType switch
+    {
+        "Region" => "INSERT INTO \"Regions\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        "Province" => "INSERT INTO \"Provinces\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"RegionId\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @regionId, @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        "Municipality" => "INSERT INTO \"Municipalities\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"ProvinceId\", \"IsCity\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @provinceId, @isCity, @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        "Barangay" => "INSERT INTO \"Barangays\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"MunicipalityId\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @municipalityId, @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        _ => throw new NotSupportedException($"Entity type {entityType} not supported")
+    };
 }

@@ -1,6 +1,8 @@
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
 using NTC.QoS.Infrastructure.Seed.Models;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.Simplify;
 
 namespace NTC.QoS.Infrastructure.Seed.Transformers;
 

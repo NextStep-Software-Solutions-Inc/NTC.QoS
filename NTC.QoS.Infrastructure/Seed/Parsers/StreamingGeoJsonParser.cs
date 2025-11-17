@@ -39,12 +39,12 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         var serializer = GeoJsonSerializer.Create();
 
         // Skip to the start of the features array
-        while (await jsonReader.ReadAsync() && jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
+        while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
         {
             if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.PropertyName &&
                 jsonReader.Value?.ToString() == "features")
             {
-                await jsonReader.ReadAsync(); // Move to StartArray
+                await jsonReader.ReadAsync(cancellationToken); // Move to StartArray
                 break;
             }
         }
