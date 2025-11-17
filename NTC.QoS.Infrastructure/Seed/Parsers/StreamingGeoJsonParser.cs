@@ -79,9 +79,9 @@ public class StreamingGeoJsonParser(
                         stopwatch.Stop();
                         logger.LogDebug("Successfully deserialized GeoJSON feature in {Time}ms", stopwatch.ElapsedMilliseconds);
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        logger.LogWarning(ex, "Failed to deserialize individual feature, skipping");
+                        logger.LogWarning("Failed to deserialize individual feature, skipping due to large geometry");
                         skippedCount++;
                         // Skip to the end of the current object to continue parsing
                         await jsonReader.SkipAsync();
