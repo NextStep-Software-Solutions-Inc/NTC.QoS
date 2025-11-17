@@ -1799,7 +1799,6 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Population-based coverage calculation (aligns with CMTS rubric)
             var assetsPerCapita = (double)infrastructure.TotalAssets / population.Value;
             var providersPerThousand = (infrastructure.ServiceProviderCount * 1000.0) / population.Value;
-            var hasModernTech = infrastructure.TechnologyBandBreakdown?.HasModernTechnology == true;
             var hasMultipleProviders = infrastructure.ServiceProviderCount > 1;
 
             // Calculate estimated coverage percentage based on infrastructure density
