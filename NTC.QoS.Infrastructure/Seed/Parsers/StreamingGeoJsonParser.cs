@@ -63,11 +63,13 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
 
             if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.StartObject)
             {
+                _logger.LogDebug("Starting to process GeoJSON feature at position {Position}", jsonReader.LineNumber);
                 IFeature? feature = null;
                 try
                 {
                     // Deserialize individual feature on a background thread to avoid blocking
                     feature = await Task.Run(() => serializer.Deserialize<IFeature>(jsonReader));
+                    _logger.LogDebug("Successfully deserialized GeoJSON feature");
                 }
                 catch (Exception ex)
                 {
@@ -83,6 +85,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                     var parsed = TryParseFeature(feature);
                     if (parsed.HasValue)
                     {
+                        _logger.LogDebug("Successfully parsed feature with code {Code}", parsed.Value.Code);
                         yield return parsed.Value;
                         processedCount++;
 
@@ -93,6 +96,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                     }
                     else
                     {
+                        _logger.LogDebug("Feature parsing failed, skipping");
                         skippedCount++;
                     }
                 }
