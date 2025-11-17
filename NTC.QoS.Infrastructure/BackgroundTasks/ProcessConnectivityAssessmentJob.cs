@@ -1112,12 +1112,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         };
     }
 
-    /// <summary>
-    /// Analyzes band frequency distribution in the area from cellular infrastructure
-    /// Mirrors implementation from GenerateConnectivityAssessmentHandler
-    /// <summary>
     /// Analyzes band frequency distribution from cellular deployments in the area
-    /// OPTIMIZED: Uses database-side aggregation with single query and projection
+    /// Uses database-side aggregation with single query and projection
     /// </summary>
     private async Task<BandBreakdownDto> AnalyzeBandFrequencyAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
