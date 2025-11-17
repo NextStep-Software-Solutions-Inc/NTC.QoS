@@ -87,25 +87,8 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
                 {
                     var wkb = GetGeometryWkb(entity);
                     var sql = GetInsertSql(typeof(TEntity).Name);
-                    await _dbContext.Database.ExecuteSqlRawAsync(sql,
-                        new NpgsqlParameter("@code", entity.GetType().GetProperty("Code")?.GetValue(entity)),
-                        new NpgsqlParameter("@name", entity.GetType().GetProperty("Name")?.GetValue(entity)),
-                        new NpgsqlParameter("@description", entity.GetType().GetProperty("Description")?.GetValue(entity) ?? DBNull.Value),
-                        new NpgsqlParameter("@area", entity.GetType().GetProperty("Area")?.GetValue(entity) ?? 0f),
-                        new NpgsqlParameter("@totalPopulation", entity.GetType().GetProperty("TotalPopulation")?.GetValue(entity) ?? DBNull.Value),
-                        new NpgsqlParameter("@householdPopulation", entity.GetType().GetProperty("HouseholdPopulation")?.GetValue(entity) ?? DBNull.Value),
-                        new NpgsqlParameter("@householdCount", entity.GetType().GetProperty("HouseholdCount")?.GetValue(entity) ?? DBNull.Value),
-                        new NpgsqlParameter("@boundaries", wkb),
-                        new NpgsqlParameter("@center", GetCenterWkb(entity)),
-                        new NpgsqlParameter("@regionId", GetRegionId(entity)),
-                        new NpgsqlParameter("@provinceId", GetProvinceId(entity)),
-                        new NpgsqlParameter("@municipalityId", GetMunicipalityId(entity)),
-                        new NpgsqlParameter("@isCity", GetIsCity(entity)),
-                        new NpgsqlParameter("@createdAt", entity.GetType().GetProperty("CreatedAt")?.GetValue(entity)),
-                        new NpgsqlParameter("@createdBy", entity.GetType().GetProperty("CreatedBy")?.GetValue(entity)),
-                        new NpgsqlParameter("@updatedAt", entity.GetType().GetProperty("UpdatedAt")?.GetValue(entity)),
-                        new NpgsqlParameter("@updatedBy", entity.GetType().GetProperty("UpdatedBy")?.GetValue(entity))
-                    );
+                    var parameters = GetParameters(entity, typeof(TEntity).Name);
+                    await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters);
                 }
 
                 stopwatch.Stop();
@@ -152,4 +135,40 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
         "Barangay" => "INSERT INTO \"Barangays\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"MunicipalityId\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @municipalityId, @createdAt, @createdBy, @updatedAt, @updatedBy)",
         _ => throw new NotSupportedException($"Entity type {entityType} not supported")
     };
+
+    private static NpgsqlParameter[] GetParameters(object entity, string entityType)
+    {
+        var parameters = new List<NpgsqlParameter>
+        {
+            new("@code", entity.GetType().GetProperty("Code")?.GetValue(entity)),
+            new("@name", entity.GetType().GetProperty("Name")?.GetValue(entity)),
+            new("@description", entity.GetType().GetProperty("Description")?.GetValue(entity) ?? DBNull.Value),
+            new("@area", entity.GetType().GetProperty("Area")?.GetValue(entity) ?? 0f),
+            new("@totalPopulation", entity.GetType().GetProperty("TotalPopulation")?.GetValue(entity) ?? DBNull.Value),
+            new("@householdPopulation", entity.GetType().GetProperty("HouseholdPopulation")?.GetValue(entity) ?? DBNull.Value),
+            new("@householdCount", entity.GetType().GetProperty("HouseholdCount")?.GetValue(entity) ?? DBNull.Value),
+            new("@boundaries", GetGeometryWkb(entity)),
+            new("@center", GetCenterWkb(entity)),
+            new("@createdAt", entity.GetType().GetProperty("CreatedAt")?.GetValue(entity)),
+            new("@createdBy", entity.GetType().GetProperty("CreatedBy")?.GetValue(entity)),
+            new("@updatedAt", entity.GetType().GetProperty("UpdatedAt")?.GetValue(entity)),
+            new("@updatedBy", entity.GetType().GetProperty("UpdatedBy")?.GetValue(entity))
+        };
+
+        switch (entityType)
+        {
+            case "Province":
+                parameters.Add(new NpgsqlParameter("@regionId", GetRegionId(entity)));
+                break;
+            case "Municipality":
+                parameters.Add(new NpgsqlParameter("@provinceId", GetProvinceId(entity)));
+                parameters.Add(new NpgsqlParameter("@isCity", GetIsCity(entity)));
+                break;
+            case "Barangay":
+                parameters.Add(new NpgsqlParameter("@municipalityId", GetMunicipalityId(entity)));
+                break;
+        }
+
+        return parameters.ToArray();
+    }
 }
