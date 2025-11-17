@@ -92,20 +92,44 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         {
             var attributes = feature.Attributes;
             if (attributes == null)
+            {
+                _logger.LogWarning("Feature skipped: no attributes");
                 return null;
+            }
 
             // Required fields
             var codeKey = $"{_adminLevel}_PCODE";
             var nameKey = $"{_adminLevel}_EN";
             
-            if (!attributes.Exists(codeKey) || !attributes.Exists(nameKey) || !attributes.Exists("AREA_SQKM"))
+            if (!attributes.Exists(codeKey))
+            {
+                _logger.LogWarning("Feature skipped: missing {CodeKey}", codeKey);
                 return null;
+            }
+            if (!attributes.Exists(nameKey))
+            {
+                _logger.LogWarning("Feature skipped: missing {NameKey}", nameKey);
+                return null;
+            }
+            if (!attributes.Exists("AREA_SQKM"))
+            {
+                _logger.LogWarning("Feature skipped: missing AREA_SQKM");
+                return null;
+            }
 
             var code = attributes[codeKey]?.ToString();
             var name = attributes[nameKey]?.ToString();
             
-            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                _logger.LogWarning("Feature skipped: empty or whitespace code");
                 return null;
+            }
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                _logger.LogWarning("Feature skipped: empty or whitespace name");
+                return null;
+            }
 
             var area = attributes["AREA_SQKM"] != null && 
                        float.TryParse(attributes["AREA_SQKM"].ToString(), out var areaValue) 
@@ -113,7 +137,10 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
 
             var boundaries = ExtractBoundaries(feature);
             if (boundaries == null)
+            {
+                _logger.LogWarning("Feature skipped: invalid geometry (not MultiPolygon or Polygon)");
                 return null;
+            }
 
             // Optional parent code
             string? parentCode = null;
