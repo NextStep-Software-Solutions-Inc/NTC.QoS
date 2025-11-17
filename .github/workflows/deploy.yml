@@ -94,7 +94,6 @@ jobs:
           # Create or update Kubernetes secret from GitHub Secrets (safer than passing secrets via --set)
           kubectl create secret generic ntc-qos-secrets \
             --from-literal=DB_CONNECTION_STRING="${{ secrets.DB_CONNECTION_STRING }}" \
-            --from-literal=HANGFIRE_CONNECTION_STRING="${{ secrets.HANGFIRE_CONNECTION_STRING }}" \
             --from-literal=BLOB_STORAGE_CONNECTION_STRING="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
             --from-literal=Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
             --from-literal=Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
