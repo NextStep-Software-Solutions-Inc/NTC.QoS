@@ -30,8 +30,8 @@ public class RegionSeedingStrategy : LocationSeedingStrategy<Region>
 
     protected override WriteOptions GetWriteOptions() => new()
     {
-        BatchSize = 1,  // Reduced to 1 for very large geometries (200MB+ per feature)
-        TimeoutSeconds = 300,
+        BatchSize = 3,  // Reduced to 3 for very large geometries (200MB+ per feature)
+        TimeoutSeconds = 150,
         EnableStreaming = true
     };
 
@@ -121,7 +121,7 @@ public class MunicipalitySeedingStrategy : LocationSeedingStrategy<Municipality>
     protected override WriteOptions GetWriteOptions() => new()
     {
         BatchSize = 10,  // Smaller batches for geometry-heavy data
-        TimeoutSeconds = 600,
+        TimeoutSeconds = 400,
         EnableStreaming = true
     };
 
