@@ -113,7 +113,7 @@ jobs:
               --restart unless-stopped \
               -d \
               --cpus="0.3" \
-              --memory="384m" \
+              --memory="512m" \
               -p 91:${{ env.CONTAINER_PORT }} \
               --name ${{ env.CONTAINER_NAME }} \
               -e ConnectionStrings__PostgreSqlConnection="${{ secrets.DB_CONNECTION_STRING }}" \
