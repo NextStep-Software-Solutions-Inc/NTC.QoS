@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
 using NTC.QoS.Infrastructure.Seed.Models;
 using System.Diagnostics;
+using System.IO;
 
 namespace NTC.QoS.Infrastructure.Seed.Parsers;
 
@@ -23,83 +24,102 @@ public class StreamingGeoJsonParser(
         Stream stream,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Starting to parse GeoJSON features from stream");
-        using var streamReader = new StreamReader(stream, leaveOpen: false);
-        using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
-        var serializer = GeoJsonSerializer.Create();
-
-        // Skip to the start of the features array
-        while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
+        string? tempFile = null;
+        try
         {
-            if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.PropertyName &&
-                jsonReader.Value?.ToString() == "features")
+            logger.LogInformation("Starting to parse GeoJSON features from stream");
+
+            // Buffer the stream to a temp file to minimize memory usage
+            tempFile = Path.GetTempFileName();
+            using (var fileStream = File.OpenWrite(tempFile))
             {
-                await jsonReader.ReadAsync(cancellationToken); // Move to StartArray
-                break;
+                await stream.CopyToAsync(fileStream, cancellationToken);
             }
-        }
 
-        if (jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
-        {
-            logger.LogError("Invalid GeoJSON: 'features' array not found");
-            yield break;
-        }
+            using var fileReadStream = File.OpenRead(tempFile);
+            using var streamReader = new StreamReader(fileReadStream, leaveOpen: false);
+            using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
+            var serializer = GeoJsonSerializer.Create();
 
-        var processedCount = 0;
-        var skippedCount = 0;
-
-        while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.EndArray)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                yield break;
-
-            if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.StartObject)
+            // Skip to the start of the features array
+            while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
             {
-                logger.LogDebug("Starting to process GeoJSON feature at position {Position}", jsonReader.LineNumber);
-                IFeature? feature = null;
-                try
+                logger.LogDebug("Read token: {TokenType} at line {Line}", jsonReader.TokenType, jsonReader.LineNumber);
+                if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.PropertyName &&
+                    jsonReader.Value?.ToString() == "features")
                 {
-                    // Deserialize individual feature on a background thread to avoid blocking
-                    var stopwatch = Stopwatch.StartNew();
-                    feature = await Task.Run(() => serializer.Deserialize<IFeature>(jsonReader));
-                    stopwatch.Stop();
-                    logger.LogDebug("Successfully deserialized GeoJSON feature in {Time}ms", stopwatch.ElapsedMilliseconds);
+                    await jsonReader.ReadAsync(cancellationToken); // Move to StartArray
+                    break;
                 }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to deserialize individual feature, skipping");
-                    skippedCount++;
-                    // Skip to the end of the current object to continue parsing
-                    await jsonReader.SkipAsync();
-                    continue;
-                }
+            }
 
-                if (feature != null)
+            if (jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
+            {
+                logger.LogError("Invalid GeoJSON: 'features' array not found");
+                yield break;
+            }
+
+            var processedCount = 0;
+            var skippedCount = 0;
+
+            while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.EndArray)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    yield break;
+
+                if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.StartObject)
                 {
-                    var parsed = TryParseFeature(feature);
-                    if (parsed.HasValue)
+                    logger.LogDebug("Starting to process GeoJSON feature at position {Position}", jsonReader.LineNumber);
+                    IFeature? feature = null;
+                    try
                     {
-                        logger.LogDebug("Successfully parsed feature with code {Code}", parsed.Value.Code);
-                        yield return parsed.Value;
-                        processedCount++;
+                        // Deserialize individual feature on a background thread to avoid blocking
+                        var stopwatch = Stopwatch.StartNew();
+                        feature = await Task.Run(() => serializer.Deserialize<IFeature>(jsonReader));
+                        stopwatch.Stop();
+                        logger.LogDebug("Successfully deserialized GeoJSON feature in {Time}ms", stopwatch.ElapsedMilliseconds);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to deserialize individual feature, skipping");
+                        skippedCount++;
+                        // Skip to the end of the current object to continue parsing
+                        await jsonReader.SkipAsync();
+                        continue;
+                    }
 
-                        if (processedCount % 1000 == 0)
+                    if (feature != null)
+                    {
+                        var parsed = TryParseFeature(feature);
+                        if (parsed.HasValue)
                         {
-                            logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
+                            logger.LogDebug("Successfully parsed feature with code {Code}", parsed.Value.Code);
+                            yield return parsed.Value;
+                            processedCount++;
+
+                            if (processedCount % 1000 == 0)
+                            {
+                                logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
+                            }
+                        }
+                        else
+                        {
+                            logger.LogDebug("Feature parsing failed, skipping");
+                            skippedCount++;
                         }
                     }
-                    else
-                    {
-                        logger.LogDebug("Feature parsing failed, skipping");
-                        skippedCount++;
-                    }
                 }
             }
-        }
 
-        logger.LogInformation(
-            "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
-            processedCount, skippedCount);
+            logger.LogInformation(
+                "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
+                processedCount, skippedCount);
+        }
+        finally
+        {
+            if (tempFile != null && File.Exists(tempFile))
+                File.Delete(tempFile);
+        }
     }
     private ParsedLocationFeature? TryParseFeature(IFeature feature)
     {
