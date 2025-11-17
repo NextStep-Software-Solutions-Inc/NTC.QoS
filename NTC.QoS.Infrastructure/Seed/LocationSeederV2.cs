@@ -54,9 +54,9 @@ public class LocationSeederV2
 
             // Seed in hierarchical order
             await SeedRegionsAsync(forceReseed, cancellationToken);
-            // await SeedProvincesAsync(forceReseed, cancellationToken);
-            // await SeedMunicipalitiesAsync(forceReseed, cancellationToken);
-            // await SeedBarangaysAsync(forceReseed, cancellationToken);
+            await SeedProvincesAsync(forceReseed, cancellationToken);
+            await SeedMunicipalitiesAsync(forceReseed, cancellationToken);
+            await SeedBarangaysAsync(forceReseed, cancellationToken);
 
             _logger.LogInformation("Database seeding process completed successfully.");
         }
