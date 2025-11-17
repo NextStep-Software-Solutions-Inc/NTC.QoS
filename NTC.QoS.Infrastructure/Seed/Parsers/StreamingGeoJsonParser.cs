@@ -102,7 +102,8 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         _logger.LogInformation(
             "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
             processedCount, skippedCount);
-    }    private ParsedLocationFeature? TryParseFeature(IFeature feature)
+    }   
+    private ParsedLocationFeature? TryParseFeature(IFeature feature)
     {
         try
         {
