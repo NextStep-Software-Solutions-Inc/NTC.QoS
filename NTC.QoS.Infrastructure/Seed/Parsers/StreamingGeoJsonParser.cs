@@ -13,27 +13,17 @@ namespace NTC.QoS.Infrastructure.Seed.Parsers;
 /// Streaming parser for GeoJSON location data.
 /// Parses features one at a time to minimize memory usage.
 /// </summary>
-public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
+public class StreamingGeoJsonParser(
+    ILogger<StreamingGeoJsonParser> logger,
+    string adminLevel,
+    string? parentAdminLevel = null) : ILocationDataParser<ParsedLocationFeature>
 {
-    private readonly ILogger<StreamingGeoJsonParser> _logger;
-    private readonly string _adminLevel;
-    private readonly string? _parentAdminLevel;
-
-    public StreamingGeoJsonParser(
-        ILogger<StreamingGeoJsonParser> logger,
-        string adminLevel,
-        string? parentAdminLevel = null)
-    {
-        _logger = logger;
-        _adminLevel = adminLevel;
-        _parentAdminLevel = parentAdminLevel;
-    }
-
+ 
     public async IAsyncEnumerable<ParsedLocationFeature> ParseFeaturesAsync(
         Stream stream,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting to parse GeoJSON features from stream");
+        logger.LogInformation("Starting to parse GeoJSON features from stream");
         using var streamReader = new StreamReader(stream, leaveOpen: false);
         using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
         var serializer = GeoJsonSerializer.Create();
@@ -51,21 +41,21 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
 
         if (jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
         {
-            _logger.LogError("Invalid GeoJSON: 'features' array not found");
+            logger.LogError("Invalid GeoJSON: 'features' array not found");
             yield break;
         }
 
         var processedCount = 0;
         var skippedCount = 0;
 
-        while (await jsonReader.ReadAsync() && jsonReader.TokenType != Newtonsoft.Json.JsonToken.EndArray)
+        while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.EndArray)
         {
             if (cancellationToken.IsCancellationRequested)
                 yield break;
 
             if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.StartObject)
             {
-                _logger.LogDebug("Starting to process GeoJSON feature at position {Position}", jsonReader.LineNumber);
+                logger.LogDebug("Starting to process GeoJSON feature at position {Position}", jsonReader.LineNumber);
                 IFeature? feature = null;
                 try
                 {
@@ -73,11 +63,11 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                     var stopwatch = Stopwatch.StartNew();
                     feature = await Task.Run(() => serializer.Deserialize<IFeature>(jsonReader));
                     stopwatch.Stop();
-                    _logger.LogDebug("Successfully deserialized GeoJSON feature in {Time}ms", stopwatch.ElapsedMilliseconds);
+                    logger.LogDebug("Successfully deserialized GeoJSON feature in {Time}ms", stopwatch.ElapsedMilliseconds);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to deserialize individual feature, skipping");
+                    logger.LogWarning(ex, "Failed to deserialize individual feature, skipping");
                     skippedCount++;
                     // Skip to the end of the current object to continue parsing
                     await jsonReader.SkipAsync();
@@ -89,25 +79,25 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                     var parsed = TryParseFeature(feature);
                     if (parsed.HasValue)
                     {
-                        _logger.LogDebug("Successfully parsed feature with code {Code}", parsed.Value.Code);
+                        logger.LogDebug("Successfully parsed feature with code {Code}", parsed.Value.Code);
                         yield return parsed.Value;
                         processedCount++;
 
                         if (processedCount % 1000 == 0)
                         {
-                            _logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
+                            logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
                         }
                     }
                     else
                     {
-                        _logger.LogDebug("Feature parsing failed, skipping");
+                        logger.LogDebug("Feature parsing failed, skipping");
                         skippedCount++;
                     }
                 }
             }
         }
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
             processedCount, skippedCount);
     }
@@ -118,27 +108,27 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
             var attributes = feature.Attributes;
             if (attributes == null)
             {
-                _logger.LogWarning("Feature skipped: no attributes");
+                logger.LogWarning("Feature skipped: no attributes");
                 return null;
             }
 
             // Required fields
-            var codeKey = $"{_adminLevel}_PCODE";
-            var nameKey = $"{_adminLevel}_EN";
+            var codeKey = $"{adminLevel}_PCODE";
+            var nameKey = $"{adminLevel}_EN";
 
             if (!attributes.Exists(codeKey))
             {
-                _logger.LogWarning("Feature skipped: missing {CodeKey}", codeKey);
+                logger.LogWarning("Feature skipped: missing {CodeKey}", codeKey);
                 return null;
             }
             if (!attributes.Exists(nameKey))
             {
-                _logger.LogWarning("Feature skipped: missing {NameKey}", nameKey);
+                logger.LogWarning("Feature skipped: missing {NameKey}", nameKey);
                 return null;
             }
             if (!attributes.Exists("AREA_SQKM"))
             {
-                _logger.LogWarning("Feature skipped: missing AREA_SQKM");
+                logger.LogWarning("Feature skipped: missing AREA_SQKM");
                 return null;
             }
 
@@ -147,12 +137,12 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
 
             if (string.IsNullOrWhiteSpace(code))
             {
-                _logger.LogWarning("Feature skipped: empty or whitespace code");
+                logger.LogWarning("Feature skipped: empty or whitespace code");
                 return null;
             }
             if (string.IsNullOrWhiteSpace(name))
             {
-                _logger.LogWarning("Feature skipped: empty or whitespace name");
+                logger.LogWarning("Feature skipped: empty or whitespace name");
                 return null;
             }
 
@@ -163,15 +153,15 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
             var boundaries = ExtractBoundaries(feature);
             if (boundaries == null)
             {
-                _logger.LogWarning("Feature skipped: invalid geometry (not MultiPolygon or Polygon)");
+                logger.LogWarning("Feature skipped: invalid geometry (not MultiPolygon or Polygon)");
                 return null;
             }
 
             // Optional parent code
             string? parentCode = null;
-            if (_parentAdminLevel != null)
+            if (parentAdminLevel != null)
             {
-                var parentKey = $"{_parentAdminLevel}_PCODE";
+                var parentKey = $"{parentAdminLevel}_PCODE";
                 parentCode = attributes.Exists(parentKey) ? attributes[parentKey]?.ToString() : null;
             }
 
@@ -194,7 +184,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to parse feature, skipping");
+            logger.LogWarning(ex, "Failed to parse feature, skipping");
             return null;
         }
     }
@@ -209,7 +199,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         };
     }
 
-    private int? TryParsePopulation(IAttributesTable attributes, string key)
+    private static int? TryParsePopulation(IAttributesTable attributes, string key)
     {
         if (!attributes.Exists(key))
             return null;
