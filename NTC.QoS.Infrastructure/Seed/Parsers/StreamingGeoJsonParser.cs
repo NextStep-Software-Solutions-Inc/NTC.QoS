@@ -66,8 +66,8 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                 IFeature? feature = null;
                 try
                 {
-                    // Deserialize individual feature
-                    feature = serializer.Deserialize<IFeature>(jsonReader);
+                    // Deserialize individual feature on a background thread to avoid blocking
+                    feature = await Task.Run(() => serializer.Deserialize<IFeature>(jsonReader));
                 }
                 catch (Exception ex)
                 {
