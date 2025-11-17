@@ -15,6 +15,7 @@ public class RegionTransformer : ILocationDataTransformer<ParsedLocationFeature,
     {
         return new Region
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,
@@ -47,6 +48,7 @@ public class ProvinceTransformer : ILocationDataTransformer<ParsedLocationFeatur
 
         return new Province
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,
@@ -83,6 +85,7 @@ public class MunicipalityTransformer : ILocationDataTransformer<ParsedLocationFe
 
         return new Municipality
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,
@@ -117,6 +120,7 @@ public class BarangayTransformer : ILocationDataTransformer<ParsedLocationFeatur
 
         return new Barangay
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,

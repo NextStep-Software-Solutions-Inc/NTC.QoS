@@ -129,10 +129,10 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
 
     private static string GetInsertSql(string entityType) => entityType switch
     {
-        "Region" => "INSERT INTO \"Regions\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @createdAt, @createdBy, @updatedAt, @updatedBy)",
-        "Province" => "INSERT INTO \"Provinces\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"RegionId\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @regionId, @createdAt, @createdBy, @updatedAt, @updatedBy)",
-        "Municipality" => "INSERT INTO \"Municipalities\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"ProvinceId\", \"IsCity\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @provinceId, @isCity, @createdAt, @createdBy, @updatedAt, @updatedBy)",
-        "Barangay" => "INSERT INTO \"Barangays\" (\"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"MunicipalityId\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @municipalityId, @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        "Region" => "INSERT INTO \"Regions\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        "Province" => "INSERT INTO \"Provinces\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"RegionId\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @regionId, @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        "Municipality" => "INSERT INTO \"Municipalities\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"ProvinceId\", \"IsCity\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @provinceId, @isCity, @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        "Barangay" => "INSERT INTO \"Barangays\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"MunicipalityId\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @municipalityId, @createdAt, @createdBy, @updatedAt, @updatedBy)",
         _ => throw new NotSupportedException($"Entity type {entityType} not supported")
     };
 
@@ -140,19 +140,20 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
     {
         var parameters = new List<NpgsqlParameter>
         {
-            new("@code", entity.GetType().GetProperty("Code")?.GetValue(entity)),
-            new("@name", entity.GetType().GetProperty("Name")?.GetValue(entity)),
-            new("@description", entity.GetType().GetProperty("Description")?.GetValue(entity) ?? DBNull.Value),
-            new("@area", entity.GetType().GetProperty("Area")?.GetValue(entity) ?? 0f),
-            new("@totalPopulation", entity.GetType().GetProperty("TotalPopulation")?.GetValue(entity) ?? DBNull.Value),
-            new("@householdPopulation", entity.GetType().GetProperty("HouseholdPopulation")?.GetValue(entity) ?? DBNull.Value),
-            new("@householdCount", entity.GetType().GetProperty("HouseholdCount")?.GetValue(entity) ?? DBNull.Value),
-            new("@boundaries", GetGeometryWkb(entity)),
-            new("@center", GetCenterWkb(entity)),
-            new("@createdAt", entity.GetType().GetProperty("CreatedAt")?.GetValue(entity)),
-            new("@createdBy", entity.GetType().GetProperty("CreatedBy")?.GetValue(entity)),
-            new("@updatedAt", entity.GetType().GetProperty("UpdatedAt")?.GetValue(entity)),
-            new("@updatedBy", entity.GetType().GetProperty("UpdatedBy")?.GetValue(entity))
+            new NpgsqlParameter("@id", entity.GetType().GetProperty("Id")?.GetValue(entity)),
+            new NpgsqlParameter("@code", entity.GetType().GetProperty("Code")?.GetValue(entity)),
+            new NpgsqlParameter("@name", entity.GetType().GetProperty("Name")?.GetValue(entity)),
+            new NpgsqlParameter("@description", entity.GetType().GetProperty("Description")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter("@area", entity.GetType().GetProperty("Area")?.GetValue(entity) ?? 0f),
+            new NpgsqlParameter("@totalPopulation", entity.GetType().GetProperty("TotalPopulation")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter("@householdPopulation", entity.GetType().GetProperty("HouseholdPopulation")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter("@householdCount", entity.GetType().GetProperty("HouseholdCount")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter("@boundaries", GetGeometryWkb(entity)),
+            new NpgsqlParameter("@center", GetCenterWkb(entity)),
+            new NpgsqlParameter("@createdAt", entity.GetType().GetProperty("CreatedAt")?.GetValue(entity)),
+            new NpgsqlParameter("@createdBy", entity.GetType().GetProperty("CreatedBy")?.GetValue(entity)),
+            new NpgsqlParameter("@updatedAt", entity.GetType().GetProperty("UpdatedAt")?.GetValue(entity)),
+            new NpgsqlParameter("@updatedBy", entity.GetType().GetProperty("UpdatedBy")?.GetValue(entity))
         };
 
         switch (entityType)
