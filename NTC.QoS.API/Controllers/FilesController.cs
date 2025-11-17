@@ -52,7 +52,7 @@ public class FilesController(IMediator mediator) : ControllerBase
                 break;
 
             case FileTypeEnum.Unknown:
-                default:
+            default:
                 throw new InvalidEnumArgumentException();
         }
 
@@ -61,14 +61,14 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, 
-                                                                            int pageNumber = 1, 
-                                                                            [FromQuery] string[]? types = default, 
+    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10,
+                                                                            int pageNumber = 1,
+                                                                            [FromQuery] string[]? types = default,
                                                                             [FromQuery] string[]? statuses = default,
                                                                             string? search = default)
     {
         var files = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search)
-        { 
+        {
             Types = types,
             Statuses = statuses
         });
@@ -104,7 +104,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {
         var res = await _mediator.Send(new DownloadTemplateFileRequest(type));
-        if(res.Succeeded is false || res.Data is null || res.Data.Length is 0)
+        if (res.Succeeded is false || res.Data is null || res.Data.Length is 0)
         {
             return BadRequest(res);
         }
@@ -116,7 +116,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadWirelessValidationTemplate(Guid municipalityId)
     {
         var res = await _mediator.Send(new DownloadWirelessValidationTemplateRequest(municipalityId));
-        if(res.Succeeded is false || res.Data is null || res.Data.Length is 0)
+        if (res.Succeeded is false || res.Data is null || res.Data.Length is 0)
         {
             return BadRequest(res);
         }

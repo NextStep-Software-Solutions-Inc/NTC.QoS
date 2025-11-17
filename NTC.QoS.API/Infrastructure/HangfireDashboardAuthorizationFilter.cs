@@ -14,7 +14,7 @@ public class HangfireDashboardAuthorizationFilter : IDashboardAuthorizationFilte
     public bool Authorize(DashboardContext context)
     {
         var httpContext = context.GetHttpContext();
-        
+
         // Allow in Development environment unconditionally for easier development
         if (httpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
         {
@@ -67,7 +67,7 @@ public class HangfireDashboardAuthorizationFilter : IDashboardAuthorizationFilte
     {
         // Check for authorized roles based on your RoleSeeder keys
         var authorizedRoles = new[] { "super_admin", "admin" };
-        
+
         foreach (var role in authorizedRoles)
         {
             if (httpContext.User.IsInRole(role))

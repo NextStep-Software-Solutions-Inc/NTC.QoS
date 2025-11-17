@@ -80,7 +80,7 @@ public class ProcessCellJob : IProcessCellJob
         var stopwatch = Stopwatch.StartNew();
         var startTime = DateTime.UtcNow;
         var processingResults = new ProcessingResults();
-        
+
         // Get user context once for all batches
         var userId = _userContextService.GetCurrentUserId() ?? "System";
         var now = DateTime.UtcNow;
@@ -116,7 +116,7 @@ public class ProcessCellJob : IProcessCellJob
             using (fileStream)
             {
                 stopwatch.Restart();
-                
+
                 // --- Step 3: Pre-load Static/Reference Data for Performance ---
                 _logger.LogInformation("Pre-loading reference data.");
 
@@ -185,7 +185,8 @@ public class ProcessCellJob : IProcessCellJob
                         .OrderBy(c => c.Id)
                         .Skip(skip)
                         .Take(DUPLICATE_LOAD_BATCH_SIZE)
-                        .Select(c => new {
+                        .Select(c => new
+                        {
                             c.Id,
                             c.ServiceProviderId,
                             c.TowerType,
@@ -200,16 +201,16 @@ public class ProcessCellJob : IProcessCellJob
                     {
                         var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
                         var hash = GenerateCellHash(cell.ServiceProviderId, normalizedTowerType, cell.Location);
-                        
+
                         if (cellLookup.Add(hash))
                         {
                             cellIdMapping[hash] = cell.Id;
                         }
                     }
-                    
+
                     totalLoadedCells += existingBatch.Count;
                     skip += DUPLICATE_LOAD_BATCH_SIZE;
-                    
+
                     _logger.LogInformation("Loaded {LoadedCount}/{TotalCount} existing cells...",
                         totalLoadedCells, totalCells);
                 }
@@ -245,7 +246,8 @@ public class ProcessCellJob : IProcessCellJob
                         .OrderBy(c => c.Id)
                         .Skip(skip)
                         .Take(DUPLICATE_LOAD_BATCH_SIZE)
-                        .Select(c => new {
+                        .Select(c => new
+                        {
                             c.CellSectorId,
                             c.ServiceProviderId,
                             c.TechnologyId,
@@ -263,13 +265,13 @@ public class ProcessCellJob : IProcessCellJob
                             cellular.ServiceProviderId,
                             cellular.TechnologyId,
                             cellular.BandId);
-                        
+
                         cellularLookup.Add(hash);
                     }
-                    
+
                     totalLoadedCellular += existingCellularBatch.Count;
                     skip += DUPLICATE_LOAD_BATCH_SIZE;
-                    
+
                     _logger.LogInformation("Loaded {LoadedCount}/{TotalCount} existing cellular records...",
                         totalLoadedCellular, totalCellular);
                 }
@@ -297,7 +299,7 @@ public class ProcessCellJob : IProcessCellJob
                         {
                             var networkKey = CacheKeyGenerator.GenerateNetworkCacheKey(
                                 network.ServiceProviderId, municipalityName, network.TechnologyId, bandId);
-                            
+
                             if (!networkCache.ContainsKey(networkKey))
                             {
                                 networkCache[networkKey] = network.Id;
@@ -348,18 +350,18 @@ public class ProcessCellJob : IProcessCellJob
                         Band = CellPropertyNameParser.GetBandFromPropertyName(property.Name),
                         Technology = CellPropertyNameParser.GetTechnologyFromPropertyName(property.Name)
                     })
-                    .Where(item => item.HeaderAttribute != null && 
-                                   !string.IsNullOrEmpty(item.Band) && 
+                    .Where(item => item.HeaderAttribute != null &&
+                                   !string.IsNullOrEmpty(item.Band) &&
                                    !string.IsNullOrEmpty(item.Technology))
                     .ToList();
 
-                _logger.LogInformation("Extracted {Count} band/technology properties from Excel.", 
+                _logger.LogInformation("Extracted {Count} band/technology properties from Excel.",
                     bandTechnologyProperties.Count);
 
                 // --- Step 5: Process Records in Batches (OPTIMIZED) ---
                 var totalRecords = cellRecords.Count;
                 var totalBatches = (int)Math.Ceiling((double)totalRecords / BATCH_SIZE);
-                
+
                 var cellSectorsCreatedForCellId = new Dictionary<Guid, List<Guid>>();
                 var networksToAdd = new List<Domain.Aggregates.Network>();
 
@@ -421,7 +423,7 @@ public class ProcessCellJob : IProcessCellJob
 
                         await _cellSectorRepository.BulkInsertAsync(batchResults.CellSectorsToAdd, token);
                         processingResults.CellSectorsCreated += batchResults.CellSectorsToAdd.Count;
-                        
+
                         // Update cellSectorCache with newly created sectors
                         foreach (var sector in batchResults.CellSectorsToAdd)
                         {
@@ -445,9 +447,9 @@ public class ProcessCellJob : IProcessCellJob
 
                         await _networkRepository.BulkInsertAsync(networksToAdd, token);
                         processingResults.NetworksCreated += networksToAdd.Count;
-                        _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.", 
+                        _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.",
                             batchNumber, networksToAdd.Count);
-                        
+
                         // Clear the list for the next batch
                         networksToAdd.Clear();
                     }
@@ -480,7 +482,7 @@ public class ProcessCellJob : IProcessCellJob
                         $"Batch {batchNumber}/{totalBatches} completed - Progress: {progress:F1}% - " +
                         $"Successful: {processingResults.SuccessfulRecords:N0}, Errors: {processingResults.ErrorRecords:N0}, " +
                         $"Cells Created: {processingResults.CellsCreated:N0}, Cellular Created: {processingResults.CellularCreated:N0}, " +
-                        $"Duplicates Skipped: {processingResults.SkippedDuplicates:N0}", 
+                        $"Duplicates Skipped: {processingResults.SkippedDuplicates:N0}",
                         _logger);
                 }
 
@@ -489,9 +491,9 @@ public class ProcessCellJob : IProcessCellJob
 
                 // --- Step 7: Create Sector entities for new CellSectors (1:1 ratio) ---
                 _logger.LogInformation("Creating Sector entities for newly created CellSectors (1:1 ratio)...");
-                
+
                 var allNewCellSectorIds = cellSectorsCreatedForCellId.Values.SelectMany(ids => ids).ToList();
-                
+
                 if (allNewCellSectorIds.Count > 0)
                 {
                     // Check for existing sectors to avoid duplicates
@@ -501,17 +503,17 @@ public class ProcessCellJob : IProcessCellJob
                         .ToListAsync(token);
 
                     var existingSet = existingSectorIds.ToHashSet();
-                    
+
                     // Get CellSector details for sectors we need to create
                     var cellSectorsNeedingSectors = await _cellSectorRepository
-                        .QueryAsNoTracking(cs => allNewCellSectorIds.Contains(cs.Id) && 
+                        .QueryAsNoTracking(cs => allNewCellSectorIds.Contains(cs.Id) &&
                                                  !existingSet.Contains(cs.Id))
                         .ToListAsync(token);
 
                     if (cellSectorsNeedingSectors.Count > 0)
                     {
                         var sectorsToAdd = new List<Domain.Entities.Sector>();
-                        
+
                         // Load all cellular records to determine primary network for each CellSector
                         var cellularForSectors = await _cellularRepository
                             .QueryAsNoTracking(c => cellSectorsNeedingSectors.Select(cs => cs.Id).Contains(c.CellSectorId))
@@ -526,8 +528,8 @@ public class ProcessCellJob : IProcessCellJob
                         foreach (var cellSector in cellSectorsNeedingSectors)
                         {
                             // Get NetworkId from cellular records, default to Guid.Empty if not found
-                            var networkId = cellularForSectors.TryGetValue(cellSector.Id, out var nId) 
-                                ? nId 
+                            var networkId = cellularForSectors.TryGetValue(cellSector.Id, out var nId)
+                                ? nId
                                 : Guid.Empty;
 
                             if (networkId == Guid.Empty)
@@ -555,7 +557,7 @@ public class ProcessCellJob : IProcessCellJob
                                 UpdatedAt = now,
                                 UpdatedBy = userId
                             };
-                            
+
                             sectorsToAdd.Add(baseSector);
                         }
 
@@ -563,7 +565,7 @@ public class ProcessCellJob : IProcessCellJob
                         {
                             await _sectorRepository.BulkInsertAsync(sectorsToAdd, token);
                             processingResults.SectorsCreated = sectorsToAdd.Count;
-                            _logger.LogInformation("Created {Count:N0} sector entities (1:1 ratio with CellSectors).", 
+                            _logger.LogInformation("Created {Count:N0} sector entities (1:1 ratio with CellSectors).",
                                 sectorsToAdd.Count);
                         }
 
@@ -595,14 +597,14 @@ public class ProcessCellJob : IProcessCellJob
     /// Completes processing and logs comprehensive summary (like Wireless Validation)
     /// </summary>
     private async Task CompleteProcessing(
-        Domain.Entities.File file, 
-        ProcessingResults results, 
-        DateTime startTime, 
+        Domain.Entities.File file,
+        ProcessingResults results,
+        DateTime startTime,
         CancellationToken token)
     {
         var processingTime = DateTime.UtcNow - startTime;
-        var successRate = results.TotalRecords > 0 
-            ? (double)results.SuccessfulRecords / results.TotalRecords * 100 
+        var successRate = results.TotalRecords > 0
+            ? (double)results.SuccessfulRecords / results.TotalRecords * 100
             : 0;
 
         _logger.LogInformation("=== Cell Processing Summary ===");
@@ -614,7 +616,7 @@ public class ProcessCellJob : IProcessCellJob
             results.SuccessfulRecords, successRate);
         _logger.LogInformation("Skipped Records: {SkippedRecords:N0}", results.SkippedRecords);
         _logger.LogInformation("Error Records: {ErrorRecords:N0}", results.ErrorRecords);
-        
+
         _logger.LogInformation("Entities Created:");
         _logger.LogInformation("  Cells: {CellsCreated:N0}", results.CellsCreated);
         _logger.LogInformation("  Cell Sectors: {CellSectorsCreated:N0}", results.CellSectorsCreated);
@@ -622,7 +624,7 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("  Networks: {NetworksCreated:N0}", results.NetworksCreated);
         _logger.LogInformation("  Sectors: {SectorsCreated:N0}", results.SectorsCreated);
         _logger.LogInformation("  Cellular Deleted: {CellularDeleted:N0}", results.CellularDeleted);
-        
+
         _logger.LogInformation("Duplicates Skipped:");
         _logger.LogInformation("  Total Duplicates: {SkippedDuplicates:N0}", results.SkippedDuplicates);
 
@@ -683,7 +685,7 @@ public class ProcessCellJob : IProcessCellJob
         CancellationToken token)
     {
         var result = new BatchProcessingResult();
-        
+
         for (int i = 0; i < batch.Count; i++)
         {
             var record = batch[i];
@@ -694,13 +696,13 @@ public class ProcessCellJob : IProcessCellJob
                 processingResults.ProcessedRecords++;
 
                 var address = BuildAddress(record);
-                
+
                 var spCacheKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(
                     record.Provider, ServiceTypeEnum.Wireless);
 
                 if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
                 {
-                    _logger.LogWarning("Wireless Service Provider not found: {Provider}. Skipping record at row {Row}.", 
+                    _logger.LogWarning("Wireless Service Provider not found: {Provider}. Skipping record at row {Row}.",
                         record.Provider, actualRowNumber);
                     processingResults.SkippedRecords++;
                     continue;
@@ -718,7 +720,7 @@ public class ProcessCellJob : IProcessCellJob
 
                 var location = GeometryHelper.CreatePoint(new Coordinate(y: actualLatitude, x: actualLongitude));
                 var normalizedTowerType = string.IsNullOrWhiteSpace(record.TowerType) ? "Unknown" : record.TowerType;
-                
+
                 // Check if cell exists using hash
                 var cellHash = GenerateCellHash(serviceProviderId, normalizedTowerType, location);
                 Guid cellId;
@@ -736,7 +738,7 @@ public class ProcessCellJob : IProcessCellJob
                         Location = location,
                         IsFileUploaded = true,
                     };
-                    
+
                     result.CellsToAdd.Add(cell);
                     cellId = cell.Id;
                     cellLookup.Add(cellHash);
@@ -750,7 +752,7 @@ public class ProcessCellJob : IProcessCellJob
 
                         if (beamTilts == null || azimuths.Length != beamTilts.Length)
                         {
-                            _logger.LogWarning("Azimuth/BeamTilt mismatch at row {Row}. Skipping sectors.", 
+                            _logger.LogWarning("Azimuth/BeamTilt mismatch at row {Row}. Skipping sectors.",
                                 actualRowNumber);
                             processingResults.ErrorRecords++;
                             continue;
@@ -769,7 +771,7 @@ public class ProcessCellJob : IProcessCellJob
                                     Azimuth = azimuth,
                                     BeamTilt = beamTilt,
                                 };
-                                
+
                                 result.CellSectorsToAdd.Add(cellSector);
 
                                 if (!cellSectorsCreatedForCellId.ContainsKey(cellId))
@@ -807,7 +809,7 @@ public class ProcessCellJob : IProcessCellJob
                         result,
                         processingResults,
                         token);
-                    
+
                     processingResults.SuccessfulRecords++;
                 }
             }
@@ -849,7 +851,7 @@ public class ProcessCellJob : IProcessCellJob
         {
             var technologyId = TechnologyMappingHelper.ResolveTechnologyId(
                 propInfo.Technology, technologyCache, _logger, $"Excel row {rowNumber}");
-            
+
             if (!TechnologyMappingHelper.IsTechnologyResolved(technologyId))
             {
                 continue;
@@ -857,7 +859,7 @@ public class ProcessCellJob : IProcessCellJob
 
             var bandId = TechnologyMappingHelper.ResolveBandId(
                 propInfo.Band, bandCache, _logger, $"Excel row {rowNumber}");
-  
+
             if (!TechnologyMappingHelper.IsBandResolved(bandId))
             {
                 continue;
@@ -1017,7 +1019,7 @@ public class ProcessCellJob : IProcessCellJob
         if (match.Success)
         {
             result.IsActive = true;
-            
+
             if (decimal.TryParse(match.Groups[1].Value, out var dlCenterFreq))
             {
                 result.DLCenterFreq = dlCenterFreq;
@@ -1116,7 +1118,7 @@ public class ProcessCellJob : IProcessCellJob
 
     private decimal CalculateULCenterFreq(decimal dlCenterFreq, string technology, string band)
     {
-        if (technology.Contains("TDD", StringComparison.OrdinalIgnoreCase) || 
+        if (technology.Contains("TDD", StringComparison.OrdinalIgnoreCase) ||
             (technology.Equals("NR", StringComparison.OrdinalIgnoreCase) && IsTDDBand(band)))
         {
             return dlCenterFreq;
@@ -1220,7 +1222,7 @@ public class ProcessCellJob : IProcessCellJob
     private async Task<Guid> GetOrCreateNetworkAsync(
         Guid serviceProviderId,
         string municipalityName,
-        Guid technologyId, 
+        Guid technologyId,
         Guid bandId,
         Dictionary<string, Guid> networkCache,
         List<Domain.Aggregates.Network> networksToAdd,
@@ -1234,7 +1236,7 @@ public class ProcessCellJob : IProcessCellJob
     {
         var networkCacheKey = CacheKeyGenerator.GenerateNetworkCacheKey(
         serviceProviderId, municipalityName, technologyId, bandId);
-        
+
         if (networkCache.TryGetValue(networkCacheKey, out var existingNetworkId))
         {
             return existingNetworkId;
@@ -1250,14 +1252,14 @@ public class ProcessCellJob : IProcessCellJob
 
         if (existingNetwork != null)
         {
-           networkCache[networkCacheKey] = existingNetwork.Id;
-           return existingNetwork.Id;
+            networkCache[networkCacheKey] = existingNetwork.Id;
+            return existingNetwork.Id;
         }
 
         // Use pre-loaded systemTypeCache instead of database query
         if (!systemTypeCache.TryGetValue(technologyId, out var systemTypeId))
         {
-            _logger.LogWarning("SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})", 
+            _logger.LogWarning("SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})",
                 technologyId, technologyName);
             return Guid.Empty;
         }

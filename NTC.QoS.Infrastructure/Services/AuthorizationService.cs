@@ -198,9 +198,9 @@ public class UserAuthorizationService : IUserAuthorizationService
         try
         {
             var permissionsQuery = from rp in _dbContext.Set<Domain.Aggregates.RolePermission>()
-                                 join p in _dbContext.Set<Domain.Entities.Permission>() on rp.PermissionId equals p.Id
-                                 where rp.RoleId == user.Role.Id && !rp.IsDeleted && !p.IsDeleted
-                                 select p.Key;
+                                   join p in _dbContext.Set<Domain.Entities.Permission>() on rp.PermissionId equals p.Id
+                                   where rp.RoleId == user.Role.Id && !rp.IsDeleted && !p.IsDeleted
+                                   select p.Key;
 
             _cachedPermissions = await permissionsQuery.ToListAsync(cancellationToken);
             return _cachedPermissions;

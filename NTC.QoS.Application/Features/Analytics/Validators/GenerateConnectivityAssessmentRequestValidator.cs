@@ -34,7 +34,7 @@ public class GenerateConnectivityAssessmentRequestValidator : AbstractValidator<
         RuleFor(x => x)
             .Must(x => !x.ForceRecalculate || x.LocationIds.Count <= MAX_LOCATIONS_WITH_FORCE_RECALCULATE)
             .WithMessage($"When ForceRecalculate is true, cannot process more than {MAX_LOCATIONS_WITH_FORCE_RECALCULATE} locations at once due to computational intensity.")
-            
+
             .Must(x => x.LocationType != LocationTypeEnum.Regional || x.LocationIds.Count <= MAX_REGIONAL_LOCATIONS)
             .WithMessage($"Regional-level assessment generation is limited to {MAX_REGIONAL_LOCATIONS} locations at once due to data volume.");
     }

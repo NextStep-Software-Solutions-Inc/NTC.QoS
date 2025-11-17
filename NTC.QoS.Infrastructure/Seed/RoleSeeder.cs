@@ -69,10 +69,10 @@ public static class RoleSeeder
                 IsDeleted = false
             }
         };
-        
+
 
         logger.LogInformation("Creating missing roles if they do not exist...");
-        
+
         try
         {
             var baseKeys = roles.Select(r => r.Key).ToList();

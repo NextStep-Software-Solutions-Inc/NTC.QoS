@@ -361,7 +361,7 @@ public static class GeoQueryHelper
             .Where(x => x.Center != null);
 
         var results = await repository.ToListAsync(centersQuery, cancellationToken);
-        
+
         return results.ToDictionary(x => x.Id, x => x.Center);
     }
 
@@ -387,7 +387,7 @@ public static class GeoQueryHelper
             .Where(x => x.Center != null);
 
         var results = await repository.ToListAsync(centersQuery, cancellationToken);
-        
+
         return results.ToDictionary(x => x.Id, x => x.Center);
     }
 
@@ -413,7 +413,7 @@ public static class GeoQueryHelper
             .Where(x => x.Center != null);
 
         var results = await repository.ToListAsync(centersQuery, cancellationToken);
-        
+
         return results.ToDictionary(x => x.Id, x => x.Center);
     }
 
@@ -439,7 +439,7 @@ public static class GeoQueryHelper
             .Where(x => x.Center != null);
 
         var results = await repository.ToListAsync(centersQuery, cancellationToken);
-        
+
         return results.ToDictionary(x => x.Id, x => x.Center);
     }
 
@@ -457,10 +457,10 @@ public static class GeoQueryHelper
         try
         {
             var centroid = geometry.Centroid;
-            
+
             // IMPORTANT: Centroid property doesn't preserve SRID, so we need to set it explicitly
             centroid.SRID = geometry.SRID;
-            
+
             return centroid;
         }
         catch (Exception)
@@ -511,7 +511,7 @@ public static class GeoQueryHelper
 
             var municipality = await municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
 
-            return municipality != null 
+            return municipality != null
                 ? (municipality.Id, municipality.Name)
                 : (null, "Unknown");
         }

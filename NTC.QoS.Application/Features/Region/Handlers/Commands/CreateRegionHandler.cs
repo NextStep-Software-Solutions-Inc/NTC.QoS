@@ -131,7 +131,7 @@ public class CreateRegionRequestHandler : IRequestHandler<CreateRegionRequest, A
             catch (Exception ex)
             {
                 return new ApiResponse<RegionDto>
-                { 
+                {
                     Succeeded = false,
                     Errors = new Dictionary<string, string[]>
                     {

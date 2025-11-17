@@ -20,7 +20,7 @@ public class GetAllCellsHandler(ICellRepository cellRepository,
     private readonly IRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
     private readonly IRepository<Domain.Entities.Region> _regionRepository = regionRepository;
 
-public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
+    public async Task<PaginatedResponse<CellDto>> Handle(GetAllCellsRequest request, CancellationToken cancellationToken)
     {
         var cellQuery = _cellRepository.Query();
 

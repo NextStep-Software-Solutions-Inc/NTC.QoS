@@ -8,7 +8,7 @@ namespace NTC.QoS.Application.Features.File.Handlers.Queries;
 public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<GetAllFilesRequest, PaginatedResponse<FileDto>>
 {
     private readonly IFileRepository _repository = repository;
-    
+
     public async Task<PaginatedResponse<FileDto>> Handle(GetAllFilesRequest request, CancellationToken cancellationToken)
     {
         var filesQuery = _repository.QueryAsNoTracking();

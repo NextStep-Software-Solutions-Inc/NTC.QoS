@@ -39,9 +39,9 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
             {
                 var written = await WriteSingleBatchAsync(batch, options, cancellationToken);
                 totalWritten += written;
-                
+
                 options.ProgressCallback?.Invoke(totalWritten);
-                
+
                 batch.Clear();
             }
         }
@@ -54,7 +54,7 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
             options.ProgressCallback?.Invoke(totalWritten);
         }
 
-        _logger.LogInformation("Completed writing {Count} {EntityType} entities", 
+        _logger.LogInformation("Completed writing {Count} {EntityType} entities",
             totalWritten, typeof(TEntity).Name);
 
         return totalWritten;
@@ -73,7 +73,7 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
             // Set command timeout specifically for seeding operations to handle large geometry data
             var originalTimeout = _dbContext.Database.GetCommandTimeout();
             _dbContext.Database.SetCommandTimeout(options.TimeoutSeconds);
-            
+
             try
             {
                 var bulkConfig = new BulkConfig
@@ -87,7 +87,7 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
 
                 await _dbContext.BulkInsertAsync(batch, bulkConfig, cancellationToken: cancellationToken);
 
-                _logger.LogDebug("Successfully wrote batch of {Count} {EntityType} entities", 
+                _logger.LogDebug("Successfully wrote batch of {Count} {EntityType} entities",
                     batch.Count, typeof(TEntity).Name);
 
                 return batch.Count;
@@ -100,7 +100,7 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to write batch of {Count} {EntityType} entities", 
+            _logger.LogError(ex, "Failed to write batch of {Count} {EntityType} entities",
                 batch.Count, typeof(TEntity).Name);
             throw;
         }

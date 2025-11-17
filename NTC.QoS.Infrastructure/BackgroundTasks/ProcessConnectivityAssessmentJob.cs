@@ -87,8 +87,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             _logger.LogInformation("Starting connectivity assessment job {JobId} for {LocationCount} {LocationType}s. " +
                 "Hierarchical: {Hierarchical}, Enabled: {Enabled}, Depth: {Depth}, Force: {Force}, MaxHierarchical: {MaxHierarchical}, User: {UserId}",
-                jobId, jobRequest.LocationIds.Count, jobRequest.LocationType, 
-                jobRequest.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing, 
+                jobId, jobRequest.LocationIds.Count, jobRequest.LocationType,
+                jobRequest.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing,
                 jobRequest.HierarchicalDepth, jobRequest.ForceRecalculate, jobRequest.MaxHierarchicalLocations, _currentUserId);
 
             // Cache the job request for later use in hierarchical processing
@@ -111,20 +111,20 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     LocationTypeEnum.Municipality => 30,
                     _ => 0
                 };
-                
+
                 var estimatedHierarchicalTotal = jobRequest.LocationIds.Count * estimatedChildrenPerLocation;
                 var cappedHierarchicalTotal = Math.Min(estimatedHierarchicalTotal, jobRequest.MaxHierarchicalLocations);
                 totalLocations += cappedHierarchicalTotal;
             }
 
             // Update job status to Processing with startTime and total count
-            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing, 
-                "Starting assessment generation", 
-                startTime: startTime, processedCount: 0, estimatedTotalCount: totalLocations, 
+            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
+                "Starting assessment generation",
+                startTime: startTime, processedCount: 0, estimatedTotalCount: totalLocations,
                 cancellationToken: cancellationToken);
 
             var results = new List<LocationConnectivityDto>();
-            
+
             // Process primary locations
             var primaryResults = await ProcessLocationsSequentially(
                 jobRequest.LocationIds.Select(id => (id, jobRequest.LocationType, "Primary")).ToList(),
@@ -134,26 +134,26 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 jobRequest.StartDate,
                 jobRequest.EndDate,
                 cancellationToken);
-            
+
             results.AddRange(primaryResults);
 
             // Update progress after primary locations
             var progressMessage = jobRequest.GenerateHierarchicalAssessments && jobRequest.EnableHierarchicalProcessing
                 ? $"Completed {results.Count} primary assessments. Starting hierarchical processing..."
                 : $"Completed {results.Count} primary assessments. Hierarchical processing disabled.";
-            
-            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing, 
-                progressMessage, processedCount: results.Count, estimatedTotalCount: totalLocations, 
+
+            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
+                progressMessage, processedCount: results.Count, estimatedTotalCount: totalLocations,
                 cancellationToken: cancellationToken);
 
             // Process hierarchical assessments ONLY if both flags are enabled
             if (jobRequest.GenerateHierarchicalAssessments && jobRequest.EnableHierarchicalProcessing)
             {
                 _logger.LogInformation("Job {JobId}: Hierarchical processing is enabled. Processing child locations...", jobId);
-                
+
                 var hierarchicalResults = await ProcessHierarchicalAssessments(
                     jobRequest.LocationIds,
-                    jobRequest.LocationType, 
+                    jobRequest.LocationType,
                     jobRequest.HierarchicalDepth,
                     jobRequest.ForceRecalculate,
                     jobId,
@@ -161,7 +161,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     jobRequest.StartDate,
                     jobRequest.EndDate,
                     cancellationToken);
-                
+
                 results.AddRange(hierarchicalResults);
             }
             else if (jobRequest.GenerateHierarchicalAssessments && !jobRequest.EnableHierarchicalProcessing)
@@ -180,12 +180,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var endTime = DateTime.UtcNow;
             var totalTime = endTime - startTime;
             var successMessage = $"Successfully generated {results.Count} connectivity assessments in {totalTime:mm\\:ss}";
-            
+
             // Update job status to Completed with all tracking info
-            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Completed, successMessage, 
-                endTime: endTime, processedCount: results.Count, estimatedTotalCount: totalLocations, 
+            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Completed, successMessage,
+                endTime: endTime, processedCount: results.Count, estimatedTotalCount: totalLocations,
                 cancellationToken: cancellationToken);
-            
+
             _logger.LogInformation("Job {JobId} completed successfully. {Message}", jobId, successMessage);
         }
         catch (Exception ex)
@@ -193,13 +193,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var endTime = DateTime.UtcNow;
             var errorMessage = $"Error in job {jobId}: {ex.Message}";
             _logger.LogError(ex, "Connectivity assessment job {JobId} failed", jobId);
-            
+
             // Clean up cached job request on error
             var jobRequestCacheKey = $"job_request_" + jobId;
             _memoryCache.Remove(jobRequestCacheKey);
-            
+
             // Update job status to Failed with endTime
-            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Failed, errorMessage, 
+            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Failed, errorMessage,
                 endTime: endTime, cancellationToken: cancellationToken);
             throw; // Re-throw for Hangfire retry logic
         }
@@ -260,7 +260,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Job {JobId}: Error processing batch {BatchNumber}/{TotalBatches}. Continuing with next batch.", 
+                _logger.LogWarning(ex, "Job {JobId}: Error processing batch {BatchNumber}/{TotalBatches}. Continuing with next batch.",
                     jobId, batchIndex + 1, totalBatches);
                 continue; // Continue with next batch
             }
@@ -269,7 +269,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         var totalElapsed = DateTime.UtcNow - startTime;
         _logger.LogInformation("Job {JobId}: Completed processing {LocationCount} {Context}. " +
             "Generated {ResultCount} assessments in {ElapsedTime:mm\\:ss}. Rate: {Rate:F1}/sec",
-            jobId, locations.Count, processingContext, results.Count, totalElapsed, 
+            jobId, locations.Count, processingContext, results.Count, totalElapsed,
             totalElapsed.TotalSeconds > 0 ? results.Count / totalElapsed.TotalSeconds : 0);
 
         return results;
@@ -300,7 +300,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         try
         {
             var existing = await _connectivityRepository.GetByLocationIdsAsync(locationIds, locationType, cancellationToken);
-            
+
             foreach (var assessment in existing)
             {
                 existingAssessments[(assessment.LocationId, assessment.LocationType)] = assessment;
@@ -328,14 +328,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         CancellationToken cancellationToken)
     {
         var results = new List<LocationConnectivityDto?>();
-        
+
         foreach (var location in batchLocations)
         {
             try
             {
                 var result = await ProcessSingleLocation(
-                    location.Id, 
-                    location.Type, 
+                    location.Id,
+                    location.Type,
                     location.Name,
                     forceRecalculate,
                     existingAssessments,
@@ -346,7 +346,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to generate assessment for {LocationType} {LocationId} ({LocationName})", 
+                _logger.LogWarning(ex, "Failed to generate assessment for {LocationType} {LocationId} ({LocationName})",
                     location.Type, location.Id, location.Name);
                 results.Add(null);
             }
@@ -359,8 +359,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Process a single location assessment - NOW SAVES PROVIDER BREAKDOWN
     /// </summary>
     private async Task<LocationConnectivityDto?> ProcessSingleLocation(
-        Guid locationId, 
-        LocationTypeEnum locationType, 
+        Guid locationId,
+        LocationTypeEnum locationType,
         string locationName,
         bool forceRecalculate,
         Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment> existingAssessments,
@@ -371,106 +371,106 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         try
         {
             ConnectivityAssessment? existing = null;
-          
+
             // First check the pre-loaded cache
-        if (existingAssessments.TryGetValue((locationId, locationType), out existing))
-        {
-            // If not forcing recalculation and assessment is recent, use it
-            if (!forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
+            if (existingAssessments.TryGetValue((locationId, locationType), out existing))
             {
-                _logger.LogDebug("Using existing recent assessment for {LocationType} {LocationId}", locationType, locationId);
+                // If not forcing recalculation and assessment is recent, use it
+                if (!forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
+                {
+                    _logger.LogDebug("Using existing recent assessment for {LocationType} {LocationId}", locationType, locationId);
+                    return CreateLocationConnectivityDto(existing, locationName);
+                }
+            }
+            else
+            {
+                // If not in cache, check database directly to avoid duplicate key errors
+                existing = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
+
+                // If found and not forcing recalculation and is recent, use it
+                if (existing != null && !forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
+                {
+                    _logger.LogDebug("Using existing recent assessment (from DB) for {LocationType} {LocationId}", locationType, locationId);
+                    return CreateLocationConnectivityDto(existing, locationName);
+                }
+            }
+
+            // Generate new assessment
+            _logger.LogDebug("Generating new assessment for {LocationType} {LocationId} (existing: {HasExisting}, force: {ForceRecalculate})",
+               locationType, locationId, existing != null, forceRecalculate);
+
+            var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
+
+            // Get location details to retrieve boundary for infrastructure calculation
+            var (_, boundary, center, areaKm2, _, _) = await GetLocationDetailsAsync(locationId, locationType, cancellationToken);
+
+            // Calculate infrastructure stats to get provider breakdown
+            var infrastructureStats = await CalculateInfrastructureStatsAsync(
+                boundary,
+                center ?? new Point(0, 0),
+                areaKm2,
+                locationId,
+                locationType,
+                forceRecalculate,
+                startDate,
+                endDate,
+                cancellationToken);
+
+            if (existing != null)
+            {
+                // Update existing assessment
+                UpdateExistingAssessment(existing, newAssessmentData);
+                _connectivityRepository.Update(existing);
+
+                // Update provider breakdown - delete old records and insert new ones
+                await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existing.Id, cancellationToken);
+
+                // Batch insert all providers at once for better performance
+                var providers = infrastructureStats.ProviderBreakdown
+                    .Select(provider => new ConnectivityAssessmentProvider
+                    {
+                        ConnectivityAssessmentId = existing.Id,
+                        ProviderName = provider.ProviderName,
+                        CellTowerCount = provider.CellTowerCount,
+                        FiberNAPCount = provider.FiberNAPCount,
+                        WiFiHotspotCount = provider.WiFiHotspotCount,
+                        WirelessValidationCount = provider.WirelessValidationCount,
+                        TotalAssetCount = provider.TotalAssetCount,
+                        AssetPercentage = provider.AssetPercentage
+                    })
+                    .ToList();
+
+                await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
+
+                await _connectivityRepository.SaveChangesAsync(cancellationToken);
                 return CreateLocationConnectivityDto(existing, locationName);
             }
-        }
-        else
-        {
-            // If not in cache, check database directly to avoid duplicate key errors
-            existing = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
-      
-            // If found and not forcing recalculation and is recent, use it
-            if (existing != null && !forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
+            else
             {
-                _logger.LogDebug("Using existing recent assessment (from DB) for {LocationType} {LocationId}", locationType, locationId);
-                return CreateLocationConnectivityDto(existing, locationName);
-            }
-        }
+                // Create new assessment
+                await _connectivityRepository.AddAsync(newAssessmentData, cancellationToken);
 
-        // Generate new assessment
-        _logger.LogDebug("Generating new assessment for {LocationType} {LocationId} (existing: {HasExisting}, force: {ForceRecalculate})", 
-           locationType, locationId, existing != null, forceRecalculate);
-      
-        var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
-            
-        // Get location details to retrieve boundary for infrastructure calculation
-        var (_, boundary, center, areaKm2, _, _) = await GetLocationDetailsAsync(locationId, locationType, cancellationToken);
-            
-        // Calculate infrastructure stats to get provider breakdown
-        var infrastructureStats = await CalculateInfrastructureStatsAsync(
-            boundary, 
-            center ?? new Point(0, 0), 
-            areaKm2, 
-            locationId, 
-            locationType, 
-            forceRecalculate, 
-            startDate, 
-            endDate, 
-            cancellationToken);
-     
-        if (existing != null)
-        {
-            // Update existing assessment
-            UpdateExistingAssessment(existing, newAssessmentData);
-            _connectivityRepository.Update(existing);
-         
-            // Update provider breakdown - delete old records and insert new ones
-            await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existing.Id, cancellationToken);
-     
-            // Batch insert all providers at once for better performance
-            var providers = infrastructureStats.ProviderBreakdown
-                .Select(provider => new ConnectivityAssessmentProvider
-                {
-                    ConnectivityAssessmentId = existing.Id,
-                    ProviderName = provider.ProviderName,
-                    CellTowerCount = provider.CellTowerCount,
-                    FiberNAPCount = provider.FiberNAPCount,
-                    WiFiHotspotCount = provider.WiFiHotspotCount,
-                    WirelessValidationCount = provider.WirelessValidationCount,
-                    TotalAssetCount = provider.TotalAssetCount,
-                    AssetPercentage = provider.AssetPercentage
-                })
-                .ToList();
-       
-            await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
- 
-            await _connectivityRepository.SaveChangesAsync(cancellationToken);
-            return CreateLocationConnectivityDto(existing, locationName);
-        }
-        else
-        {
-            // Create new assessment
-            await _connectivityRepository.AddAsync(newAssessmentData, cancellationToken);
-        
-            // Save provider breakdown for new assessment - batch insert for better performance
-            var providers = infrastructureStats.ProviderBreakdown
-                .Select(provider => new ConnectivityAssessmentProvider
-                {
-                    ConnectivityAssessmentId = newAssessmentData.Id,
-                    ProviderName = provider.ProviderName,
-                    CellTowerCount = provider.CellTowerCount,
-                    FiberNAPCount = provider.FiberNAPCount,
-                    WiFiHotspotCount = provider.WiFiHotspotCount,
-                    WirelessValidationCount = provider.WirelessValidationCount,
-                    TotalAssetCount = provider.TotalAssetCount,
-                    AssetPercentage = provider.AssetPercentage
-                })
-                .ToList();
+                // Save provider breakdown for new assessment - batch insert for better performance
+                var providers = infrastructureStats.ProviderBreakdown
+                    .Select(provider => new ConnectivityAssessmentProvider
+                    {
+                        ConnectivityAssessmentId = newAssessmentData.Id,
+                        ProviderName = provider.ProviderName,
+                        CellTowerCount = provider.CellTowerCount,
+                        FiberNAPCount = provider.FiberNAPCount,
+                        WiFiHotspotCount = provider.WiFiHotspotCount,
+                        WirelessValidationCount = provider.WirelessValidationCount,
+                        TotalAssetCount = provider.TotalAssetCount,
+                        AssetPercentage = provider.AssetPercentage
+                    })
+                    .ToList();
 
-            await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
- 
-            // Save all changes atomically in a single transaction
-            await _connectivityRepository.SaveChangesAsync(cancellationToken);
-         
-            return CreateLocationConnectivityDto(newAssessmentData, locationName);
+                await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
+
+                // Save all changes atomically in a single transaction
+                await _connectivityRepository.SaveChangesAsync(cancellationToken);
+
+                return CreateLocationConnectivityDto(newAssessmentData, locationName);
             }
         }
         catch (Exception ex)
@@ -485,7 +485,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Updated to align with GenerateConnectivityAssessmentHandler implementation
     /// </summary>
     private async Task<ConnectivityAssessment> GenerateNewAssessment(
-        Guid locationId, 
+        Guid locationId,
         LocationTypeEnum locationType,
         bool forceRecalculate,
         DateTime? startDate,
@@ -519,10 +519,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             // Calculate infrastructure statistics within the boundary (with caching)
             var infrastructureStats = await CalculateInfrastructureStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
-            
+
             // Calculate speed test statistics (with caching)
             var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
-            
+
             // Get technology breakdown with caching
             var techCacheKey = $"tech:{locationType}:{locationId}";
             TechnologyBreakdownDto technologyBreakdown;
@@ -539,14 +539,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
                 _memoryCache.Set(techCacheKey, technologyBreakdown, TimeSpan.FromHours(12));
             }
-            
+
             // Calculate CMTS scores based on infrastructure, speed data, and population
             var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
-            
+
             // Determine connectivity status and total score
-            var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess + 
+            var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess +
                             cmtsScores.TechnologyType + cmtsScores.QualityOfService + cmtsScores.CoverageAvailability;
-            
+
             var connectivityStatus = DetermineConnectivityStatus(totalScore);
             var hasReliableConnectivity = DetermineReliableConnectivity(infrastructureStats, speedStats);
 
@@ -775,7 +775,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Use accurate boundary with envelope optimization
             var query = _speedtestRepository.QueryAsNoTracking();
             query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
-            
+
             // Apply date range filter if provided
             if (startDate.HasValue)
             {
@@ -808,7 +808,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             var query = _speedtestRepository.QueryAsNoTracking()
                 .Where(s => s.Location.Distance(center) <= searchRadiusMeters);
-            
+
             // Apply date range filter if provided
             if (startDate.HasValue)
             {
@@ -859,7 +859,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         var uploadSpeeds = speedtests
             .Select(s => s.UploadSpeed)
             .OrderBy(s => s).ToList();
-        
+
         // Calculate signal quality metrics from RSSI data
         var rssiValues = speedtests
             .Where(s => s.RSSI.HasValue)
@@ -870,7 +870,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             .Where(s => !string.IsNullOrEmpty(s.SignalQuality))
             .Select(s => s.SignalQuality!)
             .ToList();
-        
+
         // Determine average signal strength using SignalStrengthHelper
         var averageSignalStrength = SignalStrengthHelper.CalculateAverageSignalStrength(rssiValues, signalQualities);
 
@@ -901,7 +901,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 // Use boundary-based queries for speedtest data
                 var speedtestQuery = _speedtestRepository.QueryAsNoTracking();
                 speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, speedtestQuery);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -912,11 +912,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     speedtestQuery = speedtestQuery.Where(s => s.CreatedAt <= endOfDay);
                 }
-                
+
                 var speedtestResults = await _speedtestRepository.ToListAsync(
                     speedtestQuery
                         .Where(s => s.Generation != null && s.Technology != null)
-                        .Select(s => new {
+                        .Select(s => new
+                        {
                             GenerationName = s.Generation!.Name,
                             TechnologyStandard = s.Technology!.Standard,
                             s.Id
@@ -933,7 +934,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         .SelectMany(cell => cell.CellSectors!)
                         .SelectMany(sector => sector.Cellulars!)
                         .Where(c => c.Technology != null && c.Technology.Generation != null)
-                        .Select(c => new {
+                        .Select(c => new
+                        {
                             GenerationName = c.Technology!.Generation!.Name,
                             TechnologyStandard = c.Technology!.Standard,
                             c.Id
@@ -948,7 +950,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                                && boundary.Intersects(wv.Barangay.Center)
                                && wv.Technology != null
                                && wv.Technology.Generation != null);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -959,9 +961,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
                 }
-                
+
                 var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
-                    wirelessValidationQuery.Select(wv => new {
+                    wirelessValidationQuery.Select(wv => new
+                    {
                         GenerationName = wv.Technology!.Generation!.Name,
                         TechnologyStandard = wv.Technology!.Standard,
                         wv.Id
@@ -978,7 +981,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 var speedtestQuery = _speedtestRepository.QueryAsNoTracking()
                     .Where(s => s.Location.Distance(center) <= searchRadiusMeters
                               && s.Generation != null && s.Technology != null);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -989,9 +992,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     speedtestQuery = speedtestQuery.Where(s => s.CreatedAt <= endOfDay);
                 }
-                
+
                 var speedtestResults = await _speedtestRepository.ToListAsync(
-                    speedtestQuery.Select(s => new {
+                    speedtestQuery.Select(s => new
+                    {
                         GenerationName = s.Generation!.Name,
                         TechnologyStandard = s.Technology!.Standard,
                         s.Id
@@ -1002,7 +1006,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 var cellularResults = await _cellularRepository.ToListAsync(
                     _cellularRepository.QueryAsNoTracking()
                         .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters)
-                        .Select(c => new {
+                        .Select(c => new
+                        {
                             GenerationName = c.Technology!.Generation!.Name,
                             TechnologyStandard = c.Technology!.Standard,
                             c.Id
@@ -1017,7 +1022,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                                && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
                                && wv.Technology != null
                                && wv.Technology.Generation != null);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -1028,9 +1033,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
                 }
-                
+
                 var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
-                    wirelessValidationQuery.Select(wv => new {
+                    wirelessValidationQuery.Select(wv => new
+                    {
                         GenerationName = wv.Technology!.Generation!.Name,
                         TechnologyStandard = wv.Technology!.Standard,
                         wv.Id
@@ -1060,7 +1066,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 .Where(g => !string.IsNullOrEmpty(g))
                 .Distinct()
                 .ToList();
-                
+
             var dominantGeneration = generationCounts.Any()
                 ? generationCounts.OrderByDescending(kvp => kvp.Value).First().Key
                 : null;
@@ -1117,9 +1123,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private static decimal CalculateMedian(List<decimal> values)
     {
         if (values.Count == 0) return 0;
-        
+
         int mid = values.Count / 2;
-        return values.Count % 2 == 0 
+        return values.Count % 2 == 0
             ? Math.Round((values[mid - 1] + values[mid]) / 2, 2)
             : Math.Round(values[mid], 2);
     }
@@ -1608,12 +1614,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Updates job status in the database with tracking information
     /// </summary>
     private Task UpdateJobStatus(
-        int jobId, 
-        ConnectivityAssessmentJobStatusEnum status, 
-        string message, 
-        DateTime? startTime = null, 
-        DateTime? endTime = null, 
-        int? processedCount = null, 
+        int jobId,
+        ConnectivityAssessmentJobStatusEnum status,
+        string message,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        int? processedCount = null,
         int? estimatedTotalCount = null,
         CancellationToken cancellationToken = default)
     {
@@ -1675,11 +1681,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Reports progress during processing
     /// </summary>
     private async Task ReportProgress(
-        int jobId, 
-        int processedCount, 
-        int totalCount, 
-        string context, 
-        DateTime startTime, 
+        int jobId,
+        int processedCount,
+        int totalCount,
+        string context,
+        DateTime startTime,
         CancellationToken cancellationToken)
     {
         try
@@ -1687,8 +1693,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var elapsed = DateTime.UtcNow - startTime;
             var percentage = Math.Round((double)processedCount / totalCount * 100, 1);
             var rate = processedCount > 0 && elapsed.TotalSeconds > 0 ? processedCount / elapsed.TotalSeconds : 0;
-            
-            var estimatedRemaining = processedCount > 0 && rate > 0 
+
+            var estimatedRemaining = processedCount > 0 && rate > 0
                 ? TimeSpan.FromSeconds((totalCount - processedCount) / rate)
                 : TimeSpan.Zero;
 
@@ -1700,8 +1706,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Report progress every 10 items as configured
             if (processedCount % PROGRESS_REPORT_INTERVAL == 0 || processedCount == totalCount)
             {
-                await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing, 
-                    progressMessage, processedCount: processedCount, estimatedTotalCount: totalCount, 
+                await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
+                    progressMessage, processedCount: processedCount, estimatedTotalCount: totalCount,
                     cancellationToken: cancellationToken);
             }
         }
@@ -1788,12 +1794,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             existing.AssessedBy = newData.AssessedBy;
             existing.Notes = newData.Notes;
 
-            _logger.LogDebug("Updated existing assessment for {LocationType} {LocationId}", 
+            _logger.LogDebug("Updated existing assessment for {LocationType} {LocationId}",
                 existing.LocationType, existing.LocationId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating existing assessment for {LocationType} {LocationId}", 
+            _logger.LogError(ex, "Error updating existing assessment for {LocationType} {LocationId}",
                 existing.LocationType, existing.LocationId);
             throw;
         }
@@ -1849,10 +1855,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     HasReliableConnectivity = assessment.HasReliableConnectivity
                 },
                 AreaSizeKm2 = assessment.AreaSizeKm2,
-                CenterPoint = assessment.Location != null ? new PointDto 
-                { 
-                    Latitude = assessment.Location.Y, 
-                    Longitude = assessment.Location.X 
+                CenterPoint = assessment.Location != null ? new PointDto
+                {
+                    Latitude = assessment.Location.Y,
+                    Longitude = assessment.Location.X
                 } : null,
                 Population = assessment.Population,
                 HouseholdCount = assessment.HouseholdCount,
@@ -1863,7 +1869,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating LocationConnectivityDto for {LocationType} {LocationId}", 
+            _logger.LogError(ex, "Error creating LocationConnectivityDto for {LocationType} {LocationId}",
                 assessment.LocationType, assessment.LocationId);
             throw;
         }
@@ -1940,7 +1946,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             {
                 _logger.LogWarning(ex, "Error getting max hierarchical locations for job {JobId}, using default", jobId);
             }
-            
+
             if (childLocations.Count > maxLocations)
             {
                 _logger.LogWarning("Job {JobId}: Hierarchical processing limited to {MaxCount} locations (requested {RequestedCount} locations)",
@@ -1975,8 +1981,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Get child locations based on parent location type and hierarchical depth
     /// </summary>
     private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsAsync(
-        List<Guid> locationIds, 
-        LocationTypeEnum parentType, 
+        List<Guid> locationIds,
+        LocationTypeEnum parentType,
         int hierarchicalDepth,
         CancellationToken cancellationToken)
     {
@@ -2008,8 +2014,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Get child locations for a specific parent location based on type and depth
     /// </summary>
     private async Task<List<(Guid Id, LocationTypeEnum Type, string Name)>> GetChildLocationsByTypeAsync(
-        Guid locationId, 
-        LocationTypeEnum parentType, 
+        Guid locationId,
+        LocationTypeEnum parentType,
         int hierarchicalDepth,
         CancellationToken cancellationToken)
     {
@@ -2023,7 +2029,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     var provinces = await _provinceRepository.ToListAsync(
                         _provinceRepository.QueryAsNoTracking(p => p.RegionId == locationId)
                             .Select(p => new { p.Id, p.Name }), cancellationToken);
-                    
+
                     results.AddRange(provinces.Select(p => (p.Id, LocationTypeEnum.Provincial, p.Name)));
 
                     if (hierarchicalDepth >= 2)
@@ -2033,7 +2039,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                             var municipalities = await _municipalityRepository.ToListAsync(
                                 _municipalityRepository.QueryAsNoTracking(m => m.ProvinceId == province.Id)
                                     .Select(m => new { m.Id, m.Name }), cancellationToken);
-                            
+
                             results.AddRange(municipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
                         }
                     }
@@ -2041,14 +2047,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     if (hierarchicalDepth >= 3)
                     {
                         var municipalityIds = results.Where(r => r.Type == LocationTypeEnum.Municipality).Select(r => r.Id).Take(50).ToList();
-                        
+
                         foreach (var municipalityId in municipalityIds)
                         {
                             var barangays = await _barangayRepository.ToListAsync(
                                 _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
                                     .Take(100)
                                     .Select(b => new { b.Id, b.Name }), cancellationToken);
-                            
+
                             results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
                         }
                     }
@@ -2058,20 +2064,20 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     var provinceMunicipalities = await _municipalityRepository.ToListAsync(
                         _municipalityRepository.QueryAsNoTracking(m => m.ProvinceId == locationId)
                             .Select(m => new { m.Id, m.Name }), cancellationToken);
-                    
+
                     results.AddRange(provinceMunicipalities.Select(m => (m.Id, LocationTypeEnum.Municipality, m.Name)));
 
                     if (hierarchicalDepth >= 2)
                     {
                         var municipalityIds = provinceMunicipalities.Select(m => m.Id).Take(50).ToList();
-                        
+
                         foreach (var municipalityId in municipalityIds)
                         {
                             var barangays = await _barangayRepository.ToListAsync(
                                 _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
                                     .Take(100)
                                     .Select(b => new { b.Id, b.Name }), cancellationToken);
-                            
+
                             results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
                         }
                     }
@@ -2082,7 +2088,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == locationId)
                             .Take(200)
                             .Select(b => new { b.Id, b.Name }), cancellationToken);
-                    
+
                     results.AddRange(municipalityBarangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
                     break;
 
@@ -2196,7 +2202,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                            && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
                            && wv.ServiceProvider != null
                            && wv.ServiceProvider.Provider != null);
-            
+
             // Apply date range filter if provided
             if (startDate.HasValue)
             {
@@ -2207,7 +2213,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                 wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
             }
-            
+
             wirelessValidations = await _wirelessValidationRepository.ToListAsync(
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
@@ -2247,7 +2253,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             if (!providerAssets.ContainsKey(provider))
                 providerAssets[provider] = (0, 0, 0, 0);
-   
+
             var current = providerAssets[provider];
             providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi, current.WirelessValidations);
         }
@@ -2257,7 +2263,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             if (!providerAssets.ContainsKey(provider))
                 providerAssets[provider] = (0, 0, 0, 0);
-            
+
             var current = providerAssets[provider];
             providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi, current.WirelessValidations);
         }
@@ -2267,7 +2273,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             if (!providerAssets.ContainsKey(provider))
                 providerAssets[provider] = (0, 0, 0, 0);
-    
+
             var current = providerAssets[provider];
             providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1, current.WirelessValidations);
         }
@@ -2277,7 +2283,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             if (!providerAssets.ContainsKey(provider))
                 providerAssets[provider] = (0, 0, 0, 0);
-            
+
             var current = providerAssets[provider];
             providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi, current.WirelessValidations + 1);
         }
@@ -2293,7 +2299,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 FiberNAPCount = kvp.Value.NAPs,
                 WiFiHotspotCount = kvp.Value.WiFi,
                 WirelessValidationCount = kvp.Value.WirelessValidations,
-                AssetPercentage = totalAssets > 0 
+                AssetPercentage = totalAssets > 0
                     ? Math.Round(((double)(kvp.Value.Cells + kvp.Value.NAPs + kvp.Value.WiFi + kvp.Value.WirelessValidations) / totalAssets) * 100, 2)
                     : 0
             })

@@ -13,8 +13,8 @@ public class GetTopRegionsByCellCountHandler(IRegionRepository regionRepository)
     public async Task<ApiResponse<List<GeoEntityCellCountDto>>> Handle(GetTopRegionsByCellCountRequest request, CancellationToken cancellationToken)
     {
         var result = await _regionRepository.GetTopRegionsByCellCountAsync(
-            request.Limit, 
-            request.StartDate, 
+            request.Limit,
+            request.StartDate,
             request.EndDate,
             cancellationToken);
 

@@ -41,7 +41,7 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
     [HttpGet("/v2/cellular-coverages/viewport/public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
     public async Task<ActionResult<PaginatedResponse<CellularCoverageViewportDto>>> GetAllPublicCellularCoveragesViewport([FromQuery] ViewportQueryParams query)
     {
@@ -189,7 +189,7 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
 
         [JsonPropertyName("latitude")]
         public double Latitude { get; set; } = 0;
-        
+
         [JsonPropertyName("distance")]
         public double Distance { get; set; } = 1500000000;
     }

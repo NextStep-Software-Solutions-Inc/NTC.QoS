@@ -42,7 +42,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         using var package = new ExcelPackage();
         var fileType = Enum.Parse<FileTypeEnum>(request.Type);
-        
+
         // Use a switch expression to handle different file types
         switch (fileType)
         {

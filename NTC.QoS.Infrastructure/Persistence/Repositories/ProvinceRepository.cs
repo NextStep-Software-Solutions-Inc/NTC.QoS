@@ -65,7 +65,7 @@ internal sealed class ProvinceRepository(ApplicationDbContext context) : Reposit
 
         // CRITICAL FIX: Materialize intermediate result to calculate CellCount only ONCE
         var provinceCellCounts = await provinceQuery
-            .Select(p => new 
+            .Select(p => new
             {
                 p.Id,
                 p.Name,

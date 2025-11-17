@@ -11,7 +11,7 @@ public class GetCellSitesByProviderHandler(ICellRepository cellRepository) : IRe
     private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<CellSitesByProviderResponseDto>> Handle(
-        GetCellSitesByProviderRequest request, 
+        GetCellSitesByProviderRequest request,
         CancellationToken cancellationToken)
     {
         var result = await _cellRepository.GetCellSitesByProviderAsync(

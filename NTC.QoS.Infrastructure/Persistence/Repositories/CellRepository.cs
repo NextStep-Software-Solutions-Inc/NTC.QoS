@@ -27,7 +27,7 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
                 .Where(sp => sp.Id == serviceProviderId.Value && !sp.IsDeleted)
                 .Select(sp => new { Exists = true, sp.Service.Type })
                 .FirstOrDefaultAsync(cancellationToken) ?? throw new ArgumentException($"Service Provider with ID {serviceProviderId} not found");
-            
+
             if (providerInfo.Type != ServiceTypeEnum.Wireless)
             {
                 throw new ArgumentException($"Service Provider with ID {serviceProviderId} is not a wireless service provider. Only wireless providers are supported for cell site statistics.");
@@ -65,7 +65,7 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
         // Apply spatial filter using subquery to leverage spatial indexes
         if (regionId.HasValue)
         {
-            cellQuery = cellQuery.Where(c => 
+            cellQuery = cellQuery.Where(c =>
                 _context.Regions
                     .Where(r => r.Id == regionId.Value && !r.IsDeleted)
                     .Any(r => r.Boundaries != null && r.Boundaries.Intersects(c.Location))
@@ -74,7 +74,8 @@ internal sealed class CellRepository(ApplicationDbContext context) : Repository<
 
         // Group by provider and get counts
         var providerCellCounts = await cellQuery
-            .GroupBy(c => new {
+            .GroupBy(c => new
+            {
                 c.ServiceProviderId,
                 ProviderName = c.ServiceProvider.Provider.Name,
                 ProviderColor = c.ServiceProvider.Provider.Color

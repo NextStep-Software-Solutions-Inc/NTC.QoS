@@ -20,7 +20,7 @@ public static class ProcessingJobHelper
     {
         // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
         var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
-        
+
         if (segments.Length < 2)
         {
             throw new ArgumentException($"Invalid blob URL format: {blobUri}");
@@ -57,10 +57,10 @@ public static class ProcessingJobHelper
             {
                 // Extract container and blob name from the blob URL
                 var (containerName, blobName) = ExtractBlobInfo(blobUri);
-                
-                logger.LogInformation("Checking if {FileType} file exists in blob storage: container={ContainerName}, blob={BlobName}", 
+
+                logger.LogInformation("Checking if {FileType} file exists in blob storage: container={ContainerName}, blob={BlobName}",
                     fileType, containerName, blobName);
-                
+
                 // Check if the blob exists before attempting to download
                 var exists = await blobStorageService.ExistsAsync(containerName, blobName, cancellationToken);
                 if (!exists)
@@ -68,10 +68,10 @@ public static class ProcessingJobHelper
                     throw new FileNotFoundException($"{fileType} file not found in blob storage: container={containerName}, blob={blobName}. " +
                         "The file may have been deleted or never uploaded successfully.");
                 }
-                
-                logger.LogInformation("Downloading {FileType} file from blob storage: container={ContainerName}, blob={BlobName}", 
+
+                logger.LogInformation("Downloading {FileType} file from blob storage: container={ContainerName}, blob={BlobName}",
                     fileType, containerName, blobName);
-                
+
                 // Download to MemoryStream to support seeking operations
                 using var blobStream = await blobStorageService.DownloadAsync(containerName, blobName, cancellationToken);
                 var memoryStream = new MemoryStream();
@@ -83,12 +83,12 @@ public static class ProcessingJobHelper
             {
                 // Fallback for legacy local file paths
                 logger.LogWarning("Using legacy file path access for {FileType} file: {FilePath}", fileType, filePath);
-                
+
                 if (!System.IO.File.Exists(filePath))
                 {
                     throw new FileNotFoundException($"Legacy {fileType} file not found on disk: {filePath}");
                 }
-                
+
                 return new FileStream(filePath, FileMode.Open, FileAccess.Read);
             }
         }
@@ -146,9 +146,9 @@ public static class ProcessingJobHelper
         file.Status = FileStatusEnum.Failed;
         fileRepository.Update(file);
         await fileRepository.SaveChangesAsync(cancellationToken);
-        
+
         logger.LogError("=== {FileType} PROCESSING TERMINATED ===", fileType.ToString().ToUpper());
-        
+
         if (!string.IsNullOrEmpty(errorMessage))
         {
             logger.LogError("{ErrorMessage}", errorMessage);
@@ -157,7 +157,7 @@ public static class ProcessingJobHelper
         {
             logger.LogError("{FileType} process terminated due to error in runtime.", fileType);
         }
-        
+
         logger.LogError("======================================================");
     }
 
@@ -263,7 +263,7 @@ public static class ProcessingJobHelper
         CancellationToken cancellationToken = default)
     {
         string reason;
-        
+
         if (ex is FileNotFoundException)
         {
             logger.LogError(ex, "{FileType} file not found: {FilePath}. Marking file as failed.", fileType, filePath);

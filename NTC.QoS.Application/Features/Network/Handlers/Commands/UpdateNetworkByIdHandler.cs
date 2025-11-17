@@ -21,8 +21,8 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Id", [$"Network with ID [{request.Id}] does not exist."] 
+                    {
+                        "Id", [$"Network with ID [{request.Id}] does not exist."]
                     }
                 },
                 Message = "Network not found."

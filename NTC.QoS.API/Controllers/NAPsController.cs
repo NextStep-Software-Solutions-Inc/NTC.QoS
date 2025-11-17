@@ -145,8 +145,8 @@ public class NAPsController : ControllerBase
     /// <param name="query">Viewport query parameters including bounding box</param>
     /// <returns>Paginated list of NAPs within the viewport (without IDs)</returns>
     [HttpGet("/v2/NAPs/viewport")]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, 
-        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
     public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllNAPsViewport([FromQuery] ViewportQueryParams query)
     {

@@ -18,14 +18,14 @@ public static class ApplicationStartupExtensions
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>A task representing the startup operation</returns>
     public static async Task InitializeApplicationAsync(
-        this IServiceProvider serviceProvider, 
-        IConfiguration configuration, 
+        this IServiceProvider serviceProvider,
+        IConfiguration configuration,
         IHostEnvironment environment,
         CancellationToken cancellationToken = default)
     {
         // Register global Hangfire filters (idempotent)
         serviceProvider.GetRequiredService<IHangfireFilterRegistrar>().RegisterGlobalFilters();
-        
+
         // Conditional migrations & seeding
         var runMigrations = configuration.GetValue<bool?>("Database:RunMigrationsOnStartup") ?? environment.IsDevelopment();
         if (runMigrations)

@@ -55,7 +55,7 @@ public static class CellPropertyNameParser
         {
             var name when name.StartsWith("Gsm", StringComparison.OrdinalIgnoreCase) => "2G",
             var name when name.StartsWith("Wcdma", StringComparison.OrdinalIgnoreCase) => "3G",
-            var name when name.StartsWith("FddLte", StringComparison.OrdinalIgnoreCase) || 
+            var name when name.StartsWith("FddLte", StringComparison.OrdinalIgnoreCase) ||
                           name.StartsWith("TddLte", StringComparison.OrdinalIgnoreCase) => "4G",
             var name when name.StartsWith("Nr", StringComparison.OrdinalIgnoreCase) => "5G",
             _ => string.Empty

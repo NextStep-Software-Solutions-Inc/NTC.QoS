@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 
-public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRequestHandler<GetAllBarangaysRequest, PaginatedResponse<BarangayDto>>
+public class GetAllBarangaysHandler(IBarangayRepository barangayRepository) : IRequestHandler<GetAllBarangaysRequest, PaginatedResponse<BarangayDto>>
 {
     private readonly IBarangayRepository _barangayRepository = barangayRepository;
 
@@ -35,22 +35,23 @@ public class GetAllBarangaysHandler(IBarangayRepository barangayRepository): IRe
 
         var barangayDtosQuery = allBarangaysQuery
             .OrderBy(b => b.Name)
-            .Select(b => new BarangayDto {
+            .Select(b => new BarangayDto
+            {
                 Id = b.Id,
                 Name = b.Name,
                 Description = b.Description,
-                Municipality = new ()
+                Municipality = new()
                 {
                     Id = b.MunicipalityId,
                     Name = b.Municipality.Name,
                     IsCity = b.Municipality.IsCity,
                     Description = b.Municipality.Description,
-                    Province = new ()
+                    Province = new()
                     {
                         Id = b.Municipality.ProvinceId,
                         Name = b.Municipality.Province.Name,
                         Description = b.Municipality.Province.Description,
-                        Region = new ()
+                        Region = new()
                         {
                             Id = b.Municipality.Province.Region.Id,
                             Name = b.Municipality.Province.Region.Name,

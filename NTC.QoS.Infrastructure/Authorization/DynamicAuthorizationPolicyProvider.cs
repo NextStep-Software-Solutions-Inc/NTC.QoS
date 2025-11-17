@@ -52,7 +52,7 @@ public class DynamicAuthorizationPolicyProvider : IAuthorizationPolicyProvider
         if (policyName.StartsWith("Organization:", StringComparison.OrdinalIgnoreCase))
         {
             var organizationPart = policyName.Substring("Organization:".Length);
-            
+
             if (organizationPart == "SameOrganization")
             {
                 var policy = new AuthorizationPolicyBuilder()
@@ -64,13 +64,13 @@ public class DynamicAuthorizationPolicyProvider : IAuthorizationPolicyProvider
             {
                 // Parse organization name and case sensitivity
                 var caseSensitive = organizationPart.EndsWith(":CaseSensitive", StringComparison.OrdinalIgnoreCase);
-                var organizationName = caseSensitive 
+                var organizationName = caseSensitive
                     ? organizationPart.Substring(0, organizationPart.Length - ":CaseSensitive".Length)
                     : organizationPart;
 
                 var policy = new AuthorizationPolicyBuilder()
                     .AddRequirements(new OrganizationRequirement(
-                        organization: organizationName, 
+                        organization: organizationName,
                         requireSameOrganization: false,
                         caseSensitive: caseSensitive))
                     .Build();
@@ -82,7 +82,7 @@ public class DynamicAuthorizationPolicyProvider : IAuthorizationPolicyProvider
         if (policyName.StartsWith("OrganizationId:", StringComparison.OrdinalIgnoreCase))
         {
             var organizationIdString = policyName.Substring("OrganizationId:".Length);
-            
+
             if (Guid.TryParse(organizationIdString, out var organizationId))
             {
                 var policy = new AuthorizationPolicyBuilder()
@@ -101,7 +101,7 @@ public class DynamicAuthorizationPolicyProvider : IAuthorizationPolicyProvider
                 .Where(id => Guid.TryParse(id, out _))
                 .Select(Guid.Parse)
                 .ToList();
-            
+
             var policy = new AuthorizationPolicyBuilder()
                 .AddRequirements(new RegionRequirement(regionIds))
                 .Build();

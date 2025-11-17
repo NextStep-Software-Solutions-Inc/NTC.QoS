@@ -33,7 +33,7 @@ public class GetCellSectorByIdHandler(ICellSectorRepository cellSectorRepository
         var cellSectorDto = new CellSectorDto
         {
             Id = cellSector.Id,
-            Cell = new ()
+            Cell = new()
             {
                 Id = cellSector.Cell.Id,
                 Name = cellSector.Cell.Name,

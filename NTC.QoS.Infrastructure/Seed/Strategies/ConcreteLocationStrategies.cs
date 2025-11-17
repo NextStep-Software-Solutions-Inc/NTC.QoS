@@ -46,7 +46,7 @@ public class RegionSeedingStrategy : LocationSeedingStrategy<Region>
             .AsNoTracking()
             .Select(r => r.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -91,7 +91,7 @@ public class ProvinceSeedingStrategy : LocationSeedingStrategy<Province>
             .AsNoTracking()
             .Select(p => p.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -136,7 +136,7 @@ public class MunicipalitySeedingStrategy : LocationSeedingStrategy<Municipality>
             .AsNoTracking()
             .Select(m => m.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -181,7 +181,7 @@ public class BarangaySeedingStrategy : LocationSeedingStrategy<Barangay>
             .AsNoTracking()
             .Select(b => b.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 

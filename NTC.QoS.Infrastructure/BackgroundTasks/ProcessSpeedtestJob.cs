@@ -49,7 +49,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        
+
         // Get user context once for all batches
         var userId = _userContextService.GetCurrentUserId() ?? "System";
         var now = DateTime.UtcNow;
@@ -84,7 +84,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 .ToListAsync(token);
 
             var technologyCache = generationCache
-                .SelectMany(g => g.Technologies.Select(t => new {
+                .SelectMany(g => g.Technologies.Select(t => new
+                {
                     t.Standard,
                     TechnologyId = t.Id,
                     GenerationId = g.Id
@@ -120,8 +121,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     .Query(s => providerIds.Contains(s.ServiceProviderId))
                     .OrderBy(s => s.Id)
                     .Skip(skip) // Skip records we already processed
-                    .Take(DuplicateLoadBatchSize) 
-                    .Select(s => new {
+                    .Take(DuplicateLoadBatchSize)
+                    .Select(s => new
+                    {
                         s.ServiceProviderId,
                         s.GenerationId,
                         s.TechnologyId,

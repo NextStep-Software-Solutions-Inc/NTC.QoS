@@ -2,6 +2,6 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface ITechnologyBandRepository: IRepository<TechnologyBand>
+public interface ITechnologyBandRepository : IRepository<TechnologyBand>
 {
 }

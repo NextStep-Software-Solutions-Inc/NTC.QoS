@@ -23,7 +23,7 @@ public class InviteUserHandler(IUserRepository userRepository,
                                                            && u.RoleId == request.User.RoleId
                                                            && u.OrganizationId == request.User.OrganizationId);
         var existingUser = await _userRepository.FirstOrDefaultAsync(existingUserQuery, cancellationToken);
-        if (existingUser is not null) 
+        if (existingUser is not null)
         {
             return new ApiResponse<UserDto>
             {
@@ -31,8 +31,8 @@ public class InviteUserHandler(IUserRepository userRepository,
                 Message = "Duplicate user found.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Duplicate", ["User with the same Email, Role, and Organization already exists."] 
+                    {
+                        "Duplicate", ["User with the same Email, Role, and Organization already exists."]
                     }
                 }
             };
@@ -40,7 +40,7 @@ public class InviteUserHandler(IUserRepository userRepository,
 
         // Optional: Add global email uniqueness check if business rules require it
         // Uncomment the following lines if email should be globally unique across all roles/organizations
-        
+
         // var emailExistsQuery = _userRepository.Query(u => u.Email == request.User.Email);
         // var emailExists = await _userRepository.FirstOrDefaultAsync(emailExistsQuery, cancellationToken);
         // if (emailExists is not null)
@@ -57,7 +57,7 @@ public class InviteUserHandler(IUserRepository userRepository,
         //         }
         //     };
         // }
-        
+
         var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId);
         var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
 
@@ -69,8 +69,8 @@ public class InviteUserHandler(IUserRepository userRepository,
                 Message = "Role not found.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "NullRole", ["Role with the specified Id does not exist"] 
+                    {
+                        "NullRole", ["Role with the specified Id does not exist"]
                     }
                 }
             };
@@ -87,7 +87,7 @@ public class InviteUserHandler(IUserRepository userRepository,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullOrganization", ["Organization with the specified Id does not exist."] 
+                        "NullOrganization", ["Organization with the specified Id does not exist."]
                     }
                 }
             };
@@ -109,14 +109,14 @@ public class InviteUserHandler(IUserRepository userRepository,
             Data = new UserDto
             {
                 Id = newUser.Id,
-                Role = new ()
+                Role = new()
                 {
                     Id = role.Id,
                     Name = role.Name,
                     Key = role.Key,
                     Description = role.Description
                 },
-                Organization = new ()
+                Organization = new()
                 {
                     Id = organization.Id,
                     Name = organization.Name,

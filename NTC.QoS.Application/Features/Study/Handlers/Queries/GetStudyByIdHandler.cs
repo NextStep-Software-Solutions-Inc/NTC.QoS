@@ -28,25 +28,25 @@ public class GetStudyByIdHandler(IStudyRepository studyRepository) : IRequestHan
             });
 
         var studyDto = await _studyRepository.FirstOrDefaultAsync(studyDtoQuery, cancellationToken);
-        
+
         if (studyDto is null)
         {
             return new ApiResponse<StudyDto>
-            { 
+            {
                 Message = "Study not found.",
-                Errors =  new Dictionary<string, string[]>
+                Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Id", [$"Study with ID [{request.Id}] does not exist."] 
+                    {
+                        "Id", [$"Study with ID [{request.Id}] does not exist."]
                     }
                 },
                 Succeeded = false
             };
         }
 
-        return new ApiResponse<StudyDto> 
-        { 
-            Data = studyDto, 
+        return new ApiResponse<StudyDto>
+        {
+            Data = studyDto,
             Succeeded = true,
             Message = "Study retrieved successfully."
         };

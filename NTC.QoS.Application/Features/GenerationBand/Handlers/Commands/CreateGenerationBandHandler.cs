@@ -75,13 +75,13 @@ public class CreateGenerationBandHandler(IRepository<Domain.Aggregates.Generatio
             Data = new GenerationBandDto
             {
                 Id = newGenerationBand.Id,
-                Generation = new ()
+                Generation = new()
                 {
                     Id = newGenerationBand.Generation.Id,
                     Name = newGenerationBand.Generation.Name,
                     Description = newGenerationBand.Generation.Description
                 },
-                Band = new ()
+                Band = new()
                 {
                     Id = newGenerationBand.Band.Id,
                     Name = newGenerationBand.Band.Name,

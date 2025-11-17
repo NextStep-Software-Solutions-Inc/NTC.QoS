@@ -102,7 +102,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         _logger.LogInformation(
             "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
             processedCount, skippedCount);
-    }   
+    }
     private ParsedLocationFeature? TryParseFeature(IFeature feature)
     {
         try
@@ -117,7 +117,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
             // Required fields
             var codeKey = $"{_adminLevel}_PCODE";
             var nameKey = $"{_adminLevel}_EN";
-            
+
             if (!attributes.Exists(codeKey))
             {
                 _logger.LogWarning("Feature skipped: missing {CodeKey}", codeKey);
@@ -136,7 +136,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
 
             var code = attributes[codeKey]?.ToString();
             var name = attributes[nameKey]?.ToString();
-            
+
             if (string.IsNullOrWhiteSpace(code))
             {
                 _logger.LogWarning("Feature skipped: empty or whitespace code");
@@ -148,8 +148,8 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                 return null;
             }
 
-            var area = attributes["AREA_SQKM"] != null && 
-                       float.TryParse(attributes["AREA_SQKM"].ToString(), out var areaValue) 
+            var area = attributes["AREA_SQKM"] != null &&
+                       float.TryParse(attributes["AREA_SQKM"].ToString(), out var areaValue)
                 ? areaValue : 0f;
 
             var boundaries = ExtractBoundaries(feature);

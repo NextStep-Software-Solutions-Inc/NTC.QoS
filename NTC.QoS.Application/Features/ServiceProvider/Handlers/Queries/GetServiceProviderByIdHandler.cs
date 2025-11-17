@@ -9,7 +9,7 @@ namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
 public class GetServiceProviderByIdHandler(IServiceProviderRepository serviceProviderRepository) : IRequestHandler<GetServiceProviderByIdRequest, ApiResponse<ServiceProviderDto>>
 {
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
-    
+
     public async Task<ApiResponse<ServiceProviderDto>> Handle(GetServiceProviderByIdRequest request, CancellationToken cancellationToken)
     {
         var serviceProviderDtoQuery = _serviceProviderRepository.Query(sp => sp.Id.Equals(request.Id))

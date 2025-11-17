@@ -16,8 +16,8 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
     private readonly IBarangayRepository _barangayRepository;
 
     public GetDashboardOverviewHandler(
-        ICellRepository cellRepository, 
-        INAPRepository napRepository, 
+        ICellRepository cellRepository,
+        INAPRepository napRepository,
         IRegionRepository regionRepository,
         IProvinceRepository provinceRepository,
         IMunicipalityRepository municipalityRepository,
@@ -50,30 +50,30 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
             c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
 
         var topRegionsByCellCount = await _regionRepository.GetTopRegionsByCellCountAsync(
-            request.Limit, 
-            request.StartDate, 
-            request.EndDate, 
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
             cancellationToken);
 
         var topProvincesInRegionByCellCount = await _provinceRepository.GetTopProvincesByCellCountAsync(
-            request.RegionId, 
-            request.Limit, 
-            request.StartDate, 
-            request.EndDate, 
+            request.RegionId,
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
             cancellationToken);
 
         var topMunicipalitiesInProvinceByCellCount = await _municipalityRepository.GetTopMunicipalitiesByCellCountAsync(
-            request.ProvinceId, 
-            request.Limit, 
-            request.StartDate, 
-            request.EndDate, 
+            request.ProvinceId,
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
             cancellationToken);
 
         var topBarangaysInMunicipalityByCellCount = await _barangayRepository.GetTopBarangaysByCellCountAsync(
-            request.MunicipalityId, 
-            request.Limit, 
-            request.StartDate, 
-            request.EndDate, 
+            request.MunicipalityId,
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
             cancellationToken);
 
         return await Task.FromResult(new ApiResponse<DashboardOverviewDto>
