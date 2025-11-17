@@ -96,6 +96,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
                         GC.Collect();
                         GC.WaitForPendingFinalizers();
                         GC.Collect();
+                        _logger.LogDebug("Garbage collection completed after processing feature {Count}", processedCount);
                     }
                     else
                     {
