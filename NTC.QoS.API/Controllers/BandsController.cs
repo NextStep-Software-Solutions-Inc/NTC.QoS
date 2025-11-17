@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Band.Requests;
+using NTC.QoS.Application.Features.Band.Queries.GetTechnologyBandsByLocation;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
@@ -75,29 +76,20 @@ public class BandsController : ControllerBase
     }
 
     /// <summary>
-    /// Get technology-band breakdown for a specific location
+    /// Get detailed technology-band breakdown for a specific location
+    /// Shows separate lists for cellular infrastructure bands and wireless validation bands
+    /// Includes summary statistics like generation counts, dominant technology, and modern coverage ratio
     /// </summary>
     /// <param name="locationId">The ID of the location (region, province, municipality, or barangay)</param>
-    /// <param name="locationType">The type of location (1=Barangay, 2=Municipality, 3=Provincial, 4=Regional)</param>
-    /// <param name="startDate">Optional start date filter for wireless validations</param>
-    /// <param name="endDate">Optional end date filter for wireless validations</param>
-    /// <returns>Technology-band breakdown showing available bands for each technology</returns>
-    [HttpGet("technology-breakdown")]
-    public async Task<ActionResult<ApiResponse<TechnologyBandBreakdownDto>>> GetTechnologyBandBreakdownByLocation(
-        [FromQuery] Guid locationId,
-        [FromQuery] LocationTypeEnum locationType = LocationTypeEnum.Municipality,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null)
+    /// <param name="locationType">The type of location: barangay, municipality, province, region</param>
+    /// <returns>Detailed technology-band breakdown with cellular, validation, and all bands per technology plus summary statistics</returns>
+    [HttpGet("detailed-technology-breakdown")]
+    public async Task<ActionResult<DetailedTechnologyBandBreakdownDto>> GetDetailedTechnologyBandsByLocation(
+        [FromQuery] string locationId,
+        [FromQuery] string locationType = "municipality")
     {
-        var request = new GetTechnologyBandBreakdownByLocationRequest
-        {
-            LocationId = locationId,
-            LocationType = locationType,
-            StartDate = startDate,
-            EndDate = endDate
-        };
-
-        var result = await _mediator.Send(request);
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        var query = new GetTechnologyBandsByLocationQuery(locationId, locationType);
+        var result = await _mediator.Send(query);
+        return Ok(result);
     }
 }
