@@ -33,60 +33,76 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         using var streamReader = new StreamReader(stream, leaveOpen: false);
-        var serializer = GeoJsonSerializer.Create();
         using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
+        var serializer = GeoJsonSerializer.Create();
 
-        FeatureCollection? featureCollection = null;
-        
-        try
+        // Skip to the start of the features array
+        while (await jsonReader.ReadAsync() && jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
         {
-            // Async yield to allow compiler to understand this is truly async
-            await Task.Yield();
-            featureCollection = serializer.Deserialize<FeatureCollection>(jsonReader);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to deserialize GeoJSON stream");
-            yield break;
+            if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.PropertyName &&
+                jsonReader.Value?.ToString() == "features")
+            {
+                await jsonReader.ReadAsync(); // Move to StartArray
+                break;
+            }
         }
 
-        if (featureCollection == null || featureCollection.Count == 0)
+        if (jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
         {
-            _logger.LogWarning("No features found in GeoJSON stream");
+            _logger.LogError("Invalid GeoJSON: 'features' array not found");
             yield break;
         }
 
         var processedCount = 0;
         var skippedCount = 0;
 
-        foreach (var feature in featureCollection)
+        while (await jsonReader.ReadAsync() && jsonReader.TokenType != Newtonsoft.Json.JsonToken.EndArray)
         {
             if (cancellationToken.IsCancellationRequested)
                 yield break;
 
-            var parsed = TryParseFeature(feature);
-            if (parsed.HasValue)
+            if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.StartObject)
             {
-                yield return parsed.Value;
-                processedCount++;
-                
-                if (processedCount % 1000 == 0)
+                IFeature? feature = null;
+                try
                 {
-                    _logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
+                    // Deserialize individual feature
+                    feature = serializer.Deserialize<IFeature>(jsonReader);
                 }
-            }
-            else
-            {
-                skippedCount++;
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to deserialize individual feature, skipping");
+                    skippedCount++;
+                    // Skip to the end of the current object to continue parsing
+                    await jsonReader.SkipAsync();
+                    continue;
+                }
+
+                if (feature != null)
+                {
+                    var parsed = TryParseFeature(feature);
+                    if (parsed.HasValue)
+                    {
+                        yield return parsed.Value;
+                        processedCount++;
+
+                        if (processedCount % 1000 == 0)
+                        {
+                            _logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
+                        }
+                    }
+                    else
+                    {
+                        skippedCount++;
+                    }
+                }
             }
         }
 
         _logger.LogInformation(
             "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
             processedCount, skippedCount);
-    }
-
-    private ParsedLocationFeature? TryParseFeature(IFeature feature)
+    }    private ParsedLocationFeature? TryParseFeature(IFeature feature)
     {
         try
         {
