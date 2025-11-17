@@ -76,12 +76,11 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
 
             try
             {
+                _logger.LogDebug("Starting to save {Count} {EntityType} entities", batch.Count, typeof(TEntity).Name);
                 // Use regular EF insert instead of bulk for large geometries to avoid WKT conversion OOM
                 _dbContext.AddRange(batch);
                 await _dbContext.SaveChangesAsync(cancellationToken);
-
-                _logger.LogDebug("Successfully wrote batch of {Count} {EntityType} entities",
-                    batch.Count, typeof(TEntity).Name);
+                _logger.LogDebug("Successfully saved {Count} {EntityType} entities", batch.Count, typeof(TEntity).Name);
 
                 return batch.Count;
             }

@@ -32,6 +32,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         Stream stream,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Starting to parse GeoJSON features from stream");
         using var streamReader = new StreamReader(stream, leaveOpen: false);
         using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
         var serializer = GeoJsonSerializer.Create();
