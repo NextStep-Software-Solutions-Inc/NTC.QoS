@@ -76,16 +76,9 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
 
             try
             {
-                var bulkConfig = new BulkConfig
-                {
-                    BatchSize = batch.Count,
-                    BulkCopyTimeout = options.TimeoutSeconds,
-                    EnableStreaming = options.EnableStreaming,
-                    UseTempDB = false,
-                    TrackingEntities = false
-                };
-
-                await _dbContext.BulkInsertAsync(batch, bulkConfig, cancellationToken: cancellationToken);
+                // Use regular EF insert instead of bulk for large geometries to avoid WKT conversion OOM
+                _dbContext.AddRange(batch);
+                await _dbContext.SaveChangesAsync(cancellationToken);
 
                 _logger.LogDebug("Successfully wrote batch of {Count} {EntityType} entities",
                     batch.Count, typeof(TEntity).Name);
