@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Models.DTOs;
@@ -131,7 +132,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<List<LocationConnectivityDto>>), 400)]
     public async Task<ActionResult<ApiResponse<List<LocationConnectivityDto>>>> GenerateConnectivityAssessment(
         [FromBody, Required] GenerateConnectivityAssessmentRequest request)
-    { 
+    {
         var result = await mediator.Send(request);
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
@@ -189,8 +190,8 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
         {
             ConnectivityStatuses = new[]
             {
-                new { 
-                    Status = "Served", 
+                new {
+                    Status = "Served",
                     ScoreRange = "11-15 points",
                     Description = "Fully developed, meets most technical and social benchmarks",
                     Characteristics = new[]
@@ -201,8 +202,8 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
                         "100% of households, institutions, and establishments within the barangay is covered and have access to fixed or mobile broadband"
                     }
                 },
-                new { 
-                    Status = "Underserved", 
+                new {
+                    Status = "Underserved",
                     ScoreRange = "6-10 points",
                     Description = "Has basic infrastructure or partial access, but lacks quality, affordability, or consistency",
                     Characteristics = new[]
@@ -213,8 +214,8 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
                         "Only 40% to 99% of the population has access, often clustered in urban centers or specific areas"
                     }
                 },
-                new { 
-                    Status = "Unserved", 
+                new {
+                    Status = "Unserved",
                     ScoreRange = "<= 5 points",
                     Description = "Virtually no broadband access or supporting infrastructure",
                     Characteristics = new[]
@@ -237,7 +238,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
                 },
                 new {
                     Name = "Internet Access (Speedtest)",
-                    Weight = "0-3 points", 
+                    Weight = "0-3 points",
                     Served = "Stable internet with speeds meeting or exceeding national broadband standards (e.g., 25 Mbps or higher)",
                     Underserved = "Internet is available but often slow, unreliable, or below national broadband standards (e.g., <25 Mbps)",
                     Unserved = "No internet access or only minimal access through mobile signal with no broadband infrastructure"
@@ -278,5 +279,37 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
             Message = "CMTS Broadband Mapping Rubric retrieved successfully.",
             Data = rubric
         });
+    }
+
+    /// <summary>
+    /// Start a background job to generate connectivity assessments
+    /// Use this for large-scale processing that would timeout in regular API calls
+    /// </summary>
+    /// <param name="request">Background job request parameters</param>
+    /// <returns>Job ID and tracking information</returns>
+    [HttpPost("connectivity-assessment/background")]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobResponseDto>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobResponseDto>>> StartConnectivityAssessmentJob(
+        [FromBody] StartConnectivityAssessmentJobRequest request)
+    {
+        var response = await mediator.Send(request);
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    /// <summary>
+    /// Get the status of a background connectivity assessment job
+    /// </summary>
+    /// <param name="jobId">Job identifier returned from the start job endpoint</param>
+    /// <returns>Current job status and progress information</returns>
+    [HttpGet("connectivity-assessment/job/{jobId}/status")]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobStatusDto>>> GetConnectivityAssessmentJobStatus(
+        [FromRoute] int jobId)
+    {
+        var request = new GetConnectivityAssessmentJobStatusRequest { JobId = jobId };
+        var response = await mediator.Send(request);
+        return response.Succeeded ? Ok(response) : NotFound(response);
     }
 }

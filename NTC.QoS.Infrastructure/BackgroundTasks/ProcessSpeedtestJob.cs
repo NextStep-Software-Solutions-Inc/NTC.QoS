@@ -21,6 +21,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly IRepository<Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.File> _fileRepository;
     private readonly IBlobStorageService _blobStorageService;
+    private readonly IUserContextService _userContextService;
 
     private const int BatchSize = 1000; // Process records in batches
     private const int DuplicateLoadBatchSize = 10000; // Load existing records in batches for memory efficiency
@@ -31,7 +32,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         IRepository<ServiceProvider> serviceProviderRepository,
         IRepository<Generation> generationRepository,
         IRepository<Domain.Entities.File> fileRepository,
-        IBlobStorageService blobStorageService
+        IBlobStorageService blobStorageService,
+        IUserContextService userContextService
         )
     {
         _logger = logger;
@@ -40,12 +42,17 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _generationRepository = generationRepository;
         _fileRepository = fileRepository;
         _blobStorageService = blobStorageService;
+        _userContextService = userContextService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // Get user context once for all batches
+        var userId = _userContextService.GetCurrentUserId() ?? "System";
+        var now = DateTime.UtcNow;
 
         // --- Step 1: Initial File Status Update ---
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
@@ -77,7 +84,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 .ToListAsync(token);
 
             var technologyCache = generationCache
-                .SelectMany(g => g.Technologies.Select(t => new {
+                .SelectMany(g => g.Technologies.Select(t => new
+                {
                     t.Standard,
                     TechnologyId = t.Id,
                     GenerationId = g.Id
@@ -113,8 +121,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     .Query(s => providerIds.Contains(s.ServiceProviderId))
                     .OrderBy(s => s.Id)
                     .Skip(skip) // Skip records we already processed
-                    .Take(DuplicateLoadBatchSize) 
-                    .Select(s => new {
+                    .Take(DuplicateLoadBatchSize)
+                    .Select(s => new
+                    {
                         s.ServiceProviderId,
                         s.GenerationId,
                         s.TechnologyId,
@@ -285,6 +294,10 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                     Ping = pingValue,
                                     Jitter = jitterValue,
                                     IsFileUploaded = true,
+                                    CreatedAt = now,
+                                    CreatedBy = userId,
+                                    UpdatedAt = now,
+                                    UpdatedBy = userId
                                 };
                                 speedtestsToAdd.Add(speedtest);
                                 speedtestLookup.Add(duplicateHash);

@@ -29,7 +29,9 @@ public class DatabaseOptions
     public int MaxRetryDelaySeconds { get; set; } = 5;
 
     /// <summary>
-    /// Advisory lock key for migrations
+    /// Whether to use the optimized LocationSeederV2 with streaming architecture.
+    /// Set to true for better performance and lower memory usage (default).
+    /// Set to false to use legacy LocationSeeder.
     /// </summary>
-    public long AdvisoryLockKey { get; set; } = 987654321012345678;
+    public bool? UseOptimizedLocationSeeder { get; set; } = true;
 }

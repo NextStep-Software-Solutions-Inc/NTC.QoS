@@ -22,8 +22,8 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Id", ["Network not found."] 
+                    {
+                        "Id", ["Network not found."]
                     },
                 },
                 Message = $"Network with ID [{request.Id}] does not exists."

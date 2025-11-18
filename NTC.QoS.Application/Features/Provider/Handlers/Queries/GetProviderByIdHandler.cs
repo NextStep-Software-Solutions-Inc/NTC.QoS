@@ -47,29 +47,29 @@ public class GetProviderByIdHandler(
         }
 
         string? logoDataBase64 = null;
-        
+
         // Only process logo data if requested (defaults to true for backward compatibility)
         var shouldIncludeLogo = request.IncludeLogoData ?? true;
-        
+
         if (shouldIncludeLogo && provider.LogoData != null && provider.LogoData.Length > 0)
         {
             // Create cache key based on provider ID and logo upload timestamp
             var cacheKey = $"provider_logo_b64_{provider.Id}_{provider.LogoUploadedAt?.Ticks ?? 0}";
-            
+
             // Try to get from cache first
             if (!_memoryCache.TryGetValue(cacheKey, out logoDataBase64))
             {
                 // Cache miss - convert to base64 and cache the result
-                _logger.LogDebug("Converting logo to base64 for provider {ProviderId}, size: {Size} bytes", 
+                _logger.LogDebug("Converting logo to base64 for provider {ProviderId}, size: {Size} bytes",
                     provider.Id, provider.LogoData.Length);
-                
+
                 try
                 {
                     logoDataBase64 = Convert.ToBase64String(provider.LogoData);
-                    
+
                     // Cache the base64 string for future requests
                     _memoryCache.Set(cacheKey, logoDataBase64, LogoCacheOptions);
-                    
+
                     _logger.LogDebug("Cached base64 logo for provider {ProviderId}", provider.Id);
                 }
                 catch (Exception ex)

@@ -2,7 +2,8 @@
 
 namespace NTC.QoS.Domain.Helper;
 
-public static class SearchHelper { 
+public static class SearchHelper
+{
     /// <summary>
     /// Builds a LINQ expression for searching a keyword across multiple nullable string properties of a given type.
     /// </summary>

@@ -83,7 +83,7 @@ public static class SignalStrengthHelper
         {
             >= (double)SignalStrengthEnum.Good => "Good",
             >= (double)SignalStrengthEnum.Average => "Average",
-            >= (double)SignalStrengthEnum.Weak => "Weak", 
+            >= (double)SignalStrengthEnum.Weak => "Weak",
             >= (double)SignalStrengthEnum.VeryWeak => "Very Weak",
             >= (double)SignalStrengthEnum.NoBroadbandCoverage => "No Broadband Coverage",
             _ => "Unknown"

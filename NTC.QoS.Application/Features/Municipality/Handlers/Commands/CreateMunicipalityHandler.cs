@@ -31,7 +31,7 @@ public class CreateMunicipalityHandler : IRequestHandler<CreateMunicipalityReque
             return new ApiResponse<MunicipalityDto>
             {
                 Message = "Municipality already exists.",
-                Succeeded = false, 
+                Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {

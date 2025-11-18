@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace NTC.QoS.Domain.Entities;
 
-public abstract class BaseEntity: IEntity
+public abstract class BaseEntity : IEntity
 {
     [Key]
     public Guid Id { get; set; }

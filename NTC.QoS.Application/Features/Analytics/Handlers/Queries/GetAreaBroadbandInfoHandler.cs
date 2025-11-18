@@ -41,7 +41,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         {
             // Validation is now handled by FluentValidation pipeline
             var bbox = request.BoundingBox;
-            _logger.LogInformation("Processing area broadband info for bounding box: {MinLat}, {MinLon} to {MaxLat}, {MaxLon}", 
+            _logger.LogInformation("Processing area broadband info for bounding box: {MinLat}, {MinLon} to {MaxLat}, {MaxLon}",
                 bbox.MinLatitude, bbox.MinLongitude, bbox.MaxLatitude, bbox.MaxLongitude);
 
             // Create polygon from bounding box
@@ -87,7 +87,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 }),
                 cancellationToken);
 
-            _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs in the specified area", 
+            _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs in the specified area",
                 cellsWithProvider.Count, napsWithProvider.Count);
 
             // Group by service provider and calculate counts
@@ -117,7 +117,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             // Log municipality details for debugging
             foreach (var municipality in municipalities.Take(5)) // Log first 5 municipalities
             {
-                _logger.LogInformation("Municipality: {Name} - Cells: {CellCount}, NAPs: {NAPCount}, Total: {TotalAssets}", 
+                _logger.LogInformation("Municipality: {Name} - Cells: {CellCount}, NAPs: {NAPCount}, Total: {TotalAssets}",
                     municipality.Name, municipality.CellCount, municipality.NAPCount, municipality.TotalAssets);
             }
 
@@ -147,7 +147,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 EnvelopeInfo = envelopeInfo
             };
 
-            _logger.LogInformation("Successfully processed area broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities", 
+            _logger.LogInformation("Successfully processed area broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities",
                 summary.TotalCells, summary.TotalNaps, summary.TotalAssets, summary.ServiceProviderCount, summary.MunicipalityCount);
 
             return new ApiResponse<AreaBroadbandInfoDto>
@@ -185,8 +185,8 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
     /// <returns>List of municipality area information</returns>
     private async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo<T1, T2>(
         Geometry queryGeometry,
-        List<T1> cellsWithProvider, 
-        List<T2> napsWithProvider, 
+        List<T1> cellsWithProvider,
+        List<T2> napsWithProvider,
         CancellationToken cancellationToken)
         where T1 : class
         where T2 : class
@@ -278,7 +278,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 CellCount = kvp.Value.CellCount,
                 NAPCount = kvp.Value.NAPCount,
                 IsCoveredByQuery = kvp.Value.IsCovered,
-                AssetPercentage = totalAssets > 0 
+                AssetPercentage = totalAssets > 0
                     ? Math.Round(((double)(kvp.Value.CellCount + kvp.Value.NAPCount) / totalAssets) * 100, 2)
                     : 0
             })
@@ -288,11 +288,11 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             .ThenBy(m => m.Name)                        // Finally by name
             .ToList();
 
-        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} total municipalities ({WithAssets} with assets, {CoveredOnly} covered without assets)", 
-            result.Count, 
-            result.Count(m => m.HasAssets), 
+        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} total municipalities ({WithAssets} with assets, {CoveredOnly} covered without assets)",
+            result.Count,
+            result.Count(m => m.HasAssets),
             result.Count(m => m.IsCoveredByQuery && !m.HasAssets));
-        
+
         return result;
     }
 
@@ -322,7 +322,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 var property = type.GetProperty("Location");
                 return property?.PropertyType == typeof(Point) ? property : null;
             });
-            
+
             return locationProperty?.GetValue(item) as Point;
         }
         catch
@@ -352,7 +352,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         var latDiff = bbox.MaxLatitude - bbox.MinLatitude;
         var lonDiff = bbox.MaxLongitude - bbox.MinLongitude;
         var avgLat = (bbox.MinLatitude + bbox.MaxLatitude) / 2;
-        
+
         // Convert degrees to km using geospatial constants
         var latKm = latDiff * GeoSpatialConstants.KilometersPerDegreeLatitude;
         var lonKm = lonDiff * GeoSpatialConstants.GetKilometersPerDegreeLongitude(avgLat);

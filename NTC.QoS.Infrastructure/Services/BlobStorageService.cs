@@ -106,7 +106,7 @@ public class BlobStorageService(
         try
         {
             var environment = containerName; // Assuming container name matches environment
-            var prefix = fileType != null 
+            var prefix = fileType != null
                 ? $"{environment}/{fileType}/{region}/"
                 : $"{environment}/";
 
@@ -163,9 +163,9 @@ public class BlobStorageService(
             }
 
             var response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
-            
+
             _logger.LogInformation("Successfully downloaded file {FileName} from container {ContainerName}", fileName, containerName);
-            
+
             return response.Value.Content;
         }
         catch (Exception ex)
@@ -191,9 +191,9 @@ public class BlobStorageService(
             }
 
             var response = await blobClient.DownloadContentAsync(cancellationToken);
-            
+
             _logger.LogInformation("Successfully downloaded file {FileName} as bytes from container {ContainerName}", fileName, containerName);
-            
+
             return response.Value.Content.ToArray();
         }
         catch (Exception ex)
@@ -214,7 +214,7 @@ public class BlobStorageService(
             var blobClient = containerClient.GetBlobClient(fileName);
 
             var response = await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
-            
+
             if (response.Value)
             {
                 _logger.LogInformation("Successfully deleted file {FileName} from container {ContainerName}", fileName, containerName);
@@ -267,7 +267,7 @@ public class BlobStorageService(
             _logger.LogInformation("Listing blobs in container {ContainerName} with prefix {Prefix}", containerName, prefix ?? "none");
 
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-            
+
             if (!await containerClient.ExistsAsync(cancellationToken))
             {
                 _logger.LogWarning("Container {ContainerName} does not exist", containerName);
@@ -275,7 +275,7 @@ public class BlobStorageService(
             }
 
             var blobs = new List<string>();
-            
+
             await foreach (var blobItem in containerClient.GetBlobsAsync(prefix: prefix, cancellationToken: cancellationToken))
             {
                 blobs.Add(blobItem.Name);
@@ -300,7 +300,7 @@ public class BlobStorageService(
     private async Task<BlobContainerClient> GetOrCreateContainerAsync(string containerName, CancellationToken cancellationToken)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-        
+
         try
         {
             // Create container if it doesn't exist

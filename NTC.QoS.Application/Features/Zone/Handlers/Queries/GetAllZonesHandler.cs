@@ -24,23 +24,23 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
             {
                 Id = z.Id,
                 Name = z.Name,
-                Barangay = new ()
+                Barangay = new()
                 {
                     Id = z.Barangay.Id,
                     Name = z.Barangay.Name,
                     Description = z.Barangay.Description,
-                    Municipality = new ()
+                    Municipality = new()
                     {
                         Id = z.Barangay.MunicipalityId,
                         Name = z.Barangay.Municipality.Name,
                         IsCity = z.Barangay.Municipality.IsCity,
                         Description = z.Barangay.Municipality.Description,
-                        Province = new ()
+                        Province = new()
                         {
                             Id = z.Barangay.Municipality.Province.Id,
                             Name = z.Barangay.Municipality.Province.Name,
                             Description = z.Barangay.Municipality.Province.Description,
-                            Region = new ()
+                            Region = new()
                             {
                                 Id = z.Barangay.Municipality.Province.Region.Id,
                                 Name = z.Barangay.Municipality.Province.Region.Name,

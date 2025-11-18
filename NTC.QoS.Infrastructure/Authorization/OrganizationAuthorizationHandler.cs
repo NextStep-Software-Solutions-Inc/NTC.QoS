@@ -25,7 +25,7 @@ public class OrganizationAuthorizationHandler : AuthorizationHandler<Organizatio
         OrganizationRequirement requirement)
     {
         var currentUser = await _userAuthorizationService.GetCurrentUserAsync();
-        
+
         // Early exit if user has no organization
         if (currentUser?.Organization == null)
         {
@@ -33,8 +33,8 @@ public class OrganizationAuthorizationHandler : AuthorizationHandler<Organizatio
         }
 
         // Handle same organization requirement
-        if (requirement.RequireSameOrganization && 
-            !string.IsNullOrEmpty(requirement.Organization) == false && 
+        if (requirement.RequireSameOrganization &&
+            !string.IsNullOrEmpty(requirement.Organization) == false &&
             !requirement.OrganizationId.HasValue)
         {
             // User just needs to belong to any organization (their own)
@@ -55,8 +55,8 @@ public class OrganizationAuthorizationHandler : AuthorizationHandler<Organizatio
         // Handle specific organization name matching
         if (!string.IsNullOrEmpty(requirement.Organization))
         {
-            var comparisonType = requirement.CaseSensitive 
-                ? StringComparison.Ordinal 
+            var comparisonType = requirement.CaseSensitive
+                ? StringComparison.Ordinal
                 : StringComparison.OrdinalIgnoreCase;
 
             // Direct name comparison using current user's organization data

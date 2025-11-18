@@ -79,16 +79,16 @@ internal sealed class DownloadWirelessValidationTemplateHandler
 
         var fixedProviderColors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase)
         {
-            ["GLOBE COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#DDEBF7"), 
-            ["SMART COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#E2EFDA"), 
-            ["DITO TELECOMMUNITY CORP."] = ColorTranslator.FromHtml("#FCE4D6"), 
+            ["GLOBE COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#DDEBF7"),
+            ["SMART COMMUNICATIONS INC."] = ColorTranslator.FromHtml("#E2EFDA"),
+            ["DITO TELECOMMUNITY CORP."] = ColorTranslator.FromHtml("#FCE4D6"),
         };
         var fallbackPalette = new[]
         {
-            ColorTranslator.FromHtml("#FFF2CC"), 
+            ColorTranslator.FromHtml("#FFF2CC"),
             ColorTranslator.FromHtml("#EDEDED"),
             ColorTranslator.FromHtml("#E5DFEC"),
-            ColorTranslator.FromHtml("#DAEEF3"), 
+            ColorTranslator.FromHtml("#DAEEF3"),
         };
         var assignedColors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase);
 
@@ -109,8 +109,8 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         {
             foreach (var provider in providers)
             {
-                ws.Cells[currentRow, 1].Value = provider;       
-                ws.Cells[currentRow, 2].Value = barangay.Name; 
+                ws.Cells[currentRow, 1].Value = provider;
+                ws.Cells[currentRow, 2].Value = barangay.Name;
 
                 // Row background by provider
                 var rowColor = GetColorForProvider(provider);
@@ -156,12 +156,12 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             }
         }
 
-        int techBorderTopRow = 2;                              
-        int techBorderBottomRow = Math.Max(4, dataEndRow);     
-        var techGray = Color.FromArgb(160, 160, 160);          
+        int techBorderTopRow = 2;
+        int techBorderBottomRow = Math.Max(4, dataEndRow);
+        var techGray = Color.FromArgb(160, 160, 160);
 
         // Recompute technology spans from the same 'groups' definition
-        int colPtr = 3; 
+        int colPtr = 3;
         foreach (var g in groups)
         {
             int techStart = colPtr;
@@ -191,14 +191,14 @@ internal sealed class DownloadWirelessValidationTemplateHandler
     private static int BuildWirelessHeader(ExcelWorksheet ws, string locationHeader,
         IEnumerable<dynamic> groups, int startRow = 1, int startCol = 1)
     {
-        int rowLoc = startRow;        
-        int rowGen = startRow + 1;    
-        int rowTech = startRow + 2;    
-        int rowBand = startRow + 3;    
+        int rowLoc = startRow;
+        int rowGen = startRow + 1;
+        int rowTech = startRow + 2;
+        int rowBand = startRow + 3;
 
         // Row 4 fixed header
-        ws.Cells[rowBand, startCol].Value = "Provider"; 
-        ws.Cells[rowBand, startCol + 1].Value = "Barangay"; 
+        ws.Cells[rowBand, startCol].Value = "Provider";
+        ws.Cells[rowBand, startCol + 1].Value = "Barangay";
 
         // Build band columns starting at C
         int col = startCol + 2;
@@ -328,7 +328,7 @@ internal sealed class DownloadWirelessValidationTemplateHandler
     private static void AutoFitColumns(ExcelWorksheet ws)
     {
         var dim = ws.Dimension;
-        if (dim == null) return;                 
-        ws.Cells[dim.Address].AutoFitColumns();  
+        if (dim == null) return;
+        ws.Cells[dim.Address].AutoFitColumns();
     }
 }

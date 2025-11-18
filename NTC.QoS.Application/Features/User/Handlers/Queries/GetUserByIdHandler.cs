@@ -21,8 +21,8 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Id", ["User with the specified ID does not exist."] 
+                    {
+                        "Id", ["User with the specified ID does not exist."]
                     }
                 },
                 Message = "User not found."
@@ -36,14 +36,14 @@ public class GetUserByIdHandler(IUserRepository repository) : IRequestHandler<Ge
             Data = new UserDto
             {
                 Id = user.Id,
-                Role = new ()
+                Role = new()
                 {
                     Id = user.RoleId,
                     Name = user.Role?.Name ?? string.Empty,
                     Key = user.Role?.Key ?? string.Empty,
                     Description = user.Role?.Description ?? string.Empty
                 },
-                Organization = new ()
+                Organization = new()
                 {
                     Id = user.OrganizationId,
                     Name = user.Organization?.Name ?? string.Empty,

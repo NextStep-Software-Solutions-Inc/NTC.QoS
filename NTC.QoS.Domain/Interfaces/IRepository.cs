@@ -1,4 +1,5 @@
 ﻿using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Models.DTOs.Common;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Domain.Interfaces;
@@ -47,4 +48,12 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     // Convenience overloads using injected context/time
     Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default);
     Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default);
+
+    IQueryable<T> GetEntitiesWithinBoundaries<T>(
+       IQueryable<T> query,
+       ViewportBounds? viewport = null,
+       List<Guid>? regionIds = null,
+       List<Guid>? provinceIds = null,
+       List<Guid>? municipalityIds = null,
+       List<Guid>? barangayIds = null) where T : IGeoLocatedEntity;
 }

@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
-internal sealed class SectorRepository(ApplicationDbContext context) 
+internal sealed class SectorRepository(ApplicationDbContext context)
     : Repository<Sector>(context), ISectorRepository
 {
     public override IQueryable<Sector> Query(Expression<Func<Sector, bool>>? expression = null)

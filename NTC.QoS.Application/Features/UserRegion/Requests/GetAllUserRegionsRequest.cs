@@ -7,7 +7,7 @@ public record GetAllUserRegionsRequest : IRequest<PaginatedResponse<UserRegionDt
 {
     public int PageSize { get; set; } = 10;
     public int PageNumber { get; set; } = 1;
-    public List<Guid>? UserIds { get; set; } 
+    public List<Guid>? UserIds { get; set; }
     public List<Guid>? RegionIds { get; set; }
     public List<string>? Statuses { get; set; }
     public List<string>? AuthUserIds { get; set; }

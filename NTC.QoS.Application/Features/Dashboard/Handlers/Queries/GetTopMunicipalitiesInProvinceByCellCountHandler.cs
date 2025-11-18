@@ -1,18 +1,23 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Dashboard.Requests;
-using NTC.QoS.Application.Services;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 
 namespace NTC.QoS.Application.Features.Dashboard.Handlers.Queries;
 
-public class GetTopMunicipalitiesInProvinceByCellCountHandler(GeospatialQueryService geospatialQueryService) : IRequestHandler<GetTopMunicipalitiesInProvinceByCellCountRequest, ApiResponse<List<GeoEntityCellCountDto>>>
+public class GetTopMunicipalitiesInProvinceByCellCountHandler(IMunicipalityRepository municipalityRepository) : IRequestHandler<GetTopMunicipalitiesInProvinceByCellCountRequest, ApiResponse<List<GeoEntityCellCountDto>>>
 {
-    private readonly GeospatialQueryService _geospatialQueryService = geospatialQueryService;
+    private readonly IMunicipalityRepository _municipalityRepository = municipalityRepository;
 
     public async Task<ApiResponse<List<GeoEntityCellCountDto>>> Handle(GetTopMunicipalitiesInProvinceByCellCountRequest request, CancellationToken cancellationToken)
     {
-        var result = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Province, Domain.Entities.Municipality>(request.ProvinceId, "ProvinceId", request.Limit, request.StartDate, request.EndDate);
+        var result = await _municipalityRepository.GetTopMunicipalitiesByCellCountAsync(
+request.ProvinceId,
+  request.Limit,
+         request.StartDate,
+            request.EndDate,
+          cancellationToken);
 
         return new ApiResponse<List<GeoEntityCellCountDto>>
         {

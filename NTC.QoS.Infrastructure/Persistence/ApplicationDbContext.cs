@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
@@ -56,15 +56,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
-        
+
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("postgis");
 
-        foreach ( var entityType in modelBuilder.Model.GetEntityTypes())
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            if(typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
+            if (typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
             {
                 var parameter = Expression.Parameter(entityType.ClrType, "entity");
                 var property = Expression.Property(parameter, nameof(BaseEntity.IsDeleted));
@@ -249,7 +249,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<NAP>()
             .Property(n => n.Location)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<NAP>()
@@ -269,7 +269,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Speedtest>()
             .Property(n => n.Location)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Speedtest>()
@@ -377,7 +377,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Cell>()
             .Property(c => c.Location)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<Cell>()
@@ -392,7 +392,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<CellularCoverage>()
             .Property(cc => cc.Location)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
 
         modelBuilder.Entity<CellularCoverage>()
@@ -427,17 +427,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Region>()
             .Property(r => r.Boundaries)
-            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasColumnType("geometry (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Region>()
             .HasIndex(r => r.Boundaries)
             .HasDatabaseName("IX_Region_Boundaries")
             .HasMethod("GIST");
-        
+
         modelBuilder.Entity<Region>()
             .Property(r => r.Center)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Region>()
@@ -447,7 +447,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Province>()
             .Property(p => p.Boundaries)
-            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasColumnType("geometry (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Province>()
@@ -457,7 +457,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Province>()
             .Property(p => p.Center)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Province>()
@@ -467,7 +467,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Municipality>()
             .Property(m => m.Boundaries)
-            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasColumnType("geometry (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Municipality>()
@@ -477,7 +477,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Municipality>()
             .Property(m => m.Center)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Municipality>()
@@ -487,7 +487,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Boundaries)
-            .HasColumnType("geography (MultiPolygon,4326)")
+            .HasColumnType("geometry (MultiPolygon,4326)")
             .HasDefaultValue(GeometryHelper.CreateMultiPolygon([]));
 
         modelBuilder.Entity<Barangay>()
@@ -497,7 +497,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Barangay>()
             .Property(b => b.Center)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<Barangay>()
@@ -524,26 +524,26 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(st => st.GenerationId);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<ServiceProvider>()
-            .WithMany()
+            .HasOne(wv => wv.ServiceProvider)
+            .WithMany(sp => sp.WirelessValidations)
             .HasForeignKey(wv => wv.ServiceProviderId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Barangay>()
-            .WithMany()
+            .HasOne(wv => wv.Barangay)
+            .WithMany(b => b.WirelessValidations)
             .HasForeignKey(wv => wv.BarangayId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Band>()
-            .WithMany()
+            .HasOne(wv => wv.Band)
+            .WithMany(b => b.WirelessValidations)
             .HasForeignKey(wv => wv.BandId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
-            .HasOne<Technology>()
-            .WithMany()
+            .HasOne(wv => wv.Technology)
+            .WithMany(t => t.WirelessValidations)
             .HasForeignKey(wv => wv.TechnologyId)
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -565,7 +565,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<ConnectivityAssessment>()
             .Property(ca => ca.Location)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<ConnectivityAssessment>()
@@ -574,9 +574,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMethod("GIST");
 
         modelBuilder.Entity<ConnectivityAssessment>()
-            .HasIndex(ca => new { ca.LocationId, ca.LocationType })
+            .HasIndex(ca => ca.LocationId)
             .IsUnique()
-            .HasDatabaseName("IX_ConnectivityAssessment_Location_Type");
+            .HasDatabaseName("IX_ConnectivityAssessment_LocationId");
+
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(ca => ca.LocationType)
+            .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
 
         modelBuilder.Entity<ConnectivityAssessment>()
             .HasIndex(ca => ca.ConnectivityStatus)
@@ -584,12 +588,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<WiFiHotspot>()
             .HasOne(w => w.ServiceProvider)
-            .WithMany()
+            .WithMany(sp => sp.WiFiHotspots)
             .HasForeignKey(w => w.ServiceProviderId);
 
         modelBuilder.Entity<WiFiHotspot>()
             .Property(w => w.Location)
-            .HasColumnType("geography (Point,4326)")
+            .HasColumnType("geometry (Point,4326)")
             .HasDefaultValue(GeometryHelper.CreatePoint(0, 0));
 
         modelBuilder.Entity<WiFiHotspot>()

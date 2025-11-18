@@ -19,17 +19,19 @@ public class ProcessNAPJob : IProcessNAPJob
     private readonly IRepository<Domain.Aggregates.NAP> _NAPRepository;
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IBlobStorageService _blobStorageService;
+    private readonly IUserContextService _userContextService;
 
     // Batch processing configuration (following ProcessCellJobBatched pattern)
     private const int BATCH_SIZE = 5000; // Large batch size for simple entity
     private const int DUPLICATE_LOAD_BATCH_SIZE = 10000; // Load existing records in batches for memory efficiency
 
     public ProcessNAPJob(
-        ILogger<ProcessNAPJob> logger,
+ ILogger<ProcessNAPJob> logger,
         IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.NAP> NAPRepository,
-        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
-        IBlobStorageService blobStorageService
+    IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
+        IBlobStorageService blobStorageService,
+     IUserContextService userContextService
         )
     {
         _logger = logger;
@@ -37,6 +39,7 @@ public class ProcessNAPJob : IProcessNAPJob
         _serviceProviderRepository = serviceProviderRepository;
         _NAPRepository = NAPRepository;
         _blobStorageService = blobStorageService;
+        _userContextService = userContextService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -47,10 +50,10 @@ public class ProcessNAPJob : IProcessNAPJob
         var processingResults = new ProcessingResults();
 
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
-            parameters.Id, _fileRepository, _logger, FileTypeEnum.NAP, token);
+       parameters.Id, _fileRepository, _logger, FileTypeEnum.NAP, token);
 
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
-            file, _fileRepository, _logger, FileTypeEnum.NAP, token);
+     file, _fileRepository, _logger, FileTypeEnum.NAP, token);
 
         try
         {
@@ -60,12 +63,12 @@ public class ProcessNAPJob : IProcessNAPJob
             try
             {
                 fileStream = await ProcessingJobHelper.GetFileStreamAsync(
-                    parameters.Path, _blobStorageService, _logger, FileTypeEnum.NAP, token);
+                     parameters.Path, _blobStorageService, _logger, FileTypeEnum.NAP, token);
             }
             catch (Exception ex)
             {
                 await ProcessingJobHelper.HandleFileAccessErrorAsync(
-                    ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.NAP, token);
+              ex, parameters.Path, file, _fileRepository, _logger, FileTypeEnum.NAP, token);
                 return;
             }
 
@@ -85,7 +88,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 {
                     _logger.LogInformation("The Excel is empty.");
                     await ProcessingJobHelper.SetFileSuccessStatusAsync(
-                        file, _fileRepository, _logger, FileTypeEnum.NAP, token);
+                file, _fileRepository, _logger, FileTypeEnum.NAP, token);
                     return;
                 }
 
@@ -100,14 +103,14 @@ public class ProcessNAPJob : IProcessNAPJob
                 _logger.LogInformation("Preloading {Count} unique service providers from NAP data...", providerNames.Count);
 
                 var serviceProvidersFromData = await _serviceProviderRepository
-                    .QueryAsNoTracking(sp => !sp.IsDeleted && sp.Provider != null)
-                    .Include(sp => sp.Provider)
-                    .Select(sp => new { sp.Id, sp.Provider.Name })
-                    .ToListAsync(token);
+                  .QueryAsNoTracking(sp => !sp.IsDeleted && sp.Provider != null)
+                     .Include(sp => sp.Provider)
+                .Select(sp => new { sp.Id, sp.Provider.Name })
+              .ToListAsync(token);
 
                 // Create lookup dictionary for exact matching
                 var serviceProviderLookup = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-                
+
                 foreach (var sp in serviceProvidersFromData)
                 {
                     if (sp.Name != null)
@@ -132,15 +135,15 @@ public class ProcessNAPJob : IProcessNAPJob
 
                 // --- Pre-load Existing NAPs using Hash-Based Duplicate Detection (OPTIMIZED) ---
                 _logger.LogInformation("Pre-loading existing NAPs for duplicate checking...");
-                
+
                 var napLookup = new HashSet<int>(); // Hash-based lookup (4 bytes per NAP!)
                 var totalLoadedNaps = 0;
                 var totalNaps = await _NAPRepository
-                    .Query(nap => !nap.IsDeleted && validProviderIds.Contains(nap.ServiceProviderId))
-                    .CountAsync(token);
+     .Query(nap => !nap.IsDeleted && validProviderIds.Contains(nap.ServiceProviderId))
+               .CountAsync(token);
 
                 _logger.LogInformation("Loading {TotalCount} existing NAPs in batches of {BatchSize}...",
-                    totalNaps, DUPLICATE_LOAD_BATCH_SIZE);
+                     totalNaps, DUPLICATE_LOAD_BATCH_SIZE);
 
                 // Load existing NAPs in batches to avoid memory overload (following ProcessCellJobBatched pattern)
                 var skip = 0;
@@ -148,15 +151,16 @@ public class ProcessNAPJob : IProcessNAPJob
                 {
                     var existingBatch = await _NAPRepository
                         .Query(nap => !nap.IsDeleted && validProviderIds.Contains(nap.ServiceProviderId))
-                        .OrderBy(nap => nap.Id) // Required for consistent pagination
-                        .Skip(skip)
-                        .Take(DUPLICATE_LOAD_BATCH_SIZE)
-                        .Select(nap => new {
-                            nap.ServiceProviderId,
-                            nap.Address,
-                            nap.Location
-                        })
-                        .ToListAsync(token);
+                       .OrderBy(nap => nap.Id) // Required for consistent pagination
+                    .Skip(skip)
+                    .Take(DUPLICATE_LOAD_BATCH_SIZE)
+                           .Select(nap => new
+                           {
+                               nap.ServiceProviderId,
+                               nap.Address,
+                               nap.Location
+                           })
+                  .ToListAsync(token);
 
                     if (existingBatch.Count == 0)
                         break;
@@ -166,12 +170,12 @@ public class ProcessNAPJob : IProcessNAPJob
                         var hash = GenerateNAPHash(nap.ServiceProviderId, nap.Address, nap.Location);
                         napLookup.Add(hash);
                     }
-                    
+
                     totalLoadedNaps += existingBatch.Count;
                     skip += DUPLICATE_LOAD_BATCH_SIZE;
-                    
+
                     _logger.LogInformation("Loaded {LoadedCount}/{TotalCount} existing NAPs...",
-                        totalLoadedNaps, totalNaps);
+                      totalLoadedNaps, totalNaps);
                 }
 
                 _logger.LogInformation("Pre-loaded {Count} unique NAP records for duplicate checking", napLookup.Count);
@@ -184,9 +188,13 @@ public class ProcessNAPJob : IProcessNAPJob
                 var totalBatches = (int)Math.Ceiling((double)totalRecords / BATCH_SIZE);
 
                 _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
-                    totalRecords, totalBatches, BATCH_SIZE);
+        totalRecords, totalBatches, BATCH_SIZE);
 
                 stopwatch.Restart();
+
+                // Get user context once for all batches
+                var userId = _userContextService.GetCurrentUserId() ?? "System";
+                var now = DateTime.UtcNow;
 
                 for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
                 {
@@ -197,7 +205,7 @@ public class ProcessNAPJob : IProcessNAPJob
                     var errorsInBatch = 0;
 
                     _logger.LogInformation("Processing batch {BatchNumber}/{TotalBatches} ({RecordCount} records)",
-                        batchNumber, totalBatches, batch.Count);
+                         batchNumber, totalBatches, batch.Count);
 
                     foreach (var record in batch)
                     {
@@ -214,11 +222,11 @@ public class ProcessNAPJob : IProcessNAPJob
                             }
 
                             // Validate coordinates
-                            if (record.Latitude < -90 || record.Latitude > 90 || 
-                                record.Longitude < -180 || record.Longitude > 180)
+                            if (record.Latitude < -90 || record.Latitude > 90 ||
+                      record.Longitude < -180 || record.Longitude > 180)
                             {
                                 _logger.LogWarning("Invalid coordinates for record: {Provider}, {Municipality} {Province} ({Latitude},{Longitude})",
-                                    record.Provider, record.Municipality, record.Province, record.Latitude, record.Longitude);
+                                  record.Provider, record.Municipality, record.Province, record.Latitude, record.Longitude);
                                 processingResults.SkippedRecords++;
                                 errorsInBatch++;
                                 continue;
@@ -229,7 +237,7 @@ public class ProcessNAPJob : IProcessNAPJob
 
                             // Check for duplicate using hash (OPTIMIZED - 4 bytes vs 80-100 bytes string key)
                             var napHash = GenerateNAPHash(serviceProviderId, address, location);
-                            
+
                             if (napLookup.Contains(napHash))
                             {
                                 duplicatesSkipped++;
@@ -245,6 +253,11 @@ public class ProcessNAPJob : IProcessNAPJob
                                 ServiceProviderId = serviceProviderId,
                                 Address = address,
                                 Location = location,
+                                // CRITICAL: Manually set audit properties since BulkInsertAsync bypasses interceptors
+                                CreatedAt = now,
+                                CreatedBy = userId,
+                                UpdatedAt = now,
+                                UpdatedBy = userId
                             };
 
                             napsToAdd.Add(nap);
@@ -253,7 +266,7 @@ public class ProcessNAPJob : IProcessNAPJob
                         catch (Exception ex)
                         {
                             _logger.LogWarning(ex, "Error processing record: {Provider}, {Municipality} {Province}. Error: {Message}",
-                                record.Provider, record.Municipality, record.Province, ex.Message);
+                            record.Provider, record.Municipality, record.Province, ex.Message);
                             processingResults.ErrorRecords++;
                             errorsInBatch++;
                             continue;
@@ -268,12 +281,12 @@ public class ProcessNAPJob : IProcessNAPJob
                             await _NAPRepository.BulkInsertAsync(napsToAdd, token);
                             processingResults.NAPsCreated += napsToAdd.Count;
                             _logger.LogInformation("Batch {BatchNumber}: Successfully saved {Count} NAP records to database",
-                                batchNumber, napsToAdd.Count);
+                              batchNumber, napsToAdd.Count);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Error saving batch {BatchNumber} to database: {Message}", 
-                                batchNumber, ex.Message);
+                            _logger.LogError(ex, "Error saving batch {BatchNumber} to database: {Message}",
+                              batchNumber, ex.Message);
                             processingResults.ErrorRecords += napsToAdd.Count;
                             // Continue to next batch (per-batch error recovery)
                         }
@@ -284,10 +297,10 @@ public class ProcessNAPJob : IProcessNAPJob
                     var progress = (double)processedCount / totalRecords * 100;
                     ProcessingJobHelper.ReportProgress(
                         $"Batch {batchNumber}/{totalBatches} completed - Progress: {progress:F1}% - " +
-                        $"Successful: {processingResults.SuccessfulRecords:N0}, Errors: {processingResults.ErrorRecords:N0}, " +
-                        $"NAPs Created: {processingResults.NAPsCreated:N0}, " +
-                        $"Duplicates Skipped: {processingResults.SkippedDuplicates:N0}", 
-                        _logger);
+                 $"Successful: {processingResults.SuccessfulRecords:N0}, Errors: {processingResults.ErrorRecords:N0}, " +
+                     $"NAPs Created: {processingResults.NAPsCreated:N0}, " +
+                   $"Duplicates Skipped: {processingResults.SkippedDuplicates:N0}",
+                    _logger);
                 }
 
                 stopwatch.Stop();
@@ -301,10 +314,10 @@ public class ProcessNAPJob : IProcessNAPJob
         {
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during NAP processing after {ElapsedTime}: {ErrorMessage}",
-                stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
+      stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.NAP,
-                $"Error occurred during processing: {ex.Message}", token);
+               $"Error occurred during processing: {ex.Message}", token);
             throw;
         }
     }
@@ -328,14 +341,14 @@ public class ProcessNAPJob : IProcessNAPJob
     /// Completes processing and logs comprehensive summary (following ProcessCellJobBatched pattern)
     /// </summary>
     private async Task CompleteProcessing(
-        Domain.Entities.File file, 
-        ProcessingResults results, 
-        DateTime startTime, 
+        Domain.Entities.File file,
+        ProcessingResults results,
+        DateTime startTime,
         CancellationToken token)
     {
         var processingTime = DateTime.UtcNow - startTime;
-        var successRate = results.TotalRecords > 0 
-            ? (double)results.SuccessfulRecords / results.TotalRecords * 100 
+        var successRate = results.TotalRecords > 0
+            ? (double)results.SuccessfulRecords / results.TotalRecords * 100
             : 0;
 
         _logger.LogInformation("=== NAP Processing Summary ===");
@@ -347,10 +360,10 @@ public class ProcessNAPJob : IProcessNAPJob
             results.SuccessfulRecords, successRate);
         _logger.LogInformation("Skipped Records: {SkippedRecords:N0}", results.SkippedRecords);
         _logger.LogInformation("Error Records: {ErrorRecords:N0}", results.ErrorRecords);
-        
+
         _logger.LogInformation("Entities Created:");
         _logger.LogInformation("  NAPs: {NAPsCreated:N0}", results.NAPsCreated);
-        
+
         _logger.LogInformation("Duplicates Skipped: {SkippedDuplicates:N0}", results.SkippedDuplicates);
 
         if (results.TotalRecords > 0)

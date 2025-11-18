@@ -55,6 +55,6 @@ public class OrganizationsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<bool>>> DeleteOrganizationById(Guid id)
     {
         var organization = await _mediator.Send(new DeleteOrganizationByIdRequest(id));
-        return organization .Succeeded ? Ok(organization) : BadRequest(organization);
+        return organization.Succeeded ? Ok(organization) : BadRequest(organization);
     }
 }

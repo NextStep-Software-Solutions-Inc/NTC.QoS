@@ -46,10 +46,10 @@ public class CreateCellSectorHandler(IRepository<Domain.Entities.CellSector> cel
 
         return new ApiResponse<CellSectorDto>
         {
-            Data = new ()
+            Data = new()
             {
                 Id = newCellSector.Id,
-                Cell = new ()
+                Cell = new()
                 {
                     Id = cell.Id,
                     Name = cell.Name,

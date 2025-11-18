@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Entities;
@@ -7,6 +8,8 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Infrastructure.Helper;
+using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -42,7 +45,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
     {
         try
         {
-            _logger.LogInformation("Processing connectivity analysis for {LocationCount} {LocationType}s", 
+            _logger.LogInformation("Processing connectivity analysis for {LocationCount} {LocationType}s",
                 request.LocationIds.Count, request.LocationType);
 
             var existingAssessments = await _connectivityRepository.GetByLocationIdsAsync(
@@ -51,7 +54,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             var locationNames = await GetLocationNamesAsync(request.LocationIds, request.LocationType, cancellationToken);
 
             var locations = new List<LocationConnectivityDto>();
-            
+
             foreach (var locationId in request.LocationIds)
             {
                 var assessment = existingAssessments.FirstOrDefault(a => a.LocationId == locationId);
@@ -94,7 +97,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 Summary = summary
             };
 
-            _logger.LogInformation("Connectivity analysis completed. Found {AssessedCount} assessed locations out of {TotalCount} requested", 
+            _logger.LogInformation("Connectivity analysis completed. Found {AssessedCount} assessed locations out of {TotalCount} requested",
                 existingAssessments.Count, request.LocationIds.Count);
 
             return new ApiResponse<ConnectivityAnalysisResponseDto>
@@ -128,14 +131,14 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             LocationTypeEnum.Municipality => await GetMunicipalityNamesAsync(locationIds, cancellationToken),
             LocationTypeEnum.Provincial => await GetProvinceNamesAsync(locationIds, cancellationToken),
             LocationTypeEnum.Regional => await GetRegionNamesAsync(locationIds, cancellationToken),
-            _ => new Dictionary<Guid, string>()
+            _ => []
         };
     }
 
     private async Task<Dictionary<Guid, string>> GetBarangayNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
     {
         var barangays = await _barangayRepository.ToListAsync(
-            _barangayRepository.Query(b => locationIds.Contains(b.Id)).Select(b => new { b.Id, b.Name }), 
+            _barangayRepository.Query(b => locationIds.Contains(b.Id)).Select(b => new { b.Id, b.Name }),
             cancellationToken);
         return barangays.ToDictionary(x => x.Id, x => x.Name);
     }
@@ -143,7 +146,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
     private async Task<Dictionary<Guid, string>> GetMunicipalityNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
     {
         var municipalities = await _municipalityRepository.ToListAsync(
-            _municipalityRepository.Query(m => locationIds.Contains(m.Id)).Select(m => new { m.Id, m.Name }), 
+            _municipalityRepository.Query(m => locationIds.Contains(m.Id)).Select(m => new { m.Id, m.Name }),
             cancellationToken);
         return municipalities.ToDictionary(x => x.Id, x => x.Name);
     }
@@ -151,7 +154,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
     private async Task<Dictionary<Guid, string>> GetProvinceNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
     {
         var provinces = await _provinceRepository.ToListAsync(
-            _provinceRepository.Query(p => locationIds.Contains(p.Id)).Select(p => new { p.Id, p.Name }), 
+            _provinceRepository.Query(p => locationIds.Contains(p.Id)).Select(p => new { p.Id, p.Name }),
             cancellationToken);
         return provinces.ToDictionary(x => x.Id, x => x.Name);
     }
@@ -159,7 +162,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
     private async Task<Dictionary<Guid, string>> GetRegionNamesAsync(List<Guid> locationIds, CancellationToken cancellationToken)
     {
         var regions = await _regionRepository.ToListAsync(
-            _regionRepository.Query(r => locationIds.Contains(r.Id)).Select(r => new { r.Id, r.Name }), 
+            _regionRepository.Query(r => locationIds.Contains(r.Id)).Select(r => new { r.Id, r.Name }),
             cancellationToken);
         return regions.ToDictionary(x => x.Id, x => x.Name);
     }
@@ -173,9 +176,47 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             var techCacheKey = _cacheService.GenerateTechnologyCacheKey(assessment.LocationId, assessment.LocationType);
             technologyBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBreakdownDto>(techCacheKey);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Failed to retrieve technology breakdown from cache for location {LocationId}", assessment.LocationId);
+            _logger.LogWarning(ex, "Cache operation failed while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving technology breakdown for location {LocationId}", assessment.LocationId);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving technology breakdown from cache for location {LocationId}", assessment.LocationId);
+        }
+
+        // Load provider breakdown from database
+        var providerBreakdown = new List<ProviderBreakdownDto>();
+        try
+        {
+            var providers = await _connectivityRepository.GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
+            providerBreakdown = providers.Select(p => new ProviderBreakdownDto
+            {
+                ProviderName = p.ProviderName,
+                CellTowerCount = p.CellTowerCount,
+                FiberNAPCount = p.FiberNAPCount,
+                WiFiHotspotCount = p.WiFiHotspotCount,
+                WirelessValidationCount = p.WirelessValidationCount,
+                AssetPercentage = p.AssetPercentage
+            }).ToList();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Database operation failed while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
         }
 
         return new LocationConnectivityDto
@@ -200,7 +241,8 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 WiFiHotspotCount = assessment.WifiHotspotCount,
                 ServiceProviderCount = assessment.ServiceProviderCount,
                 DominantServiceProvider = assessment.DominantServiceProvider,
-                TechnologyBreakdown = technologyBreakdown
+                TechnologyBreakdown = technologyBreakdown,
+                ProviderBreakdown = providerBreakdown
             },
             SpeedStats = assessment.SpeedTestCount > 0 ? new SpeedStatsDto
             {

@@ -35,7 +35,7 @@ public class UpdateCellSectorByIdHandler(IRepository<Domain.Entities.CellSector>
 
         return new ApiResponse<UpdateCellSectorDto>
         {
-            Data = new ()
+            Data = new()
             {
                 AntennaType = cellSector.AntennaType.ToString(),
                 AntennaHeight = cellSector.AntennaHeight,

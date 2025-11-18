@@ -20,7 +20,7 @@ public class OrganizationRequirement : Microsoft.AspNetCore.Authorization.IAutho
     /// <param name="requireSameOrganization">If true, requires user to belong to their own organization</param>
     /// <param name="caseSensitive">If true, organization name matching is case-sensitive</param>
     public OrganizationRequirement(
-        string? organization = null, 
+        string? organization = null,
         Guid? organizationId = null,
         bool requireSameOrganization = true,
         bool caseSensitive = false)

@@ -21,7 +21,7 @@ public class DeleteNetworkTemplateByIdHandler(IRepository<Domain.Entities.Networ
                 Succeeded = false,
                 Message = $"Network Template Id [{request.Id}] not found.",
                 Errors = new Dictionary<string, string[]>
-                { 
+                {
                     { "NetworkTemplate", new[] { $"No Network Template found with Id [{request.Id}]. It may not exist or has been deleted." } }
                 }
             };

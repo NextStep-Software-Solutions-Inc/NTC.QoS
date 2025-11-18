@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Technology;
 
 namespace NTC.QoS.Application.Features.Technology.Handlers.Commands;
 
-public class CreateTechnologyHandler (IRepository<Domain.Entities.Technology> repository, IGenerationRepository generationRepository): IRequestHandler<CreateTechnologyRequest, ApiResponse<TechnologyDto>>
+public class CreateTechnologyHandler(IRepository<Domain.Entities.Technology> repository, IGenerationRepository generationRepository) : IRequestHandler<CreateTechnologyRequest, ApiResponse<TechnologyDto>>
 {
     private readonly IRepository<Domain.Entities.Technology> _repository = repository;
     IGenerationRepository _generationRepository = generationRepository;

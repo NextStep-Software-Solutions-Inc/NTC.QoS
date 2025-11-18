@@ -40,7 +40,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         try
         {
             var pointRadius = request.PointRadius;
-            _logger.LogInformation("Processing point broadband info for location: {Lat}, {Lon} with radius: {Radius}m", 
+            _logger.LogInformation("Processing point broadband info for location: {Lat}, {Lon} with radius: {Radius}m",
                 pointRadius.Latitude, pointRadius.Longitude, pointRadius.RadiusMeters);
 
             // Create a circular buffer around the point
@@ -87,7 +87,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 }),
                 cancellationToken);
 
-            _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs within {Radius}m of the specified point", 
+            _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs within {Radius}m of the specified point",
                 cellsWithProvider.Count, napsWithProvider.Count, pointRadius.RadiusMeters);
 
             // Calculate distances and add proximity information (using direct property access)
@@ -174,7 +174,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 EnvelopeInfo = envelopeInfo
             };
 
-            _logger.LogInformation("Successfully processed point broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities", 
+            _logger.LogInformation("Successfully processed point broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities",
                 summary.TotalCells, summary.TotalNaps, summary.TotalAssets, summary.ServiceProviderCount, summary.MunicipalityCount);
 
             return new ApiResponse<AreaBroadbandInfoDto>
@@ -212,8 +212,8 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
     /// <returns>List of municipality area information</returns>
     private async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo<T1, T2>(
         Geometry queryGeometry,
-        List<T1> cellsWithProvider, 
-        List<T2> napsWithProvider, 
+        List<T1> cellsWithProvider,
+        List<T2> napsWithProvider,
         CancellationToken cancellationToken)
         where T1 : class
         where T2 : class
@@ -305,7 +305,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 CellCount = kvp.Value.CellCount,
                 NAPCount = kvp.Value.NAPCount,
                 IsCoveredByQuery = kvp.Value.IsCovered,
-                AssetPercentage = totalAssets > 0 
+                AssetPercentage = totalAssets > 0
                     ? Math.Round(((double)(kvp.Value.CellCount + kvp.Value.NAPCount) / totalAssets) * 100, 2)
                     : 0
             })
@@ -315,11 +315,11 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
             .ThenBy(m => m.Name)                        // Finally by name
             .ToList();
 
-        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} total municipalities ({WithAssets} with assets, {CoveredOnly} covered without assets)", 
-            result.Count, 
-            result.Count(m => m.HasAssets), 
+        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} total municipalities ({WithAssets} with assets, {CoveredOnly} covered without assets)",
+            result.Count,
+            result.Count(m => m.HasAssets),
             result.Count(m => m.IsCoveredByQuery && !m.HasAssets));
-        
+
         return result;
     }
 
@@ -349,7 +349,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 var property = type.GetProperty("Location");
                 return property?.PropertyType == typeof(Point) ? property : null;
             });
-            
+
             return locationProperty?.GetValue(item) as Point;
         }
         catch
@@ -360,9 +360,14 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
 
     private static Geometry CreateCircularBuffer(Point centerPoint, double radiusMeters)
     {
+        // Ensure the center point has the correct SRID before buffer operation
+        centerPoint.SRID = 4326;
+
         // Create a circular buffer around the point
         // NetTopologySuite buffer operation creates a polygon approximating a circle
+        // The buffer will preserve the SRID from the input geometry
         var bufferedGeometry = centerPoint.Buffer(ConvertMetersToDegreesApprox(radiusMeters, centerPoint.Y));
+
         return bufferedGeometry;
     }
 
@@ -418,7 +423,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
     {
         // Calculate the bounding box that encompasses the circular area
         var degreesRadius = ConvertMetersToDegreesApprox(radiusMeters, centerPoint.Y);
-        
+
         return new BoundingBoxDto
         {
             MinLatitude = centerPoint.Y - degreesRadius,

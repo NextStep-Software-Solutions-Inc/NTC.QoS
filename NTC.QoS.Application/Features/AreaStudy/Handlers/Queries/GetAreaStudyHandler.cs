@@ -31,8 +31,8 @@ public class GetAreaStudyHandler(IRepository<Domain.Entities.AreaStudy> reposito
 
         return new ApiResponse<AreaStudyDto>
         {
-            Data = new AreaStudyDto 
-            { 
+            Data = new AreaStudyDto
+            {
                 Id = areaStudy.Id,
                 Name = areaStudy.Name,
                 Description = areaStudy.Description

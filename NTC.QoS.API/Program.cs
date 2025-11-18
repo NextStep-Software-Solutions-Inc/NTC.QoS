@@ -1,4 +1,6 @@
+using AspNetCoreRateLimit;
 using Clerk.Net.DependencyInjection;
+using NTC.QoS.API.Middleware;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +12,6 @@ using NTC.QoS.API.Extensions;
 using NTC.QoS.API.Filters;
 using NTC.QoS.API.Infrastructure;
 using NTC.QoS.Application;
-using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.HealthChecks;
@@ -33,7 +34,7 @@ public class Program
             .AddEnvironmentVariables();
 
         // Validate Clerk secret for both Development and Production
-        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ??  throw new InvalidOperationException("Clerk Secret Key is not configured.");
+        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
         builder.Services.AddClerkApiClient(config =>
         {
             config.SecretKey = clerkSecret;
@@ -154,15 +155,17 @@ public class Program
         builder.Services.AddApplication(builder.Configuration);
         builder.Services.AddInfrastructure(builder.Configuration);
 
+        // Add API-specific services
+        builder.Services.AddApiRateLimiting();
+
         builder.Services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-            options.Providers.Add<GzipCompressionProvider>();
-            options.Providers.Add<BrotliCompressionProvider>();
-        });
+            {
+                options.EnableForHttps = true;
+                options.Providers.Add<GzipCompressionProvider>();
+                options.Providers.Add<BrotliCompressionProvider>();
+            });
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
-        builder.Services.AddScoped<GeospatialQueryService>();
 
         // Health checks
         builder.Services.AddHealthChecks()
@@ -170,7 +173,7 @@ public class Program
             .AddCheck<DbConnectionHealthCheck>("db");
 
         var app = builder.Build();
-        
+
         // Initialize application startup processes (Hangfire filters, migrations, seeding)
         await app.Services.InitializeApplicationAsync(builder.Configuration, env);
 
@@ -200,6 +203,9 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Enable client-based rate limiting (per user)
+        app.UseClientRateLimiting();
 
         // Hangfire dashboard with authorization
         app.UseHangfireDashboard("/hangfire", new DashboardOptions

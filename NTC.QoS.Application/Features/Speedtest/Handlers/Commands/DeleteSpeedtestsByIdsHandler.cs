@@ -22,7 +22,7 @@ public class DeleteSpeedtestsByIdsHandler(IRepository<Domain.Entities.Speedtest>
                 Succeeded = false,
                 Message = "None of the specified speedtest/s exist or are already deleted."
             };
-        }  
+        }
 
         return new ApiResponse<bool>
         {

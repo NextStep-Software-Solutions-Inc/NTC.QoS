@@ -57,7 +57,7 @@ public class UpdateServiceProviderHandler(IServiceProviderRepository repository)
             Data = new ServiceProviderDto
             {
                 Id = serviceProvider.Id,
-                Provider = new ()
+                Provider = new()
                 {
                     Id = serviceProvider.ProviderId,
                     Name = serviceProvider.Provider?.Name ?? string.Empty,
@@ -65,7 +65,7 @@ public class UpdateServiceProviderHandler(IServiceProviderRepository repository)
                     Description = serviceProvider.Provider?.Description ?? string.Empty,
                     LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty
                 },
-                Service = new ()
+                Service = new()
                 {
                     Id = serviceProvider.ServiceId,
                     Name = serviceProvider.Service?.Name ?? string.Empty,

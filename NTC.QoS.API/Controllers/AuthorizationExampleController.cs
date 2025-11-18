@@ -232,7 +232,7 @@ public class AuthorizationExampleController : ControllerBase
     public async Task<ActionResult<ApiResponse<string>>> GetRegionData(Guid regionId)
     {
         var hasRegionAccess = await _authorizationService.HasRegionAccessAsync(regionId);
-        
+
         if (!hasRegionAccess)
         {
             return Forbid($"You don't have access to region {regionId}");
@@ -253,7 +253,7 @@ public class AuthorizationExampleController : ControllerBase
     public async Task<ActionResult<ApiResponse<string>>> GetOrganizationSpecificData(Guid organizationId)
     {
         var belongsToOrganization = await _authorizationService.BelongsToOrganizationAsync(organizationId);
-        
+
         if (!belongsToOrganization)
         {
             return Forbid($"You don't belong to organization {organizationId}");

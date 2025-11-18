@@ -2,6 +2,6 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface IDeleteUploadedFileJob: IBackgroundJob<FileDto>
+public interface IDeleteUploadedFileJob : IBackgroundJob<FileDto>
 {
 }
