@@ -525,25 +525,25 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.ServiceProvider)
-            .WithMany()
+            .WithMany(sp => sp.WirelessValidations)
             .HasForeignKey(wv => wv.ServiceProviderId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.Barangay)
-            .WithMany()
+            .WithMany(b => b.WirelessValidations)
             .HasForeignKey(wv => wv.BarangayId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.Band)
-            .WithMany()
+            .WithMany(b => b.WirelessValidations)
             .HasForeignKey(wv => wv.BandId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.Technology)
-            .WithMany()
+            .WithMany(t => t.WirelessValidations)
             .HasForeignKey(wv => wv.TechnologyId)
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -588,7 +588,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<WiFiHotspot>()
             .HasOne(w => w.ServiceProvider)
-            .WithMany()
+            .WithMany(sp => sp.WiFiHotspots)
             .HasForeignKey(w => w.ServiceProviderId);
 
         modelBuilder.Entity<WiFiHotspot>()
