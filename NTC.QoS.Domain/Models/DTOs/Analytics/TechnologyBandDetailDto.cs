@@ -53,25 +53,25 @@ public class DetailedTechnologyBandBreakdownDto : Dictionary<string, TechnologyB
     public List<string> AllBands { get; set; } = [];
     
     /// <summary>
-    /// Count of 2G technology deployments (total infrastructure)
+    /// Count of unique bands available in 2G technology
     /// </summary>
     [JsonPropertyName("count2G")]
     public int Count2G { get; set; }
     
     /// <summary>
-    /// Count of 3G technology deployments (total infrastructure)
+    /// Count of unique bands available in 3G technology
     /// </summary>
     [JsonPropertyName("count3G")]
     public int Count3G { get; set; }
     
     /// <summary>
-    /// Count of 4G/LTE technology deployments (total infrastructure)
+    /// Count of unique bands available in 4G/LTE technology
     /// </summary>
     [JsonPropertyName("count4G")]
     public int Count4G { get; set; }
     
     /// <summary>
-    /// Count of 5G technology deployments (total infrastructure)
+    /// Count of unique bands available in 5G technology
     /// </summary>
     [JsonPropertyName("count5G")]
     public int Count5G { get; set; }

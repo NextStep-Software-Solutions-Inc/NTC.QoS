@@ -87,9 +87,9 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
         var validationBands = new Dictionary<string, HashSet<string>>();
         var allBands = new Dictionary<string, HashSet<string>>();
         
-        // Track technology counts and generations
+        // Track technology counts and unique bands per generation
         var technologyCounts = new Dictionary<string, int>();
-        var generationCounts = new Dictionary<string, int>();
+        var generationBands = new Dictionary<string, HashSet<string>>(); // Track unique bands per generation
         var generationSet = new HashSet<string>();
 
         // Query 1: Get bands from cellular infrastructure
@@ -125,9 +125,15 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
                 cellularBands[item.TechnologyStandard].Add(item.BandName);
                 allBands[item.TechnologyStandard].Add(item.BandName);
                 
-                // Track technology and generation counts
+                // Track unique bands per generation
+                if (!generationBands.ContainsKey(item.GenerationName))
+                {
+                    generationBands[item.GenerationName] = new HashSet<string>();
+                }
+                generationBands[item.GenerationName].Add(item.BandName);
+                
+                // Track technology counts
                 technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
-                generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
                 generationSet.Add(item.GenerationName);
             }
         }
@@ -171,9 +177,15 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
                 validationBands[item.TechnologyStandard].Add(item.BandName);
                 allBands[item.TechnologyStandard].Add(item.BandName);
                 
-                // Track technology and generation counts (from validations too)
+                // Track unique bands per generation
+                if (!generationBands.ContainsKey(item.GenerationName))
+                {
+                    generationBands[item.GenerationName] = new HashSet<string>();
+                }
+                generationBands[item.GenerationName].Add(item.BandName);
+                
+                // Track technology counts (from validations too)
                 technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
-                generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
                 generationSet.Add(item.GenerationName);
             }
         }
@@ -204,16 +216,16 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
         result.AvailableGenerations = generationSet.OrderBy(g => g).ToList();
         result.AllBands = allBands.Values.SelectMany(v => v).Distinct().OrderBy(b => b).ToList();
 
-        // Calculate generation counts
-        result.Count2G = generationCounts.GetValueOrDefault("2G", 0);
-        result.Count3G = generationCounts.GetValueOrDefault("3G", 0);
-        result.Count4G = generationCounts.GetValueOrDefault("4G", 0);
-        result.Count5G = generationCounts.GetValueOrDefault("5G", 0);
+        // Calculate generation counts (count of unique bands per generation)
+        result.Count2G = generationBands.GetValueOrDefault("2G", new HashSet<string>()).Count;
+        result.Count3G = generationBands.GetValueOrDefault("3G", new HashSet<string>()).Count;
+        result.Count4G = generationBands.GetValueOrDefault("4G", new HashSet<string>()).Count;
+        result.Count5G = generationBands.GetValueOrDefault("5G", new HashSet<string>()).Count;
 
-        // Determine dominant generation
-        if (generationCounts.Any())
+        // Determine dominant generation (based on number of unique bands)
+        if (generationBands.Any())
         {
-            result.DominantGeneration = generationCounts.OrderByDescending(kvp => kvp.Value).First().Key;
+            result.DominantGeneration = generationBands.OrderByDescending(kvp => kvp.Value.Count).First().Key;
         }
 
         // Determine primary technology
