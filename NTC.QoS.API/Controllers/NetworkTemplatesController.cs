@@ -32,7 +32,7 @@ public class NetworkTemplatesController : ControllerBase
         var result = await _mediator.Send(new GetAllNetworkTemplatesRequest
         {
             PageNumber = pageNumber,
-            PageSize = pageSize, 
+            PageSize = pageSize,
             Search = search
         });
         return Ok(result);

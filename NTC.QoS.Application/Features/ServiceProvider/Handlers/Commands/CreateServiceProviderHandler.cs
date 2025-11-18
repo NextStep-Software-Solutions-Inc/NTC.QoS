@@ -28,7 +28,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
                 Data = new ServiceProviderDto
                 {
                     Id = serviceProvider.Id,
-                    Provider = new ()
+                    Provider = new()
                     {
                         Id = serviceProvider.ProviderId,
                         Name = serviceProvider.Provider?.Name ?? string.Empty,
@@ -36,7 +36,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
                         Description = serviceProvider.Provider?.Description ?? string.Empty,
                         LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty
                     },
-                    Service = new ()
+                    Service = new()
                     {
                         Id = serviceProvider.ServiceId,
                         Name = serviceProvider.Service?.Name ?? string.Empty,
@@ -81,7 +81,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
             Data = new ServiceProviderDto
             {
                 Id = newServiceProvider.Id,
-                Provider = new ()
+                Provider = new()
                 {
                     Id = newServiceProvider.ProviderId,
                     Name = newServiceProvider.Provider?.Name ?? string.Empty,
@@ -89,7 +89,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
                     Description = newServiceProvider.Provider?.Description ?? string.Empty,
                     LicenseNumber = newServiceProvider.Provider?.LicenseNumber ?? string.Empty
                 },
-                Service = new ()
+                Service = new()
                 {
                     Id = newServiceProvider.ServiceId,
                     Name = newServiceProvider.Service?.Name ?? string.Empty,

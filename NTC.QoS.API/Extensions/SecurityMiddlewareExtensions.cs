@@ -27,7 +27,7 @@ public static class SecurityMiddlewareExtensions
     {
         app.UseHsts();
         app.UseHttpsRedirection();
-        
+
         return app;
     }
 }

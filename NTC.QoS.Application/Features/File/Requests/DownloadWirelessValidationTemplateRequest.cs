@@ -9,6 +9,6 @@ public sealed class DownloadWirelessValidationTemplateRequest : IRequest<ApiResp
     {
         MunicipalityId = municipalityId;
     }
-    
+
     public Guid MunicipalityId { get; set; }
 }

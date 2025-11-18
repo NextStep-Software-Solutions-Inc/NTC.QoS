@@ -8,7 +8,7 @@ public class UpdateSectorDto
     public Guid? MIMOId { get; set; }
     public Guid? CellSectorId { get; set; }
     public string? RadioEquipment { get; set; }
-    public  bool? IsRxEqualTx { get; set; }
+    public bool? IsRxEqualTx { get; set; }
     public decimal? TxPower { get; set; }
     public string? TxAntennaModel { get; set; }
     public string? TxCableType { get; set; }

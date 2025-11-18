@@ -38,7 +38,7 @@ public class UploadFileHandler(
             string fileExtension = Path.GetExtension(originalFileName);
             string newFileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}";
 
-            _logger.LogInformation("Processing file upload - Original: {OriginalFileName}, New: {NewFileName}, ContentType: {ContentType}, Size: {FileSize} bytes", 
+            _logger.LogInformation("Processing file upload - Original: {OriginalFileName}, New: {NewFileName}, ContentType: {ContentType}, Size: {FileSize} bytes",
                 originalFileName, newFileName, request.File.File.ContentType, request.File.File.Length);
 
             // Get region information for the current user
@@ -58,7 +58,7 @@ public class UploadFileHandler(
 
             // Determine container name based on environment
             string containerName = GetContainerName();
-            
+
             // Create blob path with region-based folder structure
             string blobPath = GetBlobPathWithRegion(fileType, regionCode, newFileName);
 
@@ -67,14 +67,14 @@ public class UploadFileHandler(
 
             // Upload file to blob storage
             using var fileStream = request.File.File.OpenReadStream();
-            
+
             // Reset stream position if possible
             if (fileStream.CanSeek)
             {
                 fileStream.Position = 0;
                 _logger.LogDebug("Stream position reset to 0, stream length: {StreamLength}", fileStream.Length);
             }
-            
+
             string blobUrl = await _blobStorageService.UploadAsync(
                 containerName,
                 blobPath,
@@ -98,7 +98,7 @@ public class UploadFileHandler(
                 // Store region information if you have a RegionId field in File entity
                 // RegionId = request.File.RegionId
             };
-            
+
             _repository.Add(newFile);
             await _repository.SaveChangesAsync(cancellationToken);
 
@@ -123,7 +123,7 @@ public class UploadFileHandler(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading file {FileName}", request.File.FileName ?? request.File.File.FileName);
-            
+
             return new ApiResponse<FileDto>
             {
                 Message = $"Error uploading file: {ex.Message}",

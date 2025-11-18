@@ -39,7 +39,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     [HttpGet("/v2/speedtests/viewport/public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] ViewportQueryParams query)
     {
@@ -171,7 +171,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
         [JsonPropertyName("regionIds")]
         public List<Guid>? RegionIds { get; set; }
-        
+
         [JsonPropertyName("serviceProviderIds")]
         public List<Guid>? ServiceProviderIds { get; set; }
 

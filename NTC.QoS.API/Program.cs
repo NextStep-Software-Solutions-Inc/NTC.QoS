@@ -34,7 +34,7 @@ public class Program
             .AddEnvironmentVariables();
 
         // Validate Clerk secret for both Development and Production
-        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ??  throw new InvalidOperationException("Clerk Secret Key is not configured.");
+        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
         builder.Services.AddClerkApiClient(config =>
         {
             config.SecretKey = clerkSecret;
@@ -173,7 +173,7 @@ public class Program
             .AddCheck<DbConnectionHealthCheck>("db");
 
         var app = builder.Build();
-        
+
         // Initialize application startup processes (Hangfire filters, migrations, seeding)
         await app.Services.InitializeApplicationAsync(builder.Configuration, env);
 

@@ -9,7 +9,7 @@ namespace NTC.QoS.Application.Features.Provider.Handlers.Queries;
 
 public class GetProviderLogoByIdHandler(
     IRepository<Domain.Entities.Provider> repository,
-    ILogger<GetProviderLogoByIdHandler> logger) 
+    ILogger<GetProviderLogoByIdHandler> logger)
     : IRequestHandler<GetProviderLogoByIdRequest, ApiResponse<ProviderLogoDto>>
 {
     private readonly IRepository<Domain.Entities.Provider> _repository = repository;
@@ -19,7 +19,7 @@ public class GetProviderLogoByIdHandler(
     {
         var providerQuery = _repository.Query(p => p.Id == request.Id)
             .Select(p => new { p.LogoData, p.LogoContentType, p.LogoFileName });
-        
+
         var provider = await _repository.FirstOrDefaultAsync(providerQuery, cancellationToken);
 
         if (provider is null)

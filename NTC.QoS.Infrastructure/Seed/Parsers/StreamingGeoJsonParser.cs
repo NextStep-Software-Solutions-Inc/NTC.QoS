@@ -5,6 +5,8 @@ using NetTopologySuite.IO;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
 using NTC.QoS.Infrastructure.Seed.Models;
+using System.Diagnostics;
+using System.IO;
 
 namespace NTC.QoS.Infrastructure.Seed.Parsers;
 
@@ -12,80 +14,113 @@ namespace NTC.QoS.Infrastructure.Seed.Parsers;
 /// Streaming parser for GeoJSON location data.
 /// Parses features one at a time to minimize memory usage.
 /// </summary>
-public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
+public class StreamingGeoJsonParser(
+    ILogger<StreamingGeoJsonParser> logger,
+    string adminLevel,
+    string? parentAdminLevel = null) : ILocationDataParser<ParsedLocationFeature>
 {
-    private readonly ILogger<StreamingGeoJsonParser> _logger;
-    private readonly string _adminLevel;
-    private readonly string? _parentAdminLevel;
-
-    public StreamingGeoJsonParser(
-        ILogger<StreamingGeoJsonParser> logger,
-        string adminLevel,
-        string? parentAdminLevel = null)
-    {
-        _logger = logger;
-        _adminLevel = adminLevel;
-        _parentAdminLevel = parentAdminLevel;
-    }
 
     public async IAsyncEnumerable<ParsedLocationFeature> ParseFeaturesAsync(
         Stream stream,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        using var streamReader = new StreamReader(stream, leaveOpen: false);
-        var serializer = GeoJsonSerializer.Create();
-        using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
-
-        FeatureCollection? featureCollection = null;
-        
+        string? tempFile = null;
         try
         {
-            // Async yield to allow compiler to understand this is truly async
-            await Task.Yield();
-            featureCollection = serializer.Deserialize<FeatureCollection>(jsonReader);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to deserialize GeoJSON stream");
-            yield break;
-        }
+            logger.LogInformation("Starting to parse GeoJSON features from stream");
 
-        if (featureCollection == null || featureCollection.Count == 0)
-        {
-            _logger.LogWarning("No features found in GeoJSON stream");
-            yield break;
-        }
-
-        var processedCount = 0;
-        var skippedCount = 0;
-
-        foreach (var feature in featureCollection)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                yield break;
-
-            var parsed = TryParseFeature(feature);
-            if (parsed.HasValue)
+            // Buffer the stream to a temp file to minimize memory usage
+            tempFile = Path.GetTempFileName();
+            using (var fileStream = File.OpenWrite(tempFile))
             {
-                yield return parsed.Value;
-                processedCount++;
-                
-                if (processedCount % 1000 == 0)
+                await stream.CopyToAsync(fileStream, cancellationToken);
+            }
+
+            using var fileReadStream = File.OpenRead(tempFile);
+            using var streamReader = new StreamReader(fileReadStream, leaveOpen: false);
+            using var jsonReader = new Newtonsoft.Json.JsonTextReader(streamReader);
+            var serializer = GeoJsonSerializer.Create();
+
+            // Skip to the start of the features array
+            while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
+            {
+                logger.LogDebug("Read token: {TokenType} at line {Line}", jsonReader.TokenType, jsonReader.LineNumber);
+                if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.PropertyName &&
+                    jsonReader.Value?.ToString() == "features")
                 {
-                    _logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
+                    await jsonReader.ReadAsync(cancellationToken); // Move to StartArray
+                    break;
                 }
             }
-            else
+
+            if (jsonReader.TokenType != Newtonsoft.Json.JsonToken.StartArray)
             {
-                skippedCount++;
+                logger.LogError("Invalid GeoJSON: 'features' array not found");
+                yield break;
             }
+
+            var processedCount = 0;
+            var skippedCount = 0;
+
+            while (await jsonReader.ReadAsync(cancellationToken) && jsonReader.TokenType != Newtonsoft.Json.JsonToken.EndArray)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    yield break;
+
+                if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.StartObject)
+                {
+                    logger.LogDebug("Starting to process GeoJSON feature at position {Position}", jsonReader.LineNumber);
+                    IFeature? feature = null;
+                    try
+                    {
+                        // Deserialize individual feature on a background thread to avoid blocking
+                        var stopwatch = Stopwatch.StartNew();
+                        feature = await Task.Run(() => serializer.Deserialize<IFeature>(jsonReader));
+                        stopwatch.Stop();
+                        logger.LogDebug("Successfully deserialized GeoJSON feature in {Time}ms", stopwatch.ElapsedMilliseconds);
+                    }
+                    catch
+                    {
+                        logger.LogWarning("Failed to deserialize individual feature, skipping due to large geometry");
+                        skippedCount++;
+                        // Skip to the end of the current object to continue parsing
+                        await jsonReader.SkipAsync();
+                        continue;
+                    }
+
+                    if (feature != null)
+                    {
+                        var parsed = TryParseFeature(feature);
+                        if (parsed.HasValue)
+                        {
+                            logger.LogDebug("Successfully parsed feature with code {Code}", parsed.Value.Code);
+                            yield return parsed.Value;
+                            processedCount++;
+
+                            if (processedCount % 1000 == 0)
+                            {
+                                logger.LogDebug("Parsed {Count} features from GeoJSON stream", processedCount);
+                            }
+                        }
+                        else
+                        {
+                            logger.LogDebug("Feature parsing failed, skipping");
+                            skippedCount++;
+                        }
+                    }
+                }
+            }
+
+            logger.LogInformation(
+                "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
+                processedCount, skippedCount);
         }
-
-        _logger.LogInformation(
-            "Parsing completed. Processed: {ProcessedCount}, Skipped: {SkippedCount}",
-            processedCount, skippedCount);
+        finally
+        {
+            if (tempFile != null && File.Exists(tempFile))
+                File.Delete(tempFile);
+        }
     }
-
     private ParsedLocationFeature? TryParseFeature(IFeature feature)
     {
         try
@@ -93,60 +128,60 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
             var attributes = feature.Attributes;
             if (attributes == null)
             {
-                _logger.LogWarning("Feature skipped: no attributes");
+                logger.LogWarning("Feature skipped: no attributes");
                 return null;
             }
 
             // Required fields
-            var codeKey = $"{_adminLevel}_PCODE";
-            var nameKey = $"{_adminLevel}_EN";
-            
+            var codeKey = $"{adminLevel}_PCODE";
+            var nameKey = $"{adminLevel}_EN";
+
             if (!attributes.Exists(codeKey))
             {
-                _logger.LogWarning("Feature skipped: missing {CodeKey}", codeKey);
+                logger.LogWarning("Feature skipped: missing {CodeKey}", codeKey);
                 return null;
             }
             if (!attributes.Exists(nameKey))
             {
-                _logger.LogWarning("Feature skipped: missing {NameKey}", nameKey);
+                logger.LogWarning("Feature skipped: missing {NameKey}", nameKey);
                 return null;
             }
             if (!attributes.Exists("AREA_SQKM"))
             {
-                _logger.LogWarning("Feature skipped: missing AREA_SQKM");
+                logger.LogWarning("Feature skipped: missing AREA_SQKM");
                 return null;
             }
 
             var code = attributes[codeKey]?.ToString();
             var name = attributes[nameKey]?.ToString();
-            
+
             if (string.IsNullOrWhiteSpace(code))
             {
-                _logger.LogWarning("Feature skipped: empty or whitespace code");
+                logger.LogWarning("Feature skipped: empty or whitespace code");
                 return null;
             }
             if (string.IsNullOrWhiteSpace(name))
             {
-                _logger.LogWarning("Feature skipped: empty or whitespace name");
+                logger.LogWarning("Feature skipped: empty or whitespace name");
                 return null;
             }
 
-            var area = attributes["AREA_SQKM"] != null && 
-                       float.TryParse(attributes["AREA_SQKM"].ToString(), out var areaValue) 
+            var area = attributes["AREA_SQKM"] != null &&
+                       float.TryParse(attributes["AREA_SQKM"].ToString(), out var areaValue)
                 ? areaValue : 0f;
 
             var boundaries = ExtractBoundaries(feature);
             if (boundaries == null)
             {
-                _logger.LogWarning("Feature skipped: invalid geometry (not MultiPolygon or Polygon)");
+                logger.LogWarning("Feature skipped: invalid geometry (not MultiPolygon or Polygon)");
                 return null;
             }
 
             // Optional parent code
             string? parentCode = null;
-            if (_parentAdminLevel != null)
+            if (parentAdminLevel != null)
             {
-                var parentKey = $"{_parentAdminLevel}_PCODE";
+                var parentKey = $"{parentAdminLevel}_PCODE";
                 parentCode = attributes.Exists(parentKey) ? attributes[parentKey]?.ToString() : null;
             }
 
@@ -169,7 +204,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to parse feature, skipping");
+            logger.LogWarning(ex, "Failed to parse feature, skipping");
             return null;
         }
     }
@@ -184,7 +219,7 @@ public class StreamingGeoJsonParser : ILocationDataParser<ParsedLocationFeature>
         };
     }
 
-    private int? TryParsePopulation(IAttributesTable attributes, string key)
+    private static int? TryParsePopulation(IAttributesTable attributes, string key)
     {
         if (!attributes.Exists(key))
             return null;

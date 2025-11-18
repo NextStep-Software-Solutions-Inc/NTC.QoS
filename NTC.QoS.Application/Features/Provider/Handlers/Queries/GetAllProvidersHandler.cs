@@ -17,14 +17,14 @@ public class GetAllProvidersHandler(
     public async Task<PaginatedResponse<ProviderDto>> Handle(GetAllProvidersRequest request, CancellationToken cancellationToken)
     {
         var allProvidersQuery = _providerRepository.Query();
-        
+
         allProvidersQuery = allProvidersQuery
-            .Where(p =>  request.ServiceIds == null || request.ServiceIds.Count.Equals(0) || p.ServiceProviders.Any(sp => sp.Service != null && request.ServiceIds.Contains(sp.Service.Id)))
+            .Where(p => request.ServiceIds == null || request.ServiceIds.Count.Equals(0) || p.ServiceProviders.Any(sp => sp.Service != null && request.ServiceIds.Contains(sp.Service.Id)))
             .Where(p => request.Names == null || request.Names.Any(n => p.Name.Trim().ToLower().Contains(n.Trim().ToLower())));
 
         // Performance optimization: Only include logo data if explicitly requested
         var shouldIncludeLogo = request.IncludeLogoData ?? false; // Default to false for list views
-        
+
         _logger.LogDebug("Processing provider list request with logo data inclusion: {IncludeLogo}", shouldIncludeLogo);
 
         var providerDtosQuery = allProvidersQuery
@@ -55,8 +55,8 @@ public class GetAllProvidersHandler(
             LogoSizeBytes = p.LogoData != null ? p.LogoData.Length : null,
             LogoUploadedAt = p.LogoUploadedAt,
             // Conditionally include logo data based on performance requirements
-            LogoDataBase64 = includeLogoData && p.LogoData != null && p.LogoData.Length > 0 
-                ? Convert.ToBase64String(p.LogoData) 
+            LogoDataBase64 = includeLogoData && p.LogoData != null && p.LogoData.Length > 0
+                ? Convert.ToBase64String(p.LogoData)
                 : null
         };
     }

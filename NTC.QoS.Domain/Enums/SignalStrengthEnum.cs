@@ -11,22 +11,22 @@ public enum SignalStrengthEnum
     /// No Broadband Coverage: > 100 dBm (or RSSI > 100)
     /// </summary>
     NoBroadbandCoverage = 1,   // > 100 dBm
-    
+
     /// <summary>
     /// Very Weak: 90-100 dBm
     /// </summary>
     VeryWeak = 2,              // 90-100 dBm
-    
+
     /// <summary>
     /// Weak: 80-90 dBm  
     /// </summary>
     Weak = 3,                  // 80-90 dBm
-    
+
     /// <summary>
     /// Average: 70-80 dBm
     /// </summary>
     Average = 4,               // 70-80 dBm
-    
+
     /// <summary>
     /// Good: 40-70 dBm
     /// </summary>

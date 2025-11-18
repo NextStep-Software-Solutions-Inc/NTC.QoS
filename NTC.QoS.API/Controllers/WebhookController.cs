@@ -55,7 +55,7 @@ public class WebhookController(IMediator mediator) : ControllerBase
                 Message = "No action taken for this event type."
             },// Ignore other events
         };
-        
+
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
@@ -104,7 +104,7 @@ public class WebhookController(IMediator mediator) : ControllerBase
         {
             // User not found, perhaps create
             return await HandleUserCreated(userData);
-            
+
         }
 
         var updateRequest = new UpdateUserByIdRequest(userResponse.Data.Id, new UpdateUserDto

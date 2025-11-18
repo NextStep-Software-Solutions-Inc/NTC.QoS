@@ -30,8 +30,8 @@ public class RegionSeedingStrategy : LocationSeedingStrategy<Region>
 
     protected override WriteOptions GetWriteOptions() => new()
     {
-        BatchSize = 5,  // Very small batches for geometry writes
-        TimeoutSeconds = 300,
+        BatchSize = 1,  // Reduced to 1 for very large geometries (200MB+ per feature)
+        TimeoutSeconds = 150,
         EnableStreaming = true
     };
 
@@ -46,7 +46,7 @@ public class RegionSeedingStrategy : LocationSeedingStrategy<Region>
             .AsNoTracking()
             .Select(r => r.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -91,7 +91,7 @@ public class ProvinceSeedingStrategy : LocationSeedingStrategy<Province>
             .AsNoTracking()
             .Select(p => p.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -121,7 +121,7 @@ public class MunicipalitySeedingStrategy : LocationSeedingStrategy<Municipality>
     protected override WriteOptions GetWriteOptions() => new()
     {
         BatchSize = 10,  // Smaller batches for geometry-heavy data
-        TimeoutSeconds = 600,
+        TimeoutSeconds = 400,
         EnableStreaming = true
     };
 
@@ -136,7 +136,7 @@ public class MunicipalitySeedingStrategy : LocationSeedingStrategy<Municipality>
             .AsNoTracking()
             .Select(m => m.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -181,7 +181,7 @@ public class BarangaySeedingStrategy : LocationSeedingStrategy<Barangay>
             .AsNoTracking()
             .Select(b => b.Code)
             .ToListAsync(cancellationToken);
-        
+
         return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
     }
 

@@ -49,11 +49,11 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     Task<int> SoftDeleteAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default);
     Task<int> RestoreAsync(IQueryable<TEntity> queryable, CancellationToken cancellationToken = default);
 
-     IQueryable<T> GetEntitiesWithinBoundaries<T>(
-        IQueryable<T> query,
-        ViewportBounds? viewport = null,
-        List<Guid>? regionIds = null,
-        List<Guid>? provinceIds = null,
-        List<Guid>? municipalityIds = null,
-        List<Guid>? barangayIds = null) where T : IGeoLocatedEntity;
+    IQueryable<T> GetEntitiesWithinBoundaries<T>(
+       IQueryable<T> query,
+       ViewportBounds? viewport = null,
+       List<Guid>? regionIds = null,
+       List<Guid>? provinceIds = null,
+       List<Guid>? municipalityIds = null,
+       List<Guid>? barangayIds = null) where T : IGeoLocatedEntity;
 }

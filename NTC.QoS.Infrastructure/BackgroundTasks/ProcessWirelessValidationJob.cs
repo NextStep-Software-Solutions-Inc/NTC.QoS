@@ -119,7 +119,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during wireless validation processing after {ElapsedTime}: {ErrorMessage}",
                 stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
-            await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, 
+            await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation,
                 $"Error occurred during processing: {ex.Message}", token);
             throw;
         }
@@ -144,7 +144,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         // Pre-load hierarchical municipality data
         var municipalityHierarchyList = await _municipalityRepository
             .QueryAsNoTracking()
-            .Select(m => new {
+            .Select(m => new
+            {
                 m.Id,
                 m.Name,
                 ProvinceName = m.Province.Name,
@@ -229,7 +230,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 .OrderBy(wv => wv.Id)
                 .Skip(skip)
                 .Take(DUPLICATE_LOAD_BATCH_SIZE)
-                .Select(wv => new {
+                .Select(wv => new
+                {
                     wv.ServiceProviderId,
                     wv.BarangayId,
                     wv.BandId,
@@ -250,13 +252,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     validation.TechnologyId,
                     validation.Address ?? string.Empty
                 );
-                
+
                 validationLookup.Add(hash);
             }
-            
+
             totalLoadedValidations += existingBatch.Count;
             skip += DUPLICATE_LOAD_BATCH_SIZE;
-            
+
             _logger.LogInformation("Loaded {LoadedCount}/{TotalCount} existing wireless validation records...",
                 totalLoadedValidations, totalValidations);
         }
@@ -383,7 +385,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         else if (possibleMatches.Count > 1)
         {
             var bestMatch = possibleMatches
-                .Select(m => new {
+                .Select(m => new
+                {
                     Municipality = m,
                     Score = (CalculateSimilarity(municipalityName, m.Name) * 2) +
                            CalculateSimilarity(provinceName, m.ProvinceName) +
@@ -475,115 +478,115 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             .Where(item => item.HeaderAttribute != null && !string.IsNullOrEmpty(item.Band) && !string.IsNullOrEmpty(item.Technology))
             .ToList();
 
-     _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
-   totalRecords, totalBatches, BATCH_SIZE);
+        _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
+      totalRecords, totalBatches, BATCH_SIZE);
 
         for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
-     var batch = records.Skip(batchIndex * BATCH_SIZE).Take(BATCH_SIZE).ToList();
-     var batchNumber = batchIndex + 1;
+            var batch = records.Skip(batchIndex * BATCH_SIZE).Take(BATCH_SIZE).ToList();
+            var batchNumber = batchIndex + 1;
 
             _logger.LogInformation("Processing batch {BatchNumber}/{TotalBatches} ({RecordCount} records)",
            batchNumber, totalBatches, batch.Count);
 
-      var validationsToAdd = new List<WirelessValidation>();
+            var validationsToAdd = new List<WirelessValidation>();
 
             foreach (var record in batch)
-      {
-    try
+            {
+                try
                 {
-results.ProcessedRecords++;
+                    results.ProcessedRecords++;
 
-        if (!record.MunicipalityId.HasValue || string.IsNullOrWhiteSpace(record.Provider))
-         {
-           results.SkippedRecords++;
-    continue;
-   }
+                    if (!record.MunicipalityId.HasValue || string.IsNullOrWhiteSpace(record.Provider))
+                    {
+                        results.SkippedRecords++;
+                        continue;
+                    }
 
-        var serviceProviderKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
-                 if (!referenceData.ServiceProviderCache.TryGetValue(serviceProviderKey, out var serviceProviderId))
-      {
-   _logger.LogWarning("Service Provider not found: {Provider}. Skipping record.", record.Provider);
-          results.SkippedRecords++;
-        continue;
-       }
+                    var serviceProviderKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
+                    if (!referenceData.ServiceProviderCache.TryGetValue(serviceProviderKey, out var serviceProviderId))
+                    {
+                        _logger.LogWarning("Service Provider not found: {Provider}. Skipping record.", record.Provider);
+                        results.SkippedRecords++;
+                        continue;
+                    }
 
-    record.ServiceProviderId = serviceProviderId;
+                    record.ServiceProviderId = serviceProviderId;
 
-        // Resolve barangay
-      Guid? barangayId = null;
-if (!string.IsNullOrWhiteSpace(record.Barangay) && record.MunicipalityId.HasValue)
-          {
-     if (referenceData.BarangayCache.TryGetValue(record.MunicipalityId.Value, out var municipalityBarangays))
-  {
-             var barangayKey = CacheKeyGenerator.GenerateBarangayCacheKey(record.Barangay, record.MunicipalityId.Value);
-        if (municipalityBarangays.TryGetValue(barangayKey, out var foundBarangayId))
-  {
-      barangayId = foundBarangayId;
-                record.BarangayId = barangayId;
-          }
-        }
-               }
+                    // Resolve barangay
+                    Guid? barangayId = null;
+                    if (!string.IsNullOrWhiteSpace(record.Barangay) && record.MunicipalityId.HasValue)
+                    {
+                        if (referenceData.BarangayCache.TryGetValue(record.MunicipalityId.Value, out var municipalityBarangays))
+                        {
+                            var barangayKey = CacheKeyGenerator.GenerateBarangayCacheKey(record.Barangay, record.MunicipalityId.Value);
+                            if (municipalityBarangays.TryGetValue(barangayKey, out var foundBarangayId))
+                            {
+                                barangayId = foundBarangayId;
+                                record.BarangayId = barangayId;
+                            }
+                        }
+                    }
 
-          if (!barangayId.HasValue)
-           {
-              _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}",
-      record.Provider, record.Barangay, record.Municipality);
-            results.SkippedRecords++;
-       continue;
-      }
+                    if (!barangayId.HasValue)
+                    {
+                        _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}",
+                record.Provider, record.Barangay, record.Municipality);
+                        results.SkippedRecords++;
+                        continue;
+                    }
 
- // Process each technology/band combination
-      var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
-          
-   // CRITICAL: Set audit properties before adding to list
-        foreach (var validation in recordValidations)
-   {
-           validation.CreatedAt = now;
-      validation.CreatedBy = userId;
-        validation.UpdatedAt = now;
-      validation.UpdatedBy = userId;
-           }
-     
-         validationsToAdd.AddRange(recordValidations);
-           results.SkippedDuplicates += skippedDuplicates;
+                    // Process each technology/band combination
+                    var (recordValidations, skippedDuplicates) = ProcessTechnologyBandCombinations(record, bandTechnologyProperties, referenceData);
 
-     if (recordValidations.Count != 0)
-   {
-          results.SuccessfulRecords++;
-         results.CreatedValidations += recordValidations.Count;
-        }
-       else
-       {
-          results.SkippedRecords++;
-      }
+                    // CRITICAL: Set audit properties before adding to list
+                    foreach (var validation in recordValidations)
+                    {
+                        validation.CreatedAt = now;
+                        validation.CreatedBy = userId;
+                        validation.UpdatedAt = now;
+                        validation.UpdatedBy = userId;
+                    }
+
+                    validationsToAdd.AddRange(recordValidations);
+                    results.SkippedDuplicates += skippedDuplicates;
+
+                    if (recordValidations.Count != 0)
+                    {
+                        results.SuccessfulRecords++;
+                        results.CreatedValidations += recordValidations.Count;
+                    }
+                    else
+                    {
+                        results.SkippedRecords++;
+                    }
                 }
-       catch (Exception ex)
-       {
-  _logger.LogWarning(ex, "Error processing record - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
-   record.Provider, record.Barangay, record.Municipality);
-      results.ErrorRecords++;
-        }
-}
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing record - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
+                     record.Provider, record.Barangay, record.Municipality);
+                    results.ErrorRecords++;
+                }
+            }
 
-        // OPTIMIZED: Save batch periodically (like ProcessCellJob)
-    if (validationsToAdd.Count > 0)
-        {
-         await _wirelessValidationRepository.BulkInsertAsync(validationsToAdd, token);
-      _logger.LogInformation("Batch {BatchNumber}/{TotalBatches}: Added {Count:N0} validations",
-       batchNumber, totalBatches, validationsToAdd.Count);
+            // OPTIMIZED: Save batch periodically (like ProcessCellJob)
+            if (validationsToAdd.Count > 0)
+            {
+                await _wirelessValidationRepository.BulkInsertAsync(validationsToAdd, token);
+                _logger.LogInformation("Batch {BatchNumber}/{TotalBatches}: Added {Count:N0} validations",
+                 batchNumber, totalBatches, validationsToAdd.Count);
             }
 
             // Detailed progress reporting (like ProcessCellJob)
-   var processedCount = Math.Min((batchIndex + 1) * BATCH_SIZE, totalRecords);
+            var processedCount = Math.Min((batchIndex + 1) * BATCH_SIZE, totalRecords);
             var progress = (double)processedCount / totalRecords * 100;
             ProcessingJobHelper.ReportProgress(
                 $"Batch {batchNumber}/{totalBatches} completed - Progress: {progress:F1}% - " +
              $"Successful: {results.SuccessfulRecords:N0}, Errors: {results.ErrorRecords:N0}, " +
-                $"Validations Created: {results.CreatedValidations:N0}, Duplicates Skipped: {results.SkippedDuplicates:N0}", 
+                $"Validations Created: {results.CreatedValidations:N0}, Duplicates Skipped: {results.SkippedDuplicates:N0}",
       _logger);
- }
-  }
+        }
+    }
 
     // OPTIMIZED: Hash-based duplicate checking (like ProcessCellJob)
     private (List<WirelessValidation> validations, int skippedDuplicates) ProcessTechnologyBandCombinations(WirelessValidationRecord record,

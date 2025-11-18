@@ -33,7 +33,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber"})]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber" })]
     public async Task<ActionResult<PaginatedResponse<RegionDto>>> GetAllRegions(int pageSize = 10, int pageNumber = 1)
     {
         var request = new GetAllRegionsRequest()
@@ -58,7 +58,7 @@ public class RegionsController : ControllerBase
     [HttpPatch("{id}")]
     public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> UpdateRegionById(Guid id, [FromForm] UpdateRegionDto updateRegionDto)
     {
-        var region = await _mediator.Send(new UpdateRegionRequest{ Id = id, Region = updateRegionDto });
+        var region = await _mediator.Send(new UpdateRegionRequest { Id = id, Region = updateRegionDto });
         return region.Succeeded ? Ok(region) : BadRequest(region);
     }
 

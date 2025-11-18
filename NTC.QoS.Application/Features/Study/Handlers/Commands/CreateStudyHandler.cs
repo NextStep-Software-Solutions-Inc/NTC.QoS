@@ -39,8 +39,8 @@ public class CreateStudyHandler(IRepository<Domain.Entities.Study> repository, I
                 Message = "Area study not found.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "AreaStudyId", [$"Area study with ID [{request.Study.AreaStudyId}] not found."]  
+                    {
+                        "AreaStudyId", [$"Area study with ID [{request.Study.AreaStudyId}] not found."]
                     }
                 },
                 Succeeded = false

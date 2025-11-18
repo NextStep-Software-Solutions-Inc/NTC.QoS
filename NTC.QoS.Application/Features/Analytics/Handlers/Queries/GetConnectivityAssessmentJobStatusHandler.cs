@@ -24,7 +24,7 @@ public class GetConnectivityAssessmentJobStatusHandler : IRequestHandler<GetConn
     }
 
     public Task<ApiResponse<ConnectivityAssessmentJobStatusDto>> Handle(
-        GetConnectivityAssessmentJobStatusRequest request, 
+        GetConnectivityAssessmentJobStatusRequest request,
         CancellationToken cancellationToken)
     {
         try
@@ -32,7 +32,7 @@ public class GetConnectivityAssessmentJobStatusHandler : IRequestHandler<GetConn
             // Get job status from cache
             var cacheKey = $"job_status_{request.JobId}";
             var jobStatus = _memoryCache.Get<ConnectivityAssessmentJobStatusDto>(cacheKey);
-            
+
             if (jobStatus == null)
             {
                 return Task.FromResult(new ApiResponse<ConnectivityAssessmentJobStatusDto>
@@ -46,7 +46,7 @@ public class GetConnectivityAssessmentJobStatusHandler : IRequestHandler<GetConn
                 });
             }
 
-            _logger.LogDebug("Retrieved status for job {JobId}: {Status} - {Message}", 
+            _logger.LogDebug("Retrieved status for job {JobId}: {Status} - {Message}",
                 request.JobId, jobStatus.Status, jobStatus.Message);
 
             return Task.FromResult(new ApiResponse<ConnectivityAssessmentJobStatusDto>

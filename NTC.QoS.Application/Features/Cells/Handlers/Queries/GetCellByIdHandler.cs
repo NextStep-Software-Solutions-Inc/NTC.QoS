@@ -11,7 +11,7 @@ namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandler<GetCellByIdRequest, ApiResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
-    
+
     public async Task<ApiResponse<CellDto>> Handle(GetCellByIdRequest request, CancellationToken cancellationToken)
     {
         var cellDtoQuery = _cellRepository.Query(c => c.Id.Equals(request.Id))
@@ -54,7 +54,7 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
             });
 
         var cellDto = await _cellRepository.FirstOrDefaultAsync(cellDtoQuery, cancellationToken);
-        
+
         if (cellDto is null)
         {
             return new ApiResponse<CellDto>

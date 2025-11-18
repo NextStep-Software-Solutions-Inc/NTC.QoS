@@ -16,7 +16,7 @@ public sealed class ViewportQueryParams
     public int PageNumber { get; set; } = 1;
 
     [JsonPropertyName("pageSize")]
-    [Range(1, GeoSpatialConstants.MaxViewportPageSize, 
+    [Range(1, GeoSpatialConstants.MaxViewportPageSize,
         ErrorMessage = "PageSize must be between 1 and " + nameof(GeoSpatialConstants.MaxViewportPageSize))]
     public int PageSize { get; set; } = GeoSpatialConstants.RecommendedViewportPageSize;
 
@@ -58,7 +58,7 @@ public sealed class ViewportQueryParams
     {
         return MinLat < MaxLat && MinLng < MaxLng;
     }
-    
+
     /// <summary>
     /// Creates a ViewportBoundsDto from the query parameters
     /// </summary>

@@ -18,7 +18,7 @@ internal static class RepositoryServiceExtensions
     {
         // Generic repository
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-        
+
         // Entity-specific repositories
         RegisterEntityRepositories(services);
         RegisterLocationRepositories(services);

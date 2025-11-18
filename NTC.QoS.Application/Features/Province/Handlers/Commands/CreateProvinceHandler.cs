@@ -34,8 +34,8 @@ public class CreateProvinceRequestHandler : IRequestHandler<CreateProvinceReques
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Name", ["A province with the specified name already exists."] 
+                    {
+                        "Name", ["A province with the specified name already exists."]
                     }
                 }
             };

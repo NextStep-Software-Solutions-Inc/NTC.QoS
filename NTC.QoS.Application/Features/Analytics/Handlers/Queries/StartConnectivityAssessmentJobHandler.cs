@@ -34,7 +34,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     }
 
     public Task<ApiResponse<ConnectivityAssessmentJobResponseDto>> Handle(
-        StartConnectivityAssessmentJobRequest request, 
+        StartConnectivityAssessmentJobRequest request,
         CancellationToken cancellationToken)
     {
         try
@@ -43,10 +43,10 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             var jobId = Interlocked.Increment(ref _jobIdCounter);
             var estimatedTotalLocations = CalculateEstimatedTotalLocations(request);
             var startTime = DateTime.UtcNow;
-            
+
             // Get the current user ID from context (auto-captured from JWT token)
             var currentUserId = _userContextService.GetCurrentUserId() ?? "System";
-            
+
             var jobRequest = new ConnectivityAssessmentJobRequestDto
             {
                 JobId = jobId,
@@ -55,16 +55,16 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
                 ForceRecalculate = request.ForceRecalculate,
                 GenerateHierarchicalAssessments = request.GenerateHierarchicalAssessments,
                 HierarchicalDepth = request.HierarchicalDepth,
-                
+
                 // NEW: Set hierarchical processing configuration with safe defaults
                 EnableHierarchicalProcessing = request.EnableHierarchicalProcessing ?? false, // Default disabled
                 MaxHierarchicalLocations = request.MaxHierarchicalLocations ?? GetDefaultMaxHierarchicalLocations(request.LocationType),
                 HierarchicalBatchSize = request.HierarchicalBatchSize ?? GetDefaultHierarchicalBatchSize(request.LocationType),
-                
+
                 // Date range filtering for speedtest and wireless validation data
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
-                
+
                 UserId = currentUserId, // Use the auto-captured user ID from context
                 RequestedAt = startTime
             };
@@ -85,7 +85,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
                 var estimatedChildrenCount = refinedEstimatedLocations - primaryCount;
                 _logger.LogInformation("Job {JobId} location estimation - Primary: {Primary}, Estimated children: {EstimatedChildren}, " +
                     "Total estimated: {TotalEstimated}, LocationType: {LocationType}, Depth: {Depth}",
-                    jobId, primaryCount, estimatedChildrenCount, refinedEstimatedLocations, 
+                    jobId, primaryCount, estimatedChildrenCount, refinedEstimatedLocations,
                     jobRequest.LocationType, jobRequest.HierarchicalDepth);
             }
 
@@ -111,8 +111,8 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
 
             _logger.LogInformation("Started background connectivity assessment job {JobId} (Hangfire: {HangfireJobId}) for {LocationCount} {LocationType}s. " +
                 "Hierarchical requested: {Hierarchical}, Enabled: {Enabled}, Force: {Force}, EstimatedTotal: {EstimatedTotal}",
-                jobId, hangfireJobId, request.LocationIds.Count, request.LocationType, 
-                request.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing, 
+                jobId, hangfireJobId, request.LocationIds.Count, request.LocationType,
+                request.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing,
                 request.ForceRecalculate, refinedEstimatedLocations);
 
             var response = new ConnectivityAssessmentJobResponseDto
@@ -259,12 +259,12 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     {
         // Base time per location (in minutes)
         var baseTimePerLocation = jobRequest.ForceRecalculate ? 0.5 : 0.2;
-        
+
         // Calculate estimated locations to process
         var estimatedLocations = CalculateRefinedEstimatedTotalLocations(jobRequest);
-        
+
         var estimatedMinutes = (int)Math.Ceiling(estimatedLocations * baseTimePerLocation);
-        
+
         // Minimum 1 minute, maximum 180 minutes for display purposes
         return Math.Max(1, Math.Min(180, estimatedMinutes));
     }

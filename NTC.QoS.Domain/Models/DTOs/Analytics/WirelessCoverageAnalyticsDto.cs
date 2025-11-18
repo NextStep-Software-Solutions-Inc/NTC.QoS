@@ -60,32 +60,32 @@ public class TechnologyBreakdownDto
     /// Count of 2G technology deployments
     /// </summary>
     public int Count2G { get; set; }
-    
+
     /// <summary>
     /// Count of 3G technology deployments  
     /// </summary>
     public int Count3G { get; set; }
-    
+
     /// <summary>
     /// Count of 4G/LTE technology deployments
     /// </summary>
     public int Count4G { get; set; }
-    
+
     /// <summary>
     /// Count of 5G technology deployments
     /// </summary>
     public int Count5G { get; set; }
-    
+
     /// <summary>
     /// List of available technology standards (e.g., GSM, WCDMA, LTE, NR)
     /// </summary>
     public List<string> AvailableTechnologies { get; set; } = [];
-    
+
     /// <summary>
     /// List of available generation names
     /// </summary>
     public List<string> AvailableGenerations { get; set; } = [];
-    
+
     /// <summary>
     /// Dominant generation based on deployment count
     /// </summary>
@@ -93,22 +93,22 @@ public class TechnologyBreakdownDto
 
     // Calculated properties
     public string PrimaryTechnology { get; set; } = string.Empty;
-    
+
     /// <summary>
     /// Whether modern technologies (4G/5G) are present
     /// </summary>
     public bool HasModernTechnology => Count4G > 0 || Count5G > 0;
-    
+
     /// <summary>
     /// Whether legacy technologies (2G/3G only) dominate
     /// </summary>
     public bool IsLegacyDominated => (Count2G + Count3G) > (Count4G + Count5G) && (Count4G + Count5G) > 0;
-    
+
     /// <summary>
     /// Total technology deployment count
     /// </summary>
     public int TotalTechnologyCount => Count2G + Count3G + Count4G + Count5G;
-    
+
     public bool HasModernCoverage { get; set; } // 4G/5G/LTE present
     public double ModernCoverageRatio { get; set; } // % of towers with 4G/5G/LTE
 }

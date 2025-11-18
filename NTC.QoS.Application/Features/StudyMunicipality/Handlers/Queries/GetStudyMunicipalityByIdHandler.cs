@@ -9,7 +9,7 @@ namespace NTC.QoS.Application.Features.StudyMunicipality.Handlers.Queries;
 public class GetStudyMunicipalityByIdHandler(IStudyMunicipalityRepository studyMunicipalityRepository) : IRequestHandler<GetStudyMunicipalityByIdRequest, ApiResponse<StudyMunicipalityDto>>
 {
     private readonly IStudyMunicipalityRepository _studyMunicipalityRepository = studyMunicipalityRepository;
-    
+
     public async Task<ApiResponse<StudyMunicipalityDto>> Handle(GetStudyMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
         var studyMunicipalityDtoQuery = _studyMunicipalityRepository.Query(sm => sm.Id == request.Id)

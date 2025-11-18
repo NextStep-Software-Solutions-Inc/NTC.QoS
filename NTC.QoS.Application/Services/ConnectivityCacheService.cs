@@ -44,7 +44,7 @@ public class ConnectivityCacheService : IConnectivityCacheService
         _memoryCache = memoryCache;
         _options = options.Value;
         _logger = logger;
-        
+
         // Note: MemoryCache size limits must be configured at DI registration time,
         // not in the constructor. The size limits are now configured in ApplicationDependencyInjection.cs
     }
@@ -57,7 +57,7 @@ public class ConnectivityCacheService : IConnectivityCacheService
     public async Task SetCachedResultAsync<T>(string cacheKey, T data, TimeSpan? expiry = null) where T : class
     {
         var cacheExpiry = expiry ?? GetCacheExpiryForType<T>();
-        
+
         var options = new MemoryCacheEntryOptions
         {
             SlidingExpiration = cacheExpiry,
@@ -67,10 +67,10 @@ public class ConnectivityCacheService : IConnectivityCacheService
         };
 
         _memoryCache.Set(cacheKey, data, options);
-        
+
         // Track cache keys for pattern-based invalidation (now thread-safe)
         TrackCacheKey(cacheKey);
-        
+
         await Task.CompletedTask;
     }
 
@@ -84,10 +84,10 @@ public class ConnectivityCacheService : IConnectivityCacheService
             {
                 _memoryCache.Remove(key);
             }
-            
+
             // Clear the bag (thread-safe operation)
             _cacheKeyPatterns.TryUpdate(pattern, [], keyBag);
-            
+
             _logger.LogInformation("Invalidated {Count} cache entries for pattern {Pattern}", keys.Length, pattern);
         }
         await Task.CompletedTask;
@@ -132,9 +132,9 @@ public class ConnectivityCacheService : IConnectivityCacheService
     {
         var pattern = cacheKey.Split(':')[0];
         _cacheKeyPatterns.AddOrUpdate(
-            pattern, 
+            pattern,
             [cacheKey],
-            (key, existing) => 
+            (key, existing) =>
             {
                 existing.Add(cacheKey);
                 return existing;

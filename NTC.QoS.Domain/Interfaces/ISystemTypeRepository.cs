@@ -2,7 +2,7 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface ISystemTypeRepository: IRepository<SystemType>
+public interface ISystemTypeRepository : IRepository<SystemType>
 {
 
 }

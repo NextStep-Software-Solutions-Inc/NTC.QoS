@@ -56,15 +56,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
-        
+
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("postgis");
 
-        foreach ( var entityType in modelBuilder.Model.GetEntityTypes())
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            if(typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
+            if (typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
             {
                 var parameter = Expression.Parameter(entityType.ClrType, "entity");
                 var property = Expression.Property(parameter, nameof(BaseEntity.IsDeleted));
@@ -434,7 +434,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(r => r.Boundaries)
             .HasDatabaseName("IX_Region_Boundaries")
             .HasMethod("GIST");
-        
+
         modelBuilder.Entity<Region>()
             .Property(r => r.Center)
             .HasColumnType("geometry (Point,4326)")
@@ -525,25 +525,25 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.ServiceProvider)
-            .WithMany()
+            .WithMany(sp => sp.WirelessValidations)
             .HasForeignKey(wv => wv.ServiceProviderId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.Barangay)
-            .WithMany()
+            .WithMany(b => b.WirelessValidations)
             .HasForeignKey(wv => wv.BarangayId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.Band)
-            .WithMany()
+            .WithMany(b => b.WirelessValidations)
             .HasForeignKey(wv => wv.BandId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<WirelessValidation>()
             .HasOne(wv => wv.Technology)
-            .WithMany()
+            .WithMany(t => t.WirelessValidations)
             .HasForeignKey(wv => wv.TechnologyId)
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -588,7 +588,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<WiFiHotspot>()
             .HasOne(w => w.ServiceProvider)
-            .WithMany()
+            .WithMany(sp => sp.WiFiHotspots)
             .HasForeignKey(w => w.ServiceProviderId);
 
         modelBuilder.Entity<WiFiHotspot>()

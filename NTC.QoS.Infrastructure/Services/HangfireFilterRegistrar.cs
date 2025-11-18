@@ -45,7 +45,7 @@ internal class HangfireFilterRegistrar : IHangfireFilterRegistrar
             {
                 // Register global filters here if needed
                 // Example: GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute { Attempts = 3 });
-                
+
                 _logger.LogInformation("Hangfire global filters registered successfully");
                 _filtersRegistered = true;
             }

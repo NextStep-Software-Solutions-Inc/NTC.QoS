@@ -72,7 +72,7 @@ public abstract class LocationSeedingStrategy<TEntity> where TEntity : class
         {
             // Download and parse stream
             await using var stream = await BlobStorageService.DownloadAsync(ContainerName, FilePath, cancellationToken);
-            
+
             var parsedFeatures = Parser.ParseFeaturesAsync(stream, cancellationToken);
 
             // Transform to entities

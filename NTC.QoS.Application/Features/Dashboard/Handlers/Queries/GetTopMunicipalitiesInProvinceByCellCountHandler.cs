@@ -19,11 +19,11 @@ request.ProvinceId,
             request.EndDate,
           cancellationToken);
 
-   return new ApiResponse<List<GeoEntityCellCountDto>>
-      {
-    Succeeded = true,
-         Message = $"Top municipalities in ProvinceId [{request.ProvinceId}] retrieved successfully.",
-     Data = result
-   };
+        return new ApiResponse<List<GeoEntityCellCountDto>>
+        {
+            Succeeded = true,
+            Message = $"Top municipalities in ProvinceId [{request.ProvinceId}] retrieved successfully.",
+            Data = result
+        };
     }
 }

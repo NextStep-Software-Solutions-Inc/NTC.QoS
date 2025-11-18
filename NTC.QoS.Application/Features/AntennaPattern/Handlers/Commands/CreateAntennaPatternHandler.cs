@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
 
 namespace NTC.QoS.Application.Features.AntennaPattern.Handlers.Commands;
 
-public class CreateAntennaPatternHandler (IRepository<Domain.Entities.AntennaPattern> repository): IRequestHandler<CreateAntennaPatternRequest, ApiResponse<AntennaPatternDto>>
+public class CreateAntennaPatternHandler(IRepository<Domain.Entities.AntennaPattern> repository) : IRequestHandler<CreateAntennaPatternRequest, ApiResponse<AntennaPatternDto>>
 {
     private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
 

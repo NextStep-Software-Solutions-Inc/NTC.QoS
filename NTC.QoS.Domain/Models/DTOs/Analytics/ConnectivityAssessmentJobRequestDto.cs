@@ -59,7 +59,7 @@ public class ConnectivityAssessmentJobRequestDto
     /// If null, no start date filter is applied.
     /// </summary>
     public DateTime? StartDate { get; set; }
-    
+
     /// <summary>
     /// End date for filtering speedtest and wireless validation data (inclusive).
     /// If null, no end date filter is applied.

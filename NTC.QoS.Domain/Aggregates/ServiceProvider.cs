@@ -17,4 +17,5 @@ public class ServiceProvider : BaseEntity
     public virtual List<Cell> Cells { get; set; } = [];
     public virtual List<Network> Networks { get; set; } = [];
     public virtual List<WirelessValidation> WirelessValidations { get; set; } = [];
+    public virtual List<WiFiHotspot> WiFiHotspots { get; set; } = [];
 }

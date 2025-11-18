@@ -16,7 +16,7 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
     {
         var userRegionQuery = _userRegionRepository.Query(ur => ur.Id == request.Id);
         var userRegion = await _userRegionRepository.FirstOrDefaultAsync(userRegionQuery, cancellationToken);
-        
+
         if (userRegion is null)
         {
             return new ApiResponse<UserRegionDto>("User Region with the specified ID does not exist.");
@@ -43,7 +43,7 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
                     Id = userRegion.User.Id,
                     AuthUserId = userRegion.User.AuthUserId,
                     Email = userRegion.User.Email,
-                    Role =  new()
+                    Role = new()
                     {
                         Id = userRegion.User.RoleId,
                         Name = userRegion.User.Role.Name,

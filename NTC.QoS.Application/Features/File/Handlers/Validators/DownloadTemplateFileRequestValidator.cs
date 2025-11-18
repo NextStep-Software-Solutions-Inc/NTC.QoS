@@ -9,11 +9,11 @@ public class DownloadTemplateFileRequestValidator : AbstractValidator<DownloadTe
 
     public DownloadTemplateFileRequestValidator()
     {
-       RuleFor(x => x.Type)
-            .NotEmpty()
-            .WithMessage("File type is required.")
-            .Must(BeValidFileType)
-            .WithMessage($"Invalid file type. Must be one of {GetValidFileTypes()}");
+        RuleFor(x => x.Type)
+             .NotEmpty()
+             .WithMessage("File type is required.")
+             .Must(BeValidFileType)
+             .WithMessage($"Invalid file type. Must be one of {GetValidFileTypes()}");
     }
 
     private bool BeValidFileType(string fileType)

@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Band;
 
 namespace NTC.QoS.Application.Features.Band.Handlers.Commands;
 
-public class CreateBandHandler (IRepository<Domain.Entities.Band> repository): IRequestHandler<CreateBandRequest, ApiResponse<BandDto>>
+public class CreateBandHandler(IRepository<Domain.Entities.Band> repository) : IRequestHandler<CreateBandRequest, ApiResponse<BandDto>>
 {
     private readonly IRepository<Domain.Entities.Band> _repository = repository;
 
@@ -44,7 +44,7 @@ public class CreateBandHandler (IRepository<Domain.Entities.Band> repository): I
                 }
             };
         }
-                
+
         var newBand = new Domain.Entities.Band
         {
             Name = request.Band.Name,

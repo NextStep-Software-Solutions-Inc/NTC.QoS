@@ -32,8 +32,8 @@ public class TechnologyBandsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<TechnologyBandDto>>> GetAllTechnologyBands(
-        int pageSize = 10, 
-        int pageNumber = 1, 
+        int pageSize = 10,
+        int pageNumber = 1,
         [FromQuery] List<Guid>? technologies = default,
         [FromQuery] List<Guid>? bands = default)
     {

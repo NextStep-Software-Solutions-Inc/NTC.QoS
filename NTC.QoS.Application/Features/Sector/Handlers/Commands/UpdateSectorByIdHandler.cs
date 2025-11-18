@@ -111,7 +111,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         if (request.Sector.TxAntennaGain.HasValue) sector.TxAntennaGain = request.Sector.TxAntennaGain;
         if (request.Sector.TxAzimuth.HasValue) sector.TxAzimuth = request.Sector.TxAzimuth;
         if (request.Sector.TxBeamTilt.HasValue) sector.TxBeamTilt = request.Sector.TxBeamTilt;
-        if (request.Sector.TxAntennaPatternId.HasValue) 
+        if (request.Sector.TxAntennaPatternId.HasValue)
         {
             var txAntennaPatternQuery = _antennaPatternRepository.Query(a => a.Id == request.Sector.TxAntennaPatternId.Value);
             var txAntennaPattern = await _antennaPatternRepository.FirstOrDefaultAsync(txAntennaPatternQuery, cancellationToken);
@@ -277,7 +277,7 @@ public class UpdateSectorByIdHandler(ISectorRepository sectorRepository,
         return new ApiResponse<SectorDto>
         {
             Data = result,
-            Message = "Sector updated successfully.",   
+            Message = "Sector updated successfully.",
             Succeeded = true
         };
     }

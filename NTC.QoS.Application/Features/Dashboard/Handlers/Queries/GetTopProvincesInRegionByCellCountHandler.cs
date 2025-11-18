@@ -21,8 +21,8 @@ public class GetTopProvincesInRegionByCellCountHandler(IProvinceRepository provi
 
         return new ApiResponse<List<GeoEntityCellCountDto>>
         {
-   Succeeded = true,
-     Message = $"Top provinces in RegionId [{request.RegionId}] retrieved successfully.",
+            Succeeded = true,
+            Message = $"Top provinces in RegionId [{request.RegionId}] retrieved successfully.",
             Data = result
         };
     }

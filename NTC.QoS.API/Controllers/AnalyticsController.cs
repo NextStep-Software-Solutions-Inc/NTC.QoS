@@ -132,7 +132,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<List<LocationConnectivityDto>>), 400)]
     public async Task<ActionResult<ApiResponse<List<LocationConnectivityDto>>>> GenerateConnectivityAssessment(
         [FromBody, Required] GenerateConnectivityAssessmentRequest request)
-    { 
+    {
         var result = await mediator.Send(request);
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
@@ -190,8 +190,8 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
         {
             ConnectivityStatuses = new[]
             {
-                new { 
-                    Status = "Served", 
+                new {
+                    Status = "Served",
                     ScoreRange = "11-15 points",
                     Description = "Fully developed, meets most technical and social benchmarks",
                     Characteristics = new[]
@@ -202,8 +202,8 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
                         "100% of households, institutions, and establishments within the barangay is covered and have access to fixed or mobile broadband"
                     }
                 },
-                new { 
-                    Status = "Underserved", 
+                new {
+                    Status = "Underserved",
                     ScoreRange = "6-10 points",
                     Description = "Has basic infrastructure or partial access, but lacks quality, affordability, or consistency",
                     Characteristics = new[]
@@ -214,8 +214,8 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
                         "Only 40% to 99% of the population has access, often clustered in urban centers or specific areas"
                     }
                 },
-                new { 
-                    Status = "Unserved", 
+                new {
+                    Status = "Unserved",
                     ScoreRange = "<= 5 points",
                     Description = "Virtually no broadband access or supporting infrastructure",
                     Characteristics = new[]
@@ -238,7 +238,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
                 },
                 new {
                     Name = "Internet Access (Speedtest)",
-                    Weight = "0-3 points", 
+                    Weight = "0-3 points",
                     Served = "Stable internet with speeds meeting or exceeding national broadband standards (e.g., 25 Mbps or higher)",
                     Underserved = "Internet is available but often slow, unreliable, or below national broadband standards (e.g., <25 Mbps)",
                     Unserved = "No internet access or only minimal access through mobile signal with no broadband infrastructure"
