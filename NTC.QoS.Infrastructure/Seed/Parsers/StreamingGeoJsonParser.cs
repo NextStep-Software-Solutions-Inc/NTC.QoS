@@ -19,7 +19,7 @@ public class StreamingGeoJsonParser(
     string adminLevel,
     string? parentAdminLevel = null) : ILocationDataParser<ParsedLocationFeature>
 {
- 
+
     public async IAsyncEnumerable<ParsedLocationFeature> ParseFeaturesAsync(
         Stream stream,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
