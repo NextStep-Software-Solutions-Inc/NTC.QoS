@@ -358,6 +358,38 @@ public class ProcessCellJob : IProcessCellJob
                 _logger.LogInformation("Extracted {Count} band/technology properties from Excel.",
                     bandTechnologyProperties.Count);
 
+                // --- Step 4a: Pre-validate Excel data for records without active technologies ---
+                _logger.LogInformation("Validating Excel data for completeness...");
+
+                var recordsWithoutActiveTechnologies = 0;
+                foreach (var record in cellRecords)
+                {
+                    if (!HasAnyActiveTechnology(record, bandTechnologyProperties))
+                    {
+                        recordsWithoutActiveTechnologies++;
+                    }
+                }
+
+                processingResults.RecordsWithoutActiveTechnologies = recordsWithoutActiveTechnologies;
+
+                if (recordsWithoutActiveTechnologies > 0)
+                {
+                    _logger.LogWarning(
+                        "⚠️  Pre-validation Warning: Found {Count:N0} records ({Percentage:F1}%) with ALL technology/band columns set to FALSE or empty. " +
+                        "These records will create Cells and CellSectors but NOT Cellular/Network/Sector records. " +
+                        "If this is unexpected, please review the Excel file before continuing.",
+                        recordsWithoutActiveTechnologies,
+                        (double)recordsWithoutActiveTechnologies / cellRecords.Count * 100);
+                    
+                    _logger.LogInformation(
+                        "ℹ️  Impact: {Count:N0} CellSectors will be created without coverage data (cannot be used for connectivity analysis).",
+                        recordsWithoutActiveTechnologies);
+                }
+                else
+                {
+                    _logger.LogInformation("✓ All records have at least one active technology. Data validation passed.");
+                }
+
                 // --- Step 5: Process Records in Batches (OPTIMIZED) ---
                 var totalRecords = cellRecords.Count;
                 var totalBatches = (int)Math.Ceiling((double)totalRecords / BATCH_SIZE);
@@ -489,26 +521,54 @@ public class ProcessCellJob : IProcessCellJob
                 // --- Step 6: All networks have been saved per-batch, this section is now for final checks only ---
                 _logger.LogInformation("All batches processed. Networks were saved per-batch before Cellular records.");
 
-                // --- Step 7: Create Sector entities for new CellSectors (1:1 ratio) ---
-                _logger.LogInformation("Creating Sector entities for newly created CellSectors (1:1 ratio)...");
+                // --- Step 7: Create Sector entities for CellSectors without existing Sectors (handles both new and reprocessing) ---
+                _logger.LogInformation("Creating Sector entities for CellSectors without existing Sectors...");
 
-                var allNewCellSectorIds = cellSectorsCreatedForCellId.Values.SelectMany(ids => ids).ToList();
+                // Get all CellSector IDs from this processing run (both new and existing cells)
+                var allProcessedCellIds = new HashSet<Guid>();
 
-                if (allNewCellSectorIds.Count > 0)
+                // Add newly created cells
+                foreach (var cellId in cellSectorsCreatedForCellId.Keys)
                 {
-                    // Check for existing sectors to avoid duplicates
+                    allProcessedCellIds.Add(cellId);
+                }
+
+                // Add existing cells that were processed (from cellIdMapping)
+                foreach (var cellId in cellIdMapping.Values)
+                {
+                    allProcessedCellIds.Add(cellId);
+                }
+
+                if (allProcessedCellIds.Count > 0)
+                {
+                    // Get all CellSector IDs for processed cells
+                    var allCellSectorIds = await _cellSectorRepository
+                        .QueryAsNoTracking(cs => allProcessedCellIds.Contains(cs.CellId))
+                        .Select(cs => cs.Id)
+                        .ToListAsync(token);
+
+                    _logger.LogInformation("Found {Count:N0} CellSectors from {CellCount:N0} processed cells.",
+                        allCellSectorIds.Count, allProcessedCellIds.Count);
+
+                    // Check which CellSectors already have Sectors
                     var existingSectorIds = await _sectorRepository
-                        .QueryAsNoTracking(s => allNewCellSectorIds.Contains(s.CellSectorId))
+                        .QueryAsNoTracking(s => allCellSectorIds.Contains(s.CellSectorId))
                         .Select(s => s.CellSectorId)
                         .ToListAsync(token);
 
                     var existingSet = existingSectorIds.ToHashSet();
 
+                    _logger.LogInformation("{ExistingCount:N0} CellSectors already have Sectors.",
+                        existingSet.Count);
+
                     // Get CellSector details for sectors we need to create
                     var cellSectorsNeedingSectors = await _cellSectorRepository
-                        .QueryAsNoTracking(cs => allNewCellSectorIds.Contains(cs.Id) &&
+                        .QueryAsNoTracking(cs => allCellSectorIds.Contains(cs.Id) &&
                                                  !existingSet.Contains(cs.Id))
                         .ToListAsync(token);
+
+                    _logger.LogInformation("{NeedingSectorsCount:N0} CellSectors need Sector creation.",
+                        cellSectorsNeedingSectors.Count);
 
                     if (cellSectorsNeedingSectors.Count > 0)
                     {
@@ -524,6 +584,9 @@ public class ProcessCellJob : IProcessCellJob
                                 g => g.First().NetworkId,  // Use first (primary) network
                                 token);
 
+                        _logger.LogInformation("Found Cellular records for {Count:N0} CellSectors.",
+                            cellularForSectors.Count);
+
                         var skippedSectorsCount = 0;
                         foreach (var cellSector in cellSectorsNeedingSectors)
                         {
@@ -535,7 +598,7 @@ public class ProcessCellJob : IProcessCellJob
                             if (networkId == Guid.Empty)
                             {
                                 _logger.LogWarning("Skipping Sector creation for CellSector {CellSectorId} - No valid Network found. " +
-                                    "This may indicate missing SystemType configuration.", cellSector.Id);
+                                    "This may indicate missing SystemType configuration or Cellular records not yet created.", cellSector.Id);
                                 skippedSectorsCount++;
                                 continue;
                             }
@@ -565,15 +628,26 @@ public class ProcessCellJob : IProcessCellJob
                         {
                             await _sectorRepository.BulkInsertAsync(sectorsToAdd, token);
                             processingResults.SectorsCreated = sectorsToAdd.Count;
-                            _logger.LogInformation("Created {Count:N0} sector entities (1:1 ratio with CellSectors).",
+                            _logger.LogInformation("Created {Count:N0} sector entities for CellSectors.",
                                 sectorsToAdd.Count);
                         }
 
                         if (skippedSectorsCount > 0)
                         {
+                            processingResults.CellSectorsWithoutCellular += skippedSectorsCount;
+                            
                             _logger.LogWarning("Skipped {Count:N0} sectors due to missing or invalid NetworkId. " +
-                                "Please ensure all required SystemTypes are configured in the database.", skippedSectorsCount);
+                                "Possible reasons: " +
+                                "1) All technology/band columns in Excel were FALSE/empty for these CellSectors, " +
+                                "2) Missing SystemType configuration for required technologies, " +
+                                "3) Cellular records failed to create due to other errors. " +
+                                "Check the Excel file and ensure at least one technology/band is set to TRUE or has valid CF/BW values.",
+                                skippedSectorsCount);
                         }
+                    }
+                    else
+                    {
+                        _logger.LogInformation("All CellSectors already have Sectors. No new sectors to create.");
                     }
                 }
 
@@ -627,6 +701,30 @@ public class ProcessCellJob : IProcessCellJob
 
         _logger.LogInformation("Duplicates Skipped:");
         _logger.LogInformation("  Total Duplicates: {SkippedDuplicates:N0}", results.SkippedDuplicates);
+
+        // Enhanced validation statistics
+        if (results.CellSectorsWithoutCellular > 0 || results.RecordsWithoutActiveTechnologies > 0)
+        {
+            _logger.LogWarning("⚠️  Data Quality Issues Detected:");
+            
+            if (results.RecordsWithoutActiveTechnologies > 0)
+            {
+                _logger.LogWarning(
+                    "  • {Count:N0} records had NO active technologies (all tech/band columns were FALSE/empty)",
+                    results.RecordsWithoutActiveTechnologies);
+            }
+            
+            if (results.CellSectorsWithoutCellular > 0)
+            {
+                _logger.LogWarning(
+                    "  • {Count:N0} CellSectors were created WITHOUT Cellular/Sector records",
+                    results.CellSectorsWithoutCellular);
+                _logger.LogWarning(
+                    "  • These CellSectors CANNOT be used for coverage analysis until Cellular records are added");
+                _logger.LogWarning(
+                    "  • Action Required: Review Excel file and ensure technology/band columns have TRUE or valid 'CF: x, BW: y' values");
+            }
+        }
 
         if (results.TotalRecords > 0)
         {
@@ -882,7 +980,16 @@ public class ProcessCellJob : IProcessCellJob
 
             if (allSectorIds.Count == 0)
             {
+                _logger.LogWarning("Row {Row}: No CellSectors found for Cell {CellId} - Cannot create Cellular records", 
+                    rowNumber, cellId);
                 continue;
+            }
+
+            // Log parse result for debugging
+            if (!parseResult.IsActive)
+            {
+                _logger.LogDebug("Row {Row}: {Technology}/{Band} is not active (value: {Value})", 
+                    rowNumber, propInfo.Technology, propInfo.Band, value);
             }
 
             foreach (var sectorId in allSectorIds)
@@ -922,8 +1029,9 @@ public class ProcessCellJob : IProcessCellJob
 
                     if (networkId == Guid.Empty)
                     {
-                        _logger.LogWarning("Skipping cellular record at row {Row} due to missing network (Technology: {Technology}, Band: {Band}). " +
-                            "This may indicate a missing SystemType configuration.", rowNumber, propInfo.Technology, propInfo.Band);
+                        _logger.LogWarning("Row {Row}: Skipping Cellular for {Technology}/{Band} - NetworkId is Empty. " +
+                            "Check SystemType configuration for TechnologyId: {TechnologyId}", 
+                            rowNumber, propInfo.Technology, propInfo.Band, technologyId);
                         continue;
                     }
 
@@ -943,6 +1051,9 @@ public class ProcessCellJob : IProcessCellJob
 
                     result.CellularToAdd.Add(newCellular);
                     cellularLookup.Add(cellularHash);
+                    
+                    _logger.LogDebug("Row {Row}: Created Cellular record for {Technology}/{Band} with Network {NetworkId}", 
+                        rowNumber, propInfo.Technology, propInfo.Band, networkId);
                 }
             }
         }
@@ -1280,6 +1391,25 @@ public class ProcessCellJob : IProcessCellJob
     }
 
     /// <summary>
+    /// Checks if a cell record has at least one active technology/band combination
+    /// </summary>
+    private bool HasAnyActiveTechnology(CellRecord record, List<BandTechnologyPropertyInfo> bandTechnologyProperties)
+    {
+        foreach (var propInfo in bandTechnologyProperties)
+        {
+            var value = propInfo.Property.GetValue(record);
+            var parseResult = ParseBandTechnologyValue(value, propInfo.Technology, propInfo.Band, 0);
+            
+            if (parseResult.IsActive)
+            {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /// <summary>
     /// DTO for band/technology property information extracted from CellRecord
     /// </summary>
     private class BandTechnologyPropertyInfo
@@ -1328,5 +1458,7 @@ public class ProcessCellJob : IProcessCellJob
         public int SectorsCreated { get; set; }
         public int CellularDeleted { get; set; }
         public int SkippedDuplicates { get; set; }
+        public int CellSectorsWithoutCellular { get; set; }
+        public int RecordsWithoutActiveTechnologies { get; set; }
     }
 }
