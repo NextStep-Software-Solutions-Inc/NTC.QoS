@@ -127,7 +127,7 @@ public static class InfrastructureDependencyInjection
             // We need to alias the result as "Value" for EF Core to map it correctly
             // Using SingleAsync since we expect exactly one boolean result
             var lockResult = await dbContext.Database
-                .SqlQueryRaw<bool>($"SELECT pg_try_advisory_lock({advisoryLockKey}) AS \"Value\"")
+                .SqlQueryRaw<bool>("SELECT pg_try_advisory_lock({0}) AS \"Value\"", advisoryLockKey)
                 .SingleAsync(cancellationToken);
 
             if (lockResult)
