@@ -44,4 +44,5 @@ public class Barangay : BaseEntity, IGeoBoundaryEntity
 
     public virtual List<Speedtest> Speedtests { get; set; } = [];
     public virtual List<Zone> Zones { get; set; } = [];
+    public virtual List<WirelessValidation> WirelessValidations { get; set; } = [];
 }
