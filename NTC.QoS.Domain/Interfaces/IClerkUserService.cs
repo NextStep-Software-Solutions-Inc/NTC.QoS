@@ -1,11 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace NTC.QoS.Domain.Interfaces;
+
+public interface IClerkUserService
+{
+    Task UpdateUserMetadataAsync(string userId, UserMetadataPayload payload);
+    Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload);
+    Task<List<ClerkUserResponse>> GetUsersByEmailAsync(string email);
+}
 
 // Define DTOs or command objects relevant to what Clerk API operations you need
 public class UserMetadataPayload
@@ -39,11 +41,4 @@ public class ClerkUserResponse
     [JsonPropertyName("email_addresses")] public List<ClerkEmailAddress> EmailAddresses { get; set; } = new();
     [JsonPropertyName("first_name")] public string? FirstName { get; set; }
     [JsonPropertyName("last_name")] public string? LastName { get; set; }
-}
-
-public interface IClerkUserService
-{
-    Task UpdateUserMetadataAsync(string userId, UserMetadataPayload payload);
-    Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload);
-    Task<List<ClerkUserResponse>> GetUsersByEmailAsync(string email);
 }

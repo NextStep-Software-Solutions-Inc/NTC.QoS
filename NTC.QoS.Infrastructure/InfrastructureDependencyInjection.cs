@@ -8,6 +8,7 @@ using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
+using NTC.QoS.Infrastructure.Seed.Interfaces;
 
 namespace NTC.QoS.Infrastructure;
 
@@ -31,13 +32,28 @@ public static class InfrastructureDependencyInjection
         services.AddBlobStorageServices(configuration);
         services.AddRepositories();
         services.AddBackgroundJobServices();
+        services.AddSeedServices();
 
         return services;
     }
 
     /// <summary>
-    /// Applies database migrations and seeds initial data with enhanced error handling and configuration support
+    /// Registers seed services for data seeding
     /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <returns>The service collection for chaining</returns>
+    private static IServiceCollection AddSeedServices(this IServiceCollection services)
+    {
+        services.AddScoped<IUserSeeder, NTC.QoS.Infrastructure.Seed.Services.UserSeeder>();
+        services.AddScoped<IConfigurationValidator, NTC.QoS.Infrastructure.Seed.Services.ConfigurationValidator>();
+        services.AddScoped<IPasswordGenerator, NTC.QoS.Infrastructure.Seed.Services.PasswordGenerator>();
+        services.AddScoped<IUserCreator, NTC.QoS.Infrastructure.Seed.Services.UserCreator>();
+        services.AddScoped<IUserUpdater, NTC.QoS.Infrastructure.Seed.Services.UserUpdater>();
+        return services;
+    }
+
+    /// <summary>
+    /// Applies database migrations and seeds initial data with enhanced error handling and configuration support</summary>
     /// <param name="serviceProvider">The service provider</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>A task representing the migration and seeding operation</returns>
@@ -147,20 +163,8 @@ public static class InfrastructureDependencyInjection
             ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger), true),
             ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger), true),
             ("User Data", async () => {
-                // Try to get ClerkUserService, but require it for user seeding
-                IClerkUserService? clerkUserService = null;
-                try
-                {
-                    clerkUserService = serviceProvider.GetRequiredService<IClerkUserService>();
-                }
-                catch (Exception ex)
-                {
-                    logger.LogCritical("CRITICAL ERROR: ClerkUserService is required for user seeding but is not available. Error: {Message}", ex.Message);
-                    throw new InvalidOperationException("ClerkUserService is required for user seeding. Ensure Clerk services are properly registered.", ex);
-                }
-                
-                // UserSeeder.SeedAsync will throw exception if user cannot be created or verified
-                await UserSeeder.SeedAsync(dbContext, clerkUserService, configuration, logger);
+                var userSeeder = serviceProvider.GetRequiredService<IUserSeeder>();
+                await userSeeder.SeedAsync();
             }, true),
             ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger), true),
             ("Location Data", () => LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed), false)
