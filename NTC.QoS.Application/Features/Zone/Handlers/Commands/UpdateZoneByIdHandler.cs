@@ -12,7 +12,7 @@ public class UpdateZoneByIdHandler(IZoneRepository repository) : IRequestHandler
     public async Task<ApiResponse<ZoneDto>> Handle(UpdateZoneByIdRequest request, CancellationToken cancellationToken)
     {
         var zoneQuery = _repository.Query(z => z.Id == request.Id);
-        var zone = await _repository.FirstOrDefaultAsync(zoneQuery, cancellationToken); 
+        var zone = await _repository.FirstOrDefaultAsync(zoneQuery, cancellationToken);
 
         if (zone is null)
         {

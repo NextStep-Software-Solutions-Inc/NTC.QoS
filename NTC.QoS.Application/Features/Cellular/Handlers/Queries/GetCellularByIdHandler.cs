@@ -66,7 +66,7 @@ public class GetCellularByIdHandler(ICellularRepository cellularRepository) : IR
             });
 
         var cellularDto = await _cellularRepository.FirstOrDefaultAsync(cellularDtoQuery, cancellationToken);
-        
+
         if (cellularDto is null)
         {
             return new ApiResponse<CellularDto>

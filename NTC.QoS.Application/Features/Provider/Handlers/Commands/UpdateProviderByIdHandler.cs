@@ -51,7 +51,7 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
         return new ApiResponse<ProviderDto>
         {
             Succeeded = true,
-            Data = new ProviderDto ()
+            Data = new ProviderDto()
             {
                 Id = provider.Id,
                 Name = provider.Name,

@@ -11,7 +11,7 @@ namespace NTC.QoS.API.Controllers;
 [Route("technologies", Name = "technologies")]
 [Authorize]
 
-public class TechnologiesController: ControllerBase
+public class TechnologiesController : ControllerBase
 {
     private readonly IMediator _mediator;
 

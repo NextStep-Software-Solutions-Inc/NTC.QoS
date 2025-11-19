@@ -52,7 +52,7 @@ public class BoundingBoxDtoValidator : AbstractValidator<BoundingBoxDto>
         var latDiff = boundingBox.MaxLatitude - boundingBox.MinLatitude;
         var lonDiff = boundingBox.MaxLongitude - boundingBox.MinLongitude;
 
-        return latDiff <= GeoSpatialConstants.MaxLatitudeDifference && 
+        return latDiff <= GeoSpatialConstants.MaxLatitudeDifference &&
                lonDiff <= GeoSpatialConstants.MaxLongitudeDifference;
     }
 

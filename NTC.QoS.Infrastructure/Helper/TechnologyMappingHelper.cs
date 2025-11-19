@@ -25,19 +25,19 @@ public static class TechnologyMappingHelper
 
         var originalTechnology = technology;
         var technologyCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(technology);
-        
-        logger.LogDebug("Attempting to resolve technology '{Technology}' with cache key '{CacheKey}'{Context}", 
+
+        logger.LogDebug("Attempting to resolve technology '{Technology}' with cache key '{CacheKey}'{Context}",
             technology, technologyCacheKey, GetContextString(contextInfo));
-        
+
         // Try exact match first
         if (technologyCache.TryGetValue(technologyCacheKey, out var technologyId))
         {
-            logger.LogDebug("Exact match found for technology '{Technology}'{Context}", 
+            logger.LogDebug("Exact match found for technology '{Technology}'{Context}",
                 technology, GetContextString(contextInfo));
             return technologyId;
         }
 
-        logger.LogDebug("Exact match not found for technology '{Technology}', trying flexible lookup{Context}", 
+        logger.LogDebug("Exact match not found for technology '{Technology}', trying flexible lookup{Context}",
             technology, GetContextString(contextInfo));
 
         // Try flexible lookup for TDD/FDD technologies by checking for keywords
@@ -66,7 +66,7 @@ public static class TechnologyMappingHelper
             }
         }
 
-        logger.LogDebug("Flexible TDD/FDD lookup failed for technology '{Technology}', trying alternative mappings{Context}", 
+        logger.LogDebug("Flexible TDD/FDD lookup failed for technology '{Technology}', trying alternative mappings{Context}",
             technology, GetContextString(contextInfo));
 
         // Try alternative technology mappings (expanded for more flexibility)
@@ -99,9 +99,9 @@ public static class TechnologyMappingHelper
         }
         if (alternativeTechnology != null)
         {
-            logger.LogDebug("Found alternative technology mapping: '{Technology}' -> '{AlternativeTechnology}'{Context}", 
+            logger.LogDebug("Found alternative technology mapping: '{Technology}' -> '{AlternativeTechnology}'{Context}",
                 technology, alternativeTechnology, GetContextString(contextInfo));
-            
+
             var alternativeCacheKey = CacheKeyGenerator.GenerateTechnologyCacheKey(alternativeTechnology);
             if (technologyCache.TryGetValue(alternativeCacheKey, out technologyId))
             {
@@ -123,7 +123,7 @@ public static class TechnologyMappingHelper
                 technology, GetContextString(contextInfo), string.Join(", ", technologyCache.Keys.OrderBy(k => k)));
         }
 
-        logger.LogError("Failed to resolve technology '{Technology}' after trying all alternatives{Context}", 
+        logger.LogError("Failed to resolve technology '{Technology}' after trying all alternatives{Context}",
             originalTechnology, GetContextString(contextInfo));
         return Guid.Empty;
     }
@@ -167,7 +167,7 @@ public static class TechnologyMappingHelper
     {
         // Try common LTE variants in order of preference
         var lteVariants = new[] { "FDDLTE", "TDDLTE", "LTE-FDD", "LTE-TDD" };
-        
+
         foreach (var variant in lteVariants)
         {
             var variantKey = CacheKeyGenerator.GenerateTechnologyCacheKey(variant);
@@ -176,7 +176,7 @@ public static class TechnologyMappingHelper
                 return variant;
             }
         }
-        
+
         return null;
     }
 
@@ -246,12 +246,12 @@ public static class TechnologyMappingHelper
     {
         logger.LogInformation("=== Technology Mapping Diagnostics ===");
         logger.LogInformation("Available technologies in database ({Count} total):", technologyCache.Count);
-        
+
         foreach (var tech in technologyCache.OrderBy(kvp => kvp.Key))
         {
             logger.LogInformation("  - '{Technology}' (ID: {TechnologyId})", tech.Key, tech.Value);
         }
-        
+
         logger.LogInformation("Alternative technology mappings supported:");
         var mappings = GetAlternativeTechnologyMappings();
         foreach (var mapping in mappings.OrderBy(kvp => kvp.Key))
@@ -265,11 +265,11 @@ public static class TechnologyMappingHelper
                 (false, true) => "✗ Source missing, ✓ Target available",
                 (false, false) => "✗ Both missing"
             };
-            
-            logger.LogInformation("  - '{Source}' -> '{Target}' ({Status})", 
+
+            logger.LogInformation("  - '{Source}' -> '{Target}' ({Status})",
                 mapping.Key, mapping.Value, status);
         }
-        
+
         logger.LogInformation("=====================================");
     }
 }

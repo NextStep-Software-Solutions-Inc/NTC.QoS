@@ -3,10 +3,10 @@ using NTC.QoS.Domain.Models.DTOs.GeoEntity;
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface IProvinceRepository: IRepository<Province>
+public interface IProvinceRepository : IRepository<Province>
 {
     Task<Dictionary<Guid, int>> GetIspCountsForProvincesAsync(List<Guid> provinceIds, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Gets top provinces by cell count with optimized spatial queries.
     /// </summary>

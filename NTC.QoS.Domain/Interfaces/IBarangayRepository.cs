@@ -8,18 +8,18 @@ public interface IBarangayRepository : IRepository<Barangay>
     /// <summary>
     /// Applies case-insensitive search filter on barangay name
     /// </summary>
-  IQueryable<Barangay> SearchByName(IQueryable<Barangay> query, string name);
-    
+    IQueryable<Barangay> SearchByName(IQueryable<Barangay> query, string name);
+
     /// <summary>
     /// Applies case-insensitive search filter on municipality name
     /// </summary>
     IQueryable<Barangay> SearchByMunicipalityName(IQueryable<Barangay> query, string municipalityName);
-    
+
     /// <summary>
     /// Applies case-insensitive search filter on province name
     /// </summary>
     IQueryable<Barangay> SearchByProvinceName(IQueryable<Barangay> query, string provinceName);
-    
+
     /// <summary>
     /// Gets top barangays by cell count with optimized spatial queries.
     /// </summary>

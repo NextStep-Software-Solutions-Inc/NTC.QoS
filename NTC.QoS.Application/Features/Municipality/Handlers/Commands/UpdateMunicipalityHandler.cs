@@ -18,7 +18,7 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
     {
         _repository = repository;
     }
-    
+
     public async Task<ApiResponse<MunicipalityDto>> Handle(UpdateMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
         var municipalityQuery = _repository.Query(m => m.Id == request.Id);

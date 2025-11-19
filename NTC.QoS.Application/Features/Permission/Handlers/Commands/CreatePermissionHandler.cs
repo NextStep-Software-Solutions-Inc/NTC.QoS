@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Permission;
 
 namespace NTC.QoS.Application.Features.Permission.Handlers.Commands;
 
-public class CreatePermissionHandler(IRepository<Domain.Entities.Permission> repository): IRequestHandler<CreatePermissionRequest, ApiResponse<PermissionDto>>
+public class CreatePermissionHandler(IRepository<Domain.Entities.Permission> repository) : IRequestHandler<CreatePermissionRequest, ApiResponse<PermissionDto>>
 {
     private readonly IRepository<Domain.Entities.Permission> _repository = repository;
 
@@ -34,7 +34,7 @@ public class CreatePermissionHandler(IRepository<Domain.Entities.Permission> rep
         }
 
         if (existing is not null) return new ApiResponse<PermissionDto>("Permission already exists.");
-                
+
         var newPermission = new Domain.Entities.Permission
         {
             Name = request.Permission.Name,

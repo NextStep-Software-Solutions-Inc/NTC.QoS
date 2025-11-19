@@ -2,6 +2,6 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface IProcessCellularCoverageJob: IBackgroundJob<FileDto>
+public interface IProcessCellularCoverageJob : IBackgroundJob<FileDto>
 {
 }

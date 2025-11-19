@@ -11,12 +11,12 @@ public static class Roles
     public const string Admin = "admin";
     public const string FieldOfficer = "field_officer";
     public const string User = "user";
-    
+
     // Additional roles (snake_case for consistency)
     public const string Manager = "manager";
     public const string RegionalManager = "regional_manager";
     public const string Viewer = "viewer";
-    
+
     // Legacy kebab-case constants for backward compatibility (deprecated)
     [Obsolete("Use SuperAdmin instead")]
     public const string SuperAdminLegacy = "super-admin";

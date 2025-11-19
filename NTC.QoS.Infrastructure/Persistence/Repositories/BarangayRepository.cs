@@ -19,7 +19,7 @@ internal sealed class BarangayRepository(ApplicationDbContext context) : Reposit
 
     public IQueryable<Barangay> SearchByProvinceName(IQueryable<Barangay> query, string provinceName)
     {
-   return ApplySearch(query, provinceName, b => b.Municipality.Province.Name);
+        return ApplySearch(query, provinceName, b => b.Municipality.Province.Name);
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ internal sealed class BarangayRepository(ApplicationDbContext context) : Reposit
 
         // CRITICAL FIX: Materialize intermediate result to calculate CellCount only ONCE
         var barangayCellCounts = await barangayQuery
-            .Select(b => new 
+            .Select(b => new
             {
                 b.Id,
                 b.Name,

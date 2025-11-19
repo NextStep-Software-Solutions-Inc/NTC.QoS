@@ -14,7 +14,7 @@ public interface ILocationDataWriter<TEntity> where TEntity : class
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Number of entities written.</returns>
     Task<int> WriteBatchAsync(
-        IAsyncEnumerable<TEntity> entities, 
+        IAsyncEnumerable<TEntity> entities,
         WriteOptions options,
         CancellationToken cancellationToken = default);
 }

@@ -150,7 +150,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate speed test statistics
         var speedStats = await CalculateSpeedTestStatsAsync(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
 
-        
+
         // Calculate CMTS scores based on infrastructure, speed data, and population
         var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
 
@@ -161,7 +161,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var connectivityStatus = DetermineConnectivityStatus(totalScore);
 
         // Calculate coverage statistics to be saved
-        var coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, 
+        var coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount,
             DetermineReliableConnectivity(infrastructureStats, speedStats));
 
         // Get the current user ID from context
@@ -248,10 +248,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             existingRecord.ProvidersPerThousandPeople = assessment.ProvidersPerThousandPeople;
 
             _connectivityRepository.Update(existingRecord);
-            
+
             // Update provider breakdown - delete old records and insert new ones
             await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existingRecord.Id, cancellationToken);
-            
+
             // Batch insert all providers at once for better performance
             var providers = infrastructureStats.ProviderBreakdown
                 .Select(provider => new ConnectivityAssessmentProvider
@@ -265,14 +265,14 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     AssetPercentage = provider.AssetPercentage
                 })
                 .ToList();
-        
+
             await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
         }
         else
         {
             // Create new
             await _connectivityRepository.AddAsync(assessment, cancellationToken);
-       
+
             // Save provider breakdown for new assessment - batch insert for better performance
             var providers = infrastructureStats.ProviderBreakdown
                 .Select(provider => new ConnectivityAssessmentProvider
@@ -500,7 +500,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                            && boundary.Intersects(wv.Barangay.Center)
                            && wv.ServiceProvider != null
                            && wv.ServiceProvider.Provider != null);
-            
+
             // Apply date range filter if provided
             if (startDate.HasValue)
             {
@@ -511,7 +511,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                 wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
             }
-            
+
             wirelessValidations = await _wirelessValidationRepository.ToListAsync(
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
@@ -558,7 +558,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                            && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
                            && wv.ServiceProvider != null
                            && wv.ServiceProvider.Provider != null);
-            
+
             // Apply date range filter if provided
             if (startDate.HasValue)
             {
@@ -569,7 +569,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                 wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
             }
-            
+
             wirelessValidations = await _wirelessValidationRepository.ToListAsync(
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
@@ -584,7 +584,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate provider breakdown with asset counts
         var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots, wirelessValidations);
 
-        return new ()
+        return new()
         {
             CellTowerCount = cells.Count,
             FiberNAPCount = naps.Count,
@@ -644,7 +644,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 CellTowerCount = kvp.Value.Cells,
                 FiberNAPCount = kvp.Value.NAPs,
                 WiFiHotspotCount = kvp.Value.WiFi,
-                AssetPercentage = totalAssets > 0 
+                AssetPercentage = totalAssets > 0
                     ? Math.Round(((double)(kvp.Value.Cells + kvp.Value.NAPs + kvp.Value.WiFi) / totalAssets) * 100, 2)
                     : 0
             })
@@ -653,7 +653,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
         return breakdown;
     }
-  
+
     /// <summary>
     /// Enhanced speed stats calculation with caching
     /// </summary>
@@ -682,7 +682,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             // Use accurate boundary with envelope optimization
             var query = _speedtestRepository.Query();
             query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
-            
+
             // Apply date range filter if provided
             if (startDate.HasValue)
             {
@@ -715,7 +715,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
             var query = _speedtestRepository.Query()
                 .Where(s => s.Location.Distance(center) <= searchRadiusMeters);
-            
+
             // Apply date range filter if provided
             if (startDate.HasValue)
             {
@@ -1271,7 +1271,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 // Use boundary-based queries for speedtest data
                 var speedtestQuery = _speedtestRepository.Query();
                 speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, speedtestQuery);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -1282,11 +1282,12 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     speedtestQuery = speedtestQuery.Where(s => s.CreatedAt <= endOfDay);
                 }
-                
+
                 var speedtestResults = await _speedtestRepository.ToListAsync(
                     speedtestQuery
                         .Where(s => s.Generation != null && s.Technology != null)
-                        .Select(s => new {
+                        .Select(s => new
+                        {
                             GenerationName = s.Generation!.Name,
                             TechnologyStandard = s.Technology!.Standard,
                             s.Id
@@ -1301,19 +1302,13 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var cellIds = await _cellRepository.ToListAsync(
                     cellQuery.Select(c => c.Id), cancellationToken);
 
-                // Get cell sector IDs from those cells using CellSector repository
-                var cellSectorIds = await _cellSectorRepository.ToListAsync(
-                    _cellSectorRepository.Query()
-                        .Where(cs => cellIds.Contains(cs.CellId))
-                        .Select(cs => cs.Id), cancellationToken);
-
-                // Query cellulars using the cell sector IDs (direct relationship)
-                var cellularResults = await _cellularRepository.ToListAsync(
-                    _cellularRepository.Query()
-                        .Where(c => cellSectorIds.Contains(c.CellSectorId)
-                                 && c.Technology != null 
-                                 && c.Technology.Generation != null)
-                        .Select(c => new {
+                var cellularResults = await _cellRepository.ToListAsync(
+                    cellQuery
+                        .SelectMany(cell => cell.CellSectors!)
+                        .SelectMany(sector => sector.Cellulars!)
+                        .Where(c => c.Technology != null && c.Technology.Generation != null)
+                        .Select(c => new
+                        {
                             GenerationName = c.Technology!.Generation!.Name,
                             TechnologyStandard = c.Technology!.Standard,
                             c.Id
@@ -1323,12 +1318,12 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
                 // Get wireless validation technology data
                 var wirelessValidationQuery = _wirelessValidationRepository.Query()
-                    .Where(wv => wv.Barangay != null 
+                    .Where(wv => wv.Barangay != null
                                && wv.Barangay.Center != null
                                && boundary.Intersects(wv.Barangay.Center)
-                               && wv.Technology != null 
+                               && wv.Technology != null
                                && wv.Technology.Generation != null);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -1339,9 +1334,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
                 }
-                
+
                 var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
-                    wirelessValidationQuery.Select(wv => new {
+                    wirelessValidationQuery.Select(wv => new
+                    {
                         GenerationName = wv.Technology!.Generation!.Name,
                         TechnologyStandard = wv.Technology!.Standard,
                         wv.Id
@@ -1358,7 +1354,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var speedtestQuery = _speedtestRepository.Query()
                     .Where(s => s.Location.Distance(center) <= searchRadiusMeters
                               && s.Generation != null && s.Technology != null);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -1369,9 +1365,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     speedtestQuery = speedtestQuery.Where(s => s.CreatedAt <= endOfDay);
                 }
-                
+
                 var speedtestResults = await _speedtestRepository.ToListAsync(
-                    speedtestQuery.Select(s => new {
+                    speedtestQuery.Select(s => new
+                    {
                         GenerationName = s.Generation!.Name,
                         TechnologyStandard = s.Technology!.Standard,
                         s.Id
@@ -1382,7 +1379,8 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 var cellularResults = await _cellularRepository.ToListAsync(
                     _cellularRepository.Query()
                         .Where(c => c.CellSector!.Cell.Location.Distance(center) <= searchRadiusMeters)
-                        .Select(c => new {
+                        .Select(c => new
+                        {
                             GenerationName = c.Technology!.Generation!.Name,
                             TechnologyStandard = c.Technology!.Standard,
                             c.Id
@@ -1395,9 +1393,9 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     .Where(wv => wv.Barangay != null
                                && wv.Barangay.Center != null
                                && wv.Barangay.Center.Distance(center) <= searchRadiusMeters
-                               && wv.Technology != null 
+                               && wv.Technology != null
                                && wv.Technology.Generation != null);
-                
+
                 // Apply date range filter if provided
                 if (startDate.HasValue)
                 {
@@ -1408,9 +1406,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
                     wirelessValidationQuery = wirelessValidationQuery.Where(wv => wv.CreatedAt <= endOfDay);
                 }
-                
+
                 var wirelessValidationResults = await _wirelessValidationRepository.ToListAsync(
-                    wirelessValidationQuery.Select(wv => new {
+                    wirelessValidationQuery.Select(wv => new
+                    {
                         GenerationName = wv.Technology!.Generation!.Name,
                         TechnologyStandard = wv.Technology!.Standard,
                         wv.Id
@@ -1632,11 +1631,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
         var avgDownloadSpeed = speedStats.AverageDownloadSpeedMbps ?? 0;
         var medianDownloadSpeed = speedStats.MedianDownloadSpeedMbps ?? 0;
-        
+
         // Calculate speed consistency (variability indicator)
         // Large difference between average and median indicates unreliability
-        var speedVariability = avgDownloadSpeed > 0 
-            ? Math.Abs((avgDownloadSpeed - medianDownloadSpeed) / avgDownloadSpeed) 
+        var speedVariability = avgDownloadSpeed > 0
+            ? Math.Abs((avgDownloadSpeed - medianDownloadSpeed) / avgDownloadSpeed)
             : 0;
         var isUnreliable = speedVariability > 0.3m; // >30% variance = unreliable
 
@@ -1676,7 +1675,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var hasWiFiInfra = infrastructure.WiFiHotspotCount > 0;
 
         // SERVED (3 points): Fiber optic, LTE/5G, or high-speed DSL infrastructure in place and active
-        
+
         // Case 1: Fiber optic infrastructure present (meets rubric directly)
         if (hasFiberInfra)
         {
@@ -1702,7 +1701,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             }
 
             // UNDERSERVED (2 points): Legacy technologies (2G/3G, dial-up, outdated satellite)
-            
+
             // Has modern tech but legacy dominates
             if (tech.HasModernTechnology && tech.IsLegacyDominated)
             {
@@ -1720,18 +1719,18 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         }
 
         // FALLBACK: No technology breakdown data available, use infrastructure presence
-        
+
         // Has some modern infrastructure (cell towers or WiFi)
         if (hasCellTowerInfra || hasWiFiInfra)
         {
             // Multiple infrastructure types suggest better service
             var infraTypes = (hasCellTowerInfra ? 1 : 0) + (hasWiFiInfra ? 1 : 0);
-            
+
             if (infraTypes >= 2)
             {
                 return 3; // Served - Multiple infrastructure types present
             }
-            
+
             return 2; // Underserved - Limited infrastructure diversity
         }
 
@@ -1759,7 +1758,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // 5 = Good (-44 to -70 dBm), 4 = Average (-70 to -85 dBm), 
         // 3 = Weak (-85 to -90 dBm), 2 = Very Weak (-90 to -100 dBm), 
         // 1 = No Coverage (-100+ dBm)
-        
+
         // UNSERVED (1 point): Poor to nonexistent quality
         // Criteria: Latency >100ms OR signal ≤ 2 (worse than -90 dBm) OR very poor speeds
         if (latency > 100 || signalStrength <= 2.0 || speedStats.AverageDownloadSpeedMbps < 5)
@@ -1791,7 +1790,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // This catches the "middle ground" cases
         var hasModerateLatency = latency >= 50 && latency <= 100;
         var hasModerateSignal = signalStrength >= 2.0 && signalStrength < 4.0; // -90 to -99 dBm range
-        
+
         if (hasModerateLatency || hasModerateSignal || !hasConsistentSpeeds)
         {
             return 2; // Underserved - Fair quality but suffers from congestion or poor signal

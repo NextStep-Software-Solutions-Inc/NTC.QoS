@@ -40,8 +40,8 @@ public class ConnectivityAssessmentJobStatusDto
     /// <summary>
     /// Total processing time (if job is completed)
     /// </summary>
-    public TimeSpan? ProcessingTime => EndTime.HasValue && StartTime.HasValue 
-        ? EndTime.Value - StartTime.Value 
+    public TimeSpan? ProcessingTime => EndTime.HasValue && StartTime.HasValue
+        ? EndTime.Value - StartTime.Value
         : null;
 
     /// <summary>
@@ -66,13 +66,13 @@ public class ConnectivityAssessmentJobStatusDto
         get
         {
             if (!ProcessedCount.HasValue) return null;
-            
+
             // For completed jobs, progress is always 100%
             if (Status == ConnectivityAssessmentJobStatusEnum.Completed)
             {
                 return 100.0;
             }
-            
+
             // For running or failed jobs, calculate based on estimate
             return EstimatedTotalCount.HasValue && EstimatedTotalCount.Value > 0
                 ? Math.Round((double)ProcessedCount.Value / EstimatedTotalCount.Value * 100, 1)
@@ -84,7 +84,7 @@ public class ConnectivityAssessmentJobStatusDto
     /// Indicates whether we're still working with estimated counts (true) or have actual results (false)
     /// For completed/failed jobs, ProcessedCount represents the definitive actual count
     /// </summary>
-    public bool IsCountEstimated => Status != ConnectivityAssessmentJobStatusEnum.Completed && 
+    public bool IsCountEstimated => Status != ConnectivityAssessmentJobStatusEnum.Completed &&
                                     Status != ConnectivityAssessmentJobStatusEnum.Failed;
 
     /// <summary>
@@ -95,7 +95,7 @@ public class ConnectivityAssessmentJobStatusDto
     /// <summary>
     /// Indicates if the job has completed (successfully or with failure)
     /// </summary>
-    public bool IsCompleted => Status == ConnectivityAssessmentJobStatusEnum.Completed || 
+    public bool IsCompleted => Status == ConnectivityAssessmentJobStatusEnum.Completed ||
                                Status == ConnectivityAssessmentJobStatusEnum.Failed;
 
     /// <summary>

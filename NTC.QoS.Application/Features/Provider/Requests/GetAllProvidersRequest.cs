@@ -4,9 +4,9 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 namespace NTC.QoS.Application.Features.Provider.Requests;
 
 public class GetAllProvidersRequest(
-    int pageSize, 
-    int pageNumber, 
-    List<Guid>? serviceIds, 
+    int pageSize,
+    int pageNumber,
+    List<Guid>? serviceIds,
     List<string>? names,
     bool? includeLogoData = null) : IRequest<PaginatedResponse<ProviderDto>>
 {

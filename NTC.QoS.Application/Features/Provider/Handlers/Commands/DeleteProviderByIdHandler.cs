@@ -32,7 +32,7 @@ public class DeleteProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>
-        { 
+        {
             Data = true,
             Succeeded = true,
             Message = "Provider deleted successfully."

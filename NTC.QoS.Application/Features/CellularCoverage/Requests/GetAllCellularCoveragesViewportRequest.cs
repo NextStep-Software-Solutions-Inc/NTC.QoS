@@ -9,7 +9,7 @@ namespace NTC.QoS.Application.Features.CellularCoverage.Requests;
 /// Request for viewport-based cellular coverage queries (v2 API).
 /// Uses ViewportQueryParams for bounding box filtering and pagination.
 /// </summary>
-public record GetAllCellularCoveragesViewportRequest(ViewportQueryParams QueryParams) 
+public record GetAllCellularCoveragesViewportRequest(ViewportQueryParams QueryParams)
     : IRequest<PaginatedResponse<CellularCoverageViewportDto>>
 {
     public ViewportBounds Viewport => QueryParams.ToViewportBounds();

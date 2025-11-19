@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Services
 {
-    internal class BackgroundJobService: IBackgroundJobService
+    internal class BackgroundJobService : IBackgroundJobService
     {
         /// <inheritdoc />
         public string Enqueue<TJob>(Expression<Action<TJob>> job)

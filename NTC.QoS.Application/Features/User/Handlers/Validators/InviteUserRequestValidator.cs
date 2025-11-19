@@ -11,10 +11,10 @@ public class InviteUserRequestValidator : AbstractValidator<InviteUserRequest>
             .NotEmpty().WithMessage("Email is required.")
             .EmailAddress().WithMessage("Email must be a valid email address.")
             .MaximumLength(255).WithMessage("Email must not exceed 255 characters.");
-            
+
         RuleFor(x => x.User.RoleId)
             .NotEmpty().WithMessage("RoleId is required.");
-            
+
         RuleFor(x => x.User.OrganizationId)
             .NotEmpty().WithMessage("OrganizationId is required.");
     }

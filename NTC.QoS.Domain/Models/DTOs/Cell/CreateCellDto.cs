@@ -1,6 +1,6 @@
 ﻿namespace NTC.QoS.Domain.Models.DTOs.Cell;
 
-public class CreateCellDto 
+public class CreateCellDto
 {
     public string Name { get; set; } = string.Empty;
     public string Group { get; set; } = string.Empty;

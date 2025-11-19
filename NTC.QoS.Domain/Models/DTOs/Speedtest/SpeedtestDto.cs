@@ -22,7 +22,7 @@ public class SpeedtestDto
     public string? PhoneModel { get; set; }
     [JsonPropertyName("MCC")] public string? MCC { get; set; }
     [JsonPropertyName("MNC")] public string? MNC { get; set; }
-    [JsonPropertyName("TAC")] public string? TAC { get; set; } 
+    [JsonPropertyName("TAC")] public string? TAC { get; set; }
     public string? SignalQuality { get; set; }
     public string? CellIdentifier { get; set; }
     public double Latitude { get; set; }

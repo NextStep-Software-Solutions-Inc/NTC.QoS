@@ -13,7 +13,7 @@ public class FileUploadOperationFilter : IOperationFilter
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
         var hasFormFileParameter = context.MethodInfo.GetParameters()
-            .Any(p => p.ParameterType == typeof(IFormFile) || 
+            .Any(p => p.ParameterType == typeof(IFormFile) ||
                      p.ParameterType == typeof(IEnumerable<IFormFile>) ||
                      p.ParameterType == typeof(IFormFileCollection) ||
                      HasFormFileProperty(p.ParameterType));
@@ -43,7 +43,7 @@ public class FileUploadOperationFilter : IOperationFilter
             return false;
 
         return type.GetProperties()
-            .Any(p => p.PropertyType == typeof(IFormFile) || 
+            .Any(p => p.PropertyType == typeof(IFormFile) ||
                      p.PropertyType == typeof(IEnumerable<IFormFile>) ||
                      p.PropertyType == typeof(IFormFileCollection));
     }
@@ -212,7 +212,7 @@ public class FileUploadOperationFilter : IOperationFilter
     private static bool IsNullable(PropertyInfo property)
     {
         // Check if the property type is nullable reference type or nullable value type
-        return !property.PropertyType.IsValueType || 
+        return !property.PropertyType.IsValueType ||
                Nullable.GetUnderlyingType(property.PropertyType) != null;
     }
 

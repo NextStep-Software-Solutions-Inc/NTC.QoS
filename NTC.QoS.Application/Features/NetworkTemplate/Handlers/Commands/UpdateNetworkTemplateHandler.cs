@@ -14,7 +14,7 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
     {
         var networkTemplateExistQuery = _repository.Query(nt => nt.Id == request.Id);
         var networkTemplateExist = await _repository.FirstOrDefaultAsync(networkTemplateExistQuery, cancellationToken);
-        
+
         if (networkTemplateExist is null)
         {
             return new ApiResponse<NetworkTemplateDto>
@@ -24,7 +24,7 @@ public class UpdateNetworkTemplateHandler(IRepository<Domain.Entities.NetworkTem
                 Errors = new Dictionary<string, string[]>
                 {
                     { "Id", [$"No Network Template found with Id [{request.Id}]. It may not exist or has been deleted."] }
-                },  
+                },
                 Succeeded = false
             };
         }

@@ -2559,9 +2559,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("BandId1")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("BarangayId")
                         .HasColumnType("uuid");
 
@@ -2590,13 +2587,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ServiceProviderId1")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("TechnologyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TechnologyId1")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -2610,8 +2601,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
-                    b.HasIndex("BandId1");
-
                     b.HasIndex("BarangayId")
                         .HasDatabaseName("IX_WirelessValidation_BarangayId");
 
@@ -2620,10 +2609,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId")
                         .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
-
-                    b.HasIndex("ServiceProviderId1");
-
-                    b.HasIndex("TechnologyId1");
 
                     b.HasIndex("TechnologyId", "BandId")
                         .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
@@ -3127,7 +3112,7 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
-                        .WithMany()
+                        .WithMany("WiFiHotspots")
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -3138,40 +3123,28 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
-                        .WithMany("WirelessValidations")
-                        .HasForeignKey("BandId1");
-
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("BarangayId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
-                        .WithMany("WirelessValidations")
-                        .HasForeignKey("ServiceProviderId1");
-
                     b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("TechnologyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
-                        .WithMany("WirelessValidations")
-                        .HasForeignKey("TechnologyId1");
 
                     b.Navigation("Band");
 
@@ -3232,6 +3205,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Navigation("Speedtests");
 
+                    b.Navigation("WiFiHotspots");
+
                     b.Navigation("WirelessValidations");
                 });
 
@@ -3263,6 +3238,8 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
                 {
                     b.Navigation("Speedtests");
+
+                    b.Navigation("WirelessValidations");
 
                     b.Navigation("Zones");
                 });

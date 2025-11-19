@@ -8,7 +8,7 @@ namespace NTC.QoS.Application.Features.StudyMunicipality.Handlers.Queries;
 public class GetAllStudyMunicipalitiesHandler(IStudyMunicipalityRepository studyMunicipalityRepository) : IRequestHandler<GetAllStudyMunicipalitiesRequest, PaginatedResponse<StudyMunicipalityDto>>
 {
     private readonly IStudyMunicipalityRepository _studyMunicipalityRepository = studyMunicipalityRepository;
-    
+
     public async Task<PaginatedResponse<StudyMunicipalityDto>> Handle(GetAllStudyMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
         var allStudyMunicipalities = _studyMunicipalityRepository.Query();

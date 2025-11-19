@@ -3,6 +3,6 @@ using System.Linq.Expressions;
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface ISectorRepository: IRepository<Sector>
+public interface ISectorRepository : IRepository<Sector>
 {
 }

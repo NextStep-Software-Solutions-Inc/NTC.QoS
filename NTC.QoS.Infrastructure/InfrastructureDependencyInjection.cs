@@ -50,7 +50,7 @@ public static class InfrastructureDependencyInjection
     {
         using var scope = serviceProvider.CreateScope();
         var services = scope.ServiceProvider;
-        
+
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
         var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
         var configuration = services.GetRequiredService<IConfiguration>();
@@ -63,10 +63,10 @@ public static class InfrastructureDependencyInjection
         try
         {
             // Attempt to acquire advisory lock to prevent concurrent seeding
-            logger.LogInformation("Attempting to acquire advisory lock {LockKey} for identifier '{Identifier}'...", 
+            logger.LogInformation("Attempting to acquire advisory lock {LockKey} for identifier '{Identifier}'...",
                 advisoryLockKey, lockIdentifier);
             lockAcquired = await TryAcquireAdvisoryLockAsync(dbContext, advisoryLockKey, logger, cancellationToken);
-            
+
             if (!lockAcquired)
             {
                 logger.LogWarning("Could not acquire advisory lock {LockKey}. Another instance may be running migrations. Skipping seeding.", advisoryLockKey);
@@ -111,7 +111,7 @@ public static class InfrastructureDependencyInjection
             var lockResult = await dbContext.Database
                 .SqlQueryRaw<bool>("SELECT pg_try_advisory_lock({0}) AS \"Value\"", advisoryLockKey)
                 .FirstOrDefaultAsync(cancellationToken);
-            
+
             return lockResult;
         }
         catch (Exception ex)
@@ -141,7 +141,7 @@ public static class InfrastructureDependencyInjection
                 if (useOptimizedSeeder)
                 {
                     logger.LogInformation("Using optimized LocationSeederV2 with streaming architecture");
-                    var seederV2 = new LocationSeederV2(dbContext, blobStorageService, 
+                    var seederV2 = new LocationSeederV2(dbContext, blobStorageService,
                         loggerFactory.CreateLogger<LocationSeederV2>(), loggerFactory);
                     await seederV2.SeedAllAsync(databaseOptions.ForceReseed, cancellationToken);
                 }
@@ -158,7 +158,7 @@ public static class InfrastructureDependencyInjection
 
         // Apply migrations first
         await dbContext.Database.MigrateAsync(cancellationToken);
-        
+
         // Use the seeders array instead of calling them directly
         foreach (var (name, seedAction) in seeders)
         {
@@ -186,8 +186,8 @@ public static class InfrastructureDependencyInjection
             logger.LogInformation("Releasing advisory lock {LockKey}", advisoryLockKey);
             // Use ExecuteSqlRaw which doesn't expect a return value
             await dbContext.Database.ExecuteSqlRawAsync(
-                "SELECT pg_advisory_unlock({0})", 
-                [advisoryLockKey], 
+                "SELECT pg_advisory_unlock({0})",
+                [advisoryLockKey],
                 cancellationToken
             );
             logger.LogInformation("Advisory lock {LockKey} released successfully", advisoryLockKey);

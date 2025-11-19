@@ -103,7 +103,7 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     // Service Provider Information
     public int ServiceProviderCount { get; set; }
     public string? DominantServiceProvider { get; set; }
-    
+
     /// <summary>
     /// Provider breakdown - detailed asset counts per provider
     /// Ordered by TotalAssetCount descending

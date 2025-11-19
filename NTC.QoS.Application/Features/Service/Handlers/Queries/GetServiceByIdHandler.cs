@@ -23,7 +23,7 @@ public class GetServiceByIdHandler(IRepository<Domain.Entities.Service> reposito
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "NullService", ["Service not found."] 
+                        "NullService", ["Service not found."]
                     }
                 }
             };

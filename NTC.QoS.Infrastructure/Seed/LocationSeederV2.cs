@@ -69,10 +69,7 @@ public class LocationSeederV2
 
     private async Task SeedRegionsAsync(bool forceReseed, CancellationToken cancellationToken)
     {
-        var parser = new StreamingGeoJsonParser(
-            _loggerFactory.CreateLogger<StreamingGeoJsonParser>(),
-            "ADM1",
-            null);
+        var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM1", null);
 
         var transformer = new RegionTransformer();
         var writer = new BatchedLocationWriter<Region>(_dbContext, _loggerFactory.CreateLogger<BatchedLocationWriter<Region>>());
@@ -86,7 +83,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(null, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed regions: {result.ErrorMessage}");
@@ -99,6 +96,7 @@ public class LocationSeederV2
         _logger.LogInformation("Loading region map for province seeding...");
         var regionMap = await _dbContext.Regions
             .AsNoTracking()
+            .Where(r => !r.IsDeleted)
             .Select(r => new { r.Code, r.Id })
             .ToDictionaryAsync(r => r.Code, r => r.Id, cancellationToken);
         _logger.LogInformation("Loaded {Count} regions", regionMap.Count);
@@ -120,7 +118,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(regionMap, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed provinces: {result.ErrorMessage}");
@@ -133,6 +131,7 @@ public class LocationSeederV2
         _logger.LogInformation("Loading province map for municipality seeding...");
         var provinceMap = await _dbContext.Provinces
             .AsNoTracking()
+            .Where(p => !p.IsDeleted)
             .Select(p => new { p.Code, p.Id })
             .ToDictionaryAsync(p => p.Code, p => p.Id, cancellationToken);
         _logger.LogInformation("Loaded {Count} provinces", provinceMap.Count);
@@ -154,7 +153,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(provinceMap, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed municipalities: {result.ErrorMessage}");
@@ -167,6 +166,7 @@ public class LocationSeederV2
         _logger.LogInformation("Loading municipality map for barangay seeding...");
         var municipalityMap = await _dbContext.Municipalities
             .AsNoTracking()
+            .Where(m => !m.IsDeleted)
             .Select(m => new { m.Code, m.Id })
             .ToDictionaryAsync(m => m.Code, m => m.Id, cancellationToken);
         _logger.LogInformation("Loaded {Count} municipalities", municipalityMap.Count);
@@ -188,7 +188,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(municipalityMap, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed barangays: {result.ErrorMessage}");
@@ -197,10 +197,10 @@ public class LocationSeederV2
 
     private async Task<bool> HasCompleteDataAsync(CancellationToken cancellationToken)
     {
-        var regionCount = await _dbContext.Regions.CountAsync(cancellationToken);
-        var provinceCount = await _dbContext.Provinces.CountAsync(cancellationToken);
-        var municipalityCount = await _dbContext.Municipalities.CountAsync(cancellationToken);
-        var barangayCount = await _dbContext.Barangays.CountAsync(cancellationToken);
+        var regionCount = await _dbContext.Regions.Where(r => !r.IsDeleted).CountAsync(cancellationToken);
+        var provinceCount = await _dbContext.Provinces.Where(p => !p.IsDeleted).CountAsync(cancellationToken);
+        var municipalityCount = await _dbContext.Municipalities.Where(m => !m.IsDeleted).CountAsync(cancellationToken);
+        var barangayCount = await _dbContext.Barangays.Where(b => !b.IsDeleted).CountAsync(cancellationToken);
 
         _logger.LogInformation(
             "Existing location data - Regions: {RegionCount}, Provinces: {ProvinceCount}, Municipalities: {MunicipalityCount}, Barangays: {BarangayCount}",

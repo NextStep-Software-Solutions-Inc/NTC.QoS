@@ -2,7 +2,7 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface IServiceRepository: IRepository<Service>
+public interface IServiceRepository : IRepository<Service>
 {
 
 }

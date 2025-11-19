@@ -10,6 +10,145 @@ using Microsoft.Extensions.Caching.Memory;
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
 /// <summary>
+/// Configuration constants for connectivity assessment job processing
+/// Based on Philippine administrative structure data
+/// </summary>
+public static class ConnectivityAssessmentJobConfiguration
+{
+    /// <summary>
+    /// Maximum locations to process hierarchically by location type
+    /// Values set to ensure complete processing of all Philippine administrative levels
+    /// </summary>
+    public static class MaxHierarchicalLocations
+    {
+        /// <summary>
+        /// Regional limit: Handles worst case (Eastern Visayas: 143 munis + 4365 barangays = 4508)
+        /// Set to 5000 to ensure complete processing of any single region
+        /// </summary>
+        public const int Regional = 5000;
+
+        /// <summary>
+        /// Provincial limit: Handles worst case (Calabarzon: 142 munis + 4020 barangays = 4162)
+        /// Set to 4500 to ensure complete processing of any single province
+        /// </summary>
+        public const int Provincial = 4500;
+
+        /// <summary>
+        /// Municipal limit: Conservative estimate based on data (~50-200 barangays per municipality)
+        /// Set to 250 to provide safe headroom for largest municipalities
+        /// </summary>
+        public const int Municipality = 250;
+
+        /// <summary>
+        /// Barangay limit: Barangays have no children
+        /// </summary>
+        public const int Barangay = 0;
+
+        /// <summary>
+        /// Default limit for unknown location types
+        /// </summary>
+        public const int Default = 5000;
+    }
+
+    /// <summary>
+    /// Batch sizes for hierarchical processing
+    /// Optimized for throughput while maintaining stability
+    /// </summary>
+    public static class HierarchicalBatchSize
+    {
+        /// <summary>
+        /// Regional batch size: Higher throughput for large-scale regional processing
+        /// </summary>
+        public const int Regional = 100;
+
+        /// <summary>
+        /// Provincial batch size: Consistent batch size for provincial processing
+        /// </summary>
+        public const int Provincial = 100;
+
+        /// <summary>
+        /// Municipal batch size: Larger batches for simpler barangay processing
+        /// </summary>
+        public const int Municipality = 150;
+
+        /// <summary>
+        /// Barangay batch size: Largest batches for barangays (no children)
+        /// </summary>
+        public const int Barangay = 150;
+
+        /// <summary>
+        /// Default batch size for unknown location types
+        /// </summary>
+        public const int Default = 100;
+    }
+
+    /// <summary>
+    /// Estimation factors for job duration and location counts
+    /// Based on typical Philippine administrative structure
+    /// </summary>
+    public static class EstimationFactors
+    {
+        /// <summary>
+        /// Estimated children per location for different depths and types
+        /// </summary>
+        public static class ChildrenPerLocation
+        {
+            /// <summary>
+            /// Region -> all provinces -> all municipalities -> all barangays
+            /// </summary>
+            public const int RegionalDepth3 = 800;
+
+            /// <summary>
+            /// Region -> all provinces -> all municipalities
+            /// </summary>
+            public const int RegionalDepth2 = 80;
+
+            /// <summary>
+            /// Region -> provinces only
+            /// </summary>
+            public const int RegionalDepth1 = 15;
+
+            /// <summary>
+            /// Province -> all municipalities -> all barangays
+            /// </summary>
+            public const int ProvincialDepth2 = 300;
+
+            /// <summary>
+            /// Province -> municipalities only
+            /// </summary>
+            public const int ProvincialDepth1 = 25;
+
+            /// <summary>
+            /// Municipality -> barangays (more realistic average)
+            /// </summary>
+            public const int Municipality = 15;
+        }
+
+        /// <summary>
+        /// Time estimates per location (in minutes)
+        /// </summary>
+        public const double BaseTimeForceRecalculate = 0.5;
+        public const double BaseTimeNormal = 0.2;
+
+        /// <summary>
+        /// Duration limits for display purposes
+        /// </summary>
+        public const int MinEstimatedMinutes = 1;
+        public const int MaxEstimatedMinutes = 180;
+    }
+
+    /// <summary>
+    /// Cache configuration
+    /// </summary>
+    public const int JobStatusCacheHours = 24;
+
+    /// <summary>
+    /// Job ID counter start value for easier identification
+    /// </summary>
+    public const int JobIdCounterStart = 1000;
+}
+
+/// <summary>
 /// Handler for starting background connectivity assessment jobs
 /// Returns immediately with job ID for tracking, actual processing happens in background
 /// </summary>
@@ -19,7 +158,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<StartConnectivityAssessmentJobHandler> _logger;
     private readonly IUserContextService _userContextService;
-    private static int _jobIdCounter = 1000; // Start from 1000 for easier identification
+    private static int _jobIdCounter = ConnectivityAssessmentJobConfiguration.JobIdCounterStart;
 
     public StartConnectivityAssessmentJobHandler(
         IBackgroundJobService backgroundJobService,
@@ -34,95 +173,46 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     }
 
     public Task<ApiResponse<ConnectivityAssessmentJobResponseDto>> Handle(
-        StartConnectivityAssessmentJobRequest request, 
+        StartConnectivityAssessmentJobRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
-            // Generate sequential integer JobId for easier querying
+            // Step 1: Initialize job
             var jobId = Interlocked.Increment(ref _jobIdCounter);
-            var estimatedTotalLocations = CalculateEstimatedTotalLocations(request);
             var startTime = DateTime.UtcNow;
-            
-            // Get the current user ID from context (auto-captured from JWT token)
             var currentUserId = _userContextService.GetCurrentUserId() ?? "System";
-            
-            var jobRequest = new ConnectivityAssessmentJobRequestDto
-            {
-                JobId = jobId,
-                LocationIds = request.LocationIds,
-                LocationType = request.LocationType,
-                ForceRecalculate = request.ForceRecalculate,
-                GenerateHierarchicalAssessments = request.GenerateHierarchicalAssessments,
-                HierarchicalDepth = request.HierarchicalDepth,
-                
-                // NEW: Set hierarchical processing configuration with safe defaults
-                EnableHierarchicalProcessing = request.EnableHierarchicalProcessing ?? false, // Default disabled
-                MaxHierarchicalLocations = request.MaxHierarchicalLocations ?? GetDefaultMaxHierarchicalLocations(request.LocationType),
-                HierarchicalBatchSize = request.HierarchicalBatchSize ?? GetDefaultHierarchicalBatchSize(request.LocationType),
-                
-                // Date range filtering for speedtest and wireless validation data
-                StartDate = request.StartDate,
-                EndDate = request.EndDate,
-                
-                UserId = currentUserId, // Use the auto-captured user ID from context
-                RequestedAt = startTime
-            };
 
-            // Log the configuration for transparency
-            _logger.LogInformation("Job {JobId} configuration - Hierarchical requested: {Requested}, Enabled: {Enabled}, " +
-                "Max locations: {MaxLocations}, Batch size: {BatchSize}",
-                jobId, request.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing,
-                jobRequest.MaxHierarchicalLocations, jobRequest.HierarchicalBatchSize);
+            // Step 2: Create job request
+            var jobRequest = CreateJobRequest(jobId, request, currentUserId, startTime);
 
-            // Calculate refined estimated total locations based on limits and configuration
-            var refinedEstimatedLocations = CalculateRefinedEstimatedTotalLocations(jobRequest);
+            // Step 3: Log configuration
+            LogJobConfiguration(jobId, jobRequest);
 
-            // Log calculation breakdown for debugging
-            if (jobRequest.GenerateHierarchicalAssessments && jobRequest.EnableHierarchicalProcessing)
-            {
-                var primaryCount = jobRequest.LocationIds.Count;
-                var estimatedChildrenCount = refinedEstimatedLocations - primaryCount;
-                _logger.LogInformation("Job {JobId} location estimation - Primary: {Primary}, Estimated children: {EstimatedChildren}, " +
-                    "Total estimated: {TotalEstimated}, LocationType: {LocationType}, Depth: {Depth}",
-                    jobId, primaryCount, estimatedChildrenCount, refinedEstimatedLocations, 
-                    jobRequest.LocationType, jobRequest.HierarchicalDepth);
-            }
+            // Step 4: Calculate estimates
+            var refinedEstimatedLocations = CalculateEstimatedTotalLocations(
+                jobRequest.LocationIds.Count,
+                jobRequest.LocationType,
+                jobRequest.GenerateHierarchicalAssessments,
+                jobRequest.EnableHierarchicalProcessing,
+                jobRequest.HierarchicalDepth,
+                jobRequest.MaxHierarchicalLocations);
 
-            // Initialize job status in memory cache with all required fields
-            var initialJobStatus = new ConnectivityAssessmentJobStatusDto
-            {
-                JobId = jobId,
-                Status = ConnectivityAssessmentJobStatusEnum.Pending,
-                Message = "Job is queued and waiting to start",
-                LastUpdated = startTime,
-                StartTime = null, // Will be set when job actually starts
-                EndTime = null,
-                ProcessedCount = 0,
-                EstimatedTotalCount = refinedEstimatedLocations
-            };
+            // Step 5: Log estimation details
+            LogLocationEstimation(jobId, jobRequest, refinedEstimatedLocations);
 
-            var cacheKey = $"job_status_{jobId}";
-            _memoryCache.Set(cacheKey, initialJobStatus, TimeSpan.FromHours(24));
+            // Step 6: Initialize cache
+            InitializeJobStatusCache(jobId, refinedEstimatedLocations, startTime);
 
-            // Enqueue the background job
+            // Step 7: Enqueue job
             var hangfireJobId = _backgroundJobService.Enqueue<IProcessConnectivityAssessmentJob>(
                 job => job.ExecuteAsync(jobRequest, CancellationToken.None));
 
-            _logger.LogInformation("Started background connectivity assessment job {JobId} (Hangfire: {HangfireJobId}) for {LocationCount} {LocationType}s. " +
-                "Hierarchical requested: {Hierarchical}, Enabled: {Enabled}, Force: {Force}, EstimatedTotal: {EstimatedTotal}",
-                jobId, hangfireJobId, request.LocationIds.Count, request.LocationType, 
-                request.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing, 
-                request.ForceRecalculate, refinedEstimatedLocations);
+            // Step 8: Log job start
+            LogJobStart(jobId, hangfireJobId, request, jobRequest, refinedEstimatedLocations);
 
-            var response = new ConnectivityAssessmentJobResponseDto
-            {
-                JobId = jobId,
-                Status = ConnectivityAssessmentJobStatusEnum.Pending,
-                Message = GetJobQueueMessage(jobRequest),
-                EstimatedDurationMinutes = EstimateProcessingTime(jobRequest),
-                EstimatedTotalLocations = refinedEstimatedLocations
-            };
+            // Step 9: Create and return response
+            var response = CreateJobResponse(jobId, jobRequest, refinedEstimatedLocations);
 
             return Task.FromResult(new ApiResponse<ConnectivityAssessmentJobResponseDto>
             {
@@ -147,6 +237,126 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     }
 
     /// <summary>
+    /// Creates the job request DTO with all necessary configuration
+    /// </summary>
+    private ConnectivityAssessmentJobRequestDto CreateJobRequest(
+        int jobId,
+        StartConnectivityAssessmentJobRequest request,
+        string userId,
+        DateTime startTime)
+    {
+        return new ConnectivityAssessmentJobRequestDto
+        {
+            JobId = jobId,
+            LocationIds = request.LocationIds,
+            LocationType = request.LocationType,
+            ForceRecalculate = request.ForceRecalculate,
+            GenerateHierarchicalAssessments = request.GenerateHierarchicalAssessments,
+            HierarchicalDepth = request.HierarchicalDepth,
+            EnableHierarchicalProcessing = request.EnableHierarchicalProcessing ?? false,
+            MaxHierarchicalLocations = request.MaxHierarchicalLocations ??
+                GetDefaultMaxHierarchicalLocations(request.LocationType),
+            HierarchicalBatchSize = request.HierarchicalBatchSize ??
+                GetDefaultHierarchicalBatchSize(request.LocationType),
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            UserId = userId,
+            RequestedAt = startTime
+        };
+    }
+
+    /// <summary>
+    /// Initializes job status in memory cache
+    /// </summary>
+    private void InitializeJobStatusCache(int jobId, int estimatedLocations, DateTime startTime)
+    {
+        var initialJobStatus = new ConnectivityAssessmentJobStatusDto
+        {
+            JobId = jobId,
+            Status = ConnectivityAssessmentJobStatusEnum.Pending,
+            Message = "Job is queued and waiting to start",
+            LastUpdated = startTime,
+            StartTime = null,
+            EndTime = null,
+            ProcessedCount = 0,
+            EstimatedTotalCount = estimatedLocations
+        };
+
+        var cacheKey = $"job_status_{jobId}";
+        var cacheExpiration = TimeSpan.FromHours(ConnectivityAssessmentJobConfiguration.JobStatusCacheHours);
+        _memoryCache.Set(cacheKey, initialJobStatus, cacheExpiration);
+    }
+
+    /// <summary>
+    /// Creates the job response DTO
+    /// </summary>
+    private static ConnectivityAssessmentJobResponseDto CreateJobResponse(
+        int jobId,
+        ConnectivityAssessmentJobRequestDto jobRequest,
+        int refinedEstimatedLocations)
+    {
+        return new ConnectivityAssessmentJobResponseDto
+        {
+            JobId = jobId,
+            Status = ConnectivityAssessmentJobStatusEnum.Pending,
+            Message = GetJobQueueMessage(jobRequest),
+            EstimatedDurationMinutes = EstimateProcessingTime(jobRequest, refinedEstimatedLocations),
+            EstimatedTotalLocations = refinedEstimatedLocations
+        };
+    }
+
+    /// <summary>
+    /// Logs job configuration for transparency
+    /// </summary>
+    private void LogJobConfiguration(int jobId, ConnectivityAssessmentJobRequestDto jobRequest)
+    {
+        _logger.LogInformation(
+            "Job {JobId} configuration - Hierarchical requested: {Requested}, Enabled: {Enabled}, " +
+            "Max locations: {MaxLocations}, Batch size: {BatchSize}",
+            jobId,
+            jobRequest.GenerateHierarchicalAssessments,
+            jobRequest.EnableHierarchicalProcessing,
+            jobRequest.MaxHierarchicalLocations,
+            jobRequest.HierarchicalBatchSize);
+    }
+
+    /// <summary>
+    /// Logs location estimation details for debugging
+    /// </summary>
+    private void LogLocationEstimation(int jobId, ConnectivityAssessmentJobRequestDto jobRequest, int refinedEstimatedLocations)
+    {
+        if (!jobRequest.GenerateHierarchicalAssessments || !jobRequest.EnableHierarchicalProcessing)
+            return;
+
+        var primaryCount = jobRequest.LocationIds.Count;
+        var estimatedChildrenCount = refinedEstimatedLocations - primaryCount;
+
+        _logger.LogInformation(
+            "Job {JobId} location estimation - Primary: {Primary}, Estimated children: {EstimatedChildren}, " +
+            "Total estimated: {TotalEstimated}, LocationType: {LocationType}, Depth: {Depth}",
+            jobId, primaryCount, estimatedChildrenCount, refinedEstimatedLocations,
+            jobRequest.LocationType, jobRequest.HierarchicalDepth);
+    }
+
+    /// <summary>
+    /// Logs job start information
+    /// </summary>
+    private void LogJobStart(
+        int jobId,
+        string hangfireJobId,
+        StartConnectivityAssessmentJobRequest request,
+        ConnectivityAssessmentJobRequestDto jobRequest,
+        int refinedEstimatedLocations)
+    {
+        _logger.LogInformation(
+            "Started background connectivity assessment job {JobId} (Hangfire: {HangfireJobId}) for {LocationCount} {LocationType}s. " +
+            "Hierarchical requested: {Hierarchical}, Enabled: {Enabled}, Force: {Force}, EstimatedTotal: {EstimatedTotal}",
+            jobId, hangfireJobId, request.LocationIds.Count, request.LocationType,
+            request.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing,
+            request.ForceRecalculate, refinedEstimatedLocations);
+    }
+
+    /// <summary>
     /// Get appropriate message based on hierarchical configuration
     /// </summary>
     private static string GetJobQueueMessage(ConnectivityAssessmentJobRequestDto jobRequest)
@@ -167,105 +377,97 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
 
     /// <summary>
     /// Get default maximum hierarchical locations based on location type
+    /// Configured to handle complete processing of all Philippine administrative levels
     /// </summary>
     private static int GetDefaultMaxHierarchicalLocations(LocationTypeEnum locationType)
     {
         return locationType switch
         {
-            LocationTypeEnum.Regional => 500,      // Regions can have many children, limit for performance
-            LocationTypeEnum.Provincial => 800,    // Provinces are more manageable
-            LocationTypeEnum.Municipality => 1000, // Municipalities have barangays, can handle more
-            LocationTypeEnum.Barangay => 0,        // Barangays have no children
-            _ => 1000
+            LocationTypeEnum.Regional => ConnectivityAssessmentJobConfiguration.MaxHierarchicalLocations.Regional,
+            LocationTypeEnum.Provincial => ConnectivityAssessmentJobConfiguration.MaxHierarchicalLocations.Provincial,
+            LocationTypeEnum.Municipality => ConnectivityAssessmentJobConfiguration.MaxHierarchicalLocations.Municipality,
+            LocationTypeEnum.Barangay => ConnectivityAssessmentJobConfiguration.MaxHierarchicalLocations.Barangay,
+            _ => ConnectivityAssessmentJobConfiguration.MaxHierarchicalLocations.Default
         };
     }
 
     /// <summary>
     /// Get default hierarchical batch size based on location type
+    /// Optimized for throughput while maintaining stability
     /// </summary>
     private static int GetDefaultHierarchicalBatchSize(LocationTypeEnum locationType)
     {
         return locationType switch
         {
-            LocationTypeEnum.Regional => 25,      // Smaller batches for complex regional processing
-            LocationTypeEnum.Provincial => 40,    // Medium batches for provinces
-            LocationTypeEnum.Municipality => 60,  // Larger batches for municipalities
-            LocationTypeEnum.Barangay => 100,     // Largest batches for barangays (simpler)
-            _ => 50
+            LocationTypeEnum.Regional => ConnectivityAssessmentJobConfiguration.HierarchicalBatchSize.Regional,
+            LocationTypeEnum.Provincial => ConnectivityAssessmentJobConfiguration.HierarchicalBatchSize.Provincial,
+            LocationTypeEnum.Municipality => ConnectivityAssessmentJobConfiguration.HierarchicalBatchSize.Municipality,
+            LocationTypeEnum.Barangay => ConnectivityAssessmentJobConfiguration.HierarchicalBatchSize.Barangay,
+            _ => ConnectivityAssessmentJobConfiguration.HierarchicalBatchSize.Default
         };
     }
 
     /// <summary>
-    /// Calculate refined estimated total locations that will be processed based on limits and configuration
-    /// This provides a more accurate estimate than the basic calculation by considering processing limits
+    /// Gets the estimated children per location based on type and hierarchical depth
+    /// Uses realistic estimates based on typical Philippine administrative structure
     /// </summary>
-    private static int CalculateRefinedEstimatedTotalLocations(ConnectivityAssessmentJobRequestDto jobRequest)
+    private static int GetEstimatedChildrenPerLocation(LocationTypeEnum locationType, int hierarchicalDepth)
     {
-        var primaryLocations = jobRequest.LocationIds.Count;
-
-        if (!jobRequest.GenerateHierarchicalAssessments || !jobRequest.EnableHierarchicalProcessing)
+        return locationType switch
         {
-            return primaryLocations;
-        }
-
-        // Use more realistic estimates based on typical Philippine administrative structure
-        var estimatedChildrenPerLocation = jobRequest.LocationType switch
-        {
-            LocationTypeEnum.Regional when jobRequest.HierarchicalDepth >= 3 => 800,  // Region -> all provinces -> all municipalities -> all barangays
-            LocationTypeEnum.Regional when jobRequest.HierarchicalDepth >= 2 => 80,   // Region -> all provinces -> all municipalities
-            LocationTypeEnum.Regional => 15,                                          // Region -> provinces only
-            LocationTypeEnum.Provincial when jobRequest.HierarchicalDepth >= 2 => 300, // Province -> all municipalities -> all barangays
-            LocationTypeEnum.Provincial => 25,                                        // Province -> municipalities only
-            LocationTypeEnum.Municipality => 15,                                      // Municipality -> barangays (more realistic average)
+            LocationTypeEnum.Regional when hierarchicalDepth >= 3 =>
+                ConnectivityAssessmentJobConfiguration.EstimationFactors.ChildrenPerLocation.RegionalDepth3,
+            LocationTypeEnum.Regional when hierarchicalDepth >= 2 =>
+                ConnectivityAssessmentJobConfiguration.EstimationFactors.ChildrenPerLocation.RegionalDepth2,
+            LocationTypeEnum.Regional =>
+                ConnectivityAssessmentJobConfiguration.EstimationFactors.ChildrenPerLocation.RegionalDepth1,
+            LocationTypeEnum.Provincial when hierarchicalDepth >= 2 =>
+                ConnectivityAssessmentJobConfiguration.EstimationFactors.ChildrenPerLocation.ProvincialDepth2,
+            LocationTypeEnum.Provincial =>
+                ConnectivityAssessmentJobConfiguration.EstimationFactors.ChildrenPerLocation.ProvincialDepth1,
+            LocationTypeEnum.Municipality =>
+                ConnectivityAssessmentJobConfiguration.EstimationFactors.ChildrenPerLocation.Municipality,
             _ => 0
         };
-
-        var estimatedHierarchicalLocations = primaryLocations * estimatedChildrenPerLocation;
-        var cappedEstimatedHierarchical = Math.Min(estimatedHierarchicalLocations, jobRequest.MaxHierarchicalLocations);
-
-        return primaryLocations + cappedEstimatedHierarchical;
     }
 
     /// <summary>
-    /// Calculate estimated total number of locations that will be processed (kept for backward compatibility)
-    /// This is the basic estimation without considering processing limits or refined configuration
+    /// Calculate estimated total locations with optional processing limits
+    /// This unified method provides accurate estimates by considering processing limits
     /// </summary>
-    private static int CalculateEstimatedTotalLocations(StartConnectivityAssessmentJobRequest request)
+    private static int CalculateEstimatedTotalLocations(
+        int primaryLocationCount,
+        LocationTypeEnum locationType,
+        bool generateHierarchical,
+        bool enableHierarchicalProcessing,
+        int hierarchicalDepth,
+        int maxHierarchicalLocations)
     {
-        if (!request.GenerateHierarchicalAssessments)
+        if (!generateHierarchical || !enableHierarchicalProcessing)
         {
-            return request.LocationIds.Count;
+            return primaryLocationCount;
         }
 
-        // Use more realistic estimates based on typical Philippine administrative structure
-        var estimatedChildrenPerLocation = request.LocationType switch
-        {
-            LocationTypeEnum.Regional when request.HierarchicalDepth >= 3 => 800,  // Region -> Provinces -> Municipalities -> Barangays
-            LocationTypeEnum.Regional when request.HierarchicalDepth >= 2 => 80,   // Region -> Provinces -> Municipalities
-            LocationTypeEnum.Regional => 15,                                       // Region -> Provinces only
-            LocationTypeEnum.Provincial when request.HierarchicalDepth >= 2 => 300, // Province -> Municipalities -> Barangays
-            LocationTypeEnum.Provincial => 25,                                     // Province -> Municipalities only
-            LocationTypeEnum.Municipality => 15,                                   // Municipality -> Barangays (more realistic average)
-            _ => 0
-        };
+        var estimatedChildrenPerLocation = GetEstimatedChildrenPerLocation(locationType, hierarchicalDepth);
+        var estimatedHierarchicalLocations = primaryLocationCount * estimatedChildrenPerLocation;
+        var cappedEstimatedHierarchical = Math.Min(estimatedHierarchicalLocations, maxHierarchicalLocations);
 
-        return request.LocationIds.Count + (request.LocationIds.Count * estimatedChildrenPerLocation);
+        return primaryLocationCount + cappedEstimatedHierarchical;
     }
 
     /// <summary>
     /// Estimate processing time based on estimated job configuration
     /// </summary>
-    private static int EstimateProcessingTime(ConnectivityAssessmentJobRequestDto jobRequest)
+    private static int EstimateProcessingTime(ConnectivityAssessmentJobRequestDto jobRequest, int estimatedLocations)
     {
-        // Base time per location (in minutes)
-        var baseTimePerLocation = jobRequest.ForceRecalculate ? 0.5 : 0.2;
-        
-        // Calculate estimated locations to process
-        var estimatedLocations = CalculateRefinedEstimatedTotalLocations(jobRequest);
-        
+        var baseTimePerLocation = jobRequest.ForceRecalculate
+            ? ConnectivityAssessmentJobConfiguration.EstimationFactors.BaseTimeForceRecalculate
+            : ConnectivityAssessmentJobConfiguration.EstimationFactors.BaseTimeNormal;
+
         var estimatedMinutes = (int)Math.Ceiling(estimatedLocations * baseTimePerLocation);
-        
-        // Minimum 1 minute, maximum 180 minutes for display purposes
-        return Math.Max(1, Math.Min(180, estimatedMinutes));
+
+        return Math.Max(
+            ConnectivityAssessmentJobConfiguration.EstimationFactors.MinEstimatedMinutes,
+            Math.Min(ConnectivityAssessmentJobConfiguration.EstimationFactors.MaxEstimatedMinutes, estimatedMinutes));
     }
 }

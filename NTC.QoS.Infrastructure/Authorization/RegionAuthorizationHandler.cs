@@ -30,9 +30,9 @@ public class RegionAuthorizationHandler : AuthorizationHandler<RegionRequirement
 
         if (requirement.AllowedRegionIds.Count > 0)
         {
-            var hasAccess = requirement.AllowedRegionIds.Any(regionId => 
+            var hasAccess = requirement.AllowedRegionIds.Any(regionId =>
                 accessibleRegions.Contains(regionId));
-            
+
             if (hasAccess)
             {
                 context.Succeed(requirement);

@@ -32,17 +32,17 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
             };
         }
 
-        if(!string.IsNullOrEmpty(request.Cell.CID)) cell.CID = request.Cell.CID;
-        if(!string.IsNullOrEmpty(request.Cell.LAC)) cell.LAC = request.Cell.LAC;
-        if(!string.IsNullOrEmpty(request.Cell.TAC)) cell.TAC = request.Cell.TAC;
-        if(!string.IsNullOrEmpty(request.Cell.SiteId)) cell.SiteId = request.Cell.SiteId;
-        if(!string.IsNullOrEmpty(request.Cell.TowerType)) cell.TowerType = request.Cell.TowerType;
-        if(request.Cell.Elevation is not 0) cell.Elevation = request.Cell.Elevation;
-        if(request.Cell.Latitude is not 0 || request.Cell.Longitude is not 0)
+        if (!string.IsNullOrEmpty(request.Cell.CID)) cell.CID = request.Cell.CID;
+        if (!string.IsNullOrEmpty(request.Cell.LAC)) cell.LAC = request.Cell.LAC;
+        if (!string.IsNullOrEmpty(request.Cell.TAC)) cell.TAC = request.Cell.TAC;
+        if (!string.IsNullOrEmpty(request.Cell.SiteId)) cell.SiteId = request.Cell.SiteId;
+        if (!string.IsNullOrEmpty(request.Cell.TowerType)) cell.TowerType = request.Cell.TowerType;
+        if (request.Cell.Elevation is not 0) cell.Elevation = request.Cell.Elevation;
+        if (request.Cell.Latitude is not 0 || request.Cell.Longitude is not 0)
         {
             cell.Location = GeometryHelper.CreatePoint(new Coordinate(y: request.Cell.Latitude, x: request.Cell.Longitude));
         }
-        if(request.Cell.IsVerified.HasValue) cell.IsVerified = request.Cell.IsVerified.Value;
+        if (request.Cell.IsVerified.HasValue) cell.IsVerified = request.Cell.IsVerified.Value;
 
         _cellRepository.Update(cell);
         await _cellRepository.SaveChangesAsync(cancellationToken);
