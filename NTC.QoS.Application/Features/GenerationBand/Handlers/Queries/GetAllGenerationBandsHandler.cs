@@ -26,13 +26,13 @@ public class GetAllGenerationBandsHandler(IGenerationBandRepository repository) 
         var generationBandDtosQuery = generationBandsQuery.Select(gb => new GenerationBandDto
         {
             Id = gb.Id,
-            Generation = new ()
+            Generation = new()
             {
                 Id = gb.GenerationId,
                 Name = gb.Generation.Name,
                 Description = gb.Generation.Description
             },
-            Band = new ()
+            Band = new()
             {
                 Id = gb.BandId,
                 Name = gb.Band.Name,

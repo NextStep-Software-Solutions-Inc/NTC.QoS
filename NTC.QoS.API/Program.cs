@@ -1,16 +1,20 @@
+using AspNetCoreRateLimit;
 using Clerk.Net.DependencyInjection;
+using NTC.QoS.API.Middleware;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using NTC.QoS.API.Extensions;
 using NTC.QoS.API.Filters;
+using NTC.QoS.API.Infrastructure;
 using NTC.QoS.Application;
-using NTC.QoS.Application.Services;
-using NTC.QoS.Application.Services.Interface;
 using NTC.QoS.Infrastructure;
+using NTC.QoS.Infrastructure.Extensions;
+using NTC.QoS.Infrastructure.HealthChecks;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -22,79 +26,91 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        var env = builder.Environment;
 
+        builder.Configuration
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
+            .AddEnvironmentVariables();
 
-        // load appsettings based on the env
-        var env = builder.Environment.EnvironmentName ?? "Production";
-        // load appsettings based on the env
-        builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-        builder.Configuration.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
-
-        // Add services to the container.
+        // Validate Clerk secret for both Development and Production
+        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
         builder.Services.AddClerkApiClient(config =>
         {
-            config.SecretKey = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
+            config.SecretKey = clerkSecret;
         });
 
-        // JWT Bearer Authentication for Clerk.
-        // Ensure these configuration values are correctly set in appsettings.json or environment variables.
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(x =>
         {
-            // Authority is the URL of your clerk instance
             x.Authority = builder.Configuration["Clerk:Authority"];
-            x.TokenValidationParameters = new TokenValidationParameters()
+            x.TokenValidationParameters = new TokenValidationParameters
             {
-                 // Disable audience validation as we aren't using it
-                 ValidateAudience = false,
-                 NameClaimType = ClaimTypes.NameIdentifier
+                ValidateAudience = false,
+                NameClaimType = ClaimTypes.NameIdentifier
             };
-            x.Events = new JwtBearerEvents()
+            x.Events = new JwtBearerEvents
             {
-                // Additional validation for AZP claim
                 OnTokenValidated = context =>
                 {
-                     var azp = context.Principal?.FindFirstValue("azp");
-                     var authorizedParties = builder.Configuration.GetSection("Clerk:AuthorizedParties").Get<List<string>>();
-
-                     if (string.IsNullOrEmpty(azp) || authorizedParties == null || !authorizedParties.Contains(azp))
-                     {
-                         context.Fail("AZP Claim is invalid or missing");
-                     }
-
-                     return Task.CompletedTask;
-                 }
+                    var azp = context.Principal?.FindFirstValue("azp");
+                    var authorizedParties = builder.Configuration.GetSection("Clerk:AuthorizedParties").Get<List<string>>();
+                    if (!env.IsDevelopment())
+                    {
+                        if (string.IsNullOrEmpty(azp) || authorizedParties == null || !authorizedParties.Contains(azp))
+                        {
+                            context.Fail("AZP Claim is invalid or missing");
+                        }
+                    }
+                    return Task.CompletedTask;
+                }
             };
-         });
+        });
         builder.Services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build());
-
         builder.Services.AddAuthorization();
+        builder.Services.AddDynamicAuthorization();
 
         builder.Services.AddHttpContextAccessor();
+
+        // CORS policies
         builder.Services.AddCors(options =>
         {
-            options.AddDefaultPolicy(builder =>
+            options.AddPolicy("Dev", policy =>
             {
-                builder.AllowAnyOrigin()
-                       .AllowAnyMethod()
-                       .AllowAnyHeader();
+                policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+            });
+            options.AddPolicy("Prod", policy =>
+            {
+                var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+                policy.WithOrigins(origins)
+                      .AllowAnyHeader()
+                      .AllowAnyMethod();
             });
         });
+
         builder.Services.AddControllers()
-            .AddJsonOptions(options => 
+            .AddJsonOptions(options =>
             {
-                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; // Set to camelCase
+                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-                // Enable writing indented JSON for readability in development
-                options.JsonSerializerOptions.WriteIndented = builder.Environment.IsDevelopment();
+                options.JsonSerializerOptions.WriteIndented = env.IsDevelopment();
             });
+
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
         {
-            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
+            // Include XML documentation
+            var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath);
+            }
+
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name = "Authorization",
                 Description = "Please enter JWT token in the authentication header",
@@ -102,6 +118,15 @@ public class Program
                 Type = SecuritySchemeType.Http,
                 BearerFormat = "JWT",
                 Scheme = "Bearer"
+            });
+
+            options.AddSecurityDefinition("WebhookSignature", new OpenApiSecurityScheme
+            {
+                Name = "Webhook Signature",
+                Description = "Clerk webhook signature verification (handled automatically)",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.ApiKey,
+                Scheme = "Webhook"
             });
 
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -118,28 +143,46 @@ public class Program
                     Array.Empty<string>()
                 }
             });
+
+            // Custom operation filter for file upload endpoints
+            options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
+            options.OperationFilter<CamelCaseOperationFilter>();
+            options.OperationFilter<ClerkWebhookOperationFilter>();
         });
-        builder.Services.AddApplication(builder.Configuration); // Call the Application registration
-        await builder.Services.AddInfrastructure(builder.Configuration); // Call the Infrastructure registration
+
+        builder.Services.AddApplication(builder.Configuration);
+        builder.Services.AddInfrastructure(builder.Configuration);
+
+        // Add API-specific services
+        builder.Services.AddApiRateLimiting();
+
         builder.Services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-            options.Providers.Add<GzipCompressionProvider>();
-            options.Providers.Add<BrotliCompressionProvider>();
-        });
+            {
+                options.EnableForHttps = true;
+                options.Providers.Add<GzipCompressionProvider>();
+                options.Providers.Add<BrotliCompressionProvider>();
+            });
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
-        builder.Services.AddScoped<GeospatialQueryService>();
-        builder.Services.AddScoped<IGeographicFilteringService, GeographicFilteringService>();
+
+        // Health checks
+        builder.Services.AddHealthChecks()
+            .AddCheck<PendingMigrationsHealthCheck>("pending_migrations", failureStatus: HealthStatus.Degraded)
+            .AddCheck<DbConnectionHealthCheck>("db");
 
         var app = builder.Build();
-        app.UseCors();
-        // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
+
+        // Initialize application startup processes (Hangfire filters, migrations, seeding)
+        await app.Services.InitializeApplicationAsync(builder.Configuration, env);
+
+        app.UseSecurityHeaders();
+        bool isDevelopment = app.Environment.IsDevelopment();
+        app.UseCors(isDevelopment ? "Dev" : "Prod");
+
+        if (isDevelopment)
         {
-            
             app.UseSwagger();
             app.UseSwaggerUI(s =>
             {
@@ -149,17 +192,33 @@ public class Program
                 s.ConfigObject.DisplayRequestDuration = true;
             });
         }
+        else
+        {
+            // Production security configuration (HSTS + HTTPS Redirection)
+            app.UseProductionSecurity();
+        }
 
-        app.UseHttpsRedirection();
         app.UseResponseCompression();
         app.UseResponseCaching();
 
         app.UseAuthentication();
         app.UseAuthorization();
 
-        app.UseHangfireDashboard();
+        // Enable client-based rate limiting (per user)
+        app.UseClientRateLimiting();
 
-        app.ConfigureExceptionHandler(app.Logger); //Important line.
+        // Hangfire dashboard with authorization
+        app.UseHangfireDashboard("/hangfire", new DashboardOptions
+        {
+            Authorization = [new HangfireDashboardAuthorizationFilter()]
+        });
+
+        app.ConfigureExceptionHandler(app.Logger);
+
+        // Health endpoints
+        app.MapHealthChecks("/health/live");
+        app.MapHealthChecks("/health/ready");
+
         app.MapControllers();
 
         app.Run();

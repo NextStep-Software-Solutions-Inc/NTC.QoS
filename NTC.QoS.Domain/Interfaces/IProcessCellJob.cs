@@ -2,6 +2,6 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface IProcessCellJob: IBackgroundJob<FileDto>
+public interface IProcessCellJob : IBackgroundJob<FileDto>
 {
 }

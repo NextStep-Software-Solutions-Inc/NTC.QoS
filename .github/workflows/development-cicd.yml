@@ -16,15 +16,16 @@ env:
 
 jobs:
   build:
+    name: Build
     runs-on: ubuntu-latest
     environment: Development
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -32,13 +33,14 @@ jobs:
         run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }}
 
   docker_build_and_push:
+    name: Build and Push Docker Image
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: Development
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -52,6 +54,7 @@ jobs:
           docker push ${{ env.IMAGE_NAME }}:dev
 
   deploy:
+    name: Deploy to DigitalOcean
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     needs: [docker_build_and_push]
@@ -59,16 +62,17 @@ jobs:
 
     steps:
       - name: Deploy to DigitalOcean
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.DO_DROPLET_IP }}
           username: ${{ secrets.DO_USERNAME }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           script: |
-            sudo apt-get update
-            if ! command -v docker &> /dev/null
-            then
+            # Ensure Docker is installed
+            if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
+              sudo apt-get update
               sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
               curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
               sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
@@ -77,13 +81,55 @@ jobs:
               sudo systemctl start docker
               sudo systemctl enable docker
             fi
-            docker stop ${{ env.CONTAINER_NAME}} || true
-            docker rm ${{ env.CONTAINER_NAME}} || true
-            docker image rm ${{ env.IMAGE_NAME }}:dev || true
+
+            # Stop and remove existing container with better error handling
+            echo "Stopping existing container..."
+            if docker ps -q -f name=${{ env.CONTAINER_NAME }} | grep -q .; then
+              docker stop ${{ env.CONTAINER_NAME }}
+              echo "Container stopped successfully"
+            else
+              echo "Container not running or doesn't exist"
+            fi
+
+            echo "Removing existing container..."
+            if docker ps -a -q -f name=${{ env.CONTAINER_NAME }} | grep -q .; then
+              docker rm ${{ env.CONTAINER_NAME }}
+              echo "Container removed successfully"
+            else
+              echo "Container doesn't exist"
+            fi
+
+            # Remove old image to free up space
+            echo "Removing old image..."
+            docker image rm ${{ env.IMAGE_NAME }}:dev || echo "Old image not found or in use"
+
+            # Pull new image
+            echo "Pulling new image..."
             docker pull ${{ env.IMAGE_NAME }}:dev
-            docker run --restart unless-stopped -d --cpus="0.5" -p 91:${{ env.CONTAINER_PORT }} \
-              --name ${{ env.CONTAINER_NAME}} \
+
+            # Run new container
+            echo "Starting new container..."
+            docker run \
+              --restart unless-stopped \
+              -d \
+              --cpus="0.3" \
+              --memory="768m" \
+              -p 91:${{ env.CONTAINER_PORT }} \
+              --name ${{ env.CONTAINER_NAME }} \
               -e ConnectionStrings__PostgreSqlConnection="${{ secrets.DB_CONNECTION_STRING }}" \
-              -e ConnectionStrings__HangfireConnection="${{ secrets.HANGFIRE_CONNECTION_STRING }}" \
+              -e ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
               -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
+              -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
               ${{ env.IMAGE_NAME }}:dev
+
+            # Verify container is running
+            echo "Verifying deployment..."
+            sleep 5
+            if docker ps -q -f name=${{ env.CONTAINER_NAME }} | grep -q .; then
+              echo "✅ Container deployed successfully"
+              docker ps -f name=${{ env.CONTAINER_NAME }}
+            else
+              echo "❌ Container failed to start"
+              docker logs ${{ env.CONTAINER_NAME }}
+              exit 1
+            fi

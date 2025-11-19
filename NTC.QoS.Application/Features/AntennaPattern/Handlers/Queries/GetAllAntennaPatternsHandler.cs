@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs.AntennaPattern;
 
 namespace NTC.QoS.Application.Features.AntennaPattern.Handlers.Queries;
 
-public class GetAllAntennaPatternsHandler (IRepository<Domain.Entities.AntennaPattern> repository) : IRequestHandler<GetAllAntennaPatternsRequest, PaginatedResponse<AntennaPatternDto>>
+public class GetAllAntennaPatternsHandler(IRepository<Domain.Entities.AntennaPattern> repository) : IRequestHandler<GetAllAntennaPatternsRequest, PaginatedResponse<AntennaPatternDto>>
 {
     private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
     public async Task<PaginatedResponse<AntennaPatternDto>> Handle(GetAllAntennaPatternsRequest request, CancellationToken cancellationToken)

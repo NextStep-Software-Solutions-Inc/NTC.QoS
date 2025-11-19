@@ -8,7 +8,7 @@ namespace NTC.QoS.Application.Features.User.Handlers.Queries;
 public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<GetAllUsersRequest, PaginatedResponse<UserDto>>
 {
     private readonly IUserRepository _repository = repository;
-    
+
     public async Task<PaginatedResponse<UserDto>> Handle(GetAllUsersRequest request, CancellationToken cancellationToken)
     {
         var query = _repository.Query();
@@ -32,24 +32,29 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             query = query.Where(u => request.AuthUserIds.Contains(u.AuthUserId));
         }
 
-        var userDtosQuery = query.Select(u => new UserDto
-        {
-            Id = u.Id,
-            Role = new()
+        var userDtosQuery = query
+            .OrderBy(u => u.CreatedAt)
+            .Select(u => new UserDto
             {
-                Id = u.RoleId,
-                Name = u.Role != null ? u.Role.Name : string.Empty,
-                Key = u.Role != null ? u.Role.Key : string.Empty,
-                Description = u.Role != null ? u.Role.Description ?? string.Empty : string.Empty
-            },
-            Organization = new()
-            {
-                Id = u.OrganizationId,
-                Name = u.Organization != null ? u.Organization.Name : string.Empty,
-                Description = u.Organization != null ? u.Organization.Description ?? string.Empty : string.Empty
-            },
-            AuthUserId = u.AuthUserId
-        });
+                Id = u.Id,
+                Role = new()
+                {
+                    Id = u.RoleId,
+                    Name = u.Role != null ? u.Role.Name : string.Empty,
+                    Key = u.Role != null ? u.Role.Key : string.Empty,
+                    Description = u.Role != null ? u.Role.Description ?? string.Empty : string.Empty
+                },
+                Organization = new()
+                {
+                    Id = u.OrganizationId,
+                    Name = u.Organization != null ? u.Organization.Name : string.Empty,
+                    Description = u.Organization != null ? u.Organization.Description ?? string.Empty : string.Empty
+                },
+                AuthUserId = u.AuthUserId,
+                Email = u.Email,
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+            });
 
         return await _repository.PaginateAsync(userDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
     }

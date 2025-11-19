@@ -12,9 +12,9 @@ public class DeleteCellularCoverageByNetworkIdHandler(IRepository<Domain.Entitie
     public async Task<ApiResponse<bool>> Handle(DeleteCellularCoverageByNetworkIdRequest request, CancellationToken cancellationToken)
     {
         var cellularCoveragesToDeleteQuery = _cellularCoverageRepository.Query(cs => cs.NetworkId == request.NetworkId);
-        var cellularCoveragesToDelete = await _cellularCoverageRepository.ExecuteDeleteAsync(cellularCoveragesToDeleteQuery, cancellationToken);
-        
-        if (cellularCoveragesToDelete is 0)
+        var deletedCount = await _cellularCoverageRepository.ExecuteHardDeleteAsync(cellularCoveragesToDeleteQuery, cancellationToken);
+
+        if (deletedCount is 0)
         {
             return new ApiResponse<bool>
             {
@@ -26,7 +26,7 @@ public class DeleteCellularCoverageByNetworkIdHandler(IRepository<Domain.Entitie
         return new ApiResponse<bool>
         {
             Succeeded = true,
-            Message = $"{cellularCoveragesToDelete} cellular coverage entries deleted successfully for Network ID: {request.NetworkId}."
+            Message = $"{deletedCount} cellular coverage entries deleted successfully for Network ID: {request.NetworkId}."
         };
     }
 }

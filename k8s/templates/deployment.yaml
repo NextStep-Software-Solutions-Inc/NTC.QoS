@@ -15,10 +15,11 @@ spec:
         checksum/image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         helm.sh/revision: "{{ .Release.Revision }}"
     spec:
+      restartPolicy: {{ .Values.restartPolicy }}
       containers:
-        - name: ntc-qos-api
+        - name:  {{ .Release.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.image.pullPolicy}}
           ports:
             - containerPort: 8080
           env:
@@ -27,15 +28,20 @@ spec:
                 secretKeyRef:
                   name: ntc-qos-secrets
                   key: DB_CONNECTION_STRING
-            - name: ConnectionStrings__HangfireConnection
-              valueFrom:
-                secretKeyRef:
-                  name: ntc-qos-secrets
-                  key: HANGFIRE_CONNECTION_STRING
             - name: Clerk__SecretKey
               valueFrom:
                 secretKeyRef:
                   name: ntc-qos-secrets
                   key: Clerk__SecretKey
+            - name: Clerk__WebhookSecret
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: Clerk__WebhookSecret
+            - name: ConnectionStrings__BlobStorageConnection
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: BLOB_STORAGE_CONNECTION_STRING
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.env.ASPNETCORE_ENVIRONMENT | default "Production" }}

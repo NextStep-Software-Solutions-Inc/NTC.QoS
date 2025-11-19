@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace NTC.QoS.Domain.Entities;
 
-public abstract class BaseEntity: IEntity
+public abstract class BaseEntity : IEntity
 {
     [Key]
     public Guid Id { get; set; }
@@ -13,7 +13,7 @@ public abstract class BaseEntity: IEntity
     public string UpdatedBy { get; set; } = string.Empty;
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }
-    public string DeletedBy { get; set; } = string.Empty;
+    public string? DeletedBy { get; set; } // keep nullable for soft delete semantics
     public BaseEntity()
     {
         Id = Guid.NewGuid();

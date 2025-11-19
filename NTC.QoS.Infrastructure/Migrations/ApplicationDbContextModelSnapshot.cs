@@ -48,7 +48,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -79,7 +78,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Name")
@@ -111,9 +110,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("ZoneId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FileId");
@@ -124,11 +120,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("ServiceProviderId");
-
-                    b.HasIndex("ZoneId");
 
                     b.ToTable("Cells");
                 });
@@ -150,7 +145,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -195,7 +189,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("GenerationId")
@@ -243,7 +236,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -304,7 +296,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid?>("FileId")
@@ -319,7 +310,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("ServiceProviderId")
@@ -332,9 +323,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("ZoneId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FileId");
@@ -345,8 +333,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
 
                     b.HasIndex("ServiceProviderId");
-
-                    b.HasIndex("ZoneId");
 
                     b.ToTable("NAPs");
                 });
@@ -374,7 +360,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -431,7 +416,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -479,7 +463,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -511,7 +494,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("ProviderId");
 
                     b.HasIndex("ServiceId", "ProviderId", "MNC")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("ServiceProviders");
                 });
@@ -533,7 +517,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -578,7 +561,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -626,7 +608,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -670,7 +651,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -719,7 +699,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -762,7 +741,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -785,7 +763,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("AreaStudies");
                 });
@@ -807,7 +786,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -847,13 +825,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -871,11 +849,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
+
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -886,6 +869,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -943,7 +929,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -995,7 +980,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid?>("FileId")
@@ -1063,7 +1047,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1075,7 +1058,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("NetworkId")
@@ -1103,6 +1086,231 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("CellularCoverages");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("AreaSizeKm2")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("AssessedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("AssessmentDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("AssetsPerThousandPeople")
+                        .HasColumnType("double precision");
+
+                    b.Property<decimal?>("AverageDownloadSpeedMbps")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("AverageLatencyMs")
+                        .HasColumnType("numeric");
+
+                    b.Property<double?>("AverageSignalStrength")
+                        .HasColumnType("double precision");
+
+                    b.Property<decimal?>("AverageUploadSpeedMbps")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("CellTowerCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ConnectivityStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CoverageAvailabilityScore")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DominantServiceProvider")
+                        .HasColumnType("text");
+
+                    b.Property<double?>("EstimatedHouseholdCoveragePercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("EstimatedPopulationCoveragePercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("FiberCoveragePercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("FiberCoverageScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FiberNAPCount")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("FixedBroadbandCoveragePercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<bool>("HasReliableConnectivity")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("InternetAccessScore")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LastUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geometry (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("LocationType")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("MedianDownloadSpeedMbps")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("MedianUploadSpeedMbps")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("MeetsMinimumSpeedRequirement")
+                        .HasColumnType("boolean");
+
+                    b.Property<double?>("MobileCoveragePercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Population")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("ProvidersPerThousandPeople")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("QualityOfServiceScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ServiceProviderCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SpeedTestCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TechnologyTypeScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalScore")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("WifiHotspotCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConnectivityStatus")
+                        .HasDatabaseName("IX_ConnectivityAssessment_Status");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("IX_ConnectivityAssessment_Location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
+                    b.HasIndex("LocationId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ConnectivityAssessment_LocationId");
+
+                    b.HasIndex("LocationType")
+                        .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
+
+                    b.ToTable("ConnectivityAssessments");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("AssetPercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("CellTowerCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ConnectivityAssessmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("FiberNAPCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ProviderName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TotalAssetCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("WiFiHotspotCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConnectivityAssessmentId");
+
+                    b.ToTable("ConnectivityAssessmentProvider");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1120,7 +1328,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1185,7 +1392,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1227,13 +1433,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1251,11 +1457,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
+
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsCity")
                         .HasColumnType("boolean");
@@ -1269,6 +1480,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<Guid>("ProvinceId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1311,7 +1525,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1357,7 +1570,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1399,7 +1611,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1449,7 +1660,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1487,7 +1697,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Providers");
                 });
@@ -1503,13 +1714,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1527,11 +1738,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
+
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -1542,6 +1758,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<Guid>("RegionId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1578,13 +1797,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1602,11 +1821,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
+
+                    b.Property<int?>("HouseholdCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HouseholdPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -1614,6 +1838,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("TotalPopulation")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1654,7 +1881,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -1689,7 +1915,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AntennaType")
+                    b.Property<int?>("AntennaType")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("CellSectorId")
@@ -1706,96 +1932,90 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsRxEqualTx")
+                    b.Property<bool?>("IsRxEqualTx")
                         .HasColumnType("boolean");
 
                     b.Property<Guid?>("MIMOId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("NetworkId")
+                    b.Property<Guid?>("NetworkId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("RadioEquipment")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("RxAdditionalLoss")
+                    b.Property<decimal?>("RxAdditionalLoss")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxAntennaGain")
+                    b.Property<decimal?>("RxAntennaGain")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxAntennaHeight")
+                    b.Property<decimal?>("RxAntennaHeight")
                         .HasColumnType("numeric");
 
                     b.Property<string>("RxAntennaModel")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("RxAntennaPatternId")
+                    b.Property<Guid?>("RxAntennaPatternId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("RxAzimuth")
+                    b.Property<decimal?>("RxAzimuth")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxBeamTilt")
+                    b.Property<decimal?>("RxBeamTilt")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxCableLength")
+                    b.Property<decimal?>("RxCableLength")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RxCableLoss")
+                    b.Property<decimal?>("RxCableLoss")
                         .HasColumnType("numeric");
 
                     b.Property<string>("RxCableType")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("RxEIRP")
+                    b.Property<decimal?>("RxEIRP")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAdditionalLoss")
+                    b.Property<decimal?>("TxAdditionalLoss")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAntennaGain")
+                    b.Property<decimal?>("TxAntennaGain")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxAntennaHeight")
+                    b.Property<decimal?>("TxAntennaHeight")
                         .HasColumnType("numeric");
 
                     b.Property<string>("TxAntennaModel")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("TxAntennaPatternId")
+                    b.Property<Guid?>("TxAntennaPatternId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("TxAzimuth")
+                    b.Property<decimal?>("TxAzimuth")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxBeamTilt")
+                    b.Property<decimal?>("TxBeamTilt")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxCableLength")
+                    b.Property<decimal?>("TxCableLength")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxCableLoss")
+                    b.Property<decimal?>("TxCableLoss")
                         .HasColumnType("numeric");
 
                     b.Property<string>("TxCableType")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("TxEIRP")
+                    b.Property<decimal?>("TxEIRP")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TxPower")
+                    b.Property<decimal?>("TxPower")
                         .HasColumnType("numeric");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -1807,7 +2027,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CellSectorId");
+                    b.HasIndex("CellSectorId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("MIMOId");
 
@@ -1837,7 +2059,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1860,7 +2081,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name", "Type")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Services");
                 });
@@ -1896,7 +2118,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<decimal>("DownloadSpeed")
@@ -1923,7 +2144,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("MCC")
@@ -2007,7 +2228,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -2054,7 +2274,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("GenerationId")
@@ -2103,7 +2322,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -2158,11 +2376,20 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FirstName")
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
@@ -2208,7 +2435,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -2233,6 +2459,163 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("UserTypes");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<double>("CoverageRadiusMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EstablishmentType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FrequencyBand")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("InstallationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFileUploaded")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geometry (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<decimal?>("MaxBandwidthMbps")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ServiceProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("IX_WiFiHotspot_Location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
+                    b.HasIndex("ServiceProviderId");
+
+                    b.HasIndex("IsActive", "IsPublic")
+                        .HasDatabaseName("IX_WiFiHotspot_Active_Public");
+
+                    b.ToTable("WiFiHotspots");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BarangayId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsMarginal")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("RSRP")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("ServiceProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TechnologyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("BarangayId")
+                        .HasDatabaseName("IX_WirelessValidation_BarangayId");
+
+                    b.HasIndex("IsMarginal")
+                        .HasDatabaseName("IX_WirelessValidation_IsMarginal");
+
+                    b.HasIndex("ServiceProviderId")
+                        .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
+
+                    b.HasIndex("TechnologyId", "BandId")
+                        .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
+
+                    b.ToTable("WirelessValidations");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2253,7 +2636,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeletedBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -2288,10 +2670,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Entities.Zone", null)
-                        .WithMany("Cells")
-                        .HasForeignKey("ZoneId");
 
                     b.Navigation("ServiceProvider");
                 });
@@ -2345,10 +2723,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Entities.Zone", null)
-                        .WithMany("NAPs")
-                        .HasForeignKey("ZoneId");
 
                     b.Navigation("ServiceProvider");
                 });
@@ -2572,6 +2946,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Network");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.ConnectivityAssessment", "ConnectivityAssessment")
+                        .WithMany("Providers")
+                        .HasForeignKey("ConnectivityAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConnectivityAssessment");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Province", "Province")
@@ -2608,21 +2993,15 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
                         .WithMany("Sectors")
-                        .HasForeignKey("NetworkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("NetworkId");
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "RxAntennaPattern")
                         .WithMany("RxSectors")
-                        .HasForeignKey("RxAntennaPatternId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("RxAntennaPatternId");
 
                     b.HasOne("NTC.QoS.Domain.Entities.AntennaPattern", "TxAntennaPattern")
                         .WithMany("TxSectors")
-                        .HasForeignKey("TxAntennaPatternId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TxAntennaPatternId");
 
                     b.Navigation("CellSector");
 
@@ -2730,6 +3109,52 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
+                        .WithMany("WiFiHotspots")
+                        .HasForeignKey("ServiceProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceProvider");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("BarangayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("ServiceProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
+                        .WithMany("WirelessValidations")
+                        .HasForeignKey("TechnologyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Barangay");
+
+                    b.Navigation("ServiceProvider");
+
+                    b.Navigation("Technology");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
@@ -2779,6 +3204,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Networks");
 
                     b.Navigation("Speedtests");
+
+                    b.Navigation("WiFiHotspots");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>
@@ -2802,11 +3231,15 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Links");
 
                     b.Navigation("TechnologyBands");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
                 {
                     b.Navigation("Speedtests");
+
+                    b.Navigation("WirelessValidations");
 
                     b.Navigation("Zones");
                 });
@@ -2816,6 +3249,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Cellulars");
 
                     b.Navigation("Sectors");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
+                {
+                    b.Navigation("Providers");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
@@ -2904,6 +3342,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("SystemTypes");
 
                     b.Navigation("TechnologyBands");
+
+                    b.Navigation("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>
@@ -2914,13 +3354,6 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.UserType", b =>
                 {
                     b.Navigation("Users");
-                });
-
-            modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
-                {
-                    b.Navigation("Cells");
-
-                    b.Navigation("NAPs");
                 });
 #pragma warning restore 612, 618
         }

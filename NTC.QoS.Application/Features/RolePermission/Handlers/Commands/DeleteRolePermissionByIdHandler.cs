@@ -22,7 +22,7 @@ public class DeleteRolePermissionByIdHandler(IRolePermissionRepository rolePermi
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Error", [$"Role permission with ID [{request.Id}] not found."] 
+                        "Error", [$"Role permission with ID [{request.Id}] not found."]
                     }
                 },
                 Message = "Role permission does not exist."

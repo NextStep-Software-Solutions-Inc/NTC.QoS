@@ -25,8 +25,8 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Id", ["User with the specified ID does not exist."] 
+                    {
+                        "Id", ["User with the specified ID does not exist."]
                     }
                 },
                 Message = "User not found."
@@ -45,8 +45,8 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                     Message = "Role not found.",
                     Errors = new Dictionary<string, string[]>
                     {
-                        { 
-                            "RoleId", ["Role with the specified ID does not exist."] 
+                        {
+                            "RoleId", ["Role with the specified ID does not exist."]
                         }
                     }
                 };
@@ -65,9 +65,9 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                     Succeeded = false,
                     Message = "Organization not found.",
                     Errors = new Dictionary<string, string[]>
-                    {           
-                        { 
-                            "OrganizationId", ["Organization with the specified ID does not exist."] 
+                    {
+                        {
+                            "OrganizationId", ["Organization with the specified ID does not exist."]
                         }
                     }
                 };
@@ -96,27 +96,30 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
                 }
             };
         }
-
+        user.Email = request.User.Email ?? user.Email;
+        user.FirstName = request.User.FirstName ?? user.FirstName;
+        user.LastName = request.User.LastName ?? user.LastName;
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
         var result = new UserDto
         {
             Id = user.Id,
-            Role = new ()
+            Role = new()
             {
                 Id = user.RoleId,
                 Name = user.Role?.Name ?? string.Empty,
                 Key = user.Role?.Key ?? string.Empty,
                 Description = user.Role?.Description ?? string.Empty
             },
-            Organization = new ()
+            Organization = new()
             {
                 Id = user.OrganizationId,
                 Name = user.Organization?.Name ?? string.Empty,
                 Description = user.Organization?.Description ?? string.Empty
             },
-            AuthUserId = user.AuthUserId
+            AuthUserId = user.AuthUserId,
+            Email = user.Email,
         };
 
         return new ApiResponse<UserDto>

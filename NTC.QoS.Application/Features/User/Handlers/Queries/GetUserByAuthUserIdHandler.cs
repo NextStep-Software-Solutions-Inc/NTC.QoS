@@ -36,20 +36,23 @@ public class GetUserByAuthUserIdHandler(IUserRepository repository) : IRequestHa
             Data = new UserDto
             {
                 Id = user.Id,
-                Role = new ()
+                Role = new()
                 {
                     Id = user.RoleId,
                     Name = user.Role?.Name ?? string.Empty,
                     Key = user.Role?.Key ?? string.Empty,
                     Description = user.Role?.Description ?? string.Empty
                 },
-                Organization = new ()
+                Organization = new()
                 {
                     Id = user.OrganizationId,
                     Name = user.Organization?.Name ?? string.Empty,
                     Description = user.Organization?.Description ?? string.Empty
                 },
-                AuthUserId = user.AuthUserId
+                AuthUserId = user.AuthUserId,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
             },
         };
     }

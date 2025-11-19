@@ -8,7 +8,7 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
-[Route("networks", Name= "networks")]
+[Route("networks", Name = "networks")]
 [Authorize]
 
 public class NetworksController(IMediator mediator) : ControllerBase

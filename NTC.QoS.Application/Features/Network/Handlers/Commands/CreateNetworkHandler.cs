@@ -23,8 +23,8 @@ public class CreateNetworkHandler(
 
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n => 
-            n.Name.Equals(request.Network.Name) && 
+        var networkQuery = _networkRepository.Query(n =>
+            n.Name.Equals(request.Network.Name) &&
             n.SystemTypeId == request.Network.SystemTypeId &&
             n.ServiceProviderId == request.Network.ServiceProviderId &&
             n.NetworkTemplateId == request.Network.NetworkTemplateId);

@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Sector.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Sector;
 
@@ -25,31 +26,31 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
             .Select(s => new SectorDto
             {
                 Id = s.Id,
-                Network = new()
+                Network = s.Network != null ? new()
                 {
                     Id = s.Network.Id,
-                    Name = s.Network.Name,
+                    Name = s.Network.Name ?? string.Empty,
                     SystemType = s.Network.SystemType.ToString()!,
-                },
-                AntennaType = s.AntennaType.ToString(),
+                } : null,
+                AntennaType = s.AntennaType != null ? s.AntennaType.ToString()! : AntennaTypeEnum.Unknown.ToString(),
                 MIMO = s.MIMO != null ? new()
                 {
                     Id = s.MIMO.Id,
                     Type = s.MIMO.Type.ToString()
                 } : null,
-                CellSector = new()
+                CellSector = s.CellSector != null ? new()
                 {
                     Id = s.CellSector.Id,
-                    Cell = new()
+                    Cell = s.CellSector.Cell != null ? new()
                     {
                         Id = s.CellSector.Cell.Id,
-                        Name = s.CellSector.Cell.Name,
-                        Latitude = s.CellSector.Cell.Location.Coordinate.X,
-                        Longitude = s.CellSector.Cell.Location.Coordinate.Y,
-                        CID = s.CellSector.Cell.CID,
-                        LAC = s.CellSector.Cell.LAC,
-                    }
-                },
+                        Name = s.CellSector.Cell.Name ?? string.Empty,
+                        Latitude = s.CellSector.Cell.Location != null ? s.CellSector.Cell.Location.Coordinate.X : 0,
+                        Longitude = s.CellSector.Cell.Location != null ? s.CellSector.Cell.Location.Coordinate.Y : 0,
+                        CID = s.CellSector.Cell.CID ?? string.Empty,
+                        LAC = s.CellSector.Cell.LAC ?? string.Empty,
+                    } : null
+                } : null,
                 RadioEquipment = s.RadioEquipment,
                 IsRxEqualTx = s.IsRxEqualTx,
                 TxPower = s.TxPower,
@@ -62,12 +63,12 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                 TxAntennaGain = s.TxAntennaGain,
                 TxAzimuth = s.TxAzimuth,
                 TxBeamTilt = s.TxBeamTilt,
-                TxAntennaPattern = new()
+                TxAntennaPattern = s.TxAntennaPattern != null ? new()
                 {
-                    Id = s.TxAntennaPatternId,
-                    Name = s.TxAntennaPattern.Name,
-                    URL = s.TxAntennaPattern.URL,
-                },
+                    Id = s.TxAntennaPattern.Id,
+                    Name = s.TxAntennaPattern.Name ?? string.Empty,
+                    URL = s.TxAntennaPattern.URL ?? string.Empty,
+                } : null,
                 TxEIRP = s.TxEIRP,
                 RxAntennaModel = s.RxAntennaModel,
                 RxCableType = s.RxCableType,
@@ -78,12 +79,12 @@ public class GetAllSectorsHandler(ISectorRepository sectorRepository) : IRequest
                 RxAntennaGain = s.RxAntennaGain,
                 RxAzimuth = s.RxAzimuth,
                 RxBeamTilt = s.RxBeamTilt,
-                RxAntennaPattern = new()
+                RxAntennaPattern = s.RxAntennaPattern != null ? new()
                 {
-                    Id = s.RxAntennaPatternId,
-                    Name = s.RxAntennaPattern.Name,
-                    URL = s.RxAntennaPattern.URL,
-                },
+                    Id = s.RxAntennaPattern.Id,
+                    Name = s.RxAntennaPattern.Name ?? string.Empty,
+                    URL = s.RxAntennaPattern.URL ?? string.Empty,
+                } : null,
                 RxEIRP = s.RxEIRP
             });
 

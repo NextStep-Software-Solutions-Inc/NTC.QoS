@@ -31,7 +31,7 @@ public class UpdateLinkByIdHandler(ILinkRepository repository) : IRequestHandler
             };
         }
 
-        if(!string.IsNullOrEmpty(request.Link.Type)) link.Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type);
+        if (!string.IsNullOrEmpty(request.Link.Type)) link.Type = EnumHelper<LinkTypeEnum>.ParseUserInput(request.Link.Type);
         link.CenterFrequency = request.Link.CenterFrequency ?? link.CenterFrequency;
         link.LowerFrequency = request.Link.LowerFrequency ?? link.LowerFrequency;
         link.UpperFrequency = request.Link.UpperFrequency ?? link.UpperFrequency;

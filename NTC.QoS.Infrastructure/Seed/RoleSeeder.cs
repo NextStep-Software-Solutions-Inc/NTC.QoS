@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using EFCore.BulkExtensions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
@@ -7,12 +8,6 @@ namespace NTC.QoS.Infrastructure.Seed;
 
 public static class RoleSeeder
 {
-    // Fixed UUIDs for consistent role seeding
-    public static readonly Guid AdminRoleId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    public static readonly Guid SuperAdminRoleId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-    public static readonly Guid FieldOfficerRoleId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
-    public static readonly Guid UserRoleId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
-
     // Seeds roles into the database with hardcoded data and fixed UUIDs.
     public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
     {
@@ -27,75 +22,69 @@ public static class RoleSeeder
     private static async Task SeedRolesAsync(ApplicationDbContext context, ILogger logger)
     {
         logger.LogInformation("Checking if roles need to be seeded...");
-
-        // Check if base keys already exist
-        var baseKeys = new[] { "admin", "super_admin", "field_officer", "user" };
-        var baseKeysExist = await context.Roles.AsNoTracking().AnyAsync(r => baseKeys.Contains(r.Key));
-
-        if (baseKeysExist)
+        var roles = new[]
         {
-            logger.LogInformation("Base role keys already exist in database. Skipping role seeding.");
-            return;
-        }
+            new Role
+            {
+                Name = "Admin User",
+                Key = "admin",
+                Description = "Administrative user with elevated privileges",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Role
+            {
+                Name = "SuperAdmin",
+                Key = "super_admin",
+                Description = "Super administrator with full system access",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Role
+            {
+                Name = "Field Officer",
+                Key = "field_officer",
+                Description = "Field officer with limited operational access",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            },
+            new Role
+            {
+                Name = "User",
+                Key = "user",
+                Description = "Standard user with basic access",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            }
+        };
 
-        logger.LogInformation("Creating hardcoded roles...");
+
+        logger.LogInformation("Creating missing roles if they do not exist...");
 
         try
         {
-            // Simple array to hold the role data
-            var roles = new[]
+            var baseKeys = roles.Select(r => r.Key).ToList();
+            var existingRoles = await context.Roles.AsNoTracking().Where(r => baseKeys.Contains(r.Key)).Select(r => r.Key).ToListAsync();
+            var newRoles = roles.Where(r => !existingRoles.Contains(r.Key)).ToList();
+            if (newRoles.Count == 0)
             {
-                new Role
-                {
-                    Id = AdminRoleId,
-                    Name = "Admin User",
-                    Key = "admin",
-                    Description = "Administrative user with elevated privileges",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Role
-                {
-                    Id = SuperAdminRoleId,
-                    Name = "SuperAdmin",
-                    Key = "super_admin",
-                    Description = "Super administrator with full system access",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Role
-                {
-                    Id = FieldOfficerRoleId,
-                    Name = "Field Officer",
-                    Key = "field_officer",
-                    Description = "Field officer with limited operational access",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                },
-                new Role
-                {
-                    Id = UserRoleId,
-                    Name = "User",
-                    Key = "user",
-                    Description = "Standard user with basic access",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = "System",
-                    IsDeleted = false
-                }
-            };
+                logger.LogInformation("No new roles to seed. All base roles already exist.");
+                return;
+            }
 
-            await context.Roles.AddRangeAsync(roles);
+            await context.BulkInsertAsync(newRoles);
             await context.SaveChangesAsync();
             logger.LogInformation("Successfully seeded {Count} roles into the database.", roles.Length);
         }

@@ -65,7 +65,7 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
             };
         }
 
-        var newStudyNetwork = new Domain.Aggregates.StudyNetwork 
+        var newStudyNetwork = new Domain.Aggregates.StudyNetwork
         {
             NetworkId = network.Id,
             StudyId = study.Id

@@ -54,7 +54,7 @@ namespace NTC.QoS.Infrastructure.Helper
         {
             // Normalize TowerType to handle null and empty strings consistently
             var normalizedTowerType = string.IsNullOrWhiteSpace(towerType) ? "Unknown" : towerType;
-            
+
             // This directly reflects your existing logic for this key.
             // Note: Your current code uses c.Location.Coordinate.X and c.Location.Coordinate.Y.
             // Ensure `location.Coordinate.X` and `location.Coordinate.Y` yield the same precision/format
@@ -94,6 +94,38 @@ namespace NTC.QoS.Infrastructure.Helper
         public static string GenerateSimpleNetworkCacheKey(string networkName)
         {
             return networkName.ToLowerInvariant();
+        }
+
+        public static string GenerateBarangayCacheKey(string barangayName, Guid municipalityId)
+        {
+            return $"{barangayName}_{municipalityId}".ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Generates a standardized cache key for Municipality.
+        /// Format: Lowercase municipality name.
+        /// </summary>
+        /// <param name="municipalityName">The municipality name (e.g., "Quezon City").</param>
+        /// <returns>A standardized lowercase cache key for the municipality.</returns>
+        public static string GenerateMunicipalityCacheKey(string municipalityName)
+        {
+            return municipalityName.ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Generates a cache key for wireless validation records to check for duplicates.
+        /// Format: "WV-ServiceProviderId_BarangayId_BandId_TechnologyId_NormalizedAddress"
+        /// </summary>
+        /// <param name="serviceProviderId">Service provider ID</param>
+        /// <param name="barangayId">Barangay ID</param>
+        /// <param name="bandId">Band ID</param>
+        /// <param name="technologyId">Technology ID</param>
+        /// <param name="address">Address string</param>
+        /// <returns>A unique cache key for the wireless validation combination</returns>
+        public static string GenerateWirelessValidationCacheKey(Guid serviceProviderId, Guid barangayId, Guid bandId, Guid technologyId, string address)
+        {
+            var normalizedAddress = address?.ToLowerInvariant().Trim() ?? string.Empty;
+            return $"WV-{serviceProviderId}_{barangayId}_{bandId}_{technologyId}_{normalizedAddress}";
         }
     }
 }

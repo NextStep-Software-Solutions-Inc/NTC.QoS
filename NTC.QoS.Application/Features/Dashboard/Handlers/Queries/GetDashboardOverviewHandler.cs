@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Dashboard.Requests;
-using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
@@ -11,13 +10,25 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
 {
     private readonly ICellRepository _cellRepository;
     private readonly INAPRepository _napRepository;
-    private readonly GeospatialQueryService _geospatialQueryService;
+    private readonly IRegionRepository _regionRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IBarangayRepository _barangayRepository;
 
-    public GetDashboardOverviewHandler(ICellRepository cellRepository, INAPRepository napRepository, GeospatialQueryService geospatialQueryService)
+    public GetDashboardOverviewHandler(
+        ICellRepository cellRepository,
+        INAPRepository napRepository,
+        IRegionRepository regionRepository,
+        IProvinceRepository provinceRepository,
+        IMunicipalityRepository municipalityRepository,
+        IBarangayRepository barangayRepository)
     {
         _cellRepository = cellRepository;
         _napRepository = napRepository;
-        _geospatialQueryService = geospatialQueryService;
+        _regionRepository = regionRepository;
+        _provinceRepository = provinceRepository;
+        _municipalityRepository = municipalityRepository;
+        _barangayRepository = barangayRepository;
     }
 
     public async Task<ApiResponse<DashboardOverviewDto>> Handle(GetDashboardOverviewRequest request, CancellationToken cancellationToken)
@@ -38,13 +49,32 @@ public class GetDashboardOverviewHandler : IRequestHandler<GetDashboardOverviewR
         var nAPsCount = _napRepository.Query(c => !c.IsDeleted &&
             c.CreatedAt >= request.StartDate && c.CreatedAt <= request.EndDate).Count();
 
-        var topRegionsByCellCount = await _geospatialQueryService.GetTopGeoEntitiesByCellCountAsync<Domain.Entities.Region>(request.Limit, request.StartDate, request.EndDate);
+        var topRegionsByCellCount = await _regionRepository.GetTopRegionsByCellCountAsync(
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
+            cancellationToken);
 
-        var topProvincesInRegionByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Region, Domain.Entities.Province>(request.RegionId, "RegionId", request.Limit, request.StartDate, request.EndDate);
+        var topProvincesInRegionByCellCount = await _provinceRepository.GetTopProvincesByCellCountAsync(
+            request.RegionId,
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
+            cancellationToken);
 
-        var topMunicipalitiesInProvinceByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Province, Domain.Entities.Municipality>(request.ProvinceId, "ProvinceId", request.Limit, request.StartDate, request.EndDate);
+        var topMunicipalitiesInProvinceByCellCount = await _municipalityRepository.GetTopMunicipalitiesByCellCountAsync(
+            request.ProvinceId,
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
+            cancellationToken);
 
-        var topBarangaysInMunicipalityByCellCount = await _geospatialQueryService.GetTopChildEntitiesByCellCountAsync<Domain.Entities.Municipality, Domain.Entities.Barangay>(request.MunicipalityId, "MunicipalityId", request.Limit, request.StartDate, request.EndDate);
+        var topBarangaysInMunicipalityByCellCount = await _barangayRepository.GetTopBarangaysByCellCountAsync(
+            request.MunicipalityId,
+            request.Limit,
+            request.StartDate,
+            request.EndDate,
+            cancellationToken);
 
         return await Task.FromResult(new ApiResponse<DashboardOverviewDto>
         {
