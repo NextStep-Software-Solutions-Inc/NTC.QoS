@@ -81,14 +81,21 @@ public class BandsController : ControllerBase
     /// Includes summary statistics like generation counts, dominant technology, and modern coverage ratio
     /// </summary>
     /// <param name="locationId">The ID of the location (region, province, municipality, or barangay)</param>
-    /// <param name="locationType">The type of location: barangay, municipality, province, region</param>
+    /// <param name="locationType">The type of location: "region", "province", "municipality", or "barangay"</param>
     /// <returns>Detailed technology-band breakdown with cellular, validation, and all bands per technology plus summary statistics</returns>
-    [HttpGet("detailed-technology-breakdown")]
-    public async Task<ActionResult<DetailedTechnologyBandBreakdownDto>> GetDetailedTechnologyBandsByLocation(
+    [HttpGet("technology-breakdown")]
+    public async Task<ActionResult<DetailedTechnologyBandBreakdownDto>> GetTechnologyBandBreakdown(
         [FromQuery] string locationId,
         [FromQuery] string locationType = "municipality")
     {
-        var query = new GetTechnologyBandsByLocationQuery(locationId, locationType);
+        // Validate locationType
+        var validLocationTypes = new[] { "region", "province", "municipality", "barangay" };
+        if (!validLocationTypes.Contains(locationType.ToLower()))
+        {
+            return BadRequest(new { error = $"Invalid locationType. Must be one of: {string.Join(", ", validLocationTypes)}" });
+        }
+
+        var query = new GetTechnologyBandsByLocationQuery(locationId, locationType.ToLower());
         var result = await _mediator.Send(query);
         return Ok(result);
     }

@@ -1320,9 +1320,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             // Dictionary to accumulate unique bands per technology standard
             var techBandSets = new Dictionary<string, HashSet<string>>();
-            // Dictionary to count deployments per technology and generation
+            // Dictionary to track unique bands per generation
+            var generationBands = new Dictionary<string, HashSet<string>>();
+            // Dictionary to count deployments per technology (for primary technology detection)
             var technologyCounts = new Dictionary<string, int>();
-            var generationCounts = new Dictionary<string, int>();
 
             if (useBoundary && boundary != null)
             {
@@ -1359,10 +1360,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     // Count deployments per technology
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
                     
-                    // Count deployments per generation
+                    // Track unique bands per generation
                     if (!string.IsNullOrEmpty(item.GenerationName))
                     {
-                        generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
                     }
                 }
 
@@ -1406,9 +1411,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     
                     // Count deployments
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
+                    
+                    // Track unique bands per generation
                     if (!string.IsNullOrEmpty(item.GenerationName))
                     {
-                        generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
                     }
                 }
             }
@@ -1444,9 +1455,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     
                     // Count deployments
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
+                    
+                    // Track unique bands per generation
                     if (!string.IsNullOrEmpty(item.GenerationName))
                     {
-                        generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
                     }
                 }
 
@@ -1490,9 +1507,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     
                     // Count deployments
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
+                    
+                    // Track unique bands per generation
                     if (!string.IsNullOrEmpty(item.GenerationName))
                     {
-                        generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
                     }
                 }
             }
@@ -1509,21 +1532,21 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 result[kvp.Key] = kvp.Value.OrderBy(b => b).ToList();
             }
             
-            // Populate generation-based properties
-            result.AvailableGenerations = generationCounts.Keys.OrderBy(g => g).ToList();
-            result.Count2G = generationCounts.GetValueOrDefault("2G", 0);
-            result.Count3G = generationCounts.GetValueOrDefault("3G", 0);
-            result.Count4G = generationCounts.GetValueOrDefault("4G", 0);
-            result.Count5G = generationCounts.GetValueOrDefault("5G", 0);
+            // Populate generation-based properties using unique band counts
+            result.AvailableGenerations = generationBands.Keys.OrderBy(g => g).ToList();
+            result.Count2G = generationBands.GetValueOrDefault("2G", new HashSet<string>()).Count;
+            result.Count3G = generationBands.GetValueOrDefault("3G", new HashSet<string>()).Count;
+            result.Count4G = generationBands.GetValueOrDefault("4G", new HashSet<string>()).Count;
+            result.Count5G = generationBands.GetValueOrDefault("5G", new HashSet<string>()).Count;
             
             // Calculate total count
             var totalCount = technologyCounts.Values.Sum();
             result.TotalTechnologyCount = totalCount;
             
-            // Determine dominant generation (by deployment count)
-            if (generationCounts.Any())
+            // Determine dominant generation (by unique band count)
+            if (generationBands.Any())
             {
-                result.DominantGeneration = generationCounts.OrderByDescending(kvp => kvp.Value).First().Key;
+                result.DominantGeneration = generationBands.OrderByDescending(kvp => kvp.Value.Count).First().Key;
             }
             
             // Determine primary technology (by deployment count)

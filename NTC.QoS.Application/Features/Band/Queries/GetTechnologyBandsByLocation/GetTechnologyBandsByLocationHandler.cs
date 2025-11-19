@@ -87,10 +87,10 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
         var validationBands = new Dictionary<string, HashSet<string>>();
         var allBands = new Dictionary<string, HashSet<string>>();
         
-        // Track technology counts and unique bands per generation
-        var technologyCounts = new Dictionary<string, int>();
+        // Track unique bands per generation and technology occurrences
         var generationBands = new Dictionary<string, HashSet<string>>(); // Track unique bands per generation
         var generationSet = new HashSet<string>();
+        var technologySet = new HashSet<string>(); // Track unique technologies encountered
 
         // Query 1: Get bands from cellular infrastructure
         try
@@ -132,8 +132,8 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
                 }
                 generationBands[item.GenerationName].Add(item.BandName);
                 
-                // Track technology counts
-                technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
+                // Track unique technologies and generations
+                technologySet.Add(item.TechnologyStandard);
                 generationSet.Add(item.GenerationName);
             }
         }
@@ -184,8 +184,8 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
                 }
                 generationBands[item.GenerationName].Add(item.BandName);
                 
-                // Track technology counts (from validations too)
-                technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
+                // Track unique technologies and generations
+                technologySet.Add(item.TechnologyStandard);
                 generationSet.Add(item.GenerationName);
             }
         }
@@ -228,20 +228,21 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
             result.DominantGeneration = generationBands.OrderByDescending(kvp => kvp.Value.Count).First().Key;
         }
 
-        // Determine primary technology
-        if (technologyCounts.Any())
+        // Determine primary technology (technology with most bands)
+        if (allBands.Any())
         {
-            result.PrimaryTechnology = technologyCounts.OrderByDescending(kvp => kvp.Value).First().Key;
+            result.PrimaryTechnology = allBands.OrderByDescending(kvp => kvp.Value.Count).First().Key;
         }
 
-        // Calculate total technology count
-        result.TotalTechnologyCount = technologyCounts.Values.Sum();
+        // Calculate total technology count (number of unique technologies)
+        result.TotalTechnologyCount = technologySet.Count;
 
-        // Calculate modern coverage
-        var modernCount = result.Count4G + result.Count5G;
-        result.HasModernCoverage = modernCount > 0;
-        result.ModernCoverageRatio = result.TotalTechnologyCount > 0 
-            ? (double)modernCount / result.TotalTechnologyCount 
+        // Calculate modern coverage ratio (based on unique bands)
+        var totalUniqueBands = result.AllBands.Count;
+        var modernUniqueBands = result.Count4G + result.Count5G;
+        result.HasModernCoverage = modernUniqueBands > 0;
+        result.ModernCoverageRatio = totalUniqueBands > 0 
+            ? (double)modernUniqueBands / totalUniqueBands 
             : 0;
 
         return result;

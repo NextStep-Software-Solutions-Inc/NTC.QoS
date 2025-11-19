@@ -1001,10 +1001,10 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     {
         try
         {
-            // Dictionaries to track both unique bands per technology and deployment counts
+            // Dictionaries to track both unique bands per technology and per generation
             var techBandSets = new Dictionary<string, HashSet<string>>();
+            var generationBands = new Dictionary<string, HashSet<string>>();
             var technologyCounts = new Dictionary<string, int>();
-            var generationCounts = new Dictionary<string, int>();
 
             if (useBoundary && boundary != null)
             {
@@ -1037,9 +1037,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     }
                     techBandSets[item.TechnologyStandard].Add(item.BandName);
                     
-                    // Track technology and generation counts
+                    // Track technology counts and unique bands per generation
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
-                    generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                    if (!string.IsNullOrEmpty(item.GenerationName))
+                    {
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
+                    }
                 }
 
                 // Get wireless validation technology-band-generation data with date filtering
@@ -1079,9 +1086,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     }
                     techBandSets[item.TechnologyStandard].Add(item.BandName);
                     
-                    // Track technology and generation counts
+                    // Track technology counts and unique bands per generation
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
-                    generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                    if (!string.IsNullOrEmpty(item.GenerationName))
+                    {
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
+                    }
                 }
             }
             else
@@ -1113,9 +1127,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     }
                     techBandSets[item.TechnologyStandard].Add(item.BandName);
                     
-                    // Track technology and generation counts
+                    // Track technology counts and unique bands per generation
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
-                    generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                    if (!string.IsNullOrEmpty(item.GenerationName))
+                    {
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
+                    }
                 }
 
                 // Get wireless validation technology-band-generation data using barangay center distance
@@ -1155,9 +1176,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                     }
                     techBandSets[item.TechnologyStandard].Add(item.BandName);
                     
-                    // Track technology and generation counts
+                    // Track technology counts and unique bands per generation
                     technologyCounts[item.TechnologyStandard] = technologyCounts.GetValueOrDefault(item.TechnologyStandard, 0) + 1;
-                    generationCounts[item.GenerationName] = generationCounts.GetValueOrDefault(item.GenerationName, 0) + 1;
+                    if (!string.IsNullOrEmpty(item.GenerationName))
+                    {
+                        if (!generationBands.ContainsKey(item.GenerationName))
+                        {
+                            generationBands[item.GenerationName] = new HashSet<string>();
+                        }
+                        generationBands[item.GenerationName].Add(item.BandName);
+                    }
                 }
             }
 
@@ -1175,17 +1203,17 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 result[kvp.Key] = kvp.Value.OrderBy(b => b).ToList();
             }
             
-            // Populate generation statistics
-            result.AvailableGenerations = generationCounts.Keys.OrderBy(g => g).ToList();
-            result.Count2G = generationCounts.GetValueOrDefault("2G", 0);
-            result.Count3G = generationCounts.GetValueOrDefault("3G", 0);
-            result.Count4G = generationCounts.GetValueOrDefault("4G", 0);
-            result.Count5G = generationCounts.GetValueOrDefault("5G", 0);
+            // Populate generation statistics using unique band counts
+            result.AvailableGenerations = generationBands.Keys.OrderBy(g => g).ToList();
+            result.Count2G = generationBands.GetValueOrDefault("2G", new HashSet<string>()).Count;
+            result.Count3G = generationBands.GetValueOrDefault("3G", new HashSet<string>()).Count;
+            result.Count4G = generationBands.GetValueOrDefault("4G", new HashSet<string>()).Count;
+            result.Count5G = generationBands.GetValueOrDefault("5G", new HashSet<string>()).Count;
             
-            // Calculate dominant generation and primary technology
-            if (generationCounts.Any())
+            // Calculate dominant generation and primary technology (by unique band count)
+            if (generationBands.Any())
             {
-                result.DominantGeneration = generationCounts.OrderByDescending(kvp => kvp.Value).First().Key;
+                result.DominantGeneration = generationBands.OrderByDescending(kvp => kvp.Value.Count).First().Key;
             }
             
             if (technologyCounts.Any())
@@ -1193,11 +1221,12 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
                 result.PrimaryTechnology = technologyCounts.OrderByDescending(kvp => kvp.Value).First().Key;
             }
             
-            // Calculate modern coverage statistics
+            // Calculate modern coverage statistics based on unique bands
             var totalCount = technologyCounts.Values.Sum();
             result.TotalTechnologyCount = totalCount;
-            var modernCount = result.Count4G + result.Count5G;
-            result.ModernCoverageRatio = totalCount > 0 ? Math.Round((double)modernCount / totalCount * 100, 2) : 0;
+            var modernUniqueBands = result.Count4G + result.Count5G;
+            var totalUniqueBands = result.Count2G + result.Count3G + result.Count4G + result.Count5G;
+            result.ModernCoverageRatio = totalUniqueBands > 0 ? Math.Round((double)modernUniqueBands / totalUniqueBands * 100, 2) : 0;
             
             return result;
         }
