@@ -822,6 +822,7 @@ public class ProcessCellJob : IProcessCellJob
                 // Check if cell exists using hash
                 var cellHash = GenerateCellHash(serviceProviderId, normalizedTowerType, location);
                 Guid cellId;
+                bool isNewCell = false;
 
                 if (!cellLookup.Contains(cellHash))
                 {
@@ -841,48 +842,125 @@ public class ProcessCellJob : IProcessCellJob
                     cellId = cell.Id;
                     cellLookup.Add(cellHash);
                     cellIdMapping[cellHash] = cellId;
-
-                    // Process cell sectors for new cell
-                    if (!string.IsNullOrEmpty(record.Azimuth))
-                    {
-                        var azimuths = record.Azimuth.Split(",", StringSplitOptions.RemoveEmptyEntries);
-                        var beamTilts = record.BeamTilt?.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-                        if (beamTilts == null || azimuths.Length != beamTilts.Length)
-                        {
-                            _logger.LogWarning("Azimuth/BeamTilt mismatch at row {Row}. Skipping sectors.",
-                                actualRowNumber);
-                            processingResults.ErrorRecords++;
-                            continue;
-                        }
-
-                        for (int j = 0; j < azimuths.Length; j++)
-                        {
-                            if (decimal.TryParse(azimuths[j].Trim(), out decimal azimuth) &&
-                                decimal.TryParse(beamTilts[j].Trim(), out decimal beamTilt))
-                            {
-                                var cellSector = new Domain.Entities.CellSector
-                                {
-                                    CellId = cellId,
-                                    AntennaHeight = record.AntennaHeight,
-                                    AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
-                                    Azimuth = azimuth,
-                                    BeamTilt = beamTilt,
-                                };
-
-                                result.CellSectorsToAdd.Add(cellSector);
-
-                                if (!cellSectorsCreatedForCellId.ContainsKey(cellId))
-                                    cellSectorsCreatedForCellId[cellId] = [];
-                                cellSectorsCreatedForCellId[cellId].Add(cellSector.Id);
-                            }
-                        }
-                    }
+                    isNewCell = true;
                 }
                 else
                 {
                     // Cell exists, reuse it
                     cellId = cellIdMapping[cellHash];
+                    isNewCell = false;
+                }
+
+                // Process cell sectors for new cell OR existing cell without sectors (reprocessing scenario)
+                bool shouldCreateCellSectors = isNewCell;
+                
+                // Check if existing cell has CellSectors
+                if (!isNewCell)
+                {
+                    // Check both cache sources for existing CellSectors
+                    bool hasExistingSectors = cellSectorCache.ContainsKey(cellId) && cellSectorCache[cellId].Count > 0;
+                    bool hasNewlyCreatedSectors = cellSectorsCreatedForCellId.ContainsKey(cellId) && cellSectorsCreatedForCellId[cellId].Count > 0;
+                    
+                    if (!hasExistingSectors && !hasNewlyCreatedSectors)
+                    {
+                        _logger.LogInformation(
+                            "Row {Row}: Existing Cell {CellId} has no CellSectors. " +
+                            "Will attempt to create CellSectors from current row data (reprocessing scenario).",
+                            actualRowNumber, cellId);
+                        shouldCreateCellSectors = true;
+                    }
+                }
+
+                if (shouldCreateCellSectors)
+                {
+                    if (!string.IsNullOrWhiteSpace(record.Azimuth) && !string.IsNullOrWhiteSpace(record.BeamTilt))
+                    {
+                        var azimuths = record.Azimuth.Split(",", StringSplitOptions.RemoveEmptyEntries)
+                            .Select(a => a.Trim())
+                            .Where(a => !string.IsNullOrWhiteSpace(a))
+                            .ToArray();
+                        
+                        var beamTilts = record.BeamTilt.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Select(b => b.Trim())
+                            .Where(b => !string.IsNullOrWhiteSpace(b))
+                            .ToArray();
+
+                        if (azimuths.Length > 0 && beamTilts.Length > 0)
+                        {
+                            if (azimuths.Length != beamTilts.Length)
+                            {
+                                _logger.LogWarning(
+                                    "Azimuth/BeamTilt count mismatch at row {Row}. " +
+                                    "Azimuth count: {AzimuthCount}, BeamTilt count: {BeamTiltCount}. " +
+                                    "Azimuth values: '{Azimuth}', BeamTilt values: '{BeamTilt}'. " +
+                                    "Skipping CellSector creation for this cell.",
+                                    actualRowNumber, 
+                                    azimuths.Length, 
+                                    beamTilts.Length,
+                                    record.Azimuth,
+                                    record.BeamTilt);
+                            }
+                            else
+                            {
+                                // Create CellSectors only when counts match
+                                for (int j = 0; j < azimuths.Length; j++)
+                                {
+                                    if (decimal.TryParse(azimuths[j], out decimal azimuth) &&
+                                        decimal.TryParse(beamTilts[j], out decimal beamTilt))
+                                    {
+                                        var cellSector = new Domain.Entities.CellSector
+                                        {
+                                            CellId = cellId,
+                                            AntennaHeight = record.AntennaHeight,
+                                            AntennaType = EnumHelper<AntennaTypeEnum>.ParseUserInput(record.AntennaType),
+                                            Azimuth = azimuth,
+                                            BeamTilt = beamTilt,
+                                        };
+
+                                        result.CellSectorsToAdd.Add(cellSector);
+
+                                        if (!cellSectorsCreatedForCellId.ContainsKey(cellId))
+                                            cellSectorsCreatedForCellId[cellId] = [];
+                                        cellSectorsCreatedForCellId[cellId].Add(cellSector.Id);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning(
+                                            "Failed to parse Azimuth/BeamTilt values at row {Row}, sector index {Index}. " +
+                                            "Azimuth: '{Azimuth}', BeamTilt: '{BeamTilt}'. Skipping this sector.",
+                                            actualRowNumber,
+                                            j,
+                                            azimuths[j],
+                                            beamTilts[j]);
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Row {Row}: No valid azimuth or beamtilt values found. " +
+                                "Azimuth: '{Azimuth}', BeamTilt: '{BeamTilt}'. Skipping CellSector creation.",
+                                actualRowNumber, record.Azimuth, record.BeamTilt);
+                        }
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(record.Azimuth) && string.IsNullOrWhiteSpace(record.BeamTilt))
+                        {
+                            _logger.LogWarning("Row {Row}: Both Azimuth and BeamTilt columns are empty. Skipping CellSector creation.",
+                                actualRowNumber);
+                        }
+                        else if (string.IsNullOrWhiteSpace(record.Azimuth))
+                        {
+                            _logger.LogWarning("Row {Row}: Azimuth column is empty (BeamTilt: '{BeamTilt}'). Skipping CellSector creation.",
+                                actualRowNumber, record.BeamTilt);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Row {Row}: BeamTilt column is empty (Azimuth: '{Azimuth}'). Skipping CellSector creation.",
+                                actualRowNumber, record.Azimuth);
+                        }
+                    }
                 }
 
                 // Process cellular data

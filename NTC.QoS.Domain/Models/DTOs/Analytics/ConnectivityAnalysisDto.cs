@@ -120,10 +120,12 @@ public class InfrastructureStatsDto
     public string? DominantServiceProvider { get; set; }
 
     /// <summary>
-    /// Technology generation breakdown based on speedtest and cellular data
+    /// Technology-band breakdown showing available bands for each technology standard,
+    /// plus technology generation summary (counts, dominant generation, modern coverage ratio, etc.)
+    /// Replaces the separate TechnologyBreakdown and BandBreakdown DTOs
     /// </summary>
-    public TechnologyBreakdownDto? TechnologyBreakdown { get; set; }
-
+    public TechnologyBandBreakdownDto? TechnologyBandBreakdown { get; set; }
+    
     /// <summary>
     /// Detailed breakdown of service providers with their asset counts in descending order
     /// </summary>
@@ -157,15 +159,10 @@ public class ProviderBreakdownDto
     public int WiFiHotspotCount { get; set; }
 
     /// <summary>
-    /// Number of wireless validations from this provider
-    /// </summary>
-    public int WirelessValidationCount { get; set; }
-
-    /// <summary>
     /// Total assets from this provider
     /// </summary>
-    public int TotalAssetCount => CellTowerCount + FiberNAPCount + WiFiHotspotCount + WirelessValidationCount;
-
+    public int TotalAssetCount => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
+    
     /// <summary>
     /// Percentage of total assets in the area
     /// </summary>

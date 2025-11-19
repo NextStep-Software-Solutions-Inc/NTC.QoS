@@ -190,6 +190,48 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             _logger.LogWarning(ex, "Unexpected error retrieving technology breakdown from cache for location {LocationId}", assessment.LocationId);
         }
 
+        // Retrieve band breakdown from cache if available
+        BandBreakdownDto? bandBreakdown = null;
+        try
+        {
+            var bandCacheKey = _cacheService.GenerateTechnologyCacheKey(assessment.LocationId, assessment.LocationType) + "_bands";
+            bandBreakdown = await _cacheService.GetCachedResultAsync<BandBreakdownDto>(bandCacheKey);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Cache operation failed while retrieving band breakdown for location {LocationId}", assessment.LocationId);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving band breakdown for location {LocationId}", assessment.LocationId);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving band breakdown from cache for location {LocationId}", assessment.LocationId);
+        }
+
+        // Retrieve technology band breakdown from cache if available
+        TechnologyBandBreakdownDto? technologyBandBreakdown = null;
+        try
+        {
+            var techBandCacheKey = $"tech_band:{assessment.LocationType}:{assessment.LocationId}";
+            technologyBandBreakdown = await _cacheService.GetCachedResultAsync<TechnologyBandBreakdownDto>(techBandCacheKey);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Cache operation failed while retrieving technology-band breakdown for location {LocationId}", assessment.LocationId);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request was cancelled while retrieving technology-band breakdown for location {LocationId}", assessment.LocationId);
+            throw; // Re-throw cancellation exceptions
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Unexpected error retrieving technology-band breakdown from cache for location {LocationId}", assessment.LocationId);
+        }
+
         // Load provider breakdown from database
         var providerBreakdown = new List<ProviderBreakdownDto>();
         try
@@ -201,7 +243,6 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 CellTowerCount = p.CellTowerCount,
                 FiberNAPCount = p.FiberNAPCount,
                 WiFiHotspotCount = p.WiFiHotspotCount,
-                WirelessValidationCount = p.WirelessValidationCount,
                 AssetPercentage = p.AssetPercentage
             }).ToList();
         }
@@ -241,7 +282,7 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 WiFiHotspotCount = assessment.WifiHotspotCount,
                 ServiceProviderCount = assessment.ServiceProviderCount,
                 DominantServiceProvider = assessment.DominantServiceProvider,
-                TechnologyBreakdown = technologyBreakdown,
+                TechnologyBandBreakdown = technologyBandBreakdown,
                 ProviderBreakdown = providerBreakdown
             },
             SpeedStats = assessment.SpeedTestCount > 0 ? new SpeedStatsDto
