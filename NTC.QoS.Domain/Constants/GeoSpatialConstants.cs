@@ -178,4 +178,32 @@ public static class GeoSpatialConstants
         return latitude >= MinSupportedLatitude && latitude <= MaxSupportedLatitude &&
                longitude >= MinSupportedLongitude && longitude <= MaxSupportedLongitude;
     }
+
+    // ============================================================================
+    // AREA REGION MAPPINGS
+    // ============================================================================
+
+    /// <summary>
+    /// Mapping of major island groups (Areas) to their constituent Regions.
+    /// Used for high-level geographic filtering (Luzon, Visayas, Mindanao).
+    /// </summary>
+    public static readonly Dictionary<string, string[]> AreaRegions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["luzon"] =
+        [
+            "Region I (Ilocos Region)", "Region II (Cagayan Valley)", "Region III (Central Luzon)",
+            "Region IV-A (Calabarzon)", "Mimaropa Region", "Region V (Bicol Region)",
+            "National Capital Region (NCR)", "Cordillera Administrative Region (CAR)"
+        ],
+        ["visayas"] =
+        [
+            "Region VI (Western Visayas)", "Region VII (Central Visayas)", "Region VIII (Eastern Visayas)"
+        ],
+        ["mindanao"] =
+        [
+            "Region IX (Zamboanga Peninsula)", "Region X (Northern Mindanao)", "Region XI (Davao Region)",
+            "Region XII (Soccsksargen)", "Region XIII (Caraga)",
+            "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)"
+        ]
+    };
 }
