@@ -4,6 +4,36 @@ public class WiredBroadbandReportDto
 {
     public List<MunicipalityBroadbandDto> Municipalities { get; set; } = [];
     public WiredBroadbandSummaryDto Summary { get; set; } = new();
+    
+    /// <summary>
+    /// Current page number
+    /// </summary>
+    public int PageNumber { get; set; }
+    
+    /// <summary>
+    /// Number of municipalities per page
+    /// </summary>
+    public int PageSize { get; set; }
+    
+    /// <summary>
+    /// Total number of municipalities matching the filters (across all pages)
+    /// </summary>
+    public int TotalMunicipalities { get; set; }
+    
+    /// <summary>
+    /// Total number of pages
+    /// </summary>
+    public int TotalPages { get; set; }
+    
+    /// <summary>
+    /// Indicates if there are more pages available
+    /// </summary>
+    public bool HasNextPage => PageNumber < TotalPages;
+    
+    /// <summary>
+    /// Indicates if there is a previous page
+    /// </summary>
+    public bool HasPreviousPage => PageNumber > 1;
 }
 
 public class MunicipalityBroadbandDto

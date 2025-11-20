@@ -37,20 +37,25 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Generate a comprehensive wired broadband coverage report for municipalities and barangays.
     /// Shows service provider availability (PLDT, Globe, Converge, etc.) and service status.
+    /// Supports pagination to handle large datasets efficiently.
     /// </summary>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
     /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
     /// <param name="forceGenerateConnectivityAssessment">If true, forces generation of new connectivity assessments even if recent ones exist</param>
-    /// <returns>Wired broadband coverage report with municipality/barangay breakdown</returns>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10, max: 100)</param>
+    /// <returns>Paginated wired broadband coverage report with municipality/barangay breakdown</returns>
     [HttpGet("wired-broadband")]
     public async Task<ActionResult<ApiResponse<WiredBroadbandReportDto>>> GetWiredBroadbandReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
         [FromQuery] bool includeOnlyServedAreas = false,
-        [FromQuery] bool forceGenerateConnectivityAssessment = false)
+        [FromQuery] bool forceGenerateConnectivityAssessment = false,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
     {
         var request = new GetWiredBroadbandReportQuery
         {
@@ -58,7 +63,9 @@ public class ReportsController : ControllerBase
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
             IncludeOnlyServedAreas = includeOnlyServedAreas,
-            ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment
+            ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment,
+            PageNumber = pageNumber,
+            PageSize = pageSize
         };
 
         var report = await _mediator.Send(request);

@@ -578,8 +578,8 @@ public class ReportGenerationService : IReportGenerationService
 
                     if (hasProvider)
                     {
-                        cell.Value = "YES";
-                        cell.Style.Font.FontSize = 11;
+                        cell.Value = "✓";  // Unicode checkmark symbol
+                        cell.Style.Font.FontSize = 14;
                         cell.Style.Font.Bold = true;
                         cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         cell.Style.Font.FontColor = XLColor.Green;

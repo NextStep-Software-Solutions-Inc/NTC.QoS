@@ -218,7 +218,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
             IncludeOnlyServedAreas = includeOnlyServedAreas,
-            ForceGenerateConnectivityAssessment = false // Don't force assessment for file exports
+            ForceGenerateConnectivityAssessment = false,
+            DisablePagination = true  // CRITICAL: Fetch all data for PDF export
         };
 
         var response = await _mediator.Send(query, cancellationToken);
@@ -248,7 +249,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
             IncludeOnlyServedAreas = includeOnlyServedAreas,
-            ForceGenerateConnectivityAssessment = false // Don't force assessment for file exports
+            ForceGenerateConnectivityAssessment = false,
+            DisablePagination = true  // CRITICAL: Fetch all data for Excel export
         };
 
         var response = await _mediator.Send(query, cancellationToken);

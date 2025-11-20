@@ -15,4 +15,23 @@ public class GetWiredBroadbandReportQuery : IRequest<ApiResponse<WiredBroadbandR
     /// When false (default), uses existing assessments from the last month if available.
     /// </summary>
     public bool ForceGenerateConnectivityAssessment { get; set; } = false;
+    
+    /// <summary>
+    /// When true, disables pagination and returns all matching municipalities.
+    /// Use this for Excel/PDF exports to ensure complete data.
+    /// When false (default), uses PageNumber and PageSize for pagination.
+    /// </summary>
+    public bool DisablePagination { get; set; } = false;
+    
+    /// <summary>
+    /// Page number for pagination (default: 1)
+    /// Ignored when DisablePagination = true
+    /// </summary>
+    public int PageNumber { get; set; } = 1;
+    
+    /// <summary>
+    /// Page size for pagination (default: 10, max: 100)
+    /// Ignored when DisablePagination = true
+    /// </summary>
+    public int PageSize { get; set; } = 10;
 }
