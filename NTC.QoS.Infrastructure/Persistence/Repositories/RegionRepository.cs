@@ -59,4 +59,45 @@ internal sealed class RegionRepository(ApplicationDbContext context) : Repositor
 
         return results;
     }
+
+    /// <summary>
+    /// Gets the actual count of child locations for a region based on hierarchical depth.
+    /// Optimized for accurate progress tracking in connectivity assessment jobs.
+    /// </summary>
+    public async Task<int> GetChildLocationCountAsync(Guid regionId, int hierarchicalDepth, CancellationToken cancellationToken = default)
+    {
+        int totalCount = 0;
+
+        // Depth 1: Provinces only
+        var provinceCount = await _context.Set<Province>()
+            .AsNoTracking()
+            .Where(p => p.RegionId == regionId)
+            .CountAsync(cancellationToken);
+
+        totalCount += provinceCount;
+
+        if (hierarchicalDepth >= 2)
+        {
+            // Depth 2: Add municipalities under all provinces in this region
+            var municipalityCount = await _context.Set<Municipality>()
+                .AsNoTracking()
+                .Where(m => m.Province.RegionId == regionId)
+                .CountAsync(cancellationToken);
+
+            totalCount += municipalityCount;
+        }
+
+        if (hierarchicalDepth >= 3)
+        {
+            // Depth 3: Add barangays under all municipalities in all provinces in this region
+            var barangayCount = await _context.Set<Barangay>()
+                .AsNoTracking()
+                .Where(b => b.Municipality.Province.RegionId == regionId)
+                .CountAsync(cancellationToken);
+
+            totalCount += barangayCount;
+        }
+
+        return totalCount;
+    }
 }

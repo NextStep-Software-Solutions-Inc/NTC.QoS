@@ -15,6 +15,12 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 /// <summary>
 /// Background job for processing connectivity assessments without blocking API requests
 /// Optimized for sequential processing to prevent Entity Framework concurrency issues
+/// 
+/// IMPORTANT: This job now uses ACTUAL TOTAL LOCATIONS calculated by StartConnectivityAssessmentJobHandler
+/// - No more estimation logic - all counts are based on real database queries
+/// - ActualTotalLocations includes primary + hierarchical child counts (pre-calculated)
+/// - Progress tracking is accurate throughout the entire job execution
+/// - Completion verification compares processed vs expected (actual) counts
 /// </summary>
 public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJob
 {
@@ -38,7 +44,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     // Simplified configuration for sequential processing
     private const int BATCH_SIZE = 20; // Optimal batch size for sequential processing
-    private const int PROGRESS_REPORT_INTERVAL = 10; // Report progress every 10 items
+    private const int PROGRESS_REPORT_INTERVAL = 5; // Report progress every 5 items for smoother updates
     private const int MEMORY_CHECK_INTERVAL = 5; // Check memory every 5 batches
     private const int RECENT_ASSESSMENT_DAYS = 30; // Consider assessments within 30 days as recent
 
@@ -88,42 +94,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         try
         {
-            _logger.LogInformation("Starting connectivity assessment job {JobId} for {LocationCount} {LocationType}s. " +
-                "Hierarchical: {Hierarchical}, Enabled: {Enabled}, Depth: {Depth}, Force: {Force}, MaxHierarchical: {MaxHierarchical}, User: {UserId}",
-                jobId, jobRequest.LocationIds.Count, jobRequest.LocationType,
-                jobRequest.GenerateHierarchicalAssessments, jobRequest.EnableHierarchicalProcessing,
-                jobRequest.HierarchicalDepth, jobRequest.ForceRecalculate, jobRequest.MaxHierarchicalLocations, _currentUserId);
+            // Use actual total locations calculated by StartConnectivityAssessmentJobHandler
+            var actualTotalLocations = jobRequest.ActualTotalLocations;
+            var primaryCount = jobRequest.LocationIds.Count;
+            var hierarchicalCount = actualTotalLocations - primaryCount;
+
+            _logger.LogInformation(
+                "Starting connectivity assessment job {JobId} for {LocationCount} {LocationType}s. " +
+                "Hierarchical: {Hierarchical}, Depth: {Depth}, Force: {Force}, " +
+                "ActualTotal: {ActualTotal} (Primary: {Primary}, Hierarchical: {HierarchicalCount}), User: {UserId}",
+                jobId, primaryCount, jobRequest.LocationType,
+                jobRequest.GenerateHierarchicalAssessments,
+                jobRequest.HierarchicalDepth, jobRequest.ForceRecalculate,
+                actualTotalLocations, primaryCount, hierarchicalCount, _currentUserId);
 
             // Cache the job request for later use in hierarchical processing
             var jobRequestCacheKey = $"job_request_{jobId}";
             _memoryCache.Set(jobRequestCacheKey, jobRequest, TimeSpan.FromHours(2));
 
-            // Calculate total expected locations for progress tracking
-            var totalLocations = jobRequest.LocationIds.Count;
-            if (jobRequest.GenerateHierarchicalAssessments && jobRequest.EnableHierarchicalProcessing)
-            {
-                // Add estimated hierarchical locations based on the logic from StartConnectivityAssessmentJobHandler
-                // But cap it at the MaxHierarchicalLocations limit
-                var estimatedChildrenPerLocation = jobRequest.LocationType switch
-                {
-                    LocationTypeEnum.Regional when jobRequest.HierarchicalDepth >= 3 => 1000,
-                    LocationTypeEnum.Regional when jobRequest.HierarchicalDepth >= 2 => 100,
-                    LocationTypeEnum.Regional => 20,
-                    LocationTypeEnum.Provincial when jobRequest.HierarchicalDepth >= 2 => 500,
-                    LocationTypeEnum.Provincial => 50,
-                    LocationTypeEnum.Municipality => 30,
-                    _ => 0
-                };
-
-                var estimatedHierarchicalTotal = jobRequest.LocationIds.Count * estimatedChildrenPerLocation;
-                var cappedHierarchicalTotal = Math.Min(estimatedHierarchicalTotal, jobRequest.MaxHierarchicalLocations);
-                totalLocations += cappedHierarchicalTotal;
-            }
-
-            // Update job status to Processing with startTime and total count
+            // Update job status to Processing with startTime and actual total count
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
-                "Starting assessment generation",
-                startTime: startTime, processedCount: 0, estimatedTotalCount: totalLocations,
+                $"Starting assessment generation for {actualTotalLocations} locations (Primary: {primaryCount}, Hierarchical: {hierarchicalCount})",
+                startTime: startTime, processedCount: 0, totalCount: actualTotalLocations,
                 cancellationToken: cancellationToken);
 
             var results = new List<LocationConnectivityDto>();
@@ -141,16 +133,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             results.AddRange(primaryResults);
 
             // Update progress after primary locations
-            var progressMessage = jobRequest.GenerateHierarchicalAssessments && jobRequest.EnableHierarchicalProcessing
-                ? $"Completed {results.Count} primary assessments. Starting hierarchical processing..."
-                : $"Completed {results.Count} primary assessments. Hierarchical processing disabled.";
+            var progressMessage = jobRequest.GenerateHierarchicalAssessments
+                ? $"Completed {results.Count}/{primaryCount} primary assessments. Starting hierarchical processing for {hierarchicalCount} locations..."
+                : $"Completed {results.Count}/{primaryCount} primary assessments.";
 
+            var progressPercentage = results.Count * 100.0 / actualTotalLocations;
+            _logger.LogInformation(
+                "Job {JobId}: Primary processing completed. Processed: {Processed}/{Expected}, Total progress: {Progress}%",
+                jobId, results.Count, primaryCount, progressPercentage.ToString("F1"));
+
+            // Update status with accurate progress tracking
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
-                progressMessage, processedCount: results.Count, estimatedTotalCount: totalLocations,
+                progressMessage, processedCount: results.Count, totalCount: actualTotalLocations,
                 cancellationToken: cancellationToken);
 
-            // Process hierarchical assessments ONLY if both flags are enabled
-            if (jobRequest.GenerateHierarchicalAssessments && jobRequest.EnableHierarchicalProcessing)
+            // Process hierarchical assessments if enabled
+            if (jobRequest.GenerateHierarchicalAssessments)
             {
                 _logger.LogInformation("Job {JobId}: Hierarchical processing is enabled. Processing child locations...", jobId);
 
@@ -167,11 +165,6 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 results.AddRange(hierarchicalResults);
             }
-            else if (jobRequest.GenerateHierarchicalAssessments && !jobRequest.EnableHierarchicalProcessing)
-            {
-                _logger.LogInformation("Job {JobId}: Hierarchical processing is requested but disabled for performance. " +
-                    "To enable, set EnableHierarchicalProcessing=true. Processing only primary locations.", jobId);
-            }
             else
             {
                 _logger.LogInformation("Job {JobId}: Hierarchical processing not requested. Processing only primary locations.", jobId);
@@ -182,11 +175,33 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             var endTime = DateTime.UtcNow;
             var totalTime = endTime - startTime;
-            var successMessage = $"Successfully generated {results.Count} connectivity assessments in {totalTime:mm\\:ss}";
+            var completionRate = actualTotalLocations > 0 ? (results.Count * 100.0 / actualTotalLocations) : 100;
+            var successMessage = $"Successfully generated {results.Count}/{actualTotalLocations} connectivity assessments ({completionRate:F1}%) in {totalTime:mm\\:ss}";
 
-            // Update job status to Completed with all tracking info
+            // Verify completion status
+            var isComplete = results.Count >= actualTotalLocations;
+            var missingCount = actualTotalLocations - results.Count;
+
+            // Log detailed completion stats with verification
+            _logger.LogInformation(
+                "Job {JobId} completed. Expected: {Expected}, Processed: {Processed}, Rate: {Rate}%, " +
+                "Primary: {Primary}, Hierarchical: {Hierarchical}, Duration: {Duration}, " +
+                "Complete: {IsComplete}, Missing: {Missing}",
+                jobId, actualTotalLocations, results.Count, completionRate,
+                primaryCount, results.Count - primaryCount, totalTime, isComplete, missingCount);
+
+            // Warn if there's a significant discrepancy
+            if (missingCount > 0)
+            {
+                _logger.LogWarning(
+                    "Job {JobId} completed with {MissingCount} missing assessments out of {Expected} expected. " +
+                    "This may be due to locations without boundaries or processing errors.",
+                    jobId, missingCount, actualTotalLocations);
+            }
+
+            // Update job status to Completed - keep actualTotalLocations to show expected vs actual
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Completed, successMessage,
-                endTime: endTime, processedCount: results.Count, estimatedTotalCount: totalLocations,
+                endTime: endTime, processedCount: results.Count, totalCount: actualTotalLocations,
                 cancellationToken: cancellationToken);
 
             _logger.LogInformation("Job {JobId} completed successfully. {Message}", jobId, successMessage);
@@ -209,7 +224,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Process locations sequentially with optimized batching
+    /// Process locations sequentially with optimized batching and real-time progress tracking
     /// </summary>
     private async Task<List<LocationConnectivityDto>> ProcessLocationsSequentially(
         List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
@@ -228,6 +243,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         var results = new List<LocationConnectivityDto>();
         var startTime = DateTime.UtcNow;
+        var processedCount = 0;
 
         // Pre-load existing assessments if not forcing recalculation
         var existingAssessments = await PreloadExistingAssessments(locations, forceRecalculate, jobId, cancellationToken);
@@ -243,11 +259,39 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             try
             {
-                var batchResults = await ProcessBatch(batch, forceRecalculate, existingAssessments, startDate, endDate, cancellationToken);
-                results.AddRange(batchResults.Where(r => r != null)!);
+                // Process batch and track progress for each item
+                foreach (var location in batch)
+                {
+                    try
+                    {
+                        var result = await ProcessSingleLocation(
+                            location.Id,
+                            location.Type,
+                            location.Name,
+                            forceRecalculate,
+                            existingAssessments,
+                            startDate,
+                            endDate,
+                            cancellationToken);
+                        
+                        if (result != null)
+                        {
+                            results.Add(result);
+                        }
+                        
+                        processedCount++;
 
-                // Report progress with updated processed count
-                await ReportProgress(jobId, results.Count, locations.Count, processingContext, startTime, cancellationToken);
+                        // Update progress after each location for smooth tracking
+                        await ReportProgressWithCumulativeCount(jobId, results.Count, processingContext, startTime, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Job {JobId}: Error processing location {LocationId} ({LocationName}). Continuing with next location.",
+                            jobId, location.Id, location.Name);
+                        processedCount++;
+                        continue;
+                    }
+                }
 
                 // Memory management
                 if (batchIndex % MEMORY_CHECK_INTERVAL == 0 && batchIndex > 0)
@@ -320,7 +364,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Process a batch of locations sequentially
+    /// Process a batch of locations sequentially with real-time progress updates
     /// </summary>
     private async Task<List<LocationConnectivityDto?>> ProcessBatch(
         List<(Guid Id, LocationTypeEnum Type, string Name)> batchLocations,
@@ -1852,14 +1896,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         // 1 = No Coverage (-100+ dBm)
 
         // UNSERVED (1 point): Poor to nonexistent quality
-        // Criteria: Latency >100ms OR signal ≤ 2 (worse than -90 dBm) OR very poor speeds
+        // Criteria: Latency >100ms OR signal = 2 (worse than -90 dBm) OR very poor speeds
         if (latency > 100 || signalStrength <= 2.0 || speedStats.AverageDownloadSpeedMbps < 5)
         {
             return 1; // Unserved - Poor quality, unusable for essential tasks
         }
 
         // SERVED (3 points): High quality service
-        // Criteria: Latency <50ms AND good signal (≥4 = -44 to -89 dBm)
+        // Criteria: Latency <50ms AND good signal (=4 = -44 to -89 dBm)
         var hasLowLatency = latency < 50;
         var hasGoodSignal = signalStrength >= 4.0; // Average to Good signal (-44 to -89 dBm)
 
@@ -2082,7 +2126,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         DateTime? startTime = null,
         DateTime? endTime = null,
         int? processedCount = null,
-        int? estimatedTotalCount = null,
+        int? totalCount = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -2102,7 +2146,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     StartTime = null,
                     EndTime = null,
                     ProcessedCount = 0,
-                    EstimatedTotalCount = estimatedTotalCount ?? 1 // Use provided total or default to 1
+                    TotalCount = totalCount ?? 1 // Use provided total or default to 1
                 };
             }
 
@@ -2120,8 +2164,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             if (processedCount.HasValue)
                 currentStatus.ProcessedCount = processedCount.Value;
 
-            if (estimatedTotalCount.HasValue)
-                currentStatus.EstimatedTotalCount = estimatedTotalCount.Value;
+            if (totalCount.HasValue)
+                currentStatus.TotalCount = totalCount.Value;
 
             // Update the cache with the new status (extend expiry to 24 hours)
             _memoryCache.Set(cacheKey, currentStatus, TimeSpan.FromHours(24));
@@ -2140,37 +2184,62 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Reports progress during processing
+    /// Reports progress during processing with cumulative count tracking
     /// </summary>
-    private async Task ReportProgress(
+    private async Task ReportProgressWithCumulativeCount(
         int jobId,
-        int processedCount,
-        int totalCount,
+        int cumulativeProcessedCount,
         string context,
-        DateTime startTime,
+        DateTime batchStartTime,
         CancellationToken cancellationToken)
     {
         try
         {
-            var elapsed = DateTime.UtcNow - startTime;
-            var percentage = Math.Round((double)processedCount / totalCount * 100, 1);
-            var rate = processedCount > 0 && elapsed.TotalSeconds > 0 ? processedCount / elapsed.TotalSeconds : 0;
+            // Get the ACTUAL cumulative job status from cache
+            var cacheKey = $"job_status_{jobId}";
+            var jobStatus = _memoryCache.Get<ConnectivityAssessmentJobStatusDto>(cacheKey);
+            
+            if (jobStatus == null)
+            {
+                _logger.LogWarning("Job {JobId} status not found in cache during progress reporting", jobId);
+                return;
+            }
 
-            var estimatedRemaining = processedCount > 0 && rate > 0
-                ? TimeSpan.FromSeconds((totalCount - processedCount) / rate)
+            var actualTotalCount = jobStatus.TotalCount ?? 1; // Default to 1 to avoid division by zero
+            var jobStartTime = jobStatus.StartTime.HasValue ? jobStatus.StartTime.Value : DateTime.UtcNow;
+            var elapsed = DateTime.UtcNow - jobStartTime;
+            
+            var percentage = actualTotalCount > 0 
+                ? Math.Round((double)cumulativeProcessedCount / (double)actualTotalCount * 100.0, 1) 
+                : 0.0;
+            
+            var rate = elapsed.TotalSeconds > 0 
+                ? (double)cumulativeProcessedCount / elapsed.TotalSeconds 
+                : 0.0;
+
+            var remainingSeconds = (cumulativeProcessedCount > 0 && rate > 0)
+                ? ((double)actualTotalCount - (double)cumulativeProcessedCount) / rate
+                : 0.0;
+
+            var estimatedRemaining = remainingSeconds > 0 
+                ? TimeSpan.FromSeconds(remainingSeconds)
                 : TimeSpan.Zero;
 
-            var progressMessage = $"Processing {context}: {processedCount}/{totalCount} ({percentage}%) - " +
+            var progressMessage = $"Processing {context}: {cumulativeProcessedCount}/{actualTotalCount} ({percentage}%) - " +
                 $"Rate: {rate:F1}/sec - ETA: {estimatedRemaining:mm\\:ss}";
 
-            _logger.LogInformation("Job {JobId}: {ProgressMessage}", jobId, progressMessage);
+            // Always update the job status cache with current progress
+            await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
+                progressMessage, 
+                processedCount: cumulativeProcessedCount, 
+                totalCount: actualTotalCount,
+                cancellationToken: cancellationToken);
 
-            // Report progress every 10 items as configured
-            if (processedCount % PROGRESS_REPORT_INTERVAL == 0 || processedCount == totalCount)
+            // Log progress every 5 processed items or at completion milestones
+            if (cumulativeProcessedCount % PROGRESS_REPORT_INTERVAL == 0 || 
+                cumulativeProcessedCount == actualTotalCount)
             {
-                await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
-                    progressMessage, processedCount: processedCount, estimatedTotalCount: totalCount,
-                    cancellationToken: cancellationToken);
+                _logger.LogInformation("Job {JobId}: {ProgressMessage}", jobId, progressMessage);
             }
         }
         catch (Exception ex)
@@ -2178,6 +2247,21 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             _logger.LogError(ex, "Error reporting progress for job {JobId}", jobId);
             // Don't rethrow as this is auxiliary functionality
         }
+    }
+
+    /// <summary>
+    /// Legacy method - kept for backward compatibility but redirects to new implementation
+    /// </summary>
+    [Obsolete("Use ReportProgressWithCumulativeCount instead")]
+    private async Task ReportProgress(
+        int jobId,
+        int currentBatchProcessedCount,
+        int currentBatchTotalCount,
+        string context,
+        DateTime startTime,
+        CancellationToken cancellationToken)
+    {
+        await ReportProgressWithCumulativeCount(jobId, currentBatchProcessedCount, context, startTime, cancellationToken);
     }
 
     /// <summary>
@@ -2346,7 +2430,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             >= 11 => ConnectivityStatusEnum.Served,        // 11-15 points
             >= 6 => ConnectivityStatusEnum.Underserved,    // 6-10 points  
-            _ => ConnectivityStatusEnum.Unserved           // ≤5 points
+            _ => ConnectivityStatusEnum.Unserved           // =5 points
         };
     }
 
@@ -2508,13 +2592,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                     if (hierarchicalDepth >= 3)
                     {
-                        var municipalityIds = results.Where(r => r.Type == LocationTypeEnum.Municipality).Select(r => r.Id).Take(50).ToList();
+                        var municipalityIds = results.Where(r => r.Type == LocationTypeEnum.Municipality).Select(r => r.Id).ToList();
 
                         foreach (var municipalityId in municipalityIds)
                         {
                             var barangays = await _barangayRepository.ToListAsync(
                                 _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
-                                    .Take(100)
                                     .Select(b => new { b.Id, b.Name }), cancellationToken);
 
                             results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
@@ -2531,13 +2614,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                     if (hierarchicalDepth >= 2)
                     {
-                        var municipalityIds = provinceMunicipalities.Select(m => m.Id).Take(50).ToList();
+                        var municipalityIds = provinceMunicipalities.Select(m => m.Id).ToList();
 
                         foreach (var municipalityId in municipalityIds)
                         {
                             var barangays = await _barangayRepository.ToListAsync(
                                 _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
-                                    .Take(100)
                                     .Select(b => new { b.Id, b.Name }), cancellationToken);
 
                             results.AddRange(barangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
@@ -2548,7 +2630,6 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 case LocationTypeEnum.Municipality:
                     var municipalityBarangays = await _barangayRepository.ToListAsync(
                         _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == locationId)
-                            .Take(200)
                             .Select(b => new { b.Id, b.Name }), cancellationToken);
 
                     results.AddRange(municipalityBarangays.Select(b => (b.Id, LocationTypeEnum.Barangay, b.Name)));
