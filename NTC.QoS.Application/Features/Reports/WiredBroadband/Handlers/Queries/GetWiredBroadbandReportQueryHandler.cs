@@ -208,10 +208,10 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 }
                 
                 // Apply filtering if requested
-                if (request.IncludeOnlyServedAreas)
+                if (request.FilterByStatus.HasValue)
                 {
                     municipalityDto.Barangays = municipalityDto.Barangays
-                        .Where(b => b.ServiceStatus == ServiceStatusEnum.Served)
+                        .Where(b => b.ServiceStatus == request.FilterByStatus.Value)
                         .ToList();
                 }
 

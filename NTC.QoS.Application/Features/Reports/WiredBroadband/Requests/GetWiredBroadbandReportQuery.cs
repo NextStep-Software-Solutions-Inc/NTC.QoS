@@ -9,7 +9,12 @@ public class GetWiredBroadbandReportQuery : IRequest<ApiResponse<WiredBroadbandR
     public Guid? RegionId { get; set; }
     public Guid? ProvinceId { get; set; }
     public Guid? MunicipalityId { get; set; }
-    public bool IncludeOnlyServedAreas { get; set; } = false;
+    
+    /// <summary>
+    /// Filter by connectivity status. When null, includes all statuses.
+    /// When set, only includes barangays with the specified status.
+    /// </summary>
+    public ServiceStatusEnum? FilterByStatus { get; set; } = null;
     /// <summary>
     /// When true, forces generation of new connectivity assessments even if recent ones exist.
     /// When false (default), uses existing assessments from the last month if available.
