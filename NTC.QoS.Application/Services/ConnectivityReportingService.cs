@@ -17,7 +17,7 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null, 
         Guid? municipalityId = null,
-        bool includeOnlyServedAreas = false,
+        ServiceStatusEnum? filterByStatus = null,
         CancellationToken cancellationToken = default);
 
     Task<WirelessBroadbandReportDto> GenerateWirelessBroadbandReportAsync(
@@ -38,7 +38,7 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        bool includeOnlyServedAreas = false,
+        ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default);
 
@@ -49,7 +49,7 @@ public interface IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        bool includeOnlyServedAreas = false,
+        ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default);
 
@@ -110,7 +110,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        bool includeOnlyServedAreas = false,
+        ServiceStatusEnum? filterByStatus = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating unified wired broadband report using assessment-based approach");
@@ -122,15 +122,15 @@ public class ConnectivityReportingService : IConnectivityReportingService
         // Transform assessments to report format
         var municipalities = await TransformAssessmentsToMunicipalitiesAsync(assessments, cancellationToken);
 
-        // Apply served-only filter if requested
-        if (includeOnlyServedAreas)
+        // Apply status filter if requested
+        if (filterByStatus.HasValue)
         {
             municipalities = municipalities.Select(m => new MunicipalityBroadbandDto
             {
                 Id = m.Id,
                 Name = m.Name,
                 Code = m.Code,
-                Barangays = m.Barangays.Where(b => b.ServiceStatus == ServiceStatusEnum.Served).ToList()
+                Barangays = m.Barangays.Where(b => b.ServiceStatus == filterByStatus.Value).ToList()
             }).Where(m => m.Barangays.Count != 0).ToList();
         }
 
@@ -205,7 +205,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        bool includeOnlyServedAreas = false,
+        ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default)
     {
@@ -217,7 +217,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
-            IncludeOnlyServedAreas = includeOnlyServedAreas,
+            FilterByStatus = filterByStatus,
             ForceGenerateConnectivityAssessment = false,
             DisablePagination = true  // CRITICAL: Fetch all data for PDF export
         };
@@ -236,7 +236,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? regionId = null,
         Guid? provinceId = null,
         Guid? municipalityId = null,
-        bool includeOnlyServedAreas = false,
+        ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
         CancellationToken cancellationToken = default)
     {
@@ -248,7 +248,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
-            IncludeOnlyServedAreas = includeOnlyServedAreas,
+            FilterByStatus = filterByStatus,
             ForceGenerateConnectivityAssessment = false,
             DisablePagination = true  // CRITICAL: Fetch all data for Excel export
         };

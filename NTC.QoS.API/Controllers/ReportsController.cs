@@ -42,7 +42,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0)</param>
     /// <param name="forceGenerateConnectivityAssessment">If true, forces generation of new connectivity assessments even if recent ones exist</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
@@ -52,7 +52,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] bool includeOnlyServedAreas = false,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
         [FromQuery] bool forceGenerateConnectivityAssessment = false,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
@@ -62,7 +62,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
-            IncludeOnlyServedAreas = includeOnlyServedAreas,
+            FilterByStatus = filterByStatus,
             ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment,
             PageNumber = pageNumber,
             PageSize = pageSize
@@ -78,7 +78,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0)</param>
     /// <param name="reportTitle">Custom title for the report</param>
     /// <returns>PDF file download</returns>
     [HttpGet("wired-broadband/pdf")]
@@ -86,12 +86,12 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] bool includeOnlyServedAreas = false,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
         var title = reportTitle ?? "Wired Broadband Coverage Report";
         var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
-            regionId, provinceId, municipalityId, includeOnlyServedAreas, title);
+            regionId, provinceId, municipalityId, filterByStatus, title);
 
         var fileName = await GenerateFileNameAsync("WiredBroadband", "pdf", regionId, provinceId, municipalityId);
         return File(pdfBytes, "application/pdf", fileName);
@@ -103,7 +103,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="includeOnlyServedAreas">If true, only include barangays with served status</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0)</param>
     /// <param name="reportTitle">Custom title for the report</param>
     /// <returns>Excel file download</returns>
     [HttpGet("wired-broadband/excel")]
@@ -111,12 +111,12 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] bool includeOnlyServedAreas = false,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
         var title = reportTitle ?? "Wired Broadband Coverage Report";
         var excelBytes = await _connectivityReportingService.GenerateWiredBroadbandExcelAsync(
-            regionId, provinceId, municipalityId, includeOnlyServedAreas, title);
+            regionId, provinceId, municipalityId, filterByStatus, title);
 
         var fileName = await GenerateFileNameAsync("WiredBroadband", "xlsx", regionId, provinceId, municipalityId);
         return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);

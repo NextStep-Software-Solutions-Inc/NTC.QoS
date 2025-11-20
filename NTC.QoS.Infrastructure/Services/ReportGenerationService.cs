@@ -490,14 +490,13 @@ public class ReportGenerationService : IReportGenerationService
         var remarksCol = connectivityStatusCol + 1;
      
         // ROW 1: Setup headers
-        // Municipality header (spans rows 1-3)
+        // Municipality header (spans rows 1-3) - NO rotation for header
         worksheet.Cell(1, 1).Value = "Municipality";
         worksheet.Range(1, 1, 3, 1).Merge();
         worksheet.Cell(1, 1).Style.Font.Bold = true;
-        worksheet.Cell(1, 1).Style.Font.FontSize = 16; // Larger font
+        worksheet.Cell(1, 1).Style.Font.FontSize = 12;
         worksheet.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         worksheet.Cell(1, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-        worksheet.Cell(1, 1).Style.Alignment.TextRotation = 90; // Rotate 90 degrees (vertical text)
  
         // Barangay header (spans rows 1-3)
         worksheet.Cell(1, 2).Value = "Barangay";
@@ -636,7 +635,10 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             worksheet.Cell(municipalityStartRow, 1).Style.Alignment.TextRotation = 90; // Rotate municipality name vertically
             worksheet.Cell(municipalityStartRow, 1).Style.Font.Bold = true;
-            worksheet.Cell(municipalityStartRow, 1).Style.Font.FontSize = 14; // Larger font for municipality
+            worksheet.Cell(municipalityStartRow, 1).Style.Font.FontSize = 16; // Larger font for municipality names
+
+            // Set column width for municipality column to accommodate rotated text
+            // Width is set once globally, not per-municipality
 
             // Add thick border around each municipality's data section
             var municipalityRange = worksheet.Range(municipalityStartRow, 1, currentRow - 1, remarksCol);
@@ -650,7 +652,7 @@ public class ReportGenerationService : IReportGenerationService
         dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
   
         // Set column widths
-        worksheet.Column(1).Width = 20; // Municipality
+        worksheet.Column(1).Width = 8; // Municipality - narrow width for rotated text
         worksheet.Column(2).Width = 30; // Barangay - increased for longer names
 
         for (int i = 0; i < providerHeaders.Length; i++)
