@@ -19,11 +19,17 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("wireless-broadband/{municipalityId}")]
-    [ProducesResponseType(typeof(ApiResponse<WirelessBroadbandReportDto>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<WirelessBroadbandReportDto>), 400)]
-    public async Task<ActionResult<ApiResponse<WirelessBroadbandReportDto>>> GetWirelessBroadbandReport(Guid municipalityId)
+    [ProducesResponseType(typeof(FileResult), 200)]
+    [ProducesResponseType(typeof(ApiResponse<byte[]>), 400)]
+    public async Task<IActionResult> GetWirelessBroadbandReport(Guid municipalityId)
     {
         var result = await _mediator.Send(new GetWirelessBroadbandReportQuery(municipalityId));
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        
+        if (result.Succeeded && result.Data != null)
+        {
+            return File(result.Data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"WirelessBroadbandReport_{municipalityId}.xlsx");
+        }
+        
+        return BadRequest(result);
     }
 }
