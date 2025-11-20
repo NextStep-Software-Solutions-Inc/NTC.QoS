@@ -1,16 +1,18 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Application.Features.Reports.Queries.GetWirelessBroadbandReport;
+using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Report;
 using NTC.QoS.Infrastructure.Persistence;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System.Drawing;
 
-namespace NTC.QoS.Application.Features.Reports.Queries.GetWirelessBroadbandReport;
+namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Commands;
 
-public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroadbandReportQuery, ApiResponse<byte[]>>
+public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroadbandReportQuery, ApiResponse<WirelessBroadbandReportResult>>
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<GetWirelessBroadbandReportHandler> _logger;
@@ -23,7 +25,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         _logger = logger;
     }
 
-    public async Task<ApiResponse<byte[]>> Handle(
+    public async Task<ApiResponse<WirelessBroadbandReportResult>> Handle(
         GetWirelessBroadbandReportQuery request,
         CancellationToken cancellationToken)
     {
@@ -36,7 +38,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
 
             if (municipality == null)
             {
-                return new ApiResponse<byte[]>("Municipality not found.");
+                return new ApiResponse<WirelessBroadbandReportResult>("Municipality not found.");
             }
 
             // 2. Get Barangays
@@ -56,9 +58,12 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                     BarangayName = barangay.Name
                 };
 
+                var cellulars = new List<CellularInfo>();
+
+                // Fetch from Cellulars (Spatial)
                 if (barangay.Boundaries != null)
                 {
-                    var cellulars = await _context.Cellulars
+                    var spatialCellulars = await _context.Cellulars
                         .AsNoTracking()
                         .Include(c => c.ServiceProvider)
                             .ThenInclude(sp => sp!.Provider)
@@ -75,13 +80,35 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                             ProviderName = c.ServiceProvider != null && c.ServiceProvider.Provider != null ? c.ServiceProvider.Provider.Name : "",
                             GenerationName = c.Technology != null && c.Technology.Generation != null ? c.Technology.Generation.Name : ""
                         })
-                        .Distinct()
                         .ToListAsync(cancellationToken);
-
-                    entry.Globe = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Globe", StringComparison.OrdinalIgnoreCase)));
-                    entry.Smart = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Smart", StringComparison.OrdinalIgnoreCase)));
-                    entry.Dito = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Dito", StringComparison.OrdinalIgnoreCase)));
+                    
+                    cellulars.AddRange(spatialCellulars);
                 }
+
+                // Fetch from WirelessValidation (Direct Link)
+                var validationCellulars = await _context.WirelessValidations
+                    .AsNoTracking()
+                    .Include(wv => wv.ServiceProvider)
+                        .ThenInclude(sp => sp.Provider)
+                    .Include(wv => wv.Technology)
+                        .ThenInclude(t => t!.Generation)
+                    .Where(wv => wv.BarangayId == barangay.Id)
+                    .Select(wv => new CellularInfo
+                    {
+                        ProviderName = wv.ServiceProvider != null && wv.ServiceProvider.Provider != null ? wv.ServiceProvider.Provider.Name : "",
+                        GenerationName = wv.Technology != null && wv.Technology.Generation != null ? wv.Technology.Generation.Name : ""
+                    })
+                    .ToListAsync(cancellationToken);
+
+                cellulars.AddRange(validationCellulars);
+
+                // Distinct
+                cellulars = cellulars.DistinctBy(c => new { c.ProviderName, c.GenerationName }).ToList();
+
+                entry.Globe = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Globe", StringComparison.OrdinalIgnoreCase)));
+                entry.Smart = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Smart", StringComparison.OrdinalIgnoreCase)));
+                entry.Dito = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Dito", StringComparison.OrdinalIgnoreCase)));
+
                 reportData.Add(entry);
             }
 
@@ -192,7 +219,6 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 worksheet.Cells[row, 1].Value = municipality.Name;
                 worksheet.Cells[row, 1].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
                 worksheet.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                // Rotate text 90 degrees like in the image? The image has "Alubijid" rotated.
                 worksheet.Cells[row, 1].Style.TextRotation = 90;
                 worksheet.Cells[row, 1].Style.Font.Bold = true;
                 worksheet.Cells[row, 1].Style.Font.Size = 14;
@@ -203,23 +229,23 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 worksheet.Cells[row, 2].Value = item.BarangayName;
 
                 // Globe
-                if (item.Globe.Has2G) worksheet.Cells[row, 3].Value = "?";
-                if (item.Globe.Has4G) worksheet.Cells[row, 4].Value = "?";
-                if (item.Globe.Has5G) worksheet.Cells[row, 5].Value = "?";
+                if (item.Globe.Has2G) worksheet.Cells[row, 3].Value = "✓";
+                if (item.Globe.Has4G) worksheet.Cells[row, 4].Value = "✓";
+                if (item.Globe.Has5G) worksheet.Cells[row, 5].Value = "✓";
                 worksheet.Cells[row, 6].Value = item.Globe.TechUsed;
                 // Speedtest blank
 
                 // Smart
-                if (item.Smart.Has2G) worksheet.Cells[row, 9].Value = "?";
-                if (item.Smart.Has3G) worksheet.Cells[row, 10].Value = "?";
-                if (item.Smart.Has4G) worksheet.Cells[row, 11].Value = "?";
-                if (item.Smart.Has5G) worksheet.Cells[row, 12].Value = "?";
+                if (item.Smart.Has2G) worksheet.Cells[row, 9].Value = "✓";
+                if (item.Smart.Has3G) worksheet.Cells[row, 10].Value = "✓";
+                if (item.Smart.Has4G) worksheet.Cells[row, 11].Value = "✓";
+                if (item.Smart.Has5G) worksheet.Cells[row, 12].Value = "✓";
                 worksheet.Cells[row, 13].Value = item.Smart.TechUsed;
                 // Speedtest blank
 
                 // Dito
-                if (item.Dito.Has4G) worksheet.Cells[row, 16].Value = "?";
-                if (item.Dito.Has5G) worksheet.Cells[row, 17].Value = "?";
+                if (item.Dito.Has4G) worksheet.Cells[row, 16].Value = "✓";
+                if (item.Dito.Has5G) worksheet.Cells[row, 17].Value = "✓";
                 worksheet.Cells[row, 18].Value = item.Dito.TechUsed;
                 // Speedtest blank
 
@@ -236,12 +262,18 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
 
             worksheet.Cells.AutoFitColumns();
 
-            return new ApiResponse<byte[]>(package.GetAsByteArray());
+            var result = new WirelessBroadbandReportResult
+            {
+                FileContent = package.GetAsByteArray(),
+                FileName = $"{municipality.Name}_WirelessBroadbandReport.xlsx"
+            };
+
+            return new ApiResponse<WirelessBroadbandReportResult>(result);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating wireless broadband report for municipality {MunicipalityId}", request.MunicipalityId);
-            return new ApiResponse<byte[]>("An error occurred while generating the report.");
+            return new ApiResponse<WirelessBroadbandReportResult>("An error occurred while generating the report.");
         }
     }
 
@@ -261,6 +293,9 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         else if (stats.Has3G) stats.TechUsed = "3G";
         else if (stats.Has2G) stats.TechUsed = "2G";
         else stats.TechUsed = "-";
+        
+        // User requested to leave Tech Used blank
+        stats.TechUsed = "";
 
         return stats;
     }

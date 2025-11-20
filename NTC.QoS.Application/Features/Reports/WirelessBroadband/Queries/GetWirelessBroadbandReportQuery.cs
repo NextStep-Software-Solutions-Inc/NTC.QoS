@@ -1,9 +1,10 @@
 using MediatR;
+using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.Reports.Queries.GetWirelessBroadbandReport;
 
-public class GetWirelessBroadbandReportQuery : IRequest<ApiResponse<byte[]>>
+public class GetWirelessBroadbandReportQuery : IRequest<ApiResponse<WirelessBroadbandReportResult>>
 {
     public Guid MunicipalityId { get; set; }
 

@@ -1,4 +1,4 @@
-namespace NTC.QoS.Application.Features.Reports.Queries.GetWirelessBroadbandReport;
+namespace NTC.QoS.Domain.Models.DTOs.Report;
 
 public class WirelessBroadbandReportDto
 {
