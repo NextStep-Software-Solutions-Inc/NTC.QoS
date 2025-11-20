@@ -31,25 +31,54 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
     {
         try
         {
-            // 1. Get Municipality
-            var municipality = await _context.Municipalities
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Id == request.MunicipalityId, cancellationToken);
+            // 1. Determine Scope and Fetch Target Area
+            string reportTitleName = "";
+            NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
+            List<NTC.QoS.Domain.Entities.Barangay> barangays = new();
 
-            if (municipality == null)
+            if (request.MunicipalityId.HasValue)
             {
-                return new ApiResponse<WirelessBroadbandReportResult>("Municipality not found.");
+                var mun = await _context.Municipalities.AsNoTracking().FirstOrDefaultAsync(m => m.Id == request.MunicipalityId, cancellationToken);
+                if (mun == null) return new ApiResponse<WirelessBroadbandReportResult>("Municipality not found.");
+                reportTitleName = mun.Name;
+                targetBoundaries = mun.Boundaries;
+                barangays = await _context.Barangays.AsNoTracking()
+                    .Where(b => b.MunicipalityId == request.MunicipalityId)
+                    .Include(b => b.Municipality)
+                    .OrderBy(b => b.Name)
+                    .ToListAsync(cancellationToken);
+            }
+            else if (request.ProvinceId.HasValue)
+            {
+                var prov = await _context.Provinces.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.ProvinceId, cancellationToken);
+                if (prov == null) return new ApiResponse<WirelessBroadbandReportResult>("Province not found.");
+                reportTitleName = prov.Name;
+                targetBoundaries = prov.Boundaries;
+                barangays = await _context.Barangays.AsNoTracking()
+                    .Where(b => b.Municipality.ProvinceId == request.ProvinceId)
+                    .Include(b => b.Municipality)
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
+                    .ToListAsync(cancellationToken);
+            }
+            else if (request.RegionId.HasValue)
+            {
+                var reg = await _context.Regions.AsNoTracking().FirstOrDefaultAsync(r => r.Id == request.RegionId, cancellationToken);
+                if (reg == null) return new ApiResponse<WirelessBroadbandReportResult>("Region not found.");
+                reportTitleName = reg.Name;
+                targetBoundaries = reg.Boundaries;
+                barangays = await _context.Barangays.AsNoTracking()
+                    .Where(b => b.Municipality.Province.RegionId == request.RegionId)
+                    .Include(b => b.Municipality)
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
+                    .ToListAsync(cancellationToken);
+            }
+            else
+            {
+                return new ApiResponse<WirelessBroadbandReportResult>("Please provide a Municipality, Province, or Region ID.");
             }
 
-            // 2. Get Barangays
-            var barangays = await _context.Barangays
-                .AsNoTracking()
-                .Where(b => b.MunicipalityId == request.MunicipalityId)
-                .OrderBy(b => b.Name)
-                .ToListAsync(cancellationToken);
-
-            // 3. Prepare Data
-            // Optimization: Fetch all data for the municipality in bulk instead of per-barangay queries
+            // 2. Prepare Data
+            // Optimization: Fetch all data for the target area in bulk
             
             // Fetch all WirelessValidations for these barangays
             var barangayIds = barangays.Select(b => b.Id).ToList();
@@ -68,18 +97,17 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 })
                 .ToListAsync(cancellationToken);
 
-            // Fetch all Cellulars within Municipality Boundaries
-            // Note: We project Location to client to perform Barangay containment check in memory
+            // Fetch all Cellulars within Target Boundaries
             var allCellulars = new List<CellularLocationInfo>();
             
-            if (municipality.Boundaries != null)
+            if (targetBoundaries != null)
             {
                 allCellulars = await _context.Cellulars
                     .AsNoTracking()
                     .Where(c => c.CellSector != null
                              && c.CellSector.Cell != null
                              && c.CellSector.Cell.Location != null
-                             && municipality.Boundaries.Contains(c.CellSector.Cell.Location))
+                             && targetBoundaries.Contains(c.CellSector.Cell.Location))
                     .Select(c => new CellularLocationInfo
                     {
                         ProviderName = c.ServiceProvider != null && c.ServiceProvider.Provider != null ? c.ServiceProvider.Provider.Name : "",
@@ -95,6 +123,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             {
                 var entry = new BarangayWirelessEntryDto
                 {
+                    MunicipalityName = barangay.Municipality.Name,
                     BarangayName = barangay.Name
                 };
 
@@ -127,22 +156,22 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 reportData.Add(entry);
             }
 
-            // 4. Generate Excel
+            // 3. Generate Excel
             ExcelPackage.License.SetNonCommercialPersonal("NTC QoS");
             using var package = new ExcelPackage();
             var worksheet = package.Workbook.Worksheets.Add("Wireless Broadband");
 
-            // Collect all unique provider/generation pairs for the whole municipality to determine columns
-            var allMunicipalityData = new List<CellularInfo>();
-            if (municipality.Boundaries != null)
+            // Collect all unique provider/generation pairs for the whole target area to determine columns
+            var allAreaData = new List<CellularInfo>();
+            if (targetBoundaries != null)
             {
-                allMunicipalityData.AddRange(allCellulars.Select(c => new CellularInfo { ProviderName = c.ProviderName, GenerationName = c.GenerationName }));
+                allAreaData.AddRange(allCellulars.Select(c => new CellularInfo { ProviderName = c.ProviderName, GenerationName = c.GenerationName }));
             }
-            allMunicipalityData.AddRange(allValidations.Select(v => new CellularInfo { ProviderName = v.ProviderName, GenerationName = v.GenerationName }));
+            allAreaData.AddRange(allValidations.Select(v => new CellularInfo { ProviderName = v.ProviderName, GenerationName = v.GenerationName }));
 
-            var globeGenerations = GetPresentGenerations(allMunicipalityData, "Globe");
-            var smartGenerations = GetPresentGenerations(allMunicipalityData, "Smart");
-            var ditoGenerations = GetPresentGenerations(allMunicipalityData, "Dito");
+            var globeGenerations = GetPresentGenerations(allAreaData, "Globe");
+            var smartGenerations = GetPresentGenerations(allAreaData, "Smart");
+            var ditoGenerations = GetPresentGenerations(allAreaData, "Dito");
 
             // --- Headers ---
             int col = 3; // Start at C
@@ -211,51 +240,59 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
 
             // --- Data ---
             int row = 5;
-            // Merge Municipality column for all barangays
-            if (reportData.Count > 0)
+            
+            // Group by Municipality to handle merging
+            var groupedData = reportData.GroupBy(x => x.MunicipalityName);
+            
+            foreach (var group in groupedData)
             {
-                worksheet.Cells[row, 1, row + reportData.Count - 1, 1].Merge = true;
-                worksheet.Cells[row, 1].Value = municipality.Name;
-                worksheet.Cells[row, 1].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
-                worksheet.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                worksheet.Cells[row, 1].Style.TextRotation = 90;
-                worksheet.Cells[row, 1].Style.Font.Bold = true;
-                worksheet.Cells[row, 1].Style.Font.Size = 14;
-            }
-
-            foreach (var item in reportData)
-            {
-                worksheet.Cells[row, 2].Value = item.BarangayName;
-                int currentCol = 3;
-
-                // Globe
-                foreach (var gen in globeGenerations)
+                int startRow = row;
+                foreach (var item in group)
                 {
-                    if (HasGeneration(item.Globe, gen)) worksheet.Cells[row, currentCol].Value = "✓";
-                    currentCol++;
-                }
-                worksheet.Cells[row, currentCol].Value = item.Globe.TechUsed;
-                currentCol += 3; // Skip Tech + Speedtest
+                    worksheet.Cells[row, 2].Value = item.BarangayName;
+                    int currentCol = 3;
 
-                // Smart
-                foreach (var gen in smartGenerations)
+                    // Globe
+                    foreach (var gen in globeGenerations)
+                    {
+                        if (HasGeneration(item.Globe, gen)) worksheet.Cells[row, currentCol].Value = "✓";
+                        currentCol++;
+                    }
+                    worksheet.Cells[row, currentCol].Value = item.Globe.TechUsed;
+                    currentCol += 3; // Skip Tech + Speedtest
+
+                    // Smart
+                    foreach (var gen in smartGenerations)
+                    {
+                        if (HasGeneration(item.Smart, gen)) worksheet.Cells[row, currentCol].Value = "✓";
+                        currentCol++;
+                    }
+                    worksheet.Cells[row, currentCol].Value = item.Smart.TechUsed;
+                    currentCol += 3;
+
+                    // Dito
+                    foreach (var gen in ditoGenerations)
+                    {
+                        if (HasGeneration(item.Dito, gen)) worksheet.Cells[row, currentCol].Value = "✓";
+                        currentCol++;
+                    }
+                    worksheet.Cells[row, currentCol].Value = item.Dito.TechUsed;
+                    currentCol += 3;
+
+                    row++;
+                }
+                
+                // Merge Municipality Column
+                if (row > startRow)
                 {
-                    if (HasGeneration(item.Smart, gen)) worksheet.Cells[row, currentCol].Value = "✓";
-                    currentCol++;
+                    worksheet.Cells[startRow, 1, row - 1, 1].Merge = true;
+                    worksheet.Cells[startRow, 1].Value = group.Key;
+                    worksheet.Cells[startRow, 1].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                    worksheet.Cells[startRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    worksheet.Cells[startRow, 1].Style.TextRotation = 90;
+                    worksheet.Cells[startRow, 1].Style.Font.Bold = true;
+                    worksheet.Cells[startRow, 1].Style.Font.Size = 14;
                 }
-                worksheet.Cells[row, currentCol].Value = item.Smart.TechUsed;
-                currentCol += 3;
-
-                // Dito
-                foreach (var gen in ditoGenerations)
-                {
-                    if (HasGeneration(item.Dito, gen)) worksheet.Cells[row, currentCol].Value = "✓";
-                    currentCol++;
-                }
-                worksheet.Cells[row, currentCol].Value = item.Dito.TechUsed;
-                currentCol += 3;
-
-                row++;
             }
 
             // Borders for data
@@ -269,18 +306,21 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             worksheet.Cells[5, 2, row - 1, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
 
             worksheet.Cells.AutoFitColumns();
+            
+            // Freeze Panes
+            worksheet.View.FreezePanes(5, 3);
 
             var result = new WirelessBroadbandReportResult
             {
                 FileContent = package.GetAsByteArray(),
-                FileName = $"{municipality.Name}_WirelessBroadbandReport.xlsx"
+                FileName = $"{reportTitleName}_WirelessBroadbandReport_{DateTime.Now:yyyyMMdd}.xlsx"
             };
 
             return new ApiResponse<WirelessBroadbandReportResult>(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating wireless broadband report for municipality {MunicipalityId}", request.MunicipalityId);
+            _logger.LogError(ex, "Error generating wireless broadband report.");
             return new ApiResponse<WirelessBroadbandReportResult>("An error occurred while generating the report.");
         }
     }

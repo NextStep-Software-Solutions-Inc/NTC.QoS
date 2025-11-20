@@ -8,6 +8,7 @@ public class WirelessBroadbandReportDto
 
 public class BarangayWirelessEntryDto
 {
+    public string MunicipalityName { get; set; } = string.Empty;
     public string BarangayName { get; set; } = string.Empty;
     public ProviderWirelessStatsDto Globe { get; set; } = new();
     public ProviderWirelessStatsDto Smart { get; set; } = new();

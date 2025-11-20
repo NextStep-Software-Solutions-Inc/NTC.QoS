@@ -6,7 +6,11 @@ namespace NTC.QoS.Application.Features.Reports.Queries.GetWirelessBroadbandRepor
 
 public class GetWirelessBroadbandReportQuery : IRequest<ApiResponse<WirelessBroadbandReportResult>>
 {
-    public Guid MunicipalityId { get; set; }
+    public Guid? MunicipalityId { get; set; }
+    public Guid? ProvinceId { get; set; }
+    public Guid? RegionId { get; set; }
+
+    public GetWirelessBroadbandReportQuery() { }
 
     public GetWirelessBroadbandReportQuery(Guid municipalityId)
     {

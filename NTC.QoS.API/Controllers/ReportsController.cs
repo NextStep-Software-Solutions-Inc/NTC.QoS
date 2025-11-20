@@ -10,21 +10,16 @@ namespace NTC.QoS.API.Controllers;
 [ApiController]
 [Route("reports", Name = "reports")]
 [Authorize]
-public class ReportsController : ControllerBase
+public class ReportsController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator _mediator = mediator;
 
-    public ReportsController(IMediator mediator)
-    {
-        _mediator = mediator;
-    }
-
-    [HttpGet("wireless-broadband/{municipalityId}")]
+    [HttpGet("wireless-broadband")]
     [ProducesResponseType(typeof(FileResult), 200)]
     [ProducesResponseType(typeof(ApiResponse<WirelessBroadbandReportResult>), 400)]
-    public async Task<IActionResult> GetWirelessBroadbandReport(Guid municipalityId)
+    public async Task<IActionResult> GetWirelessBroadbandReport([FromQuery] GetWirelessBroadbandReportQuery query)
     {
-        var result = await _mediator.Send(new GetWirelessBroadbandReportQuery(municipalityId));
+        var result = await _mediator.Send(query);
         
         if (result.Succeeded && result.Data != null)
         {
