@@ -34,13 +34,6 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     public int HierarchicalDepth { get; set; } = 3;
 
     /// <summary>
-    /// NEW: Optional flag to enable hierarchical processing (default null = disabled for performance)
-    /// Must be explicitly set to true to enable hierarchical processing
-    /// This is separate from GenerateHierarchicalAssessments for backward compatibility
-    /// </summary>
-    public bool? EnableHierarchicalProcessing { get; set; } = null; // null = use default (disabled)
-
-    /// <summary>
     /// NEW: Optional maximum number of hierarchical locations to process
     /// When null, uses location-type specific defaults for safety
     /// </summary>

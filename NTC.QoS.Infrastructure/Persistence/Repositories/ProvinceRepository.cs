@@ -91,4 +91,34 @@ internal sealed class ProvinceRepository(ApplicationDbContext context) : Reposit
 
         return results;
     }
+
+    /// <summary>
+    /// Gets the actual count of child locations for a province based on hierarchical depth.
+    /// Optimized for accurate progress tracking in connectivity assessment jobs.
+    /// </summary>
+    public async Task<int> GetChildLocationCountAsync(Guid provinceId, int hierarchicalDepth, CancellationToken cancellationToken = default)
+    {
+        int totalCount = 0;
+
+        // Depth 1: Municipalities only
+        var municipalityCount = await _context.Set<Municipality>()
+            .AsNoTracking()
+            .Where(m => m.ProvinceId == provinceId)
+            .CountAsync(cancellationToken);
+
+        totalCount += municipalityCount;
+
+        if (hierarchicalDepth >= 2)
+        {
+            // Depth 2: Add barangays under all municipalities in this province
+            var barangayCount = await _context.Set<Barangay>()
+                .AsNoTracking()
+                .Where(b => b.Municipality.ProvinceId == provinceId)
+                .CountAsync(cancellationToken);
+
+            totalCount += barangayCount;
+        }
+
+        return totalCount;
+    }
 }

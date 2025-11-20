@@ -108,4 +108,19 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
 
         return results;
     }
+
+    /// <summary>
+    /// Gets the actual count of child locations (barangays) for a municipality.
+    /// Optimized for accurate progress tracking in connectivity assessment jobs.
+    /// </summary>
+    public async Task<int> GetChildLocationCountAsync(Guid municipalityId, CancellationToken cancellationToken = default)
+    {
+        // Municipalities only have barangays as children
+        var barangayCount = await _context.Set<Barangay>()
+            .AsNoTracking()
+            .Where(b => b.MunicipalityId == municipalityId)
+            .CountAsync(cancellationToken);
+
+        return barangayCount;
+    }
 }

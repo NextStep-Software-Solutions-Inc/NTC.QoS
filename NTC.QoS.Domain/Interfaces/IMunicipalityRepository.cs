@@ -18,4 +18,13 @@ public interface IMunicipalityRepository : IRepository<Municipality>
            DateTime? startDate = null,
            DateTime? endDate = null,
            CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the actual count of child locations (barangays) for a municipality.
+    /// Used for accurate progress tracking in connectivity assessment jobs.
+    /// </summary>
+    /// <param name="municipalityId">The municipality ID to count children for</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Total count of barangays in the municipality</returns>
+    Task<int> GetChildLocationCountAsync(Guid municipalityId, CancellationToken cancellationToken = default);
 }
