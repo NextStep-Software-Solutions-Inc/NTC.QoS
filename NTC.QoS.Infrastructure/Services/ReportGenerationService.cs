@@ -486,15 +486,18 @@ public class ReportGenerationService : IReportGenerationService
         int currentRow = 1;
         var wiredBroadbandStartCol = 3;
         var wiredBroadbandEndCol = 2 + providerHeaders.Length;
-        var remarksCol = wiredBroadbandEndCol + 1;
+        var connectivityStatusCol = wiredBroadbandEndCol + 1;
+        var remarksCol = connectivityStatusCol + 1;
      
         // ROW 1: Setup headers
         // Municipality header (spans rows 1-3)
         worksheet.Cell(1, 1).Value = "Municipality";
         worksheet.Range(1, 1, 3, 1).Merge();
         worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 16; // Larger font
         worksheet.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         worksheet.Cell(1, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Cell(1, 1).Style.Alignment.TextRotation = 90; // Rotate 90 degrees (vertical text)
  
         // Barangay header (spans rows 1-3)
         worksheet.Cell(1, 2).Value = "Barangay";
@@ -511,6 +514,14 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, wiredBroadbandStartCol).Style.Font.FontSize = 14;
         worksheet.Cell(1, wiredBroadbandStartCol).Style.Fill.BackgroundColor = XLColor.Orange;
     
+        // CONNECTIVITY STATUS header (spans rows 1-3)
+        worksheet.Cell(1, connectivityStatusCol).Value = "CONNECTIVITY STATUS";
+        worksheet.Range(1, connectivityStatusCol, 3, connectivityStatusCol).Merge();
+        worksheet.Cell(1, connectivityStatusCol).Style.Font.Bold = true;
+        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.WrapText = true;
+
         // REMARKS header (spans rows 1-3)
         worksheet.Cell(1, remarksCol).Value = "REMARKS";
         worksheet.Range(1, remarksCol, 3, remarksCol).Merge();
@@ -586,55 +597,69 @@ public class ReportGenerationService : IReportGenerationService
                     }
                 }
   
-                // Service status in Remarks column (color-coded)
-                var remarksCell = worksheet.Cell(currentRow, remarksCol);
-                remarksCell.Value = barangay.ServiceStatus.ToString().ToUpper();
-                remarksCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                remarksCell.Style.Font.Bold = true;
+                // Connectivity Status column (color-coded)
+                var statusCell = worksheet.Cell(currentRow, connectivityStatusCol);
+                statusCell.Value = barangay.ServiceStatus.ToString().ToUpper();
+                statusCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                statusCell.Style.Font.Bold = true;
      
                 switch (barangay.ServiceStatus)
                 {
                     case ServiceStatusEnum.Served:
-                        remarksCell.Style.Fill.BackgroundColor = XLColor.LightGreen;
+                        statusCell.Style.Fill.BackgroundColor = XLColor.LightGreen;
                         break;
                     case ServiceStatusEnum.Underserved:
-                        remarksCell.Style.Fill.BackgroundColor = XLColor.Orange;
+                        statusCell.Style.Fill.BackgroundColor = XLColor.Orange;
                         break;
                     case ServiceStatusEnum.Unserved:
-                        remarksCell.Style.Fill.BackgroundColor = XLColor.LightPink;
+                        statusCell.Style.Fill.BackgroundColor = XLColor.LightPink;
                         break;
                 }
+
+                // Remarks column with actual remarks text
+                var remarksCell = worksheet.Cell(currentRow, remarksCol);
+                remarksCell.Value = barangay.Remarks ?? "";
+                remarksCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+                remarksCell.Style.Alignment.WrapText = true;
     
                 currentRow++;
             }
 
-       // Merge municipality cells for all barangays in this municipality
-    if (barangayCount > 1)
-         {
-     worksheet.Range(municipalityStartRow, 1, currentRow - 1, 1).Merge();
-        }
+            // Merge municipality cells for all barangays in this municipality
+            if (barangayCount > 1)
+            {
+                worksheet.Range(municipalityStartRow, 1, currentRow - 1, 1).Merge();
+            }
        
-       worksheet.Cell(municipalityStartRow, 1).Value = municipality.Name;
-        worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-  worksheet.Cell(municipalityStartRow, 1).Style.Font.Bold = true;
-   }
-    
-   // Apply borders to all cells
-var dataRange = worksheet.Range(1, 1, currentRow - 1, remarksCol);
- dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
-      dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-  
-    // Set column widths
-     worksheet.Column(1).Width = 20; // Municipality
-   worksheet.Column(2).Width = 30; // Barangay - increased for longer names
+            worksheet.Cell(municipalityStartRow, 1).Value = municipality.Name;
+            worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            worksheet.Cell(municipalityStartRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            worksheet.Cell(municipalityStartRow, 1).Style.Alignment.TextRotation = 90; // Rotate municipality name vertically
+            worksheet.Cell(municipalityStartRow, 1).Style.Font.Bold = true;
+            worksheet.Cell(municipalityStartRow, 1).Style.Font.FontSize = 14; // Larger font for municipality
 
-      for (int i = 0; i < providerHeaders.Length; i++)
-    {
-    worksheet.Column(wiredBroadbandStartCol + i).Width = 25; // Increased width for provider names
-    }
+            // Add thick border around each municipality's data section
+            var municipalityRange = worksheet.Range(municipalityStartRow, 1, currentRow - 1, remarksCol);
+            municipalityRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
+            municipalityRange.Style.Border.OutsideBorderColor = XLColor.Black;
+        }
+    
+        // Apply borders to all cells
+        var dataRange = worksheet.Range(1, 1, currentRow - 1, remarksCol);
+        dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
+        dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+  
+        // Set column widths
+        worksheet.Column(1).Width = 20; // Municipality
+        worksheet.Column(2).Width = 30; // Barangay - increased for longer names
+
+        for (int i = 0; i < providerHeaders.Length; i++)
+        {
+            worksheet.Column(wiredBroadbandStartCol + i).Width = 25; // Increased width for provider names
+        }
       
-     worksheet.Column(remarksCol).Width = 18; // Remarks
+        worksheet.Column(connectivityStatusCol).Width = 20; // Connectivity Status
+        worksheet.Column(remarksCol).Width = 40; // Remarks - wider for text content
   
  // Freeze first 3 rows (headers) and first 2 columns
     worksheet.SheetView.FreezeRows(3);
