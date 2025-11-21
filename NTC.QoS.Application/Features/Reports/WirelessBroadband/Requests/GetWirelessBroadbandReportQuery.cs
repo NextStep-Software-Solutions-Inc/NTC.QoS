@@ -9,6 +9,13 @@ public class GetWirelessBroadbandReportQuery : IRequest<ApiResponse<WirelessBroa
     public Guid? MunicipalityId { get; set; }
     public Guid? ProvinceId { get; set; }
     public Guid? RegionId { get; set; }
+    public ReportFormat Format { get; set; } = ReportFormat.Excel;
 
     public GetWirelessBroadbandReportQuery() { }
+}
+
+public enum ReportFormat
+{
+    Excel,
+    Pdf
 }
