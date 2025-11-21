@@ -298,23 +298,57 @@ public class ConnectivityReportingService : IConnectivityReportingService
 
         if (municipalityId.HasValue)
         {
-            // Filter assessments by barangays in municipality using subquery
-            query = query.Where(a =>
-                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value && b.Id == a.LocationId).Any());
+            // Get barangay IDs first, then filter assessments
+            var barangayIdsInMunicipality = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value)
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            if (barangayIdsInMunicipality.Count > 0)
+            {
+                query = query.Where(a => barangayIdsInMunicipality.Contains(a.LocationId));
+            }
+            else
+            {
+                // No barangays found, return empty query
+                query = query.Where(a => false);
+            }
         }
         else if (provinceId.HasValue)
         {
-            // Get all barangays in province
-            // Filter assessments by barangays in province using subquery
-            query = query.Where(a =>
-                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value && b.Id == a.LocationId).Any());
+            // Get barangay IDs in province first, then filter assessments
+            var barangayIdsInProvince = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value)
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            if (barangayIdsInProvince.Count > 0)
+            {
+                query = query.Where(a => barangayIdsInProvince.Contains(a.LocationId));
+            }
+            else
+            {
+                // No barangays found, return empty query
+                query = query.Where(a => false);
+            }
         }
         else if (regionId.HasValue)
         {
-            // Get all barangays in region
-            // Filter assessments by barangays in region using subquery
-            query = query.Where(a =>
-                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value && b.Id == a.LocationId).Any());
+            // Get barangay IDs in region first, then filter assessments
+            var barangayIdsInRegion = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value)
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            if (barangayIdsInRegion.Count > 0)
+            {
+                query = query.Where(a => barangayIdsInRegion.Contains(a.LocationId));
+            }
+            else
+            {
+                // No barangays found, return empty query
+                query = query.Where(a => false);
+            }
         }
 
         return await _assessmentRepository.ToListAsync(query, cancellationToken);
