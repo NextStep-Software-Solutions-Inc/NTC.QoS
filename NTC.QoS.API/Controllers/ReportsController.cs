@@ -1,8 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NTC.QoS.Application.Features.Reports.Queries.GetWirelessBroadbandReport;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
+using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.API.Controllers;

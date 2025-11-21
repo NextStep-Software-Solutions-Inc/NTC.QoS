@@ -1,11 +1,12 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using NTC.QoS.Application.Features.Reports.Queries.GetWirelessBroadbandReport;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
+using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Report;
 using NTC.QoS.Infrastructure.Persistence;
+using NTC.QoS.Domain.Enums;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System.Drawing;
@@ -16,6 +17,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<GetWirelessBroadbandReportHandler> _logger;
+    private const int StartColumn = 3;
 
     public GetWirelessBroadbandReportHandler(
         ApplicationDbContext context,
@@ -34,7 +36,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             // 1. Determine Scope and Fetch Target Area
             string reportTitleName = "";
             NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
-            List<NTC.QoS.Domain.Entities.Barangay> barangays = new();
+            List<NTC.QoS.Domain.Entities.Barangay> barangays;
 
             if (request.MunicipalityId.HasValue)
             {
@@ -78,6 +80,13 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             }
 
             // 2. Prepare Data
+            // Fetch Providers for dynamic headers
+            var providers = await _context.Providers
+                .AsNoTracking()
+                .Where(p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
+                .OrderBy(p => p.Name)
+                .ToListAsync(cancellationToken);
+
             // Optimization: Fetch all data for the target area in bulk
             
             // Fetch all WirelessValidations for these barangays
@@ -149,9 +158,10 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 // Distinct
                 cellulars = cellulars.DistinctBy(c => new { c.ProviderName, c.GenerationName }).ToList();
 
-                entry.Globe = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Globe", StringComparison.OrdinalIgnoreCase)));
-                entry.Smart = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Smart", StringComparison.OrdinalIgnoreCase)));
-                entry.Dito = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains("Dito", StringComparison.OrdinalIgnoreCase)));
+                foreach (var provider in providers)
+                {
+                    entry.ProviderStats[provider.Name] = MapProviderStats(cellulars.Where(c => c.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase)));
+                }
 
                 reportData.Add(entry);
             }
@@ -169,12 +179,8 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             }
             allAreaData.AddRange(allValidations.Select(v => new CellularInfo { ProviderName = v.ProviderName, GenerationName = v.GenerationName }));
 
-            var globeGenerations = GetPresentGenerations(allAreaData, "Globe");
-            var smartGenerations = GetPresentGenerations(allAreaData, "Smart");
-            var ditoGenerations = GetPresentGenerations(allAreaData, "Dito");
-
             // --- Headers ---
-            int col = 3; // Start at C
+            int col = StartColumn;
 
             // Helper to draw provider section
             void DrawProviderSection(string providerName, string displayName, List<string> generations, Color color)
@@ -209,9 +215,29 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 col += 2;
             }
 
-            DrawProviderSection("Globe", "GLOBE COMMUNICATION, INC.", globeGenerations, Color.CornflowerBlue);
-            DrawProviderSection("Smart", "SMART COMMUNICATIONS, INC.", smartGenerations, Color.LightGreen);
-            DrawProviderSection("Dito", "DITO TELECOMMUNITY, INC.", ditoGenerations, Color.IndianRed);
+            // Dynamic Provider Sections
+            var providerGenerationsMap = new Dictionary<string, List<string>>();
+
+            foreach (var provider in providers)
+            {
+                var generations = GetPresentGenerations(allAreaData, provider.Name);
+                providerGenerationsMap[provider.Name] = generations;
+
+                Color color;
+                try
+                {
+                    // Try to parse color from DB, fallback if invalid
+                    color = !string.IsNullOrWhiteSpace(provider.Color) 
+                        ? ColorTranslator.FromHtml(provider.Color) 
+                        : Color.LightGray;
+                }
+                catch
+                {
+                    color = Color.LightGray;
+                }
+
+                DrawProviderSection(provider.Name, provider.Name.ToUpper(), generations, color);
+            }
 
             // Row 1: Title (Merge across all columns)
             int totalCols = col - 1;
@@ -250,34 +276,24 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 foreach (var item in group)
                 {
                     worksheet.Cells[row, 2].Value = item.BarangayName;
-                    int currentCol = 3;
+                    int currentCol = StartColumn;
 
-                    // Globe
-                    foreach (var gen in globeGenerations)
+                    // Dynamic Providers
+                    foreach (var provider in providers)
                     {
-                        if (HasGeneration(item.Globe, gen)) worksheet.Cells[row, currentCol].Value = "✓";
-                        currentCol++;
+                        if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                        {
+                            var stats = item.ProviderStats.ContainsKey(provider.Name) ? item.ProviderStats[provider.Name] : new ProviderWirelessStatsDto();
+                            
+                            foreach (var gen in generations)
+                            {
+                                if (HasGeneration(stats, gen)) worksheet.Cells[row, currentCol].Value = "✓";
+                                currentCol++;
+                            }
+                            worksheet.Cells[row, currentCol].Value = stats.TechUsed;
+                            currentCol += 3; // Skip Tech + Speedtest
+                        }
                     }
-                    worksheet.Cells[row, currentCol].Value = item.Globe.TechUsed;
-                    currentCol += 3; // Skip Tech + Speedtest
-
-                    // Smart
-                    foreach (var gen in smartGenerations)
-                    {
-                        if (HasGeneration(item.Smart, gen)) worksheet.Cells[row, currentCol].Value = "✓";
-                        currentCol++;
-                    }
-                    worksheet.Cells[row, currentCol].Value = item.Smart.TechUsed;
-                    currentCol += 3;
-
-                    // Dito
-                    foreach (var gen in ditoGenerations)
-                    {
-                        if (HasGeneration(item.Dito, gen)) worksheet.Cells[row, currentCol].Value = "✓";
-                        currentCol++;
-                    }
-                    worksheet.Cells[row, currentCol].Value = item.Dito.TechUsed;
-                    currentCol += 3;
 
                     row++;
                 }
@@ -313,7 +329,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             var result = new WirelessBroadbandReportResult
             {
                 FileContent = package.GetAsByteArray(),
-                FileName = $"{reportTitleName}_WirelessBroadbandReport_{DateTime.Now:yyyyMMdd}.xlsx"
+                FileName = $"{reportTitleName}_WirelessBroadbandReport_{DateTime.UtcNow:yyyyMMdd}.xlsx"
             };
 
             return new ApiResponse<WirelessBroadbandReportResult>(result);
@@ -335,13 +351,6 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         stats.Has4G = generations.Contains("4G") || generations.Contains("LTE");
         stats.Has5G = generations.Contains("5G");
 
-        // Determine "Tech Used" - simplistic logic: highest generation
-        if (stats.Has5G) stats.TechUsed = "5G";
-        else if (stats.Has4G) stats.TechUsed = "4G";
-        else if (stats.Has3G) stats.TechUsed = "3G";
-        else if (stats.Has2G) stats.TechUsed = "2G";
-        else stats.TechUsed = "-";
-        
         // User requested to leave Tech Used blank
         stats.TechUsed = "";
 

@@ -1,18 +1,10 @@
 namespace NTC.QoS.Domain.Models.DTOs.Report;
 
-public class WirelessBroadbandReportDto
-{
-    public string MunicipalityName { get; set; } = string.Empty;
-    public List<BarangayWirelessEntryDto> Barangays { get; set; } = new();
-}
-
 public class BarangayWirelessEntryDto
 {
     public string MunicipalityName { get; set; } = string.Empty;
     public string BarangayName { get; set; } = string.Empty;
-    public ProviderWirelessStatsDto Globe { get; set; } = new();
-    public ProviderWirelessStatsDto Smart { get; set; } = new();
-    public ProviderWirelessStatsDto Dito { get; set; } = new();
+    public Dictionary<string, ProviderWirelessStatsDto> ProviderStats { get; set; } = new();
 }
 
 public class ProviderWirelessStatsDto
