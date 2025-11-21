@@ -78,20 +78,23 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0)</param>
     /// <param name="reportTitle">Custom title for the report</param>
+    /// <param name="includeFullDetail">If true, includes all barangays (all statuses). If false (default), shows summary with served barangays only</param>
     /// <returns>PDF file download</returns>
     [HttpGet("wired-broadband/pdf")]
     public async Task<ActionResult> GetWiredBroadbandPdfReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
-        [FromQuery] ServiceStatusEnum? filterByStatus = null,
-        [FromQuery] string? reportTitle = null)
+        [FromQuery] string? reportTitle = null,
+        [FromQuery] bool includeFullDetail = false)
     {
+        // When includeFullDetail is false, automatically filter by Served status
+        ServiceStatusEnum? filterByStatus = includeFullDetail ? null : ServiceStatusEnum.Served;
+        
         var title = SanitizeReportTitle(reportTitle, "Wired Broadband Coverage Report");
         var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
-            regionId, provinceId, municipalityId, filterByStatus, title);
+            regionId, provinceId, municipalityId, filterByStatus, title, includeFullDetail);
 
         var fileName = await GenerateFileNameAsync("WiredBroadband", "pdf", regionId, provinceId, municipalityId);
         return File(pdfBytes, "application/pdf", fileName);

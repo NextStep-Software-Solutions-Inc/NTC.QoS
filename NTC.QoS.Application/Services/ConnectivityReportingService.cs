@@ -40,6 +40,7 @@ public interface IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeFullDetail = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -207,9 +208,10 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeFullDetail = false,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Generating wired broadband PDF report");
+        _logger.LogInformation("Generating wired broadband PDF report (FullDetail: {FullDetail})", includeFullDetail);
 
         // Use the MediatR handler for consistent data processing
         var query = new GetWiredBroadbandReportQuery
@@ -229,7 +231,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
         }
 
-        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, cancellationToken);
+        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, includeFullDetail, cancellationToken);
     }
 
     public async Task<byte[]> GenerateWiredBroadbandExcelAsync(
