@@ -89,7 +89,7 @@ public class ReportsController : ControllerBase
         [FromQuery] ServiceStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
-        var title = reportTitle ?? "Wired Broadband Coverage Report";
+        var title = SanitizeReportTitle(reportTitle, "Wired Broadband Coverage Report");
         var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
             regionId, provinceId, municipalityId, filterByStatus, title);
 
@@ -114,7 +114,7 @@ public class ReportsController : ControllerBase
         [FromQuery] ServiceStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
-        var title = reportTitle ?? "Wired Broadband Coverage Report";
+        var title = SanitizeReportTitle(reportTitle, "Wired Broadband Coverage Report");
         var excelBytes = await _connectivityReportingService.GenerateWiredBroadbandExcelAsync(
             regionId, provinceId, municipalityId, filterByStatus, title);
 
@@ -167,7 +167,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? provinceId = null,
         [FromQuery] string? reportTitle = null)
     {
-        var title = reportTitle ?? "Connectivity Gap Analysis Report";
+        var title = SanitizeReportTitle(reportTitle, "Connectivity Gap Analysis Report");
         var pdfBytes = await _connectivityReportingService.GenerateConnectivityGapPdfAsync(
             regionId, provinceId, title);
 
@@ -188,7 +188,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? provinceId = null,
         [FromQuery] string? reportTitle = null)
     {
-        var title = reportTitle ?? "Connectivity Gap Analysis Report";
+        var title = SanitizeReportTitle(reportTitle, "Connectivity Gap Analysis Report");
         var excelBytes = await _connectivityReportingService.GenerateConnectivityGapExcelAsync(
             regionId, provinceId, title);
 
@@ -250,6 +250,44 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
+    /// Sanitize and validate report title from user input
+    /// </summary>
+    private static string SanitizeReportTitle(string? title, string defaultTitle)
+    {
+        // Use default if null or whitespace
+        if (string.IsNullOrWhiteSpace(title))
+            return defaultTitle;
+        
+        // Trim and limit length to prevent excessively long titles
+        var sanitized = title.Trim();
+        if (sanitized.Length > 100)
+        {
+            sanitized = sanitized[..100];
+        }
+        
+        // Remove or replace potentially dangerous characters
+        // Allow alphanumeric, spaces, hyphens, parentheses, and basic punctuation
+        var allowedChars = sanitized.Where(c => 
+            char.IsLetterOrDigit(c) || 
+            char.IsWhiteSpace(c) || 
+            c == '-' || c == '_' || c == '(' || c == ')' || 
+            c == '.' || c == ',' || c == ':');
+        
+        sanitized = new string(allowedChars.ToArray());
+        
+        // Remove excessive whitespace
+        while (sanitized.Contains("  "))
+        {
+            sanitized = sanitized.Replace("  ", " ");
+        }
+        
+        sanitized = sanitized.Trim();
+        
+        // Return default if sanitization results in empty string
+        return string.IsNullOrWhiteSpace(sanitized) ? defaultTitle : sanitized;
+    }
+
+    /// <summary>
     /// Sanitize a location name to make it safe for use in filenames
     /// </summary>
     private static string SanitizeFileName(string name)
@@ -273,13 +311,23 @@ public class ReportsController : ControllerBase
             sanitized = sanitized.Replace("__", "_");
         }
         
-        // Trim underscores from start and end
-        sanitized = sanitized.Trim('_');
+        // Trim underscores and dots from start and end (prevents hidden files and relative paths)
+        sanitized = sanitized.Trim('_', '.');
+        
+        // Check for Windows reserved names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+        var reservedNames = new[] { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", 
+                                     "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", 
+                                     "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+        
+        if (reservedNames.Contains(sanitized.ToUpperInvariant()))
+        {
+            sanitized = $"{sanitized}_file";
+        }
         
         // Limit length to prevent excessively long filenames
         if (sanitized.Length > 50)
         {
-            sanitized = sanitized[..50].TrimEnd('_');
+            sanitized = sanitized[..50].TrimEnd('_', '.');
         }
         
         return string.IsNullOrEmpty(sanitized) ? "Unknown" : sanitized;

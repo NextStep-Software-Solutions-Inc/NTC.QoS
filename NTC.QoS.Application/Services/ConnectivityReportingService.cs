@@ -296,27 +296,23 @@ public class ConnectivityReportingService : IConnectivityReportingService
 
         if (municipalityId.HasValue)
         {
-            // Get all barangays in municipality
-            var barangayIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value).Select(b => b.Id), 
-                cancellationToken);
-            query = query.Where(a => barangayIds.Contains(a.LocationId));
+            // Filter assessments by barangays in municipality using subquery
+            query = query.Where(a =>
+                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value && b.Id == a.LocationId).Any());
         }
         else if (provinceId.HasValue)
         {
             // Get all barangays in province
-            var barangayIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value).Select(b => b.Id),
-                cancellationToken);
-            query = query.Where(a => barangayIds.Contains(a.LocationId));
+            // Filter assessments by barangays in province using subquery
+            query = query.Where(a =>
+                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value && b.Id == a.LocationId).Any());
         }
         else if (regionId.HasValue)
         {
             // Get all barangays in region
-            var barangayIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value).Select(b => b.Id),
-                cancellationToken);
-            query = query.Where(a => barangayIds.Contains(a.LocationId));
+            // Filter assessments by barangays in region using subquery
+            query = query.Where(a =>
+                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value && b.Id == a.LocationId).Any());
         }
 
         return await _assessmentRepository.ToListAsync(query, cancellationToken);
@@ -367,12 +363,9 @@ public class ConnectivityReportingService : IConnectivityReportingService
         // Extract ALL provider information from the assessment's Providers collection
         if (assessment.Providers != null && assessment.Providers.Any())
         {
-            foreach (var provider in assessment.Providers)
+            foreach (var provider in assessment.Providers.Where(p => !string.IsNullOrEmpty(p.ProviderName) && p.TotalAssetCount > 0))
             {
-                if (!string.IsNullOrEmpty(provider.ProviderName) && provider.TotalAssetCount > 0)
-                {
-                    providers.Providers[provider.ProviderName] = true;
-                }
+                providers.Providers[provider.ProviderName] = true;
             }
         }
         // Fallback: If Providers collection is empty but DominantServiceProvider is set
@@ -425,8 +418,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
         var providerCoverage = new Dictionary<string, int>();
         foreach (var provider in allProviders)
         {
-            var coverageCount = allBarangays.Count(b => b.ProviderAvailability.Providers.ContainsKey(provider) && 
-                                                      b.ProviderAvailability.Providers[provider]);
+            var coverageCount = allBarangays.Count(b => 
+                b.ProviderAvailability.Providers.TryGetValue(provider, out var isAvailable) && isAvailable);
             providerCoverage[provider] = coverageCount;
         }
 

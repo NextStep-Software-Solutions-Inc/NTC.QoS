@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Reports;
-using System.Text;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace NTC.QoS.Infrastructure.Services;
 
@@ -28,11 +30,31 @@ public class ReportGenerationService : IReportGenerationService
     {
         _logger.LogInformation("Generating PDF report: {ReportTitle}", reportTitle);
 
-        var html = GenerateWiredBroadbandHtml(reportData, reportTitle);
-        
-        var renderer = new ChromePdfRenderer();
-        var pdfDocument = await Task.Run(() => renderer.RenderHtmlAsPdf(html), cancellationToken);
-        var pdfBytes = pdfDocument.BinaryData;
+        // Configure QuestPDF license (Community license is free for open source/non-commercial)
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(1, Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(10));
+
+                page.Header().Element(c => ComposeWiredBroadbandHeader(c, reportTitle, reportData.Summary.GeneratedAt));
+                page.Content().Element(c => ComposeWiredBroadbandContent(c, reportData));
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("Page ");
+                    x.CurrentPageNumber();
+                    x.Span(" of ");
+                    x.TotalPages();
+                });
+            });
+        });
+
+        var pdfBytes = await Task.Run(() => document.GeneratePdf(), cancellationToken);
 
         _logger.LogInformation("PDF report generated successfully. Size: {FileSize} bytes", pdfBytes.Length);
         return pdfBytes;
@@ -62,7 +84,6 @@ public class ReportGenerationService : IReportGenerationService
 
         _logger.LogInformation("Excel report generated successfully. Size: {FileSize} bytes", excelBytes.Length);
         
-        await Task.CompletedTask;
         return excelBytes;
     }
 
@@ -73,11 +94,30 @@ public class ReportGenerationService : IReportGenerationService
     {
         _logger.LogInformation("Generating connectivity gap PDF report: {ReportTitle}", reportTitle);
 
-        var html = GenerateConnectivityGapHtml(reportData, reportTitle);
-        
-        var renderer = new ChromePdfRenderer();
-        var pdfDocument = await Task.Run(() => renderer.RenderHtmlAsPdf(html), cancellationToken);
-        var pdfBytes = pdfDocument.BinaryData;
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(1, Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(10));
+
+                page.Header().Element(c => ComposeConnectivityGapHeader(c, reportTitle, reportData.GeneratedAt));
+                page.Content().Element(c => ComposeConnectivityGapContent(c, reportData));
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("Page ");
+                    x.CurrentPageNumber();
+                    x.Span(" of ");
+                    x.TotalPages();
+                });
+            });
+        });
+
+        var pdfBytes = await Task.Run(() => document.GeneratePdf(), cancellationToken);
 
         _logger.LogInformation("Connectivity gap PDF report generated successfully. Size: {FileSize} bytes", pdfBytes.Length);
         return pdfBytes;
@@ -104,317 +144,232 @@ public class ReportGenerationService : IReportGenerationService
 
         _logger.LogInformation("Connectivity gap Excel report generated successfully. Size: {FileSize} bytes", excelBytes.Length);
         
-        await Task.CompletedTask;
         return excelBytes;
     }
 
-    #region Private HTML Generation Methods
+    #region Private QuestPDF Composition Methods
 
-    private string GenerateWiredBroadbandHtml(WiredBroadbandReportDto reportData, string reportTitle)
+    private void ComposeWiredBroadbandHeader(IContainer container, string reportTitle, DateTime generatedAt)
     {
-        var html = new StringBuilder();
-        
-        html.AppendLine("<!DOCTYPE html>");
-        html.AppendLine("<html>");
-        html.AppendLine("<head>");
-        html.AppendLine("<meta charset='utf-8'>");
-        html.AppendLine($"<title>{reportTitle}</title>");
-        html.AppendLine(GetReportStyles());
-        html.AppendLine("</head>");
-        html.AppendLine("<body>");
-        
-        // Header
-        html.AppendLine("<div class='header'>");
-        html.AppendLine("<div class='logo-section'>");
-        html.AppendLine("<h1>NATIONAL TELECOMMUNICATIONS COMMISSION</h1>");
-        html.AppendLine("<h2>Quality of Service Management System</h2>");
-        html.AppendLine("</div>");
-        html.AppendLine("</div>");
-        
-        // Report Title and Summary
-        html.AppendLine($"<h1 class='report-title'>{reportTitle}</h1>");
-        html.AppendLine($"<p class='generation-date'>Generated: {reportData.Summary.GeneratedAt:MMMM dd, yyyy 'at' h:mm tt}</p>");
-        
-        // Executive Summary
-        html.AppendLine("<div class='summary-section'>");
-        html.AppendLine("<h2>Executive Summary</h2>");
-        html.AppendLine("<div class='summary-grid'>");
-        html.AppendLine($"<div class='summary-card'><h3>{reportData.Summary.TotalMunicipalities}</h3><p>Municipalities</p></div>");
-        html.AppendLine($"<div class='summary-card'><h3>{reportData.Summary.TotalBarangays}</h3><p>Total Barangays</p></div>");
-        html.AppendLine($"<div class='summary-card served'><h3>{reportData.Summary.ServedBarangays} ({reportData.Summary.ServedPercentage:F1}%)</h3><p>Served</p></div>");
-        html.AppendLine($"<div class='summary-card underserved'><h3>{reportData.Summary.UnderservedBarangays} ({reportData.Summary.UnderservedPercentage:F1}%)</h3><p>Underserved</p></div>");
-        html.AppendLine($"<div class='summary-card unserved'><h3>{reportData.Summary.UnservedBarangays} ({reportData.Summary.UnservedPercentage:F1}%)</h3><p>Unserved</p></div>");
-        html.AppendLine("</div>");
-        html.AppendLine("</div>");
-
-        // Provider Coverage Summary
-        if (reportData.Summary.AllProviders.Count > 0)
+        container.Column(column =>
         {
-            html.AppendLine("<div class='provider-section'>");
-            html.AppendLine("<h2>Provider Coverage Summary</h2>");
-            html.AppendLine("<table class='provider-table'>");
-            html.AppendLine("<thead><tr><th>Service Provider</th><th>Barangays Covered</th><th>Coverage %</th></tr></thead>");
-            html.AppendLine("<tbody>");
-            
-            foreach (var provider in reportData.Summary.AllProviders.Take(10)) // Top 10 providers
+            column.Item().BorderBottom(2).BorderColor(Colors.Grey.Darken2).PaddingBottom(10).Column(headerColumn =>
             {
-                var coverage = reportData.Summary.ProviderCoverage.GetValueOrDefault(provider, 0);
-                var percentage = reportData.Summary.TotalBarangays > 0 ? (double)coverage / reportData.Summary.TotalBarangays * 100 : 0;
-                html.AppendLine($"<tr><td>{provider}</td><td>{coverage}</td><td>{percentage:F1}%</td></tr>");
-            }
-            
-            html.AppendLine("</tbody></table>");
-            html.AppendLine("</div>");
-        }
+                headerColumn.Item().AlignCenter().Text("NATIONAL TELECOMMUNICATIONS COMMISSION")
+                    .FontSize(16).Bold().FontColor(Colors.Grey.Darken3);
+                headerColumn.Item().AlignCenter().Text("Quality of Service Management System")
+                    .FontSize(12).FontColor(Colors.Grey.Darken1);
+            });
 
-        // Detailed Municipality Data (First page sample)
-        html.AppendLine("<div class='details-section'>");
-        html.AppendLine("<h2>Municipality Breakdown (Sample - Top 10)</h2>");
-        html.AppendLine("<table class='municipality-table'>");
-        html.AppendLine("<thead>");
-        html.AppendLine("<tr>");
-        html.AppendLine("<th rowspan='2'>Municipality</th>");
-        html.AppendLine("<th colspan='6'>WIRED BROADBAND</th>");
-        html.AppendLine("<th rowspan='2'>Remarks</th>");
-        html.AppendLine("</tr>");
-        html.AppendLine("<tr>");
-        html.AppendLine("<th style='background-color: #FF6B6B;'>PLDT</th>");
-        html.AppendLine("<th style='background-color: #4ECDC4;'>GLOBE</th>");
-        html.AppendLine("<th style='background-color: #45B7D1;'>CONVERGE</th>");
-        html.AppendLine("<th style='background-color: #96CEB4;'>PARASAT</th>");
-        html.AppendLine("<th style='background-color: #FFEAA7;'>DCTECH</th>");
-        html.AppendLine("<th style='background-color: #DDA0DD;'>OTHERS</th>");
-        html.AppendLine("</tr>");
-        html.AppendLine("</thead>");
-        html.AppendLine("<tbody>");
-
-        foreach (var municipality in reportData.Municipalities.Take(10))
-        {
-            foreach (var barangay in municipality.Barangays.Take(5)) // Show first 5 barangays per municipality
-            {
-                var providers = barangay.ProviderAvailability.Providers;
-                var statusClass = GetStatusClass(barangay.ServiceStatus);
-                
-                html.AppendLine("<tr>");
-                html.AppendLine($"<td>{municipality.Name} - {barangay.Name}</td>");
-                html.AppendLine($"<td class='provider-cell'>{(providers.GetValueOrDefault("PLDT", false) ? "?" : "")}</td>");
-                html.AppendLine($"<td class='provider-cell'>{(providers.GetValueOrDefault("GLOBE", false) ? "?" : "")}</td>");
-                html.AppendLine($"<td class='provider-cell'>{(providers.GetValueOrDefault("CONVERGE", false) ? "?" : "")}</td>");
-                html.AppendLine($"<td class='provider-cell'>{(providers.GetValueOrDefault("PARASAT", false) ? "?" : "")}</td>");
-                html.AppendLine($"<td class='provider-cell'>{(providers.GetValueOrDefault("DCTECH", false) ? "?" : "")}</td>");
-                html.AppendLine($"<td class='provider-cell'>{(barangay.ProviderAvailability.AvailableProviders.Any(p => !new[] { "PLDT", "GLOBE", "CONVERGE", "PARASAT", "DCTECH" }.Contains(p)) ? "?" : "")}</td>");
-                html.AppendLine($"<td class='{statusClass}'>{barangay.ServiceStatus.ToString().ToUpper()}</td>");
-                html.AppendLine("</tr>");
-            }
-        }
-
-        html.AppendLine("</tbody></table>");
-        html.AppendLine("<p><em>Note: This table shows a sample of the data. Complete report available in Excel format.</em></p>");
-        html.AppendLine("</div>");
-
-        html.AppendLine("</body>");
-        html.AppendLine("</html>");
-        
-        return html.ToString();
+            column.Item().PaddingTop(10).PaddingBottom(5).AlignCenter().Text(reportTitle)
+                .FontSize(14).Bold().FontColor(Colors.Grey.Darken3);
+            column.Item().AlignCenter().Text($"Generated: {generatedAt:MMMM dd, yyyy 'at' h:mm tt}")
+                .FontSize(9).FontColor(Colors.Grey.Medium);
+        });
     }
 
-    private string GenerateConnectivityGapHtml(ConnectivityGapReportDto reportData, string reportTitle)
+    private void ComposeWiredBroadbandContent(IContainer container, WiredBroadbandReportDto reportData)
     {
-        var html = new StringBuilder();
-        
-        html.AppendLine("<!DOCTYPE html>");
-        html.AppendLine("<html>");
-        html.AppendLine("<head>");
-        html.AppendLine("<meta charset='utf-8'>");
-        html.AppendLine($"<title>{reportTitle}</title>");
-        html.AppendLine(GetReportStyles());
-        html.AppendLine("</head>");
-        html.AppendLine("<body>");
-        
-        // Header
-        html.AppendLine("<div class='header'>");
-        html.AppendLine("<div class='logo-section'>");
-        html.AppendLine("<h1>NATIONAL TELECOMMUNICATIONS COMMISSION</h1>");
-        html.AppendLine("<h2>Quality of Service Management System</h2>");
-        html.AppendLine("</div>");
-        html.AppendLine("</div>");
-        
-        html.AppendLine($"<h1 class='report-title'>{reportTitle}</h1>");
-        html.AppendLine($"<p class='generation-date'>Generated: {reportData.GeneratedAt:MMMM dd, yyyy 'at' h:mm tt}</p>");
-        
-        // Gap Analysis Summary
-        html.AppendLine("<div class='gap-summary-section'>");
-        html.AppendLine("<h2>Connectivity Gap Overview</h2>");
-        html.AppendLine("<div class='gap-grid'>");
-        html.AppendLine($"<div class='gap-card unserved'><h3>{reportData.TotalUnservedAreas}</h3><p>Unserved Areas</p></div>");
-        html.AppendLine($"<div class='gap-card underserved'><h3>{reportData.TotalUnderservedAreas}</h3><p>Underserved Areas</p></div>");
-        html.AppendLine($"<div class='gap-card population'><h3>{reportData.UnservedPopulation:N0}</h3><p>Unserved Population</p></div>");
-        html.AppendLine($"<div class='gap-card population'><h3>{reportData.UnderservedPopulation:N0}</h3><p>Underserved Population</p></div>");
-        html.AppendLine("</div>");
-        html.AppendLine("</div>");
-
-        // Priority Areas
-        if (reportData.PriorityAreas.Count > 0)
+        container.PaddingVertical(10).Column(column =>
         {
-            html.AppendLine("<div class='priority-section'>");
-            html.AppendLine("<h2>Priority Areas for Intervention</h2>");
-            html.AppendLine("<table class='priority-table'>");
-            html.AppendLine("<thead><tr><th>Area</th><th>Status</th><th>Population</th><th>Score</th><th>Last Assessed</th></tr></thead>");
-            html.AppendLine("<tbody>");
-            
-            foreach (var area in reportData.PriorityAreas)
+            // Executive Summary
+            column.Item().Text("Executive Summary").FontSize(12).Bold();
+            column.Item().PaddingTop(5).Row(row =>
             {
-                var statusClass = GetConnectivityStatusClass(area.ConnectivityStatus);
-                html.AppendLine("<tr>");
-                html.AppendLine($"<td>{area.LocationName}</td>");
-                html.AppendLine($"<td class='{statusClass}'>{area.ConnectivityStatus}</td>");
-                html.AppendLine($"<td>{area.Population:N0}</td>");
-                html.AppendLine($"<td>{area.TotalScore}</td>");
-                html.AppendLine($"<td>{area.LastAssessed:MMM dd, yyyy}</td>");
-                html.AppendLine("</tr>");
-            }
-            
-            html.AppendLine("</tbody></table>");
-            html.AppendLine("</div>");
-        }
+                row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text(reportData.Summary.TotalMunicipalities.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Municipalities").FontSize(8);
+                });
+                row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text(reportData.Summary.TotalBarangays.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Total Barangays").FontSize(8);
+                });
+                row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Green.Lighten3).Background(Colors.Green.Lighten4).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text($"{reportData.Summary.ServedBarangays} ({reportData.Summary.ServedPercentage:F1}%)").FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Served").FontSize(8);
+                });
+                row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Orange.Lighten2).Background(Colors.Orange.Lighten4).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text($"{reportData.Summary.UnderservedBarangays} ({reportData.Summary.UnderservedPercentage:F1}%)").FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Underserved").FontSize(8);
+                });
+                row.AutoItem().Border(1).BorderColor(Colors.Red.Lighten2).Background(Colors.Red.Lighten4).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text($"{reportData.Summary.UnservedBarangays} ({reportData.Summary.UnservedPercentage:F1}%)").FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Unserved").FontSize(8);
+                });
+            });
 
-        html.AppendLine("</body>");
-        html.AppendLine("</html>");
-        
-        return html.ToString();
+            // Provider Coverage Summary
+            if (reportData.Summary.AllProviders.Count > 0)
+            {
+                column.Item().PaddingTop(15).Text("Provider Coverage Summary").FontSize(12).Bold();
+                column.Item().PaddingTop(5).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(3);
+                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(2);
+                    });
+
+                    table.Header(header =>
+                    {
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Service Provider").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Barangays Covered").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Coverage %").Bold();
+                    });
+
+                    foreach (var provider in reportData.Summary.AllProviders.Take(10))
+                    {
+                        var coverage = reportData.Summary.ProviderCoverage.GetValueOrDefault(provider, 0);
+                        var percentage = reportData.Summary.TotalBarangays > 0 ? (double)coverage / reportData.Summary.TotalBarangays * 100 : 0;
+
+                        table.Cell().Border(1).Padding(5).Text(provider);
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(coverage.ToString());
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text($"{percentage:F1}%");
+                    }
+                });
+            }
+
+            // Sample Data Note
+            column.Item().PaddingTop(15).Text("Municipality Breakdown (Sample - Top 10 Municipalities)")
+                .FontSize(12).Bold();
+            column.Item().PaddingTop(5).Text("Note: This PDF shows a sample of the data. Complete detailed report is available in Excel format.")
+                .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
+
+            // Municipality Sample Table
+            column.Item().PaddingTop(5).Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.RelativeColumn(4);
+                    columns.RelativeColumn(3);
+                    columns.RelativeColumn(2);
+                });
+
+                table.Header(header =>
+                {
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Location").Bold();
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Providers").Bold();
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Status").Bold();
+                });
+
+                foreach (var municipality in reportData.Municipalities.Take(10))
+                {
+                    foreach (var barangay in municipality.Barangays.Take(5))
+                    {
+                        var providersText = string.Join(", ", barangay.ProviderAvailability.AvailableProviders);
+                        var statusColor = barangay.ServiceStatus switch
+                        {
+                            ServiceStatusEnum.Served => Colors.Green.Lighten4,
+                            ServiceStatusEnum.Underserved => Colors.Orange.Lighten4,
+                            _ => Colors.Red.Lighten4
+                        };
+
+                        table.Cell().Border(1).Padding(5).Text($"{municipality.Name} - {barangay.Name}").FontSize(8);
+                        table.Cell().Border(1).Padding(5).Text(providersText).FontSize(7);
+                        table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(barangay.ServiceStatus.ToString().ToUpper()).FontSize(8).Bold();
+                    }
+                }
+            });
+        });
     }
 
-    private string GetReportStyles()
+    private void ComposeConnectivityGapHeader(IContainer container, string reportTitle, DateTime generatedAt)
     {
-        return @"
-        <style>
-            body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                margin: 0; 
-                padding: 20px; 
-                font-size: 12px; 
-                line-height: 1.4; 
+        container.Column(column =>
+        {
+            column.Item().BorderBottom(2).BorderColor(Colors.Grey.Darken2).PaddingBottom(10).Column(headerColumn =>
+            {
+                headerColumn.Item().AlignCenter().Text("NATIONAL TELECOMMUNICATIONS COMMISSION")
+                    .FontSize(16).Bold().FontColor(Colors.Grey.Darken3);
+                headerColumn.Item().AlignCenter().Text("Quality of Service Management System")
+                    .FontSize(12).FontColor(Colors.Grey.Darken1);
+            });
+
+            column.Item().PaddingTop(10).PaddingBottom(5).AlignCenter().Text(reportTitle)
+                .FontSize(14).Bold().FontColor(Colors.Grey.Darken3);
+            column.Item().AlignCenter().Text($"Generated: {generatedAt:MMMM dd, yyyy 'at' h:mm tt}")
+                .FontSize(9).FontColor(Colors.Grey.Medium);
+        });
+    }
+
+    private void ComposeConnectivityGapContent(IContainer container, ConnectivityGapReportDto reportData)
+    {
+        container.PaddingVertical(10).Column(column =>
+        {
+            // Gap Overview
+            column.Item().Text("Connectivity Gap Overview").FontSize(12).Bold();
+            column.Item().PaddingTop(5).Row(row =>
+            {
+                row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Red.Lighten2).Background(Colors.Red.Lighten4).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text(reportData.TotalUnservedAreas.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Unserved Areas").FontSize(8);
+                });
+                row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Orange.Lighten2).Background(Colors.Orange.Lighten4).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text(reportData.TotalUnderservedAreas.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Underserved Areas").FontSize(8);
+                });
+                row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Blue.Lighten2).Background(Colors.Blue.Lighten4).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text(reportData.UnservedPopulation.ToString("N0")).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Unserved Population").FontSize(8);
+                });
+                row.AutoItem().Border(1).BorderColor(Colors.Blue.Lighten2).Background(Colors.Blue.Lighten4).Padding(8).Column(col =>
+                {
+                    col.Item().AlignCenter().Text(reportData.UnderservedPopulation.ToString("N0")).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text("Underserved Population").FontSize(8);
+                });
+            });
+
+            // Priority Areas
+            if (reportData.PriorityAreas.Count > 0)
+            {
+                column.Item().PaddingTop(15).Text("Priority Areas for Intervention").FontSize(12).Bold();
+                column.Item().PaddingTop(5).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(3);
+                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(1);
+                        columns.RelativeColumn(2);
+                    });
+
+                    table.Header(header =>
+                    {
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Area").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Status").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Population").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Score").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Last Assessed").Bold();
+                    });
+
+                    foreach (var area in reportData.PriorityAreas)
+                    {
+                        var statusColor = area.ConnectivityStatus switch
+                        {
+                            NTC.QoS.Domain.Enums.ConnectivityStatusEnum.Underserved => Colors.Orange.Lighten4,
+                            NTC.QoS.Domain.Enums.ConnectivityStatusEnum.Unserved => Colors.Red.Lighten4,
+                            _ => Colors.Grey.Lighten4
+                        };
+
+                        table.Cell().Border(1).Padding(5).Text(area.LocationName).FontSize(8);
+                        table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(area.ConnectivityStatus.ToString()).FontSize(8);
+                        table.Cell().Border(1).Padding(5).AlignRight().Text((area.Population ?? 0).ToString("N0")).FontSize(8);
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(area.TotalScore.ToString()).FontSize(8);
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(area.LastAssessed.ToString("MMM dd, yyyy")).FontSize(8);
+                    }
+                });
             }
-            .header { 
-                text-align: center; 
-                border-bottom: 3px solid #2c3e50; 
-                padding-bottom: 20px; 
-                margin-bottom: 30px; 
-            }
-            .header h1 { 
-                color: #2c3e50; 
-                font-size: 24px; 
-                margin: 0; 
-            }
-            .header h2 { 
-                color: #34495e; 
-                font-size: 16px; 
-                margin: 5px 0; 
-            }
-            .report-title { 
-                color: #2c3e50; 
-                text-align: center; 
-                font-size: 20px; 
-                margin: 20px 0; 
-            }
-            .generation-date { 
-                text-align: center; 
-                color: #7f8c8d; 
-                margin-bottom: 30px; 
-            }
-            .summary-grid, .gap-grid { 
-                display: flex; 
-                justify-content: space-around; 
-                margin: 20px 0; 
-                flex-wrap: wrap; 
-            }
-            .summary-card, .gap-card { 
-                border: 1px solid #ddd; 
-                border-radius: 8px; 
-                padding: 15px; 
-                text-align: center; 
-                min-width: 120px; 
-                margin: 5px; 
-            }
-            .summary-card h3, .gap-card h3 { 
-                font-size: 18px; 
-                margin: 0; 
-                color: #2c3e50; 
-            }
-            .summary-card.served { 
-                background-color: #d5f4e6; 
-                border-color: #27ae60; 
-            }
-            .summary-card.underserved { 
-                background-color: #fdf2e1; 
-                border-color: #f39c12; 
-            }
-            .summary-card.unserved { 
-                background-color: #fadbd8; 
-                border-color: #e74c3c; 
-            }
-            .gap-card.population { 
-                background-color: #eaf2ff; 
-                border-color: #3498db; 
-            }
-            table { 
-                width: 100%; 
-                border-collapse: collapse; 
-                margin: 20px 0; 
-                font-size: 11px; 
-            }
-            th, td { 
-                border: 1px solid #ddd; 
-                padding: 8px; 
-                text-align: center; 
-            }
-            th { 
-                background-color: #f8f9fa; 
-                font-weight: bold; 
-                color: #2c3e50; 
-            }
-            .provider-cell { 
-                font-size: 14px; 
-                font-weight: bold; 
-                color: #27ae60; 
-            }
-            .served { 
-                background-color: #d5f4e6; 
-                color: #27ae60; 
-                font-weight: bold; 
-            }
-            .underserved { 
-                background-color: #fdf2e1; 
-                color: #f39c12; 
-                font-weight: bold; 
-            }
-            .unserved { 
-                background-color: #fadbd8; 
-                color: #e74c3c; 
-                font-weight: bold; 
-            }
-            .municipality-table th { 
-                font-size: 10px; 
-            }
-            .municipality-table td { 
-                font-size: 10px; 
-            }
-            .section { 
-                margin: 30px 0; 
-            }
-            @media print {
-                body { 
-                    font-size: 10px; 
-                }
-                .summary-grid, .gap-grid { 
-                    display: block; 
-                }
-                .summary-card, .gap-card { 
-                    display: inline-block; 
-                    width: 18%; 
-                }
-            }
-        </style>";
+        });
     }
 
     #endregion
@@ -460,6 +415,12 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.ColumnsUsed().AdjustToContents();
     }
 
+    /// <summary>  
+    /// Creates the detailed data worksheet in the Excel workbook.  
+    /// </summary>  
+    /// <param name="workbook">The Excel workbook to add the worksheet to.</param>  
+    /// <param name="reportData">The report data to populate the worksheet.</param>  
+    /// <param name="cancellationToken">Cancellation token</param>  
     private async Task CreateDetailedDataWorksheetAsync(XLWorkbook workbook, WiredBroadbandReportDto reportData, CancellationToken cancellationToken = default)
     {
         var worksheet = workbook.Worksheets.Add("Detailed Data");
@@ -469,21 +430,20 @@ public class ReportGenerationService : IReportGenerationService
         // AllProviders may include providers with zero coverage
         var providerHeaders = reportData.Summary.ProviderCoverage.Keys.OrderBy(p => p).ToArray();
      
-        _logger.LogWarning("EXCEL GENERATION - Using ProviderCoverage.Keys for columns");
-        _logger.LogWarning("EXCEL GENERATION - Provider count: {Count}", providerHeaders.Length);
-        _logger.LogWarning("EXCEL GENERATION - Providers: {Providers}", string.Join(", ", providerHeaders));
-        _logger.LogWarning("EXCEL GENERATION - AllProviders list (should be longer): {AllProviders}", 
+        _logger.LogInformation("EXCEL GENERATION - Using ProviderCoverage.Keys for columns");
+        _logger.LogInformation("EXCEL GENERATION - Provider count: {Count}", providerHeaders.Length);
+        _logger.LogInformation("EXCEL GENERATION - Providers: {Providers}", string.Join(", ", providerHeaders));
+        _logger.LogInformation("EXCEL GENERATION - AllProviders list (should be longer): {AllProviders}", 
             string.Join(", ", reportData.Summary.AllProviders));
-        _logger.LogWarning("EXCEL GENERATION - ProviderCoverage dictionary:");
+        _logger.LogInformation("EXCEL GENERATION - ProviderCoverage dictionary:");
         foreach (var kvp in reportData.Summary.ProviderCoverage.OrderBy(p => p.Key))
         {
-            _logger.LogWarning("  - {Provider}: {Coverage} barangays", kvp.Key, kvp.Value);
+            _logger.LogInformation("  - {Provider}: {Coverage} barangays", kvp.Key, kvp.Value);
         }
 
         // Fetch provider colors from database
         var providerColors = await FetchProviderColorsAsync(providerHeaders, cancellationToken);
  
-        int currentRow = 1;
         var wiredBroadbandStartCol = 3;
         var wiredBroadbandEndCol = 2 + providerHeaders.Length;
         var connectivityStatusCol = wiredBroadbandEndCol + 1;
@@ -559,7 +519,7 @@ public class ReportGenerationService : IReportGenerationService
             cell.Style.Fill.BackgroundColor = XLColor.LightGray;
         }
         
-        currentRow = 4; // Data starts from row 4
+        int currentRow = 4; // Data starts from row 4
      
         // Data rows with merged municipality cells
         foreach (var municipality in reportData.Municipalities)
@@ -663,7 +623,7 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Column(connectivityStatusCol).Width = 20; // Connectivity Status
         worksheet.Column(remarksCol).Width = 40; // Remarks - wider for text content
   
- // Freeze first 3 rows (headers) and first 2 columns
+    // Freeze first 3 rows (headers) and first 2 columns
     worksheet.SheetView.FreezeRows(3);
     worksheet.SheetView.FreezeColumns(2);
     }
@@ -810,47 +770,47 @@ public class ReportGenerationService : IReportGenerationService
 
         try
         {
-        // Fetch ONLY providers that are in the provider names list (from ProviderCoverage)
-         // This ensures we don't fetch providers with zero coverage
- var providersQuery = _providerRepository.Query(p => providerNames.Contains(p.Name));
-       var providers = await providersQuery.ToListAsync(cancellationToken);
+            // Fetch ONLY providers that are in the provider names list (from ProviderCoverage)
+            // This ensures we don't fetch providers with zero coverage
+            var providersQuery = _providerRepository.Query(p => providerNames.Contains(p.Name));
+            var providers = await providersQuery.ToListAsync(cancellationToken);
 
             _logger.LogInformation("Fetched {Count} provider colors from database for providers: {Providers}", 
-          providers.Count, string.Join(", ", providerNames));
+                providers.Count, string.Join(", ", providerNames));
 
-          foreach (var provider in providers)
-    {
-  if (!string.IsNullOrWhiteSpace(provider.Color))
-      {
-          try
-      {
-      var xlColor = ParseHexToXLColor(provider.Color);
-            providerColors[provider.Name] = xlColor;
-        _logger.LogDebug("Provider '{Provider}' color: {Color}", provider.Name, provider.Color);
-   }
-  catch (Exception ex)
-       {
-      _logger.LogWarning(ex,
-     "Failed to parse color '{Color}' for provider '{Provider}'. Using default gray.",
-            provider.Color, provider.Name);
-               providerColors[provider.Name] = XLColor.LightGray;
-    }
-        }
-    else
-    {
-      _logger.LogDebug("Provider '{Provider}' has no color defined, using gray", provider.Name);
-      providerColors[provider.Name] = XLColor.LightGray;
-   }
-       }
+            foreach (var provider in providers)
+            {
+                if (!string.IsNullOrWhiteSpace(provider.Color))
+                {
+                    try
+                    {
+                        var xlColor = ParseHexToXLColor(provider.Color);
+                        providerColors[provider.Name] = xlColor;
+                        _logger.LogDebug("Provider '{Provider}' color: {Color}", provider.Name, provider.Color);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to parse color '{Color}' for provider '{Provider}'. Using default gray.",
+                            provider.Color, provider.Name);
+                        providerColors[provider.Name] = XLColor.LightGray;
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug("Provider '{Provider}' has no color defined, using gray", provider.Name);
+                    providerColors[provider.Name] = XLColor.LightGray;
+                }
+            }
 
-    _logger.LogInformation("Successfully loaded colors for {Count} providers from database", providerColors.Count);
+            _logger.LogInformation("Successfully loaded colors for {Count} providers from database", providerColors.Count);
         }
-     catch (Exception ex)
-      {
+        catch (Exception ex)
+        {
           _logger.LogError(ex, "Error fetching provider colors from database. Using default colors.");
         }
 
-  return providerColors;
+        return providerColors;
     }
 
     /// <summary>

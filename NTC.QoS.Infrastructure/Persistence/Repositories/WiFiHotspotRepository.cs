@@ -27,21 +27,22 @@ internal sealed class WiFiHotspotRepository(ApplicationDbContext context)
 
     public async Task<List<WiFiHotspot>> GetActiveHotspotsAsync(CancellationToken cancellationToken = default)
     {
-        return await ToListAsync(Query(w => w.IsActive)
-            .OrderBy(w => w.Name), cancellationToken);
+        return await Query(w => w.IsActive)
+            .OrderBy(w => w.Name)
+            .ToListAsync(cancellationToken);
     }
-
     public async Task<List<WiFiHotspot>> GetPublicHotspotsAsync(CancellationToken cancellationToken = default)
     {
-        return await ToListAsync(Query(w => w.IsPublic && w.IsActive)
-            .OrderBy(w => w.Name), cancellationToken);
+        return await Query(w => w.IsPublic && w.IsActive)
+            .OrderBy(w => w.Name)
+            .ToListAsync(cancellationToken);
     }
-
     public async Task<List<WiFiHotspot>> GetHotspotsByServiceProviderAsync(
         Guid serviceProviderId, 
         CancellationToken cancellationToken = default)
     {
-        return await ToListAsync(Query(w => w.ServiceProviderId == serviceProviderId)
-            .OrderBy(w => w.Name), cancellationToken);
+        return await Query(w => w.ServiceProviderId == serviceProviderId)
+            .OrderBy(w => w.Name)
+            .ToListAsync(cancellationToken);
     }
 }

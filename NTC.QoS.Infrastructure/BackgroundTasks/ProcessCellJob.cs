@@ -858,8 +858,8 @@ public class ProcessCellJob : IProcessCellJob
                 if (!isNewCell)
                 {
                     // Check both cache sources for existing CellSectors
-                    bool hasExistingSectors = cellSectorCache.ContainsKey(cellId) && cellSectorCache[cellId].Count > 0;
-                    bool hasNewlyCreatedSectors = cellSectorsCreatedForCellId.ContainsKey(cellId) && cellSectorsCreatedForCellId[cellId].Count > 0;
+                    bool hasExistingSectors = cellSectorCache.TryGetValue(cellId, out var existingSectors) && existingSectors.Count > 0;
+                    bool hasNewlyCreatedSectors = cellSectorsCreatedForCellId.TryGetValue(cellId, out var newSectors) && newSectors.Count > 0;
                     
                     if (!hasExistingSectors && !hasNewlyCreatedSectors)
                     {

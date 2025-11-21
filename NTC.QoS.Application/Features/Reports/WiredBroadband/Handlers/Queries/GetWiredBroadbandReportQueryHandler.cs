@@ -565,7 +565,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         // Enhance remarks with assessment details
         if (assessment.FiberNAPCount > 0)
         {
-         remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
+            remarks += $" ({assessment.FiberNAPCount} fiber NAPs)";
         }
 
         // Use actual fiber provider count from providerAvailability instead of total ServiceProviderCount
@@ -593,7 +593,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// </summary>
     private static string GenerateRemarksFromMunicipalityAssessment(Domain.Entities.ConnectivityAssessment assessment, int actualFiberProviderCount)
     {
-      // For wired broadband, status is determined by Fiber Coverage Score
+        // For wired broadband, status is determined by Fiber Coverage Score
         var remarks = assessment.FiberCoverageScore switch
         {
             3 => "SERVED",
@@ -622,8 +622,8 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         var providerCoverage = new Dictionary<string, int>();
         foreach (var provider in allProviders)
         {
-            var coverageCount = allBarangays.Count(b => b.ProviderAvailability.Providers.ContainsKey(provider) &&
-                b.ProviderAvailability.Providers[provider]);
+            var coverageCount = allBarangays.Count(b => 
+                b.ProviderAvailability.Providers.TryGetValue(provider, out var isAvailable) && isAvailable);
             providerCoverage[provider] = coverageCount;
         }
 
