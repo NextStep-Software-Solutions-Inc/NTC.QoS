@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Dashboard.Requests;
+using NTC.QoS.Application.Features.Reports.Dashboard.Queries;
 using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Dashboard;
@@ -210,6 +211,39 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
         TrackCacheKey(cacheKey);
 
         return Ok(result);
+    }
+
+    [HttpGet("report")]
+    public async Task<IActionResult> GetDashboardReport(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] int? daysInPast,
+        [FromQuery] Guid? regionId,
+        [FromQuery] Guid? provinceId,
+        [FromQuery] Guid? municipalityId,
+        [FromQuery] int limit = 5)
+    {
+        var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger, daysInPast);
+
+        var query = new GetDashboardReportQuery
+        {
+            StartDate = finalStartDate,
+            EndDate = finalEndDate,
+            DaysInPast = daysInPast,
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            Limit = limit
+        };
+
+        var result = await mediator.Send(query);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            return File(result.Data.FileContent, result.Data.ContentType, result.Data.FileName);
+        }
+
+        return BadRequest(result);
     }
 
     [HttpGet("clear-cache")]
