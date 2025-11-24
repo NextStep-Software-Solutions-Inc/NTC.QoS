@@ -434,9 +434,23 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(x => x.FontSize(9));
 
-                page.Header()
-                    .Text($"Wireless Broadband Report - {title}")
-                    .SemiBold().FontSize(16).FontColor(Colors.Blue.Medium);
+                // Updated Header to match the image style
+                page.Header().Column(column =>
+                {
+                    column.Item().AlignCenter().Text("NATIONAL TELECOMMUNICATIONS COMMISSION")
+                        .FontSize(15).SemiBold();
+                    
+                    column.Item().AlignCenter().Text("Quality of Service Management System")
+                        .FontSize(10).FontColor(Colors.Grey.Darken1);
+
+                    column.Item().PaddingVertical(5).LineHorizontal(1.5f).LineColor(Colors.Black);
+
+                    column.Item().AlignCenter().Text($"Wireless Broadband Report - {title}")
+                        .FontSize(12).Bold();
+
+                    column.Item().AlignCenter().Text($"Generated: {DateTime.Now:MMMM dd, yyyy 'at' h:mm tt}")
+                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+                });
 
                 page.Content()
                     .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Centimetre)
