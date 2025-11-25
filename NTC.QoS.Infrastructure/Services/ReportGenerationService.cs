@@ -129,23 +129,26 @@ public class ReportGenerationService : IReportGenerationService
         string reportTitle = "Connectivity Gap Analysis Report",
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Generating connectivity gap Excel report: {ReportTitle}", reportTitle);
+        return await Task.Run(() =>
+        {
+            _logger.LogInformation("Generating connectivity gap Excel report: {ReportTitle}", reportTitle);
 
-        using var workbook = new XLWorkbook();
-        
-        // Create gap analysis summary
-        CreateGapAnalysisSummaryWorksheet(workbook, reportData, reportTitle);
-        
-        // Create priority areas worksheet
-        CreatePriorityAreasWorksheet(workbook, reportData);
+            using var workbook = new XLWorkbook();
+            
+            // Create gap analysis summary
+            CreateGapAnalysisSummaryWorksheet(workbook, reportData, reportTitle);
+            
+            // Create priority areas worksheet
+            CreatePriorityAreasWorksheet(workbook, reportData);
 
-        using var stream = new MemoryStream();
-        workbook.SaveAs(stream);
-        var excelBytes = stream.ToArray();
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var excelBytes = stream.ToArray();
 
-        _logger.LogInformation("Connectivity gap Excel report generated successfully. Size: {FileSize} bytes", excelBytes.Length);
-        
-        return excelBytes;
+            _logger.LogInformation("Connectivity gap Excel report generated successfully. Size: {FileSize} bytes", excelBytes.Length);
+            
+            return excelBytes;
+        }, cancellationToken);
     }
 
     #region Private QuestPDF Composition Methods

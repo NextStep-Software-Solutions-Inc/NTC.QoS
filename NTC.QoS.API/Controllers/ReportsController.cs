@@ -2,6 +2,8 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
+using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
+using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -32,6 +34,21 @@ public class ReportsController : ControllerBase
         _regionRepository = regionRepository;
         _provinceRepository = provinceRepository;
         _municipalityRepository = municipalityRepository;
+    }
+
+    [HttpGet("wireless-broadband")]
+    [ProducesResponseType(typeof(FileResult), 200)]
+    [ProducesResponseType(typeof(ApiResponse<WirelessBroadbandReportResult>), 400)]
+    public async Task<IActionResult> GetWirelessBroadbandReport([FromQuery] GetWirelessBroadbandReportQuery query)
+    {
+        var result = await _mediator.Send(query);
+        
+        if (result.Succeeded && result.Data != null)
+        {
+            return File(result.Data.FileContent, result.Data.ContentType, result.Data.FileName);
+        }
+        
+        return BadRequest(result);
     }
 
     /// <summary>
