@@ -341,7 +341,7 @@ public class ProcessCellJob : IProcessCellJob
                 _logger.LogInformation("Parsed {RecordCount:N0} records from Excel file", cellRecords.Count);
                 processingResults.TotalRecords = cellRecords.Count;
 
-                var bandTechnologyProperties = typeof(CellRecord).GetProperties()
+                var bandTechnologyProperties = typeof(CellRecordV3).GetProperties()
                     .Where(p => p.PropertyType == typeof(string))
                     .Select(property => new BandTechnologyPropertyInfo
                     {
@@ -800,7 +800,7 @@ public class ProcessCellJob : IProcessCellJob
     /// Processes a batch of cell records and returns entities to be saved
     /// </summary>
     private async Task<BatchProcessingResult> ProcessBatchAsync(
-        List<CellRecord> batch,
+        List<CellRecordV3> batch,
         int startingRowNumber,
         Dictionary<string, Guid> serviceProviderCache,
         Dictionary<string, Guid> technologyCache,
@@ -912,12 +912,12 @@ public class ProcessCellJob : IProcessCellJob
                 {
                     if (!string.IsNullOrWhiteSpace(record.Azimuth) && !string.IsNullOrWhiteSpace(record.BeamTilt))
                     {
-                        var azimuths = record.Azimuth.Split(",", StringSplitOptions.RemoveEmptyEntries)
+                        var azimuths = record.Azimuth.Split(";", StringSplitOptions.RemoveEmptyEntries)
                             .Select(a => a.Trim())
                             .Where(a => !string.IsNullOrWhiteSpace(a))
                             .ToArray();
                         
-                        var beamTilts = record.BeamTilt.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        var beamTilts = record.BeamTilt.Split(';', StringSplitOptions.RemoveEmptyEntries)
                             .Select(b => b.Trim())
                             .Where(b => !string.IsNullOrWhiteSpace(b))
                             .ToArray();
@@ -1045,7 +1045,7 @@ public class ProcessCellJob : IProcessCellJob
     /// Processes cellular data for a single cell record
     /// </summary>
     private async Task ProcessCellularDataForRecordAsync(
-        CellRecord record,
+        CellRecordV3 record,
         Guid cellId,
         Guid serviceProviderId,
         string address,
@@ -1227,7 +1227,7 @@ public class ProcessCellJob : IProcessCellJob
     // (BuildAddress, ParseBandTechnologyValue, GetDefaultDLCenterFreq, GetDefaultBandwidth, 
     //  CalculateULCenterFreq, GetMunicipalityByLocationAsync, GetOrCreateNetworkAsync, etc.)
 
-    private static string BuildAddress(CellRecord record)
+    private static string BuildAddress(CellRecordV3 record)
     {
         return $"{record.Zone}, {record.Barangay}, {record.Municipality}, {record.Province}, {record.Region}";
     }
@@ -1531,7 +1531,7 @@ public class ProcessCellJob : IProcessCellJob
     /// <summary>
     /// Checks if a cell record has at least one active technology/band combination
     /// </summary>
-    private bool HasAnyActiveTechnology(CellRecord record, List<BandTechnologyPropertyInfo> bandTechnologyProperties)
+    private bool HasAnyActiveTechnology(CellRecordV3 record, List<BandTechnologyPropertyInfo> bandTechnologyProperties)
     {
         foreach (var propInfo in bandTechnologyProperties)
         {
