@@ -397,6 +397,10 @@ public class ProcessCellJob : IProcessCellJob
                 var cellSectorsCreatedForCellId = new Dictionary<Guid, List<Guid>>();
                 var networksToAdd = new List<Domain.Aggregates.Network>();
 
+                // Track expected Cellular records and processed cells for deletion logic
+                var expectedCellularHashes = new HashSet<int>();
+                var processedCellIds = new HashSet<Guid>();
+
                 _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
                     totalRecords, totalBatches, BATCH_SIZE);
 
@@ -424,6 +428,8 @@ public class ProcessCellJob : IProcessCellJob
                         cellSectorsCreatedForCellId,
                         networksToAdd,
                         processingResults,
+                        expectedCellularHashes,
+                        processedCellIds,
                         token);
 
                     // Save batch results
@@ -520,6 +526,31 @@ public class ProcessCellJob : IProcessCellJob
 
                 // --- Step 6: All networks have been saved per-batch, this section is now for final checks only ---
                 _logger.LogInformation("All batches processed. Networks were saved per-batch before Cellular records.");
+
+                _logger.LogInformation("=== Orphan Cleanup Phase ===");
+                _logger.LogInformation("Processed {CellCount} unique cells from this file.", processedCellIds.Count);
+                _logger.LogInformation("Tracked {ExpectedCount} expected Cellular records from active technologies.", expectedCellularHashes.Count);
+                _logger.LogInformation("Now checking for orphaned entities (technologies deactivated in re-upload)...");
+
+                // --- Step 6.1: Delete orphaned Cellular records (technologies deactivated in re-upload) ---
+                await DeleteOrphanedCellularRecordsAsync(
+                    processedCellIds,
+                    expectedCellularHashes,
+                    serviceProviderCache,
+                    processingResults,
+                    token);
+
+                // --- Step 6.2: Delete orphaned Sectors (no longer have any Cellular records) ---
+                await DeleteOrphanedSectorsAsync(
+                    processedCellIds,
+                    processingResults,
+                    token);
+
+                // --- Step 6.3: Delete orphaned Networks (no longer have any Cellular or Sector references) ---
+                await DeleteOrphanedNetworksAsync(
+                    serviceProviderCache,
+                    processingResults,
+                    token);
 
                 // --- Step 7: Create Sector entities for CellSectors without existing Sectors (handles both new and reprocessing) ---
                 _logger.LogInformation("Creating Sector entities for CellSectors without existing Sectors...");
@@ -697,7 +728,11 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("  Cellular Records: {CellularCreated:N0}", results.CellularCreated);
         _logger.LogInformation("  Networks: {NetworksCreated:N0}", results.NetworksCreated);
         _logger.LogInformation("  Sectors: {SectorsCreated:N0}", results.SectorsCreated);
-        _logger.LogInformation("  Cellular Deleted: {CellularDeleted:N0}", results.CellularDeleted);
+        
+        _logger.LogInformation("Entities Deleted (Orphaned/Deactivated):");
+        _logger.LogInformation("  Cellular Records: {CellularDeleted:N0}", results.CellularDeleted);
+        _logger.LogInformation("  Sectors: {SectorsDeleted:N0}", results.SectorsDeleted);
+        _logger.LogInformation("  Networks: {NetworksDeleted:N0}", results.NetworksDeleted);
 
         _logger.LogInformation("Duplicates Skipped:");
         _logger.LogInformation("  Total Duplicates: {SkippedDuplicates:N0}", results.SkippedDuplicates);
@@ -780,6 +815,8 @@ public class ProcessCellJob : IProcessCellJob
         Dictionary<Guid, List<Guid>> cellSectorsCreatedForCellId,
         List<Domain.Aggregates.Network> networksToAdd,
         ProcessingResults processingResults,
+        HashSet<int> expectedCellularHashes,
+        HashSet<Guid> processedCellIds,
         CancellationToken token)
     {
         var result = new BatchProcessingResult();
@@ -966,6 +1003,9 @@ public class ProcessCellJob : IProcessCellJob
                 // Process cellular data
                 if (cellId != Guid.Empty)
                 {
+                    // Track this cell ID for deletion logic
+                    processedCellIds.Add(cellId);
+
                     await ProcessCellularDataForRecordAsync(
                         record,
                         cellId,
@@ -984,6 +1024,7 @@ public class ProcessCellJob : IProcessCellJob
                         bandTechnologyProperties,
                         result,
                         processingResults,
+                        expectedCellularHashes,
                         token);
 
                     processingResults.SuccessfulRecords++;
@@ -1021,6 +1062,7 @@ public class ProcessCellJob : IProcessCellJob
         List<BandTechnologyPropertyInfo> bandTechnologyProperties,
         BatchProcessingResult result,
         ProcessingResults processingResults,
+        HashSet<int> expectedCellularHashes,
         CancellationToken token)
     {
         foreach (var propInfo in bandTechnologyProperties)
@@ -1063,25 +1105,43 @@ public class ProcessCellJob : IProcessCellJob
                 continue;
             }
 
-            // Log parse result for debugging
-            if (!parseResult.IsActive)
-            {
-                _logger.LogDebug("Row {Row}: {Technology}/{Band} is not active (value: {Value})", 
-                    rowNumber, propInfo.Technology, propInfo.Band, value);
-            }
-
             foreach (var sectorId in allSectorIds)
             {
                 var cellularHash = GenerateCellularHash(sectorId, serviceProviderId, technologyId, bandId);
 
+                // Log parse result for debugging
+                if (!parseResult.IsActive)
+                {
+                    _logger.LogDebug("Row {Row}: {Technology}/{Band} is INACTIVE (value: {Value}) - Hash {Hash} NOT added to expected set", 
+                        rowNumber, propInfo.Technology, propInfo.Band, value, cellularHash);
+                }
+                else
+                {
+                    _logger.LogDebug("Row {Row}: {Technology}/{Band} is ACTIVE (value: {Value}) - Hash {Hash} will be added to expected set", 
+                        rowNumber, propInfo.Technology, propInfo.Band, value, cellularHash);
+                }
+
+                // CRITICAL: Track expected Cellular BEFORE duplicate check
+                // This ensures that on re-upload, existing active technologies are preserved
+                if (parseResult.IsActive)
+                {
+                    expectedCellularHashes.Add(cellularHash);
+                    _logger.LogDebug("Row {Row}: Added to expected set - Hash: {Hash}, Tech: {Technology}, Band: {Band}, Sector: {SectorId}",
+                        rowNumber, cellularHash, propInfo.Technology, propInfo.Band, sectorId);
+                }
+
                 if (cellularLookup.Contains(cellularHash))
                 {
                     processingResults.SkippedDuplicates++;
+                    _logger.LogDebug("Row {Row}: Duplicate Cellular found - Hash: {Hash}, Tech: {Technology}, Band: {Band} - Skipping creation but KEPT in expected set",
+                        rowNumber, cellularHash, propInfo.Technology, propInfo.Band);
                     continue;
                 }
 
                 if (parseResult.IsActive)
                 {
+                    // Create new cellular record
+
                     // Create new cellular record
                     var dlCenterFreq = parseResult.DLCenterFreq ?? GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band);
                     var bandwidth = parseResult.Bandwidth ?? GetDefaultBandwidth(propInfo.Technology, propInfo.Band);
@@ -1488,6 +1548,262 @@ public class ProcessCellJob : IProcessCellJob
     }
 
     /// <summary>
+    /// Deletes Cellular records that exist in the database but are not in the expected set (deactivated technologies)
+    /// </summary>
+    private async Task DeleteOrphanedCellularRecordsAsync(
+        HashSet<Guid> processedCellIds,
+        HashSet<int> expectedCellularHashes,
+        Dictionary<string, Guid> serviceProviderCache,
+        ProcessingResults processingResults,
+        CancellationToken token)
+    {
+        if (processedCellIds.Count == 0)
+        {
+            _logger.LogInformation("No cells processed in this file. Skipping Cellular orphan cleanup.");
+            return;
+        }
+
+        _logger.LogInformation("Checking for orphaned Cellular records in {CellCount} processed cells...", processedCellIds.Count);
+
+        // Get all CellSector IDs for the processed cells
+        var cellSectorIds = await _cellSectorRepository
+            .QueryAsNoTracking(cs => processedCellIds.Contains(cs.CellId))
+            .Select(cs => cs.Id)
+            .ToListAsync(token);
+
+        if (cellSectorIds.Count == 0)
+        {
+            _logger.LogInformation("No CellSectors found for processed cells. Skipping Cellular orphan cleanup.");
+            return;
+        }
+
+        // Get all existing Cellular records for these CellSectors from this file upload
+        var existingCellulars = await _cellularRepository
+            .Query(c => cellSectorIds.Contains(c.CellSectorId) && 
+                       c.IsFileUploaded == true &&
+                       serviceProviderCache.Values.Contains(c.ServiceProviderId))
+            .Select(c => new
+            {
+                c.Id,
+                c.CellSectorId,
+                c.ServiceProviderId,
+                c.TechnologyId,
+                c.BandId,
+                c.NetworkId
+            })
+            .ToListAsync(token);
+
+        _logger.LogInformation("Found {Count} existing Cellular records for processed cells.", existingCellulars.Count);
+        _logger.LogInformation("Expected {Count} Cellular records from current file.", expectedCellularHashes.Count);
+
+        // Identify Cellulars to delete (exist in DB but not in expected set)
+        var cellularsToDelete = new List<Guid>();
+        var debugInfo = new List<string>();
+        
+        foreach (var existing in existingCellulars)
+        {
+            var hash = GenerateCellularHash(
+                existing.CellSectorId,
+                existing.ServiceProviderId,
+                existing.TechnologyId,
+                existing.BandId);
+
+            if (!expectedCellularHashes.Contains(hash))
+            {
+                cellularsToDelete.Add(existing.Id);
+                debugInfo.Add($"Cellular {existing.Id} (Hash: {hash}) not in expected set - will be deleted");
+            }
+        }
+
+        if (debugInfo.Count > 0 && debugInfo.Count <= 20)
+        {
+            _logger.LogWarning("Debug: Orphaned Cellular records detected:");
+            foreach (var info in debugInfo)
+            {
+                _logger.LogWarning("  - {Info}", info);
+            }
+        }
+        else if (debugInfo.Count > 20)
+        {
+            _logger.LogWarning("Debug: {Count} orphaned Cellular records detected (showing first 20):", debugInfo.Count);
+            foreach (var info in debugInfo.Take(20))
+            {
+                _logger.LogWarning("  - {Info}", info);
+            }
+        }
+
+        if (cellularsToDelete.Count > 0)
+        {
+            _logger.LogWarning("⚠️  DELETION: Removing {Count} orphaned Cellular records (technologies deactivated in re-upload)...", 
+                cellularsToDelete.Count);
+
+            // Delete in batches to avoid memory issues
+            const int deleteBatchSize = 1000;
+            for (int i = 0; i < cellularsToDelete.Count; i += deleteBatchSize)
+            {
+                var batch = cellularsToDelete.Skip(i).Take(deleteBatchSize).ToList();
+                var cellularsToDeleteBatch = await _cellularRepository
+                    .Query(c => batch.Contains(c.Id))
+                    .ToListAsync(token);
+
+                await _cellularRepository.BulkDeleteAsync(cellularsToDeleteBatch);
+                processingResults.CellularDeleted += cellularsToDeleteBatch.Count;
+            }
+
+            _logger.LogWarning("✓ Deleted {Count} orphaned Cellular records.", cellularsToDelete.Count);
+        }
+        else
+        {
+            _logger.LogInformation("No orphaned Cellular records found.");
+        }
+    }
+
+    /// <summary>
+    /// Deletes Sectors that no longer have any associated Cellular records
+    /// </summary>
+    private async Task DeleteOrphanedSectorsAsync(
+        HashSet<Guid> processedCellIds,
+        ProcessingResults processingResults,
+        CancellationToken token)
+    {
+        if (processedCellIds.Count == 0)
+        {
+            _logger.LogInformation("No cells processed in this file. Skipping Sector orphan cleanup.");
+            return;
+        }
+
+        _logger.LogInformation("Checking for orphaned Sectors in {CellCount} processed cells...", processedCellIds.Count);
+
+        // Get all CellSector IDs for the processed cells
+        var cellSectorIds = await _cellSectorRepository
+            .QueryAsNoTracking(cs => processedCellIds.Contains(cs.CellId))
+            .Select(cs => cs.Id)
+            .ToListAsync(token);
+
+        if (cellSectorIds.Count == 0)
+        {
+            _logger.LogInformation("No CellSectors found for processed cells. Skipping Sector orphan cleanup.");
+            return;
+        }
+
+        // Get all Sectors for these CellSectors
+        var sectors = await _sectorRepository
+            .Query(s => cellSectorIds.Contains(s.CellSectorId))
+            .Select(s => new { s.Id, s.CellSectorId })
+            .ToListAsync(token);
+
+        if (sectors.Count == 0)
+        {
+            _logger.LogInformation("No Sectors found for processed cells. Skipping Sector orphan cleanup.");
+            return;
+        }
+
+        _logger.LogInformation("Found {Count} Sectors for processed CellSectors.", sectors.Count);
+
+        // Check which CellSectors still have Cellular records
+        var cellSectorsWithCellulars = await _cellularRepository
+            .QueryAsNoTracking(c => cellSectorIds.Contains(c.CellSectorId))
+            .Select(c => c.CellSectorId)
+            .Distinct()
+            .ToListAsync(token);
+
+        var cellSectorsWithCellularsSet = cellSectorsWithCellulars.ToHashSet();
+
+        // Identify Sectors to delete (CellSector has no Cellular records)
+        var sectorsToDelete = sectors
+            .Where(s => !cellSectorsWithCellularsSet.Contains(s.CellSectorId))
+            .Select(s => s.Id)
+            .ToList();
+
+        if (sectorsToDelete.Count > 0)
+        {
+            _logger.LogWarning("⚠️  DELETION: Removing {Count} orphaned Sectors (no Cellular records remaining)...", 
+                sectorsToDelete.Count);
+
+            var sectorsToDeleteEntities = await _sectorRepository
+                .Query(s => sectorsToDelete.Contains(s.Id))
+                .ToListAsync(token);
+
+            await _sectorRepository.BulkDeleteAsync(sectorsToDeleteEntities);
+            processingResults.SectorsDeleted = sectorsToDelete.Count;
+
+            _logger.LogWarning("✓ Deleted {Count} orphaned Sectors.", sectorsToDelete.Count);
+        }
+        else
+        {
+            _logger.LogInformation("No orphaned Sectors found.");
+        }
+    }
+
+    /// <summary>
+    /// Deletes Networks that no longer have any associated Cellular or Sector records
+    /// </summary>
+    private async Task DeleteOrphanedNetworksAsync(
+        Dictionary<string, Guid> serviceProviderCache,
+        ProcessingResults processingResults,
+        CancellationToken token)
+    {
+        _logger.LogInformation("Checking for orphaned Networks...");
+
+        // Get all Networks for the service providers in this file
+        var networks = await _networkRepository
+            .Query(n => serviceProviderCache.Values.Contains(n.ServiceProviderId))
+            .Select(n => new { n.Id, n.Name, n.ServiceProviderId })
+            .ToListAsync(token);
+
+        if (networks.Count == 0)
+        {
+            _logger.LogInformation("No Networks found for service providers. Skipping Network orphan cleanup.");
+            return;
+        }
+
+        _logger.LogInformation("Found {Count} Networks for service providers in this file.", networks.Count);
+
+        var networksToDelete = new List<Guid>();
+
+        foreach (var network in networks)
+        {
+            // Check if Network has any Cellular records
+            var hasCellulars = await _cellularRepository
+                .Query(c => c.NetworkId == network.Id)
+                .AnyAsync(token);
+
+            if (hasCellulars)
+                continue;
+
+            // Check if Network has any Sectors
+            var hasSectors = await _sectorRepository
+                .Query(s => s.NetworkId == network.Id)
+                .AnyAsync(token);
+
+            if (hasSectors)
+                continue;
+
+            // Network has no references, mark for deletion
+            networksToDelete.Add(network.Id);
+        }
+
+        if (networksToDelete.Count > 0)
+        {
+            _logger.LogWarning("⚠️  DELETION: Removing {Count} orphaned Networks (no Cellular or Sector references)...", 
+                networksToDelete.Count);
+
+            var networksToDeleteEntities = await _networkRepository
+                .Query(n => networksToDelete.Contains(n.Id))
+                .ToListAsync(token);
+
+            await _networkRepository.BulkDeleteAsync(networksToDeleteEntities);
+            processingResults.NetworksDeleted = networksToDelete.Count;
+
+            _logger.LogWarning("✓ Deleted {Count} orphaned Networks.", networksToDelete.Count);
+        }
+        else
+        {
+            _logger.LogInformation("No orphaned Networks found.");
+        }
+    }
+
+    /// <summary>
     /// DTO for band/technology property information extracted from CellRecord
     /// </summary>
     private class BandTechnologyPropertyInfo
@@ -1535,6 +1851,8 @@ public class ProcessCellJob : IProcessCellJob
         public int NetworksCreated { get; set; }
         public int SectorsCreated { get; set; }
         public int CellularDeleted { get; set; }
+        public int SectorsDeleted { get; set; }
+        public int NetworksDeleted { get; set; }
         public int SkippedDuplicates { get; set; }
         public int CellSectorsWithoutCellular { get; set; }
         public int RecordsWithoutActiveTechnologies { get; set; }
