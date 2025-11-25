@@ -15,10 +15,3 @@ public interface IConnectivityAssessmentRepository : IRepository<ConnectivityAss
     Task AddProviderAsync(ConnectivityAssessmentProvider provider, CancellationToken cancellationToken = default);
     Task AddProvidersRangeAsync(List<ConnectivityAssessmentProvider> providers, CancellationToken cancellationToken = default);
 }
-
-public interface IWiFiHotspotRepository : IRepository<WiFiHotspot>
-{
-    Task<List<WiFiHotspot>> GetActiveHotspotsAsync(CancellationToken cancellationToken = default);
-    Task<List<WiFiHotspot>> GetPublicHotspotsAsync(CancellationToken cancellationToken = default);
-    Task<List<WiFiHotspot>> GetHotspotsByServiceProviderAsync(Guid serviceProviderId, CancellationToken cancellationToken = default);
-}
