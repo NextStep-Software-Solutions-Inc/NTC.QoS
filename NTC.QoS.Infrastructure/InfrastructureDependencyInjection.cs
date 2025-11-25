@@ -36,6 +36,7 @@ public static class InfrastructureDependencyInjection
         services.AddBlobStorageServices(configuration);
         services.AddRepositories();
         services.AddBackgroundJobServices();
+        services.AddReportingServices();
 
         return services;
     }
