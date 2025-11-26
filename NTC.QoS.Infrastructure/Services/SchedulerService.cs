@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Scheduler;
+using NTC.QoS.Infrastructure.BackgroundTasks;
 
 namespace NTC.QoS.Infrastructure.Services;
 
@@ -30,7 +31,7 @@ public class SchedulerService : ISchedulerService
 
     /// <summary>
     /// Creates or updates a recurring Hangfire job for the scheduler
-    /// Directly enqueues ProcessConnectivityAssessmentJob since this is automated/scheduled execution
+    /// Uses ScheduledConnectivityAssessmentJob wrapper to validate date constraints before execution
     /// </summary>
     public Task RegisterSchedulerAsync(ConnectivityAssessmentScheduler scheduler)
     {
@@ -55,15 +56,47 @@ public class SchedulerService : ISchedulerService
             ForceRecalculate = config.ForceRecalculate
         };
 
-        // Register the recurring job with Hangfire
-        _backgroundJobService.AddOrUpdateRecurringJob<IProcessConnectivityAssessmentJob>(
+        // Validate end date timing - warn if end date would cut off a scheduled run
+        if (scheduler.EndDate.HasValue)
+        {
+            var nextRun = GetNextExecutionTime(scheduler.CronExpression, scheduler.TimeZone);
+            if (nextRun.HasValue)
+            {
+                var endDateUtc = scheduler.EndDate.Value.Kind == DateTimeKind.Utc 
+                    ? scheduler.EndDate.Value 
+                    : DateTime.SpecifyKind(scheduler.EndDate.Value, DateTimeKind.Utc);
+
+                if (nextRun.Value > endDateUtc)
+                {
+                    _logger.LogWarning(
+                        "Scheduler '{Name}' (ID: {Id}): End date {EndDate} occurs before next scheduled run {NextRun}. " +
+                        "This scheduler may never execute. Consider extending end date to at least {SuggestedEnd}",
+                        scheduler.Name, scheduler.Id, endDateUtc, nextRun.Value, 
+                        nextRun.Value.AddHours(1)); // Suggest 1 hour buffer after scheduled run
+                }
+            }
+        }
+
+        // Register the recurring job with Hangfire using the wrapper
+        // The wrapper validates StartDate/EndDate before executing the actual job
+        _backgroundJobService.AddOrUpdateRecurringJob<IScheduledConnectivityAssessmentJob>(
             scheduler.HangfireJobId,
-            job => job.ExecuteAsync(jobRequest, CancellationToken.None),
+            job => job.ExecuteScheduledAsync(
+                scheduler.Id,
+                jobRequest, 
+                scheduler.StartDate, 
+                scheduler.EndDate,
+                scheduler.TimeZone,
+                CancellationToken.None),
             scheduler.CronExpression
         );
 
-        _logger.LogInformation("Registered Hangfire recurring job '{JobId}' with cron '{Cron}' - Hierarchical: {Hierarchical}, Depth: {Depth}",
-            scheduler.HangfireJobId, scheduler.CronExpression, config.GenerateHierarchicalAssessments, config.HierarchicalDepth);
+        _logger.LogInformation(
+            "Registered Hangfire recurring job '{JobId}' with cron '{Cron}' - " +
+            "Hierarchical: {Hierarchical}, Depth: {Depth}, StartDate: {StartDate}, EndDate: {EndDate}",
+            scheduler.HangfireJobId, scheduler.CronExpression, 
+            config.GenerateHierarchicalAssessments, config.HierarchicalDepth,
+            scheduler.StartDate, scheduler.EndDate);
 
         return Task.CompletedTask;
     }

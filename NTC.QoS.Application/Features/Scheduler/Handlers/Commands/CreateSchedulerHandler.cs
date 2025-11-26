@@ -48,6 +48,28 @@ public class CreateSchedulerHandler : IRequestHandler<CreateSchedulerRequest, Sc
         // Calculate next execution time
         var nextExecutionTime = _schedulerService.GetNextExecutionTime(cronExpression, dto.TimeZone);
 
+        // Validate end date doesn't cut off next scheduled run
+        if (dto.EndDate.HasValue && nextExecutionTime.HasValue)
+        {
+            var endDateUtc = dto.EndDate.Value.Kind == DateTimeKind.Utc 
+                ? dto.EndDate.Value 
+                : DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc);
+
+            if (nextExecutionTime.Value > endDateUtc)
+            {
+                var suggestedEndDate = nextExecutionTime.Value.AddHours(1);
+                _logger.LogWarning(
+                    "Creating scheduler '{Name}': End date {EndDate} is before next scheduled run {NextRun}. " +
+                    "This scheduler will never execute. Consider changing end date to at least {SuggestedEnd}",
+                    dto.Name, endDateUtc, nextExecutionTime.Value, suggestedEndDate);
+                
+                throw new ArgumentException(
+                    $"End date {dto.EndDate:yyyy-MM-dd HH:mm:ss} occurs before the next scheduled run {nextExecutionTime:yyyy-MM-dd HH:mm:ss}. " +
+                    $"The scheduler will never execute. Please set end date to at least {suggestedEndDate:yyyy-MM-dd HH:mm:ss} UTC " +
+                    $"to allow the scheduled run to complete.");
+            }
+        }
+
         _logger.LogInformation("Creating scheduler '{Name}' with cron '{Cron}', TimeZone: {TimeZone}, Next run: {NextRun}",
             dto.Name, cronExpression, dto.TimeZone, nextExecutionTime);
 
