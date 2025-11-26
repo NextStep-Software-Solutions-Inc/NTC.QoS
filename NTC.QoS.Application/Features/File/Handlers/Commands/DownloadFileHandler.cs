@@ -104,9 +104,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         // Define the multi-row header data
         object[,] headers = new object[,]
         {
-            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G","4G", "4G", "4G", "4G", "4G", "5G", "5G", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)"},
-            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "", "", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)"},
-            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "900", "1800", "850", "900", "2100", "700", "850", "900", "1800", "2100", "2300", "2500", "2600", "2600", "3500", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)" }
+            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G","4G", "4G", "4G", "4G", "4G", "5G", "5G", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "", "", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "900", "1800", "850", "900", "2100", "700", "850", "900", "1800", "2100", "2300", "2500", "2600", "2600", "3500", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)" }
         };
 
         // Apply the multi-row headers
@@ -156,9 +156,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         // Define the multi-row header data
         object[,] headers = new object[,]
         {
-            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G","4G", "4G", "4G", "4G", "4G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)"},
-            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)"},
-            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "B8-900", "B3-1800", "B5-850", "B8-900", "B1-2100", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600","B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B78-3500", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)" }
+            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "B8-900", "B3-1800", "B5-850", "B8-900", "B1-2100", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B78-3500", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)" }
         };
 
         // Apply the multi-row headers
@@ -167,7 +167,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var providers = await GetServiceProviders(ServiceTypeEnum.Wireless, cancellationToken);
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
-        string[] trueFalseValues = ["TRUE", "FALSE"];
 
         // Add hidden sheets for dropdowns
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");

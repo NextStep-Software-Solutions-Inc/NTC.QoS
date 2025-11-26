@@ -1140,7 +1140,7 @@ public class ProcessCellJob : IProcessCellJob
 
                 if (parseResult.IsActive)
                 {
-                    // Create new cellular record
+
 
                     // Create new cellular record
                     var dlCenterFreq = parseResult.DLCenterFreq ?? GetDefaultDLCenterFreq(propInfo.Technology, propInfo.Band);
@@ -1580,7 +1580,7 @@ public class ProcessCellJob : IProcessCellJob
         // Get all existing Cellular records for these CellSectors from this file upload
         var existingCellulars = await _cellularRepository
             .Query(c => cellSectorIds.Contains(c.CellSectorId) && 
-                       c.IsFileUploaded == true &&
+                       c.IsFileUploaded &&
                        serviceProviderCache.Values.Contains(c.ServiceProviderId))
             .Select(c => new
             {
@@ -1759,29 +1759,33 @@ public class ProcessCellJob : IProcessCellJob
 
         _logger.LogInformation("Found {Count} Networks for service providers in this file.", networks.Count);
 
-        var networksToDelete = new List<Guid>();
+        var networkIds = networks.Select(n => n.Id).ToList();
 
-        foreach (var network in networks)
-        {
-            // Check if Network has any Cellular records
-            var hasCellulars = await _cellularRepository
-                .Query(c => c.NetworkId == network.Id)
-                .AnyAsync(token);
+        // Batch query: Get all NetworkIds that have Cellular records
+        var networkIdsWithCellulars = await _cellularRepository
+            .QueryAsNoTracking(c => networkIds.Contains(c.NetworkId))
+            .Select(c => c.NetworkId)
+            .Distinct()
+            .ToListAsync(token);
 
-            if (hasCellulars)
-                continue;
+        var networkIdsWithCellularsSet = networkIdsWithCellulars.ToHashSet();
+        _logger.LogInformation("Found {Count} Networks with Cellular records.", networkIdsWithCellularsSet.Count);
 
-            // Check if Network has any Sectors
-            var hasSectors = await _sectorRepository
-                .Query(s => s.NetworkId == network.Id)
-                .AnyAsync(token);
+        // Batch query: Get all NetworkIds that have Sector records
+        var networkIdsWithSectors = await _sectorRepository
+            .QueryAsNoTracking(s => s.NetworkId.HasValue && networkIds.Contains(s.NetworkId.Value))
+            .Select(s => s.NetworkId!.Value)
+            .Distinct()
+            .ToListAsync(token);
 
-            if (hasSectors)
-                continue;
+        var networkIdsWithSectorsSet = networkIdsWithSectors.ToHashSet();
+        _logger.LogInformation("Found {Count} Networks with Sector records.", networkIdsWithSectorsSet.Count);
 
-            // Network has no references, mark for deletion
-            networksToDelete.Add(network.Id);
-        }
+        // In-memory filtering: Identify Networks without any references
+        var networksToDelete = networks
+            .Where(n => !networkIdsWithCellularsSet.Contains(n.Id) && !networkIdsWithSectorsSet.Contains(n.Id))
+            .Select(n => n.Id)
+            .ToList();
 
         if (networksToDelete.Count > 0)
         {
@@ -1804,7 +1808,7 @@ public class ProcessCellJob : IProcessCellJob
     }
 
     /// <summary>
-    /// DTO for band/technology property information extracted from CellRecord
+    /// DTO for band/technology property information extracted from CellRecordV3
     /// </summary>
     private class BandTechnologyPropertyInfo
     {
