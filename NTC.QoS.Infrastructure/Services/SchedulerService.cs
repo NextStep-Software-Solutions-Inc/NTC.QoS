@@ -1,0 +1,205 @@
+using Cronos;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Domain.Models.DTOs.Scheduler;
+
+namespace NTC.QoS.Infrastructure.Services;
+
+/// <summary>
+/// Service for managing connectivity assessment schedulers and their Hangfire jobs
+/// NOTE: Scheduler calls ProcessConnectivityAssessmentJob directly (not StartConnectivityAssessmentJobHandler)
+/// This is intentional - the scheduler is for automated recurring jobs, while StartConnectivityAssessmentJobHandler
+/// is for one-time user-initiated jobs through the API that need immediate job ID response.
+/// </summary>
+public class SchedulerService : ISchedulerService
+{
+    private readonly IBackgroundJobService _backgroundJobService;
+    private readonly ILogger<SchedulerService> _logger;
+
+    public SchedulerService(
+        IBackgroundJobService backgroundJobService,
+        ILogger<SchedulerService> logger)
+    {
+        _backgroundJobService = backgroundJobService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Creates or updates a recurring Hangfire job for the scheduler
+    /// Directly enqueues ProcessConnectivityAssessmentJob since this is automated/scheduled execution
+    /// </summary>
+    public Task RegisterSchedulerAsync(ConnectivityAssessmentScheduler scheduler)
+    {
+        var locationIds = JsonConvert.DeserializeObject<List<Guid>>(scheduler.LocationIdsJson) ?? new List<Guid>();
+        
+        // Parse job execution configuration
+        var config = string.IsNullOrEmpty(scheduler.ConfigurationJson)
+            ? new JobExecutionConfigurationDto()
+            : JsonConvert.DeserializeObject<JobExecutionConfigurationDto>(scheduler.ConfigurationJson) ?? new JobExecutionConfigurationDto();
+
+        // Create the job request DTO
+        var jobRequest = new ConnectivityAssessmentJobRequestDto
+        {
+            JobId = Guid.NewGuid().GetHashCode(), // Generate a unique job ID
+            LocationType = scheduler.LocationType,
+            LocationIds = locationIds,
+            UserId = scheduler.CreatedBy,
+            ActualTotalLocations = locationIds.Count, // Initial count, will be recalculated by job
+            GenerateHierarchicalAssessments = config.GenerateHierarchicalAssessments,
+            HierarchicalDepth = config.HierarchicalDepth,
+            MaxHierarchicalLocations = config.MaxHierarchicalLocations,
+            ForceRecalculate = config.ForceRecalculate
+        };
+
+        // Register the recurring job with Hangfire
+        _backgroundJobService.AddOrUpdateRecurringJob<IProcessConnectivityAssessmentJob>(
+            scheduler.HangfireJobId,
+            job => job.ExecuteAsync(jobRequest, CancellationToken.None),
+            scheduler.CronExpression
+        );
+
+        _logger.LogInformation("Registered Hangfire recurring job '{JobId}' with cron '{Cron}' - Hierarchical: {Hierarchical}, Depth: {Depth}",
+            scheduler.HangfireJobId, scheduler.CronExpression, config.GenerateHierarchicalAssessments, config.HierarchicalDepth);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Removes the Hangfire recurring job for the scheduler
+    /// </summary>
+    public Task UnregisterSchedulerAsync(string hangfireJobId)
+    {
+        _backgroundJobService.RemoveRecurringJob(hangfireJobId);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Pauses the scheduler (removes the recurring job)
+    /// </summary>
+    public Task PauseSchedulerAsync(string hangfireJobId)
+    {
+        return UnregisterSchedulerAsync(hangfireJobId);
+    }
+
+    /// <summary>
+    /// Resumes the scheduler (re-registers the recurring job)
+    /// </summary>
+    public Task ResumeSchedulerAsync(ConnectivityAssessmentScheduler scheduler)
+    {
+        return RegisterSchedulerAsync(scheduler);
+    }
+
+    /// <summary>
+    /// Generates a cron expression based on schedule configuration
+    /// Uses Cron format: minute hour day-of-month month day-of-week
+    /// </summary>
+    public string GenerateCronExpression(ScheduleConfigurationDto config, ScheduleFrequencyEnum frequency)
+    {
+        return frequency switch
+        {
+            ScheduleFrequencyEnum.Hourly => $"{config.MinuteOfHour ?? 0} * * * *",
+            
+            ScheduleFrequencyEnum.Daily => $"{config.MinuteOfDay ?? 0} {config.HourOfDay ?? 0} * * *",
+            
+            ScheduleFrequencyEnum.Weekly => GenerateWeeklyCron(config),
+            
+            ScheduleFrequencyEnum.Monthly => $"{config.MonthlyMinute ?? 0} {config.MonthlyHour ?? 0} {config.DayOfMonth ?? 1} * *",
+            
+            ScheduleFrequencyEnum.Custom => config.CustomCronExpression ?? "0 0 * * *", // Default to daily at midnight
+            
+            _ => "0 0 * * *" // Default to daily at midnight
+        };
+    }
+
+    /// <summary>
+    /// Generates a weekly cron expression
+    /// </summary>
+    private string GenerateWeeklyCron(ScheduleConfigurationDto config)
+    {
+        var minute = config.WeeklyMinute ?? 0;
+        var hour = config.WeeklyHour ?? 0;
+        
+        if (config.DaysOfWeek == null || config.DaysOfWeek.Count == 0)
+        {
+            // Default to Monday if no days specified
+            return $"{minute} {hour} * * 1";
+        }
+
+        // Join days with commas (0=Sunday, 1=Monday, etc.)
+        var days = string.Join(",", config.DaysOfWeek.OrderBy(d => d));
+        return $"{minute} {hour} * * {days}";
+    }
+
+    /// <summary>
+    /// Parses configuration JSON and extracts ScheduleConfigurationDto
+    /// </summary>
+    public ScheduleConfigurationDto? ParseConfiguration(string? configJson)
+    {
+        if (string.IsNullOrWhiteSpace(configJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonConvert.DeserializeObject<ScheduleConfigurationDto>(configJson);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Calculates the next execution time based on cron expression
+    /// </summary>
+    public DateTime? GetNextExecutionTime(string cronExpression, string timeZone)
+    {
+        try
+        {
+            var cron = Cronos.CronExpression.Parse(cronExpression);
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+            var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            var next = cron.GetNextOccurrence(now, tz);
+            
+            var nextUtc = next?.ToUniversalTime();
+            _logger.LogDebug("Next execution for cron '{Cron}' in timezone '{TimeZone}': {NextRun} (UTC: {NextRunUtc})",
+                cronExpression, timeZone, next, nextUtc);
+            
+            return nextUtc;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to calculate next execution time for cron '{Cron}' in timezone '{TimeZone}'",
+                cronExpression, timeZone);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Validates if the timezone ID is valid on this system
+    /// </summary>
+    public bool ValidateTimeZone(string timeZone)
+    {
+        try
+        {
+            TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+            return true;
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            _logger.LogWarning("Timezone '{TimeZone}' not found. Available timezones: {Timezones}",
+                timeZone, string.Join(", ", TimeZoneInfo.GetSystemTimeZones().Take(5).Select(tz => tz.Id)));
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating timezone '{TimeZone}'", timeZone);
+            return false;
+        }
+    }
+}
