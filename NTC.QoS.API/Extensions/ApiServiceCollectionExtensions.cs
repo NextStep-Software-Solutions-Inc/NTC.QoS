@@ -10,7 +10,7 @@ public static class ApiServiceCollectionExtensions
 {
     /// <summary>
     /// Adds rate limiting services to the service collection.
-    /// Configures client-based rate limiting with 100 requests per 10 seconds per user.
+    /// Configures client-based rate limiting with 1000 requests per 10 seconds per user.
     /// </summary>
     /// <param name="services">The service collection to add rate limiting to.</param>
     /// <returns>The service collection for chaining.</returns>
