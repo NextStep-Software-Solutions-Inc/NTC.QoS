@@ -33,7 +33,7 @@ public static class ApiServiceCollectionExtensions
                 {
                     Endpoint = "*",
                     Period = "10s",
-                    Limit = 100,
+                    Limit = 1000,
                 }
             ];
         });
