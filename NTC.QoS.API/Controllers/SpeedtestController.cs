@@ -74,7 +74,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpGet("{id}")]
-    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
         var speedtest = await mediator.Send(new GetSpeedtestByIdRequest(id));
