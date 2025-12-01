@@ -158,6 +158,9 @@ public class Program
         // Add API-specific services
         builder.Services.AddApiRateLimiting();
 
+        // Register Hangfire job server (required for processing jobs)
+        builder.Services.AddHangfireServer();
+
         builder.Services.AddResponseCompression(options =>
             {
                 options.EnableForHttps = true;
@@ -206,6 +209,7 @@ public class Program
 
         // Enable client-based rate limiting (per user)
         app.UseClientRateLimiting();
+
 
         // Hangfire dashboard with authorization
         app.UseHangfireDashboard("/hangfire", new DashboardOptions

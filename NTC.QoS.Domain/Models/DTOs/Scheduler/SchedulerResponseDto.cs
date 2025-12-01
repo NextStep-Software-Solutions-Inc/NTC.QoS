@@ -29,7 +29,7 @@ public class SchedulerResponseDto
     public ScheduleConfigurationDto? Configuration { get; set; }
     public bool GenerateHierarchicalAssessments { get; set; }
     public int HierarchicalDepth { get; set; }
-    public int MaxHierarchicalLocations { get; set; }
+    public int? MaxHierarchicalLocations { get; set; }
     public bool ForceRecalculate { get; set; }
     public DateTime CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;

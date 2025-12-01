@@ -17,9 +17,11 @@ public class JobExecutionConfigurationDto
     public int HierarchicalDepth { get; set; } = 3;
 
     /// <summary>
-    /// Maximum number of hierarchical locations to process
+    /// Maximum number of hierarchical locations to process.
+    /// NULL = No limit (process all child locations - recommended for complete coverage)
+    /// VALUE = Apply limit (use only if you need to cap processing for performance reasons)
     /// </summary>
-    public int MaxHierarchicalLocations { get; set; } = 1000;
+    public int? MaxHierarchicalLocations { get; set; } = null;
 
     /// <summary>
     /// Whether to force recalculation of existing assessments

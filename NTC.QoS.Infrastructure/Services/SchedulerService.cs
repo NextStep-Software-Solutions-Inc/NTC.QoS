@@ -52,7 +52,7 @@ public class SchedulerService : ISchedulerService
             ActualTotalLocations = locationIds.Count, // Initial count, will be recalculated by job
             GenerateHierarchicalAssessments = config.GenerateHierarchicalAssessments,
             HierarchicalDepth = config.HierarchicalDepth,
-            MaxHierarchicalLocations = config.MaxHierarchicalLocations,
+            MaxHierarchicalLocations = config.MaxHierarchicalLocations, // null = no limit, value = apply limit
             ForceRecalculate = config.ForceRecalculate
         };
 
@@ -196,14 +196,20 @@ public class SchedulerService : ISchedulerService
         {
             var cron = Cronos.CronExpression.Parse(cronExpression);
             var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
-            var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
-            var next = cron.GetNextOccurrence(now, tz);
             
-            var nextUtc = next?.ToUniversalTime();
-            _logger.LogDebug("Next execution for cron '{Cron}' in timezone '{TimeZone}': {NextRun} (UTC: {NextRunUtc})",
-                cronExpression, timeZone, next, nextUtc);
+            // Cronos requires UTC DateTime for GetNextOccurrence
+            var nowUtc = DateTime.UtcNow;
             
-            return nextUtc;
+            // GetNextOccurrence will handle timezone conversion internally
+            var next = cron.GetNextOccurrence(nowUtc, tz);
+            
+            if (next.HasValue)
+            {
+                _logger.LogDebug("Next execution for cron '{Cron}' in timezone '{TimeZone}': {NextRun} UTC",
+                    cronExpression, timeZone, next.Value);
+            }
+            
+            return next;
         }
         catch (Exception ex)
         {

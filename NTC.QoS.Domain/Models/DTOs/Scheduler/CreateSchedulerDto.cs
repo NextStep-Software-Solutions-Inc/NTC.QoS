@@ -73,7 +73,10 @@ public class CreateSchedulerDto
     public int HierarchicalDepth { get; set; } = 3;
 
     /// <summary>
-    /// Maximum number of hierarchical locations to process
+    /// Maximum number of hierarchical locations to process.
+    /// Leave null (default) to process ALL child locations for complete coverage.
+    /// Set a value only if you need to limit processing for performance reasons.
+    /// Warning: Setting a limit may result in incomplete connectivity assessments.
     /// </summary>
     public int? MaxHierarchicalLocations { get; set; } = null;
 
