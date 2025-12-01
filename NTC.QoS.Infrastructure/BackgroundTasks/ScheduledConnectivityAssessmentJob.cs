@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -22,15 +23,18 @@ public class ScheduledConnectivityAssessmentJob : IScheduledConnectivityAssessme
 {
     private readonly IProcessConnectivityAssessmentJob _processJob;
     private readonly IConnectivityAssessmentSchedulerRepository _schedulerRepository;
+    private readonly ISchedulerService _schedulerService;
     private readonly ILogger<ScheduledConnectivityAssessmentJob> _logger;
 
     public ScheduledConnectivityAssessmentJob(
         IProcessConnectivityAssessmentJob processJob,
         IConnectivityAssessmentSchedulerRepository schedulerRepository,
+        ISchedulerService schedulerService,
         ILogger<ScheduledConnectivityAssessmentJob> logger)
     {
         _processJob = processJob;
         _schedulerRepository = schedulerRepository;
+        _schedulerService = schedulerService;
         _logger = logger;
     }
 
@@ -134,6 +138,15 @@ public class ScheduledConnectivityAssessmentJob : IScheduledConnectivityAssessme
             {
                 scheduler.LastExecutionTime = nowUtc;
                 scheduler.ExecutionCount++;
+                
+                // Calculate and update next execution time
+                var nextExecution = _schedulerService.GetNextExecutionTime(scheduler.CronExpression, scheduler.TimeZone);
+                scheduler.NextExecutionTime = nextExecution;
+                
+                _logger.LogInformation(
+                    "Scheduler {SchedulerId}: Updated execution tracking. ExecutionCount: {Count}, NextExecutionTime: {NextTime}",
+                    schedulerId, scheduler.ExecutionCount, nextExecution);
+                
                 _schedulerRepository.Update(scheduler);
                 await _schedulerRepository.SaveChangesAsync();
             }

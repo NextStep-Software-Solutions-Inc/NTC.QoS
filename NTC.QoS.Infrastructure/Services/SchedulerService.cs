@@ -79,6 +79,7 @@ public class SchedulerService : ISchedulerService
 
         // Register the recurring job with Hangfire using the wrapper
         // The wrapper validates StartDate/EndDate before executing the actual job
+        // IMPORTANT: Pass timezone to Hangfire so it interprets the cron expression correctly
         _backgroundJobService.AddOrUpdateRecurringJob<IScheduledConnectivityAssessmentJob>(
             scheduler.HangfireJobId,
             job => job.ExecuteScheduledAsync(
@@ -88,7 +89,8 @@ public class SchedulerService : ISchedulerService
                 scheduler.EndDate,
                 scheduler.TimeZone,
                 CancellationToken.None),
-            scheduler.CronExpression
+            scheduler.CronExpression,
+            scheduler.TimeZone  // Pass timezone so Hangfire uses correct time zone for cron execution
         );
 
         _logger.LogInformation(
