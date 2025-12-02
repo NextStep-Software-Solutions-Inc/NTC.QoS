@@ -588,12 +588,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Calculate CMTS scores based on infrastructure, speed data, and population
             var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
 
-            // Extract individual scores from the array for entity mapping
-            var fiberCoverage = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Fiber Coverage")?.A ?? 0;
-            var internetAccess = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Internet Access")?.A ?? 0;
-            var technologyType = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Technology Type")?.A ?? 0;
-            var qualityOfService = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Quality of Service")?.A ?? 0;
-            var coverageAvailability = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Mobile Coverage")?.A ?? 0;
+            // Extract individual scores from the array for entity mapping - using dictionary for O(1) lookups
+            var scoreDict = cmtsScores.Scores.ToDictionary(s => s.Subject);
+            var fiberCoverage = scoreDict.TryGetValue(CMTSSubjects.FiberCoverage, out var fiberScore) ? fiberScore.A : 0;
+            var internetAccess = scoreDict.TryGetValue(CMTSSubjects.InternetAccess, out var internetScore) ? internetScore.A : 0;
+            var technologyType = scoreDict.TryGetValue(CMTSSubjects.TechnologyType, out var techScore) ? techScore.A : 0;
+            var qualityOfService = scoreDict.TryGetValue(CMTSSubjects.QualityOfService, out var qosScore) ? qosScore.A : 0;
+            var coverageAvailability = scoreDict.TryGetValue(CMTSSubjects.MobileCoverage, out var mobileScore) ? mobileScore.A : 0;
 
             // Determine connectivity status and total score
             var totalScore = fiberCoverage + internetAccess + technologyType + qualityOfService + coverageAvailability;

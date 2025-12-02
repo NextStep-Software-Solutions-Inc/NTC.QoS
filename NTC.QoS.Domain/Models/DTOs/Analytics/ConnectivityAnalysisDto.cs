@@ -106,7 +106,6 @@ public class CMTSScoreItemDto
 
     /// <summary>
     /// Actual score achieved (0-3).
-    /// Property name 'A' is required by the charting library used for radar chart visualization.
     /// </summary>
     public int A { get; set; }
 
