@@ -343,6 +343,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("Bandwidth")
                         .HasColumnType("numeric");
 
@@ -364,6 +367,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<Guid?>("MunicipalityId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -389,6 +395,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("MunicipalityId");
 
                     b.HasIndex("NetworkTemplateId");
 
@@ -2729,6 +2739,16 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
                 {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany("Networks")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Municipality", "Municipality")
+                        .WithMany("Networks")
+                        .HasForeignKey("MunicipalityId");
+
                     b.HasOne("NTC.QoS.Domain.Entities.NetworkTemplate", "NetworkTemplate")
                         .WithMany("Networks")
                         .HasForeignKey("NetworkTemplateId");
@@ -2744,6 +2764,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasForeignKey("SystemTypeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Municipality");
 
                     b.Navigation("NetworkTemplate");
 
@@ -3230,6 +3254,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Navigation("Links");
 
+                    b.Navigation("Networks");
+
                     b.Navigation("TechnologyBands");
 
                     b.Navigation("WirelessValidations");
@@ -3275,6 +3301,8 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.Navigation("Barangays");
+
+                    b.Navigation("Networks");
 
                     b.Navigation("StudyMunicipalities");
                 });

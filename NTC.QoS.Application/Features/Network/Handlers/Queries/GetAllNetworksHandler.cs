@@ -19,8 +19,25 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
         }
 
         networksQuery = networksQuery
-            .Where(n => !request.NetworkTemplateId.HasValue || n.NetworkTemplate.Id == request.NetworkTemplateId)
-            .OrderBy(n => n.Name);
+            .Where(n => !request.NetworkTemplateId.HasValue || (n.NetworkTemplate != null && n.NetworkTemplate.Id == request.NetworkTemplateId))
+            .Where(n => !request.SystemTypeId.HasValue || n.SystemTypeId == request.SystemTypeId)
+            .Where(n => !request.TechnologyId.HasValue || n.SystemType.TechnologyId == request.TechnologyId)
+            .Where(n => !request.BandId.HasValue || n.BandId == request.BandId)
+            .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProviderId == request.ServiceProviderId);
+
+        // Location filtering based on location type
+        if (request.LocationId.HasValue && !string.IsNullOrEmpty(request.LocationType))
+        {
+            networksQuery = request.LocationType.ToLower() switch
+            {
+                "municipality" => networksQuery.Where(n => n.MunicipalityId == request.LocationId),
+                "province" => networksQuery.Where(n => n.Municipality != null && n.Municipality.ProvinceId == request.LocationId),
+                "region" => networksQuery.Where(n => n.Municipality != null && n.Municipality.Province != null && n.Municipality.Province.RegionId == request.LocationId),
+                _ => networksQuery
+            };
+        }
+
+        networksQuery = networksQuery.OrderBy(n => n.Name);
 
         var networkDtos = networksQuery.Select(n => new NetworkDto
         {
@@ -53,6 +70,31 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
                     Type = n.ServiceProvider.Service.Type.ToString()
                 }
             },
+            Band = new()
+            {
+                Id = n.Band.Id,
+                Name = n.Band.Name,
+                Description = n.Band.Description
+            },
+            Municipality = n.Municipality == null ? null : new()
+            {
+                Id = n.Municipality.Id,
+                Name = n.Municipality.Name,
+                Description = n.Municipality.Description,
+                IsCity = n.Municipality.IsCity,
+                Code = n.Municipality.Code,
+                Area = n.Municipality.Area,
+                Province = n.Municipality.Province == null ? null : new()
+                {
+                    Id = n.Municipality.Province.Id,
+                    Name = n.Municipality.Province.Name,
+                    Description = n.Municipality.Province.Description,
+                    Code = n.Municipality.Province.Code
+                }
+            },
+            ULCenterFreq = n.ULCenterFreq,
+            DLCenterFreq = n.DLCenterFreq,
+            Bandwidth = n.Bandwidth
         });
 
         return await _networkRepository.PaginateAsync(networkDtos, request.PageNumber, request.PageSize, cancellationToken);

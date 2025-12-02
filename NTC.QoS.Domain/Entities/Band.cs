@@ -11,4 +11,5 @@ public class Band : BaseEntity
     public virtual List<Cellular> Cellulars { get; set; } = [];
     public virtual List<Link> Links { get; set; } = [];
     public virtual List<WirelessValidation> WirelessValidations { get; set; } = [];
+    public virtual List<Network> Networks { get; set; } = [];
 }

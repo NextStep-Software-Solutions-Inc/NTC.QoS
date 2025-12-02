@@ -1152,6 +1152,7 @@ public class ProcessCellJob : IProcessCellJob
 
                     var networkId = await GetOrCreateNetworkAsync(
                         serviceProviderId,
+                        municipalityId,
                         municipalityName,
                         technologyId,
                         bandId,
@@ -1470,6 +1471,7 @@ public class ProcessCellJob : IProcessCellJob
 
     private async Task<Guid> GetOrCreateNetworkAsync(
         Guid serviceProviderId,
+        Guid? municipalityId,
         string municipalityName,
         Guid technologyId,
         Guid bandId,
@@ -1494,7 +1496,7 @@ public class ProcessCellJob : IProcessCellJob
         var technologyName = technologyCache.FirstOrDefault(x => x.Value == technologyId).Key ?? "Unknown";
         var bandName = bandCache.FirstOrDefault(x => x.Value == bandId).Key ?? "Unknown";
 
-        var networkNamePattern = $"{technologyName}-{bandName}-{municipalityName}";
+        var networkNamePattern = $"{technologyName}_{bandName}_{municipalityName}";
         var existingNetwork = await _networkRepository
             .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
             .FirstOrDefaultAsync(token);
@@ -1515,9 +1517,11 @@ public class ProcessCellJob : IProcessCellJob
 
         var network = new Domain.Aggregates.Network
         {
-            Name = $"{technologyName}-{bandName}-{municipalityName}",
+            Name = $"{technologyName}_{bandName}_{municipalityName}",
             ServiceProviderId = serviceProviderId,
-            SystemTypeId = systemTypeId,  // ✅ From cache
+            SystemTypeId = systemTypeId,
+            BandId = bandId,
+            MunicipalityId = municipalityId,
             ULCenterFreq = ulCenterFreq,
             DLCenterFreq = dlCenterFreq,
             Bandwidth = bandwidth
