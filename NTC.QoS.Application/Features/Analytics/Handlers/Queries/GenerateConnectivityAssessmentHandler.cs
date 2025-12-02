@@ -1524,11 +1524,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         {
             Scores =
             [
-                new CMTSScoreItemDto { Subject = "Fiber Coverage", A = fiberCoverage, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Internet Access", A = internetAccess, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Technology Type", A = technologyType, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Quality of Service", A = qualityOfService, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Mobile Coverage", A = coverageAvailability, FullMark = 3 }
+                new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = fiberCoverage },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = internetAccess },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = technologyType },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = qualityOfService },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = coverageAvailability }
             ]
         };
     }

@@ -78,24 +78,42 @@ public class LocationConnectivityDto
 }
 
 /// <summary>
+/// CMTS subject/criterion names
+/// </summary>
+public static class CMTSSubjects
+{
+    public const string FiberCoverage = "Fiber Coverage";
+    public const string InternetAccess = "Internet Access";
+    public const string TechnologyType = "Technology Type";
+    public const string QualityOfService = "Quality of Service";
+    public const string MobileCoverage = "Mobile Coverage";
+}
+
+/// <summary>
 /// Individual CMTS score item for radar chart visualization
 /// </summary>
 public class CMTSScoreItemDto
 {
+    /// <summary>
+    /// Maximum score for CMTS criteria
+    /// </summary>
+    public const int MaxScore = 3;
+
     /// <summary>
     /// Subject/criterion name
     /// </summary>
     public string Subject { get; set; } = string.Empty;
 
     /// <summary>
-    /// Actual score achieved (0-3)
+    /// Actual score achieved (0-3).
+    /// Property name 'A' is required by the charting library used for radar chart visualization.
     /// </summary>
     public int A { get; set; }
 
     /// <summary>
     /// Maximum possible score (always 3 for CMTS rubric)
     /// </summary>
-    public int FullMark { get; set; } = 3;
+    public int FullMark { get; set; } = MaxScore;
 }
 
 /// <summary>

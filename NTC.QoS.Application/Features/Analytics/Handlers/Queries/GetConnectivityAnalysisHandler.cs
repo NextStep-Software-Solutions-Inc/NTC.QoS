@@ -78,11 +78,11 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                         {
                             Scores =
                             [
-                                new CMTSScoreItemDto { Subject = "Fiber Coverage", A = 0, FullMark = 3 },
-                                new CMTSScoreItemDto { Subject = "Internet Access", A = 0, FullMark = 3 },
-                                new CMTSScoreItemDto { Subject = "Technology Type", A = 0, FullMark = 3 },
-                                new CMTSScoreItemDto { Subject = "Quality of Service", A = 0, FullMark = 3 },
-                                new CMTSScoreItemDto { Subject = "Mobile Coverage", A = 0, FullMark = 3 }
+                                new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = 0 },
+                                new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = 0 },
+                                new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = 0 },
+                                new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = 0 },
+                                new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = 0 }
                             ]
                         },
                         Infrastructure = new InfrastructureStatsDto(),
@@ -281,11 +281,11 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             {
                 Scores =
                 [
-                    new CMTSScoreItemDto { Subject = "Fiber Coverage", A = assessment.FiberCoverageScore, FullMark = 3 },
-                    new CMTSScoreItemDto { Subject = "Internet Access", A = assessment.InternetAccessScore, FullMark = 3 },
-                    new CMTSScoreItemDto { Subject = "Technology Type", A = assessment.TechnologyTypeScore, FullMark = 3 },
-                    new CMTSScoreItemDto { Subject = "Quality of Service", A = assessment.QualityOfServiceScore, FullMark = 3 },
-                    new CMTSScoreItemDto { Subject = "Mobile Coverage", A = assessment.CoverageAvailabilityScore, FullMark = 3 }
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = assessment.FiberCoverageScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = assessment.InternetAccessScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = assessment.TechnologyTypeScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = assessment.QualityOfServiceScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = assessment.CoverageAvailabilityScore }
                 ]
             },
             Infrastructure = new InfrastructureStatsDto
@@ -356,33 +356,28 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                 [
                     new CMTSScoreItemDto
                     {
-                        Subject = "Fiber Coverage",
-                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == "Fiber Coverage")?.A ?? 0)),
-                        FullMark = 3
+                        Subject = CMTSSubjects.FiberCoverage,
+                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == CMTSSubjects.FiberCoverage)?.A ?? 0))
                     },
                     new CMTSScoreItemDto
                     {
-                        Subject = "Internet Access",
-                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == "Internet Access")?.A ?? 0)),
-                        FullMark = 3
+                        Subject = CMTSSubjects.InternetAccess,
+                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == CMTSSubjects.InternetAccess)?.A ?? 0))
                     },
                     new CMTSScoreItemDto
                     {
-                        Subject = "Technology Type",
-                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == "Technology Type")?.A ?? 0)),
-                        FullMark = 3
+                        Subject = CMTSSubjects.TechnologyType,
+                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == CMTSSubjects.TechnologyType)?.A ?? 0))
                     },
                     new CMTSScoreItemDto
                     {
-                        Subject = "Quality of Service",
-                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == "Quality of Service")?.A ?? 0)),
-                        FullMark = 3
+                        Subject = CMTSSubjects.QualityOfService,
+                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == CMTSSubjects.QualityOfService)?.A ?? 0))
                     },
                     new CMTSScoreItemDto
                     {
-                        Subject = "Mobile Coverage",
-                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == "Mobile Coverage")?.A ?? 0)),
-                        FullMark = 3
+                        Subject = CMTSSubjects.MobileCoverage,
+                        A = (int)Math.Round(locations.Average(l => l.CMTSScores.Scores.FirstOrDefault(s => s.Subject == CMTSSubjects.MobileCoverage)?.A ?? 0))
                     }
                 ]
             };

@@ -1661,11 +1661,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         {
             Scores =
             [
-                new CMTSScoreItemDto { Subject = "Fiber Coverage", A = fiberCoverage, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Internet Access", A = internetAccess, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Technology Type", A = technologyType, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Quality of Service", A = qualityOfService, FullMark = 3 },
-                new CMTSScoreItemDto { Subject = "Mobile Coverage", A = coverageAvailability, FullMark = 3 }
+                new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = fiberCoverage },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = internetAccess },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = technologyType },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = qualityOfService },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = coverageAvailability }
             ]
         };
     }
@@ -2383,11 +2383,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 {
                     Scores =
                     [
-                        new CMTSScoreItemDto { Subject = "Fiber Coverage", A = assessment.FiberCoverageScore, FullMark = 3 },
-                        new CMTSScoreItemDto { Subject = "Internet Access", A = assessment.InternetAccessScore, FullMark = 3 },
-                        new CMTSScoreItemDto { Subject = "Technology Type", A = assessment.TechnologyTypeScore, FullMark = 3 },
-                        new CMTSScoreItemDto { Subject = "Quality of Service", A = assessment.QualityOfServiceScore, FullMark = 3 },
-                        new CMTSScoreItemDto { Subject = "Mobile Coverage", A = assessment.CoverageAvailabilityScore, FullMark = 3 }
+                        new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = assessment.FiberCoverageScore },
+                        new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = assessment.InternetAccessScore },
+                        new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = assessment.TechnologyTypeScore },
+                        new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = assessment.QualityOfServiceScore },
+                        new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = assessment.CoverageAvailabilityScore }
                     ]
                 },
                 Infrastructure = new()
