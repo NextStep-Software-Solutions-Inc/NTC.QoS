@@ -154,9 +154,15 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate CMTS scores based on infrastructure, speed data, and population
         var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
 
+        // Extract individual scores from the array for entity mapping
+        var fiberCoverage = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Fiber Coverage")?.A ?? 0;
+        var internetAccess = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Internet Access")?.A ?? 0;
+        var technologyType = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Technology Type")?.A ?? 0;
+        var qualityOfService = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Quality of Service")?.A ?? 0;
+        var coverageAvailability = cmtsScores.Scores.FirstOrDefault(s => s.Subject == "Mobile Coverage")?.A ?? 0;
+
         // Determine connectivity status and total score
-        var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess +
-                        cmtsScores.TechnologyType + cmtsScores.QualityOfService + cmtsScores.CoverageAvailability;
+        var totalScore = fiberCoverage + internetAccess + technologyType + qualityOfService + coverageAvailability;
 
         var connectivityStatus = DetermineConnectivityStatus(totalScore);
 
@@ -181,11 +187,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             AssessedBy = currentUserId,
             ConnectivityStatus = connectivityStatus,
             TotalScore = totalScore,
-            FiberCoverageScore = cmtsScores.FiberCoverage,
-            InternetAccessScore = cmtsScores.InternetAccess,
-            TechnologyTypeScore = cmtsScores.TechnologyType,
-            QualityOfServiceScore = cmtsScores.QualityOfService,
-            CoverageAvailabilityScore = cmtsScores.CoverageAvailability,
+            FiberCoverageScore = fiberCoverage,
+            InternetAccessScore = internetAccess,
+            TechnologyTypeScore = technologyType,
+            QualityOfServiceScore = qualityOfService,
+            CoverageAvailabilityScore = coverageAvailability,
             CellTowerCount = infrastructureStats.CellTowerCount,
             FiberNAPCount = infrastructureStats.FiberNAPCount,
             WifiHotspotCount = infrastructureStats.WiFiHotspotCount,
@@ -1504,19 +1510,27 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
     private static CMTSScoresDto CalculateCMTSScores(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats, double areaKm2, int? population, int? householdCount)
     {
-        var scores = new CMTSScoresDto();
-
         // Calculate population density context once
         var populationContext = CalculatePopulationContext(population, areaKm2);
 
         // Calculate each CMTS criterion using dedicated methods
-        scores.FiberCoverage = CalculateFiberCoverageScore(infrastructure, areaKm2, population, populationContext);
-        scores.InternetAccess = CalculateInternetAccessScore(speedStats);
-        scores.TechnologyType = CalculateTechnologyTypeScore(infrastructure);
-        scores.QualityOfService = CalculateQualityOfServiceScore(speedStats, infrastructure);
-        scores.CoverageAvailability = CalculateCoverageAvailabilityScore(infrastructure, areaKm2, population, populationContext);
+        var fiberCoverage = CalculateFiberCoverageScore(infrastructure, areaKm2, population, populationContext);
+        var internetAccess = CalculateInternetAccessScore(speedStats);
+        var technologyType = CalculateTechnologyTypeScore(infrastructure);
+        var qualityOfService = CalculateQualityOfServiceScore(speedStats, infrastructure);
+        var coverageAvailability = CalculateCoverageAvailabilityScore(infrastructure, areaKm2, population, populationContext);
 
-        return scores;
+        return new CMTSScoresDto
+        {
+            Scores =
+            [
+                new CMTSScoreItemDto { Subject = "Fiber Coverage", A = fiberCoverage, FullMark = 3 },
+                new CMTSScoreItemDto { Subject = "Internet Access", A = internetAccess, FullMark = 3 },
+                new CMTSScoreItemDto { Subject = "Technology Type", A = technologyType, FullMark = 3 },
+                new CMTSScoreItemDto { Subject = "Quality of Service", A = qualityOfService, FullMark = 3 },
+                new CMTSScoreItemDto { Subject = "Mobile Coverage", A = coverageAvailability, FullMark = 3 }
+            ]
+        };
     }
 
     /// <summary>
