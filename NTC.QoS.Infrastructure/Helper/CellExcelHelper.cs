@@ -1,5 +1,4 @@
 ﻿using ClosedXML.Excel;
-using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using System.Reflection;
 
@@ -10,9 +9,9 @@ public class CellExcelHelper
     /// <summary>
     /// Parses Excel data from a Stream (supports both FileStream and blob storage streams)
     /// </summary>
-    public static List<CellRecord> ParseExcelToCellRecords(Stream stream)
+    public static List<CellRecordV3> ParseExcelToCellRecords(Stream stream)
     {
-        var result = new List<CellRecord>();
+        var result = new List<CellRecordV3>();
 
         using (var workbook = new XLWorkbook(stream))
         {
@@ -34,7 +33,7 @@ public class CellExcelHelper
                 headers.Add(worksheet.Cell(3, col).GetString());
             }
 
-            var properties = typeof(CellRecord).GetProperties();
+            var properties = typeof(CellRecordV3).GetProperties();
 
             // Get a map of column index → property based on property order
             // Assumes that Excel columns are in the same order as properties
@@ -49,7 +48,7 @@ public class CellExcelHelper
 
             for (int row = 4; row <= lastRow; row++)
             {
-                var obj = new CellRecord();
+                var obj = new CellRecordV3();
 
                 for (int col = 1; col <= lastColumn; col++)
                 {
@@ -98,7 +97,7 @@ public class CellExcelHelper
     /// Legacy method for backward compatibility with FileStream
     /// </summary>
     [Obsolete("Use ParseExcelToCellRecords(Stream) instead. This method will be removed in a future version.")]
-    public static List<CellRecord> ParseExcelToCellRecords(FileStream stream)
+    public static List<CellRecordV3> ParseExcelToCellRecords(FileStream stream)
     {
         return ParseExcelToCellRecords((Stream)stream);
     }
