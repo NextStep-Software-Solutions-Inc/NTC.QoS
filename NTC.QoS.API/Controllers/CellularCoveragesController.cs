@@ -108,6 +108,40 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         return Ok(cellularCoverages);
     }
 
+    /// <summary>
+    /// V2: Upload cellular coverage CSV file with user-provided metadata
+    /// Expects CSV format: Lat, Lng, Signal, Address
+    /// User provides: NetworkId, BandId, MunicipalityId
+    /// System derives: ServiceProviderId and TechnologyId from Network
+    /// </summary>
+    [HttpPost("v2/upload")]
+    [DisableRequestSizeLimit]
+    public async Task<ActionResult<ApiResponse<CellularCoverageV2UploadResultDto>>> UploadCellularCoverageV2(
+        [FromForm] UploadCellularCoverageV2Request request)
+    {
+        var command = new UploadCellularCoverageV2Command
+        {
+            NetworkId = request.NetworkId,
+            BandId = request.BandId,
+            MunicipalityId = request.MunicipalityId,
+            CsvFile = request.File
+        };
+
+        var result = await mediator.Send(command);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// V2: Get cellular coverage V2 records with pagination and filters
+    /// </summary>
+    [HttpGet("v2")]
+    public async Task<ActionResult<PaginatedResponse<CellularCoverageV2Dto>>> GetCellularCoverageV2(
+        [FromQuery] GetCellularCoverageV2Query query)
+    {
+        var result = await mediator.Send(query);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     private async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(CellularCoverageQueryParams query)
     {
         var cacheKey = $"{CellularCoverageCachePrefix}{query.PageSize}_{query.PageNumber}_{string.Join(",", query.NetworkIds ?? [])}" +

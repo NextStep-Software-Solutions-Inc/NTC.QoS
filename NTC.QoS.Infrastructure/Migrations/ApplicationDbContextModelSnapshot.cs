@@ -1086,6 +1086,88 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("CellularCoverages");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverageVersion2", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CellSectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFileUploaded")
+                        .HasColumnType("boolean");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geometry (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NetworkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("SignalStrength")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("TechnologyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("CellSectorId")
+                        .HasDatabaseName("IX_CellularCoverageV2_CellSectorId");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("IX_CellularCoverageV2_Location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
+                    b.HasIndex("MunicipalityId")
+                        .HasDatabaseName("IX_CellularCoverageV2_MunicipalityId");
+
+                    b.HasIndex("TechnologyId");
+
+                    b.HasIndex("NetworkId", "BandId", "MunicipalityId")
+                        .HasDatabaseName("IX_CellularCoverageV2_Network_Band_Municipality");
+
+                    b.ToTable("CellularCoveragesV2");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2944,6 +3026,49 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Network");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverageVersion2", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.CellSector", "CellSector")
+                        .WithMany()
+                        .HasForeignKey("CellSectorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Municipality", "Municipality")
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
+                        .WithMany()
+                        .HasForeignKey("NetworkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
+                        .WithMany()
+                        .HasForeignKey("TechnologyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("CellSector");
+
+                    b.Navigation("Municipality");
+
+                    b.Navigation("Network");
+
+                    b.Navigation("Technology");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>

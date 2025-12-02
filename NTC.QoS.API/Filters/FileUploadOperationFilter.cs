@@ -80,6 +80,32 @@ public class FileUploadOperationFilter : IOperationFilter
                         Type = "string"
                     };
                 }
+                else if (parameter.ParameterType == typeof(Guid))
+                {
+                    var parameterName = GetParameterName(parameter);
+                    schema.Properties[parameterName] = new OpenApiSchema
+                    {
+                        Type = "string",
+                        Format = "uuid"
+                    };
+                }
+                else if (parameter.ParameterType == typeof(int))
+                {
+                    var parameterName = GetParameterName(parameter);
+                    schema.Properties[parameterName] = new OpenApiSchema
+                    {
+                        Type = "integer",
+                        Format = "int32"
+                    };
+                }
+                else if (parameter.ParameterType == typeof(bool))
+                {
+                    var parameterName = GetParameterName(parameter);
+                    schema.Properties[parameterName] = new OpenApiSchema
+                    {
+                        Type = "boolean"
+                    };
+                }
                 else if (HasFormFileProperty(parameter.ParameterType))
                 {
                     // Handle complex types with IFormFile properties
