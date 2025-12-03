@@ -52,12 +52,12 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
         {
             Id = network.Id,
             Name = network.Name,
-            NetworkTemplate = new()
+            NetworkTemplate = network.NetworkTemplate == null ? null : new()
             {
-                Id = network.NetworkTemplate?.Id ?? Guid.Empty,
-                Name = network.NetworkTemplate?.Name ?? string.Empty,
-                Description = network.NetworkTemplate?.Description ?? string.Empty,
-                URL = network.NetworkTemplate?.URL ?? string.Empty
+                Id = network.NetworkTemplate.Id,
+                Name = network.NetworkTemplate.Name,
+                Description = network.NetworkTemplate.Description,
+                URL = network.NetworkTemplate.URL
             },
             SystemTypeName = network.SystemType?.Name ?? string.Empty,
             ServiceProvider = new()
@@ -79,6 +79,21 @@ public class UpdateNetworkByIdHandler(INetworkRepository networkRepository) : IR
                     Name = network.ServiceProvider?.Service?.Name ?? string.Empty,
                     Type = network.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                 }
+            },
+            Band = new()
+            {
+                Id = network.Band.Id,
+                Name = network.Band.Name,
+                Description = network.Band.Description
+            },
+            Municipality = network.Municipality == null ? null : new()
+            {
+                Id = network.Municipality.Id,
+                Name = network.Municipality.Name,
+                Description = network.Municipality.Description,
+                IsCity = network.Municipality.IsCity,
+                Code = network.Municipality.Code,
+                Area = network.Municipality.Area
             },
             ULCenterFreq = network.ULCenterFreq,
             DLCenterFreq = network.DLCenterFreq,

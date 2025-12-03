@@ -46,4 +46,5 @@ public class Municipality : BaseEntity, IGeoBoundaryEntity
 
     public virtual List<Barangay> Barangays { get; set; } = [];
     public virtual List<StudyMunicipality> StudyMunicipalities { get; set; } = [];
+    public virtual List<Network> Networks { get; set; } = [];
 }
