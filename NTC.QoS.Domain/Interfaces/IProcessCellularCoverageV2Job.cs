@@ -11,14 +11,14 @@ public interface IProcessCellularCoverageV2Job
     /// Executes the V2 coverage processing job
     /// </summary>
     /// <param name="fileDto">File metadata</param>
-    /// <param name="networkId">User-selected network</param>
-    /// <param name="bandId">User-selected band</param>
+    /// <param name="networkId">User-selected network (derives BandId and TechnologyId)</param>
+    /// <param name="serviceProviderId">User-selected service provider</param>
     /// <param name="municipalityId">Municipality scope</param>
     /// <param name="cancellationToken">Cancellation token</param>
     Task ExecuteAsync(
         FileDto fileDto,
         Guid networkId,
-        Guid bandId,
+        Guid serviceProviderId,
         Guid municipalityId,
         CancellationToken cancellationToken);
 }

@@ -42,8 +42,8 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
         try
         {
             _logger.LogInformation(
-                "Starting CellularCoverage V2 upload for NetworkId={NetworkId}, BandId={BandId}, MunicipalityId={MunicipalityId}",
-                request.NetworkId, request.BandId, request.MunicipalityId);
+                "Starting CellularCoverage V2 upload for NetworkId={NetworkId}, ServiceProviderId={ServiceProviderId}, MunicipalityId={MunicipalityId}",
+                request.NetworkId, request.ServiceProviderId, request.MunicipalityId);
 
             // Step 1: Upload file to blob storage
             var containerName = "cellular-coverage-v2";
@@ -94,7 +94,7 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
                 job => job.ExecuteAsync(
                     fileDto,
                     request.NetworkId,
-                    request.BandId,
+                    request.ServiceProviderId,
                     request.MunicipalityId,
                     CancellationToken.None));
 
@@ -106,7 +106,7 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
                 Message = "CSV file uploaded successfully. Processing will begin shortly.",
                 Data = new CellularCoverageV2UploadResultDto
                 {
-                    JobId = Guid.Parse(jobId),
+                    JobId = fileRecord.Id, // Use file record ID instead of Hangfire job ID
                     Message = "File is being processed in the background",
                     Status = "Processing"
                 }

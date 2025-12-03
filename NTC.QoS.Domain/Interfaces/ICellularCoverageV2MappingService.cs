@@ -9,6 +9,31 @@ namespace NTC.QoS.Domain.Interfaces;
 public interface ICellularCoverageV2MappingService
 {
     /// <summary>
+    /// Initializes the mapping service with pre-loaded data for optimal performance.
+    /// Should be called once before processing a batch of records.
+    /// </summary>
+    /// <param name="networkId">Network ID to cache</param>
+    /// <param name="municipalityId">Municipality ID to pre-load cell sectors for</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task InitializeAsync(Guid networkId, Guid municipalityId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Maps a batch of CSV coverage points to V2 entities (optimized for bulk processing)
+    /// </summary>
+    /// <param name="csvRecords">Batch of parsed CSV records</param>
+    /// <param name="networkId">User-provided network ID</param>
+    /// <param name="bandId">User-provided band ID</param>
+    /// <param name="municipalityId">User-provided municipality ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of successfully mapped entities</returns>
+    Task<List<CellularCoverageVersion2>> MapCoveragePointsBatchAsync(
+        List<CellularCoverageV2CsvRecord> csvRecords,
+        Guid networkId,
+        Guid bandId,
+        Guid municipalityId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Maps a CSV coverage point to a V2 entity
     /// </summary>
     /// <param name="csvRecord">Parsed CSV record</param>

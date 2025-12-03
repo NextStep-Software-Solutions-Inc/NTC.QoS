@@ -14,7 +14,7 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
 /// <summary>
 /// Background job for processing CellularCoverage V2 CSV uploads
-/// Derives ServiceProviderId and TechnologyId from Network
+/// Derives BandId and TechnologyId from Network
 /// </summary>
 public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
 {
@@ -45,15 +45,15 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
     public async Task ExecuteAsync(
         FileDto fileDto,
         Guid networkId,
-        Guid bandId,
+        Guid serviceProviderId,
         Guid municipalityId,
         CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "Starting CellularCoverage V2 processing for FileId={FileId}, NetworkId={NetworkId}, BandId={BandId}, MunicipalityId={MunicipalityId}",
-            fileDto.Id, networkId, bandId, municipalityId);
+            "Starting CellularCoverage V2 processing for FileId={FileId}, NetworkId={NetworkId}, ServiceProviderId={ServiceProviderId}, MunicipalityId={MunicipalityId}",
+            fileDto.Id, networkId, serviceProviderId, municipalityId);
 
-        // Step 1: Fetch and validate Network (to derive ServiceProviderId and TechnologyId)
+        // Step 1: Fetch and validate Network (to derive BandId and TechnologyId)
         var network = await _networkRepository
             .Query()
             .Include(n => n.SystemType)
@@ -72,12 +72,12 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
             throw new InvalidOperationException($"Network {networkId} is missing SystemType or Technology configuration");
         }
 
-        var serviceProviderId = network.ServiceProviderId;
+        var bandId = network.BandId;
         var technologyId = network.SystemType.TechnologyId;
 
-        _logger.LogInformation(
-            "Derived from Network: ServiceProviderId={ServiceProviderId}, TechnologyId={TechnologyId}",
-            serviceProviderId, technologyId);
+            _logger.LogInformation(
+                "Derived from Network: BandId={BandId}, TechnologyId={TechnologyId}",
+                bandId, technologyId);
 
         // Step 2: Validate and retrieve file record
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
@@ -96,9 +96,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
             cancellationToken);
 
         // Processing statistics
-        var stats = new ProcessingStats();
-
-        try
+        var stats = new ProcessingStats();        try
         {
             // Step 4: Download file from blob storage
             Stream fileStream;
@@ -138,111 +136,93 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
 
             using (fileStream)
             {
-                _logger.LogInformation("Processing CSV file from blob storage");
+                _logger.LogInformation("Processing CSV file using STREAMING mode (memory-efficient for large files)");
 
-                // Step 5: Validate CSV headers
-                if (!CsvParser.ValidateCsvHeaders(fileStream, _logger))
-                {
-                    await ProcessingJobHelper.TerminateProcessAsync(
-                        file,
-                        _fileRepository,
-                        _logger,
-                        FileTypeEnum.CellularCoverageV2,
-                        "CSV file must contain columns: Lat, Lng, Signal, Address",
-                        cancellationToken);
-                    return;
-                }
+                // Step 5: Initialize mapping service with cached data (CRITICAL for performance)
+                _logger.LogInformation("Pre-loading CellSectors and network data for efficient processing...");
+                await _mappingService.InitializeAsync(networkId, municipalityId, cancellationToken);
 
-                // Step 6: Parse CSV records
-                List<CellularCoverageV2CsvRecord> csvRecords;
+                // Step 6: Stream CSV in batches to avoid loading entire file into memory
+                const int csvBatchSize = 1000;   // Read 1000 CSV records at a time from stream
+                const int insertBatchSize = 500; // Insert 500 to DB at a time
+
+                var allMappedRecords = new List<CellularCoverageVersion2>();
+                int totalRecordsProcessed = 0;
+                int batchNumber = 0;
+
                 try
                 {
-                    csvRecords = CsvParser.ParseCellularCoverageV2Csv(fileStream, _logger);
-                    stats.TotalRows = csvRecords.Count;
-                    _logger.LogInformation("Parsed {Count} records from CSV", csvRecords.Count);
-                }
-                catch (Exception ex)
-                {
-                    await ProcessingJobHelper.TerminateProcessAsync(
-                        file,
-                        _fileRepository,
-                        _logger,
-                        FileTypeEnum.CellularCoverageV2,
-                        $"CSV parsing failed: {ex.Message}",
-                        cancellationToken);
-                    return;
-                }
+                    // Stream CSV batches without loading entire file into memory
+                    foreach (var csvBatch in CsvParser.StreamCellularCoverageV2CsvBatches(fileStream, csvBatchSize, _logger))
+                    {
+                        batchNumber++;
+                        totalRecordsProcessed += csvBatch.Count;
+                        stats.TotalRows += csvBatch.Count;
 
-                if (csvRecords.Count == 0)
-                {
-                    _logger.LogInformation("CSV file is empty");
+                        _logger.LogInformation(
+                            "Processing CSV batch {BatchNumber} ({Count} records, total: {Total})",
+                            batchNumber, csvBatch.Count, totalRecordsProcessed);
+
+                        // Map entire batch at once (minimal DB queries)
+                        var mappedBatch = await _mappingService.MapCoveragePointsBatchAsync(
+                            csvBatch,
+                            networkId,
+                            bandId,
+                            municipalityId,
+                            cancellationToken);
+
+                        stats.ProcessedSuccessfully += mappedBatch.Count;
+                        stats.Skipped += csvBatch.Count - mappedBatch.Count;
+
+                        allMappedRecords.AddRange(mappedBatch);
+
+                        // Insert to database when we have enough records
+                        if (allMappedRecords.Count >= insertBatchSize)
+                        {
+                            await InsertBatchAsync(allMappedRecords, cancellationToken);
+                            _logger.LogInformation("Inserted {Count} records to database (total processed: {Total})",
+                                allMappedRecords.Count, stats.ProcessedSuccessfully);
+                            allMappedRecords.Clear();
+                        }
+                    }
+
+                    // Insert remaining records
+                    if (allMappedRecords.Count > 0)
+                    {
+                        await InsertBatchAsync(allMappedRecords, cancellationToken);
+                        _logger.LogInformation("Inserted final batch of {Count} records", allMappedRecords.Count);
+                    }
+
+                    if (stats.TotalRows == 0)
+                    {
+                        _logger.LogInformation("CSV file is empty");
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "Streaming processing completed. Total={Total}, Processed={Processed}, Skipped={Skipped}",
+                            stats.TotalRows, stats.ProcessedSuccessfully, stats.Skipped);
+                    }
+
                     await ProcessingJobHelper.SetFileSuccessStatusAsync(
                         file,
                         _fileRepository,
                         _logger,
                         FileTypeEnum.CellularCoverageV2,
                         cancellationToken);
-                    return;
                 }
-
-                // Step 7: Process records in batches
-                var mappedRecords = new List<CellularCoverageVersion2>();
-                const int batchSize = 100;
-
-                for (int i = 0; i < csvRecords.Count; i++)
+                catch (Exception ex)
                 {
-                    var record = csvRecords[i];
-
-                    ProcessingJobHelper.ReportProgress(
-                        $"Processing record {i + 1}/{csvRecords.Count}: Lat={record.Latitude}, Lng={record.Longitude}",
-                        _logger);
-
-                    // Map CSV record to V2 entity
-                    var mappedEntity = await _mappingService.MapCoveragePointAsync(
-                        record,
-                        networkId,
-                        bandId,
-                        municipalityId,
+                    _logger.LogError(ex, "Error occurred during streaming CSV processing");
+                    await ProcessingJobHelper.TerminateProcessAsync(
+                        file,
+                        _fileRepository,
+                        _logger,
+                        FileTypeEnum.CellularCoverageV2,
+                        $"Streaming processing error: {ex.Message}",
                         cancellationToken);
-
-                    if (mappedEntity != null)
-                    {
-                        mappedRecords.Add(mappedEntity);
-                        stats.ProcessedSuccessfully++;
-                    }
-                    else
-                    {
-                        stats.Skipped++;
-                        _logger.LogDebug("Skipped record at row {Row}", i + 1);
-                    }
-
-                    // Bulk insert when batch is full
-                    if (mappedRecords.Count >= batchSize)
-                    {
-                        await InsertBatchAsync(mappedRecords, cancellationToken);
-                        _logger.LogInformation("Inserted batch of {Count} records", mappedRecords.Count);
-                        mappedRecords.Clear();
-                    }
+                    throw;
                 }
-
-                // Insert remaining records
-                if (mappedRecords.Count > 0)
-                {
-                    await InsertBatchAsync(mappedRecords, cancellationToken);
-                    _logger.LogInformation("Inserted final batch of {Count} records", mappedRecords.Count);
-                }
-
-                // Step 7: Update file status to Success
-                _logger.LogInformation(
-                    "Processing completed. Total={Total}, Processed={Processed}, Skipped={Skipped}",
-                    stats.TotalRows, stats.ProcessedSuccessfully, stats.Skipped);
-
-                await ProcessingJobHelper.SetFileSuccessStatusAsync(
-                    file,
-                    _fileRepository,
-                    _logger,
-                    FileTypeEnum.CellularCoverageV2,
-                    cancellationToken);
             }
         }
         catch (Exception ex)

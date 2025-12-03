@@ -4,8 +4,8 @@ namespace NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 
 /// <summary>
 /// Request DTO for uploading CellularCoverage V2 CSV file
-/// User provides: NetworkId, BandId, MunicipalityId
-/// System derives: ServiceProviderId and TechnologyId from Network
+/// User provides: NetworkId, ServiceProviderId, MunicipalityId
+/// System derives: BandId and TechnologyId from Network
 /// </summary>
 public class UploadCellularCoverageV2Request
 {
@@ -15,9 +15,9 @@ public class UploadCellularCoverageV2Request
     public required Guid NetworkId { get; set; }
 
     /// <summary>
-    /// Band identifier (user-selected)
+    /// Service Provider identifier (user-selected)
     /// </summary>
-    public required Guid BandId { get; set; }
+    public required Guid ServiceProviderId { get; set; }
 
     /// <summary>
     /// Municipality identifier (defines geographic scope)

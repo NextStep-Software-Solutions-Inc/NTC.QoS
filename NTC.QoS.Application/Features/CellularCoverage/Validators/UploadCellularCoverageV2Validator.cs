@@ -15,9 +15,9 @@ public class UploadCellularCoverageV2Validator : AbstractValidator<UploadCellula
             .NotEmpty()
             .WithMessage("NetworkId is required");
 
-        RuleFor(x => x.BandId)
+        RuleFor(x => x.ServiceProviderId)
             .NotEmpty()
-            .WithMessage("BandId is required");
+            .WithMessage("ServiceProviderId is required");
 
         RuleFor(x => x.MunicipalityId)
             .NotEmpty()
@@ -30,8 +30,6 @@ public class UploadCellularCoverageV2Validator : AbstractValidator<UploadCellula
         RuleFor(x => x.CsvFile.Length)
             .GreaterThan(0)
             .WithMessage("CSV file must not be empty")
-            .LessThan(100 * 1024 * 1024) // 100 MB max
-            .WithMessage("CSV file size must not exceed 100 MB")
             .When(x => x.CsvFile != null);
 
         RuleFor(x => x.CsvFile.ContentType)

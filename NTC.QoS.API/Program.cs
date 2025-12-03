@@ -99,6 +99,21 @@ public class Program
                 options.JsonSerializerOptions.WriteIndented = env.IsDevelopment();
             });
 
+        // Configure file upload limits for large CSV files (streaming processing)
+        builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+        {
+            options.MultipartBodyLengthLimit = 1073741824; // 1 GB - streaming handles large files efficiently
+            options.ValueLengthLimit = int.MaxValue;
+            options.MultipartHeadersLengthLimit = int.MaxValue;
+            options.BufferBodyLengthLimit = 134217728; // 128 MB buffer
+        });
+
+        builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
+        {
+            options.Limits.MaxRequestBodySize = 1073741824; // 1 GB
+            options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5); // Allow more time for large uploads
+        });
+
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
         {

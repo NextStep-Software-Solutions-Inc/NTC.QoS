@@ -24,7 +24,7 @@ public class BlobStorageService(
     {
         _logger.LogInformation("Starting upload of file {FileName} to container {ContainerName}", fileName, containerName);
 
-        ValidateFileSize(fileStream);
+        // ValidateFileSize(fileStream);
         ValidateContentType(contentType);
 
         var containerClient = await GetOrCreateContainerAsync(containerName, cancellationToken);
