@@ -19,7 +19,7 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
         }
 
         networksQuery = networksQuery
-            .Where(n => !request.NetworkTemplateId.HasValue || n.NetworkTemplate.Id == request.NetworkTemplateId)
+            .Where(n => !request.NetworkTemplateId.HasValue || (n.NetworkTemplate != null && n.NetworkTemplate.Id == request.NetworkTemplateId))
             .Where(n => !request.SystemTypeId.HasValue || n.SystemTypeId == request.SystemTypeId)
             .Where(n => !request.TechnologyId.HasValue || n.SystemType.TechnologyId == request.TechnologyId)
             .Where(n => !request.BandId.HasValue || n.BandId == request.BandId)
