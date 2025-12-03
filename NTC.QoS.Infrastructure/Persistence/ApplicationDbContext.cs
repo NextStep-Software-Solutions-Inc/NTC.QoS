@@ -420,6 +420,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(sp => sp.Networks)
             .HasForeignKey(n => n.ServiceProviderId);
 
+        modelBuilder.Entity<Network>()
+            .HasOne(n => n.Band)
+            .WithMany(b => b.Networks)
+            .HasForeignKey(n => n.BandId);
+
+        modelBuilder.Entity<Network>()
+            .HasOne(n => n.Municipality)
+            .WithMany(m => m.Networks)
+            .HasForeignKey(n => n.MunicipalityId);
+
         modelBuilder.Entity<Technology>()
             .HasMany(t => t.SystemTypes)
             .WithOne(st => st.Technology)

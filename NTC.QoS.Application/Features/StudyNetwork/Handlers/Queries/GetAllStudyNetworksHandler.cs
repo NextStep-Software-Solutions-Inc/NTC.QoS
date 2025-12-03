@@ -83,7 +83,25 @@ public class GetAllStudyNetworksHandler(IStudyNetworkRepository repository) : IR
                         Name = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Service != null ? sn.Network.ServiceProvider.Service.Name : string.Empty,
                         Type = sn.Network != null && sn.Network.ServiceProvider != null && sn.Network.ServiceProvider.Service != null ? sn.Network.ServiceProvider.Service.Type.ToString() : string.Empty
                     }
-                }
+                },
+                Band = new()
+                {
+                    Id = sn.Network != null && sn.Network.Band != null ? sn.Network.Band.Id : Guid.Empty,
+                    Name = sn.Network != null && sn.Network.Band != null ? sn.Network.Band.Name : string.Empty,
+                    Description = sn.Network != null && sn.Network.Band != null ? sn.Network.Band.Description : null
+                },
+                Municipality = sn.Network != null && sn.Network.Municipality != null ? new()
+                {
+                    Id = sn.Network.Municipality.Id,
+                    Name = sn.Network.Municipality.Name,
+                    Description = sn.Network.Municipality.Description,
+                    IsCity = sn.Network.Municipality.IsCity,
+                    Code = sn.Network.Municipality.Code,
+                    Area = sn.Network.Municipality.Area
+                } : null,
+                ULCenterFreq = sn.Network != null ? sn.Network.ULCenterFreq : 0,
+                DLCenterFreq = sn.Network != null ? sn.Network.DLCenterFreq : 0,
+                Bandwidth = sn.Network != null ? sn.Network.Bandwidth : 0
             }
         });
         return await _repository.PaginateAsync(studyNetworkDtos, request.PageNumber, request.PageSize, cancellationToken);

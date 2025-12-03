@@ -122,7 +122,25 @@ public class CreateStudyNetworkHandler(IStudyNetworkRepository repository, INetw
                             Name = newStudyNetwork.Network?.ServiceProvider?.Service?.Name ?? string.Empty,
                             Type = newStudyNetwork.Network?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                         }
-                    }
+                    },
+                    Band = new()
+                    {
+                        Id = newStudyNetwork.Network?.Band?.Id ?? Guid.Empty,
+                        Name = newStudyNetwork.Network?.Band?.Name ?? string.Empty,
+                        Description = newStudyNetwork.Network?.Band?.Description
+                    },
+                    Municipality = newStudyNetwork.Network?.Municipality == null ? null : new()
+                    {
+                        Id = newStudyNetwork.Network.Municipality.Id,
+                        Name = newStudyNetwork.Network.Municipality.Name,
+                        Description = newStudyNetwork.Network.Municipality.Description,
+                        IsCity = newStudyNetwork.Network.Municipality.IsCity,
+                        Code = newStudyNetwork.Network.Municipality.Code,
+                        Area = newStudyNetwork.Network.Municipality.Area
+                    },
+                    ULCenterFreq = newStudyNetwork.Network?.ULCenterFreq ?? 0,
+                    DLCenterFreq = newStudyNetwork.Network?.DLCenterFreq ?? 0,
+                    Bandwidth = newStudyNetwork.Network?.Bandwidth ?? 0
                 }
             },
             Message = "Study network created successfully.",
