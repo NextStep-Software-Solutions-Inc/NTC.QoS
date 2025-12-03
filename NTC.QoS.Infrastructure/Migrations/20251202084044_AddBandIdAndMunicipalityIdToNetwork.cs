@@ -11,27 +11,72 @@ namespace NTC.QoS.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Delete existing data that references Networks
-            // Note: This is safe for development. In production, you'd want a proper data migration strategy.
-            migrationBuilder.Sql("DELETE FROM \"Sectors\";");
-            migrationBuilder.Sql("DELETE FROM \"Cellulars\";");
-            migrationBuilder.Sql("DELETE FROM \"CellularCoverages\";");
-            migrationBuilder.Sql("DELETE FROM \"StudyNetworks\";");
-            migrationBuilder.Sql("DELETE FROM \"Networks\";");
-
+            // STEP 1: Add BandId column as nullable first to allow existing data to remain
             migrationBuilder.AddColumn<Guid>(
                 name: "BandId",
                 table: "Networks",
                 type: "uuid",
-                nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                nullable: true);
 
+            // STEP 2: Add MunicipalityId column (already nullable)
             migrationBuilder.AddColumn<Guid>(
                 name: "MunicipalityId",
                 table: "Networks",
                 type: "uuid",
                 nullable: true);
 
+            // STEP 3: Data migration - Populate BandId from SystemType relationship if possible
+            // This attempts to derive the Band from the SystemType's Generation
+            // Networks without a valid SystemType->Generation->Band relationship will need manual intervention
+            migrationBuilder.Sql(@"
+                UPDATE ""Networks"" n
+                SET ""BandId"" = (
+                    SELECT gb.""BandId""
+                    FROM ""SystemTypes"" st
+                    INNER JOIN ""Generations"" g ON st.""GenerationId"" = g.""Id""
+                    INNER JOIN ""GenerationBands"" gb ON g.""Id"" = gb.""GenerationId""
+                    WHERE st.""Id"" = n.""SystemTypeId""
+                    AND gb.""IsDeleted"" = false
+                    LIMIT 1
+                )
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM ""SystemTypes"" st
+                    INNER JOIN ""Generations"" g ON st.""GenerationId"" = g.""Id""
+                    INNER JOIN ""GenerationBands"" gb ON g.""Id"" = gb.""GenerationId""
+                    WHERE st.""Id"" = n.""SystemTypeId""
+                    AND gb.""IsDeleted"" = false
+                );
+            ");
+
+            // STEP 4: Pre-migration validation - Check if any Networks still have NULL BandId
+            // This will fail the migration if data cannot be migrated automatically
+            migrationBuilder.Sql(@"
+                DO $$
+                DECLARE
+                    null_band_count INTEGER;
+                BEGIN
+                    SELECT COUNT(*) INTO null_band_count
+                    FROM ""Networks""
+                    WHERE ""BandId"" IS NULL AND ""IsDeleted"" = false;
+                    
+                    IF null_band_count > 0 THEN
+                        RAISE EXCEPTION 'Migration failed: % Networks have NULL BandId. Manual data migration required before applying this migration.', null_band_count;
+                    END IF;
+                END $$;
+            ");
+
+            // STEP 5: Now that BandId is populated, make it required (NOT NULL)
+            migrationBuilder.AlterColumn<Guid>(
+                name: "BandId",
+                table: "Networks",
+                type: "uuid",
+                nullable: false,
+                oldClrType: typeof(Guid),
+                oldType: "uuid",
+                oldNullable: true);
+
+            // STEP 6: Create indexes
             migrationBuilder.CreateIndex(
                 name: "IX_Networks_BandId",
                 table: "Networks",
@@ -42,6 +87,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                 table: "Networks",
                 column: "MunicipalityId");
 
+            // STEP 7: Add foreign key constraints
             migrationBuilder.AddForeignKey(
                 name: "FK_Networks_Bands_BandId",
                 table: "Networks",
