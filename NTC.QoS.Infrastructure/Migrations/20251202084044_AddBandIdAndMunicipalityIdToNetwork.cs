@@ -61,7 +61,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     WHERE ""BandId"" IS NULL AND ""IsDeleted"" = false;
                     
                     IF null_band_count > 0 THEN
-                        RAISE EXCEPTION 'Migration failed: % Networks have NULL BandId. Manual data migration required before applying this migration.', null_band_count;
+                        RAISE EXCEPTION 'Cannot complete migration: % Networks have NULL BandId. Please manually assign BandId values to these Networks before retrying.', null_band_count;
                     END IF;
                 END $$;
             ");
