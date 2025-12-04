@@ -584,14 +584,38 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             stats.TechUsed = "";
         }
 
-        // Calculate Average Speed
+        // Calculate Median Speed (not average - median is less affected by outliers)
         if (speedtests.Any())
         {
-            stats.UploadSpeedMbps = (double)speedtests.Average(s => s.UploadSpeed);
-            stats.DownloadSpeedMbps = (double)speedtests.Average(s => s.DownloadSpeed);
+            var uploadSpeeds = speedtests.Select(s => s.UploadSpeed).OrderBy(s => s).ToList();
+            var downloadSpeeds = speedtests.Select(s => s.DownloadSpeed).OrderBy(s => s).ToList();
+            
+            stats.UploadSpeedMbps = (double)CalculateMedianSpeed(uploadSpeeds);
+            stats.DownloadSpeedMbps = (double)CalculateMedianSpeed(downloadSpeeds);
         }
 
         return stats;
+    }
+
+    /// <summary>
+    /// Calculate median from ordered list of speed values
+    /// </summary>
+    private static decimal CalculateMedianSpeed(List<decimal> orderedSpeeds)
+    {
+        if (orderedSpeeds.Count == 0)
+            return 0;
+
+        int count = orderedSpeeds.Count;
+        if (count % 2 == 0)
+        {
+            // Even number of elements - average the two middle values
+            return (orderedSpeeds[count / 2 - 1] + orderedSpeeds[count / 2]) / 2;
+        }
+        else
+        {
+            // Odd number of elements - return the middle value
+            return orderedSpeeds[count / 2];
+        }
     }
 
     private List<string> GetPresentGenerations(IEnumerable<CellularInfo> data, string providerName)
