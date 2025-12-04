@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Domain.Constants;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -18,6 +19,9 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
     private readonly ICellRepository _cellRepository;
     private readonly INAPRepository _napRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly ICellularCoverageRepository _cellularCoverageRepository;
+    private readonly ICellularRepository _cellularRepository;
+    private readonly ISpeedtestRepository _speedtestRepository;
     private readonly ILogger<GetAreaBroadbandInfoHandler> _logger;
 
     // Cache for PropertyInfo to avoid repeated reflection overhead
@@ -27,11 +31,17 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
         ICellRepository cellRepository,
         INAPRepository napRepository,
         IMunicipalityRepository municipalityRepository,
+        ICellularCoverageRepository cellularCoverageRepository,
+        ICellularRepository cellularRepository,
+        ISpeedtestRepository speedtestRepository,
         ILogger<GetAreaBroadbandInfoHandler> logger)
     {
         _cellRepository = cellRepository;
         _napRepository = napRepository;
         _municipalityRepository = municipalityRepository;
+        _cellularCoverageRepository = cellularCoverageRepository;
+        _cellularRepository = cellularRepository;
+        _speedtestRepository = speedtestRepository;
         _logger = logger;
     }
 
@@ -53,6 +63,17 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
 
             var napQuery = _napRepository.Query();
             napQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, napQuery);
+            
+            // Query for cellular coverage (signal strength data)
+            var cellularCoverageQuery = _cellularCoverageRepository.Query();
+            cellularCoverageQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, cellularCoverageQuery);
+            
+            // Query for cellular bandwidth data
+            var cellularQuery = _cellularRepository.Query();
+            
+            // Query for speedtest data
+            var speedtestQuery = _speedtestRepository.Query();
+            speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, speedtestQuery);
 
             // Execute queries and get results with related data including location
             var cellsWithProvider = await _cellRepository.ToListAsync(
@@ -86,6 +107,43 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                     }
                 }),
                 cancellationToken);
+                
+            // Get cellular coverage data for signal strength
+            var cellularCoverageData = await _cellularCoverageRepository.ToListAsync(
+                cellularCoverageQuery.Select(cc => new
+                {
+                    cc.Location,
+                    cc.Strength
+                }),
+                cancellationToken);
+                
+            // Get cellular bandwidth data - need to join with cells in the area
+            var cellIds = cellsWithProvider.Select(c => c.Id).ToList();
+            var cellularBandwidthData = await _cellularRepository.ToListAsync(
+                cellularQuery
+                    .Where(c => c.CellSector != null && cellIds.Contains(c.CellSector.CellId))
+                    .Select(c => new
+                    {
+                        c.ServiceProviderId,
+                        c.Bandwidth,
+                        ServiceType = c.ServiceProvider != null && c.ServiceProvider.Service != null 
+                            ? c.ServiceProvider.Service.Type 
+                            : ServiceTypeEnum.Unknown
+                    }),
+                cancellationToken);
+                
+            // Get speedtest data for actual measured speeds
+            var speedtestData = await _speedtestRepository.ToListAsync(
+                speedtestQuery.Select(s => new
+                {
+                    s.ServiceProviderId,
+                    s.DownloadSpeed,
+                    s.UploadSpeed,
+                    ServiceType = s.ServiceProvider != null && s.ServiceProvider.Service != null 
+                        ? s.ServiceProvider.Service.Type 
+                        : ServiceTypeEnum.Unknown
+                }),
+                cancellationToken);
 
             _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs in the specified area",
                 cellsWithProvider.Count, napsWithProvider.Count);
@@ -104,15 +162,36 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 Color = sp.Color,
                 ServiceType = sp.Type,
                 CellCount = cellsWithProvider.Count(c => c.ServiceProvider.Id == sp.Id),
-                NAPCount = napsWithProvider.Count(n => n.ServiceProvider.Id == sp.Id)
+                NAPCount = napsWithProvider.Count(n => n.ServiceProvider.Id == sp.Id),
+                MaxSpeedMbps = CalculateMaxSpeedForProvider(sp.Id, sp.Type, cellularBandwidthData, speedtestData)
             }).Where(sp => sp.TotalAssets > 0) // Only include providers with assets in the area
             .OrderByDescending(sp => sp.TotalAssets)
             .ToList();
 
             _logger.LogInformation("Found {ProviderCount} service providers with assets in the area", serviceProviders.Count);
+            
+            // Calculate signal strength metrics
+            var signalStrength = CalculateSignalStrength(cellularCoverageData);
+            
+            // Calculate overall max speed
+            var maxSpeed = serviceProviders.Any(sp => sp.MaxSpeedMbps.HasValue) 
+                ? serviceProviders.Max(sp => sp.MaxSpeedMbps ?? 0) 
+                : 0;
+                
+            // Determine service availability
+            var serviceAvailability = new ServiceAvailabilityDto
+            {
+                HasCellular = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wireless),
+                HasFiber = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wired),
+                HasCable = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wired),
+                HasDsl = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wired)
+            };
 
             var municipalities = await CalculateMunicipalityInfo(envelope, cellsWithProvider, napsWithProvider, cancellationToken);
             _logger.LogInformation("Found {MunicipalityCount} municipalities with assets in the area", municipalities.Count);
+            
+            // Get location details from the primary municipality (one with most assets or first covered)
+            var locationDetails = GetLocationDetails(municipalities);
 
             // Log municipality details for debugging
             foreach (var municipality in municipalities.Take(5)) // Log first 5 municipalities
@@ -144,7 +223,15 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 Summary = summary,
                 ServiceProviders = serviceProviders,
                 Municipalities = municipalities,
-                EnvelopeInfo = envelopeInfo
+                EnvelopeInfo = envelopeInfo,
+                LocationDetails = locationDetails,
+                InternetServices = new InternetServicesDto
+                {
+                    ProviderCount = serviceProviders.Count,
+                    MaxSpeedMbps = maxSpeed
+                },
+                SignalStrength = signalStrength,
+                ServiceAvailability = serviceAvailability
             };
 
             _logger.LogInformation("Successfully processed area broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities",
@@ -363,6 +450,180 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
             AreaSizeKm2 = Math.Round(areaKm2, 2),
             GeometryType = envelope.GeometryType,
             BoundingBox = bbox
+        };
+    }
+    
+    /// <summary>
+    /// Calculates maximum speed for a service provider based on cellular bandwidth data, speedtest data, and service type.
+    /// Prioritizes actual speedtest measurements over theoretical bandwidth.
+    /// </summary>
+    private static decimal? CalculateMaxSpeedForProvider<T1, T2>(Guid providerId, ServiceTypeEnum serviceType, List<T1> cellularBandwidthData, List<T2> speedtestData) 
+        where T1 : class 
+        where T2 : class
+    {
+        try
+        {
+            decimal? maxSpeed = null;
+            
+            // First, check for actual speedtest measurements for this provider
+            if (speedtestData.Any())
+            {
+                var providerIdProperty = typeof(T2).GetProperty("ServiceProviderId");
+                var downloadSpeedProperty = typeof(T2).GetProperty("DownloadSpeed");
+                var serviceTypeProperty = typeof(T2).GetProperty("ServiceType");
+                
+                if (providerIdProperty != null && downloadSpeedProperty != null)
+                {
+                    var providerSpeeds = speedtestData
+                        .Where(s => 
+                        {
+                            var id = providerIdProperty.GetValue(s);
+                            var svcType = serviceTypeProperty?.GetValue(s);
+                            return id is Guid guid && guid == providerId && 
+                                   (svcType is ServiceTypeEnum type && type == serviceType || serviceType == ServiceTypeEnum.Wired);
+                        })
+                        .Select(s => downloadSpeedProperty.GetValue(s))
+                        .OfType<decimal>()
+                        .ToList();
+                        
+                    if (providerSpeeds.Any())
+                    {
+                        maxSpeed = providerSpeeds.Max();
+                    }
+                }
+            }
+            
+            // For wireless/cellular, also check bandwidth data and use the higher value
+            if (serviceType == ServiceTypeEnum.Wireless && cellularBandwidthData.Any())
+            {
+                var providerIdProperty = typeof(T1).GetProperty("ServiceProviderId");
+                var bandwidthProperty = typeof(T1).GetProperty("Bandwidth");
+                var serviceTypeProperty = typeof(T1).GetProperty("ServiceType");
+                
+                if (providerIdProperty != null && bandwidthProperty != null)
+                {
+                    var providerBandwidths = cellularBandwidthData
+                        .Where(c => 
+                        {
+                            var id = providerIdProperty.GetValue(c);
+                            var svcType = serviceTypeProperty?.GetValue(c);
+                            return id is Guid guid && guid == providerId && 
+                                   svcType is ServiceTypeEnum type && type == ServiceTypeEnum.Wireless;
+                        })
+                        .Select(c => bandwidthProperty.GetValue(c))
+                        .OfType<decimal>()
+                        .ToList();
+                        
+                    if (providerBandwidths.Any())
+                    {
+                        var maxBandwidth = providerBandwidths.Max();
+                        maxSpeed = maxSpeed.HasValue ? Math.Max(maxSpeed.Value, maxBandwidth) : maxBandwidth;
+                    }
+                }
+            }
+            
+            // For wired services without speedtest data, use typical maximum speeds
+            if (!maxSpeed.HasValue && serviceType == ServiceTypeEnum.Wired)
+            {
+                // Default to fiber speeds for wired services
+                maxSpeed = 1000m; // 1 Gbps typical for fiber/wired services
+            }
+            
+            return maxSpeed;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Calculates signal strength metrics from cellular coverage data.
+    /// </summary>
+    private static SignalStrengthDto? CalculateSignalStrength<T>(List<T> cellularCoverageData) where T : class
+    {
+        if (!cellularCoverageData.Any())
+        {
+            return null;
+        }
+        
+        try
+        {
+            var strengthProperty = typeof(T).GetProperty("Strength");
+            if (strengthProperty == null)
+            {
+                return null;
+            }
+            
+            var strengths = cellularCoverageData
+                .Select(c => strengthProperty.GetValue(c))
+                .OfType<decimal>()
+                .ToList();
+                
+            if (!strengths.Any())
+            {
+                return null;
+            }
+            
+            var avgStrength = strengths.Average();
+            var maxStrength = strengths.Max();
+            var minStrength = strengths.Min();
+            
+            // Determine quality based on average strength (in dBm)
+            // Signal strength is typically negative, so higher (less negative) is better
+            var quality = avgStrength switch
+            {
+                >= -70 => "Excellent",
+                >= -85 => "Good",
+                >= -100 => "Fair",
+                >= -110 => "Weak",
+                _ => "Poor"
+            };
+            
+            return new SignalStrengthDto
+            {
+                AverageStrengthDbm = Math.Round(avgStrength, 2),
+                MaxStrengthDbm = maxStrength,
+                MinStrengthDbm = minStrength,
+                Quality = quality,
+                MeasurementCount = strengths.Count
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Extracts location details from municipality information.
+    /// </summary>
+    private static LocationDetailsDto? GetLocationDetails(List<MunicipalityAreaInfoDto> municipalities)
+    {
+        if (!municipalities.Any())
+        {
+            return null;
+        }
+        
+        // Get the primary municipality (one with most assets or first covered)
+        var primaryMunicipality = municipalities
+            .Where(m => m.HasAssets)
+            .OrderByDescending(m => m.TotalAssets)
+            .ThenBy(m => m.Name)
+            .FirstOrDefault() ?? municipalities.FirstOrDefault();
+            
+        if (primaryMunicipality == null)
+        {
+            return null;
+        }
+        
+        // Parse municipality name - typically might include province info
+        // This is a basic implementation; you may need to enhance with actual barangay/province queries
+        return new LocationDetailsDto
+        {
+            Municipality = primaryMunicipality.Name,
+            // Note: Street, Barangay, Province, and Region would require additional queries
+            // or reverse geocoding services to populate accurately
         };
     }
 }

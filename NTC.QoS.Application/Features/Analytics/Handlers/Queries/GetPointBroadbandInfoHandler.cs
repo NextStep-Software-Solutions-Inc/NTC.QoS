@@ -21,6 +21,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly ICellularCoverageRepository _cellularCoverageRepository;
     private readonly ICellularRepository _cellularRepository;
+    private readonly ISpeedtestRepository _speedtestRepository;
     private readonly ILogger<GetPointBroadbandInfoHandler> _logger;
 
     // Cache for PropertyInfo to avoid repeated reflection overhead
@@ -32,6 +33,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         IMunicipalityRepository municipalityRepository,
         ICellularCoverageRepository cellularCoverageRepository,
         ICellularRepository cellularRepository,
+        ISpeedtestRepository speedtestRepository,
         ILogger<GetPointBroadbandInfoHandler> logger)
     {
         _cellRepository = cellRepository;
@@ -39,6 +41,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
         _municipalityRepository = municipalityRepository;
         _cellularCoverageRepository = cellularCoverageRepository;
         _cellularRepository = cellularRepository;
+        _speedtestRepository = speedtestRepository;
         _logger = logger;
     }
 
@@ -67,6 +70,10 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
             
             // Query for cellular bandwidth data
             var cellularQuery = _cellularRepository.Query();
+            
+            // Query for speedtest data
+            var speedtestQuery = _speedtestRepository.Query();
+            speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(circularArea, speedtestQuery);
 
             // Execute queries and get results with related data including location
             var cellsWithProvider = await _cellRepository.ToListAsync(
@@ -124,6 +131,19 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                             : ServiceTypeEnum.Unknown
                     }),
                 cancellationToken);
+                
+            // Get speedtest data for actual measured speeds
+            var speedtestData = await _speedtestRepository.ToListAsync(
+                speedtestQuery.Select(s => new
+                {
+                    s.ServiceProviderId,
+                    s.DownloadSpeed,
+                    s.UploadSpeed,
+                    ServiceType = s.ServiceProvider != null && s.ServiceProvider.Service != null 
+                        ? s.ServiceProvider.Service.Type 
+                        : ServiceTypeEnum.Unknown
+                }),
+                cancellationToken);
 
             _logger.LogInformation("Found {CellCount} cells and {NAPCount} NAPs within {Radius}m of the specified point",
                 cellsWithProvider.Count, napsWithProvider.Count, pointRadius.RadiusMeters);
@@ -162,7 +182,7 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 ServiceType = sp.Type,
                 CellCount = cellsWithProvider.Count(c => c.ServiceProvider.Id == sp.Id),
                 NAPCount = napsWithProvider.Count(n => n.ServiceProvider.Id == sp.Id),
-                MaxSpeedMbps = CalculateMaxSpeedForProvider(sp.Id, sp.Type, cellularBandwidthData)
+                MaxSpeedMbps = CalculateMaxSpeedForProvider(sp.Id, sp.Type, cellularBandwidthData, speedtestData)
             }).Where(sp => sp.TotalAssets > 0) // Only include providers with assets in the area
             .OrderByDescending(sp => sp.TotalAssets)
             .ToList();
@@ -501,27 +521,51 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
     }
     
     /// <summary>
-    /// Calculates maximum speed for a service provider based on cellular bandwidth data and service type.
+    /// Calculates maximum speed for a service provider based on cellular bandwidth data, speedtest data, and service type.
+    /// Prioritizes actual speedtest measurements over theoretical bandwidth.
     /// </summary>
-    private static decimal? CalculateMaxSpeedForProvider<T>(Guid providerId, ServiceTypeEnum serviceType, List<T> cellularBandwidthData) where T : class
+    private static decimal? CalculateMaxSpeedForProvider<T1, T2>(Guid providerId, ServiceTypeEnum serviceType, List<T1> cellularBandwidthData, List<T2> speedtestData) 
+        where T1 : class 
+        where T2 : class
     {
         try
         {
-            // For wired services (fiber/cable/DSL), use typical maximum speeds
-            // In a real scenario, you might want to query actual service plans or configurations
-            if (serviceType == ServiceTypeEnum.Wired)
+            decimal? maxSpeed = null;
+            
+            // First, check for actual speedtest measurements for this provider
+            if (speedtestData.Any())
             {
-                // Default to fiber speeds for wired services
-                // This could be enhanced by looking at provider names or additional metadata
-                return 1000m; // 1 Gbps typical for fiber/wired services
+                var providerIdProperty = typeof(T2).GetProperty("ServiceProviderId");
+                var downloadSpeedProperty = typeof(T2).GetProperty("DownloadSpeed");
+                var serviceTypeProperty = typeof(T2).GetProperty("ServiceType");
+                
+                if (providerIdProperty != null && downloadSpeedProperty != null)
+                {
+                    var providerSpeeds = speedtestData
+                        .Where(s => 
+                        {
+                            var id = providerIdProperty.GetValue(s);
+                            var svcType = serviceTypeProperty?.GetValue(s);
+                            return id is Guid guid && guid == providerId && 
+                                   (svcType is ServiceTypeEnum type && type == serviceType || serviceType == ServiceTypeEnum.Wired);
+                        })
+                        .Select(s => downloadSpeedProperty.GetValue(s))
+                        .OfType<decimal>()
+                        .ToList();
+                        
+                    if (providerSpeeds.Any())
+                    {
+                        maxSpeed = providerSpeeds.Max();
+                    }
+                }
             }
             
-            // For wireless/cellular, calculate from bandwidth data
+            // For wireless/cellular, also check bandwidth data and use the higher value
             if (serviceType == ServiceTypeEnum.Wireless && cellularBandwidthData.Any())
             {
-                var providerIdProperty = typeof(T).GetProperty("ServiceProviderId");
-                var bandwidthProperty = typeof(T).GetProperty("Bandwidth");
-                var serviceTypeProperty = typeof(T).GetProperty("ServiceType");
+                var providerIdProperty = typeof(T1).GetProperty("ServiceProviderId");
+                var bandwidthProperty = typeof(T1).GetProperty("Bandwidth");
+                var serviceTypeProperty = typeof(T1).GetProperty("ServiceType");
                 
                 if (providerIdProperty != null && bandwidthProperty != null)
                 {
@@ -539,12 +583,20 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                         
                     if (providerBandwidths.Any())
                     {
-                        return providerBandwidths.Max();
+                        var maxBandwidth = providerBandwidths.Max();
+                        maxSpeed = maxSpeed.HasValue ? Math.Max(maxSpeed.Value, maxBandwidth) : maxBandwidth;
                     }
                 }
             }
             
-            return null;
+            // For wired services without speedtest data, use typical maximum speeds
+            if (!maxSpeed.HasValue && serviceType == ServiceTypeEnum.Wired)
+            {
+                // Default to fiber speeds for wired services
+                maxSpeed = 1000m; // 1 Gbps typical for fiber/wired services
+            }
+            
+            return maxSpeed;
         }
         catch
         {
