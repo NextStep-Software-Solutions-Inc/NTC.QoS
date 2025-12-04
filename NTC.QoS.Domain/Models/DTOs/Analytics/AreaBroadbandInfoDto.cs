@@ -234,14 +234,4 @@ public class ServiceAvailabilityDto
     /// Whether fiber service is available in the area
     /// </summary>
     public bool HasFiber { get; set; }
-    
-    /// <summary>
-    /// Whether cable service is available in the area
-    /// </summary>
-    public bool HasCable { get; set; }
-    
-    /// <summary>
-    /// Whether DSL service is available in the area
-    /// </summary>
-    public bool HasDsl { get; set; }
 }
