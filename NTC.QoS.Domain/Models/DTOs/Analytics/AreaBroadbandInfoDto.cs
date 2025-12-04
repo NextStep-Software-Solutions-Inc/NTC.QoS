@@ -8,6 +8,26 @@ public class AreaBroadbandInfoDto
     public List<ServiceProviderAreaInfoDto> ServiceProviders { get; set; } = [];
     public AreaEnvelopeInfoDto EnvelopeInfo { get; set; } = new();
     public List<MunicipalityAreaInfoDto> Municipalities { get; set; } = [];
+    
+    /// <summary>
+    /// Location details including address information
+    /// </summary>
+    public LocationDetailsDto? LocationDetails { get; set; }
+    
+    /// <summary>
+    /// Internet service availability and metrics
+    /// </summary>
+    public InternetServicesDto? InternetServices { get; set; }
+    
+    /// <summary>
+    /// Signal strength information for cellular services
+    /// </summary>
+    public SignalStrengthDto? SignalStrength { get; set; }
+    
+    /// <summary>
+    /// Service availability flags
+    /// </summary>
+    public ServiceAvailabilityDto ServiceAvailability { get; set; } = new();
 }
 
 public class ServiceProviderAreaInfoDto
@@ -19,6 +39,11 @@ public class ServiceProviderAreaInfoDto
     public int CellCount { get; set; }
     public int NAPCount { get; set; }
     public int TotalAssets => CellCount + NAPCount;
+    
+    /// <summary>
+    /// Maximum bandwidth/speed available from this provider in Mbps
+    /// </summary>
+    public decimal? MaxSpeedMbps { get; set; }
 }
 
 public class MunicipalityAreaInfoDto
@@ -115,4 +140,108 @@ public enum MunicipalityCoverageStatus
     /// Municipality is covered by query area and has broadband assets
     /// </summary>
     WithAssets = 2
+}
+
+/// <summary>
+/// Location details including address information
+/// </summary>
+public class LocationDetailsDto
+{
+    /// <summary>
+    /// Street or road name (if available)
+    /// </summary>
+    public string? Street { get; set; }
+    
+    /// <summary>
+    /// Barangay name
+    /// </summary>
+    public string? Barangay { get; set; }
+    
+    /// <summary>
+    /// Municipality name
+    /// </summary>
+    public string? Municipality { get; set; }
+    
+    /// <summary>
+    /// Province name
+    /// </summary>
+    public string? Province { get; set; }
+    
+    /// <summary>
+    /// Region name
+    /// </summary>
+    public string? Region { get; set; }
+}
+
+/// <summary>
+/// Internet services information
+/// </summary>
+public class InternetServicesDto
+{
+    /// <summary>
+    /// Number of internet service providers in the area
+    /// </summary>
+    public int ProviderCount { get; set; }
+    
+    /// <summary>
+    /// Maximum speed available from all providers in Mbps
+    /// </summary>
+    public decimal MaxSpeedMbps { get; set; }
+}
+
+/// <summary>
+/// Signal strength information for cellular services
+/// </summary>
+public class SignalStrengthDto
+{
+    /// <summary>
+    /// Average signal strength in dBm
+    /// </summary>
+    public decimal AverageStrengthDbm { get; set; }
+    
+    /// <summary>
+    /// Maximum (strongest) signal strength in dBm
+    /// </summary>
+    public decimal MaxStrengthDbm { get; set; }
+    
+    /// <summary>
+    /// Minimum (weakest) signal strength in dBm
+    /// </summary>
+    public decimal MinStrengthDbm { get; set; }
+    
+    /// <summary>
+    /// Signal quality category: Excellent, Good, Fair, Weak, Poor
+    /// </summary>
+    public string Quality { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Number of signal strength measurements
+    /// </summary>
+    public int MeasurementCount { get; set; }
+}
+
+/// <summary>
+/// Service availability flags
+/// </summary>
+public class ServiceAvailabilityDto
+{
+    /// <summary>
+    /// Whether cellular service is available in the area
+    /// </summary>
+    public bool HasCellular { get; set; }
+    
+    /// <summary>
+    /// Whether fiber service is available in the area
+    /// </summary>
+    public bool HasFiber { get; set; }
+    
+    /// <summary>
+    /// Whether cable service is available in the area
+    /// </summary>
+    public bool HasCable { get; set; }
+    
+    /// <summary>
+    /// Whether DSL service is available in the area
+    /// </summary>
+    public bool HasDsl { get; set; }
 }
