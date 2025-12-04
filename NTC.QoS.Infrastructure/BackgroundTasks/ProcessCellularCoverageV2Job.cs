@@ -5,7 +5,6 @@ using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.CsvBindings;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Infrastructure.FileProcessing;
 using NTC.QoS.Infrastructure.Helper;
@@ -128,7 +127,8 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         }
 
         // Processing statistics
-        var stats = new ProcessingStats();        try
+        var stats = new ProcessingStats();        
+        try
         {
             // Step 4: Download file from blob storage
             Stream fileStream;

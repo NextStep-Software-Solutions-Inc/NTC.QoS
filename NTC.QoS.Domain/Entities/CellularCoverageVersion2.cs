@@ -12,7 +12,7 @@ public class CellularCoverageVersion2 : BaseEntity, IGeoLocatedEntity
 {
     /// <summary>
     /// Network identifier (user-provided during upload)
-    /// </summary>=
+    /// </summary>
     public Guid NetworkId { get; set; }
     public virtual Network Network { get; set; } = null!;
 
