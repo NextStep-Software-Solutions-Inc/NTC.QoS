@@ -25,6 +25,11 @@ public class UploadCellularCoverageV2Request
     public required Guid MunicipalityId { get; set; }
 
     /// <summary>
+    /// Region identifier (for blob storage organization)
+    /// </summary>
+    public required Guid RegionId { get; set; }
+
+    /// <summary>
     /// CSV file containing coverage data (Lat, Lng, Signal, Address)
     /// </summary>
     public required IFormFile File { get; set; }

@@ -109,29 +109,6 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
     }
 
     /// <summary>
-    /// V2: Upload cellular coverage CSV file with user-provided metadata
-    /// Expects CSV format: Lat, Lng, Signal, Address
-    /// User provides: NetworkId, ServiceProviderId, MunicipalityId
-    /// System derives: BandId and TechnologyId from Network
-    /// </summary>
-    [HttpPost("v2/upload")]
-    [DisableRequestSizeLimit]
-    public async Task<ActionResult<ApiResponse<CellularCoverageV2UploadResultDto>>> UploadCellularCoverageV2(
-        [FromForm] UploadCellularCoverageV2Request request)
-    {
-        var command = new UploadCellularCoverageV2Command
-        {
-            NetworkId = request.NetworkId,
-            ServiceProviderId = request.ServiceProviderId,
-            MunicipalityId = request.MunicipalityId,
-            CsvFile = request.File
-        };
-
-        var result = await mediator.Send(command);
-        return result.Succeeded ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>
     /// V2: Get cellular coverage V2 records with pagination and filters
     /// </summary>
     [HttpGet("v2")]

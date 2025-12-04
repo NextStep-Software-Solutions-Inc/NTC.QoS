@@ -53,7 +53,33 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
             "Starting CellularCoverage V2 processing for FileId={FileId}, NetworkId={NetworkId}, ServiceProviderId={ServiceProviderId}, MunicipalityId={MunicipalityId}",
             fileDto.Id, networkId, serviceProviderId, municipalityId);
 
-        // Step 1: Fetch and validate Network (to derive BandId and TechnologyId)
+        // Step 1: Validate and retrieve file record
+        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
+            fileDto.Id,
+            _fileRepository,
+            _logger,
+            FileTypeEnum.CellularCoverageV2,
+            cancellationToken);
+
+        // Check if file is already successfully processed
+        if (file.Status == FileStatusEnum.Success)
+        {
+            _logger.LogInformation(
+                "File {FileId} is already successfully processed. Skipping duplicate execution.",
+                file.Id);
+            return;
+        }
+
+        // Check if file is already being processed (duplicate job prevention)
+        if (file.Status == FileStatusEnum.Processing && !string.IsNullOrEmpty(file.ProcessingJobId))
+        {
+            _logger.LogWarning(
+                "File {FileId} is already being processed by job {ExistingJobId}. Skipping duplicate execution.",
+                file.Id, file.ProcessingJobId);
+            return;
+        }
+
+        // Step 2: Fetch and validate Network (to derive BandId and TechnologyId)
         var network = await _networkRepository
             .Query()
             .Include(n => n.SystemType)
@@ -79,21 +105,27 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                 "Derived from Network: BandId={BandId}, TechnologyId={TechnologyId}",
                 bandId, technologyId);
 
-        // Step 2: Validate and retrieve file record
-        var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
-            fileDto.Id,
-            _fileRepository,
-            _logger,
-            FileTypeEnum.CellularCoverageV2,
-            cancellationToken);
+        // Step 3: Update file status to Processing (if not already)
+        if (file.Status != FileStatusEnum.Processing)
+        {
+            await ProcessingJobHelper.SetFileProcessingStatusAsync(
+                file,
+                _fileRepository,
+                _logger,
+                FileTypeEnum.CellularCoverageV2,
+                cancellationToken);
+        }
 
-        // Step 3: Update file status to Processing
-        await ProcessingJobHelper.SetFileProcessingStatusAsync(
-            file,
-            _fileRepository,
-            _logger,
-            FileTypeEnum.CellularCoverageV2,
-            cancellationToken);
+        // Resume from checkpoint if available
+        int startBatchNumber = file.LastProcessedBatchNumber ?? 0;
+        int startRowNumber = file.LastProcessedRowNumber ?? 0;
+
+        if (startBatchNumber > 0)
+        {
+            _logger.LogInformation(
+                "Resuming from checkpoint: Batch {BatchNumber}, Row {RowNumber}, Last checkpoint: {CheckpointTime}",
+                startBatchNumber, startRowNumber, file.LastCheckpointTime);
+        }
 
         // Processing statistics
         var stats = new ProcessingStats();        try
@@ -156,6 +188,16 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                     foreach (var csvBatch in CsvParser.StreamCellularCoverageV2CsvBatches(fileStream, csvBatchSize, _logger))
                     {
                         batchNumber++;
+                        
+                        // Skip already processed batches on resume
+                        if (batchNumber <= startBatchNumber)
+                        {
+                            _logger.LogInformation(
+                                "Skipping already processed batch {BatchNumber} (resuming from batch {StartBatch})",
+                                batchNumber, startBatchNumber);
+                            continue;
+                        }
+
                         totalRecordsProcessed += csvBatch.Count;
                         stats.TotalRows += csvBatch.Count;
 
@@ -183,6 +225,9 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                             _logger.LogInformation("Inserted {Count} records to database (total processed: {Total})",
                                 allMappedRecords.Count, stats.ProcessedSuccessfully);
                             allMappedRecords.Clear();
+                            
+                            // Save checkpoint after successful database insert
+                            await SaveCheckpointAsync(file, batchNumber, totalRecordsProcessed, cancellationToken);
                         }
                     }
 
@@ -191,6 +236,9 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                     {
                         await InsertBatchAsync(allMappedRecords, cancellationToken);
                         _logger.LogInformation("Inserted final batch of {Count} records", allMappedRecords.Count);
+                        
+                        // Save final checkpoint
+                        await SaveCheckpointAsync(file, batchNumber, totalRecordsProcessed, cancellationToken);
                     }
 
                     if (stats.TotalRows == 0)
@@ -203,6 +251,9 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                             "Streaming processing completed. Total={Total}, Processed={Processed}, Skipped={Skipped}",
                             stats.TotalRows, stats.ProcessedSuccessfully, stats.Skipped);
                     }
+
+                    // Clear checkpoint and job ID on success
+                    await ClearCheckpointAsync(file, cancellationToken);
 
                     await ProcessingJobHelper.SetFileSuccessStatusAsync(
                         file,
@@ -251,6 +302,61 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         {
             _logger.LogError(ex, "Error during bulk insert of {Count} records", records.Count);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Saves checkpoint after successful batch processing
+    /// </summary>
+    private async Task SaveCheckpointAsync(
+        Domain.Entities.File file,
+        int batchNumber,
+        int rowNumber,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            file.LastProcessedBatchNumber = batchNumber;
+            file.LastProcessedRowNumber = rowNumber;
+            file.LastCheckpointTime = DateTime.UtcNow;
+
+            _fileRepository.Update(file);
+            await _fileRepository.SaveChangesAsync(cancellationToken);
+
+            _logger.LogDebug(
+                "Checkpoint saved: Batch {BatchNumber}, Row {RowNumber}",
+                batchNumber, rowNumber);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to save checkpoint. Processing will continue.");
+            // Don't throw - checkpoint failure shouldn't stop processing
+        }
+    }
+
+    /// <summary>
+    /// Clears checkpoint and job ID after successful completion
+    /// </summary>
+    private async Task ClearCheckpointAsync(
+        Domain.Entities.File file,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            file.LastProcessedBatchNumber = null;
+            file.LastProcessedRowNumber = null;
+            file.LastCheckpointTime = null;
+            file.ProcessingJobId = null;
+
+            _fileRepository.Update(file);
+            await _fileRepository.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Checkpoint and job ID cleared after successful processing");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clear checkpoint. This may cause issues on retry.");
+            // Don't throw - this is cleanup code
         }
     }
 

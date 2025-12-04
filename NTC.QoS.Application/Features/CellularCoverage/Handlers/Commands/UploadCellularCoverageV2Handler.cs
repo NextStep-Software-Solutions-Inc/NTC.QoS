@@ -1,5 +1,6 @@
 using Hangfire;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Enums;
@@ -20,19 +21,31 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
     private readonly IBackgroundJobClient _backgroundJobClient;
     private readonly ILogger<UploadCellularCoverageV2Handler> _logger;
     private readonly IUserContextService _userContextService;
+    private readonly IUserAuthorizationService _userAuthorizationService;
+    private readonly IRegionRepository _regionRepository;
+    private readonly IConfiguration _configuration;
+    private readonly IBackgroundJobService _backgroundJobService;
 
     public UploadCellularCoverageV2Handler(
         IRepository<Domain.Entities.File> fileRepository,
         IBlobStorageService blobStorageService,
         IBackgroundJobClient backgroundJobClient,
         ILogger<UploadCellularCoverageV2Handler> logger,
-        IUserContextService userContextService)
+        IUserContextService userContextService,
+        IUserAuthorizationService userAuthorizationService,
+        IRegionRepository regionRepository,
+        IConfiguration configuration,
+        IBackgroundJobService backgroundJobService)
     {
         _fileRepository = fileRepository;
         _blobStorageService = blobStorageService;
         _backgroundJobClient = backgroundJobClient;
         _logger = logger;
         _userContextService = userContextService;
+        _userAuthorizationService = userAuthorizationService;
+        _regionRepository = regionRepository;
+        _configuration = configuration;
+        _backgroundJobService = backgroundJobService;
     }
 
     public async Task<ApiResponse<CellularCoverageV2UploadResultDto>> Handle(
@@ -42,19 +55,47 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
         try
         {
             _logger.LogInformation(
-                "Starting CellularCoverage V2 upload for NetworkId={NetworkId}, ServiceProviderId={ServiceProviderId}, MunicipalityId={MunicipalityId}",
-                request.NetworkId, request.ServiceProviderId, request.MunicipalityId);
+                "Starting CellularCoverage V2 upload for NetworkId={NetworkId}, ServiceProviderId={ServiceProviderId}, MunicipalityId={MunicipalityId}, RegionId={RegionId}",
+                request.NetworkId, request.ServiceProviderId, request.MunicipalityId, request.RegionId);
 
-            // Step 1: Upload file to blob storage
-            var containerName = "cellular-coverage-v2";
-            var fileName = $"{Guid.NewGuid()}_{request.CsvFile.FileName}";
+            // Step 1: Validate region access
+            var regionCode = await GetRegionCodeAsync(request.RegionId, cancellationToken);
+            if (string.IsNullOrEmpty(regionCode))
+            {
+                return new ApiResponse<CellularCoverageV2UploadResultDto>
+                {
+                    Succeeded = false,
+                    Message = "Invalid region or user does not have access to the specified region.",
+                    Data = null
+                };
+            }
+
+            // Step 2: Prepare file for upload
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            string originalFileName = request.CsvFile.FileName;
+            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName).Replace(" ", "-");
+            string fileExtension = Path.GetExtension(originalFileName);
+            string fileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}";
+
+            // Step 3: Determine container and blob path
+            string containerName = GetContainerName();
+            string blobPath = $"{regionCode}/cellular-coverages/{fileName}";
+
+            _logger.LogInformation("Uploading file {OriginalFileName} as {BlobPath} to container {ContainerName} for region {RegionCode}",
+                originalFileName, blobPath, containerName, regionCode);
+
+            // Step 4: Upload file to blob storage
             string blobUrl;
-
             using (var stream = request.CsvFile.OpenReadStream())
             {
+                if (stream.CanSeek)
+                {
+                    stream.Position = 0;
+                }
+
                 blobUrl = await _blobStorageService.UploadAsync(
                     containerName,
-                    fileName,
+                    blobPath,
                     stream,
                     request.CsvFile.ContentType,
                     cancellationToken);
@@ -62,10 +103,10 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
 
             _logger.LogInformation("File uploaded to blob storage: {BlobUrl}", blobUrl);
 
-            // Step 2: Create file record in database
+            // Step 5: Create file record in database
             var fileRecord = new Domain.Entities.File
             {
-                Name = request.CsvFile.FileName,
+                Name = fileName,
                 Path = blobUrl,
                 Type = FileTypeEnum.CellularCoverageV2,
                 Status = FileStatusEnum.Pending,
@@ -78,7 +119,7 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
 
             _logger.LogInformation("File record created with Id={FileId}", fileRecord.Id);
 
-            // Step 3: Enqueue background job for processing
+            // Step 6: Enqueue background job for processing
             var fileDto = new FileDto
             {
                 Id = fileRecord.Id,
@@ -98,7 +139,17 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
                     request.MunicipalityId,
                     CancellationToken.None));
 
-            _logger.LogInformation("Background job enqueued with JobId={JobId}", jobId);
+            // Store the job ID in the file record to prevent duplicate processing
+            fileRecord.ProcessingJobId = jobId;
+            _fileRepository.Update(fileRecord);
+            await _fileRepository.SaveChangesAsync(cancellationToken);
+
+            // Schedule file deletion after 1 day (same as other file types)
+            _backgroundJobService.Schedule<IDeleteUploadedFileJob>(
+                job => job.ExecuteAsync(fileDto, CancellationToken.None), 
+                TimeSpan.FromDays(1));
+
+            _logger.LogInformation("Background job enqueued with JobId={JobId} and file deletion scheduled for 1 day", jobId);
 
             return new ApiResponse<CellularCoverageV2UploadResultDto>
             {
@@ -123,4 +174,46 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
             };
         }
     }
+
+    /// <summary>
+    /// Gets the appropriate container name based on environment
+    /// </summary>
+    private string GetContainerName()
+    {
+        var environment = _configuration["ASPNETCORE_ENVIRONMENT"];
+        return environment?.ToLowerInvariant() switch
+        {
+            "production" => "production",
+            "staging" => "production", // Use production container for staging
+            _ => "development" // Default to development for dev, test, etc.
+        };
+    }
+
+    /// <summary>
+    /// Gets the region code for the specified region ID and validates user access
+    /// </summary>
+    private async Task<string?> GetRegionCodeAsync(Guid regionId, CancellationToken cancellationToken)
+    {
+        // Verify user has access to the specified region
+        var hasAccess = await _userAuthorizationService.HasRegionAccessAsync(regionId, cancellationToken);
+        if (!hasAccess)
+        {
+            _logger.LogWarning("User does not have access to region: {RegionId}", regionId);
+            return null;
+        }
+
+        // Get region details
+        var regionQuery = _regionRepository.Query(r => r.Id == regionId).Select(r => new { r.Id, r.Code });
+        var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
+
+        if (region is null)
+        {
+            _logger.LogWarning("Region not found: {RegionId}", regionId);
+            return null;
+        }
+
+        // Return region code in the format "region-XX" where XX is the region code
+        return !string.IsNullOrWhiteSpace(region.Code) ? $"region-{region.Code:D2}" : null;
+    }
 }
+

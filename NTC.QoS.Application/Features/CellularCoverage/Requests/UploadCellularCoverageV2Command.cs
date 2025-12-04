@@ -15,5 +15,6 @@ public class UploadCellularCoverageV2Command : IRequest<ApiResponse<CellularCove
     public required Guid NetworkId { get; set; }
     public required Guid ServiceProviderId { get; set; }
     public required Guid MunicipalityId { get; set; }
+    public required Guid RegionId { get; set; }
     public required IFormFile CsvFile { get; set; }
 }

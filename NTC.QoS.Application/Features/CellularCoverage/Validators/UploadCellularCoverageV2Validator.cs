@@ -23,6 +23,10 @@ public class UploadCellularCoverageV2Validator : AbstractValidator<UploadCellula
             .NotEmpty()
             .WithMessage("MunicipalityId is required");
 
+        RuleFor(x => x.RegionId)
+            .NotEmpty()
+            .WithMessage("RegionId is required");
+
         RuleFor(x => x.CsvFile)
             .NotNull()
             .WithMessage("CSV file is required");

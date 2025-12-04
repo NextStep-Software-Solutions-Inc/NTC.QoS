@@ -1425,12 +1425,24 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("LastCheckpointTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LastProcessedBatchNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LastProcessedRowNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Path")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProcessingJobId")
                         .HasColumnType("text");
 
                     b.Property<int>("Status")
