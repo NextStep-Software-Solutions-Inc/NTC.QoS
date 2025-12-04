@@ -231,7 +231,13 @@ public class ServiceAvailabilityDto
     public bool HasCellular { get; set; }
     
     /// <summary>
-    /// Whether fiber service is available in the area
+    /// <summary>
+    /// Whether fiber service is available in the area.
+    /// Note: This flag is derived from `ServiceTypeEnum.Wired` in handlers.
+    /// Currently the system models only fiber as the wired service type.
+    /// If other wired technologies (e.g., cable, DSL) are added later,
+    /// consider renaming this property to `HasWired` or filtering specifically for fiber.
+    /// Kept as `HasFiber` for now to match the existing data model and UI expectations.
     /// </summary>
     public bool HasFiber { get; set; }
 }

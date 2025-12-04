@@ -5,8 +5,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Infrastructure.Helper;
-using System.Collections.Concurrent;
-using System.Reflection;
+using System.Collections.Generic;
 
 namespace NTC.QoS.Application.Services;
 
@@ -19,8 +18,7 @@ public class BroadbandAnalyticsService
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly ILogger<BroadbandAnalyticsService> _logger;
 
-    // Cache for PropertyInfo to avoid repeated reflection overhead
-    private static readonly ConcurrentDictionary<Type, PropertyInfo?> LocationPropertyCache = new();
+    // NOTE: Reflection caches removed to simplify code and reduce complexity.
 
     public BroadbandAnalyticsService(
         IMunicipalityRepository municipalityRepository,
@@ -30,74 +28,44 @@ public class BroadbandAnalyticsService
         _logger = logger;
     }
 
+    // Reflection helper removed; projections now use strongly-typed DTOs.
+
     /// <summary>
     /// Calculates maximum speed for a service provider based on cellular bandwidth data, speedtest data, and service type.
     /// Prioritizes actual speedtest measurements over theoretical bandwidth.
     /// </summary>
-    public decimal? CalculateMaxSpeedForProvider<T1, T2>(Guid providerId, ServiceTypeEnum serviceType, List<T1> cellularBandwidthData, List<T2> speedtestData)
-        where T1 : class
-        where T2 : class
+    public decimal? CalculateMaxSpeedForProvider(Guid providerId, ServiceTypeEnum serviceType, List<CellularBandwidthProjectionDto> cellularBandwidthData, List<SpeedtestProjectionDto> speedtestData)
     {
         try
         {
             decimal? maxSpeed = null;
 
             // First, check for actual speedtest measurements for this provider
-            if (speedtestData.Any())
+            if (speedtestData != null && speedtestData.Any())
             {
-                var providerIdProperty = typeof(T2).GetProperty("ServiceProviderId");
-                var downloadSpeedProperty = typeof(T2).GetProperty("DownloadSpeed");
-                var serviceTypeProperty = typeof(T2).GetProperty("ServiceType");
+                var providerSpeeds = speedtestData
+                    .Where(s => s.ServiceProviderId == providerId && s.ServiceType == serviceType)
+                    .Select(s => s.DownloadSpeed)
+                    .ToList();
 
-                if (providerIdProperty != null && downloadSpeedProperty != null)
+                if (providerSpeeds.Any())
                 {
-                    var providerSpeeds = speedtestData
-                        .Select(s => new
-                        {
-                            Id = providerIdProperty.GetValue(s),
-                            SvcType = serviceTypeProperty?.GetValue(s),
-                            DownloadSpeed = downloadSpeedProperty.GetValue(s)
-                        })
-                        .Where(x => x.Id is Guid guid && guid == providerId &&
-                                   x.SvcType is ServiceTypeEnum type && type == serviceType)
-                        .Select(x => x.DownloadSpeed)
-                        .OfType<decimal>()
-                        .ToList();
-
-                    if (providerSpeeds.Any())
-                    {
-                        maxSpeed = providerSpeeds.Max();
-                    }
+                    maxSpeed = providerSpeeds.Max();
                 }
             }
 
             // For wireless/cellular, also check bandwidth data and use the higher value
-            if (serviceType == ServiceTypeEnum.Wireless && cellularBandwidthData.Any())
+            if (serviceType == ServiceTypeEnum.Wireless && cellularBandwidthData != null && cellularBandwidthData.Any())
             {
-                var providerIdProperty = typeof(T1).GetProperty("ServiceProviderId");
-                var bandwidthProperty = typeof(T1).GetProperty("Bandwidth");
-                var serviceTypeProperty = typeof(T1).GetProperty("ServiceType");
+                var providerBandwidths = cellularBandwidthData
+                    .Where(c => c.ServiceProviderId == providerId && c.ServiceType == ServiceTypeEnum.Wireless)
+                    .Select(c => c.Bandwidth)
+                    .ToList();
 
-                if (providerIdProperty != null && bandwidthProperty != null)
+                if (providerBandwidths.Any())
                 {
-                    var providerBandwidths = cellularBandwidthData
-                        .Select(c => new
-                        {
-                            Id = providerIdProperty.GetValue(c),
-                            SvcType = serviceTypeProperty?.GetValue(c),
-                            Bandwidth = bandwidthProperty.GetValue(c)
-                        })
-                        .Where(x => x.Id is Guid guid && guid == providerId &&
-                                   x.SvcType is ServiceTypeEnum type && type == ServiceTypeEnum.Wireless)
-                        .Select(x => x.Bandwidth)
-                        .OfType<decimal>()
-                        .ToList();
-
-                    if (providerBandwidths.Any())
-                    {
-                        var maxBandwidth = providerBandwidths.Max();
-                        maxSpeed = maxSpeed.HasValue ? Math.Max(maxSpeed.Value, maxBandwidth) : maxBandwidth;
-                    }
+                    var maxBandwidth = providerBandwidths.Max();
+                    maxSpeed = maxSpeed.HasValue ? Math.Max(maxSpeed.Value, maxBandwidth) : maxBandwidth;
                 }
             }
 
@@ -213,26 +181,12 @@ public class BroadbandAnalyticsService
     /// Calculates municipality information for items that have location data.
     /// Uses both interface constraints for type safety and fallback reflection for anonymous types.
     /// </summary>
-    public async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo<T1, T2>(
+    public async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo(
         Geometry queryGeometry,
-        List<T1> cellsWithProvider,
-        List<T2> napsWithProvider,
+        List<Point> cellLocations,
+        List<Point> napLocations,
         CancellationToken cancellationToken)
-        where T1 : class
-        where T2 : class
     {
-        var cellLocations = cellsWithProvider
-                        .Select(c => GetLocationFromItem(c))
-                        .Where(loc => loc is not null && loc.IsValid)
-                        .Cast<Point>()
-                        .ToList();
-
-        var napLocations = napsWithProvider
-            .Select(n => GetLocationFromItem(n))
-            .Where(loc => loc is not null && loc.IsValid)
-            .Cast<Point>()
-            .ToList();
-
         var allLocations = cellLocations.Concat(napLocations).ToList();
 
         // Find all municipalities covered by the query area (regardless of assets)
@@ -260,9 +214,8 @@ public class BroadbandAnalyticsService
         }
 
         // Count cells by municipality
-        foreach (var cell in cellsWithProvider)
+        foreach (var location in cellLocations)
         {
-            var location = GetLocationFromItem(cell);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -279,9 +232,8 @@ public class BroadbandAnalyticsService
         }
 
         // Count NAPs by municipality
-        foreach (var nap in napsWithProvider)
+        foreach (var location in napLocations)
         {
-            var location = GetLocationFromItem(nap);
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
@@ -298,7 +250,7 @@ public class BroadbandAnalyticsService
         }
 
         // Calculate total assets for percentage calculation
-        var totalAssets = cellsWithProvider.Count + napsWithProvider.Count;
+        var totalAssets = cellLocations.Count + napLocations.Count;
 
         var result = municipalityGroups
             .Select(kvp => new MunicipalityAreaInfoDto
@@ -330,31 +282,5 @@ public class BroadbandAnalyticsService
     /// Type-safe method to extract Location property from objects.
     /// Handles both interface implementations and anonymous types with optimized caching.
     /// </summary>
-    public static Point? GetLocationFromItem<T>(T item) where T : class
-    {
-        if (item == null) return null;
-
-        // First try interface-based approach for better type safety
-        if (item is IHasLocation hasLocation)
-        {
-            return hasLocation.Location;
-        }
-
-        // Fallback to cached reflection for anonymous types
-        try
-        {
-            var locationType = typeof(T);
-            var locationProperty = LocationPropertyCache.GetOrAdd(locationType, type =>
-            {
-                var property = type.GetProperty("Location");
-                return property?.PropertyType == typeof(Point) ? property : null;
-            });
-
-            return locationProperty?.GetValue(item) as Point;
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    // GetLocationFromItem removed: handlers now project concrete DTOs including `Location`.
 }

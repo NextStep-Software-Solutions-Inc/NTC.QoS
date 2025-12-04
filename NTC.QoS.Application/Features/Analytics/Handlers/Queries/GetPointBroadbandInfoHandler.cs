@@ -64,8 +64,13 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
             var cellularCoverageQuery = _cellularCoverageRepository.Query();
             cellularCoverageQuery = GeoQueryHelper.ApplyEnvelopeFilter(circularArea, cellularCoverageQuery);
             
-            // Query for cellular bandwidth data
-            var cellularQuery = _cellularRepository.Query();
+            // Query for cellular bandwidth data - apply spatial filter via CellSector.Cell.Location
+            var cellularQuery = _cellularRepository.Query()
+                .Where(c => c.CellSector != null && 
+                           c.CellSector.Cell != null && 
+                           c.CellSector.Cell.Location != null &&
+                           (c.CellSector.Cell.Location.Within(circularArea) || 
+                            c.CellSector.Cell.Location.Intersects(circularArea)));
             
             // Query for speedtest data
             var speedtestQuery = _speedtestRepository.Query();
@@ -73,33 +78,33 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
 
             // Execute queries and get results with related data including location
             var cellsWithProvider = await _cellRepository.ToListAsync(
-                cellQuery.Select(c => new
+                cellQuery.Select(c => new ProviderAssetDto
                 {
-                    c.Id,
-                    c.ServiceProviderId,
-                    c.Location,
-                    ServiceProvider = new
+                    Id = c.Id,
+                    ServiceProviderId = c.ServiceProviderId,
+                    Location = c.Location,
+                    ServiceProvider = new ProviderInfoDto
                     {
-                        c.ServiceProvider.Id,
-                        c.ServiceProvider.Provider.Name,
-                        c.ServiceProvider.Provider.Color,
-                        c.ServiceProvider.Service.Type
+                        Id = c.ServiceProvider.Id,
+                        Name = c.ServiceProvider.Provider.Name,
+                        Color = c.ServiceProvider.Provider.Color,
+                        Type = c.ServiceProvider.Service.Type
                     }
                 }),
                 cancellationToken);
 
             var napsWithProvider = await _napRepository.ToListAsync(
-                napQuery.Select(n => new
+                napQuery.Select(n => new ProviderAssetDto
                 {
-                    n.Id,
-                    n.ServiceProviderId,
-                    n.Location,
-                    ServiceProvider = new
+                    Id = n.Id,
+                    ServiceProviderId = n.ServiceProviderId,
+                    Location = n.Location,
+                    ServiceProvider = new ProviderInfoDto
                     {
-                        n.ServiceProvider.Id,
-                        n.ServiceProvider.Provider.Name,
-                        n.ServiceProvider.Provider.Color,
-                        n.ServiceProvider.Service.Type
+                        Id = n.ServiceProvider.Id,
+                        Name = n.ServiceProvider.Provider.Name,
+                        Color = n.ServiceProvider.Provider.Color,
+                        Type = n.ServiceProvider.Service.Type
                     }
                 }),
                 cancellationToken);
@@ -113,30 +118,27 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 }),
                 cancellationToken);
                 
-            // Get cellular bandwidth data - need to join with cells in the area
-            var cellIds = cellsWithProvider.Select(c => c.Id).ToList();
+            // Get cellular bandwidth data - spatial filter already applied
             var cellularBandwidthData = await _cellularRepository.ToListAsync(
                 cellularQuery
-                    .Where(c => c.CellSector != null && cellIds.Contains(c.CellSector.CellId))
-                    .Select(c => new
+                    .Select(c => new CellularBandwidthProjectionDto
                     {
-                        c.ServiceProviderId,
-                        c.Bandwidth,
-                        ServiceType = c.ServiceProvider != null && c.ServiceProvider.Service != null 
-                            ? c.ServiceProvider.Service.Type 
+                        ServiceProviderId = c.ServiceProviderId,
+                        Bandwidth = c.Bandwidth,
+                        ServiceType = c.ServiceProvider != null && c.ServiceProvider.Service != null
+                            ? c.ServiceProvider.Service.Type
                             : ServiceTypeEnum.Unknown
                     }),
                 cancellationToken);
-                
+
             // Get speedtest data for actual measured speeds
             var speedtestData = await _speedtestRepository.ToListAsync(
-                speedtestQuery.Select(s => new
+                speedtestQuery.Select(s => new SpeedtestProjectionDto
                 {
-                    s.ServiceProviderId,
-                    s.DownloadSpeed,
-                    s.UploadSpeed,
-                    ServiceType = s.ServiceProvider != null && s.ServiceProvider.Service != null 
-                        ? s.ServiceProvider.Service.Type 
+                    ServiceProviderId = s.ServiceProviderId,
+                    DownloadSpeed = s.DownloadSpeed,
+                    ServiceType = s.ServiceProvider != null && s.ServiceProvider.Service != null
+                        ? s.ServiceProvider.Service.Type
                         : ServiceTypeEnum.Unknown
                 }),
                 cancellationToken);
@@ -194,13 +196,26 @@ public class GetPointBroadbandInfoHandler : IRequestHandler<GetPointBroadbandInf
                 : 0;
                 
             // Determine service availability
+            // Note: HasFiber uses ServiceTypeEnum.Wired. Currently, the system only has fiber as the wired service type.
+            // If other wired types (cable, DSL) are added in the future, consider renaming to HasWired or filtering specifically for fiber.
             var serviceAvailability = new ServiceAvailabilityDto
             {
                 HasCellular = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wireless),
                 HasFiber = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wired)
             };
 
-            var municipalities = await _analyticsService.CalculateMunicipalityInfo(circularArea, cellsWithProvider, napsWithProvider, cancellationToken);
+            // Build lists of locations to pass to the analytics service (uses strongly-typed projections)
+            var cellLocations = cellsWithProvider
+                .Where(c => c.Location != null && c.Location.IsValid)
+                .Select(c => c.Location)
+                .ToList();
+
+            var napLocations = napsWithProvider
+                .Where(n => n.Location != null && n.Location.IsValid)
+                .Select(n => n.Location)
+                .ToList();
+
+            var municipalities = await _analyticsService.CalculateMunicipalityInfo(circularArea, cellLocations, napLocations, cancellationToken);
             _logger.LogInformation("Found {MunicipalityCount} municipalities with assets within the radius", municipalities.Count);
             
             // Get location details from the primary municipality (one with most assets or first covered)
