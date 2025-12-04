@@ -28,6 +28,7 @@ public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellular
 
         cellularCoverageQuery = cellularCoverageQuery
             .Where(cc => request.NetworkIds == null || (request.NetworkIds.Count > 0 && request.NetworkIds.Contains(cc.NetworkId)))
+            .Where(cc => !request.CellId.HasValue || cc.Network.Sectors.Any(s => s.CellSector != null && s.CellSector.CellId == request.CellId))
             .Where(cc => locationPoint.IsValid && cc.Location.IsWithinDistance(locationPoint, request.Distance));
 
         if (request.BarangayIds is { Count: > 0 })

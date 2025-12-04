@@ -45,6 +45,11 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
             query = query.Where(cc => cc.CellSector.Cell.ServiceProviderId == request.ServiceProviderId.Value);
         }
 
+        if (request.CellId.HasValue)
+        {
+            query = query.Where(cc => cc.CellSector.CellId == request.CellId.Value);
+        }
+
         // Get total count
         var totalCount = await query.CountAsync(cancellationToken);
 

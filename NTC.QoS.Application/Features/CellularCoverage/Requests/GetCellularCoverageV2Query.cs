@@ -14,4 +14,5 @@ public class GetCellularCoverageV2Query : IRequest<PaginatedResponse<CellularCov
     public Guid? NetworkId { get; set; }
     public Guid? BandId { get; set; }
     public Guid? ServiceProviderId { get; set; }
+    public Guid? CellId { get; set; }
 }

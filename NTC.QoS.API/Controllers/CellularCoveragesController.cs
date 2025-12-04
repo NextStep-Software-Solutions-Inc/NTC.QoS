@@ -145,6 +145,7 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
     private async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(CellularCoverageQueryParams query)
     {
         var cacheKey = $"{CellularCoverageCachePrefix}{query.PageSize}_{query.PageNumber}_{string.Join(",", query.NetworkIds ?? [])}" +
+               $"_{query.CellId ?? Guid.Empty}_" +
                $"{string.Join(",", query.BarangayIds ?? [])}_" +
                $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
                $"{string.Join(",", query.ProvinceIds ?? [])}_" +
@@ -159,6 +160,7 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
             PageSize = query.PageSize,
             PageNumber = query.PageNumber,
             NetworkIds = query.NetworkIds,
+            CellId = query.CellId,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance,
             BarangayIds = query.BarangayIds,
@@ -205,6 +207,9 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
 
         [JsonPropertyName("networkIds")]
         public List<Guid>? NetworkIds { get; set; }
+
+        [JsonPropertyName("cellId")]
+        public Guid? CellId { get; set; }
 
         [JsonPropertyName("barangayIds")]
         public List<Guid>? BarangayIds { get; set; }
