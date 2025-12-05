@@ -264,7 +264,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 record.Timestamp.ToUniversalTime(),
                                 record.Upload,
                                 record.Download,
-                                record.RSSI,
+                                record.RSSI ?? 0,  // Handle nullable RSSI
                                 signalQuality ?? "NULL",
                                 record.Longitude,
                                 record.Latitude

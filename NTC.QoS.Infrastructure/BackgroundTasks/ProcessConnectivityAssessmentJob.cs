@@ -94,10 +94,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         try
         {
-            // Use actual total locations calculated by StartConnectivityAssessmentJobHandler
-            var actualTotalLocations = jobRequest.ActualTotalLocations;
+            // Initial counts
             var primaryCount = jobRequest.LocationIds.Count;
-            var hierarchicalCount = actualTotalLocations - primaryCount;
+            var hierarchicalCount = 0;
+            var actualTotalLocations = primaryCount;
 
             _logger.LogInformation(
                 "Starting connectivity assessment job {JobId} for {LocationCount} {LocationType}s. " +
@@ -111,6 +111,31 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Cache the job request for later use in hierarchical processing
             var jobRequestCacheKey = $"job_request_{jobId}";
             _memoryCache.Set(jobRequestCacheKey, jobRequest, TimeSpan.FromHours(2));
+
+            // Process hierarchical assessments if enabled
+            List<LocationConnectivityDto> hierarchicalResults = new();
+            if (jobRequest.GenerateHierarchicalAssessments)
+            {
+                _logger.LogInformation("Job {JobId}: Hierarchical processing is enabled. Discovering child locations...", jobId);
+
+                var childLocations = await GetChildLocationsAsync(
+                    jobRequest.LocationIds,
+                    jobRequest.LocationType,
+                    jobRequest.HierarchicalDepth,
+                    cancellationToken);
+
+                hierarchicalCount = childLocations.Count;
+                actualTotalLocations = primaryCount + hierarchicalCount;
+
+                hierarchicalResults = await ProcessLocationsSequentially(
+                    childLocations.Select(l => (l.Id, l.Type, l.Name)).ToList(),
+                    jobRequest.ForceRecalculate,
+                    jobId,
+                    "hierarchical locations",
+                    jobRequest.StartDate,
+                    jobRequest.EndDate,
+                    cancellationToken);
+            }
 
             // Update job status to Processing with startTime and actual total count
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
@@ -131,44 +156,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 cancellationToken);
 
             results.AddRange(primaryResults);
+            results.AddRange(hierarchicalResults);
 
             // Update progress after primary locations
             var progressMessage = jobRequest.GenerateHierarchicalAssessments
-                ? $"Completed {results.Count}/{primaryCount} primary assessments. Starting hierarchical processing for {hierarchicalCount} locations..."
-                : $"Completed {results.Count}/{primaryCount} primary assessments.";
+                ? $"Completed {primaryResults.Count}/{primaryCount} primary assessments. Starting hierarchical processing for {hierarchicalCount} locations..."
+                : $"Completed {primaryResults.Count}/{primaryCount} primary assessments.";
 
             var progressPercentage = results.Count * 100.0 / actualTotalLocations;
             _logger.LogInformation(
-                "Job {JobId}: Primary processing completed. Processed: {Processed}/{Expected}, Total progress: {Progress}%",
-                jobId, results.Count, primaryCount, progressPercentage.ToString("F1"));
+                "Job {JobId}: Processing completed. Processed: {Processed}/{Expected}, Total progress: {Progress}%",
+                jobId, results.Count, actualTotalLocations, progressPercentage.ToString("F1"));
 
             // Update status with accurate progress tracking
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
                 progressMessage, processedCount: results.Count, totalCount: actualTotalLocations,
                 cancellationToken: cancellationToken);
-
-            // Process hierarchical assessments if enabled
-            if (jobRequest.GenerateHierarchicalAssessments)
-            {
-                _logger.LogInformation("Job {JobId}: Hierarchical processing is enabled. Processing child locations...", jobId);
-
-                var hierarchicalResults = await ProcessHierarchicalAssessments(
-                    jobRequest.LocationIds,
-                    jobRequest.LocationType,
-                    jobRequest.HierarchicalDepth,
-                    jobRequest.ForceRecalculate,
-                    jobId,
-                    results.Count, // Start counting from primary results
-                    jobRequest.StartDate,
-                    jobRequest.EndDate,
-                    cancellationToken);
-
-                results.AddRange(hierarchicalResults);
-            }
-            else
-            {
-                _logger.LogInformation("Job {JobId}: Hierarchical processing not requested. Processing only primary locations.", jobId);
-            }
 
             // Clean up cached job request
             _memoryCache.Remove(jobRequestCacheKey);
@@ -176,7 +179,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var endTime = DateTime.UtcNow;
             var totalTime = endTime - startTime;
             var completionRate = actualTotalLocations > 0 ? (results.Count * 100.0 / actualTotalLocations) : 100;
-            var successMessage = $"Successfully generated {results.Count}/{actualTotalLocations} connectivity assessments ({completionRate:F1}%) in {totalTime:mm\\:ss}";
+            var successMessage = $"Successfully generated {results.Count}/{actualTotalLocations} connectivity assessments ({completionRate:F1}%) in {totalTime:mm':'ss}";
 
             // Verify completion status
             var isComplete = results.Count >= actualTotalLocations;
@@ -188,7 +191,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 "Primary: {Primary}, Hierarchical: {Hierarchical}, Duration: {Duration}, " +
                 "Complete: {IsComplete}, Missing: {Missing}",
                 jobId, actualTotalLocations, results.Count, completionRate,
-                primaryCount, results.Count - primaryCount, totalTime, isComplete, missingCount);
+                primaryCount, hierarchicalCount, totalTime, isComplete, missingCount);
 
             // Warn if there's a significant discrepancy
             if (missingCount > 0)
@@ -2496,8 +2499,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             _logger.LogInformation("Job {JobId}: Found {ChildCount} child locations for hierarchical processing", jobId, childLocations.Count);
 
-            // Apply performance limits
-            var maxLocations = 1000; // Default safety limit
+            // Apply performance limit ONLY if explicitly set by user
+            int? maxLocations = null;
             try
             {
                 var cacheKey = $"job_request_{jobId}";
@@ -2508,14 +2511,25 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Error getting max hierarchical locations for job {JobId}, using default", jobId);
+                _logger.LogWarning(ex, "Error getting max hierarchical locations for job {JobId}", jobId);
             }
 
-            if (childLocations.Count > maxLocations)
+            if (maxLocations.HasValue && childLocations.Count > maxLocations.Value)
             {
-                _logger.LogWarning("Job {JobId}: Hierarchical processing limited to {MaxCount} locations (requested {RequestedCount} locations)",
-                    jobId, maxLocations, childLocations.Count);
-                childLocations = childLocations.Take(maxLocations).ToList();
+                _logger.LogWarning("Job {JobId}: Hierarchical processing limited to {MaxCount} locations (found {TotalCount} locations). " +
+                    "This is a user-configured limit. Some locations will not be processed.",
+                    jobId, maxLocations.Value, childLocations.Count);
+                childLocations = childLocations.Take(maxLocations.Value).ToList();
+            }
+            else if (maxLocations.HasValue)
+            {
+                _logger.LogInformation("Job {JobId}: Processing all {Count} hierarchical locations (limit: {Limit})",
+                    jobId, childLocations.Count, maxLocations.Value);
+            }
+            else
+            {
+                _logger.LogInformation("Job {JobId}: Processing all {Count} hierarchical locations (no limit)",
+                    jobId, childLocations.Count);
             }
 
             var hierarchicalResults = await ProcessLocationsSequentially(

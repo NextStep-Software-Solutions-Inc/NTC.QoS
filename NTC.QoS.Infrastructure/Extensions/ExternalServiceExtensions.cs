@@ -28,6 +28,9 @@ internal static class ExternalServiceExtensions
 
         // Core services
         services.AddScoped<IUserContextService, UserContextService>();
+        
+        // CellularCoverage V2 mapping service
+        services.AddScoped<ICellularCoverageV2MappingService, CellularCoverageV2MappingService>();
 
         return services;
     }

@@ -33,7 +33,8 @@ public interface IBackgroundJobService
     /// <param name="recurringJobId">The ID of the recurring job.</param>
     /// <param name="jobExpression">The job expression to execute.</param>
     /// <param name="cronExpression">The CRON expression for the job schedule.</param>
-    void AddOrUpdateRecurringJob<TJob>(string recurringJobId, Expression<Action<TJob>> jobExpression, string cronExpression);
+    /// <param name="timeZone">The timezone ID for the cron expression (e.g., 'Asia/Manila'). If null, uses UTC.</param>
+    void AddOrUpdateRecurringJob<TJob>(string recurringJobId, Expression<Action<TJob>> jobExpression, string cronExpression, string? timeZone = null);
 
     /// <summary>
     /// Removes a recurring job.

@@ -6,12 +6,16 @@ namespace NTC.QoS.Domain.Aggregates;
 public class Network : BaseEntity
 {
     public Guid? NetworkTemplateId { get; set; }
-    public virtual NetworkTemplate NetworkTemplate { get; set; } = null!;
+    public virtual NetworkTemplate? NetworkTemplate { get; set; }
     public string Name { get; set; } = string.Empty;
     public Guid SystemTypeId { get; set; }
     public virtual SystemType SystemType { get; set; } = null!;
     public Guid ServiceProviderId { get; set; }
     public virtual ServiceProvider ServiceProvider { get; set; } = null!;
+    public Guid BandId { get; set; }
+    public virtual Band Band { get; set; } = null!;
+    public Guid? MunicipalityId { get; set; }
+    public virtual Municipality? Municipality { get; set; }
     public decimal ULCenterFreq { get; set; }
     public decimal DLCenterFreq { get; set; }
     public decimal Bandwidth { get; set; }
