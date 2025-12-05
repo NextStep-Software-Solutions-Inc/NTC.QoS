@@ -212,27 +212,28 @@ public class BroadbandAnalyticsService
         foreach (var update in cellUpdates)
         {
             var key = update.Key;
-            if (municipalityGroups.TryGetValue(key, out var value))
-            {
-                municipalityGroups[key] = (value.CellCount + update.Count, value.NAPCount, value.IsCovered);
-            }
-            else
-            {
-                // Asset found in municipality not covered by query geometry (edge case)
-                municipalityGroups[key] = (update.Count, 0, false);
-            }
+            municipalityGroups[key] = municipalityGroups.TryGetValue(key, out var value)
+                ? (value.CellCount + update.Count, value.NAPCount, value.IsCovered)
+                : (update.Count, 0, false);
         }
 
         // Count NAPs by municipality
-        foreach (var location in napLocations)
-        {
-            if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
+        var napUpdates = napLocations
+            .Where(location => location?.IsValid == true && locationMunicipalityMap.ContainsKey(location))
+            .Select(location =>
             {
-                var key = (municipalityInfo.Id, municipalityInfo.Name);
-                municipalityGroups[key] = municipalityGroups.TryGetValue(key, out var value)
-                    ? (value.CellCount, value.NAPCount + 1, value.IsCovered)
-                    : (0, 1, false);
-            }
+                var municipalityInfo = locationMunicipalityMap[location];
+                return (municipalityInfo.Id, municipalityInfo.Name);
+            })
+            .GroupBy(key => key)
+            .Select(g => new { Key = g.Key, Count = g.Count() });
+
+        foreach (var update in napUpdates)
+        {
+            var key = update.Key;
+            municipalityGroups[key] = municipalityGroups.TryGetValue(key, out var value)
+                ? (value.CellCount, value.NAPCount + update.Count, value.IsCovered)
+                : (0, update.Count, false);
         }
 
         // Calculate total assets for percentage calculation
