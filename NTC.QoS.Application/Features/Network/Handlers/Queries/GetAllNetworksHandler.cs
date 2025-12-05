@@ -23,7 +23,8 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
             .Where(n => !request.SystemTypeId.HasValue || n.SystemTypeId == request.SystemTypeId)
             .Where(n => !request.TechnologyId.HasValue || n.SystemType.TechnologyId == request.TechnologyId)
             .Where(n => !request.BandId.HasValue || n.BandId == request.BandId)
-            .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProviderId == request.ServiceProviderId);
+            .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProviderId == request.ServiceProviderId)
+            .Where(n => !request.CellId.HasValue || n.Sectors.Any(s => s.CellSector != null && s.CellSector.CellId == request.CellId));
 
         // Location filtering based on location type
         if (request.LocationId.HasValue && !string.IsNullOrEmpty(request.LocationType))

@@ -33,7 +33,8 @@ public class NetworksController(IMediator mediator) : ControllerBase
         Guid? locationId = null,
         string? locationType = null,
         Guid? systemTypeId = null,
-        Guid? serviceProviderId = null)
+        Guid? serviceProviderId = null,
+        Guid? cellId = null)
     {
         var request = new GetAllNetworksRequest(
             pageNumber, 
@@ -45,7 +46,8 @@ public class NetworksController(IMediator mediator) : ControllerBase
             locationId, 
             locationType, 
             systemTypeId,
-            serviceProviderId);
+            serviceProviderId,
+            cellId);
         var networks = await _mediator.Send(request);
         return networks.Succeeded ? Ok(networks) : BadRequest(networks);
     }

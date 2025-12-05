@@ -108,9 +108,21 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         return Ok(cellularCoverages);
     }
 
+    /// <summary>
+    /// V2: Get cellular coverage V2 records with pagination and filters
+    /// </summary>
+    [HttpGet("v2")]
+    public async Task<ActionResult<PaginatedResponse<CellularCoverageV2Dto>>> GetCellularCoverageV2(
+        [FromQuery] GetCellularCoverageV2Query query)
+    {
+        var result = await mediator.Send(query);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     private async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(CellularCoverageQueryParams query)
     {
         var cacheKey = $"{CellularCoverageCachePrefix}{query.PageSize}_{query.PageNumber}_{string.Join(",", query.NetworkIds ?? [])}" +
+               $"_{query.CellId ?? Guid.Empty}_" +
                $"{string.Join(",", query.BarangayIds ?? [])}_" +
                $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
                $"{string.Join(",", query.ProvinceIds ?? [])}_" +
@@ -125,6 +137,7 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
             PageSize = query.PageSize,
             PageNumber = query.PageNumber,
             NetworkIds = query.NetworkIds,
+            CellId = query.CellId,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance,
             BarangayIds = query.BarangayIds,
@@ -171,6 +184,9 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
 
         [JsonPropertyName("networkIds")]
         public List<Guid>? NetworkIds { get; set; }
+
+        [JsonPropertyName("cellId")]
+        public Guid? CellId { get; set; }
 
         [JsonPropertyName("barangayIds")]
         public List<Guid>? BarangayIds { get; set; }

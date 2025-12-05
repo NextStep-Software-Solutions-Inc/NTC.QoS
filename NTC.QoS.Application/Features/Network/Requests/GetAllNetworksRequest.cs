@@ -14,7 +14,8 @@ public class GetAllNetworksRequest(
     Guid? locationId,
     string? locationType,
     Guid? systemTypeId,
-    Guid? serviceProviderId) : IRequest<PaginatedResponse<NetworkDto>>
+    Guid? serviceProviderId,
+    Guid? cellId) : IRequest<PaginatedResponse<NetworkDto>>
 {
     public int PageSize { get; set; } = pageSize;
     public int PageNumber { get; set; } = pageNumber;
@@ -26,4 +27,5 @@ public class GetAllNetworksRequest(
     public string? LocationType { get; set; } = locationType;
     public Guid? SystemTypeId { get; set; } = systemTypeId;
     public Guid? ServiceProviderId { get; set; } = serviceProviderId;
+    public Guid? CellId { get; set; } = cellId;
 }
