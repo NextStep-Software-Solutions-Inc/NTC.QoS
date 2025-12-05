@@ -19,6 +19,13 @@ public class CellularBandwidthProjectionDto
     public ServiceTypeEnum ServiceType { get; set; }
 }
 
+// Projection DTO used for cellular coverage query results
+public class CellularCoverageProjectionDto
+{
+    public Point Location { get; set; } = null!;
+    public decimal Strength { get; set; }
+}
+
 // Provider/info DTO used for cells and NAPs projections
 public class ProviderInfoDto
 {

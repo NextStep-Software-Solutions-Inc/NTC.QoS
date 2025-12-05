@@ -69,8 +69,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 .Where(c => c.CellSector != null && 
                            c.CellSector.Cell != null && 
                            c.CellSector.Cell.Location != null &&
-                           (c.CellSector.Cell.Location.Within(envelope) || 
-                            c.CellSector.Cell.Location.Intersects(envelope)));
+                            c.CellSector.Cell.Location.Intersects(envelope));
             
             // Query for speedtest data
             var speedtestQuery = _speedtestRepository.Query();
@@ -111,10 +110,10 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 
             // Get cellular coverage data for signal strength
             var cellularCoverageData = await _cellularCoverageRepository.ToListAsync(
-                cellularCoverageQuery.Select(cc => new
+                cellularCoverageQuery.Select(cc => new CellularCoverageProjectionDto
                 {
-                    cc.Location,
-                    cc.Strength
+                    Location = cc.Location,
+                    Strength = cc.Strength
                 }),
                 cancellationToken);
                 

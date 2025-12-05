@@ -17,9 +17,6 @@ public class BroadbandAnalyticsService
 {
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly ILogger<BroadbandAnalyticsService> _logger;
-
-    // NOTE: Reflection caches removed to simplify code and reduce complexity.
-
     public BroadbandAnalyticsService(
         IMunicipalityRepository municipalityRepository,
         ILogger<BroadbandAnalyticsService> logger)
@@ -27,8 +24,6 @@ public class BroadbandAnalyticsService
         _municipalityRepository = municipalityRepository;
         _logger = logger;
     }
-
-    // Reflection helper removed; projections now use strongly-typed DTOs.
 
     /// <summary>
     /// Calculates maximum speed for a service provider based on cellular bandwidth data, speedtest data, and service type.
@@ -81,7 +76,7 @@ public class BroadbandAnalyticsService
     /// <summary>
     /// Calculates signal strength metrics from cellular coverage data.
     /// </summary>
-    public SignalStrengthDto? CalculateSignalStrength<T>(List<T> cellularCoverageData) where T : class
+    public SignalStrengthDto? CalculateSignalStrength(List<CellularCoverageProjectionDto> cellularCoverageData)
     {
         if (!cellularCoverageData.Any())
         {
@@ -90,15 +85,8 @@ public class BroadbandAnalyticsService
 
         try
         {
-            var strengthProperty = typeof(T).GetProperty("Strength");
-            if (strengthProperty == null)
-            {
-                return null;
-            }
-
             var strengths = cellularCoverageData
-                .Select(c => strengthProperty.GetValue(c))
-                .OfType<decimal>()
+                .Select(c => c.Strength)
                 .ToList();
 
             if (!strengths.Any())
