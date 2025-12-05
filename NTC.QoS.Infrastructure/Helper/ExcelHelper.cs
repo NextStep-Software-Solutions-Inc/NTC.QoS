@@ -72,6 +72,20 @@ public static class ExcelHelper
                             {
                                 convertedValue = ParseDateTime(cellValue);
                             }
+                            // Handle nullable value types (e.g., decimal?, int?)
+                            else if (property.PropertyType.IsGenericType && 
+                                     property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                            {
+                                if (string.IsNullOrWhiteSpace(cellValue))
+                                {
+                                    convertedValue = null;
+                                }
+                                else
+                                {
+                                    var underlyingType = Nullable.GetUnderlyingType(property.PropertyType);
+                                    convertedValue = Convert.ChangeType(cellValue, underlyingType!);
+                                }
+                            }
                             else
                             {
                                 convertedValue = Convert.ChangeType(cellValue, property.PropertyType);
