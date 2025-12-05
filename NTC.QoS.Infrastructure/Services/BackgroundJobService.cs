@@ -25,9 +25,20 @@ namespace NTC.QoS.Infrastructure.Services
         }
 
         /// <inheritdoc />
-        public void AddOrUpdateRecurringJob<TJob>(string recurringJobId, Expression<Action<TJob>> job, string cronExpression)
+        public void AddOrUpdateRecurringJob<TJob>(string recurringJobId, Expression<Action<TJob>> job, string cronExpression, string? timeZone = null)
         {
-            RecurringJob.AddOrUpdate(recurringJobId, job, cronExpression);
+            if (!string.IsNullOrEmpty(timeZone))
+            {
+                var options = new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZone)
+                };
+                RecurringJob.AddOrUpdate(recurringJobId, job, cronExpression, options);
+            }
+            else
+            {
+                RecurringJob.AddOrUpdate(recurringJobId, job, cronExpression);
+            }
         }
 
         /// <inheritdoc />

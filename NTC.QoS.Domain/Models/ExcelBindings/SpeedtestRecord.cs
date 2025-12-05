@@ -31,7 +31,7 @@ public record SpeedtestRecord
     public string Barangay { get; set; } = string.Empty;
 
     [ExcelHeader("rssi")]
-    public decimal RSSI { get; set; }
+    public decimal? RSSI { get; set; }
 
     [ExcelHeader("signal_quality")]
     public string SignalQuality { get; set; } = string.Empty;

@@ -1,5 +1,6 @@
 ﻿using ClosedXML.Excel;
 using NTC.QoS.Domain.Attributes;
+using System.Globalization;
 
 namespace NTC.QoS.Infrastructure.Helper;
 
@@ -64,7 +65,32 @@ public static class ExcelHelper
                         try
                         {
                             // STEP 4: Convert string to property type
-                            var convertedValue = Convert.ChangeType(cellValue, property.PropertyType);
+                            object? convertedValue;
+                            
+                            // Special handling for DateTime to support multiple formats
+                            if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
+                            {
+                                convertedValue = ParseDateTime(cellValue);
+                            }
+                            // Handle nullable value types (e.g., decimal?, int?)
+                            else if (property.PropertyType.IsGenericType && 
+                                     property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                            {
+                                if (string.IsNullOrWhiteSpace(cellValue))
+                                {
+                                    convertedValue = null;
+                                }
+                                else
+                                {
+                                    var underlyingType = Nullable.GetUnderlyingType(property.PropertyType);
+                                    convertedValue = Convert.ChangeType(cellValue, underlyingType!);
+                                }
+                            }
+                            else
+                            {
+                                convertedValue = Convert.ChangeType(cellValue, property.PropertyType);
+                            }
+                            
                             property.SetValue(obj, convertedValue);
                         }
                         catch (Exception ex)
@@ -90,5 +116,48 @@ public static class ExcelHelper
     public static List<T> ParseExcelToClass<T>(FileStream stream) where T : new()
     {
         return ParseExcelToClass<T>((Stream)stream);
+    }
+
+    /// <summary>
+    /// Parses DateTime from string with support for multiple formats
+    /// </summary>
+    private static DateTime ParseDateTime(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new FormatException("DateTime value cannot be empty");
+        }
+
+        // Try parsing with multiple datetime formats
+        var formats = new[]
+        {
+            "dd/MM/yyyy, HH:mm",      // 26/09/2025, 08:46
+            "dd/MM/yyyy HH:mm",        // 26/09/2025 08:46
+            "dd/MM/yyyy, HH:mm:ss",    // 26/09/2025, 08:46:30
+            "dd/MM/yyyy HH:mm:ss",     // 26/09/2025 08:46:30
+            "dd/MM/yyyy",              // 26/09/2025
+            "MM/dd/yyyy, HH:mm",       // 09/26/2025, 08:46
+            "MM/dd/yyyy HH:mm",        // 09/26/2025 08:46
+            "MM/dd/yyyy, HH:mm:ss",    // 09/26/2025, 08:46:30
+            "MM/dd/yyyy HH:mm:ss",     // 09/26/2025 08:46:30
+            "MM/dd/yyyy",              // 09/26/2025
+            "yyyy-MM-dd HH:mm:ss",     // 2025-09-26 08:46:30
+            "yyyy-MM-dd HH:mm",        // 2025-09-26 08:46
+            "yyyy-MM-dd",              // 2025-09-26
+        };
+
+        // Try parsing with known formats
+        if (DateTime.TryParseExact(value, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result))
+        {
+            return result;
+        }
+
+        // Fallback to standard DateTime parsing
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+        {
+            return result;
+        }
+
+        throw new FormatException($"Unable to parse '{value}' as DateTime. Supported formats include: dd/MM/yyyy, HH:mm");
     }
 }

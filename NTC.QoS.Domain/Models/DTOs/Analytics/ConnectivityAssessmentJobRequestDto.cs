@@ -39,9 +39,11 @@ public class ConnectivityAssessmentJobRequestDto
     public int HierarchicalDepth { get; set; } = 3;
 
     /// <summary>
-    /// NEW: Maximum number of hierarchical locations to process (performance limit)
+    /// Maximum number of hierarchical locations to process (optional performance limit).
+    /// NULL = No limit, process all child locations (ensures complete coverage)
+    /// VALUE = Cap processing at this number (may result in incomplete assessments)
     /// </summary>
-    public int MaxHierarchicalLocations { get; set; } = 1000;
+    public int? MaxHierarchicalLocations { get; set; } = null;
 
     /// <summary>
     /// NEW: Batch size for hierarchical processing (smaller than primary processing)
