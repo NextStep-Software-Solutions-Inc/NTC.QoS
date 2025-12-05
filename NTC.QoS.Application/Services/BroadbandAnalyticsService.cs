@@ -204,30 +204,34 @@ public class BroadbandAnalyticsService
         }
 
         // Group by municipality and count assets
-        var municipalityGroups = new Dictionary<(Guid? Id, string Name), (int CellCount, int NAPCount, bool IsCovered)>();
-
-        // Initialize all covered municipalities with zero assets
-        foreach (var coveredMunicipality in coveredMunicipalities)
-        {
-            var key = (coveredMunicipality.Id, coveredMunicipality.Name);
-            municipalityGroups[key] = (0, 0, true);
-        }
+        var municipalityGroups = coveredMunicipalities
+            .Select(m => new KeyValuePair<(Guid? Id, string Name), (int CellCount, int NAPCount, bool IsCovered)>(
+                (m.Id, m.Name),
+                (0, 0, true)))
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
         // Count cells by municipality
-        foreach (var location in cellLocations)
-        {
-            if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
+        var cellUpdates = cellLocations
+            .Where(location => location?.IsValid == true && locationMunicipalityMap.ContainsKey(location))
+            .Select(location =>
             {
-                var key = (municipalityInfo.Id, municipalityInfo.Name);
-                if (municipalityGroups.TryGetValue(key, out var value))
-                {
-                    municipalityGroups[key] = (value.CellCount + 1, value.NAPCount, value.IsCovered);
-                }
-                else
-                {
-                    // Asset found in municipality not covered by query geometry (edge case)
-                    municipalityGroups[key] = (1, 0, false);
-                }
+                locationMunicipalityMap.TryGetValue(location, out var municipalityInfo);
+                return (municipalityInfo.Id, municipalityInfo.Name);
+            })
+            .GroupBy(key => key)
+            .Select(g => new { Key = g.Key, Count = g.Count() });
+
+        foreach (var update in cellUpdates)
+        {
+            var key = update.Key;
+            if (municipalityGroups.TryGetValue(key, out var value))
+            {
+                municipalityGroups[key] = (value.CellCount + update.Count, value.NAPCount, value.IsCovered);
+            }
+            else
+            {
+                // Asset found in municipality not covered by query geometry (edge case)
+                municipalityGroups[key] = (update.Count, 0, false);
             }
         }
 
@@ -237,15 +241,9 @@ public class BroadbandAnalyticsService
             if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
             {
                 var key = (municipalityInfo.Id, municipalityInfo.Name);
-                if (municipalityGroups.TryGetValue(key, out var value))
-                {
-                    municipalityGroups[key] = (value.CellCount, value.NAPCount + 1, value.IsCovered);
-                }
-                else
-                {
-                    // Asset found in municipality not covered by query geometry (edge case)
-                    municipalityGroups[key] = (0, 1, false);
-                }
+                municipalityGroups[key] = municipalityGroups.TryGetValue(key, out var value)
+                    ? (value.CellCount, value.NAPCount + 1, value.IsCovered)
+                    : (0, 1, false);
             }
         }
 
