@@ -203,7 +203,7 @@ public class BroadbandAnalyticsService
             .Where(location => location?.IsValid == true && locationMunicipalityMap.ContainsKey(location))
             .Select(location =>
             {
-                locationMunicipalityMap.TryGetValue(location, out var municipalityInfo);
+                var municipalityInfo = locationMunicipalityMap[location];
                 return (municipalityInfo.Id, municipalityInfo.Name);
             })
             .GroupBy(key => key)
@@ -263,10 +263,4 @@ public class BroadbandAnalyticsService
 
         return result;
     }
-
-    /// <summary>
-    /// Type-safe method to extract Location property from objects.
-    /// Handles both interface implementations and anonymous types with optimized caching.
-    /// </summary>
-    // GetLocationFromItem removed: handlers now project concrete DTOs including `Location`.
 }
