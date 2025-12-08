@@ -120,7 +120,7 @@ public class BroadbandAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to calculate signal strength from {Count} coverage data points", cellularCoverageData?.Count ?? 0);
+            _logger.LogWarning(ex, "Failed to calculate signal strength from {Count} coverage data points", cellularCoverageData.Count);
             return null;
         }
     }
