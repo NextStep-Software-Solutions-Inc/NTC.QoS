@@ -167,7 +167,7 @@ public class BroadbandAnalyticsService
 
     /// <summary>
     /// Calculates municipality information for items that have location data.
-    /// Uses both interface constraints for type safety and fallback reflection for anonymous types.
+    /// Accepts strongly-typed <see cref="Point"/> collections for both cell and NAP locations.
     /// </summary>
     public async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo(
         Geometry queryGeometry,
