@@ -160,7 +160,7 @@ public class BroadbandAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to extract location details from {Count} municipalities", municipalities?.Count ?? 0);
+            _logger.LogWarning(ex, "Failed to extract location details from {Count} municipalities", municipalities.Count);
             return null;
         }
     }
