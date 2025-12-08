@@ -118,7 +118,7 @@ public class BroadbandAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to calculate signal strength from {Count} coverage data points", cellularCoverageData?.Count ?? 0);
+            _logger.LogWarning(ex, "Failed to calculate signal strength from {Count} coverage data points", cellularCoverageData.Count);
             return null;
         }
     }
@@ -158,14 +158,14 @@ public class BroadbandAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to extract location details from {Count} municipalities", municipalities?.Count ?? 0);
+            _logger.LogWarning(ex, "Failed to extract location details from {Count} municipalities", municipalities.Count);
             return null;
         }
     }
 
     /// <summary>
     /// Calculates municipality information for items that have location data.
-    /// Uses both interface constraints for type safety and fallback reflection for anonymous types.
+    /// Accepts strongly-typed <see cref="Point"/> collections for both cell and NAP locations.
     /// </summary>
     public async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo(
         Geometry queryGeometry,
