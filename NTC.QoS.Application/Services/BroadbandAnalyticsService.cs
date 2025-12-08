@@ -36,7 +36,7 @@ public class BroadbandAnalyticsService
             decimal? maxSpeed = null;
 
             // First, check for actual speedtest measurements for this provider
-            if (speedtestData != null && speedtestData.Any())
+            if (speedtestData?.Any() == true)
             {
                 var providerSpeeds = speedtestData
                     .Where(s => s.ServiceProviderId == providerId && s.ServiceType == serviceType)
@@ -50,7 +50,7 @@ public class BroadbandAnalyticsService
             }
 
             // For wireless/cellular, also check bandwidth data and use the higher value
-            if (serviceType == ServiceTypeEnum.Wireless && cellularBandwidthData != null && cellularBandwidthData.Any())
+            if (serviceType == ServiceTypeEnum.Wireless && cellularBandwidthData?.Any() == true)
             {
                 var providerBandwidths = cellularBandwidthData
                     .Where(c => c.ServiceProviderId == providerId && c.ServiceType == ServiceTypeEnum.Wireless)
@@ -78,7 +78,7 @@ public class BroadbandAnalyticsService
     /// </summary>
     public SignalStrengthDto? CalculateSignalStrength(List<CellularCoverageProjectionDto> cellularCoverageData)
     {
-        if (!cellularCoverageData.Any())
+        if (cellularCoverageData?.Any() != true)
         {
             return null;
         }
@@ -120,7 +120,7 @@ public class BroadbandAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to calculate signal strength from {Count} coverage data points", cellularCoverageData.Count);
+            _logger.LogWarning(ex, "Failed to calculate signal strength from {Count} coverage data points", cellularCoverageData?.Count ?? 0);
             return null;
         }
     }
@@ -130,7 +130,7 @@ public class BroadbandAnalyticsService
     /// </summary>
     public LocationDetailsDto? GetLocationDetails(List<MunicipalityAreaInfoDto> municipalities)
     {
-        if (!municipalities.Any())
+        if (municipalities?.Any() != true)
         {
             return null;
         }
@@ -160,7 +160,7 @@ public class BroadbandAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to extract location details from {Count} municipalities", municipalities.Count);
+            _logger.LogWarning(ex, "Failed to extract location details from {Count} municipalities", municipalities?.Count ?? 0);
             return null;
         }
     }
