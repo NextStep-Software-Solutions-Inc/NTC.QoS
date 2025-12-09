@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -16,22 +17,28 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
     private readonly ILogger<ProcessCellularCoverageJob> _logger;
     private readonly IRepository<Domain.Entities.File> _fileRepository;
     private readonly IRepository<Domain.Aggregates.Network> _networkRepository;
+    private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Domain.Entities.CellularCoverage> _cellularCoverageRepository;
     private readonly IBlobStorageService _blobStorageService;
+    private readonly ICellularCoverageMappingService _mappingService;
 
     public ProcessCellularCoverageJob(
         ILogger<ProcessCellularCoverageJob> logger,
         IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.Network> networkRepository,
+        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IRepository<Domain.Entities.CellularCoverage> cellularCoverageRepository,
-        IBlobStorageService blobStorageService
+        IBlobStorageService blobStorageService,
+        ICellularCoverageMappingService mappingService
         )
     {
         _logger = logger;
         _fileRepository = fileRepository;
         _networkRepository = networkRepository;
+        _serviceProviderRepository = serviceProviderRepository;
         _cellularCoverageRepository = cellularCoverageRepository;
         _blobStorageService = blobStorageService;
+        _mappingService = mappingService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -49,15 +56,42 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
 
             _logger.LogInformation("Pre-loading reference data.");
 
-            var networkCache = await _networkRepository
-                .Query(n => !n.IsDeleted)
-                .Select(n => new { n.Id, n.Name })
-                .ToDictionaryAsync(
-                    n => CacheKeyGenerator.GenerateSimpleNetworkCacheKey(n.Name),
-                    n => n.Id,
-                    token
+            // Initialize mapping service (pre-load CellSectors and Municipalities)
+            await _mappingService.InitializeAsync(token);
+
+            // Pre-load WIRELESS service providers only (handle duplicates by grouping)
+            var serviceProviders = await _serviceProviderRepository
+                .Query(sp => !sp.IsDeleted)
+                .Include(sp => sp.Service)
+                .Where(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
+                .Select(sp => new { sp.Id, sp.Provider.Name })
+                .ToListAsync(token);
+
+            var serviceProviderCache = serviceProviders
+                .GroupBy(sp => CacheKeyGenerator.GenerateSimpleNetworkCacheKey(sp.Name))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.First().Id  // Take first if duplicates exist
                 );
-            _logger.LogInformation("Pre-loaded {Count} networks.", networkCache.Count);
+            _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
+
+            // Pre-load networks with Band and Technology metadata
+            // NOTE: Networks are cached by name only (not by ServiceProvider) because
+            // we will filter by ServiceProvider during lookup to ensure correct network selection
+            var networks = await _networkRepository
+                .Query(n => !n.IsDeleted)
+                .Include(n => n.SystemType)
+                .ThenInclude(st => st.Technology)
+                .Select(n => new { 
+                    n.Id, 
+                    n.Name, 
+                    n.BandId,
+                    TechnologyId = n.SystemType != null ? n.SystemType.TechnologyId : (Guid?)null,
+                    ServiceProviderId = n.ServiceProviderId
+                })
+                .ToListAsync(token);
+
+            _logger.LogInformation("Pre-loaded {Count} networks.", networks.Count);
 
             // Download file from blob storage or access local file
             Stream fileStream;
@@ -96,62 +130,164 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                     return;
                 }
 
+                _logger.LogInformation("Processing {Count} records from Excel file", cellularCoverageRecords.Count);
+
+                // Track statistics
+                int processedCount = 0;
+                int skippedDuplicates = 0;
+                int skippedErrors = 0;
+
                 foreach (var record in cellularCoverageRecords)
                 {
                     _logger.LogInformation("Processing record: {Record}", record);
 
-                    ProcessingJobHelper.ReportProgress($"Processing record: {record.Network}, {record.Latitude}, {record.Longitude}, {record.Strength}, {record.Address}", _logger);
+                    ProcessingJobHelper.ReportProgress($"Processing record: SP={record.ServiceProvider}, Network={record.Network}, Lat={record.Latitude}, Lng={record.Longitude}, Strength={record.Strength}", _logger);
 
-                    if (!networkCache.TryGetValue(record.Network, out var networkId))
+                    // Validate Service Provider
+                    Guid? serviceProviderId = null;
+                    if (!string.IsNullOrEmpty(record.ServiceProvider))
                     {
-                        var networkQuery = _networkRepository
-                            .Query(n => !n.IsDeleted && n.Name.Equals(record.Network));
-
-                        var network = await _networkRepository.FirstOrDefaultAsync(networkQuery, token);
-                        if (network is null)
+                        if (!serviceProviderCache.TryGetValue(
+                            CacheKeyGenerator.GenerateSimpleNetworkCacheKey(record.ServiceProvider), 
+                            out var spId))
                         {
-                            _logger.LogWarning("Network {Network} not found", record.Network);
+                            _logger.LogWarning("Service Provider '{ServiceProvider}' not found", record.ServiceProvider);
                             await ProcessingJobHelper.TerminateProcessAsync(
                                 file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
-                                $"Network '{record.Network}' not found in database", token);
+                                $"Service Provider '{record.ServiceProvider}' not found in database", token);
                             return;
                         }
-                        else
+                        serviceProviderId = spId;
+                    }
+
+                    // Find network by name and ServiceProvider from pre-loaded list
+                    var networkKey = CacheKeyGenerator.GenerateSimpleNetworkCacheKey(record.Network);
+                    
+                    // Filter networks: match by name first
+                    var matchingNetworksByName = networks
+                        .Where(n => CacheKeyGenerator.GenerateSimpleNetworkCacheKey(n.Name) == networkKey)
+                        .ToList();
+
+                    _logger.LogDebug(
+                        "Network lookup: Name='{Network}' (normalized: '{NormalizedKey}'), Found {Count} networks with this name",
+                        record.Network, networkKey, matchingNetworksByName.Count);
+
+                    // If ServiceProvider is provided, filter by ServiceProvider
+                    var matchingNetworks = matchingNetworksByName;
+                    if (serviceProviderId.HasValue)
+                    {
+                        matchingNetworks = matchingNetworksByName
+                            .Where(n => n.ServiceProviderId == serviceProviderId.Value)
+                            .ToList();
+
+                        _logger.LogDebug(
+                            "After ServiceProvider filter (ServiceProviderId={ServiceProviderId}): {Count} networks match",
+                            serviceProviderId.Value, matchingNetworks.Count);
+
+                        if (matchingNetworks.Count == 0 && matchingNetworksByName.Count > 0)
                         {
-                            networkId = network.Id;
-                            networkCache[CacheKeyGenerator.GenerateSimpleNetworkCacheKey(record.Network)] = networkId;
-                            _logger.LogInformation("Network {Network} found with ID {NetworkId}", record.Network, networkId);
+                            // Show which ServiceProviders are available for this network
+                            var availableProviders = matchingNetworksByName
+                                .Select(n => n.ServiceProviderId)
+                                .Distinct()
+                                .ToList();
+                            
+                            _logger.LogWarning(
+                                "Network '{Network}' exists but not for ServiceProvider '{ServiceProvider}' (Id: {ServiceProviderId}). Available ServiceProviderIds for this network: {AvailableProviders}",
+                                record.Network, record.ServiceProvider, serviceProviderId.Value, string.Join(", ", availableProviders));
                         }
                     }
 
-                    if (networkId != Guid.Empty)
+                    if (matchingNetworks.Count == 0)
                     {
-                        var cellularCoverage = new Domain.Entities.CellularCoverage
-                        {
-                            NetworkId = networkId,
-                            Location = GeometryHelper.CreatePoint(new Coordinate(x: record.Longitude, y: record.Latitude)),
-                            Strength = record.Strength,
-                            Address = record.Address,
-                            IsFileUploaded = true,
-                        };
-                        cellularCoverageList.Add(cellularCoverage);
+                        var errorMsg = serviceProviderId.HasValue 
+                            ? $"Network '{record.Network}' not found for Service Provider '{record.ServiceProvider}'. The network may not exist or does not belong to this service provider."
+                            : $"Network '{record.Network}' not found in database";
+                        
+                        _logger.LogWarning(errorMsg);
+                        await ProcessingJobHelper.TerminateProcessAsync(
+                            file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
+                            errorMsg, token);
+                        return;
                     }
-                    else
+
+                    if (matchingNetworks.Count > 1)
                     {
-                        _logger.LogWarning("Network ID is empty for network {Network}", record.Network);
+                        _logger.LogWarning(
+                            "Multiple networks found with name '{Network}' for ServiceProvider '{ServiceProvider}'. Using first match (NetworkId: {NetworkId}).",
+                            record.Network, record.ServiceProvider ?? "N/A", matchingNetworks[0].Id);
                     }
+
+                    var networkMetadata = matchingNetworks[0];
+                    
+                    _logger.LogDebug(
+                        "Network matched: '{Network}' -> NetworkId={NetworkId}, ServiceProviderId={ServiceProviderId}", 
+                        record.Network, networkMetadata.Id, networkMetadata.ServiceProviderId);
+
+                    // Determine final ServiceProviderId: use user-provided if available, otherwise use Network's
+                    var finalServiceProviderId = serviceProviderId ?? 
+                        (networkMetadata.ServiceProviderId != Guid.Empty ? networkMetadata.ServiceProviderId : null);
+
+                    // Map to infrastructure (CellSector and Municipality) using mapping service
+                    var (cellSectorId, municipalityId) = await _mappingService.FindInfrastructureMappingAsync(
+                        record.Latitude, record.Longitude);
+
+                    if (cellSectorId == null)
+                    {
+                        _logger.LogDebug("No CellSector found for point ({Lat}, {Lng}). Record will be saved without infrastructure mapping.",
+                            record.Latitude, record.Longitude);
+                    }
+
+                    // Check for duplicate: same NetworkId, BandId, and Location (with tolerance)
+                    var pointToCheck = GeometryHelper.CreatePoint(new Coordinate(record.Longitude, record.Latitude));
+                    var isDuplicate = await _cellularCoverageRepository
+                        .Query(cc => !cc.IsDeleted &&
+                            cc.NetworkId == networkMetadata.Id &&
+                            cc.BandId == networkMetadata.BandId &&
+                            cc.Location.Distance(pointToCheck) < 0.0001)
+                        .AnyAsync(token);
+
+                    if (isDuplicate)
+                    {
+                        _logger.LogDebug("Skipping duplicate coverage point: Network={Network}, Lat={Lat}, Lng={Lng}", 
+                            record.Network, record.Latitude, record.Longitude);
+                        skippedDuplicates++;
+                        continue;
+                    }
+
+                    // Create coverage record with all derived fields
+                    var cellularCoverage = new Domain.Entities.CellularCoverage
+                    {
+                        NetworkId = networkMetadata.Id,
+                        ServiceProviderId = finalServiceProviderId,
+                        BandId = networkMetadata.BandId,
+                        TechnologyId = networkMetadata.TechnologyId,
+                        CellSectorId = cellSectorId,
+                        MunicipalityId = municipalityId,
+                        Location = GeometryHelper.CreatePoint(new Coordinate(x: record.Longitude, y: record.Latitude)),
+                        Strength = record.Strength,
+                        Address = record.Address,
+                        IsFileUploaded = true,
+                    };
+                    cellularCoverageList.Add(cellularCoverage);
+                    processedCount++;
                 }
 
                 if (cellularCoverageList.Count != 0)
                 {
                     _cellularCoverageRepository.AddRange(cellularCoverageList);
                     await _cellularCoverageRepository.SaveChangesAsync(token);
-                    _logger.LogInformation("{Count} cellular coverage records saved successfully (batched).", cellularCoverageList.Count);
+                    _logger.LogInformation("{Count} cellular coverage records saved successfully.", cellularCoverageList.Count);
                 }
                 else
                 {
-                    _logger.LogInformation("No cellular coverage records to add.");
+                    _logger.LogInformation("No new cellular coverage records to add (all were duplicates).");
                 }
+
+                // Log processing summary
+                _logger.LogInformation(
+                    "Processing complete: Total={Total}, Processed={Processed}, Duplicates={Duplicates}, Errors={Errors}",
+                    cellularCoverageRecords.Count, processedCount, skippedDuplicates, skippedErrors);
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);

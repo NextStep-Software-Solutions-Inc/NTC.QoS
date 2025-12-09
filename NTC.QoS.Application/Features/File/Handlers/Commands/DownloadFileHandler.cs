@@ -200,10 +200,58 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateCellularCoverageTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddCommonHeaders(worksheet, "Network", "Lat", "Lng", "Strength", "Address");
+        AddCommonHeaders(worksheet, "ServiceProvider", "Network", "Lat", "Lng", "Strength", "Address");
 
-        var networks = await GetNetworks(cancellationToken);
-        AddDropdownValidation(worksheet, "A2:A12", networks);
+        // Get wireless service providers for dropdown
+        var serviceProviders = await GetWirelessServiceProviders(cancellationToken);
+        
+        // Check if we need hidden sheet for service providers
+        var spTotalLength = serviceProviders.Sum(sp => sp.Length + 1);
+        
+        if (spTotalLength > 200 || serviceProviders.Count > 50)
+        {
+            var spSheet = package.Workbook.Worksheets.Add("ServiceProviders");
+            for (int i = 0; i < serviceProviders.Count; i++)
+            {
+                spSheet.Cells[i + 1, 1].Value = serviceProviders[i];
+            }
+            spSheet.Hidden = eWorkSheetHidden.VeryHidden;
+            var spRange = spSheet.Cells[1, 1, serviceProviders.Count, 1];
+            AddDropdownValidation(worksheet, "A2:A1000", spRange);
+        }
+        else
+        {
+            AddDropdownValidation(worksheet, "A2:A1000", serviceProviders);
+        }
+
+        // Get unique networks (deduplicated by name to avoid duplicates in dropdown)
+        var networks = await GetUniqueNetworksForDropdown(cancellationToken);
+        
+        // Check if total length exceeds Excel's 255 character limit for data validation
+        var totalLength = networks.Sum(n => n.Length + 1); // +1 for comma separator
+        
+        if (totalLength > 200 || networks.Count > 50) // Use 200 as safe threshold
+        {
+            // Use hidden sheet approach for large lists
+            var networkSheet = package.Workbook.Worksheets.Add("Networks");
+            
+            // Add networks to hidden sheet (one per row)
+            for (int i = 0; i < networks.Count; i++)
+            {
+                networkSheet.Cells[i + 1, 1].Value = networks[i];
+            }
+            
+            networkSheet.Hidden = eWorkSheetHidden.VeryHidden;
+            
+            // Create dropdown using range reference
+            var networkRange = networkSheet.Cells[1, 1, networks.Count, 1];
+            AddDropdownValidation(worksheet, "B2:B1000", networkRange);
+        }
+        else
+        {
+            // Small list - use direct values
+            AddDropdownValidation(worksheet, "B2:B1000", networks);
+        }
 
         worksheet.Cells.AutoFitColumns();
     }
@@ -378,6 +426,45 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private async Task<List<string>> GetNetworks(CancellationToken cancellationToken)
     {
         return await GetEntityNames(_networkRepository, n => !n.IsDeleted, n => n.Name, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets unique network names for dropdown, with smart truncation if needed
+    /// </summary>
+    private async Task<List<string>> GetUniqueNetworksForDropdown(CancellationToken cancellationToken)
+    {
+        // Get all networks, grouped by name to get unique entries
+        var query = _networkRepository
+            .Query(n => !n.IsDeleted)
+            .GroupBy(n => n.Name)
+            .Select(g => new { 
+                Name = g.Key,
+                Count = g.Count()
+            })
+            .OrderBy(n => n.Name);
+        
+        var networks = await _networkRepository.ToListAsync(query, cancellationToken);
+        
+        var result = new List<string>();
+        
+        foreach (var network in networks)
+        {
+            var name = network.Name;
+            
+            // Truncate long names for dropdown display (Excel limit consideration)
+            if (name.Length > 60)
+            {
+                // Intelligently truncate - keep beginning and end
+                var truncated = name.Substring(0, 27) + "..." + name.Substring(name.Length - 27);
+                result.Add(truncated);
+            }
+            else
+            {
+                result.Add(name);
+            }
+        }
+        
+        return result.Distinct().ToList();
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(

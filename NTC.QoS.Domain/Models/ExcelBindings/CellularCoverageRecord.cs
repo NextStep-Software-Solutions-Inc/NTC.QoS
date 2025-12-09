@@ -4,6 +4,9 @@ namespace NTC.QoS.Domain.Models.ExcelBindings;
 
 public record CellularCoverageRecord
 {
+    [ExcelHeader("ServiceProvider")]
+    public string ServiceProvider { get; set; } = string.Empty;
+
     [ExcelHeader("Network")]
     public string Network { get; set; } = string.Empty;
 
