@@ -175,34 +175,15 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
         var point = GeometryHelper.CreatePoint(new Coordinate(x: longitude, y: latitude));
 
         // Check each municipality boundary
-        foreach (var municipality in _municipalityCache)
+        foreach (var municipality in _municipalityCache.Where(m => m.Boundaries != null))
         {
-            if (municipality.Boundaries != null && municipality.Boundaries.Contains(point))
+            if (municipality.Boundaries!.Contains(point))
             {
                 return municipality.Id;
             }
         }
 
-        // Fallback: If no exact match, find nearest municipality by center
-        var nearest = _municipalityCache
-            .Where(m => m.CenterLatitude.HasValue && m.CenterLongitude.HasValue)
-            .Select(m => new
-            {
-                m.Id,
-                Distance = CalculateHaversineDistance(
-                    latitude, longitude, 
-                    m.CenterLatitude!.Value, m.CenterLongitude!.Value)
-            })
-            .OrderBy(x => x.Distance)
-            .FirstOrDefault();
-
-        if (nearest != null && nearest.Distance < 50000) // Within 50km
-        {
-            _logger.LogDebug("Point ({Lat}, {Lng}) not in any boundary, using nearest municipality {MunicipalityId} ({Distance}m away)",
-                latitude, longitude, nearest.Id, nearest.Distance);
-            return nearest.Id;
-        }
-
+        // No exact match found - return null to avoid incorrect municipality assignment
         return null;
     }
 
@@ -214,27 +195,44 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
         if (_cellSectorCache == null || _cellSectorCache.Count == 0)
             return null;
 
-        // For V1, we don't have municipality linkage in CellSector
-        // So we'll find the nearest CellSector globally and verify it's reasonably close
+        // Get the municipality boundary for validation
+        var municipality = _municipalityCache?.FirstOrDefault(m => m.Id == municipalityId);
+        if (municipality?.Boundaries == null)
+        {
+            _logger.LogDebug("Municipality {MunicipalityId} has no boundaries defined", municipalityId);
+            return null;
+        }
+
+        // Find nearest CellSector and validate it's within the municipality boundary
         var nearest = _cellSectorCache
             .Select(cs => new
             {
                 cs.Id,
+                cs.Latitude,
+                cs.Longitude,
                 Distance = CalculateHaversineDistance(latitude, longitude, cs.Latitude, cs.Longitude)
             })
+            .Where(cs => cs.Distance < 10000) // Pre-filter by 10km distance
             .OrderBy(x => x.Distance)
             .FirstOrDefault();
 
-        // Only return if within reasonable distance (e.g., 10km)
-        if (nearest != null && nearest.Distance < 10000)
+        if (nearest == null)
         {
-            return nearest.Id;
+            _logger.LogDebug("No nearby CellSector found within 10km for point ({Lat}, {Lng})", latitude, longitude);
+            return null;
         }
 
-        _logger.LogDebug("No nearby CellSector found for point ({Lat}, {Lng}) in municipality {MunicipalityId}", 
-            latitude, longitude, municipalityId);
-        
-        return null;
+        // Validate CellSector is within the municipality boundary
+        var cellSectorPoint = GeometryHelper.CreatePoint(new Coordinate(x: nearest.Longitude, y: nearest.Latitude));
+        if (!municipality.Boundaries.Contains(cellSectorPoint))
+        {
+            _logger.LogDebug(
+                "Nearest CellSector {CellSectorId} is outside municipality {MunicipalityId} boundary. Skipping to avoid cross-municipality association.",
+                nearest.Id, municipalityId);
+            return null;
+        }
+
+        return nearest.Id;
     }
 
     /// <summary>

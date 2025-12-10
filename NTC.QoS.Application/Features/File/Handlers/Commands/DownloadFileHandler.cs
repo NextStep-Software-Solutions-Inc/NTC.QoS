@@ -445,26 +445,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         
         var networks = await _networkRepository.ToListAsync(query, cancellationToken);
         
-        var result = new List<string>();
-        
-        foreach (var network in networks)
-        {
-            var name = network.Name;
-            
-            // Truncate long names for dropdown display (Excel limit consideration)
-            if (name.Length > 60)
-            {
-                // Intelligently truncate - keep beginning and end
-                var truncated = name.Substring(0, 27) + "..." + name.Substring(name.Length - 27);
-                result.Add(truncated);
-            }
-            else
-            {
-                result.Add(name);
-            }
-        }
-        
-        return result.Distinct().ToList();
+        var result = networks  
+            .Select(network => network.Name)  
+            .Distinct()  
+            .ToList();  
+        return result;
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(

@@ -135,7 +135,6 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 // Track statistics
                 int processedCount = 0;
                 int skippedDuplicates = 0;
-                int skippedErrors = 0;
 
                 foreach (var record in cellularCoverageRecords)
                 {
@@ -213,9 +212,13 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
 
                     if (matchingNetworks.Count > 1)
                     {
-                        _logger.LogWarning(
-                            "Multiple networks found with name '{Network}' for ServiceProvider '{ServiceProvider}'. Using first match (NetworkId: {NetworkId}).",
-                            record.Network, record.ServiceProvider ?? "N/A", matchingNetworks[0].Id);
+                        var errorMsg = $"Multiple networks found with name '{record.Network}' for ServiceProvider '{record.ServiceProvider ?? "N/A"}'. " +
+                            "Please specify additional fields (e.g., Band or Technology) to disambiguate, or ensure network names are unique for the ServiceProvider.";
+                        _logger.LogError(errorMsg);
+                        await ProcessingJobHelper.TerminateProcessAsync(
+                            file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
+                            errorMsg, token);
+                        return;
                     }
 
                     var networkMetadata = matchingNetworks[0];
@@ -238,13 +241,13 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                             record.Latitude, record.Longitude);
                     }
 
-                    // Check for duplicate: same NetworkId, BandId, and Location (with tolerance)
+                    // Check for duplicate: same NetworkId, BandId, and exact Location
                     var pointToCheck = GeometryHelper.CreatePoint(new Coordinate(record.Longitude, record.Latitude));
                     var isDuplicate = await _cellularCoverageRepository
                         .Query(cc => !cc.IsDeleted &&
                             cc.NetworkId == networkMetadata.Id &&
                             cc.BandId == networkMetadata.BandId &&
-                            cc.Location.Distance(pointToCheck) < 0.0001)
+                            cc.Location.Equals(pointToCheck))
                         .AnyAsync(token);
 
                     if (isDuplicate)
@@ -286,8 +289,8 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
 
                 // Log processing summary
                 _logger.LogInformation(
-                    "Processing complete: Total={Total}, Processed={Processed}, Duplicates={Duplicates}, Errors={Errors}",
-                    cellularCoverageRecords.Count, processedCount, skippedDuplicates, skippedErrors);
+                    "Processing complete: Total={Total}, Processed={Processed}, Duplicates={Duplicates}",
+                    cellularCoverageRecords.Count, processedCount, skippedDuplicates);
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
