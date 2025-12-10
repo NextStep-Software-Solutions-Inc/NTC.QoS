@@ -94,9 +94,9 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
         double latitude, 
         double longitude)
     {
-        if (_cellSectorCache == null || _cellSectorCache.Count == 0)
+        if (_municipalityCache == null || _municipalityCache.Count == 0)
         {
-            _logger.LogWarning("CellSector cache not initialized or empty");
+            _logger.LogWarning("Municipality cache not initialized or empty. Call InitializeAsync before using mapping service.");
             return Task.FromResult<(Guid?, Guid?)>((null, null));
         }
 
@@ -131,9 +131,9 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
     {
         var results = new Dictionary<int, (Guid?, Guid?)>();
 
-        if (_cellSectorCache == null || _cellSectorCache.Count == 0)
+        if (_municipalityCache == null || _municipalityCache.Count == 0)
         {
-            _logger.LogWarning("CellSector cache not initialized or empty");
+            _logger.LogWarning("Municipality cache not initialized or empty. Call InitializeAsync before using mapping service.");
             return Task.FromResult(results);
         }
 
@@ -212,13 +212,12 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
                 cs.Longitude,
                 Distance = CalculateHaversineDistance(latitude, longitude, cs.Latitude, cs.Longitude)
             })
-            .Where(cs => cs.Distance < 10000) // Pre-filter by 10km distance
             .OrderBy(x => x.Distance)
             .FirstOrDefault();
 
         if (nearest == null)
         {
-            _logger.LogDebug("No nearby CellSector found within 10km for point ({Lat}, {Lng})", latitude, longitude);
+            _logger.LogDebug("No CellSector found for point ({Lat}, {Lng})", latitude, longitude);
             return null;
         }
 

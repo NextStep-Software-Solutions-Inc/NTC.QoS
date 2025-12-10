@@ -67,12 +67,18 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 .Select(sp => new { sp.Id, sp.Provider.Name })
                 .ToListAsync(token);
 
-            var serviceProviderCache = serviceProviders
-                .GroupBy(sp => CacheKeyGenerator.GenerateSimpleNetworkCacheKey(sp.Name))
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.First().Id  // Take first if duplicates exist
-                );
+            var serviceProviderCache = new Dictionary<string, Guid>();
+            foreach (var group in serviceProviders.GroupBy(sp => CacheKeyGenerator.GenerateSimpleNetworkCacheKey(sp.Name)))
+            {
+                if (group.Count() > 1)
+                {
+                    var duplicateIds = string.Join(", ", group.Select(sp => sp.Id));
+                    _logger.LogWarning(
+                        "Duplicate wireless ServiceProviders found with normalized name '{NormalizedName}': {Count} providers ({Ids}). Using first: {SelectedId}",
+                        group.Key, group.Count(), duplicateIds, group.First().Id);
+                }
+                serviceProviderCache[group.Key] = group.First().Id;
+            }
             _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
 
             // Pre-load networks with Band and Technology metadata
@@ -185,25 +191,28 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
 
                         if (matchingNetworks.Count == 0 && matchingNetworksByName.Count > 0)
                         {
-                            // Show which ServiceProviders are available for this network
+                            // Network exists but not for this ServiceProvider - show available providers and terminate
                             var availableProviders = matchingNetworksByName
                                 .Select(n => n.ServiceProviderId)
                                 .Distinct()
                                 .ToList();
                             
-                            _logger.LogWarning(
-                                "Network '{Network}' exists but not for ServiceProvider '{ServiceProvider}' (Id: {ServiceProviderId}). Available ServiceProviderIds for this network: {AvailableProviders}",
-                                record.Network, record.ServiceProvider, serviceProviderId.Value, string.Join(", ", availableProviders));
+                            var errorMsg = $"Network '{record.Network}' exists but not for Service Provider '{record.ServiceProvider}' (Id: {serviceProviderId.Value}). " +
+                                $"Available ServiceProviderIds for this network: {string.Join(", ", availableProviders)}";
+                            
+                            _logger.LogError(errorMsg);
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
+                                errorMsg, token);
+                            return;
                         }
                     }
 
                     if (matchingNetworks.Count == 0)
                     {
-                        var errorMsg = serviceProviderId.HasValue 
-                            ? $"Network '{record.Network}' not found for Service Provider '{record.ServiceProvider}'. The network may not exist or does not belong to this service provider."
-                            : $"Network '{record.Network}' not found in database";
+                        var errorMsg = $"Network '{record.Network}' not found in database";
                         
-                        _logger.LogWarning(errorMsg);
+                        _logger.LogError(errorMsg);
                         await ProcessingJobHelper.TerminateProcessAsync(
                             file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
                             errorMsg, token);
