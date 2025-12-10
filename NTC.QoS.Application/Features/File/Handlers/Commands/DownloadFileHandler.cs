@@ -245,12 +245,12 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             
             // Create dropdown using range reference
             var networkRange = networkSheet.Cells[1, 1, networks.Count, 1];
-            AddDropdownValidation(worksheet, "B2:B1000", networkRange);
+            AddDropdownValidation(worksheet, "B2:B1048576", networkRange);
         }
         else
         {
             // Small list - use direct values
-            AddDropdownValidation(worksheet, "B2:B1000", networks);
+            AddDropdownValidation(worksheet, "B2:B1048576", networks);
         }
 
         worksheet.Cells.AutoFitColumns();
