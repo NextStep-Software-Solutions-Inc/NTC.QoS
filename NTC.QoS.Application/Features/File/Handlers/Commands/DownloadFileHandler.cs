@@ -433,23 +433,12 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     /// </summary>
     private async Task<List<string>> GetUniqueNetworksForDropdown(CancellationToken cancellationToken)
     {
-        // Get all networks, grouped by name to get unique entries
         var query = _networkRepository
             .Query(n => !n.IsDeleted)
-            .GroupBy(n => n.Name)
-            .Select(g => new { 
-                Name = g.Key,
-                Count = g.Count()
-            })
-            .OrderBy(n => n.Name);
-        
-        var networks = await _networkRepository.ToListAsync(query, cancellationToken);
-        
-        var result = networks  
-            .Select(network => network.Name)  
-            .Distinct()  
-            .ToList();  
-        return result;
+            .Select(n => n.Name)
+            .Distinct()
+            .OrderBy(n => n);
+        return await _networkRepository.ToListAsync(query, cancellationToken);
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(
