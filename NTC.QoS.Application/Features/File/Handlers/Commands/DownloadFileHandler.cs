@@ -429,7 +429,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     }
 
     /// <summary>
-    /// Gets unique network names for dropdown, with smart truncation if needed
+    /// Gets unique network names ordered alphabetically for dropdown list
     /// </summary>
     private async Task<List<string>> GetUniqueNetworksForDropdown(CancellationToken cancellationToken)
     {

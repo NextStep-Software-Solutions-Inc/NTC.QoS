@@ -22,22 +22,14 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
     // In-memory cache for CellSectors
     private List<CellSectorCache>? _cellSectorCache;
     
-    // In-memory cache for Municipalities (with spatial boundaries)
-    private List<MunicipalityCache>? _municipalityCache;
+    // Lightweight cache of municipality IDs (boundaries queried from DB)
+    private HashSet<Guid>? _municipalityIds;
 
     private class CellSectorCache
     {
         public Guid Id { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
-    }
-
-    private class MunicipalityCache
-    {
-        public Guid Id { get; set; }
-        public MultiPolygon? Boundaries { get; set; }
-        public double? CenterLatitude { get; set; }
-        public double? CenterLongitude { get; set; }
     }
 
     public CellularCoverageMappingService(
@@ -51,10 +43,18 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
     }
 
     /// <summary>
-    /// Pre-loads all CellSectors and Municipalities into memory for efficient lookups
+    /// Pre-loads all CellSectors and Municipality IDs into memory for efficient lookups.
+    /// Municipality boundaries are queried from database on-demand to avoid memory overhead.
     /// </summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        // Guard: Skip re-initialization if already loaded
+        if (_cellSectorCache != null && _municipalityIds != null)
+        {
+            _logger.LogDebug("Mapping service already initialized, skipping reload.");
+            return;
+        }
+
         _logger.LogInformation("Initializing CellularCoverage mapping service");
 
         // Load all CellSectors with their Cell locations
@@ -72,77 +72,71 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
 
         _logger.LogInformation("Loaded {Count} CellSectors into cache", _cellSectorCache.Count);
 
-        // Load all Municipalities with their boundaries
-        _municipalityCache = await _municipalityRepository
-            .Query(m => !m.IsDeleted)
-            .Select(m => new MunicipalityCache
-            {
-                Id = m.Id,
-                Boundaries = m.Boundaries,
-                CenterLatitude = m.Center != null ? m.Center.Y : (double?)null,
-                CenterLongitude = m.Center != null ? m.Center.X : (double?)null
-            })
-            .ToListAsync(cancellationToken);
+        // Load only Municipality IDs (boundaries queried from DB on-demand)
+        _municipalityIds = await _municipalityRepository
+            .Query(m => !m.IsDeleted && m.Boundaries != null)
+            .Select(m => m.Id)
+            .ToHashSetAsync(cancellationToken);
 
-        _logger.LogInformation("Loaded {Count} Municipalities into cache", _municipalityCache.Count);
+        _logger.LogInformation("Loaded {Count} Municipality IDs into cache (boundaries queried from DB on-demand)", _municipalityIds.Count);
     }
 
     /// <summary>
     /// Finds the nearest CellSector and its Municipality for a single coverage point
     /// </summary>
-    public Task<(Guid? cellSectorId, Guid? municipalityId)> FindInfrastructureMappingAsync(
+    public async Task<(Guid? cellSectorId, Guid? municipalityId)> FindInfrastructureMappingAsync(
         double latitude, 
         double longitude)
     {
-        if (_municipalityCache == null || _municipalityCache.Count == 0)
+        if (_municipalityIds == null || _municipalityIds.Count == 0)
         {
             _logger.LogWarning("Municipality cache not initialized or empty. Call InitializeAsync before using mapping service.");
-            return Task.FromResult<(Guid?, Guid?)>((null, null));
+            return (null, null);
         }
 
-        // Step 1: Find Municipality containing this point (spatial query)
-        var municipalityId = FindMunicipalityContainingPoint(latitude, longitude);
+        // Step 1: Find Municipality containing this point (database spatial query)
+        var municipalityId = await FindMunicipalityContainingPointAsync(latitude, longitude);
 
         if (municipalityId == null)
         {
             _logger.LogDebug("No municipality found for point ({Lat}, {Lng})", latitude, longitude);
-            return Task.FromResult<(Guid?, Guid?)>((null, null));
+            return (null, null);
         }
 
         // Step 2: Find nearest CellSector within the municipality
-        var cellSectorId = FindNearestCellSectorInMunicipality(latitude, longitude, municipalityId.Value);
+        var cellSectorId = await FindNearestCellSectorInMunicipalityAsync(latitude, longitude, municipalityId.Value);
 
         if (cellSectorId == null)
         {
             _logger.LogDebug("No CellSector found in municipality {MunicipalityId} for point ({Lat}, {Lng})", 
                 municipalityId, latitude, longitude);
-            return Task.FromResult<(Guid?, Guid?)>((null, municipalityId));
+            return (null, municipalityId);
         }
 
-        return Task.FromResult((cellSectorId, municipalityId));
+        return (cellSectorId, municipalityId);
     }
 
     /// <summary>
     /// Batch mapping for multiple coverage points (optimized)
     /// </summary>
-    public Task<Dictionary<int, (Guid? cellSectorId, Guid? municipalityId)>> FindInfrastructureMappingBatchAsync(
+    public async Task<Dictionary<int, (Guid? cellSectorId, Guid? municipalityId)>> FindInfrastructureMappingBatchAsync(
         List<(double latitude, double longitude)> coveragePoints,
         CancellationToken cancellationToken = default)
     {
         var results = new Dictionary<int, (Guid?, Guid?)>();
 
-        if (_municipalityCache == null || _municipalityCache.Count == 0)
+        if (_municipalityIds == null || _municipalityIds.Count == 0)
         {
             _logger.LogWarning("Municipality cache not initialized or empty. Call InitializeAsync before using mapping service.");
-            return Task.FromResult(results);
+            return results;
         }
 
         for (int i = 0; i < coveragePoints.Count; i++)
         {
             var point = coveragePoints[i];
             
-            // Find municipality
-            var municipalityId = FindMunicipalityContainingPoint(point.latitude, point.longitude);
+            // Find municipality (database query)
+            var municipalityId = await FindMunicipalityContainingPointAsync(point.latitude, point.longitude);
             
             if (municipalityId == null)
             {
@@ -151,7 +145,7 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
             }
 
             // Find nearest CellSector in municipality
-            var cellSectorId = FindNearestCellSectorInMunicipality(
+            var cellSectorId = await FindNearestCellSectorInMunicipalityAsync(
                 point.latitude, point.longitude, municipalityId.Value);
 
             results[i] = (cellSectorId, municipalityId);
@@ -161,49 +155,37 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
         _logger.LogInformation("Batch mapping completed: {Total} points, {Mapped} mapped to CellSectors", 
             coveragePoints.Count, mappedCount);
 
-        return Task.FromResult(results);
+        return results;
     }
 
     /// <summary>
-    /// Finds which municipality contains the given point using spatial queries
+    /// Finds which municipality contains the given point using database spatial query.
+    /// Uses PostGIS spatial index for optimal performance without loading boundaries into memory.
     /// </summary>
-    private Guid? FindMunicipalityContainingPoint(double latitude, double longitude)
+    private async Task<Guid?> FindMunicipalityContainingPointAsync(double latitude, double longitude)
     {
-        if (_municipalityCache == null || _municipalityCache.Count == 0)
-            return null;
-
         var point = GeometryHelper.CreatePoint(new Coordinate(x: longitude, y: latitude));
 
-        // Check each municipality boundary
-        foreach (var municipality in _municipalityCache.Where(m => m.Boundaries != null))
-        {
-            if (municipality.Boundaries!.Contains(point))
-            {
-                return municipality.Id;
-            }
-        }
+        // Use database spatial query (PostGIS optimized with spatial index)
+        // Pattern follows Repository.cs ApplyBarangayLocationFilters
+        var municipalityId = await _municipalityRepository
+            .Query(m => !m.IsDeleted && m.Boundaries != null && m.Boundaries.Contains(point))
+            .Select(m => m.Id)
+            .FirstOrDefaultAsync();
 
-        // No exact match found - return null to avoid incorrect municipality assignment
-        return null;
+        return municipalityId;
     }
 
     /// <summary>
-    /// Finds the nearest CellSector within a specific municipality using in-memory cache
+    /// Finds the nearest CellSector within a specific municipality.
+    /// Uses in-memory Haversine for nearest calculation, then validates boundary in database.
     /// </summary>
-    private Guid? FindNearestCellSectorInMunicipality(double latitude, double longitude, Guid municipalityId)
+    private async Task<Guid?> FindNearestCellSectorInMunicipalityAsync(double latitude, double longitude, Guid municipalityId)
     {
         if (_cellSectorCache == null || _cellSectorCache.Count == 0)
             return null;
 
-        // Get the municipality boundary for validation
-        var municipality = _municipalityCache?.FirstOrDefault(m => m.Id == municipalityId);
-        if (municipality?.Boundaries == null)
-        {
-            _logger.LogDebug("Municipality {MunicipalityId} has no boundaries defined", municipalityId);
-            return null;
-        }
-
-        // Find nearest CellSector and validate it's within the municipality boundary
+        // Find nearest CellSector using in-memory Haversine distance
         var nearest = _cellSectorCache
             .Select(cs => new
             {
@@ -221,9 +203,13 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
             return null;
         }
 
-        // Validate CellSector is within the municipality boundary
+        // Validate CellSector is within the municipality boundary (database spatial query)
         var cellSectorPoint = GeometryHelper.CreatePoint(new Coordinate(x: nearest.Longitude, y: nearest.Latitude));
-        if (!municipality.Boundaries.Contains(cellSectorPoint))
+        var isWithinBoundary = await _municipalityRepository
+            .Query(m => m.Id == municipalityId && m.Boundaries != null && m.Boundaries.Contains(cellSectorPoint))
+            .AnyAsync();
+
+        if (!isWithinBoundary)
         {
             _logger.LogDebug(
                 "Nearest CellSector {CellSectorId} is outside municipality {MunicipalityId} boundary. Skipping to avoid cross-municipality association.",

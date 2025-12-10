@@ -91,7 +91,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 .Select(n => new { 
                     n.Id, 
                     n.Name, 
-                    n.BandId,
+                    BandId = (Guid?)n.BandId,
                     TechnologyId = n.SystemType != null ? n.SystemType.TechnologyId : (Guid?)null,
                     ServiceProviderId = n.ServiceProviderId
                 })
@@ -127,6 +127,41 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 _logger.LogInformation("Excel processing started.");
 
                 var cellularCoverageRecords = ExcelHelper.ParseExcelToClass<CellularCoverageRecord>(fileStream);
+
+                if (cellularCoverageRecords.Count is 0)
+                {
+                    _logger.LogInformation("The Excel is empty.");
+                    await ProcessingJobHelper.SetFileSuccessStatusAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
+                    return;
+                }
+
+                _logger.LogInformation("Processing {Count} records from Excel file", cellularCoverageRecords.Count);
+
+                // Pre-load existing coverage points for duplicate detection
+                // Only load coverage for networks that appear in the file to minimize memory usage
+                var networkIds = networks.Select(n => n.Id).ToHashSet();
+                var existingCoverage = await _cellularCoverageRepository
+                    .Query(cc => !cc.IsDeleted && networkIds.Contains(cc.NetworkId))
+                    .Select(cc => new
+                    {
+                        cc.NetworkId,
+                        cc.BandId,
+                        cc.Location
+                    })
+                    .ToListAsync(token);
+
+                _logger.LogInformation("Pre-loaded {Count} existing coverage points for duplicate detection.", existingCoverage.Count);
+
+                // Build spatial index: group by NetworkId + BandId for faster lookups
+                var spatialIndex = existingCoverage
+                    .GroupBy(cc => new { cc.NetworkId, BandId = cc.BandId ?? Guid.Empty })
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(cc => cc.Location).ToList()
+                    );
+
+                _logger.LogInformation("Built spatial index with {Count} network-band combinations.", spatialIndex.Count);
 
                 if (cellularCoverageRecords.Count is 0)
                 {
@@ -197,8 +232,10 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                                 .Distinct()
                                 .ToList();
                             
-                            var errorMsg = $"Network '{record.Network}' exists but not for Service Provider '{record.ServiceProvider}' (Id: {serviceProviderId.Value}). " +
-                                $"Available ServiceProviderIds for this network: {string.Join(", ", availableProviders)}";
+                            var displayIds = availableProviders.Take(5).ToList();  
+                            var errorMsg = $"Network '{record.Network}' exists but not for Service Provider '{record.ServiceProvider}' (Id: {serviceProviderId.Value}). " +  
+                                $"Available ServiceProviderIds: {string.Join(", ", displayIds)}" +  
+                                (availableProviders.Count > 5 ? $" and {availableProviders.Count - 5} others" : "");  
                             
                             _logger.LogError(errorMsg);
                             await ProcessingJobHelper.TerminateProcessAsync(
@@ -251,14 +288,17 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                     }
 
                     // Check for duplicate: same NetworkId, BandId, and location within 1 meter
+                    // Use pre-loaded spatial index for in-memory duplicate detection
                     var pointToCheck = GeometryHelper.CreatePoint(new Coordinate(record.Longitude, record.Latitude));
                     const double spatialToleranceMeters = 1.0;
-                    var isDuplicate = await _cellularCoverageRepository
-                        .Query(cc => !cc.IsDeleted &&
-                            cc.NetworkId == networkMetadata.Id &&
-                            cc.BandId == networkMetadata.BandId &&
-                            cc.Location.Distance(pointToCheck) <= spatialToleranceMeters)
-                        .AnyAsync(token);
+                    
+                    var indexKey = new { NetworkId = networkMetadata.Id, BandId = networkMetadata.BandId ?? Guid.Empty };
+                    var isDuplicate = false;
+                    
+                    if (spatialIndex.TryGetValue(indexKey, out var existingLocations))
+                    {
+                        isDuplicate = existingLocations.Any(loc => loc.Distance(pointToCheck) <= spatialToleranceMeters);
+                    }
 
                     if (isDuplicate)
                     {
@@ -284,6 +324,13 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                     };
                     cellularCoverageList.Add(cellularCoverage);
                     processedCount++;
+                    
+                    // Update spatial index with new point to catch duplicates within the same file
+                    if (!spatialIndex.ContainsKey(indexKey))
+                    {
+                        spatialIndex[indexKey] = new List<Point>();
+                    }
+                    spatialIndex[indexKey].Add(cellularCoverage.Location);
                 }
 
                 if (cellularCoverageList.Count != 0)
