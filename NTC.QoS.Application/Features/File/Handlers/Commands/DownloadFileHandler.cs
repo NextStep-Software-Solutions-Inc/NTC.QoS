@@ -202,58 +202,56 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         AddCommonHeaders(worksheet, "ServiceProvider", "Network", "Lat", "Lng", "Strength", "Address");
 
-        // Get wireless service providers for dropdown
-        var serviceProviders = await GetWirelessServiceProviders(cancellationToken);
+        // Fetch data in parallel for better performance
+        var serviceProvidersTask = GetWirelessServiceProviders(cancellationToken);
+        var networksTask = GetUniqueNetworksForDropdown(cancellationToken);
         
-        // Check if we need hidden sheet for service providers
-        var spTotalLength = serviceProviders.Sum(sp => sp.Length + 1);
+        await Task.WhenAll(serviceProvidersTask, networksTask);
         
-        if (spTotalLength > 200 || serviceProviders.Count > 50)
-        {
-            var spSheet = package.Workbook.Worksheets.Add("ServiceProviders");
-            for (int i = 0; i < serviceProviders.Count; i++)
-            {
-                spSheet.Cells[i + 1, 1].Value = serviceProviders[i];
-            }
-            spSheet.Hidden = eWorkSheetHidden.VeryHidden;
-            var spRange = spSheet.Cells[1, 1, serviceProviders.Count, 1];
-            AddDropdownValidation(worksheet, "A2:A1000", spRange);
-        }
-        else
-        {
-            AddDropdownValidation(worksheet, "A2:A1000", serviceProviders);
-        }
+        var serviceProviders = await serviceProvidersTask;
+        var networks = await networksTask;
 
-        // Get unique networks (deduplicated by name to avoid duplicates in dropdown)
-        var networks = await GetUniqueNetworksForDropdown(cancellationToken);
-        
-        // Check if total length exceeds Excel's 255 character limit for data validation
-        var totalLength = networks.Sum(n => n.Length + 1); // +1 for comma separator
-        
-        if (totalLength > 200 || networks.Count > 50) // Use 200 as safe threshold
-        {
-            // Use hidden sheet approach for large lists
-            var networkSheet = package.Workbook.Worksheets.Add("Networks");
-            
-            // Add networks to hidden sheet (one per row)
-            for (int i = 0; i < networks.Count; i++)
-            {
-                networkSheet.Cells[i + 1, 1].Value = networks[i];
-            }
-            
-            networkSheet.Hidden = eWorkSheetHidden.VeryHidden;
-            
-            // Create dropdown using range reference
-            var networkRange = networkSheet.Cells[1, 1, networks.Count, 1];
-            AddDropdownValidation(worksheet, "B2:B1048576", networkRange);
-        }
-        else
-        {
-            // Small list - use direct values
-            AddDropdownValidation(worksheet, "B2:B1048576", networks);
-        }
+        // Add ServiceProvider dropdown using helper method
+        AddDropdownWithHiddenSheetIfNeeded(
+            package, worksheet, serviceProviders, 
+            "ServiceProviders", "A2:A1048576");
+
+        // Add Network dropdown using helper method
+        AddDropdownWithHiddenSheetIfNeeded(
+            package, worksheet, networks, 
+            "Networks", "B2:B1048576");
 
         worksheet.Cells.AutoFitColumns();
+    }
+
+    /// <summary>
+    /// Helper method to add dropdown validation with hidden sheet for large lists
+    /// </summary>
+    private void AddDropdownWithHiddenSheetIfNeeded(
+        ExcelPackage package, 
+        ExcelWorksheet worksheet, 
+        List<string> values, 
+        string hiddenSheetName, 
+        string targetRange)
+    {
+        // Calculate if we need hidden sheet (200 char threshold or 50+ items)
+        var totalLength = values.Sum(v => v.Length + 1);
+        
+        if (totalLength > 200 || values.Count > 50)
+        {
+            // Use hidden sheet for large lists
+            var hiddenSheet = package.Workbook.Worksheets.Add(hiddenSheetName);
+            hiddenSheet.Cells[1, 1].LoadFromCollection(values);
+            hiddenSheet.Hidden = eWorkSheetHidden.VeryHidden;
+            
+            var range = hiddenSheet.Cells[1, 1, values.Count, 1];
+            AddDropdownValidation(worksheet, targetRange, range);
+        }
+        else
+        {
+            // Use direct values for small lists
+            AddDropdownValidation(worksheet, targetRange, values);
+        }
     }
 
     private static void AddCommonHeaders(ExcelWorksheet worksheet, params string[] headers)

@@ -68,6 +68,8 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 .ToListAsync(token);
 
             var serviceProviderCache = new Dictionary<string, Guid>();
+            var serviceProviderIdToName = new Dictionary<Guid, string>();
+            
             foreach (var group in serviceProviders.GroupBy(sp => CacheKeyGenerator.GenerateSimpleNetworkCacheKey(sp.Name)))
             {
                 if (group.Count() > 1)
@@ -77,7 +79,9 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         "Duplicate wireless ServiceProviders found with normalized name '{NormalizedName}': {Count} providers ({Ids}). Using first: {SelectedId}",
                         group.Key, group.Count(), duplicateIds, group.First().Id);
                 }
-                serviceProviderCache[group.Key] = group.First().Id;
+                var firstProvider = group.First();
+                serviceProviderCache[group.Key] = firstProvider.Id;
+                serviceProviderIdToName[firstProvider.Id] = firstProvider.Name;
             }
             _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
 
@@ -163,16 +167,6 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
 
                 _logger.LogInformation("Built spatial index with {Count} network-band combinations.", spatialIndex.Count);
 
-                if (cellularCoverageRecords.Count is 0)
-                {
-                    _logger.LogInformation("The Excel is empty.");
-                    await ProcessingJobHelper.SetFileSuccessStatusAsync(
-                        file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
-                    return;
-                }
-
-                _logger.LogInformation("Processing {Count} records from Excel file", cellularCoverageRecords.Count);
-
                 // Track statistics
                 int processedCount = 0;
                 int skippedDuplicates = 0;
@@ -227,15 +221,21 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         if (matchingNetworks.Count == 0 && matchingNetworksByName.Count > 0)
                         {
                             // Network exists but not for this ServiceProvider - show available providers and terminate
-                            var availableProviders = matchingNetworksByName
+                            var availableProviderIds = matchingNetworksByName
                                 .Select(n => n.ServiceProviderId)
                                 .Distinct()
                                 .ToList();
                             
-                            var displayIds = availableProviders.Take(5).ToList();  
-                            var errorMsg = $"Network '{record.Network}' exists but not for Service Provider '{record.ServiceProvider}' (Id: {serviceProviderId.Value}). " +  
-                                $"Available ServiceProviderIds: {string.Join(", ", displayIds)}" +  
-                                (availableProviders.Count > 5 ? $" and {availableProviders.Count - 5} others" : "");  
+                            // Resolve provider names for better error messages
+                            var availableProviderNames = availableProviderIds
+                                .Where(id => serviceProviderIdToName.ContainsKey(id))
+                                .Select(id => serviceProviderIdToName[id])
+                                .Take(5)
+                                .ToList();
+                            
+                            var errorMsg = $"Network '{record.Network}' exists but not for Service Provider '{record.ServiceProvider}'. " +  
+                                $"Available providers for this network: {string.Join(", ", availableProviderNames)}" +  
+                                (availableProviderIds.Count > 5 ? $" and {availableProviderIds.Count - 5} others" : "");  
                             
                             _logger.LogError(errorMsg);
                             await ProcessingJobHelper.TerminateProcessAsync(

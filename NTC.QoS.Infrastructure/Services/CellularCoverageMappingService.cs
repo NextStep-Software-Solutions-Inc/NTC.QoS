@@ -25,6 +25,9 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
     // Lightweight cache of municipality IDs (boundaries queried from DB)
     private HashSet<Guid>? _municipalityIds;
 
+    // Thread-safe initialization guard
+    private readonly SemaphoreSlim _initializationLock = new(1, 1);
+
     private class CellSectorCache
     {
         public Guid Id { get; set; }
@@ -45,40 +48,57 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
     /// <summary>
     /// Pre-loads all CellSectors and Municipality IDs into memory for efficient lookups.
     /// Municipality boundaries are queried from database on-demand to avoid memory overhead.
+    /// Thread-safe for concurrent initialization attempts.
     /// </summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        // Guard: Skip re-initialization if already loaded
+        // Quick check without lock for already initialized state
         if (_cellSectorCache != null && _municipalityIds != null)
         {
             _logger.LogDebug("Mapping service already initialized, skipping reload.");
             return;
         }
 
-        _logger.LogInformation("Initializing CellularCoverage mapping service");
-
-        // Load all CellSectors with their Cell locations
-        _cellSectorCache = await _cellSectorRepository
-            .Query(cs => !cs.IsDeleted)
-            .Include(cs => cs.Cell)
-            .Where(cs => cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted)
-            .Select(cs => new CellSectorCache
+        // Acquire lock for thread-safe initialization
+        await _initializationLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Double-check after acquiring lock (another thread may have initialized)
+            if (_cellSectorCache != null && _municipalityIds != null)
             {
-                Id = cs.Id,
-                Latitude = cs.Cell!.Location.Y,
-                Longitude = cs.Cell!.Location.X
-            })
-            .ToListAsync(cancellationToken);
+                _logger.LogDebug("Mapping service already initialized by another thread, skipping reload.");
+                return;
+            }
 
-        _logger.LogInformation("Loaded {Count} CellSectors into cache", _cellSectorCache.Count);
+            _logger.LogInformation("Initializing CellularCoverage mapping service");
 
-        // Load only Municipality IDs (boundaries queried from DB on-demand)
-        _municipalityIds = await _municipalityRepository
-            .Query(m => !m.IsDeleted && m.Boundaries != null)
-            .Select(m => m.Id)
-            .ToHashSetAsync(cancellationToken);
+            // Load all CellSectors with their Cell locations
+            _cellSectorCache = await _cellSectorRepository
+                .Query(cs => !cs.IsDeleted)
+                .Include(cs => cs.Cell)
+                .Where(cs => cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted)
+                .Select(cs => new CellSectorCache
+                {
+                    Id = cs.Id,
+                    Latitude = cs.Cell!.Location.Y,
+                    Longitude = cs.Cell!.Location.X
+                })
+                .ToListAsync(cancellationToken);
 
-        _logger.LogInformation("Loaded {Count} Municipality IDs into cache (boundaries queried from DB on-demand)", _municipalityIds.Count);
+            _logger.LogInformation("Loaded {Count} CellSectors into cache", _cellSectorCache.Count);
+
+            // Load only Municipality IDs (boundaries queried from DB on-demand)
+            _municipalityIds = await _municipalityRepository
+                .Query(m => !m.IsDeleted && m.Boundaries != null)
+                .Select(m => m.Id)
+                .ToHashSetAsync(cancellationToken);
+
+            _logger.LogInformation("Loaded {Count} Municipality IDs into cache (boundaries queried from DB on-demand)", _municipalityIds.Count);
+        }
+        finally
+        {
+            _initializationLock.Release();
+        }
     }
 
     /// <summary>
