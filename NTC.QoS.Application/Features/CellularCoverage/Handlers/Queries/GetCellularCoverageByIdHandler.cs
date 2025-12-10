@@ -27,7 +27,7 @@ public class GetCellularCoverageByIdHandler(ICellularCoverageRepository cellular
         {
             Succeeded = true,
             Message = "Cellular coverage record retrieved successfully.",
-            Data = new ()
+            Data = new()
             {
                 Id = cellularCoverage.Id,
                 NetworkId = cellularCoverage.NetworkId,

@@ -30,7 +30,7 @@ internal static class DatabaseServiceExtensions
             }
             // Defaults are already set in DatabaseOptions class
         });
-        
+
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -50,7 +50,7 @@ internal static class DatabaseServiceExtensions
             var databaseOptions = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
             var audit = sp.GetRequiredService<AuditInterceptor>();
             var softDelete = sp.GetRequiredService<SoftDeleteInterceptor>();
-            
+
             options
                 .UseNpgsql(connectionString, npgsql =>
                 {

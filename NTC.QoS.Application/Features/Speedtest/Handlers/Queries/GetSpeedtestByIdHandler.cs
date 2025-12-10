@@ -59,17 +59,17 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                     Description = speedtest.Generation.Description,
                 } : null,
                 Technology = speedtest.Technology != null ? new()
-            {
-                Id = speedtest.Technology.Id,
-                Standard = speedtest.Technology.Standard,
-                Description = speedtest.Technology.Description,
-                Generation = speedtest.Technology.Generation != null ? new()
                 {
-                    Id = speedtest.Technology.Generation.Id,
-                    Name = speedtest.Technology.Generation.Name,
-                    Description = speedtest.Technology.Generation.Description
-                } : null
-            } : null,
+                    Id = speedtest.Technology.Id,
+                    Standard = speedtest.Technology.Standard,
+                    Description = speedtest.Technology.Description,
+                    Generation = speedtest.Technology.Generation != null ? new()
+                    {
+                        Id = speedtest.Technology.Generation.Id,
+                        Name = speedtest.Technology.Generation.Name,
+                        Description = speedtest.Technology.Generation.Description
+                    } : null
+                } : null,
                 DateTime = speedtest.DateTime,
                 Ping = speedtest.Ping,
                 Jitter = speedtest.Jitter,

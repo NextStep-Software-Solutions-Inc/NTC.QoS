@@ -47,7 +47,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
 
     [HttpGet("regions/top-by-cell-count")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
-    VaryByQueryKeys = new[] { "startDate", "endDate","limit" })]
+    VaryByQueryKeys = new[] { "startDate", "endDate", "limit" })]
     public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount(
        [FromQuery] DateTime? startDate,
        [FromQuery] DateTime? endDate,

@@ -9,7 +9,7 @@ public class ServiceProviderDto
     public Guid Id { get; set; }
     public ProviderDto? Provider { get; set; }
     public ServiceDto? Service { get; set; }
-    [JsonPropertyName ("MNC")]
+    [JsonPropertyName("MNC")]
     public string MNC { get; set; } = string.Empty;
     [JsonPropertyName("MCC")]
     public string MCC { get; set; } = string.Empty;

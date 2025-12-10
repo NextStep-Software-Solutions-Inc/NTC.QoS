@@ -28,11 +28,11 @@ public class UpdateBarangayByIdHandler : IRequestHandler<UpdateBarangayByIdReque
             return new ApiResponse<BarangayDto>
             {
                 Succeeded = false,
-                Errors = new Dictionary<string, string[]> 
-                { 
-                    { 
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
                         "NullBarangay", [ "Barangay not found." ]
-                    } 
+                    }
                 },
                 Message = "The barangay you are trying to edit does not exist."
             };

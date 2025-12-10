@@ -18,7 +18,7 @@ public static class SpatialFilterBuilder
             for (int i = 0; i < multiPolygon.NumGeometries; i++)
             {
                 var singlePolygon = multiPolygon.GetGeometryN(i);
-                
+
                 // IMPORTANT: GetGeometryN doesn't preserve SRID, so we need to set it explicitly
                 // Copy SRID from parent MultiPolygon to extracted polygon
                 singlePolygon.SRID = multiPolygon.SRID;

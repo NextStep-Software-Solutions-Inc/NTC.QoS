@@ -32,7 +32,7 @@ public class DeleteStudyNetworkByIdHandler(IRepository<Domain.Aggregates.StudyNe
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<bool>
-        { 
+        {
             Data = true,
             Succeeded = true,
             Message = "Study Network deleted successfully."

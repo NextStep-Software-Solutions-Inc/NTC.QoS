@@ -9,6 +9,7 @@ public class GetAllCellularCoveragesRequest : IRequest<PaginatedResponse<Cellula
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
     public List<Guid>? NetworkIds { get; set; }
+    public Guid? CellId { get; set; }
     public required Coordinate Coordinate { get; set; }
     public double Distance { get; set; }
     public List<Guid>? BarangayIds { get; set; }

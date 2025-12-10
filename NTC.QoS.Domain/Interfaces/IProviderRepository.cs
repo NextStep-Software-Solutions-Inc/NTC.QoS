@@ -2,6 +2,6 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface IProviderRepository: IRepository<Provider>
+public interface IProviderRepository : IRepository<Provider>
 {
 }

@@ -22,7 +22,7 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
+                    {
                         "Id", [$"Role permission not found."]
                     }
                 },
@@ -32,14 +32,14 @@ public class GetRolePermissionByIdHandler(IRolePermissionRepository rolePermissi
         var result = new RolePermissionDto
         {
             Id = rolePermission.Id,
-            Role =  new ()
+            Role = new()
             {
                 Id = rolePermission.RoleId,
                 Name = rolePermission.Role?.Name ?? string.Empty,
                 Key = rolePermission.Role?.Key ?? string.Empty,
                 Description = rolePermission.Role?.Description
             },
-            Permission = new ()
+            Permission = new()
             {
                 Id = rolePermission.PermissionId,
                 Name = rolePermission.Permission?.Name ?? string.Empty,

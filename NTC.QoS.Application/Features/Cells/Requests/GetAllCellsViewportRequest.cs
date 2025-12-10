@@ -9,7 +9,7 @@ namespace NTC.QoS.Application.Features.Cells.Requests;
 /// Request for viewport-based cell queries (v2 API).
 /// Uses ViewportQueryParams for bounding box filtering and pagination.
 /// </summary>
-public record GetAllCellsViewportRequest(ViewportQueryParams QueryParams) 
+public record GetAllCellsViewportRequest(ViewportQueryParams QueryParams)
     : IRequest<PaginatedResponse<CellViewportDto>>
 {
     public ViewportBounds Viewport => QueryParams.ToViewportBounds();

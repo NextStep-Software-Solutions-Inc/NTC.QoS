@@ -13,7 +13,7 @@ public class DeleteCellularCoverageByNetworkIdHandler(IRepository<Domain.Entitie
     {
         var cellularCoveragesToDeleteQuery = _cellularCoverageRepository.Query(cs => cs.NetworkId == request.NetworkId);
         var deletedCount = await _cellularCoverageRepository.ExecuteHardDeleteAsync(cellularCoveragesToDeleteQuery, cancellationToken);
-        
+
         if (deletedCount is 0)
         {
             return new ApiResponse<bool>

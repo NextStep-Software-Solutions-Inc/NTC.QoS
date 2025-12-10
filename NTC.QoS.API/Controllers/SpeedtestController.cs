@@ -21,14 +21,13 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<SpeedtestDto>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
+    public async Task<ActionResult<ApiResponse<Guid>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
     {
         var speedtest = await mediator.Send(new CreateSpeedtestRequest(createSpeedtest));
-        if (!speedtest.Succeeded || speedtest.Data == null)
-            return BadRequest(speedtest.Data == null ? "Speedtest creation failed, no data returned." : speedtest);
+        if (!speedtest.Succeeded) return BadRequest(speedtest);
 
         RemoveAllSpeedtestsCache();
-        return CreatedAtAction(nameof(GetSpeedtestById), new { id = speedtest.Data.Id }, speedtest);
+        return CreatedAtAction(nameof(GetSpeedtestById), new { id = speedtest.Data }, speedtest);
     }
 
     /// <summary>
@@ -39,7 +38,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     [HttpGet("/v2/speedtests/viewport/public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng", 
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] ViewportQueryParams query)
     {
@@ -74,7 +73,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpGet("{id}")]
-    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
         var speedtest = await mediator.Send(new GetSpeedtestByIdRequest(id));
@@ -171,7 +170,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
         [JsonPropertyName("regionIds")]
         public List<Guid>? RegionIds { get; set; }
-        
+
         [JsonPropertyName("serviceProviderIds")]
         public List<Guid>? ServiceProviderIds { get; set; }
 

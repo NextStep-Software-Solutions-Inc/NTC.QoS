@@ -2,6 +2,6 @@
 
 namespace NTC.QoS.Domain.Interfaces;
 
-public interface ITechnologyRepository: IRepository<Technology>
+public interface ITechnologyRepository : IRepository<Technology>
 {
 }

@@ -14,7 +14,7 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     public List<Guid> LocationIds { get; set; } = [];
     public LocationTypeEnum LocationType { get; set; }
     public bool ForceRecalculate { get; set; } = false;
-    
+
     /// <summary>
     /// When true, automatically generates assessments for child locations:
     /// - Region -> Provinces, Municipalities, Barangays
@@ -23,7 +23,7 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     /// Background processing makes this much more feasible for large hierarchies.
     /// </summary>
     public bool GenerateHierarchicalAssessments { get; set; } = false;
-    
+
     /// <summary>
     /// When hierarchical generation is enabled, this limits the depth:
     /// - 1: Only direct children (e.g., Region -> Provinces only)
@@ -32,32 +32,25 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     /// Default is 3 (complete hierarchy)
     /// </summary>
     public int HierarchicalDepth { get; set; } = 3;
-    
-    /// <summary>
-    /// NEW: Optional flag to enable hierarchical processing (default null = disabled for performance)
-    /// Must be explicitly set to true to enable hierarchical processing
-    /// This is separate from GenerateHierarchicalAssessments for backward compatibility
-    /// </summary>
-    public bool? EnableHierarchicalProcessing { get; set; } = null; // null = use default (disabled)
-    
+
     /// <summary>
     /// NEW: Optional maximum number of hierarchical locations to process
     /// When null, uses location-type specific defaults for safety
     /// </summary>
     public int? MaxHierarchicalLocations { get; set; } = null; // null = use defaults
-    
+
     /// <summary>
     /// NEW: Optional batch size for hierarchical processing
     /// When null, uses location-type specific defaults for performance
     /// </summary>
     public int? HierarchicalBatchSize { get; set; } = null; // null = use defaults
-    
+
     /// <summary>
     /// Start date for filtering speedtest and wireless validation data (inclusive).
     /// If null, no start date filter is applied.
     /// </summary>
     public DateTime? StartDate { get; set; }
-    
+
     /// <summary>
     /// End date for filtering speedtest and wireless validation data (inclusive).
     /// If null, no end date filter is applied.

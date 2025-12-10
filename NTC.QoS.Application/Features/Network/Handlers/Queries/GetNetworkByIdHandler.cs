@@ -22,8 +22,8 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { 
-                        "Id", ["Network not found."] 
+                    {
+                        "Id", ["Network not found."]
                     },
                 },
                 Message = $"Network with ID [{request.Id}] does not exists."
@@ -34,12 +34,12 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
         {
             Id = network.Id,
             Name = network.Name,
-            NetworkTemplate = new()
+            NetworkTemplate = network.NetworkTemplate == null ? null : new()
             {
                 Id = network.NetworkTemplateId ?? Guid.Empty,
-                Name = network.NetworkTemplate?.Name ?? string.Empty,
-                Description = network.NetworkTemplate?.Description ?? string.Empty,
-                URL = network.NetworkTemplate?.URL ?? string.Empty
+                Name = network.NetworkTemplate.Name,
+                Description = network.NetworkTemplate.Description,
+                URL = network.NetworkTemplate.URL
             },
             SystemTypeName = network.SystemType?.Name ?? string.Empty,
             ServiceProvider = new()
@@ -59,6 +59,28 @@ public class GetNetworkByIdHandler(INetworkRepository networkRepository) : IRequ
                     Id = network.ServiceProvider.ServiceId,
                     Name = network.ServiceProvider.Service?.Name ?? string.Empty,
                     Type = network.ServiceProvider.Service?.Type.ToString() ?? string.Empty
+                }
+            },
+            Band = new()
+            {
+                Id = network.Band.Id,
+                Name = network.Band.Name,
+                Description = network.Band.Description
+            },
+            Municipality = network.Municipality == null ? null : new()
+            {
+                Id = network.Municipality.Id,
+                Name = network.Municipality.Name,
+                Description = network.Municipality.Description,
+                IsCity = network.Municipality.IsCity,
+                Code = network.Municipality.Code,
+                Area = network.Municipality.Area,
+                Province = network.Municipality.Province == null ? null : new()
+                {
+                    Id = network.Municipality.Province.Id,
+                    Name = network.Municipality.Province.Name,
+                    Description = network.Municipality.Province.Description,
+                    Code = network.Municipality.Province.Code
                 }
             },
             ULCenterFreq = network.ULCenterFreq,

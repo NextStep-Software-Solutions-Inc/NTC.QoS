@@ -69,10 +69,7 @@ public class LocationSeederV2
 
     private async Task SeedRegionsAsync(bool forceReseed, CancellationToken cancellationToken)
     {
-        var parser = new StreamingGeoJsonParser(
-            _loggerFactory.CreateLogger<StreamingGeoJsonParser>(),
-            "ADM1",
-            null);
+        var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM1", null);
 
         var transformer = new RegionTransformer();
         var writer = new BatchedLocationWriter<Region>(_dbContext, _loggerFactory.CreateLogger<BatchedLocationWriter<Region>>());
@@ -86,7 +83,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(null, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed regions: {result.ErrorMessage}");
@@ -127,7 +124,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(regionMap, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed provinces: {result.ErrorMessage}");
@@ -168,7 +165,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(provinceMap, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed municipalities: {result.ErrorMessage}");
@@ -209,7 +206,7 @@ public class LocationSeederV2
             writer);
 
         var result = await strategy.SeedAsync(municipalityMap, forceReseed, cancellationToken);
-        
+
         if (!result.Success && !result.AlreadySeeded)
         {
             throw new InvalidOperationException($"Failed to seed barangays: {result.ErrorMessage}");
@@ -218,10 +215,10 @@ public class LocationSeederV2
 
     private async Task<bool> HasCompleteDataAsync(CancellationToken cancellationToken)
     {
-        var regionCount = await _dbContext.Regions.CountAsync(cancellationToken);
-        var provinceCount = await _dbContext.Provinces.CountAsync(cancellationToken);
-        var municipalityCount = await _dbContext.Municipalities.CountAsync(cancellationToken);
-        var barangayCount = await _dbContext.Barangays.CountAsync(cancellationToken);
+        var regionCount = await _dbContext.Regions.Where(r => !r.IsDeleted).CountAsync(cancellationToken);
+        var provinceCount = await _dbContext.Provinces.Where(p => !p.IsDeleted).CountAsync(cancellationToken);
+        var municipalityCount = await _dbContext.Municipalities.Where(m => !m.IsDeleted).CountAsync(cancellationToken);
+        var barangayCount = await _dbContext.Barangays.Where(b => !b.IsDeleted).CountAsync(cancellationToken);
 
         _logger.LogInformation(
             "Existing location data - Regions: {RegionCount}, Provinces: {ProvinceCount}, Municipalities: {MunicipalityCount}, Barangays: {BarangayCount}",

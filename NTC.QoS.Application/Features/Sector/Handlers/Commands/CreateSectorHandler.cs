@@ -37,7 +37,7 @@ public class CreateSectorHandler(
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "Duplicate", ["Sector already exists."] 
+                        "Duplicate", ["Sector already exists."]
                     }
                 },
             };
@@ -237,7 +237,7 @@ public class CreateSectorHandler(
                 CellSector = new()
                 {
                     Id = newSector.CellSector?.Id ?? Guid.Empty,
-                    Cell = new ()
+                    Cell = new()
                     {
                         Id = newSector.CellSector?.Cell?.Id ?? Guid.Empty,
                         Name = newSector.CellSector?.Cell?.Name ?? string.Empty,

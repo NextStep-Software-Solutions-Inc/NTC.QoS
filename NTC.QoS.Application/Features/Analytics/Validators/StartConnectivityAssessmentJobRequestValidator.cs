@@ -75,7 +75,7 @@ public class StartConnectivityAssessmentJobRequestValidator : AbstractValidator<
         RuleFor(x => x)
             .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || x.EndDate >= x.StartDate)
             .WithMessage("EndDate must be greater than or equal to StartDate when both are provided.")
-            .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || 
+            .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue ||
                       (x.EndDate.Value - x.StartDate.Value).TotalDays <= MAX_DATE_RANGE_DAYS)
             .WithMessage($"Date range cannot exceed {MAX_DATE_RANGE_DAYS} days for performance reasons.");
 
@@ -83,28 +83,17 @@ public class StartConnectivityAssessmentJobRequestValidator : AbstractValidator<
         RuleFor(x => x)
             .Must(x => x.LocationType != LocationTypeEnum.Regional || x.LocationIds.Count <= MAX_REGIONAL_LOCATIONS)
             .WithMessage($"Regional-level background assessment generation is limited to {MAX_REGIONAL_LOCATIONS} locations at once due to data volume.")
-            
-            // Warning for hierarchical jobs without explicit enablement
-            .Must(x => !x.GenerateHierarchicalAssessments || x.EnableHierarchicalProcessing == true || 
-                     x.EnableHierarchicalProcessing == null) // null is acceptable (will use default)
-            .WithMessage("When GenerateHierarchicalAssessments is true, consider setting EnableHierarchicalProcessing=true to actually process child locations.")
-            
+
             // Warning for very large hierarchical jobs
             .Must(x => !x.GenerateHierarchicalAssessments || x.LocationIds.Count <= 50)
             .WithMessage("When GenerateHierarchicalAssessments is enabled, recommend limiting to 50 locations to manage processing time.")
-            
+
             // Combined high-resource scenario guidance
-            .Must(x => !(x.ForceRecalculate && x.GenerateHierarchicalAssessments && 
-                        x.EnableHierarchicalProcessing == true && x.LocationIds.Count > 20))
-            .WithMessage("When ForceRecalculate, GenerateHierarchicalAssessments, and EnableHierarchicalProcessing are all enabled, recommend limiting to 20 locations for reasonable processing time.")
-            
+            .Must(x => !(x.ForceRecalculate && x.GenerateHierarchicalAssessments && x.LocationIds.Count > 20))
+            .WithMessage("When ForceRecalculate and GenerateHierarchicalAssessments are both enabled, recommend limiting to 20 locations for reasonable processing time.")
+
             // Prevent extremely large jobs with full hierarchical processing
-            .Must(x => !(x.GenerateHierarchicalAssessments && x.EnableHierarchicalProcessing == true && 
-                        x.HierarchicalDepth >= 3 && x.LocationIds.Count > 10))
-            .WithMessage("When enabling full hierarchical processing (depth >= 3), recommend limiting to 10 locations to prevent extremely long processing times.")
-            
-            // Configuration consistency check
-            .Must(x => x.EnableHierarchicalProcessing != true || x.GenerateHierarchicalAssessments)
-            .WithMessage("EnableHierarchicalProcessing can only be true when GenerateHierarchicalAssessments is also true.");
+            .Must(x => !(x.GenerateHierarchicalAssessments && x.HierarchicalDepth >= 3 && x.LocationIds.Count > 10))
+            .WithMessage("When enabling full hierarchical processing (depth >= 3), recommend limiting to 10 locations to prevent extremely long processing times.");
     }
 }

@@ -1,6 +1,8 @@
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
 using NTC.QoS.Infrastructure.Seed.Models;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.Simplify;
 
 namespace NTC.QoS.Infrastructure.Seed.Transformers;
 
@@ -13,6 +15,7 @@ public class RegionTransformer : ILocationDataTransformer<ParsedLocationFeature,
     {
         return new Region
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,
@@ -22,6 +25,7 @@ public class RegionTransformer : ILocationDataTransformer<ParsedLocationFeature,
             HouseholdCount = feature.HouseholdCount,
             Boundaries = feature.Boundaries,
             Center = feature.Boundaries.Centroid,
+            IsDeleted = false,
             CreatedAt = context.Timestamp,
             CreatedBy = context.UserId,
             UpdatedAt = context.Timestamp,
@@ -45,6 +49,7 @@ public class ProvinceTransformer : ILocationDataTransformer<ParsedLocationFeatur
 
         return new Province
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,
@@ -55,6 +60,7 @@ public class ProvinceTransformer : ILocationDataTransformer<ParsedLocationFeatur
             Boundaries = feature.Boundaries,
             Center = feature.Boundaries.Centroid,
             RegionId = regionId,
+            IsDeleted = false,
             CreatedAt = context.Timestamp,
             CreatedBy = context.UserId,
             UpdatedAt = context.Timestamp,
@@ -81,6 +87,7 @@ public class MunicipalityTransformer : ILocationDataTransformer<ParsedLocationFe
 
         return new Municipality
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,
@@ -92,6 +99,7 @@ public class MunicipalityTransformer : ILocationDataTransformer<ParsedLocationFe
             Center = feature.Boundaries.Centroid,
             ProvinceId = provinceId,
             IsCity = isCity,
+            IsDeleted = false,
             CreatedAt = context.Timestamp,
             CreatedBy = context.UserId,
             UpdatedAt = context.Timestamp,
@@ -115,6 +123,7 @@ public class BarangayTransformer : ILocationDataTransformer<ParsedLocationFeatur
 
         return new Barangay
         {
+            Id = Guid.NewGuid(),
             Code = feature.Code,
             Name = feature.Name,
             Description = null,
@@ -125,6 +134,7 @@ public class BarangayTransformer : ILocationDataTransformer<ParsedLocationFeatur
             Boundaries = feature.Boundaries,
             Center = feature.Boundaries.Centroid,
             MunicipalityId = municipalityId,
+            IsDeleted = false,
             CreatedAt = context.Timestamp,
             CreatedBy = context.UserId,
             UpdatedAt = context.Timestamp,

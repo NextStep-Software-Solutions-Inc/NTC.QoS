@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Application.Features.Generation.Handlers.Commands;
 
-public class CreateGenerationHandler(IRepository<Domain.Aggregates.Generation> repository): IRequestHandler<CreateGenerationRequest, ApiResponse<GenerationDto>>
+public class CreateGenerationHandler(IRepository<Domain.Aggregates.Generation> repository) : IRequestHandler<CreateGenerationRequest, ApiResponse<GenerationDto>>
 {
     private readonly IRepository<Domain.Aggregates.Generation> _repository = repository;
 
@@ -45,7 +45,7 @@ public class CreateGenerationHandler(IRepository<Domain.Aggregates.Generation> r
                 }
             };
         }
-                
+
         var newGeneration = new Domain.Aggregates.Generation
         {
             Name = request.Generation.Name,

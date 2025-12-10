@@ -39,15 +39,11 @@ public class ConnectivityAssessmentJobRequestDto
     public int HierarchicalDepth { get; set; } = 3;
 
     /// <summary>
-    /// NEW: Whether to enable hierarchical processing (default disabled for performance)
-    /// This is separate from GenerateHierarchicalAssessments for backward compatibility
+    /// Maximum number of hierarchical locations to process (optional performance limit).
+    /// NULL = No limit, process all child locations (ensures complete coverage)
+    /// VALUE = Cap processing at this number (may result in incomplete assessments)
     /// </summary>
-    public bool EnableHierarchicalProcessing { get; set; } = false;
-
-    /// <summary>
-    /// NEW: Maximum number of hierarchical locations to process (performance limit)
-    /// </summary>
-    public int MaxHierarchicalLocations { get; set; } = 1000;
+    public int? MaxHierarchicalLocations { get; set; } = null;
 
     /// <summary>
     /// NEW: Batch size for hierarchical processing (smaller than primary processing)
@@ -55,11 +51,18 @@ public class ConnectivityAssessmentJobRequestDto
     public int HierarchicalBatchSize { get; set; } = 50;
 
     /// <summary>
+    /// NEW: Actual total number of locations to be processed (primary + hierarchical children)
+    /// Calculated by StartConnectivityAssessmentJobHandler based on database counts
+    /// Used for accurate progress tracking throughout job execution
+    /// </summary>
+    public int ActualTotalLocations { get; set; }
+
+    /// <summary>
     /// Start date for filtering speedtest and wireless validation data (inclusive).
     /// If null, no start date filter is applied.
     /// </summary>
     public DateTime? StartDate { get; set; }
-    
+
     /// <summary>
     /// End date for filtering speedtest and wireless validation data (inclusive).
     /// If null, no end date filter is applied.

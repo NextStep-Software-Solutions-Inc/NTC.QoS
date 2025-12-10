@@ -40,8 +40,8 @@ public class ConnectivityAssessmentJobStatusDto
     /// <summary>
     /// Total processing time (if job is completed)
     /// </summary>
-    public TimeSpan? ProcessingTime => EndTime.HasValue && StartTime.HasValue 
-        ? EndTime.Value - StartTime.Value 
+    public TimeSpan? ProcessingTime => EndTime.HasValue && StartTime.HasValue
+        ? EndTime.Value - StartTime.Value
         : null;
 
     /// <summary>
@@ -51,41 +51,35 @@ public class ConnectivityAssessmentJobStatusDto
     public int? ProcessedCount { get; set; }
 
     /// <summary>
-    /// Initial estimated total number of locations to process (set at job creation)
-    /// This may differ from the actual count once job determines what's processable
+    /// Total number of locations to process (calculated from database before job starts)
+    /// This is the ACTUAL count determined by querying child location counts upfront
+    /// Not an estimate - represents the real total that will be processed
     /// </summary>
-    public int? EstimatedTotalCount { get; set; }
+    public int? TotalCount { get; set; }
 
     /// <summary>
-    /// Progress percentage based on processed count vs estimated total
+    /// Progress percentage based on processed count vs total count
     /// For completed jobs, always returns 100% since all available items were processed
-    /// For running jobs, calculates based on ProcessedCount vs EstimatedTotalCount
+    /// For running jobs, calculates based on ProcessedCount vs TotalCount
     /// </summary>
     public double? ProgressPercentage
     {
         get
         {
             if (!ProcessedCount.HasValue) return null;
-            
+
             // For completed jobs, progress is always 100%
             if (Status == ConnectivityAssessmentJobStatusEnum.Completed)
             {
                 return 100.0;
             }
-            
-            // For running or failed jobs, calculate based on estimate
-            return EstimatedTotalCount.HasValue && EstimatedTotalCount.Value > 0
-                ? Math.Round((double)ProcessedCount.Value / EstimatedTotalCount.Value * 100, 1)
+
+            // For running or failed jobs, calculate based on actual total
+            return TotalCount.HasValue && TotalCount.Value > 0
+                ? Math.Round((double)ProcessedCount.Value / TotalCount.Value * 100, 1)
                 : null;
         }
     }
-
-    /// <summary>
-    /// Indicates whether we're still working with estimated counts (true) or have actual results (false)
-    /// For completed/failed jobs, ProcessedCount represents the definitive actual count
-    /// </summary>
-    public bool IsCountEstimated => Status != ConnectivityAssessmentJobStatusEnum.Completed && 
-                                    Status != ConnectivityAssessmentJobStatusEnum.Failed;
 
     /// <summary>
     /// Indicates if the job is still running
@@ -95,7 +89,7 @@ public class ConnectivityAssessmentJobStatusDto
     /// <summary>
     /// Indicates if the job has completed (successfully or with failure)
     /// </summary>
-    public bool IsCompleted => Status == ConnectivityAssessmentJobStatusEnum.Completed || 
+    public bool IsCompleted => Status == ConnectivityAssessmentJobStatusEnum.Completed ||
                                Status == ConnectivityAssessmentJobStatusEnum.Failed;
 
     /// <summary>

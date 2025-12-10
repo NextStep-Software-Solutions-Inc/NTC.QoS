@@ -377,40 +377,40 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
                 .Select(r => r.Boundaries);
 
             // Use Intersects for geography compatibility and proper spatial index usage
-            query = query.Where(entity => 
+            query = query.Where(entity =>
                 regionBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
-        
+
         if (provinceIds is not null && provinceIds.Count > 0)
         {
             var provinceBoundariesQuery = _context.Provinces
                 .Where(p => provinceIds.Contains(p.Id) && p.Boundaries != null)
                 .Select(p => p.Boundaries);
 
-            query = query.Where(entity => 
+            query = query.Where(entity =>
                 provinceBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
-  
+
         if (municipalityIds is not null && municipalityIds.Count > 0)
         {
             var municipalityBoundariesQuery = _context.Municipalities
                 .Where(m => municipalityIds.Contains(m.Id) && m.Boundaries != null)
                 .Select(m => m.Boundaries);
 
-            query = query.Where(entity => 
+            query = query.Where(entity =>
                 municipalityBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
-        
+
         if (barangayIds is not null && barangayIds.Count > 0)
         {
             var barangayBoundariesQuery = _context.Barangays
                 .Where(b => barangayIds.Contains(b.Id) && b.Boundaries != null)
                 .Select(b => b.Boundaries);
 
-            query = query.Where(entity => 
+            query = query.Where(entity =>
             barangayBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
-        
+
         return query;
     }
 }

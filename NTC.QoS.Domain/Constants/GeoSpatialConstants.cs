@@ -8,25 +8,25 @@ public static class GeoSpatialConstants
     // ============================================================================
     // COORDINATE BOUNDS FOR ASIA-PACIFIC REGION
     // ============================================================================
-    
+
     /// <summary>
     /// Minimum latitude for supported region (includes buffer south of Philippines).
     /// Covers Indonesia border areas.
     /// </summary>
     public const double MinSupportedLatitude = -5.0;
-    
+
     /// <summary>
     /// Maximum latitude for supported region (includes buffer north of Philippines).
     /// Covers Taiwan and southern China areas.
     /// </summary>
     public const double MaxSupportedLatitude = 25.0;
-    
+
     /// <summary>
     /// Minimum longitude for supported region (includes buffer west of Philippines).
     /// Covers Vietnam and Malaysia areas.
     /// </summary>
     public const double MinSupportedLongitude = 110.0;
-    
+
     /// <summary>
     /// Maximum longitude for supported region (includes buffer east of Philippines).
     /// Covers Palau and western Pacific areas.
@@ -36,13 +36,13 @@ public static class GeoSpatialConstants
     // ============================================================================
     // AREA SIZE LIMITS FOR PERFORMANCE PROTECTION
     // ============================================================================
-    
+
     /// <summary>
     /// Maximum allowed latitude difference for bounding box queries.
     /// Approximately 1,100 km north-south span.
     /// </summary>
     public const double MaxLatitudeDifference = 10.0;
-    
+
     /// <summary>
     /// Maximum allowed longitude difference for bounding box queries.
     /// Approximately 1,300-1,600 km east-west span (varies by latitude).
@@ -52,7 +52,7 @@ public static class GeoSpatialConstants
     // ============================================================================
     // VIEWPORT API LIMITS (V2 - Performance Protection for Limited Resources)
     // ============================================================================
-    
+
     /// <summary>
     /// Maximum page size for viewport queries.
     /// Prevents excessive memory consumption on limited infrastructure.
@@ -107,7 +107,7 @@ public static class GeoSpatialConstants
     // ============================================================================
     // MATHEMATICAL CONSTANTS FOR COORDINATE CONVERSIONS
     // ============================================================================
-    
+
     /// <summary>
     /// Approximate kilometers per degree of latitude.
     /// Based on WGS84 ellipsoid: 1 degree latitude ? 111.32 km.
@@ -115,14 +115,14 @@ public static class GeoSpatialConstants
     /// Source: "The distance between lines of latitude is constant at approximately 111.32 km (69.17 miles)"
     /// </summary>
     public const double KilometersPerDegreeLatitude = 111.32;
-    
+
     /// <summary>
     /// Conversion factor from degrees to radians.
     /// Formula: radians = degrees * (PI / 180)
     /// Reference: https://en.wikipedia.org/wiki/Radian
     /// </summary>
     public const double DegreesToRadians = Math.PI / 180.0;
-    
+
     /// <summary>
     /// Conversion factor from radians to degrees.
     /// Formula: degrees = radians * (180 / PI)
@@ -132,15 +132,15 @@ public static class GeoSpatialConstants
     // ============================================================================
     // VALIDATION MESSAGES
     // ============================================================================
-    
+
     /// <summary>
     /// Error message for coordinates outside supported region.
     /// </summary>
-    public static readonly string CoordinateRangeErrorMessage = 
+    public static readonly string CoordinateRangeErrorMessage =
         $"Coordinates must be within the Asia-Pacific region. " +
         $"Latitude: {MinSupportedLatitude} to {MaxSupportedLatitude}, " +
         $"Longitude: {MinSupportedLongitude} to {MaxSupportedLongitude}";
-    
+
     /// <summary>
     /// Gets the error message for area size exceeding limits.
     /// </summary>
@@ -154,7 +154,7 @@ public static class GeoSpatialConstants
     // ============================================================================
     // UTILITY METHODS
     // ============================================================================
-    
+
     /// <summary>
     /// Calculates the approximate distance in kilometers for one degree of longitude at a given latitude.
     /// At the equator, 1 degree longitude ? 111.32 km. This decreases as you move toward the poles.
@@ -166,7 +166,7 @@ public static class GeoSpatialConstants
     {
         return KilometersPerDegreeLatitude * Math.Cos(latitudeInDegrees * DegreesToRadians);
     }
-    
+
     /// <summary>
     /// Validates if coordinates are within the supported region bounds.
     /// </summary>

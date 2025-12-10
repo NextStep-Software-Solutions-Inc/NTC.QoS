@@ -27,7 +27,7 @@ public static class BlobStorageServiceExtensions
             .Bind(configuration.GetSection(BlobStorageOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-            
+
         services.AddSingleton(provider => new BlobServiceClient(blobConnectionString));
         services.AddScoped<IBlobStorageService, BlobStorageService>();
 

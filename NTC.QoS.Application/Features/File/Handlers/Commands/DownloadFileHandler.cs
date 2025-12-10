@@ -42,7 +42,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         using var package = new ExcelPackage();
         var fileType = Enum.Parse<FileTypeEnum>(request.Type);
-        
+
         // Use a switch expression to handle different file types
         switch (fileType)
         {
@@ -55,7 +55,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
                 break;
 
             case FileTypeEnum.Cell:
-                await GenerateTemplate(package, worksheet => GenerateCellTemplate(package, worksheet, cancellationToken));
+                await GenerateTemplate(package, worksheet => GenerateCellTemplateVersion3(package, worksheet, cancellationToken));
                 break;
 
             case FileTypeEnum.CellularCoverage:
@@ -104,9 +104,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         // Define the multi-row header data
         object[,] headers = new object[,]
         {
-            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G","4G", "4G", "4G", "4G", "4G", "5G", "5G", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)"},
-            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "", "", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)"},
-            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "900", "1800", "850", "900", "2100", "700", "850", "900", "1800", "2100", "2300", "2500", "2600", "2600", "3500", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (°)", "Beam Tilt (°)" }
+            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G","4G", "4G", "4G", "4G", "4G", "5G", "5G", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "", "", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "900", "1800", "850", "900", "2100", "700", "850", "900", "1800", "2100", "2300", "2500", "2600", "2600", "3500", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)" }
         };
 
         // Apply the multi-row headers
@@ -149,6 +149,40 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "U4:U14", [.. trueFalseValues]); // "4G TDD-LTE 2600"
         AddDropdownValidation(worksheet, "V4:V14", [.. trueFalseValues]); // "5G 2600"
         AddDropdownValidation(worksheet, "W4:W14", [.. trueFalseValues]); // "5G 3500"
+    }
+
+    private async Task GenerateCellTemplateVersion3(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
+    {
+        // Define the multi-row header data
+        object[,] headers = new object[,]
+        {
+            { "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "Generation", "2G", "2G", "3G", "3G", "3G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "4G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "5G", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "Technology", "GSM", "GSM", "WCDMA", "WCDMA", "WCDMA", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "FDD-LTE", "TDD-LTE", "TDD-LTE", "TDD-LTE", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "NR", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)"},
+            { "Provider", "Zone", "Barangay", "Municipality", "Province", "Region", "Lat", "Long", "B8-900", "B3-1800", "B5-850", "B8-900", "B1-2100", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B28-700", "B5-850", "B8-900", "B3-1800", "B1-2100", "B40-2300", "B41-2500", "B38-2600", "B78-3500", "Tower Type", "AntennaType", "Antenna Height (m)", "Azimuth (\u00B0)", "Beam Tilt (\u00B0)" }
+        };
+
+        // Apply the multi-row headers
+        AddCellMultiRowHeaders(worksheet, headers, 1); // Start writing from row 1
+
+        var providers = await GetServiceProviders(ServiceTypeEnum.Wireless, cancellationToken);
+        var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
+        var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
+
+        // Add hidden sheets for dropdowns
+        ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
+        providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
+        providerSheet.Hidden = eWorkSheetHidden.Hidden;
+        AddDropdownValidation(worksheet, "A4:A14", providerSheet.Cells[1, 1, providers.Count, 1]);
+
+        ExcelWorksheet towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
+        towerTypeSheet.Cells.LoadFromCollection(towerTypes.Select(t => new { Type = t }));
+        towerTypeSheet.Hidden = eWorkSheetHidden.Hidden;
+        AddDropdownValidation(worksheet, "AE4:AE14", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
+
+        ExcelWorksheet antennaTypeSheet = package.Workbook.Worksheets.Add("AntennaTypes");
+        antennaTypeSheet.Cells.LoadFromCollection(antennaTypes.Select(a => new { Type = a }));
+        antennaTypeSheet.Hidden = eWorkSheetHidden.Hidden;
+        AddDropdownValidation(worksheet, "AF4:AF14", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
     }
 
     private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -220,7 +254,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             (9, 10), // 2G
             (11, 13), // 3G
             (14, 21), // 4G
-            (22, 23) // 5G
+            (22, 30) // 5G
         };
 
         var technologyGroups = new List<(int Start, int End)>
@@ -229,7 +263,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             (11, 13), // WCDMA
             (14, 18), // FDD-LTE
             (19, 21), // TDD-LTE
-            (22, 23) // 5G
+            (22, 30) // NR
         };
 
         // Apply merging for "Generation"
@@ -247,11 +281,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
 
         // Merge the last three columns vertically
-        using (var range = worksheet.Cells[startRow, 24, startRow + 2, 24]) range.Merge = true; // Tower Type
-        using (var range = worksheet.Cells[startRow, 25, startRow + 2, 25]) range.Merge = true; // Antenna Type
-        using (var range = worksheet.Cells[startRow, 26, startRow + 2, 26]) range.Merge = true; // Antenna Height
-        using (var range = worksheet.Cells[startRow, 27, startRow + 2, 27]) range.Merge = true; // Azimuth
-        using (var range = worksheet.Cells[startRow, 28, startRow + 2, 28]) range.Merge = true; // Beam Tilt
+        using (var range = worksheet.Cells[startRow, 31, startRow + 2, 31]) range.Merge = true; // Tower Type
+        using (var range = worksheet.Cells[startRow, 32, startRow + 2, 32]) range.Merge = true; // Antenna Type
+        using (var range = worksheet.Cells[startRow, 33, startRow + 2, 33]) range.Merge = true; // Antenna Height
+        using (var range = worksheet.Cells[startRow, 34, startRow + 2, 34]) range.Merge = true; // Azimuth
+        using (var range = worksheet.Cells[startRow, 35, startRow + 2, 35]) range.Merge = true; // Beam Tilt
 
         // Freeze the header rows
         worksheet.View.FreezePanes(startRow + numRows, 1);
