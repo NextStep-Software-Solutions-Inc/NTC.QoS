@@ -124,16 +124,32 @@ public class UploadFileHandler(
         {
             _logger.LogError(ex, "Error uploading file {FileName}", request.File.FileName ?? request.File.File.FileName);
 
+            // Extract the innermost exception message (database errors are often nested)
+            var errorMessage = GetInnermostExceptionMessage(ex);
+            
             return new ApiResponse<FileDto>
             {
-                Message = $"Error uploading file: {ex.Message}",
+                Message = $"Error uploading file: {errorMessage}",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Upload", new[] { ex.Message } }
+                    { "Upload", new[] { errorMessage } }
                 }
             };
         }
+    }
+
+    /// <summary>
+    /// Recursively gets the innermost exception message
+    /// </summary>
+    private static string GetInnermostExceptionMessage(Exception ex)
+    {
+        var current = ex;
+        while (current.InnerException != null)
+        {
+            current = current.InnerException;
+        }
+        return current.Message;
     }
 
     /// <summary>
