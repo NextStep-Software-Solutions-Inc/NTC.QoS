@@ -241,13 +241,14 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                             record.Latitude, record.Longitude);
                     }
 
-                    // Check for duplicate: same NetworkId, BandId, and exact Location
+                    // Check for duplicate: same NetworkId, BandId, and location within 1 meter
                     var pointToCheck = GeometryHelper.CreatePoint(new Coordinate(record.Longitude, record.Latitude));
+                    const double spatialToleranceMeters = 1.0;
                     var isDuplicate = await _cellularCoverageRepository
                         .Query(cc => !cc.IsDeleted &&
                             cc.NetworkId == networkMetadata.Id &&
                             cc.BandId == networkMetadata.BandId &&
-                            cc.Location.Equals(pointToCheck))
+                            cc.Location.Distance(pointToCheck) <= spatialToleranceMeters)
                         .AnyAsync(token);
 
                     if (isDuplicate)
