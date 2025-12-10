@@ -217,6 +217,66 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
+    /// Generate and download scored wireless broadband report as PDF.
+    /// </summary>
+    [HttpGet("wireless-scored/pdf")]
+    public async Task<ActionResult> GetWirelessBroadbandScoredPdfReport(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null)
+    {
+        var request = new GetWirelessBroadbandScoredReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            Format = ReportFormat.Pdf
+        };
+
+        var result = await _mediator.Send(request);
+
+        if (!result.Succeeded || result.Data == null)
+            return BadRequest(result);
+
+        return File(
+            result.Data.FileContent,
+            "application/pdf",
+            result.Data.FileName);
+    }
+
+    /// <summary>
+    /// Generate and download scored wireless broadband report as Excel.
+    /// </summary>
+    [HttpGet("wireless-scored/excel")]
+    public async Task<ActionResult> GetWirelessBroadbandScoredExcelReport(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null)
+    {
+        var request = new GetWirelessBroadbandScoredReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            Format = ReportFormat.Excel 
+        };
+
+        var result = await _mediator.Send(request);
+
+        if (!result.Succeeded || result.Data == null)
+            return BadRequest(result);
+
+        return File(
+            result.Data.FileContent,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            result.Data.FileName);
+    }
+
+    /// <summary>
     /// Generate a descriptive filename for downloaded reports using location names instead of UUIDs
     /// </summary>
     private async Task<string> GenerateFileNameAsync(string reportType, string extension, 

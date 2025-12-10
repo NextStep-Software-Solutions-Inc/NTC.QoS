@@ -48,7 +48,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
     {
         try
         {
-            _logger.LogInformation("Generating wired broadband report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}}",
+            _logger.LogInformation("Generating wired broadband report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}",
                 request.RegionId, request.ProvinceId, request.MunicipalityId);
             // 1. Build municipality query with geographic filters (same as wired broadband)
             var municipalityQuery = _municipalityRepository.Query()
