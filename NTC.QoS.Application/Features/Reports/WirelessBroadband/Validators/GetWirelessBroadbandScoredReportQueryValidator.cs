@@ -10,35 +10,29 @@ public class GetWirelessBroadbandScoredReportQueryValidator : AbstractValidator<
 {
     public GetWirelessBroadbandScoredReportQueryValidator()
     {
-        // Ensure exactly one geographic scope is provided
+        // MANDATORY: Require at least one geographic filter to prevent unscoped queries
         RuleFor(x => x)
-            .Must(x =>
-            {
-                int count = 0;
-                if (x.MunicipalityId.HasValue) count++;
-                if (x.ProvinceId.HasValue) count++;
-                if (x.RegionId.HasValue) count++;
-                return count == 1;
-            })
-            .WithMessage("Please provide exactly one of MunicipalityId, ProvinceId, or RegionId.");
+            .Must(HaveAtLeastOneGeographicFilter)
+            .WithMessage("At least one geographic filter (RegionId, ProvinceId, or MunicipalityId) is required to generate the report. This prevents performance issues from processing all municipalities.")
+            .WithName("GeographicFilters");
 
-        // Validate MunicipalityId if provided
-        RuleFor(x => x.MunicipalityId)
-            .GreaterThan(0)
-            .When(x => x.MunicipalityId.HasValue)
-            .WithMessage("MunicipalityId must be greater than 0.");
+        // Logical validation: if municipality is specified, province and region should not conflict
+        When(x => x.MunicipalityId.HasValue, () => {
+            RuleFor(x => x.ProvinceId)
+                .Empty()
+                .WithMessage("When Municipality ID is specified, Province ID should not be provided as it will be inferred.");
 
-        // Validate ProvinceId if provided
-        RuleFor(x => x.ProvinceId)
-            .GreaterThan(0)
-            .When(x => x.ProvinceId.HasValue)
-            .WithMessage("ProvinceId must be greater than 0.");
+            RuleFor(x => x.RegionId)
+                .Empty()
+                .WithMessage("When Municipality ID is specified, Region ID should not be provided as it will be inferred.");
+        });
 
-        // Validate RegionId if provided
-        RuleFor(x => x.RegionId)
-            .GreaterThan(0)
-            .When(x => x.RegionId.HasValue)
-            .WithMessage("RegionId must be greater than 0.");
+        // Logical validation: if province is specified, region should not conflict  
+        When(x => x.ProvinceId.HasValue && !x.MunicipalityId.HasValue, () => {
+            RuleFor(x => x.RegionId)
+                .Empty()
+                .WithMessage("When Province ID is specified, Region ID should not be provided as it will be inferred.");
+        });
 
         // Validate Format
         RuleFor(x => x.Format)
@@ -50,5 +44,11 @@ public class GetWirelessBroadbandScoredReportQueryValidator : AbstractValidator<
             .IsInEnum()
             .When(x => x.FilterByStatus.HasValue)
             .WithMessage("Invalid service status filter. Must be Served, Underserved, or Unserved.");
+    }
+    private static bool HaveAtLeastOneGeographicFilter(GetWirelessBroadbandScoredReportQuery query)
+    {
+        return query.RegionId.HasValue ||
+               query.ProvinceId.HasValue ||
+               query.MunicipalityId.HasValue;
     }
 }

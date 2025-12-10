@@ -10,9 +10,9 @@ namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 /// </summary>
 public class GetWirelessBroadbandScoredReportQuery : IRequest<ApiResponse<WirelessBroadbandReportResult>>
 {
-    public int? RegionId { get; set; }
-    public int? ProvinceId { get; set; }
-    public int? MunicipalityId { get; set; }
+    public Guid? RegionId { get; set; }
+    public Guid? ProvinceId { get; set; }
+    public Guid? MunicipalityId { get; set; }
 
     /// <summary>
     /// Report format (Excel or PDF)
