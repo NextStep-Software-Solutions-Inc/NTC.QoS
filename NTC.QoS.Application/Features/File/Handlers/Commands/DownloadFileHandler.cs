@@ -189,13 +189,39 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         AddCommonHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
 
-        var providers = await GetWirelessServiceProviders(cancellationToken);
+        var providers = await GetAllServiceProviders(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
         var signalQuality = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
 
-        AddDropdownValidation(worksheet, "L2:L10", providers);
-        AddDropdownValidation(worksheet, "R2:R10", technologies);
-        AddDropdownValidation(worksheet, "K2:K10", signalQuality);
+        // Add providers to a hidden sheet
+        var providerSheet = package.Workbook.Worksheets.Add("Providers");
+        providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
+        var providerRange = providerSheet.Cells[1, 1, providers.Count, 1];
+        providerSheet.Hidden = eWorkSheetHidden.Hidden;
+
+        // Add technologies to a hidden sheet
+        var technologySheet = package.Workbook.Worksheets.Add("Technologies");
+        technologySheet.Cells.LoadFromCollection(technologies.Select(t => new { Name = t }));
+        var technologyRange = technologySheet.Cells[1, 1, technologies.Count, 1];
+        technologySheet.Hidden = eWorkSheetHidden.Hidden;
+
+        AddDropdownValidation(worksheet, "L2:L1048576", providerRange);
+        AddDropdownValidation(worksheet, "R2:R1048576", technologyRange);
+        AddDropdownValidation(worksheet, "K2:K1048576", signalQuality);
+
+        // Mark required fields with red background color
+        MarkRequiredFields(worksheet, new[] { 1, 4, 5, 11, 12, 13, 14, 18 }); // Column numbers for required fields
+    }
+
+    private static void MarkRequiredFields(ExcelWorksheet worksheet, int[] requiredColumnNumbers)
+    {
+        foreach (var colNum in requiredColumnNumbers)
+        {
+            var headerCell = worksheet.Cells[1, colNum];
+            headerCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+            headerCell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightCoral);
+            headerCell.Style.Font.Color.SetColor(System.Drawing.Color.Black);
+        }
     }
 
     private async Task GenerateCellularCoverageTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -364,6 +390,16 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private async Task<List<string>> GetBands(CancellationToken cancellationToken)
     {
         return await GetEntityNames(_bandRepository, b => !b.IsDeleted, b => b.Name, cancellationToken);
+    }
+
+    private async Task<List<string>> GetAllServiceProviders(CancellationToken cancellationToken)
+    {
+        var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted)
+            .OrderBy(sp => sp.Provider.Name)
+            .Select(sp => sp.Provider.Name)
+            .Distinct();
+
+        return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
     }
 
     private async Task<List<string>> GetWirelessServiceProviders(CancellationToken cancellationToken)

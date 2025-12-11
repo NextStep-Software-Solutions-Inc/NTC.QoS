@@ -66,16 +66,16 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             // Step 2: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
-            // Pre-load all wireless service providers with optimized query
+            // Pre-load all service providers with optimized query
             var serviceProviderCache = await _serviceProviderRepository
-                .Query(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
-                .Select(sp => new { sp.Id, sp.Provider.Name })
+                .Query(sp => !sp.IsDeleted)
+                .Select(sp => new { sp.Id, sp.Provider.Name, sp.Service.Type })
                 .ToDictionaryAsync(
-                    sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless),
+                    sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type),
                     sp => sp.Id,
                     token
                 );
-            _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
+            _logger.LogInformation("Pre-loaded {Count} service providers.", serviceProviderCache.Count);
 
             // Pre-load generations and technologies with optimized query
             var generationCache = await _generationRepository
@@ -194,7 +194,28 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 fileStream.Position = 0;
                 _logger.LogInformation("Excel processing started");
 
-                var speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
+                List<SpeedtestRecord> speedtestRecords;
+                
+                try
+                {
+                    speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("timestamp") || ex.Message.Contains("Timestamp"))
+                {
+                    _logger.LogError(ex, "Failed to parse Excel file. Timestamp field validation error.");
+                    await ProcessingJobHelper.TerminateProcessAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                        "Timestamp field is required and cannot be empty. Please ensure all timestamp values are properly formatted dates.", token);
+                    return;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _logger.LogError(ex, "Failed to parse Excel file due to data format error.");
+                    await ProcessingJobHelper.TerminateProcessAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                        $"Excel parsing error: {ex.Message}", token);
+                    return;
+                }
 
                 if (speedtestRecords.Count is 0)
                 {
@@ -225,6 +246,34 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     {
                         ProcessingJobHelper.ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}", _logger);
 
+                        // Validate required fields
+                        if (string.IsNullOrWhiteSpace(record.Provider))
+                        {
+                            _logger.LogWarning("Provider is required but missing. Terminating process.");
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                "Provider field is required but was found empty or missing", token);
+                            return;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(record.NetworkType))
+                        {
+                            _logger.LogWarning("NetworkType is required but missing. Terminating process.");
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                "NetworkType field is required but was found empty or missing", token);
+                            return;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(record.SignalQuality))
+                        {
+                            _logger.LogWarning("SignalQuality is required but missing. Terminating process.");
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                "SignalQuality field is required but was found empty or missing", token);
+                            return;
+                        }
+
                         var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                         if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {
@@ -254,7 +303,22 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
                             var pingValue = decimal.TryParse(record.Ping, out decimal parsedPing) ? parsedPing : 0;
                             var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
-                            var signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
+                            
+                            // Parse SignalQuality with error handling
+                            string signalQuality;
+                            try
+                            {
+                                signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
+                            }
+                            catch (ArgumentException ex)
+                            {
+                                _logger.LogWarning("Invalid SignalQuality value: {SignalQuality}. Terminating process. Error: {Error}", 
+                                    record.SignalQuality, ex.Message);
+                                await ProcessingJobHelper.TerminateProcessAsync(
+                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                    $"Invalid SignalQuality value '{record.SignalQuality}'. {ex.Message}", token);
+                                return;
+                            }
 
                             // Generate hash for duplicate check (OPTIMIZED)
                             var duplicateHash = GenerateSpeedtestHash(
