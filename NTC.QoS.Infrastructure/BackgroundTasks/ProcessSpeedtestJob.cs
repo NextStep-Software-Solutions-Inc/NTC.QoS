@@ -360,6 +360,14 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             continue; // Skip this record but continue processing others
                         }
 
+                        // Skip records where both upload and download are 0 or less (no meaningful speed data)
+                        if (record.Upload <= 0 && record.Download <= 0)
+                        {
+                            _logger.LogWarning("Skipping record at Row {Row}: Both Upload and Download speeds are 0 or less. Upload: {Upload}, Download: {Download}",
+                                currentRow, record.Upload, record.Download);
+                            continue; // Skip this record but continue processing others
+                        }
+
                         // Validate latitude and longitude (must be valid coordinates)
                         if (!await ValidateFieldAsync(
                             record.Latitude >= -90 && record.Latitude <= 90,
