@@ -304,6 +304,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             worksheet.Cells[1, i + 1].Value = headers[i];
             worksheet.Cells[1, i + 1].Style.Font.Bold = true;
         }
+        
+        // Freeze the header row
+        worksheet.View.FreezePanes(2, 1);
     }
 
     private static void AddCellMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
