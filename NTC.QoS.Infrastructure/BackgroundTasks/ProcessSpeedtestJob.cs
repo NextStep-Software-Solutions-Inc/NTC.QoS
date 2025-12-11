@@ -11,6 +11,8 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Linq.Expressions;
+using NTC.QoS.Domain.Attributes;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -44,6 +46,56 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _fileRepository = fileRepository;
         _blobStorageService = blobStorageService;
         _userContextService = userContextService;
+    }
+
+    /// <summary>
+    /// Validates a field and terminates processing with a detailed error message if validation fails.
+    /// </summary>
+    /// <typeparam name="T">The type containing the property to validate</typeparam>
+    /// <typeparam name="TProperty">The type of the property being validated</typeparam>
+    /// <param name="isValid">The validation condition to check</param>
+    /// <param name="propertyExpression">Expression to access the property (e.g., r => r.Provider)</param>
+    /// <param name="errorMessage">The error message to display to the user</param>
+    /// <param name="rowNumber">The Excel row number where the error occurred</param>
+    /// <param name="file">The file entity being processed</param>
+    /// <param name="token">Cancellation token</param>
+    /// <param name="actualValue">Optional actual value to include in error message</param>
+    /// <returns>True if validation passed, throws/returns if validation failed</returns>
+    private async Task<bool> ValidateFieldAsync<T, TProperty>(
+        bool isValid,
+        Expression<Func<T, TProperty>> propertyExpression,
+        string errorMessage,
+        int rowNumber,
+        Domain.Entities.File file,
+        CancellationToken token,
+        object? actualValue = null)
+    {
+        if (!isValid)
+        {
+            // Extract property name and Excel column name from expression
+            var memberExpression = (MemberExpression)propertyExpression.Body;
+            var propertyInfo = (System.Reflection.PropertyInfo)memberExpression.Member;
+            var fieldName = propertyInfo.Name;
+            
+            // Get Excel column name from ExcelHeader attribute
+            var excelHeaderAttr = propertyInfo.GetCustomAttributes(typeof(ExcelHeaderAttribute), false)
+                .FirstOrDefault() as ExcelHeaderAttribute;
+            var columnName = excelHeaderAttr?.HeaderName ?? fieldName.ToLower();
+
+            var formattedMessage = actualValue != null
+                ? $"{errorMessage} at Row {rowNumber}, Column '{columnName}'. Found: {actualValue}"
+                : $"{errorMessage} at Row {rowNumber}, Column '{columnName}'";
+
+            _logger.LogWarning("{FieldName} validation failed at Row {Row}. {Message}",
+                fieldName, rowNumber, errorMessage);
+
+            await ProcessingJobHelper.TerminateProcessAsync(
+                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                formattedMessage, token);
+
+            return false;
+        }
+        return true;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -253,88 +305,92 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     var speedtestsToAdd = new List<Speedtest>();
                     var duplicatesSkipped = 0;
 
+                    var rowNumber = i + 2; // Excel row number (header is row 1, data starts at row 2)
                     foreach (var record in batch)
                     {
                         ProcessingJobHelper.ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}", _logger);
+                        var currentRow = rowNumber++;
 
                         // TODO: Add unit/integration tests for validation logic to ensure proper error handling
                         // and validation messages are returned when required fields are missing or invalid.
                         // Test cases should cover: empty strings, null values, out-of-range coordinates, zero speeds.
 
                         // Validate required fields
-                        if (string.IsNullOrWhiteSpace(record.Provider))
-                        {
-                            _logger.LogWarning("Provider is required but missing. Terminating process.");
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                "Provider field is required but was found empty or missing", token);
+                        if (!await ValidateFieldAsync(
+                            !string.IsNullOrWhiteSpace(record.Provider),
+                            (SpeedtestRecord r) => r.Provider,
+                            "Provider field is required but was found empty or missing",
+                            currentRow,
+                            file,
+                            token))
                             return;
-                        }
 
-                        if (string.IsNullOrWhiteSpace(record.NetworkType))
-                        {
-                            _logger.LogWarning("NetworkType is required but missing. Terminating process.");
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                "NetworkType field is required but was found empty or missing", token);
+                        if (!await ValidateFieldAsync(
+                            !string.IsNullOrWhiteSpace(record.NetworkType),
+                            (SpeedtestRecord r) => r.NetworkType,
+                            "NetworkType field is required but was found empty or missing",
+                            currentRow,
+                            file,
+                            token))
                             return;
-                        }
 
-                        if (string.IsNullOrWhiteSpace(record.SignalQuality))
-                        {
-                            _logger.LogWarning("SignalQuality is required but missing. Terminating process.");
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                "SignalQuality field is required but was found empty or missing", token);
+                        if (!await ValidateFieldAsync(
+                            !string.IsNullOrWhiteSpace(record.SignalQuality),
+                            (SpeedtestRecord r) => r.SignalQuality,
+                            "SignalQuality field is required but was found empty or missing",
+                            currentRow,
+                            file,
+                            token))
                             return;
-                        }
 
                         // Validate numeric required fields (Upload, Download, Latitude, Longitude)
+                        // Allow 0 speeds (may indicate measurement issues but still valid data to save)
+                        // Skip records with negative speeds as they are invalid
                         if (record.Upload < 0)
                         {
-                            _logger.LogWarning("Upload speed cannot be negative. Terminating process.");
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                "Upload field cannot be negative", token);
-                            return;
+                            _logger.LogWarning("Skipping record at Row {Row}: Upload speed cannot be negative. Found: {Value}",
+                                currentRow, record.Upload);
+                            continue; // Skip this record but continue processing others
                         }
 
                         if (record.Download < 0)
                         {
-                            _logger.LogWarning("Download speed cannot be negative. Terminating process.");
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                "Download field cannot be negative", token);
-                            return;
+                            _logger.LogWarning("Skipping record at Row {Row}: Download speed cannot be negative. Found: {Value}",
+                                currentRow, record.Download);
+                            continue; // Skip this record but continue processing others
                         }
 
                         // Validate latitude and longitude (must be valid coordinates)
-                        if (record.Latitude < -90 || record.Latitude > 90)
-                        {
-                            _logger.LogWarning("Latitude is invalid: {Latitude}. Terminating process.", record.Latitude);
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                $"Latitude field must be between -90 and 90 degrees. Found: {record.Latitude}", token);
+                        if (!await ValidateFieldAsync(
+                            record.Latitude >= -90 && record.Latitude <= 90,
+                            (SpeedtestRecord r) => r.Latitude,
+                            "Latitude field must be between -90 and 90 degrees",
+                            currentRow,
+                            file,
+                            token,
+                            record.Latitude))
                             return;
-                        }
 
-                        if (record.Longitude < -180 || record.Longitude > 180)
-                        {
-                            _logger.LogWarning("Longitude is invalid: {Longitude}. Terminating process.", record.Longitude);
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                $"Longitude field must be between -180 and 180 degrees. Found: {record.Longitude}", token);
+                        if (!await ValidateFieldAsync(
+                            record.Longitude >= -180 && record.Longitude <= 180,
+                            (SpeedtestRecord r) => r.Longitude,
+                            "Longitude field must be between -180 and 180 degrees",
+                            currentRow,
+                            file,
+                            token,
+                            record.Longitude))
                             return;
-                        }
 
-                        if (record.Latitude == 0 && record.Longitude == 0)
-                        {
-                            _logger.LogWarning("Latitude and Longitude cannot both be 0 (null island). Terminating process.");
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                "Latitude and Longitude fields are required and cannot both be 0", token);
+                        // Check for null island (0,0) using tolerance for floating point comparison
+                        const double tolerance = 0.000001; // ~11cm precision
+                        if (!await ValidateFieldAsync(
+                            !(Math.Abs(record.Latitude) < tolerance && Math.Abs(record.Longitude) < tolerance),
+                            (SpeedtestRecord r) => r.Latitude,
+                            "Latitude and Longitude fields are required and cannot both be 0",
+                            currentRow,
+                            file,
+                            token))
                             return;
-                        }
 
                         // Lookup service provider - try Wireless first, then Wired if not found
                         // This handles both wireless and wired providers since cache includes all types

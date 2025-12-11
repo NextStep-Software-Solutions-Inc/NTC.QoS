@@ -15,18 +15,25 @@ namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 
 internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFileRequest, ApiResponse<Stream>>
 {
-    // Speedtest Template Column Positions (1-indexed)
-    // Based on header: "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac"
+    // Speedtest Template Headers - define once for consistency
+    private static readonly string[] SpeedtestHeaders = 
+    [
+        "timestamp", "ping", "jitter", "upload", "download", "region", "province", 
+        "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", 
+        "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac"
+    ];
+
+    // Speedtest Template Column Positions (1-indexed) - dynamically computed
     private static class SpeedtestTemplateColumns
     {
-        public const int Timestamp = 1;        // timestamp - DateTime of the test
-        public const int Upload = 4;           // upload - Upload speed (Mbps)
-        public const int Download = 5;         // download - Download speed (Mbps)
-        public const int SignalQuality = 11;   // signal_quality - Signal quality enum
-        public const int Operator = 12;        // operator - Service provider name
-        public const int Latitude = 13;        // lat - Latitude coordinate
-        public const int Longitude = 14;       // lon - Longitude coordinate
-        public const int NetworkType = 18;     // network_type - Technology standard
+        public static int Timestamp => Array.IndexOf(SpeedtestHeaders, "timestamp") + 1;
+        public static int Upload => Array.IndexOf(SpeedtestHeaders, "upload") + 1;
+        public static int Download => Array.IndexOf(SpeedtestHeaders, "download") + 1;
+        public static int SignalQuality => Array.IndexOf(SpeedtestHeaders, "signal_quality") + 1;
+        public static int Operator => Array.IndexOf(SpeedtestHeaders, "operator") + 1;
+        public static int Latitude => Array.IndexOf(SpeedtestHeaders, "lat") + 1;
+        public static int Longitude => Array.IndexOf(SpeedtestHeaders, "lon") + 1;
+        public static int NetworkType => Array.IndexOf(SpeedtestHeaders, "network_type") + 1;
     }
 
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
@@ -211,7 +218,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddCommonHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
+        AddCommonHeaders(worksheet, SpeedtestHeaders);
 
         var providers = await GetAllServiceProvidersAcrossTypes(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
@@ -239,9 +246,14 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var technologyRange = technologySheet.Cells[1, 1, technologies.Count, 1];
         technologySheet.Hidden = eWorkSheetHidden.Hidden;
 
-        AddDropdownValidation(worksheet, "L2:L1048576", providerRange);
-        AddDropdownValidation(worksheet, "R2:R1048576", technologyRange);
-        AddDropdownValidation(worksheet, "K2:K1048576", signalQuality);
+        // Apply dropdown validations using dynamic column positions
+        var operatorCol = GetExcelColumnName(SpeedtestTemplateColumns.Operator);
+        var networkTypeCol = GetExcelColumnName(SpeedtestTemplateColumns.NetworkType);
+        var signalQualityCol = GetExcelColumnName(SpeedtestTemplateColumns.SignalQuality);
+
+        AddDropdownValidation(worksheet, $"{operatorCol}2:{operatorCol}1048576", providerRange);
+        AddDropdownValidation(worksheet, $"{networkTypeCol}2:{networkTypeCol}1048576", technologyRange);
+        AddDropdownValidation(worksheet, $"{signalQualityCol}2:{signalQualityCol}1048576", signalQuality);
 
         // Mark required fields with red background color
         MarkRequiredFields(worksheet, new[]
@@ -416,6 +428,23 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         {
             worksheet.Column(i).AutoFit();
         }
+    }
+
+    /// <summary>
+    /// Converts a 1-indexed column number to Excel column letter notation (e.g., 1 -> "A", 27 -> "AA")
+    /// </summary>
+    private static string GetExcelColumnName(int columnNumber)
+    {
+        string columnName = "";
+
+        while (columnNumber > 0)
+        {
+            int modulo = (columnNumber - 1) % 26;
+            columnName = Convert.ToChar('A' + modulo) + columnName;
+            columnNumber = (columnNumber - modulo) / 26;
+        }
+
+        return columnName;
     }
 
     private async Task<List<string>> GetServiceProviders(ServiceTypeEnum service, CancellationToken cancellationToken)
