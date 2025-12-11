@@ -5,6 +5,7 @@ using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Exceptions;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
@@ -200,20 +201,30 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 {
                     speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
                 }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("timestamp") || ex.Message.Contains("Timestamp"))
+                catch (ExcelParsingException ex) when (ex.PropertyName?.Equals("Timestamp", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    _logger.LogError(ex, "Failed to parse Excel file. Timestamp field validation error.");
+                    _logger.LogError(ex, "Failed to parse Excel file. Timestamp field validation error at Row {Row}, Col {Col}.",
+                        ex.RowNumber, ex.ColumnNumber);
                     await ProcessingJobHelper.TerminateProcessAsync(
                         file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                        "Timestamp field is required and cannot be empty. Please ensure all timestamp values are properly formatted dates.", token);
+                        $"Timestamp field is required and cannot be empty at Row {ex.RowNumber}. Please ensure all timestamp values are properly formatted dates.", token);
                     return;
                 }
-                catch (InvalidOperationException ex)
+                catch (ExcelParsingException ex)
                 {
-                    _logger.LogError(ex, "Failed to parse Excel file due to data format error.");
+                    _logger.LogError(ex, "Failed to parse Excel file due to data format error at Row {Row}, Col {Col}, Property {Property}.",
+                        ex.RowNumber, ex.ColumnNumber, ex.PropertyName);
                     await ProcessingJobHelper.TerminateProcessAsync(
                         file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                        $"Excel parsing error: {ex.Message}", token);
+                        $"Excel parsing error at Row {ex.RowNumber}, Column '{ex.HeaderName}': {ex.Message}", token);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to parse Excel file due to unexpected error.");
+                    await ProcessingJobHelper.TerminateProcessAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                        $"Unexpected error during Excel parsing: {ex.Message}", token);
                     return;
                 }
 
@@ -246,6 +257,10 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     {
                         ProcessingJobHelper.ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}", _logger);
 
+                        // TODO: Add unit/integration tests for validation logic to ensure proper error handling
+                        // and validation messages are returned when required fields are missing or invalid.
+                        // Test cases should cover: empty strings, null values, out-of-range coordinates, zero speeds.
+
                         // Validate required fields
                         if (string.IsNullOrWhiteSpace(record.Provider))
                         {
@@ -274,14 +289,68 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             return;
                         }
 
+                        // Validate numeric required fields (Upload, Download, Latitude, Longitude)
+                        if (record.Upload < 0)
+                        {
+                            _logger.LogWarning("Upload speed cannot be negative. Terminating process.");
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                "Upload field cannot be negative", token);
+                            return;
+                        }
+
+                        if (record.Download < 0)
+                        {
+                            _logger.LogWarning("Download speed cannot be negative. Terminating process.");
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                "Download field cannot be negative", token);
+                            return;
+                        }
+
+                        // Validate latitude and longitude (must be valid coordinates)
+                        if (record.Latitude < -90 || record.Latitude > 90)
+                        {
+                            _logger.LogWarning("Latitude is invalid: {Latitude}. Terminating process.", record.Latitude);
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                $"Latitude field must be between -90 and 90 degrees. Found: {record.Latitude}", token);
+                            return;
+                        }
+
+                        if (record.Longitude < -180 || record.Longitude > 180)
+                        {
+                            _logger.LogWarning("Longitude is invalid: {Longitude}. Terminating process.", record.Longitude);
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                $"Longitude field must be between -180 and 180 degrees. Found: {record.Longitude}", token);
+                            return;
+                        }
+
+                        if (record.Latitude == 0 && record.Longitude == 0)
+                        {
+                            _logger.LogWarning("Latitude and Longitude cannot both be 0 (null island). Terminating process.");
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                "Latitude and Longitude fields are required and cannot both be 0", token);
+                            return;
+                        }
+
+                        // Lookup service provider - try Wireless first, then Wired if not found
+                        // This handles both wireless and wired providers since cache includes all types
                         var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                         if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {
-                            _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                $"Service Provider '{record.Provider}' not found in database", token);
-                            return;
+                            // Try Wired type as fallback
+                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                            if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                            {
+                                _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
+                                await ProcessingJobHelper.TerminateProcessAsync(
+                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                    $"Service Provider '{record.Provider}' not found in database", token);
+                                return;
+                            }
                         }
 
                         var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);

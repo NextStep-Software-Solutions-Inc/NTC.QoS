@@ -15,6 +15,20 @@ namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 
 internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFileRequest, ApiResponse<Stream>>
 {
+    // Speedtest Template Column Positions (1-indexed)
+    // Based on header: "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac"
+    private static class SpeedtestTemplateColumns
+    {
+        public const int Timestamp = 1;        // timestamp - DateTime of the test
+        public const int Upload = 4;           // upload - Upload speed (Mbps)
+        public const int Download = 5;         // download - Download speed (Mbps)
+        public const int SignalQuality = 11;   // signal_quality - Signal quality enum
+        public const int Operator = 12;        // operator - Service provider name
+        public const int Latitude = 13;        // lat - Latitude coordinate
+        public const int Longitude = 14;       // lon - Longitude coordinate
+        public const int NetworkType = 18;     // network_type - Technology standard
+    }
+
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
@@ -89,6 +103,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddCommonHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lat", "Lng");
 
         var providers = await GetServiceProviders(ServiceTypeEnum.Wired, cancellationToken);
+
+        if (providers.Count == 0)
+        {
+            throw new InvalidOperationException("No wired service providers available. Please add providers before generating the template.");
+        }
 
         // Add providers to a hidden sheet
         var providerSheet = package.Workbook.Worksheets.Add("Providers");
@@ -168,6 +187,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
 
+        if (providers.Count == 0)
+        {
+            throw new InvalidOperationException("No wireless service providers available. Please add providers before generating the template.");
+        }
+
         // Add hidden sheets for dropdowns
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
@@ -189,9 +213,19 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         AddCommonHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
 
-        var providers = await GetAllServiceProviders(cancellationToken);
+        var providers = await GetAllServiceProvidersAcrossTypes(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
         var signalQuality = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
+
+        if (providers.Count == 0)
+        {
+            throw new InvalidOperationException("No service providers available. Please add providers before generating the template.");
+        }
+
+        if (technologies.Count == 0)
+        {
+            throw new InvalidOperationException("No technologies available. Please add technologies before generating the template.");
+        }
 
         // Add providers to a hidden sheet
         var providerSheet = package.Workbook.Worksheets.Add("Providers");
@@ -210,14 +244,25 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, "K2:K1048576", signalQuality);
 
         // Mark required fields with red background color
-        MarkRequiredFields(worksheet, new[] { 1, 4, 5, 11, 12, 13, 14, 18 }); // Column numbers for required fields
+        MarkRequiredFields(worksheet, new[]
+        {
+            SpeedtestTemplateColumns.Timestamp,
+            SpeedtestTemplateColumns.Upload,
+            SpeedtestTemplateColumns.Download,
+            SpeedtestTemplateColumns.SignalQuality,
+            SpeedtestTemplateColumns.Operator,
+            SpeedtestTemplateColumns.Latitude,
+            SpeedtestTemplateColumns.Longitude,
+            SpeedtestTemplateColumns.NetworkType
+        });
     }
 
     private static void MarkRequiredFields(ExcelWorksheet worksheet, int[] requiredColumnNumbers)
     {
-        foreach (var colNum in requiredColumnNumbers)
+        var headerCells = requiredColumnNumbers.Select(colNum => worksheet.Cells[1, colNum]);
+        
+        foreach (var headerCell in headerCells)
         {
-            var headerCell = worksheet.Cells[1, colNum];
             headerCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
             headerCell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightCoral);
             headerCell.Style.Font.Color.SetColor(System.Drawing.Color.Black);
@@ -229,6 +274,12 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddCommonHeaders(worksheet, "Network", "Lat", "Lng", "Strength", "Address");
 
         var networks = await GetNetworks(cancellationToken);
+
+        if (networks.Count == 0)
+        {
+            throw new InvalidOperationException("No networks available. Please add networks before generating the template.");
+        }
+
         AddDropdownValidation(worksheet, "A2:A12", networks);
 
         worksheet.Cells.AutoFitColumns();
@@ -392,7 +443,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         return await GetEntityNames(_bandRepository, b => !b.IsDeleted, b => b.Name, cancellationToken);
     }
 
-    private async Task<List<string>> GetAllServiceProviders(CancellationToken cancellationToken)
+    private async Task<List<string>> GetAllServiceProvidersAcrossTypes(CancellationToken cancellationToken)
     {
         var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted)
             .OrderBy(sp => sp.Provider.Name)
