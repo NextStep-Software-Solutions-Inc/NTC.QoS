@@ -325,24 +325,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             token))
                             return;
 
-                        if (!await ValidateFieldAsync(
-                            !string.IsNullOrWhiteSpace(record.NetworkType),
-                            (SpeedtestRecord r) => r.NetworkType,
-                            "NetworkType field is required but was found empty or missing",
-                            currentRow,
-                            file,
-                            token))
-                            return;
-
-                        if (!await ValidateFieldAsync(
-                            !string.IsNullOrWhiteSpace(record.SignalQuality),
-                            (SpeedtestRecord r) => r.SignalQuality,
-                            "SignalQuality field is required but was found empty or missing",
-                            currentRow,
-                            file,
-                            token))
-                            return;
-
                         // Validate numeric required fields (Upload, Download, Latitude, Longitude)
                         // Allow 0 speeds (may indicate measurement issues but still valid data to save)
                         // Skip records with negative speeds as they are invalid
@@ -417,47 +399,57 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             }
                         }
 
-                        var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
-                        if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
+                        // NetworkType is now optional - only validate if provided
+                        Guid? technologyId = null;
+                        Guid? generationId = null;
+                        
+                        if (!string.IsNullOrWhiteSpace(record.NetworkType))
                         {
-                            _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                $"Technology '{record.NetworkType}' not found in database", token);
-                            return;
+                            var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
+                            if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
+                            {
+                                _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
+                                await ProcessingJobHelper.TerminateProcessAsync(
+                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                    $"Technology '{record.NetworkType}' not found in database", token);
+                                return;
+                            }
+                            technologyId = technologyInfo.TechnologyId;
+                            generationId = technologyInfo.GenerationId;
                         }
-                        var technologyId = technologyInfo.TechnologyId;
-                        var generationId = technologyInfo.GenerationId;
 
-                        // Check if all valid Ids are valid
-                        if (serviceProviderId != Guid.Empty && generationId != Guid.Empty && technologyId != Guid.Empty)
+                        // Check if service provider is valid (generation and technology can now be null)
+                        if (serviceProviderId != Guid.Empty)
                         {
                             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
 
                             var pingValue = decimal.TryParse(record.Ping, out decimal parsedPing) ? parsedPing : 0;
                             var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
                             
-                            // Parse SignalQuality with error handling
-                            string signalQuality;
-                            try
+                            // Parse SignalQuality with error handling - now optional, only validate if provided
+                            string? signalQuality = null;
+                            if (!string.IsNullOrWhiteSpace(record.SignalQuality))
                             {
-                                signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
-                            }
-                            catch (ArgumentException ex)
-                            {
-                                _logger.LogWarning("Invalid SignalQuality value: {SignalQuality}. Terminating process. Error: {Error}", 
-                                    record.SignalQuality, ex.Message);
-                                await ProcessingJobHelper.TerminateProcessAsync(
-                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                    $"Invalid SignalQuality value '{record.SignalQuality}'. {ex.Message}", token);
-                                return;
+                                try
+                                {
+                                    signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
+                                }
+                                catch (ArgumentException ex)
+                                {
+                                    _logger.LogWarning("Invalid SignalQuality value: {SignalQuality}. Terminating process. Error: {Error}", 
+                                        record.SignalQuality, ex.Message);
+                                    await ProcessingJobHelper.TerminateProcessAsync(
+                                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                        $"Invalid SignalQuality value '{record.SignalQuality}'. {ex.Message}", token);
+                                    return;
+                                }
                             }
 
                             // Generate hash for duplicate check (OPTIMIZED)
                             var duplicateHash = GenerateSpeedtestHash(
                                 serviceProviderId,
-                                generationId,
-                                technologyId,
+                                generationId ?? Guid.Empty,
+                                technologyId ?? Guid.Empty,
                                 record.Timestamp.ToUniversalTime(),
                                 record.Upload,
                                 record.Download,

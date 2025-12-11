@@ -261,11 +261,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             SpeedtestTemplateColumns.Timestamp,
             SpeedtestTemplateColumns.Upload,
             SpeedtestTemplateColumns.Download,
-            SpeedtestTemplateColumns.SignalQuality,
             SpeedtestTemplateColumns.Operator,
             SpeedtestTemplateColumns.Latitude,
-            SpeedtestTemplateColumns.Longitude,
-            SpeedtestTemplateColumns.NetworkType
+            SpeedtestTemplateColumns.Longitude
         });
     }
 
