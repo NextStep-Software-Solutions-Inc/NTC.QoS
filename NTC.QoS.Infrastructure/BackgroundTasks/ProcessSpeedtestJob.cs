@@ -5,11 +5,14 @@ using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Exceptions;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.File;
 using NTC.QoS.Domain.Models.ExcelBindings;
 using NTC.QoS.Infrastructure.Helper;
+using System.Linq.Expressions;
+using NTC.QoS.Domain.Attributes;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -45,6 +48,56 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _userContextService = userContextService;
     }
 
+    /// <summary>
+    /// Validates a field and terminates processing with a detailed error message if validation fails.
+    /// </summary>
+    /// <typeparam name="T">The type containing the property to validate</typeparam>
+    /// <typeparam name="TProperty">The type of the property being validated</typeparam>
+    /// <param name="isValid">The validation condition to check</param>
+    /// <param name="propertyExpression">Expression to access the property (e.g., r => r.Provider)</param>
+    /// <param name="errorMessage">The error message to display to the user</param>
+    /// <param name="rowNumber">The Excel row number where the error occurred</param>
+    /// <param name="file">The file entity being processed</param>
+    /// <param name="token">Cancellation token</param>
+    /// <param name="actualValue">Optional actual value to include in error message</param>
+    /// <returns>True if validation passed, throws/returns if validation failed</returns>
+    private async Task<bool> ValidateFieldAsync<T, TProperty>(
+        bool isValid,
+        Expression<Func<T, TProperty>> propertyExpression,
+        string errorMessage,
+        int rowNumber,
+        Domain.Entities.File file,
+        CancellationToken token,
+        object? actualValue = null)
+    {
+        if (!isValid)
+        {
+            // Extract property name and Excel column name from expression
+            var memberExpression = (MemberExpression)propertyExpression.Body;
+            var propertyInfo = (System.Reflection.PropertyInfo)memberExpression.Member;
+            var fieldName = propertyInfo.Name;
+            
+            // Get Excel column name from ExcelHeader attribute
+            var excelHeaderAttr = propertyInfo.GetCustomAttributes(typeof(ExcelHeaderAttribute), false)
+                .FirstOrDefault() as ExcelHeaderAttribute;
+            var columnName = excelHeaderAttr?.HeaderName ?? fieldName.ToLower();
+
+            var formattedMessage = actualValue != null
+                ? $"{errorMessage} at Row {rowNumber}, Column '{columnName}'. Found: {actualValue}"
+                : $"{errorMessage} at Row {rowNumber}, Column '{columnName}'";
+
+            _logger.LogWarning("{FieldName} validation failed at Row {Row}. {Message}",
+                fieldName, rowNumber, errorMessage);
+
+            await ProcessingJobHelper.TerminateProcessAsync(
+                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                formattedMessage, token);
+
+            return false;
+        }
+        return true;
+    }
+
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
@@ -66,16 +119,16 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             // Step 2: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
-            // Pre-load all wireless service providers with optimized query
+            // Pre-load all service providers with optimized query
             var serviceProviderCache = await _serviceProviderRepository
-                .Query(sp => sp.Service.Type == ServiceTypeEnum.Wireless)
-                .Select(sp => new { sp.Id, sp.Provider.Name })
+                .Query(sp => !sp.IsDeleted)
+                .Select(sp => new { sp.Id, sp.Provider.Name, sp.Service.Type })
                 .ToDictionaryAsync(
-                    sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, ServiceTypeEnum.Wireless),
+                    sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type),
                     sp => sp.Id,
                     token
                 );
-            _logger.LogInformation("Pre-loaded {Count} wireless service providers.", serviceProviderCache.Count);
+            _logger.LogInformation("Pre-loaded {Count} service providers.", serviceProviderCache.Count);
 
             // Pre-load generations and technologies with optimized query
             var generationCache = await _generationRepository
@@ -194,7 +247,38 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 fileStream.Position = 0;
                 _logger.LogInformation("Excel processing started");
 
-                var speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
+                List<SpeedtestRecord> speedtestRecords;
+                
+                try
+                {
+                    speedtestRecords = ExcelHelper.ParseExcelToClass<SpeedtestRecord>(fileStream);
+                }
+                catch (ExcelParsingException ex) when (ex.PropertyName?.Equals("Timestamp", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    _logger.LogError(ex, "Failed to parse Excel file. Timestamp field validation error at Row {Row}, Col {Col}.",
+                        ex.RowNumber, ex.ColumnNumber);
+                    await ProcessingJobHelper.TerminateProcessAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                        $"Timestamp field is required and cannot be empty at Row {ex.RowNumber}. Please ensure all timestamp values are properly formatted dates.", token);
+                    return;
+                }
+                catch (ExcelParsingException ex)
+                {
+                    _logger.LogError(ex, "Failed to parse Excel file due to data format error at Row {Row}, Col {Col}, Property {Property}.",
+                        ex.RowNumber, ex.ColumnNumber, ex.PropertyName);
+                    await ProcessingJobHelper.TerminateProcessAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                        $"Excel parsing error at Row {ex.RowNumber}, Column '{ex.HeaderName}': {ex.Message}", token);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to parse Excel file due to unexpected error.");
+                    await ProcessingJobHelper.TerminateProcessAsync(
+                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                        $"Unexpected error during Excel parsing: {ex.Message}", token);
+                    return;
+                }
 
                 if (speedtestRecords.Count is 0)
                 {
@@ -221,46 +305,151 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     var speedtestsToAdd = new List<Speedtest>();
                     var duplicatesSkipped = 0;
 
+                    var rowNumber = i + 2; // Excel row number (header is row 1, data starts at row 2)
                     foreach (var record in batch)
                     {
                         ProcessingJobHelper.ReportProgress($"Processing record: {record.Region}, {record.Provider}, {record.NetworkType}", _logger);
+                        var currentRow = rowNumber++;
 
+                        // TODO: Add unit/integration tests for validation logic to ensure proper error handling
+                        // and validation messages are returned when required fields are missing or invalid.
+                        // Test cases should cover: empty strings, null values, out-of-range coordinates, zero speeds.
+
+                        // Validate required fields
+                        if (!await ValidateFieldAsync(
+                            !string.IsNullOrWhiteSpace(record.Provider),
+                            (SpeedtestRecord r) => r.Provider,
+                            "Provider field is required but was found empty or missing",
+                            currentRow,
+                            file,
+                            token))
+                            return;
+
+                        // Validate numeric required fields (Upload, Download, Latitude, Longitude)
+                        // Allow 0 speeds (may indicate measurement issues but still valid data to save)
+                        // Skip records with negative speeds as they are invalid
+                        if (record.Upload < 0)
+                        {
+                            _logger.LogWarning("Skipping record at Row {Row}: Upload speed cannot be negative. Found: {Value}",
+                                currentRow, record.Upload);
+                            continue; // Skip this record but continue processing others
+                        }
+
+                        if (record.Download < 0)
+                        {
+                            _logger.LogWarning("Skipping record at Row {Row}: Download speed cannot be negative. Found: {Value}",
+                                currentRow, record.Download);
+                            continue; // Skip this record but continue processing others
+                        }
+
+                        // Skip records where both upload and download are 0 or less (no meaningful speed data)
+                        if (record.Upload <= 0 && record.Download <= 0)
+                        {
+                            _logger.LogWarning("Skipping record at Row {Row}: Both Upload and Download speeds are 0 or less. Upload: {Upload}, Download: {Download}",
+                                currentRow, record.Upload, record.Download);
+                            continue; // Skip this record but continue processing others
+                        }
+
+                        // Validate latitude and longitude (must be valid coordinates)
+                        if (!await ValidateFieldAsync(
+                            record.Latitude >= -90 && record.Latitude <= 90,
+                            (SpeedtestRecord r) => r.Latitude,
+                            "Latitude field must be between -90 and 90 degrees",
+                            currentRow,
+                            file,
+                            token,
+                            record.Latitude))
+                            return;
+
+                        if (!await ValidateFieldAsync(
+                            record.Longitude >= -180 && record.Longitude <= 180,
+                            (SpeedtestRecord r) => r.Longitude,
+                            "Longitude field must be between -180 and 180 degrees",
+                            currentRow,
+                            file,
+                            token,
+                            record.Longitude))
+                            return;
+
+                        // Check for null island (0,0) using tolerance for floating point comparison
+                        const double tolerance = 0.000001; // ~11cm precision
+                        if (!await ValidateFieldAsync(
+                            !(Math.Abs(record.Latitude) < tolerance && Math.Abs(record.Longitude) < tolerance),
+                            (SpeedtestRecord r) => r.Latitude,
+                            "Latitude and Longitude fields are required and cannot both be 0",
+                            currentRow,
+                            file,
+                            token))
+                            return;
+
+                        // Lookup service provider - try Wireless first, then Wired if not found
+                        // This handles both wireless and wired providers since cache includes all types
                         var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                         if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {
-                            _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                $"Service Provider '{record.Provider}' not found in database", token);
-                            return;
+                            // Try Wired type as fallback
+                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                            if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                            {
+                                _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
+                                await ProcessingJobHelper.TerminateProcessAsync(
+                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                    $"Service Provider '{record.Provider}' not found in database", token);
+                                return;
+                            }
                         }
 
-                        var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
-                        if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
+                        // NetworkType is now optional - only validate if provided
+                        Guid? technologyId = null;
+                        Guid? generationId = null;
+                        
+                        if (!string.IsNullOrWhiteSpace(record.NetworkType))
                         {
-                            _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
-                            await ProcessingJobHelper.TerminateProcessAsync(
-                                file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                $"Technology '{record.NetworkType}' not found in database", token);
-                            return;
+                            var technologyKey = CacheKeyGenerator.GenerateTechnologyCacheKey(record.NetworkType);
+                            if (!technologyCache.TryGetValue(technologyKey, out var technologyInfo))
+                            {
+                                _logger.LogWarning("Technology not found for NetworkType: {NetworkType}. Terminating process.", record.NetworkType);
+                                await ProcessingJobHelper.TerminateProcessAsync(
+                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                    $"Technology '{record.NetworkType}' not found in database", token);
+                                return;
+                            }
+                            technologyId = technologyInfo.TechnologyId;
+                            generationId = technologyInfo.GenerationId;
                         }
-                        var technologyId = technologyInfo.TechnologyId;
-                        var generationId = technologyInfo.GenerationId;
 
-                        // Check if all valid Ids are valid
-                        if (serviceProviderId != Guid.Empty && generationId != Guid.Empty && technologyId != Guid.Empty)
+                        // Check if service provider is valid (generation and technology can now be null)
+                        if (serviceProviderId != Guid.Empty)
                         {
                             Point location = GeometryHelper.CreatePoint(new Coordinate(y: record.Latitude, x: record.Longitude));
 
                             var pingValue = decimal.TryParse(record.Ping, out decimal parsedPing) ? parsedPing : 0;
                             var jitterValue = decimal.TryParse(record.Jitter, out decimal parsedJitter) ? parsedJitter : 0;
-                            var signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
+                            
+                            // Parse SignalQuality with error handling - now optional, only validate if provided
+                            string? signalQuality = null;
+                            if (!string.IsNullOrWhiteSpace(record.SignalQuality))
+                            {
+                                try
+                                {
+                                    signalQuality = EnumHelper<SignalQualityEnum>.ParseUserInput(record.SignalQuality).ToString();
+                                }
+                                catch (ArgumentException ex)
+                                {
+                                    _logger.LogWarning("Invalid SignalQuality value: {SignalQuality}. Terminating process. Error: {Error}", 
+                                        record.SignalQuality, ex.Message);
+                                    await ProcessingJobHelper.TerminateProcessAsync(
+                                        file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                        $"Invalid SignalQuality value '{record.SignalQuality}'. {ex.Message}", token);
+                                    return;
+                                }
+                            }
 
                             // Generate hash for duplicate check (OPTIMIZED)
                             var duplicateHash = GenerateSpeedtestHash(
                                 serviceProviderId,
-                                generationId,
-                                technologyId,
+                                generationId ?? Guid.Empty,
+                                technologyId ?? Guid.Empty,
                                 record.Timestamp.ToUniversalTime(),
                                 record.Upload,
                                 record.Download,

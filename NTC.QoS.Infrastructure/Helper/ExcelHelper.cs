@@ -1,5 +1,6 @@
 ﻿using ClosedXML.Excel;
 using NTC.QoS.Domain.Attributes;
+using NTC.QoS.Domain.Exceptions;
 using System.Globalization;
 
 namespace NTC.QoS.Infrastructure.Helper;
@@ -96,8 +97,15 @@ public static class ExcelHelper
                         catch (Exception ex)
                         {
                             // Only log the problematic row, not all rows
-                            Console.WriteLine($"[ExcelHelper][ERROR] Row: {row}, Col: {col}, Header: '{header}', Property: '{property.Name}', Value: '{cellValue}', Type: '{property.PropertyType.Name}', Exception: {ex.Message}");
-                            throw new InvalidOperationException($"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at Row {row}, Col {col} (Header: '{header}').", ex);
+                            
+                            throw new ExcelParsingException(
+                                $"Error converting value '{cellValue}' to type '{property.PropertyType.Name}' for property '{property.Name}' at Row {row}, Col {col} (Header: '{header}').",
+                                propertyName: property.Name,
+                                rowNumber: row,
+                                columnNumber: col,
+                                headerName: header,
+                                value: cellValue,
+                                innerException: ex);
                         }
                     }
                 }
