@@ -23,7 +23,7 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         {
             return new ApiResponse<UserDto>
             {
-                Succeeded = true,
+                Succeeded = false,
                 Message = "User already exists.",
                 Errors = new Dictionary<string, string[]>
                 {

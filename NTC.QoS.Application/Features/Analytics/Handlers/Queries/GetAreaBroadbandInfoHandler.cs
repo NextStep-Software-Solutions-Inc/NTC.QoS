@@ -2,14 +2,14 @@
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Analytics.Requests;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Constants;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Infrastructure.Helper;
-using System.Collections.Concurrent;
-using System.Reflection;
 
 namespace NTC.QoS.Application.Features.Analytics.Handlers.Queries;
 
@@ -17,21 +17,27 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
 {
     private readonly ICellRepository _cellRepository;
     private readonly INAPRepository _napRepository;
-    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly ICellularCoverageRepository _cellularCoverageRepository;
+    private readonly ICellularRepository _cellularRepository;
+    private readonly ISpeedtestRepository _speedtestRepository;
+    private readonly BroadbandAnalyticsService _analyticsService;
     private readonly ILogger<GetAreaBroadbandInfoHandler> _logger;
-
-    // Cache for PropertyInfo to avoid repeated reflection overhead
-    private static readonly ConcurrentDictionary<Type, PropertyInfo?> LocationPropertyCache = new();
 
     public GetAreaBroadbandInfoHandler(
         ICellRepository cellRepository,
         INAPRepository napRepository,
-        IMunicipalityRepository municipalityRepository,
+        ICellularCoverageRepository cellularCoverageRepository,
+        ICellularRepository cellularRepository,
+        ISpeedtestRepository speedtestRepository,
+        BroadbandAnalyticsService analyticsService,
         ILogger<GetAreaBroadbandInfoHandler> logger)
     {
         _cellRepository = cellRepository;
         _napRepository = napRepository;
-        _municipalityRepository = municipalityRepository;
+        _cellularCoverageRepository = cellularCoverageRepository;
+        _cellularRepository = cellularRepository;
+        _speedtestRepository = speedtestRepository;
+        _analyticsService = analyticsService;
         _logger = logger;
     }
 
@@ -53,37 +59,86 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
 
             var napQuery = _napRepository.Query();
             napQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, napQuery);
+            
+            // Query for cellular coverage (signal strength data)
+            var cellularCoverageQuery = _cellularCoverageRepository.Query();
+            cellularCoverageQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, cellularCoverageQuery);
+            
+            // Query for cellular bandwidth data - apply spatial filter via CellSector.Cell.Location
+            var cellularQuery = _cellularRepository.Query()
+                .Where(c => c.CellSector != null && 
+                           c.CellSector.Cell != null && 
+                           c.CellSector.Cell.Location != null &&
+                            c.CellSector.Cell.Location.Intersects(envelope));
+            
+            // Query for speedtest data
+            var speedtestQuery = _speedtestRepository.Query();
+            speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(envelope, speedtestQuery);
 
             // Execute queries and get results with related data including location
             var cellsWithProvider = await _cellRepository.ToListAsync(
-                cellQuery.Select(c => new
+                cellQuery.Select(c => new ProviderAssetDto
                 {
-                    c.Id,
-                    c.ServiceProviderId,
-                    c.Location,
-                    ServiceProvider = new
+                    Id = c.Id,
+                    ServiceProviderId = c.ServiceProviderId,
+                    Location = c.Location,
+                    ServiceProvider = new ProviderInfoDto
                     {
-                        c.ServiceProvider.Id,
-                        c.ServiceProvider.Provider.Name,
-                        c.ServiceProvider.Provider.Color,
-                        c.ServiceProvider.Service.Type
+                        Id = c.ServiceProvider.Id,
+                        Name = c.ServiceProvider.Provider.Name,
+                        Color = c.ServiceProvider.Provider.Color,
+                        Type = c.ServiceProvider.Service.Type
                     }
                 }),
                 cancellationToken);
 
             var napsWithProvider = await _napRepository.ToListAsync(
-                napQuery.Select(n => new
+                napQuery.Select(n => new ProviderAssetDto
                 {
-                    n.Id,
-                    n.ServiceProviderId,
-                    n.Location,
-                    ServiceProvider = new
+                    Id = n.Id,
+                    ServiceProviderId = n.ServiceProviderId,
+                    Location = n.Location,
+                    ServiceProvider = new ProviderInfoDto
                     {
-                        n.ServiceProvider.Id,
-                        n.ServiceProvider.Provider.Name,
-                        n.ServiceProvider.Provider.Color,
-                        n.ServiceProvider.Service.Type
+                        Id = n.ServiceProvider.Id,
+                        Name = n.ServiceProvider.Provider.Name,
+                        Color = n.ServiceProvider.Provider.Color,
+                        Type = n.ServiceProvider.Service.Type
                     }
+                }),
+                cancellationToken);
+                
+            // Get cellular coverage data for signal strength
+            var cellularCoverageData = await _cellularCoverageRepository.ToListAsync(
+                cellularCoverageQuery.Select(cc => new CellularCoverageProjectionDto
+                {
+                    Location = cc.Location,
+                    Strength = cc.Strength
+                }),
+                cancellationToken);
+                
+            // Get cellular bandwidth data - spatial filter already applied
+            var cellularBandwidthData = await _cellularRepository.ToListAsync(
+                cellularQuery
+                    .Select(c => new CellularBandwidthProjectionDto
+                    {
+                        ServiceProviderId = c.ServiceProviderId,
+                        Bandwidth = c.Bandwidth,
+                        ServiceType = c.ServiceProvider != null && c.ServiceProvider.Service != null
+                            ? c.ServiceProvider.Service.Type
+                            : ServiceTypeEnum.Unknown
+                    }),
+                cancellationToken);
+
+            // Get speedtest data for actual measured speeds
+            var speedtestData = await _speedtestRepository.ToListAsync(
+                speedtestQuery.Select(s => new SpeedtestProjectionDto
+                {
+                    ServiceProviderId = s.ServiceProviderId,
+                    DownloadSpeed = s.DownloadSpeed,
+                    ServiceType = s.ServiceProvider != null && s.ServiceProvider.Service != null
+                        ? s.ServiceProvider.Service.Type
+                        : ServiceTypeEnum.Unknown
                 }),
                 cancellationToken);
 
@@ -104,15 +159,47 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 Color = sp.Color,
                 ServiceType = sp.Type,
                 CellCount = cellsWithProvider.Count(c => c.ServiceProvider.Id == sp.Id),
-                NAPCount = napsWithProvider.Count(n => n.ServiceProvider.Id == sp.Id)
+                NAPCount = napsWithProvider.Count(n => n.ServiceProvider.Id == sp.Id),
+                MaxSpeedMbps = _analyticsService.CalculateMaxSpeedForProvider(sp.Id, sp.Type, cellularBandwidthData, speedtestData)
             }).Where(sp => sp.TotalAssets > 0) // Only include providers with assets in the area
             .OrderByDescending(sp => sp.TotalAssets)
             .ToList();
 
             _logger.LogInformation("Found {ProviderCount} service providers with assets in the area", serviceProviders.Count);
+            
+            // Calculate signal strength metrics
+            var signalStrength = _analyticsService.CalculateSignalStrength(cellularCoverageData);
+            
+            // Calculate overall max speed
+            var maxSpeed = serviceProviders.Any(sp => sp.MaxSpeedMbps.HasValue) 
+                ? serviceProviders.Max(sp => sp.MaxSpeedMbps ?? 0) 
+                : 0;
+                
+            // Determine service availability
+            // Note: HasFiber uses ServiceTypeEnum.Wired. Currently, the system only has fiber as the wired service type.
+            // If other wired types (cable, DSL) are added in the future, consider renaming to HasWired or filtering specifically for fiber.
+            var serviceAvailability = new ServiceAvailabilityDto
+            {
+                HasCellular = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wireless),
+                HasFiber = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wired)
+            };
 
-            var municipalities = await CalculateMunicipalityInfo(envelope, cellsWithProvider, napsWithProvider, cancellationToken);
+            // Build lists of locations to pass to the analytics service (uses strongly-typed projections)
+            var cellLocations = cellsWithProvider
+                .Where(c => c.Location != null && c.Location.IsValid)
+                .Select(c => c.Location)
+                .ToList();
+
+            var napLocations = napsWithProvider
+                .Where(n => n.Location != null && n.Location.IsValid)
+                .Select(n => n.Location)
+                .ToList();
+
+            var municipalities = await _analyticsService.CalculateMunicipalityInfo(envelope, cellLocations, napLocations, cancellationToken);
             _logger.LogInformation("Found {MunicipalityCount} municipalities with assets in the area", municipalities.Count);
+            
+            // Get location details from the primary municipality (one with most assets or first covered)
+            var locationDetails = _analyticsService.GetLocationDetails(municipalities);
 
             // Log municipality details for debugging
             foreach (var municipality in municipalities.Take(5)) // Log first 5 municipalities
@@ -144,7 +231,15 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 Summary = summary,
                 ServiceProviders = serviceProviders,
                 Municipalities = municipalities,
-                EnvelopeInfo = envelopeInfo
+                EnvelopeInfo = envelopeInfo,
+                LocationDetails = locationDetails,
+                InternetServices = new InternetServicesDto
+                {
+                    ProviderCount = serviceProviders.Count,
+                    MaxSpeedMbps = maxSpeed
+                },
+                SignalStrength = signalStrength,
+                ServiceAvailability = serviceAvailability
             };
 
             _logger.LogInformation("Successfully processed area broadband info. Summary: {TotalCells} cells, {TotalNaps} NAPs, {TotalAssets} total assets across {ProviderCount} providers and {MunicipalityCount} municipalities",
@@ -169,165 +264,6 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                     { "ProcessingError", [ex.Message] }
                 }
             };
-        }
-    }
-
-    /// <summary>
-    /// Calculates municipality information for items that have location data.
-    /// Uses both interface constraints for type safety and fallback reflection for anonymous types.
-    /// </summary>
-    /// <typeparam name="T1">Type for cells (anonymous type or IHasLocation implementer)</typeparam>
-    /// <typeparam name="T2">Type for NAPs (anonymous type or IHasLocation implementer)</typeparam>
-    /// <param name="queryGeometry">The geometry to search within</param>
-    /// <param name="cellsWithProvider">List of cells with provider information</param>
-    /// <param name="napsWithProvider">List of NAPs with provider information</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of municipality area information</returns>
-    private async Task<List<MunicipalityAreaInfoDto>> CalculateMunicipalityInfo<T1, T2>(
-        Geometry queryGeometry,
-        List<T1> cellsWithProvider,
-        List<T2> napsWithProvider,
-        CancellationToken cancellationToken)
-        where T1 : class
-        where T2 : class
-    {
-        var cellLocations = cellsWithProvider
-                        .Select(c => GetLocationFromItem(c))
-                        .Where(loc => loc is not null && loc.IsValid)
-                        .Cast<Point>()
-                        .ToList();
-
-        var napLocations = napsWithProvider
-            .Select(n => GetLocationFromItem(n))
-            .Where(loc => loc is not null && loc.IsValid)
-            .Cast<Point>()
-            .ToList();
-
-        var allLocations = cellLocations.Concat(napLocations).ToList();
-
-        // Find all municipalities covered by the query area (regardless of assets)
-        var coveredMunicipalities = await GeoQueryHelper.FindMunicipalitiesWithinGeometryAsync(
-            queryGeometry, _municipalityRepository, cancellationToken);
-
-        _logger.LogInformation("Found {CoveredCount} municipalities within the query area", coveredMunicipalities.Count);
-
-        // Find municipalities for asset locations (if any)
-        var locationMunicipalityMap = new Dictionary<Point, (Guid? Id, string Name)>();
-        if (allLocations.Count > 0)
-        {
-            locationMunicipalityMap = await GeoQueryHelper.FindMunicipalitiesByLocationsAsync(
-                allLocations, _municipalityRepository, cancellationToken);
-        }
-
-        // Group by municipality and count assets
-        var municipalityGroups = new Dictionary<(Guid? Id, string Name), (int CellCount, int NAPCount, bool IsCovered)>();
-
-        // Initialize all covered municipalities with zero assets
-        foreach (var coveredMunicipality in coveredMunicipalities)
-        {
-            var key = (coveredMunicipality.Id, coveredMunicipality.Name);
-            municipalityGroups[key] = (0, 0, true);
-        }
-
-        // Count cells by municipality
-        foreach (var cell in cellsWithProvider)
-        {
-            var location = GetLocationFromItem(cell);
-            if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
-            {
-                var key = (municipalityInfo.Id, municipalityInfo.Name);
-                if (municipalityGroups.TryGetValue(key, out var value))
-                {
-                    municipalityGroups[key] = (value.CellCount + 1, value.NAPCount, value.IsCovered);
-                }
-                else
-                {
-                    // Asset found in municipality not covered by query geometry (edge case)
-                    municipalityGroups[key] = (1, 0, false);
-                }
-            }
-        }
-
-        // Count NAPs by municipality
-        foreach (var nap in napsWithProvider)
-        {
-            var location = GetLocationFromItem(nap);
-            if (location?.IsValid == true && locationMunicipalityMap.TryGetValue(location, out var municipalityInfo))
-            {
-                var key = (municipalityInfo.Id, municipalityInfo.Name);
-                if (municipalityGroups.TryGetValue(key, out var value))
-                {
-                    municipalityGroups[key] = (value.CellCount, value.NAPCount + 1, value.IsCovered);
-                }
-                else
-                {
-                    // Asset found in municipality not covered by query geometry (edge case)
-                    municipalityGroups[key] = (0, 1, false);
-                }
-            }
-        }
-
-        // Calculate total assets for percentage calculation
-        var totalAssets = cellsWithProvider.Count + napsWithProvider.Count;
-
-        var result = municipalityGroups
-            .Select(kvp => new MunicipalityAreaInfoDto
-            {
-                Id = kvp.Key.Id,
-                Name = kvp.Key.Name,
-                CellCount = kvp.Value.CellCount,
-                NAPCount = kvp.Value.NAPCount,
-                IsCoveredByQuery = kvp.Value.IsCovered,
-                AssetPercentage = totalAssets > 0
-                    ? Math.Round(((double)(kvp.Value.CellCount + kvp.Value.NAPCount) / totalAssets) * 100, 2)
-                    : 0
-            })
-            .OrderByDescending(m => m.HasAssets)        // Assets first
-            .ThenByDescending(m => m.TotalAssets)       // Then by asset count
-            .ThenByDescending(m => m.IsCoveredByQuery)  // Then covered ones
-            .ThenBy(m => m.Name)                        // Finally by name
-            .ToList();
-
-        _logger.LogInformation("Municipality calculation completed. Found {MunicipalityCount} total municipalities ({WithAssets} with assets, {CoveredOnly} covered without assets)",
-            result.Count,
-            result.Count(m => m.HasAssets),
-            result.Count(m => m.IsCoveredByQuery && !m.HasAssets));
-
-        return result;
-    }
-
-    /// <summary>
-    /// Type-safe method to extract Location property from objects.
-    /// Handles both interface implementations and anonymous types with optimized caching.
-    /// </summary>
-    /// <typeparam name="T">Type containing a Location property</typeparam>
-    /// <param name="item">Object containing the Location property</param>
-    /// <returns>The Point location or null if not available or invalid</returns>
-    private static Point? GetLocationFromItem<T>(T item) where T : class
-    {
-        if (item == null) return null;
-
-        // First try interface-based approach for better type safety
-        if (item is IHasLocation hasLocation)
-        {
-            return hasLocation.Location;
-        }
-
-        // Fallback to cached reflection for anonymous types
-        try
-        {
-            var locationType = typeof(T);
-            var locationProperty = LocationPropertyCache.GetOrAdd(locationType, type =>
-            {
-                var property = type.GetProperty("Location");
-                return property?.PropertyType == typeof(Point) ? property : null;
-            });
-
-            return locationProperty?.GetValue(item) as Point;
-        }
-        catch
-        {
-            return null;
         }
     }
 
