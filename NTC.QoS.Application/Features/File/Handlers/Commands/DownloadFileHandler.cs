@@ -15,6 +15,27 @@ namespace NTC.QoS.Application.Features.File.Handlers.Commands;
 
 internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFileRequest, ApiResponse<Stream>>
 {
+    // Speedtest Template Headers - define once for consistency
+    private static readonly string[] SpeedtestHeaders = 
+    [
+        "timestamp", "ping", "jitter", "upload", "download", "region", "province", 
+        "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", 
+        "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac"
+    ];
+
+    // Speedtest Template Column Positions (1-indexed) - dynamically computed
+    private static class SpeedtestTemplateColumns
+    {
+        public static int Timestamp => Array.IndexOf(SpeedtestHeaders, "timestamp") + 1;
+        public static int Upload => Array.IndexOf(SpeedtestHeaders, "upload") + 1;
+        public static int Download => Array.IndexOf(SpeedtestHeaders, "download") + 1;
+        public static int SignalQuality => Array.IndexOf(SpeedtestHeaders, "signal_quality") + 1;
+        public static int Operator => Array.IndexOf(SpeedtestHeaders, "operator") + 1;
+        public static int Latitude => Array.IndexOf(SpeedtestHeaders, "lat") + 1;
+        public static int Longitude => Array.IndexOf(SpeedtestHeaders, "lon") + 1;
+        public static int NetworkType => Array.IndexOf(SpeedtestHeaders, "network_type") + 1;
+    }
+
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IRepository<Domain.Aggregates.Generation> _generationRepository;
     private readonly IRepository<Domain.Entities.Technology> _technologyRepository;
@@ -89,6 +110,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddCommonHeaders(worksheet, "Provider", "Barangay", "Municipality", "Province", "Region", "Lat", "Lng");
 
         var providers = await GetServiceProviders(ServiceTypeEnum.Wired, cancellationToken);
+
+        if (providers.Count == 0)
+        {
+            throw new InvalidOperationException("No wired service providers available. Please add providers before generating the template.");
+        }
 
         // Add providers to a hidden sheet
         var providerSheet = package.Workbook.Worksheets.Add("Providers");
@@ -168,6 +194,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
 
+        if (providers.Count == 0)
+        {
+            throw new InvalidOperationException("No wireless service providers available. Please add providers before generating the template.");
+        }
+
         // Add hidden sheets for dropdowns
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
@@ -187,15 +218,65 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddCommonHeaders(worksheet, "timestamp", "ping", "jitter", "upload", "download", "region", "province", "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac");
+        AddCommonHeaders(worksheet, SpeedtestHeaders);
 
-        var providers = await GetWirelessServiceProviders(cancellationToken);
+        var providers = await GetAllServiceProvidersAcrossTypes(cancellationToken);
         var technologies = await GetTechnologies(cancellationToken);
         var signalQuality = Enum.GetNames(typeof(SignalQualityEnum)).ToList();
 
-        AddDropdownValidation(worksheet, "L2:L10", providers);
-        AddDropdownValidation(worksheet, "R2:R10", technologies);
-        AddDropdownValidation(worksheet, "K2:K10", signalQuality);
+        if (providers.Count == 0)
+        {
+            throw new InvalidOperationException("No service providers available. Please add providers before generating the template.");
+        }
+
+        if (technologies.Count == 0)
+        {
+            throw new InvalidOperationException("No technologies available. Please add technologies before generating the template.");
+        }
+
+        // Add providers to a hidden sheet
+        var providerSheet = package.Workbook.Worksheets.Add("Providers");
+        providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
+        var providerRange = providerSheet.Cells[1, 1, providers.Count, 1];
+        providerSheet.Hidden = eWorkSheetHidden.Hidden;
+
+        // Add technologies to a hidden sheet
+        var technologySheet = package.Workbook.Worksheets.Add("Technologies");
+        technologySheet.Cells.LoadFromCollection(technologies.Select(t => new { Name = t }));
+        var technologyRange = technologySheet.Cells[1, 1, technologies.Count, 1];
+        technologySheet.Hidden = eWorkSheetHidden.Hidden;
+
+        // Apply dropdown validations using dynamic column positions
+        var operatorCol = GetExcelColumnName(SpeedtestTemplateColumns.Operator);
+        var networkTypeCol = GetExcelColumnName(SpeedtestTemplateColumns.NetworkType);
+        var signalQualityCol = GetExcelColumnName(SpeedtestTemplateColumns.SignalQuality);
+
+        AddDropdownValidation(worksheet, $"{operatorCol}2:{operatorCol}1048576", providerRange, allowBlank: false);
+        AddDropdownValidation(worksheet, $"{networkTypeCol}2:{networkTypeCol}1048576", technologyRange, allowBlank: true);
+        AddDropdownValidation(worksheet, $"{signalQualityCol}2:{signalQualityCol}1048576", signalQuality, allowBlank: true);
+
+        // Mark required fields with red background color
+        MarkRequiredFields(worksheet, new[]
+        {
+            SpeedtestTemplateColumns.Timestamp,
+            SpeedtestTemplateColumns.Upload,
+            SpeedtestTemplateColumns.Download,
+            SpeedtestTemplateColumns.Operator,
+            SpeedtestTemplateColumns.Latitude,
+            SpeedtestTemplateColumns.Longitude
+        });
+    }
+
+    private static void MarkRequiredFields(ExcelWorksheet worksheet, int[] requiredColumnNumbers)
+    {
+        var headerCells = requiredColumnNumbers.Select(colNum => worksheet.Cells[1, colNum]);
+        
+        foreach (var headerCell in headerCells)
+        {
+            headerCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+            headerCell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightCoral);
+            headerCell.Style.Font.Color.SetColor(System.Drawing.Color.Black);
+        }
     }
 
     private async Task GenerateCellularCoverageTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -220,6 +301,11 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownWithHiddenSheetIfNeeded(
             package, worksheet, networks, 
             "Networks", "B2:B1048576");
+
+        if (networks.Count == 0)
+        {
+            throw new InvalidOperationException("No networks available. Please add networks before generating the template.");
+        }
 
         worksheet.Cells.AutoFitColumns();
     }
@@ -261,6 +347,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             worksheet.Cells[1, i + 1].Value = headers[i];
             worksheet.Cells[1, i + 1].Style.Font.Bold = true;
         }
+        
+        // Freeze the header row
+        worksheet.View.FreezePanes(2, 1);
     }
 
     private static void AddCellMultiRowHeaders(ExcelWorksheet worksheet, object[,] headers, int startRow)
@@ -337,10 +426,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         worksheet.View.FreezePanes(startRow + numRows, 1);
     }
 
-    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, string? defaultValue = null)
+    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, bool allowBlank = false, string? defaultValue = null)
     {
         var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = false;
+        validation.AllowBlank = allowBlank;
         validation.ShowErrorMessage = true;
         validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
         validation.ErrorTitle = "Invalid input";
@@ -356,10 +445,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
-    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, List<string> values, string? defaultValue = null)
+    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, List<string> values, bool allowBlank = false, string? defaultValue = null)
     {
         var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = false;
+        validation.AllowBlank = allowBlank;
         validation.ShowErrorMessage = true;
         validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
         validation.ErrorTitle = "Invalid input";
@@ -387,6 +476,23 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
+    /// <summary>
+    /// Converts a 1-indexed column number to Excel column letter notation (e.g., 1 -> "A", 27 -> "AA")
+    /// </summary>
+    private static string GetExcelColumnName(int columnNumber)
+    {
+        var columnName = new System.Text.StringBuilder();
+
+        while (columnNumber > 0)
+        {
+            int modulo = (columnNumber - 1) % 26;
+            columnName.Insert(0, Convert.ToChar('A' + modulo));
+            columnNumber = (columnNumber - modulo) / 26;
+        }
+
+        return columnName.ToString();
+    }
+
     private async Task<List<string>> GetServiceProviders(ServiceTypeEnum service, CancellationToken cancellationToken)
     {
         var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted && sp.Service.Type == service)
@@ -410,6 +516,16 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private async Task<List<string>> GetBands(CancellationToken cancellationToken)
     {
         return await GetEntityNames(_bandRepository, b => !b.IsDeleted, b => b.Name, cancellationToken);
+    }
+
+    private async Task<List<string>> GetAllServiceProvidersAcrossTypes(CancellationToken cancellationToken)
+    {
+        var query = _serviceProviderRepository.Query(sp => !sp.IsDeleted)
+            .OrderBy(sp => sp.Provider.Name)
+            .Select(sp => sp.Provider.Name)
+            .Distinct();
+
+        return await _serviceProviderRepository.ToListAsync(query, cancellationToken);
     }
 
     private async Task<List<string>> GetWirelessServiceProviders(CancellationToken cancellationToken)
