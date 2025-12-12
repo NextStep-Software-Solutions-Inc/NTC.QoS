@@ -93,7 +93,6 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
                 municipalityIds: municipalityIds,
                 barangayIds: barangayIds);
 
-            // Apply date filters
             if (request.StartDate.HasValue)
             {
                 query = query.Where(s => s.DateTime >= request.StartDate.Value);
