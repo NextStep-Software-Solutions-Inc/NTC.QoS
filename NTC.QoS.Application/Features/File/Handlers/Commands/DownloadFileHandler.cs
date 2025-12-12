@@ -251,9 +251,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var networkTypeCol = GetExcelColumnName(SpeedtestTemplateColumns.NetworkType);
         var signalQualityCol = GetExcelColumnName(SpeedtestTemplateColumns.SignalQuality);
 
-        AddDropdownValidation(worksheet, $"{operatorCol}2:{operatorCol}1048576", providerRange);
-        AddDropdownValidation(worksheet, $"{networkTypeCol}2:{networkTypeCol}1048576", technologyRange);
-        AddDropdownValidation(worksheet, $"{signalQualityCol}2:{signalQualityCol}1048576", signalQuality);
+        AddDropdownValidation(worksheet, $"{operatorCol}2:{operatorCol}1048576", providerRange, allowBlank: false);
+        AddDropdownValidation(worksheet, $"{networkTypeCol}2:{networkTypeCol}1048576", technologyRange, allowBlank: true);
+        AddDropdownValidation(worksheet, $"{signalQualityCol}2:{signalQualityCol}1048576", signalQuality, allowBlank: true);
 
         // Mark required fields with red background color
         MarkRequiredFields(worksheet, new[]
@@ -381,10 +381,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         worksheet.View.FreezePanes(startRow + numRows, 1);
     }
 
-    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, string? defaultValue = null)
+    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, bool allowBlank = false, string? defaultValue = null)
     {
         var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = false;
+        validation.AllowBlank = allowBlank;
         validation.ShowErrorMessage = true;
         validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
         validation.ErrorTitle = "Invalid input";
@@ -400,10 +400,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
-    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, List<string> values, string? defaultValue = null)
+    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, List<string> values, bool allowBlank = false, string? defaultValue = null)
     {
         var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = false;
+        validation.AllowBlank = allowBlank;
         validation.ShowErrorMessage = true;
         validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
         validation.ErrorTitle = "Invalid input";
@@ -436,16 +436,16 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     /// </summary>
     private static string GetExcelColumnName(int columnNumber)
     {
-        string columnName = "";
+        var columnName = new System.Text.StringBuilder();
 
         while (columnNumber > 0)
         {
             int modulo = (columnNumber - 1) % 26;
-            columnName = Convert.ToChar('A' + modulo) + columnName;
+            columnName.Insert(0, Convert.ToChar('A' + modulo));
             columnNumber = (columnNumber - modulo) / 26;
         }
 
-        return columnName;
+        return columnName.ToString();
     }
 
     private async Task<List<string>> GetServiceProviders(ServiceTypeEnum service, CancellationToken cancellationToken)
