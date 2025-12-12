@@ -52,7 +52,7 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
         }
 
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseNpgsql(connectionString, x => x.UseNetTopologySuite());
+        optionsBuilder.UseNpgsql(connectionString, x => x.UseNetTopologySuite().MigrationsAssembly(typeof(ApplicationDbContext).Assembly.GetName().Name));
 
         return new ApplicationDbContext(optionsBuilder.Options, configuration);
     }
