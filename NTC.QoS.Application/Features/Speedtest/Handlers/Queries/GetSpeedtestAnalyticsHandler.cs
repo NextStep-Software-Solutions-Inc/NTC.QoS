@@ -291,7 +291,6 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
     {
         var totalTests = speedtests.Count;
 
-        // Map signal quality strings to categories
         var excellentCount = speedtests.Count(s => s.SignalQuality == "Excellent");
         var goodCount = speedtests.Count(s => s.SignalQuality == "Good");
         var averageCount = speedtests.Count(s => s.SignalQuality == "Average");
