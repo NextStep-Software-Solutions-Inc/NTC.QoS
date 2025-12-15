@@ -130,26 +130,34 @@ public class RequestResponseLoggingMiddleware
         // Log body if enabled and present
         if (_settings.LogRequestBody && request.ContentLength > 0)
         {
-            request.Body.Position = 0;
-            using var reader = new StreamReader(
-                request.Body,
-                encoding: Encoding.UTF8,
-                detectEncodingFromByteOrderMarks: false,
-                bufferSize: 1024,
-                leaveOpen: true);
-
-            var body = await reader.ReadToEndAsync();
-            request.Body.Position = 0;
-
-            requestLog.BodySize = body.Length;
-
-            if (body.Length <= _settings.MaxBodySizeToLog)
+            try
             {
-                requestLog.Body = RedactSensitiveData(body);
+                request.Body.Position = 0;
+                using var reader = new StreamReader(
+                    request.Body,
+                    encoding: Encoding.UTF8,
+                    detectEncodingFromByteOrderMarks: false,
+                    bufferSize: 1024,
+                    leaveOpen: true);
+
+                var body = await reader.ReadToEndAsync();
+                request.Body.Position = 0;
+
+                requestLog.BodySize = body.Length;
+
+                if (body.Length <= _settings.MaxBodySizeToLog)
+                {
+                    requestLog.Body = RedactSensitiveData(body);
+                }
+                else
+                {
+                    requestLog.Body = $"[Body too large: {body.Length} bytes - truncated]";
+                }
             }
-            else
+            catch (NotSupportedException)
             {
-                requestLog.Body = $"[Body too large: {body.Length} bytes - truncated]";
+                // Stream doesn't support seeking, skip body logging
+                requestLog.Body = "[Body not available - stream does not support seeking]";
             }
         }
 
@@ -177,23 +185,35 @@ public class RequestResponseLoggingMiddleware
         }
 
         // Log body if enabled
-        if (_settings.LogResponseBody && response.Body.CanRead)
+        if (_settings.LogResponseBody && response.Body.CanRead && response.Body.CanSeek)
         {
-            response.Body.Seek(0, SeekOrigin.Begin);
-            using var reader = new StreamReader(response.Body, Encoding.UTF8, leaveOpen: true);
-            var body = await reader.ReadToEndAsync();
-            response.Body.Seek(0, SeekOrigin.Begin);
-
-            responseLog.BodySize = body.Length;
-
-            if (body.Length <= _settings.MaxBodySizeToLog)
+            try
             {
-                responseLog.Body = RedactSensitiveData(body);
+                response.Body.Seek(0, SeekOrigin.Begin);
+                using var reader = new StreamReader(response.Body, Encoding.UTF8, leaveOpen: true);
+                var body = await reader.ReadToEndAsync();
+                response.Body.Seek(0, SeekOrigin.Begin);
+
+                responseLog.BodySize = body.Length;
+
+                if (body.Length <= _settings.MaxBodySizeToLog)
+                {
+                    responseLog.Body = RedactSensitiveData(body);
+                }
+                else
+                {
+                    responseLog.Body = $"[Body too large: {body.Length} bytes - truncated]";
+                }
             }
-            else
+            catch (NotSupportedException)
             {
-                responseLog.Body = $"[Body too large: {body.Length} bytes - truncated]";
+                // Stream doesn't support seeking, skip body logging
+                responseLog.Body = "[Body not available - stream does not support seeking]";
             }
+        }
+        else if (_settings.LogResponseBody && response.Body.CanRead && !response.Body.CanSeek)
+        {
+            responseLog.Body = "[Body not available - stream does not support seeking]";
         }
 
         return responseLog;
@@ -339,6 +359,11 @@ public class RequestResponseLoggingMiddleware
                 return element.GetString();
 
             case JsonValueKind.Number:
+                // Preserve number precision by trying integer first, then decimal
+                if (element.TryGetInt64(out var longValue))
+                    return longValue;
+                if (element.TryGetDecimal(out var decimalValue))
+                    return decimalValue;
                 return element.GetDouble();
 
             case JsonValueKind.True:

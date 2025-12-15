@@ -34,16 +34,22 @@ public class Program
             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
+        // Get logging settings from configuration
+        var loggingSettings = builder.Configuration
+            .GetSection("VerboseApiLogging")
+            .Get<NTC.QoS.Domain.Models.Logging.VerboseApiLoggingSettings>() 
+            ?? new NTC.QoS.Domain.Models.Logging.VerboseApiLoggingSettings();
+
         // Configure Serilog for file-based logging
         Log.Logger = new LoggerConfiguration()
             .ReadFrom.Configuration(builder.Configuration)
             .Enrich.FromLogContext()
             .WriteTo.Console()
             .WriteTo.File(
-                path: "logs/api-requests-.txt",
+                path: loggingSettings.LogFilePath ?? "logs/api-requests-.txt",
                 rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 30,
-                fileSizeLimitBytes: 100 * 1024 * 1024, // 100MB
+                retainedFileCountLimit: loggingSettings.RetainedFileCountLimit,
+                fileSizeLimitBytes: loggingSettings.FileSizeLimitBytes,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
 
