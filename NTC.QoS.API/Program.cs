@@ -18,6 +18,7 @@ using NTC.QoS.Infrastructure.HealthChecks;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Serilog;
 
 namespace NTC.QoS.API;
 
@@ -32,6 +33,22 @@ public class Program
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
+
+        // Configure Serilog for file-based logging
+        Log.Logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(builder.Configuration)
+            .Enrich.FromLogContext()
+            .WriteTo.Console()
+            .WriteTo.File(
+                path: "logs/api-requests-.txt",
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 30,
+                fileSizeLimitBytes: 100 * 1024 * 1024, // 100MB
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
+
+        builder.Host.UseSerilog();
+
 
         // Validate Clerk secret for both Development and Production
         var clerkSecret = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
@@ -173,6 +190,9 @@ public class Program
         // Add API-specific services
         builder.Services.AddApiRateLimiting();
 
+        // Add verbose API logging services
+        builder.Services.AddVerboseApiLogging(builder.Configuration);
+
         // Register Hangfire job server (required for processing jobs)
         builder.Services.AddHangfireServer();
 
@@ -196,6 +216,10 @@ public class Program
         await app.Services.InitializeApplicationAsync(builder.Configuration, env);
 
         app.UseSecurityHeaders();
+        
+        // Enable verbose API request/response logging (should be early in pipeline)
+        app.UseVerboseApiLogging();
+        
         bool isDevelopment = app.Environment.IsDevelopment();
         app.UseCors(isDevelopment ? "Dev" : "Prod");
 
