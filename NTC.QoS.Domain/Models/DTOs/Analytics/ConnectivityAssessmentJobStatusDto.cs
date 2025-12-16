@@ -8,9 +8,9 @@ namespace NTC.QoS.Domain.Models.DTOs.Analytics;
 public class ConnectivityAssessmentJobStatusDto
 {
     /// <summary>
-    /// Unique identifier for the job (using int for easier querying)
+    /// Unique identifier for the job (Hangfire Job ID)
     /// </summary>
-    public int JobId { get; set; }
+    public string JobId { get; set; } = string.Empty;
 
     /// <summary>
     /// Current status of the job

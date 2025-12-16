@@ -97,7 +97,6 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     private readonly IProvinceRepository _provinceRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IBarangayRepository _barangayRepository;
-    private static int _jobIdCounter = ConnectivityAssessmentJobConfiguration.JobIdCounterStart;
 
     public StartConnectivityAssessmentJobHandler(
         IBackgroundJobService backgroundJobService,
@@ -125,10 +124,10 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     {
         try
         {
-            // Step 1: Initialize job
-            var jobId = Interlocked.Increment(ref _jobIdCounter);
+            // Step 1: Initialize and generate unique job ID
             var startTime = DateTime.UtcNow;
             var currentUserId = _userContextService.GetCurrentUserId() ?? "System";
+            var jobId = Guid.NewGuid().ToString("N"); // Generate unique job ID before enqueueing
 
             // Step 2: Calculate ACTUAL location counts from database FIRST
             var actualTotalLocations = await CalculateActualTotalLocationsAsync(
@@ -139,32 +138,32 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
                 request.MaxHierarchicalLocations ?? int.MaxValue,
                 cancellationToken);
 
-            // Step 3: Create job request with actual total locations
+            // Step 3: Create job request with the generated job ID
             var jobRequest = CreateJobRequest(jobId, request, currentUserId, startTime, actualTotalLocations);
 
-            // Step 4: Log configuration
-            LogJobConfiguration(jobId, jobRequest);
-
-            // Step 5: Log location count details
-            LogLocationCounts(jobId, jobRequest, actualTotalLocations);
-
-            // Step 6: Initialize cache with actual counts
+            // Step 4: Initialize cache BEFORE enqueueing so status is available immediately
             InitializeJobStatusCache(jobId, actualTotalLocations, startTime);
 
-            // Step 7: Enqueue job
+            // Step 5: Store job request in cache
+            var jobRequestCacheKey = $"job_request_{jobId}";
+            _memoryCache.Set(jobRequestCacheKey, jobRequest, TimeSpan.FromHours(2));
+
+            // Step 6: Enqueue job with Hangfire (the jobRequest now has proper JobId)
             var hangfireJobId = _backgroundJobService.Enqueue<IProcessConnectivityAssessmentJob>(
                 job => job.ExecuteAsync(jobRequest, CancellationToken.None));
 
-            // Step 8: Log job start
+            // Step 7: Log configuration and start
+            LogJobConfiguration(jobId, jobRequest);
+            LogLocationCounts(jobId, jobRequest, actualTotalLocations);
             LogJobStart(jobId, hangfireJobId, request, jobRequest, actualTotalLocations);
 
-            // Step 9: Create and return response
+            // Step 8: Create and return response
             var response = CreateJobResponse(jobId, jobRequest, actualTotalLocations);
 
             return await Task.FromResult(new ApiResponse<ConnectivityAssessmentJobResponseDto>
             {
                 Succeeded = true,
-                Message = $"Background job started successfully. Job ID: {jobId}",
+                Message = $"Background job started successfully. Job ID: {jobId} (Hangfire: {hangfireJobId})",
                 Data = response
             });
         }
@@ -187,7 +186,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// Creates the job request DTO with all necessary configuration
     /// </summary>
     private ConnectivityAssessmentJobRequestDto CreateJobRequest(
-        int jobId,
+        string jobId,
         StartConnectivityAssessmentJobRequest request,
         string userId,
         DateTime startTime,
@@ -215,7 +214,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// <summary>
     /// Initializes job status in memory cache
     /// </summary>
-    private void InitializeJobStatusCache(int jobId, int estimatedLocations, DateTime startTime)
+    private void InitializeJobStatusCache(string jobId, int estimatedLocations, DateTime startTime)
     {
         var initialJobStatus = new ConnectivityAssessmentJobStatusDto
         {
@@ -238,7 +237,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// Creates the job response DTO
     /// </summary>
     private static ConnectivityAssessmentJobResponseDto CreateJobResponse(
-        int jobId,
+        string jobId,
         ConnectivityAssessmentJobRequestDto jobRequest,
         int actualTotalLocations)
     {
@@ -255,7 +254,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// <summary>
     /// Logs job configuration for transparency
     /// </summary>
-    private void LogJobConfiguration(int jobId, ConnectivityAssessmentJobRequestDto jobRequest)
+    private void LogJobConfiguration(string jobId, ConnectivityAssessmentJobRequestDto jobRequest)
     {
         _logger.LogInformation(
             "Job {JobId} configuration - Hierarchical: {Hierarchical}, " +
@@ -269,7 +268,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// <summary>
     /// Logs location count details for debugging
     /// </summary>
-    private void LogLocationCounts(int jobId, ConnectivityAssessmentJobRequestDto jobRequest, int actualTotalLocations)
+    private void LogLocationCounts(string jobId, ConnectivityAssessmentJobRequestDto jobRequest, int actualTotalLocations)
     {
         if (!jobRequest.GenerateHierarchicalAssessments)
             return;
@@ -290,7 +289,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// Logs job start information
     /// </summary>
     private void LogJobStart(
-        int jobId,
+        string jobId,
         string hangfireJobId,
         StartConnectivityAssessmentJobRequest request,
         ConnectivityAssessmentJobRequestDto jobRequest,

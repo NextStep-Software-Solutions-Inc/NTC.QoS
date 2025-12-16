@@ -312,7 +312,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobStatusDto>>> GetConnectivityAssessmentJobStatus(
-        [FromRoute] int jobId,
+        [FromRoute] string jobId,
         [FromQuery] bool forceVerification = false)
     {
         var request = new GetConnectivityAssessmentJobStatusRequest 

@@ -97,7 +97,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(ConnectivityAssessmentJobRequestDto jobRequest, CancellationToken cancellationToken)
     {
-        var jobId = jobRequest.JobId;
+        var jobId = jobRequest.JobId; // Hangfire job ID
         var startTime = DateTime.UtcNow;
 
         // Store the user ID for this job execution
@@ -283,7 +283,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<List<LocationConnectivityDto>> ProcessLocationsSequentially(
         List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
         bool forceRecalculate,
-        int jobId,
+        string jobId,
         string processingContext,
         DateTime? startDate,
         DateTime? endDate,
@@ -404,7 +404,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment>> PreloadExistingAssessments(
         List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
         bool forceRecalculate,
-        int jobId,
+        string jobId,
         CancellationToken cancellationToken)
     {
         var existingAssessments = new Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment>();
@@ -2425,7 +2425,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Updates job status in the database with tracking information
     /// </summary>
     private Task UpdateJobStatus(
-        int jobId,
+        string jobId,
         ConnectivityAssessmentJobStatusEnum status,
         string message,
         DateTime? startTime = null,
@@ -2492,7 +2492,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Reports progress during processing with cumulative count tracking
     /// </summary>
     private async Task ReportProgressWithCumulativeCount(
-        int jobId,
+        string jobId,
         int cumulativeProcessedCount,
         string context,
         DateTime batchStartTime,
@@ -2559,7 +2559,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// </summary>
     [Obsolete("Use ReportProgressWithCumulativeCount instead")]
     private async Task ReportProgress(
-        int jobId,
+        string jobId,
         int currentBatchProcessedCount,
         int currentBatchTotalCount,
         string context,
@@ -2572,7 +2572,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// <summary>
     /// Performs memory management operations
     /// </summary>
-    private async Task PerformMemoryManagement(int jobId, int batchIndex)
+    private async Task PerformMemoryManagement(string jobId, int batchIndex)
     {
         try
         {
@@ -2780,7 +2780,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         LocationTypeEnum locationType,
         int hierarchicalDepth,
         bool forceRecalculate,
-        int jobId,
+        string jobId,
         int currentProcessedCount,
         DateTime? startDate,
         DateTime? endDate,

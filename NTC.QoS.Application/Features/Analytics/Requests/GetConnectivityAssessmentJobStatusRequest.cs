@@ -9,7 +9,7 @@ namespace NTC.QoS.Application.Features.Analytics.Requests;
 /// </summary>
 public class GetConnectivityAssessmentJobStatusRequest : IRequest<ApiResponse<ConnectivityAssessmentJobStatusDto>>
 {
-    public int JobId { get; set; }
+    public string JobId { get; set; } = string.Empty;
 
     /// <summary>
     /// Force database verification even if already verified
