@@ -337,7 +337,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Organization>()
             .HasIndex(o => o.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Role>()
             .HasMany(r => r.Users);
