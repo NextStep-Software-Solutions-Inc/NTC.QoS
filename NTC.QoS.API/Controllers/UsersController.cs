@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
 
@@ -16,6 +18,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateUsers)]
     public async Task<ActionResult<ApiResponse<UserDto>>> CreateUser(CreateUserDto userDto)
     {
         var user = await _mediator.Send(new CreateUserRequest(userDto));
@@ -23,6 +26,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPost("invite")]
+    [RequirePermission(Permissions.InviteUsers)]
     public async Task<ActionResult<ApiResponse<UserDto>>> InviteUser(InviteUserDto userDto)
     {
         var user = await _mediator.Send(new InviteUserRequest(userDto));
@@ -30,6 +34,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewUsers)]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetAllUsers(int pageSize = 10,
                                                                          int pageNumber = 1,
                                                                          Guid? roleId = null,
@@ -42,6 +47,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewUsers)]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetUserById(Guid id)
     {
         var user = await _mediator.Send(new GetUserByIdRequest(id));
@@ -49,6 +55,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("auth-user/{authUserId}")]
+    [RequirePermission(Permissions.ViewUsers)]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetUserByAuthUserId(string authUserId)
     {
         var user = await _mediator.Send(new GetUserByAuthUserIdRequest(authUserId));
@@ -56,6 +63,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateUsers)]
     public async Task<ActionResult<ApiResponse<UserDto>>> UpdateUser(Guid id, UpdateUserDto userDto)
     {
         var user = await _mediator.Send(new UpdateUserByIdRequest(id, userDto));
@@ -63,6 +71,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteUsers)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteUser(Guid id)
     {
         var user = await _mediator.Send(new DeleteUserByIdRequest(id));

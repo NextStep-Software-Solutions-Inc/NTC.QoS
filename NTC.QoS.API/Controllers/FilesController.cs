@@ -2,8 +2,10 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
@@ -21,6 +23,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.UploadFiles)]
     public async Task<ActionResult<ApiResponse<FileDto>>> UploadFile([FromForm] UploadFileDto uploadFile)
     {
         var file = await _mediator.Send(new UploadFileRequest(uploadFile));
@@ -63,6 +66,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewFiles)]
     public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10,
                                                                             int pageNumber = 1,
                                                                             [FromQuery] string[]? types = default,
@@ -78,6 +82,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewFiles)]
     public async Task<ActionResult<ApiResponse<FileDto>>> GetFileById(Guid id)
     {
         var file = await _mediator.Send(new GetFileByIdRequest(id));
@@ -85,6 +90,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.UpdateFiles)]
     public async Task<ActionResult<ApiResponse<FileDto>>> UpdateFileById(Guid id, UpdateFileDto updateFile)
     {
         var file = await _mediator.Send(new UpdateFileByIdRequest(id, new UpdateFileDto
@@ -95,6 +101,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteFiles)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteFileById(Guid id)
     {
         var file = await _mediator.Send(new DeleteFileByIdRequest(id));
@@ -102,6 +109,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("download/{type}")]
+    [RequirePermission(Permissions.DownloadFiles)]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {

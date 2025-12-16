@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Organization.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Organization;
 
@@ -16,6 +18,7 @@ public class OrganizationsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateOrganizations)]
     public async Task<ActionResult<PaginatedResponse<OrganizationDto>>> CreateOrganization(CreateOrganizationDto organizationDto)
     {
         var organization = await _mediator.Send(new CreateOrganizationRequest
@@ -26,6 +29,7 @@ public class OrganizationsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewOrganizations)]
     public async Task<ActionResult<PaginatedResponse<OrganizationDto>>> GetAllOrganizations(int pageSize = 10, int pageNumber = 1)
     {
         var result = await _mediator.Send(new GetAllOrganizationsRequest(pageSize, pageNumber));
@@ -33,6 +37,7 @@ public class OrganizationsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewOrganizations)]
     public async Task<ActionResult<ApiResponse<OrganizationDto>>> GetOrganizationById(Guid id)
     {
         var request = new GetOrganizationByIdRequest(id);
@@ -41,6 +46,7 @@ public class OrganizationsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateOrganizations)]
     public async Task<ActionResult<ApiResponse<OrganizationDto>>> UpdateOrganizationById(Guid id, UpdateOrganizationDto organizationDto)
     {
         var organization = await _mediator.Send(new UpdateOrganizationByIdRequest
@@ -52,6 +58,7 @@ public class OrganizationsController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteOrganizations)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteOrganizationById(Guid id)
     {
         var organization = await _mediator.Send(new DeleteOrganizationByIdRequest(id));

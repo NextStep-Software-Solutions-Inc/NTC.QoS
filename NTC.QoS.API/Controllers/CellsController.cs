@@ -2,7 +2,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.RequestParams;
@@ -21,6 +23,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     private const string CellsCacheKeysSet = "cells_cache_keys";
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateCells)]
     public async Task<ActionResult<ApiResponse<CellDto>>> CreateCell(CreateCellDto createCell)
     {
         var cell = await mediator.Send(new CreateCellRequest(createCell));
@@ -63,6 +66,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return await GetAllCells(query);
     }
     [HttpGet]
+    [RequirePermission(Permissions.ViewCells)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] LocationQueryParams query)
     {
@@ -70,6 +74,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewCells)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<CellDto>>> GetCellById(Guid id)
     {
@@ -78,6 +83,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateCells)]
     public async Task<ActionResult<ApiResponse<CellDto>>> UpdateCellById(Guid id, UpdateCellDto updateCell)
     {
         var cell = await mediator.Send(new UpdateCellByIdRequest(id, updateCell));
@@ -89,6 +95,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     }
 
     [HttpPut("{id}/status")]
+    [RequirePermission(Permissions.UpdateCells)]
     public async Task<ActionResult<ApiResponse<CellDto>>> UpdateStatusById(Guid id, [FromBody] string status)
     {
         var cell = await mediator.Send(new UpdateCellStatusByIdRequest(id, status));
@@ -100,6 +107,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     }
 
     [HttpDelete]
+    [RequirePermission(Permissions.DeleteCells)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById([Required][FromQuery] List<Guid> ids)
     {
         var cells = await mediator.Send(new DeleteCellsByIdsRequest { Ids = ids });
