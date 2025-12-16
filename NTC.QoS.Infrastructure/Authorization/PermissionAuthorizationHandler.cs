@@ -21,7 +21,7 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
         PermissionRequirement requirement)
     {
         var hasPermission = await _userAuthorizationService.HasPermissionAsync(requirement.Permission);
-        
+
         if (hasPermission)
         {
             context.Succeed(requirement);

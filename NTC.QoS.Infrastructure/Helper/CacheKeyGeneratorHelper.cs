@@ -54,7 +54,7 @@ namespace NTC.QoS.Infrastructure.Helper
         {
             // Normalize TowerType to handle null and empty strings consistently
             var normalizedTowerType = string.IsNullOrWhiteSpace(towerType) ? "Unknown" : towerType;
-            
+
             // This directly reflects your existing logic for this key.
             // Note: Your current code uses c.Location.Coordinate.X and c.Location.Coordinate.Y.
             // Ensure `location.Coordinate.X` and `location.Coordinate.Y` yield the same precision/format

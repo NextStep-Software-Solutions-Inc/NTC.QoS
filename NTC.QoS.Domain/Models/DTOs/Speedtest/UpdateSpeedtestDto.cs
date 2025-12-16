@@ -13,11 +13,11 @@ public class UpdateSpeedtestDto
     public decimal RSSI { get; set; }
     public decimal UploadSpeed { get; set; }
     public decimal DownloadSpeed { get; set; }
-    public required string CoorLatitude { get; set; } 
-    public required string CoorLongitude { get; set; } 
-    public required string PhoneModel { get; set; } 
-    public required string MCC { get; set; } 
-    public required string MNC { get; set; } 
-    public required string TAC { get; set; } 
+    public required string CoorLatitude { get; set; }
+    public required string CoorLongitude { get; set; }
+    public required string PhoneModel { get; set; }
+    public required string MCC { get; set; }
+    public required string MNC { get; set; }
+    public required string TAC { get; set; }
     public string? SignalQuality { get; set; }
 }

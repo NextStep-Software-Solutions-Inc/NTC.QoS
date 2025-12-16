@@ -11,6 +11,7 @@ spec:
   tls:
     - hosts:
         - {{ .Values.ntc_domain }}
+        - {{ .Values.ntc_qos_fe_domain }}
       secretName: {{ .Release.Name }}-tls
   rules:
     - host: {{ .Values.ntc_domain }}

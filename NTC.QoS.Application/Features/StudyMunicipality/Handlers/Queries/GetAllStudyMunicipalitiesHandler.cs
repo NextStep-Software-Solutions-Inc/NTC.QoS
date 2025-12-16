@@ -8,6 +8,7 @@ namespace NTC.QoS.Application.Features.StudyMunicipality.Handlers.Queries;
 public class GetAllStudyMunicipalitiesHandler(IStudyMunicipalityRepository studyMunicipalityRepository) : IRequestHandler<GetAllStudyMunicipalitiesRequest, PaginatedResponse<StudyMunicipalityDto>>
 {
     private readonly IStudyMunicipalityRepository _studyMunicipalityRepository = studyMunicipalityRepository;
+
     public async Task<PaginatedResponse<StudyMunicipalityDto>> Handle(GetAllStudyMunicipalitiesRequest request, CancellationToken cancellationToken)
     {
         var allStudyMunicipalities = _studyMunicipalityRepository.Query();
@@ -19,38 +20,24 @@ public class GetAllStudyMunicipalitiesHandler(IStudyMunicipalityRepository study
         var studyMunicipalityDtos = allStudyMunicipalities.Select(studyMunicipality => new StudyMunicipalityDto
         {
             Id = studyMunicipality.Id,
-            Study = new()
+            Study = studyMunicipality.Study != null ? new()
             {
                 Id = studyMunicipality.StudyId,
-                Name = studyMunicipality.Study != null ? studyMunicipality.Study.Name : string.Empty,
-                Description = studyMunicipality.Study != null ? studyMunicipality.Study.Description : string.Empty,
-                StudyRadius = studyMunicipality.Study != null ? studyMunicipality.Study.StudyRadius : 0,
-                AreaStudy = new()
+                Name = studyMunicipality.Study.Name,
+                Description = studyMunicipality.Study.Description,
+                StudyRadius = studyMunicipality.Study.StudyRadius,
+                AreaStudy = studyMunicipality.Study.AreaStudy != null ? new()
                 {
-                    Id = studyMunicipality.Study != null && studyMunicipality.Study.AreaStudy != null ? studyMunicipality.Study.AreaStudyId : Guid.Empty,
-                    Name = studyMunicipality.Study != null && studyMunicipality.Study.AreaStudy != null ? studyMunicipality.Study.AreaStudy.Name : string.Empty,
-                    Description = studyMunicipality.Study != null ? studyMunicipality.Study.Description : null
-                }
-            },
-            Municipality = new()
+                    Id = studyMunicipality.Study.AreaStudyId,
+                    Name = studyMunicipality.Study.AreaStudy.Name,
+                    Description = studyMunicipality.Study.AreaStudy.Description
+                } : null
+            } : null,
+            Municipality = studyMunicipality.Municipality != null ? new()
             {
                 Id = studyMunicipality.MunicipalityId,
-                Name = studyMunicipality.Municipality != null ? studyMunicipality.Municipality.Name : string.Empty,
-                IsCity = studyMunicipality.Municipality != null ? studyMunicipality.Municipality.IsCity : false,
-                Description = studyMunicipality.Municipality != null ? studyMunicipality.Municipality.Description : null,
-                Province = new()
-                {
-                    Id = studyMunicipality.Municipality != null && studyMunicipality.Municipality.Province != null ? studyMunicipality.Municipality.ProvinceId : Guid.Empty,
-                    Name = studyMunicipality.Municipality != null && studyMunicipality.Municipality.Province != null ? studyMunicipality.Municipality.Province.Name : string.Empty,
-                    Description = studyMunicipality.Municipality != null && studyMunicipality.Municipality.Province != null ? studyMunicipality.Municipality.Province.Description : null,
-                    Region = new()
-                    {
-                        Id = studyMunicipality.Municipality != null && studyMunicipality.Municipality.Province != null && studyMunicipality.Municipality.Province.Region != null ? studyMunicipality.Municipality.Province.RegionId : Guid.Empty,
-                        Name = studyMunicipality.Municipality != null && studyMunicipality.Municipality.Province != null && studyMunicipality.Municipality.Province.Region != null ? studyMunicipality.Municipality.Province.Region.Name : string.Empty,
-                        Description = studyMunicipality.Municipality != null && studyMunicipality.Municipality.Province != null && studyMunicipality.Municipality.Province.Region != null ? studyMunicipality.Municipality.Province.Region.Description : null
-                    }
-                }
-            },
+                Name = studyMunicipality.Municipality.Name
+            } : null
         });
 
         return await _studyMunicipalityRepository.PaginateAsync(studyMunicipalityDtos, request.PageNumber, request.PageSize, cancellationToken);

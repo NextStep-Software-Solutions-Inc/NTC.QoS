@@ -7,6 +7,7 @@ using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
+using NTC.QoS.Domain.Models.RequestParams;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -22,15 +23,45 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
     [HttpPost]
+<<<<<<< HEAD
     [RequirePermission(Permissions.CreateSpeedtests)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
+=======
+    public async Task<ActionResult<ApiResponse<Guid>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
+>>>>>>> development
     {
         var speedtest = await mediator.Send(new CreateSpeedtestRequest(createSpeedtest));
-        if (!speedtest.Succeeded || speedtest.Data == null)
-            return BadRequest(speedtest.Data == null ? "Speedtest creation failed, no data returned." : speedtest);
+        if (!speedtest.Succeeded) return BadRequest(speedtest);
 
         RemoveAllSpeedtestsCache();
-        return CreatedAtAction(nameof(GetSpeedtestById), new { id = speedtest.Data.Id }, speedtest);
+        return CreatedAtAction(nameof(GetSpeedtestById), new { id = speedtest.Data }, speedtest);
+    }
+
+    /// <summary>
+    /// v2 Viewport API: Get speedtests within viewport bounds (OPTIMIZED FOR MILLIONS OF DATA POINTS)
+    /// Uses spatial bounding box for efficient PostGIS queries.
+    /// Returns minimal SpeedtestViewportDto (7 fields, no Guid ID) for map rendering.
+    /// </summary>
+    [HttpGet("/v2/speedtests/viewport/public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] ViewportQueryParams query)
+    {
+        if (!query.IsViewportValid())
+        {
+            return BadRequest(new PaginatedResponse<SpeedtestViewportDto>(
+                [], 1, query.PageSize, 0)
+            {
+                Succeeded = false,
+                Message = "Invalid viewport bounds: minLatitude must be less than maxLatitude, and minLongitude must be less than maxLongitude"
+            });
+        }
+
+        var request = new GetAllSpeedtestsViewportRequest(query);
+        var result = await mediator.Send(request);
+        return Ok(result);
     }
 
     [HttpGet("public")]
@@ -50,8 +81,12 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpGet("{id}")]
+<<<<<<< HEAD
     [RequirePermission(Permissions.ViewSpeedtests)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
+=======
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
+>>>>>>> development
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
         var speedtest = await mediator.Send(new GetSpeedtestByIdRequest(id));
@@ -72,10 +107,10 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     private async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(SpeedtestsQueryParams query)
     {
         var cacheKey = $"{SpeedtestsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
-            $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
-            $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
-            $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
-            $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+            $"{string.Join(",", query.BarangayIds ?? [])}_" +
+            $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+            $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+            $"{string.Join(",", query.RegionIds ?? [])}_" +
             $"_{string.Join(",", query.CellIds ?? [])}_{string.Join(",", query.GenerationIds ?? [])}_{string.Join(",", query.ProviderIds ?? [])}" +
             $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.Longitude}_{query.Latitude}_{query.Distance}";
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
@@ -107,7 +142,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
     private void TrackCacheKey(string key)
     {
-        var keys = memoryCache.GetOrCreate<HashSet<string>>(SpeedtestsCacheKeysSet, _ => new HashSet<string>());
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(SpeedtestsCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);
@@ -149,7 +184,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
         [JsonPropertyName("regionIds")]
         public List<Guid>? RegionIds { get; set; }
-        
+
         [JsonPropertyName("serviceProviderIds")]
         public List<Guid>? ServiceProviderIds { get; set; }
 

@@ -10,7 +10,7 @@ using NTC.QoS.Domain.Models.DTOs.Sector;
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
-[Route("sectors", Name= "sectors")]
+[Route("sectors", Name = "sectors")]
 [Authorize]
 
 public class SectorsController(IMediator mediator) : ControllerBase
@@ -44,7 +44,7 @@ public class SectorsController(IMediator mediator) : ControllerBase
                                                                     txAntennaPatternId,
                                                                     rxAntennaPatternId)
         );
-       
+
         return sectors.Succeeded ? Ok(sectors) : BadRequest(sectors);
     }
 

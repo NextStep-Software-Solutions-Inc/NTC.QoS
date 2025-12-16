@@ -1,4 +1,6 @@
-﻿using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
+﻿using NTC.QoS.Domain.Models.DTOs.Band;
+using NTC.QoS.Domain.Models.DTOs.Municipality;
+using NTC.QoS.Domain.Models.DTOs.NetworkTemplate;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Domain.Models.DTOs.Network;
@@ -10,6 +12,8 @@ public class NetworkDto
     public NetworkTemplateDto? NetworkTemplate { get; set; }
     public required string SystemTypeName { get; set; }
     public required ServiceProviderDto ServiceProvider { get; set; }
+    public required BandDto Band { get; set; }
+    public MunicipalityDto? Municipality { get; set; }
     public decimal ULCenterFreq { get; set; }
     public decimal DLCenterFreq { get; set; }
     public decimal Bandwidth { get; set; }

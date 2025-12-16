@@ -7,7 +7,7 @@ using NTC.QoS.Domain.Models.DTOs.SystemType;
 namespace NTC.QoS.Application.Features.SystemType.Handlers.Commands;
 
 public class CreateSystemTypeHandler(
-    ISystemTypeRepository systemTypeRepository, 
+    ISystemTypeRepository systemTypeRepository,
     ITechnologyRepository technologyRepository,
     IGenerationRepository generationRepository) : IRequestHandler<CreateSystemTypeRequest, ApiResponse<SystemTypeDto>>
 {
@@ -50,7 +50,7 @@ public class CreateSystemTypeHandler(
             };
         }
 
-        var newSystemType = new Domain.Entities.SystemType 
+        var newSystemType = new Domain.Entities.SystemType
         {
             TechnologyId = technology.Id,
             GenerationId = generation.Id,

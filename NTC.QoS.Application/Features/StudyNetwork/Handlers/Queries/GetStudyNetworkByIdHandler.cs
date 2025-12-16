@@ -79,7 +79,25 @@ public class GetStudyNetworkByIdHandler(IStudyNetworkRepository repository) : IR
                             Name = studyNetwork.Network?.ServiceProvider?.Service?.Name ?? string.Empty,
                             Type = studyNetwork.Network?.ServiceProvider?.Service?.Type.ToString() ?? string.Empty
                         }
-                    }
+                    },
+                    Band = new()
+                    {
+                        Id = studyNetwork.Network?.Band?.Id ?? Guid.Empty,
+                        Name = studyNetwork.Network?.Band?.Name ?? string.Empty,
+                        Description = studyNetwork.Network?.Band?.Description
+                    },
+                    Municipality = studyNetwork.Network?.Municipality == null ? null : new()
+                    {
+                        Id = studyNetwork.Network.Municipality.Id,
+                        Name = studyNetwork.Network.Municipality.Name,
+                        Description = studyNetwork.Network.Municipality.Description,
+                        IsCity = studyNetwork.Network.Municipality.IsCity,
+                        Code = studyNetwork.Network.Municipality.Code,
+                        Area = studyNetwork.Network.Municipality.Area
+                    },
+                    ULCenterFreq = studyNetwork.Network?.ULCenterFreq ?? 0,
+                    DLCenterFreq = studyNetwork.Network?.DLCenterFreq ?? 0,
+                    Bandwidth = studyNetwork.Network?.Bandwidth ?? 0
                 }
             }
         };

@@ -39,7 +39,7 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
             {
                 Id = service.Id,
                 Name = service.Name,
-                Type =service.Type.ToString()
+                Type = service.Type.ToString()
             });
 
         return await _repository.PaginateAsync(serviceDtosQuery, request.PageNumber, request.PageSize, cancellationToken);

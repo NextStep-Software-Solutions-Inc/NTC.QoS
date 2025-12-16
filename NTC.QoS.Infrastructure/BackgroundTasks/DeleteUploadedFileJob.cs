@@ -21,7 +21,7 @@ internal class DeleteUploadedFileJob : IDeleteUploadedFileJob
         _blobStorageService = blobStorageService;
         _logger = logger;
     }
-    
+
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
@@ -41,12 +41,12 @@ internal class DeleteUploadedFileJob : IDeleteUploadedFileJob
             {
                 // Use shared helper to extract container and blob name from the blob URL
                 var (containerName, blobName) = ProcessingJobHelper.ExtractBlobInfo(blobUri);
-                
-                _logger.LogInformation("Deleting file from blob storage: container={ContainerName}, blob={BlobName}", 
+
+                _logger.LogInformation("Deleting file from blob storage: container={ContainerName}, blob={BlobName}",
                     containerName, blobName);
 
                 var deleted = await _blobStorageService.DeleteAsync(containerName, blobName, token);
-                
+
                 if (deleted)
                 {
                     _logger.LogInformation("Successfully deleted file from blob storage: {BlobPath}", file.Path);
@@ -60,7 +60,7 @@ internal class DeleteUploadedFileJob : IDeleteUploadedFileJob
             {
                 // Fallback for legacy local file paths
                 _logger.LogWarning("Attempting to delete legacy local file: {FilePath}", file.Path);
-                
+
                 if (System.IO.File.Exists(file.Path))
                 {
                     System.IO.File.Delete(file.Path);

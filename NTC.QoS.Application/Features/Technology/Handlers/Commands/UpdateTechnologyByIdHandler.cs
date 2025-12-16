@@ -46,7 +46,7 @@ public class UpdateTechnologyByIdHandler(ITechnologyRepository repository) : IRe
         technology.Standard = request.Technology.Standard ?? technology.Standard;
         technology.Description = request.Technology.Description ?? technology.Description;
 
-         _repository.Update(technology);
+        _repository.Update(technology);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<TechnologyDto>
@@ -57,7 +57,7 @@ public class UpdateTechnologyByIdHandler(ITechnologyRepository repository) : IRe
                 Id = technology.Id,
                 Standard = technology.Standard,
                 Description = technology.Description,
-                Generation = new ()
+                Generation = new()
                 {
                     Id = technology.Generation.Id,
                     Name = technology.Generation.Name,

@@ -30,21 +30,54 @@ public static class LocationSeeder
     {
         logger.LogInformation("Starting database seeding process... ForceReseed: {ForceReseed}", forceReseed);
 
-        // Check if data already exists when forceReseed is false
-        if (!forceReseed)
+        // ALWAYS check if data already exists as a safety measure
+        // Even with forceReseed=true, we should not duplicate data
+        var hasExistingData = await HasExistingLocationDataAsync(context, logger);
+
+        if (hasExistingData && !forceReseed)
         {
-            var hasExistingData = await HasExistingLocationDataAsync(context, logger);
-            if (hasExistingData)
-            {
-                logger.LogInformation("Location data already exists in database. Skipping seeding process. Use forceReseed=true to override.");
-                return;
-            }
+            logger.LogInformation("Location data already exists in database. Skipping seeding process. Use forceReseed=true to override.");
+            return;
         }
 
+        if (hasExistingData && forceReseed)
+        {
+            logger.LogWarning("⚠️ ForceReseed is enabled but data already exists. This should only be used for data corrections, not regular seeding.");
+            logger.LogWarning("⚠️ Existing data counts - Regions: will be checked individually to avoid duplicates");
+        }
+
+        // Seed Regions first (no dependencies)
         await SeedRegionsAsync(context, blobStorageService, logger, forceReseed);
-        await SeedProvincesAsync(context, blobStorageService, logger, forceReseed);
-        await SeedMunicipalitiesAsync(context, blobStorageService, logger, forceReseed);
-        await SeedBarangaysAsync(context, blobStorageService, logger, forceReseed);
+
+        // Reload region map AFTER region seeding to get updated/new IDs
+        logger.LogInformation("Loading region map for province seeding...");
+        var regionMap = await context.Regions.AsNoTracking()
+            .Select(r => new { r.Code, r.Id })
+            .ToDictionaryAsync(r => r.Code, r => r.Id);
+        logger.LogInformation("Loaded {Count} regions for province seeding.", regionMap.Count);
+
+        // Seed Provinces with region map
+        await SeedProvincesAsync(context, blobStorageService, logger, regionMap, forceReseed);
+
+        // Reload province map AFTER province seeding
+        logger.LogInformation("Loading province map for municipality seeding...");
+        var provinceMap = await context.Provinces.AsNoTracking()
+            .Select(p => new { p.Code, p.Id })
+            .ToDictionaryAsync(p => p.Code, p => p.Id);
+        logger.LogInformation("Loaded {Count} provinces for municipality seeding.", provinceMap.Count);
+
+        // Seed Municipalities with province map
+        await SeedMunicipalitiesAsync(context, blobStorageService, logger, provinceMap, forceReseed);
+
+        // Reload municipality map AFTER municipality seeding
+        logger.LogInformation("Loading municipality map for barangay seeding...");
+        var municipalityMap = await context.Municipalities.AsNoTracking()
+            .Select(m => new { m.Code, m.Id })
+            .ToDictionaryAsync(m => m.Code, m => m.Id);
+        logger.LogInformation("Loaded {Count} municipalities for barangay seeding.", municipalityMap.Count);
+
+        // Seed Barangays with municipality map
+        await SeedBarangaysAsync(context, blobStorageService, logger, municipalityMap, forceReseed);
 
         logger.LogInformation("Database seeding process completed.");
     }
@@ -64,9 +97,9 @@ public static class LocationSeeder
             var municipalityCount = await context.Municipalities.CountAsync();
             var barangayCount = await context.Barangays.CountAsync();
 
-            var hasData = regionCount > 0 || provinceCount > 0 || municipalityCount > 0 || barangayCount > 0;
+            var hasData = regionCount > 0 && provinceCount > 0 && municipalityCount > 0 && barangayCount > 0;
 
-            logger.LogInformation("Existing location data check - Regions: {RegionCount}, Provinces: {ProvinceCount}, Municipalities: {MunicipalityCount}, Barangays: {BarangayCount}", 
+            logger.LogInformation("Existing location data check - Regions: {RegionCount}, Provinces: {ProvinceCount}, Municipalities: {MunicipalityCount}, Barangays: {BarangayCount}",
                 regionCount, provinceCount, municipalityCount, barangayCount);
 
             return hasData;
@@ -98,7 +131,7 @@ public static class LocationSeeder
             }
         }
 
-        FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = [];
 
         try
         {
@@ -126,8 +159,16 @@ public static class LocationSeeder
             return;
         }
 
-        var existingRegionCodes = await dbContext.Regions.AsNoTracking().Select(r => r.Code).ToHashSetAsync();
-        var regionsToAdd = featureCollection
+        // Load existing regions with IDs for proper update matching
+        var existingRegions = await dbContext.Regions.AsNoTracking()
+            .Select(r => new { r.Id, r.Code })
+            .ToDictionaryAsync(r => r.Code, r => r.Id);
+
+        var now = DateTime.UtcNow;
+        var userId = "System"; // Seeding is always done by System
+
+        // Parse all regions from GeoJSON
+        var allRegionsFromGeoJson = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM1_PCODE"] != null &&
                 f.Attributes["ADM1_EN"] != null &&
@@ -144,10 +185,23 @@ public static class LocationSeeder
                 householdPopulation = ParsePopulationValue(f.Attributes["HHOLD_POPN"], logger, f.Attributes["ADM1_EN"]?.ToString() ?? string.Empty),
                 householdCount = ParsePopulationValue(f.Attributes["HHOLD_CNT"], logger, f.Attributes["ADM1_EN"]?.ToString() ?? string.Empty),
                 boundaries = GetBoundaries(f)
-                
             })
-            .Where(region => !string.IsNullOrWhiteSpace(region.code) && (forceReseed || !existingRegionCodes.Contains(region.code)))
-            .Select(region => new Region
+            .Where(region => !string.IsNullOrWhiteSpace(region.code))
+            .ToList();
+
+        if (allRegionsFromGeoJson.Count == 0)
+        {
+            logger.LogInformation("No valid regions found in GeoJSON file.");
+            return;
+        }
+
+        // Separate into new and existing
+        var regionsToInsert = new List<Region>();
+        var regionsToUpdate = new List<Region>();
+
+        foreach (var region in allRegionsFromGeoJson)
+        {
+            var regionEntity = new Region
             {
                 Name = region.name ?? string.Empty,
                 Description = null,
@@ -157,19 +211,66 @@ public static class LocationSeeder
                 HouseholdPopulation = region.householdPopulation,
                 HouseholdCount = region.householdCount,
                 Boundaries = region.boundaries,
-                Center = region.boundaries.Centroid
-            })
-            .ToList();
+                Center = region.boundaries.Centroid,
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
+            };
 
-        if (regionsToAdd.Count == 0)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingRegions.TryGetValue(region.code!, out var existingId))
+            {
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    regionEntity.Id = existingId;
+                    regionsToUpdate.Add(regionEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
+            }
+            else
+            {
+                regionsToInsert.Add(regionEntity);
+            }
+        }
+
+        // Insert new regions
+        if (regionsToInsert.Count > 0)
+        {
+            await dbContext.BulkInsertAsync(regionsToInsert, new BulkConfig { BulkCopyTimeout = 600 });
+            logger.LogInformation("Inserted {Count} new regions.", regionsToInsert.Count);
+        }
+
+        // Update existing regions (only when forceReseed=true)
+        if (regionsToUpdate.Count > 0 && forceReseed)
+        {
+            await dbContext.BulkUpdateAsync(regionsToUpdate, config =>
+            {
+                config.PropertiesToInclude =
+                [
+                    nameof(Region.Name),
+                    nameof(Region.Area),
+                    nameof(Region.TotalPopulation),
+                    nameof(Region.HouseholdPopulation),
+                    nameof(Region.HouseholdCount),
+                    nameof(Region.Boundaries),
+                    nameof(Region.Center),
+                    nameof(Region.UpdatedAt),
+                    nameof(Region.UpdatedBy)
+                ];
+            });
+            logger.LogInformation("Updated {Count} existing regions.", regionsToUpdate.Count);
+        }
+
+        if (regionsToInsert.Count == 0 && regionsToUpdate.Count == 0)
         {
             logger.LogInformation("No new regions to seed. All regions from the GeoJSON already exist in the database.");
             return;
         }
 
-        await dbContext.BulkInsertAsync(regionsToAdd);
-        
-        logger.LogInformation("Region seeding completed with {Count} regions added.", regionsToAdd.Count);
+        logger.LogInformation("Region seeding completed. Inserted: {InsertCount}, Updated: {UpdateCount}",
+            regionsToInsert.Count, regionsToUpdate.Count);
     }
 
     internal static MultiPolygon GetBoundaries(IFeature feature)
@@ -181,12 +282,16 @@ public static class LocationSeeder
             _ => throw new InvalidOperationException("Unsupported geometry type for boundaries. Expected MultiPolygon or Polygon."),
         };
     }
-  
+
     /// <summary>
     /// Seeds Province entities from the GeoJSON file in blob storage.
     /// </summary>
+    /// <param name="dbContext">The DbContext instance.</param>
+    /// <param name="blobStorageService">The blob storage service instance.</param>
+    /// <param name="logger">The logger instance.</param>
     /// <param name="forceReseed">If true, forces reseeding even if data exists.</param>
-    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
+    /// <param name="regionMap">Pre-loaded region code to ID mapping for performance and consistency.</param>
+    private static async Task SeedProvincesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, Dictionary<string, Guid>? regionMap, bool forceReseed = false)
     {
         logger.LogInformation("Starting province seeding from blob storage: {ContainerName}/{FilePath}... ForceReseed: {ForceReseed}", ContainerName, ProvinceGeoJsonFilePath, forceReseed);
 
@@ -201,7 +306,7 @@ public static class LocationSeeder
             }
         }
 
-        FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = [];
 
         try
         {
@@ -229,10 +334,26 @@ public static class LocationSeeder
             return;
         }
 
-        var regionMap = await dbContext.Regions.AsNoTracking().Select(r => new { r.Code, r.Id }).ToDictionaryAsync(r => r.Code, r => r.Id);
-        var existingProvinceCodes = await dbContext.Provinces.AsNoTracking().Select(p => p.Code).ToHashSetAsync();
-        
-        var provincesToAdd = featureCollection
+        // Use provided regionMap or load it if not provided (backward compatibility)
+        if (regionMap == null)
+        {
+            logger.LogInformation("Region map not provided, loading from database...");
+            regionMap = await dbContext.Regions.AsNoTracking()
+                .Select(r => new { r.Code, r.Id })
+                .ToDictionaryAsync(r => r.Code, r => r.Id);
+            logger.LogInformation("Loaded {Count} regions.", regionMap.Count);
+        }
+
+        // Load existing provinces with IDs for proper update matching
+        var existingProvinces = await dbContext.Provinces.AsNoTracking()
+            .Select(p => new { p.Id, p.Code })
+            .ToDictionaryAsync(p => p.Code, p => p.Id);
+
+        var now = DateTime.UtcNow;
+        var userId = "System";
+
+        // OPTIMIZED: Parse all provinces from GeoJSON with TryGetValue for regionMap lookup
+        var allProvincesFromGeoJson = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM2_PCODE"] != null &&
                 f.Attributes["ADM2_EN"] != null &&
@@ -249,11 +370,37 @@ public static class LocationSeeder
                 boundaries = GetBoundaries(f),
                 regionCode = f.Attributes["ADM1_PCODE"]?.ToString()
             })
-            .Where(province => !string.IsNullOrWhiteSpace(province.code) && 
-                (forceReseed || !existingProvinceCodes.Contains(province.code)) &&
-                !string.IsNullOrWhiteSpace(province.regionCode) && 
-                regionMap.ContainsKey(province.regionCode))
-            .Select(province => new Province
+            .Where(province => !string.IsNullOrWhiteSpace(province.code) &&
+                    !string.IsNullOrWhiteSpace(province.regionCode))
+            .Select(province => new
+            {
+                province.code,
+                province.name,
+                province.area,
+                province.totalPopulation,
+                province.householdPopulation,
+                province.householdCount,
+                province.boundaries,
+                province.regionCode,
+                // OPTIMIZED: Use TryGetValue to get regionId (null if not found)
+                regionId = regionMap.TryGetValue(province.regionCode!, out var rId) ? rId : (Guid?)null
+            })
+            .Where(province => province.regionId.HasValue)
+            .ToList();
+
+        if (allProvincesFromGeoJson.Count == 0)
+        {
+            logger.LogInformation("No valid provinces found in GeoJSON file or missing parent regions.");
+            return;
+        }
+
+        // Separate into new and existing
+        var provincesToInsert = new List<Province>();
+        var provincesToUpdate = new List<Province>();
+
+        foreach (var province in allProvincesFromGeoJson)
+        {
+            var provinceEntity = new Province
             {
                 Name = province.name ?? string.Empty,
                 Description = null,
@@ -264,26 +411,78 @@ public static class LocationSeeder
                 HouseholdCount = province.householdCount,
                 Boundaries = province.boundaries,
                 Center = province.boundaries.Centroid,
-                RegionId = regionMap[province.regionCode!]
-            })
-            .ToList();
+                RegionId = province.regionId!.Value,
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
+            };
 
-        if (provincesToAdd.Count == 0)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingProvinces.TryGetValue(province.code!, out var existingId))
+            {
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    provinceEntity.Id = existingId;
+                    provincesToUpdate.Add(provinceEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
+            }
+            else
+            {
+                provincesToInsert.Add(provinceEntity);
+            }
+        }
+
+        // Insert new provinces
+        if (provincesToInsert.Count > 0)
         {
-            logger.LogInformation("No new provinces to seed. All provinces from the GeoJSON already exist in the database or have missing parent regions.");
+            await dbContext.BulkInsertAsync(provincesToInsert, new BulkConfig { BulkCopyTimeout = 600 });
+            logger.LogInformation("Inserted {Count} new provinces.", provincesToInsert.Count);
+        }
+
+        // Update existing provinces (only when forceReseed=true)
+        if (provincesToUpdate.Count > 0 && forceReseed)
+        {
+            await dbContext.BulkUpdateAsync(provincesToUpdate, config =>
+            {
+                config.PropertiesToInclude =
+                [
+                    nameof(Province.Name),
+                    nameof(Province.Area),
+                    nameof(Province.TotalPopulation),
+                    nameof(Province.HouseholdPopulation),
+                    nameof(Province.HouseholdCount),
+                    nameof(Province.Boundaries),
+                    nameof(Province.Center),
+                    nameof(Province.RegionId),
+                    nameof(Province.UpdatedAt),
+                    nameof(Province.UpdatedBy)
+                ];
+            });
+            logger.LogInformation("Updated {Count} existing provinces.", provincesToUpdate.Count);
+        }
+
+        if (provincesToInsert.Count == 0 && provincesToUpdate.Count == 0)
+        {
+            logger.LogInformation("No new provinces to seed. All provinces from the GeoJSON already exist in the database.");
             return;
         }
 
-        await dbContext.BulkInsertAsync(provincesToAdd);
-        
-        logger.LogInformation("Province seeding completed with {Count} provinces added.", provincesToAdd.Count);
+        logger.LogInformation("Province seeding completed. Inserted: {InsertCount}, Updated: {UpdateCount}",
+            provincesToInsert.Count, provincesToUpdate.Count);
     }
 
     /// <summary>
     /// Seeds Municipality entities from the GeoJSON file in blob storage.
     /// </summary>
+    /// <param name="dbContext">The DbContext instance.</param>
+    /// <param name="blobStorageService">The blob storage service instance.</param>
+    /// <param name="logger">The logger instance.</param>
     /// <param name="forceReseed">If true, forces reseeding even if data exists.</param>
-    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
+    /// <param name="provinceMap">Pre-loaded province code to ID mapping for performance and consistency.</param>
+    private static async Task SeedMunicipalitiesAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, Dictionary<string, Guid>? provinceMap, bool forceReseed = false)
     {
         logger.LogInformation("Starting municipality seeding from blob storage: {ContainerName}/{FilePath}... ForceReseed: {ForceReseed}", ContainerName, MunicipalityGeoJsonFilePath, forceReseed);
 
@@ -326,10 +525,26 @@ public static class LocationSeeder
             return;
         }
 
-        var provinceMap = await dbContext.Provinces.AsNoTracking().Select(p => new { p.Code, p.Id }).ToDictionaryAsync(p => p.Code, p => p.Id);
-        var existingMunicipalityCodes = await dbContext.Municipalities.AsNoTracking().Select(m => m.Code).ToHashSetAsync();
+        // Use provided provinceMap or load it if not provided (backward compatibility)
+        if (provinceMap == null)
+        {
+            logger.LogInformation("Province map not provided, loading from database...");
+            provinceMap = await dbContext.Provinces.AsNoTracking()
+                .Select(p => new { p.Code, p.Id })
+                .ToDictionaryAsync(p => p.Code, p => p.Id);
+            logger.LogInformation("Loaded {Count} provinces.", provinceMap.Count);
+        }
 
-        var municipalitiesToAdd = featureCollection
+        // Load existing municipalities with IDs for proper update matching
+        var existingMunicipalities = await dbContext.Municipalities.AsNoTracking()
+            .Select(m => new { m.Id, m.Code })
+            .ToDictionaryAsync(m => m.Code, m => m.Id);
+
+        var now = DateTime.UtcNow;
+        var userId = "System";
+
+        // OPTIMIZED: Parse all municipalities from GeoJSON with TryGetValue for provinceMap lookup
+        var allMunicipalitiesFromGeoJson = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM3_PCODE"] != null &&
                 f.Attributes["ADM3_EN"] != null &&
@@ -346,11 +561,41 @@ public static class LocationSeeder
                 boundaries = GetBoundaries(f),
                 provinceCode = f.Attributes["ADM2_PCODE"]?.ToString()
             })
-            .Where(municipality => !string.IsNullOrWhiteSpace(municipality.code) && 
-                (forceReseed || !existingMunicipalityCodes.Contains(municipality.code)) &&
-                !string.IsNullOrWhiteSpace(municipality.provinceCode) && 
-                provinceMap.ContainsKey(municipality.provinceCode))
-            .Select(municipality => new Municipality
+            .Where(municipality => !string.IsNullOrWhiteSpace(municipality.code) &&
+                    !string.IsNullOrWhiteSpace(municipality.provinceCode))
+            .Select(municipality => new
+            {
+                municipality.code,
+                municipality.name,
+                municipality.area,
+                municipality.totalPopulation,
+                municipality.householdPopulation,
+                municipality.householdCount,
+                municipality.boundaries,
+                municipality.provinceCode,
+                // OPTIMIZED: Use TryGetValue to get provinceId (null if not found)
+                provinceId = provinceMap.TryGetValue(municipality.provinceCode!, out var pId) ? pId : (Guid?)null
+            })
+            .Where(municipality => municipality.provinceId.HasValue)
+            .ToList();
+
+        if (allMunicipalitiesFromGeoJson.Count == 0)
+        {
+            logger.LogInformation("No valid municipalities found in GeoJSON file.");
+            return;
+        }
+
+        // Separate into new and existing
+        var municipalitiesToInsert = new List<Municipality>();
+        var municipalitiesToUpdate = new List<Municipality>();
+
+        foreach (var municipality in allMunicipalitiesFromGeoJson)
+        {
+            var isCity = !string.IsNullOrWhiteSpace(municipality.name) &&
+                         (municipality.name.Contains("City", StringComparison.OrdinalIgnoreCase) ||
+                          municipality.name.Contains("Capital", StringComparison.OrdinalIgnoreCase));
+
+            var municipalityEntity = new Municipality
             {
                 Name = municipality.name ?? string.Empty,
                 Description = null,
@@ -361,26 +606,91 @@ public static class LocationSeeder
                 HouseholdCount = municipality.householdCount,
                 Boundaries = municipality.boundaries,
                 Center = municipality.boundaries.Centroid,
-                ProvinceId = provinceMap[municipality.provinceCode!]
-            })
-            .ToList();
+                ProvinceId = municipality.provinceId!.Value,
+                IsCity = isCity,
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
+            };
 
-        if (municipalitiesToAdd.Count == 0)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingMunicipalities.TryGetValue(municipality.code!, out var existingId))
+            {
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    municipalityEntity.Id = existingId;
+                    municipalitiesToUpdate.Add(municipalityEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
+            }
+            else
+            {
+                municipalitiesToInsert.Add(municipalityEntity);
+            }
+        }
+
+        // Insert new municipalities
+        if (municipalitiesToInsert.Count > 0)
         {
-            logger.LogInformation("No new municipalities to seed. All municipalities from the GeoJSON already exist in the database or have missing parent provinces.");
+            // Configure bulk insert for large geometry data
+            var bulkConfig = new BulkConfig
+            {
+                BatchSize = 50,  // Smaller batch size for geometry data
+                BulkCopyTimeout = 300,  // 5 minutes timeout
+                EnableStreaming = true,
+                UseTempDB = false,
+                PropertiesToIncludeOnUpdate = [],
+                PropertiesToExcludeOnUpdate = []
+            };
+
+            await dbContext.BulkInsertAsync(municipalitiesToInsert, bulkConfig);
+            logger.LogInformation("Inserted {Count} new municipalities.", municipalitiesToInsert.Count);
+        }
+
+        // Update existing municipalities (only when forceReseed=true)
+        if (municipalitiesToUpdate.Count > 0 && forceReseed)
+        {
+            await dbContext.BulkUpdateAsync(municipalitiesToUpdate, config =>
+            {
+                config.PropertiesToInclude =
+                [
+                    nameof(Municipality.IsCity),
+                    nameof(Municipality.Name),
+                    nameof(Municipality.Area),
+                    nameof(Municipality.TotalPopulation),
+                    nameof(Municipality.HouseholdPopulation),
+                    nameof(Municipality.HouseholdCount),
+                    nameof(Municipality.Boundaries),
+                    nameof(Municipality.Center),
+                    nameof(Municipality.ProvinceId),
+                    nameof(Municipality.UpdatedAt),
+                    nameof(Municipality.UpdatedBy)
+                ];
+            });
+            logger.LogInformation("Updated {Count} existing municipalities with IsCity and other properties.", municipalitiesToUpdate.Count);
+        }
+
+        if (municipalitiesToInsert.Count == 0 && municipalitiesToUpdate.Count == 0)
+        {
+            logger.LogInformation("No new municipalities to seed. All municipalities from the GeoJSON already exist in the database.");
             return;
         }
 
-        await dbContext.BulkInsertAsync(municipalitiesToAdd);
-        
-        logger.LogInformation("Municipality seeding completed with {Count} municipalities added.", municipalitiesToAdd.Count);
+        logger.LogInformation("Municipality seeding completed. Inserted: {InsertCount}, Updated: {UpdateCount}",
+            municipalitiesToInsert.Count, municipalitiesToUpdate.Count);
     }
 
     /// <summary>
     /// Seeds Barangay entities from the GeoJSON file in blob storage.
     /// </summary>
+    /// <param name="dbContext">The DbContext instance.</param>
+    /// <param name="blobStorageService">The blob storage service instance.</param>
+    /// <param name="logger">The logger instance.</param>
     /// <param name="forceReseed">If true, forces reseeding even if data exists.</param>
-    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, bool forceReseed = false)
+    /// <param name="municipalityMap">Pre-loaded municipality code to ID mapping for performance and consistency.</param>
+    private static async Task SeedBarangaysAsync(ApplicationDbContext dbContext, IBlobStorageService blobStorageService, ILogger logger, Dictionary<string, Guid>? municipalityMap, bool forceReseed = false)
     {
         logger.LogInformation("Starting barangay seeding from blob storage: {ContainerName}/{FilePath}... ForceReseed: {ForceReseed}", ContainerName, BarangayGeoJsonFilePath, forceReseed);
 
@@ -395,7 +705,7 @@ public static class LocationSeeder
             }
         }
 
-        FeatureCollection featureCollection = new FeatureCollection();
+        FeatureCollection featureCollection = [];
 
         try
         {
@@ -423,10 +733,26 @@ public static class LocationSeeder
             return;
         }
 
-        var municipalityMap = await dbContext.Municipalities.AsNoTracking().Select(m => new { m.Code, m.Id }).ToDictionaryAsync(m => m.Code, m => m.Id);
-        var existingBarangayCodes = await dbContext.Barangays.AsNoTracking().Select(b => b.Code).ToHashSetAsync();
+        // Use provided municipalityMap or load it if not provided (backward compatibility)
+        if (municipalityMap == null)
+        {
+            logger.LogInformation("Municipality map not provided, loading from database...");
+            municipalityMap = await dbContext.Municipalities.AsNoTracking()
+                .Select(m => new { m.Code, m.Id })
+                .ToDictionaryAsync(m => m.Code, m => m.Id);
+            logger.LogInformation("Loaded {Count} municipalities.", municipalityMap.Count);
+        }
 
-        var barangaysToAdd = featureCollection
+        // Load existing barangays with IDs for proper update matching
+        var existingBarangays = await dbContext.Barangays.AsNoTracking()
+            .Select(b => new { b.Id, b.Code })
+            .ToDictionaryAsync(b => b.Code, b => b.Id);
+
+        var now = DateTime.UtcNow;
+        var userId = "System";
+
+        // OPTIMIZED: Parse all barangays from GeoJSON with TryGetValue for municipalityMap lookup
+        var allBarangaysFromGeoJson = featureCollection
             .Where(f => f?.Attributes != null &&
                 f.Attributes["ADM4_PCODE"] != null &&
                 f.Attributes["ADM4_EN"] != null &&
@@ -440,11 +766,34 @@ public static class LocationSeeder
                 boundaries = GetBoundaries(f),
                 municipalityCode = f.Attributes["ADM3_PCODE"]?.ToString()
             })
-            .Where(barangay => !string.IsNullOrWhiteSpace(barangay.code) && 
-                (forceReseed || !existingBarangayCodes.Contains(barangay.code)) &&
-                !string.IsNullOrWhiteSpace(barangay.municipalityCode) && 
-                municipalityMap.ContainsKey(barangay.municipalityCode))
-            .Select(barangay => new Barangay
+            .Where(barangay => !string.IsNullOrWhiteSpace(barangay.code) &&
+                    !string.IsNullOrWhiteSpace(barangay.municipalityCode))
+            .Select(barangay => new
+            {
+                barangay.code,
+                barangay.name,
+                barangay.area,
+                barangay.boundaries,
+                barangay.municipalityCode,
+                // OPTIMIZED: Use TryGetValue to get municipalityId (null if not found)
+                municipalityId = municipalityMap.TryGetValue(barangay.municipalityCode!, out var mId) ? mId : (Guid?)null
+            })
+            .Where(barangay => barangay.municipalityId.HasValue)
+            .ToList();
+
+        if (allBarangaysFromGeoJson.Count == 0)
+        {
+            logger.LogInformation("No valid barangays found in GeoJSON file or missing parent municipalities.");
+            return;
+        }
+
+        // Separate into new and existing
+        var barangaysToInsert = new List<Barangay>();
+        var barangaysToUpdate = new List<Barangay>();
+
+        foreach (var barangay in allBarangaysFromGeoJson)
+        {
+            var barangayEntity = new Barangay
             {
                 Name = barangay.name ?? string.Empty,
                 Description = null,
@@ -455,19 +804,75 @@ public static class LocationSeeder
                 HouseholdCount = null,
                 Boundaries = barangay.boundaries,
                 Center = barangay.boundaries.Centroid,
-                MunicipalityId = municipalityMap[barangay.municipalityCode!]
-            })
-            .ToList();
+                MunicipalityId = barangay.municipalityId!.Value,
+                CreatedAt = now,
+                CreatedBy = userId,
+                UpdatedAt = now,
+                UpdatedBy = userId
+            };
 
-        if (barangaysToAdd.Count == 0)
+            // OPTIMIZED: Use TryGetValue instead of ContainsKey + indexer
+            if (existingBarangays.TryGetValue(barangay.code!, out var existingId))
+            {
+                if (forceReseed)
+                {
+                    // Set the ID from existing entity for proper update
+                    barangayEntity.Id = existingId;
+                    barangaysToUpdate.Add(barangayEntity);
+                }
+                // else: existing record, skip (not forcing reseed)
+            }
+            else
+            {
+                barangaysToInsert.Add(barangayEntity);
+            }
+        }
+
+        // Insert new barangays
+        if (barangaysToInsert.Count > 0)
         {
-            logger.LogInformation("No new barangays to seed. All barangays from the GeoJSON already exist in the database or have missing parent municipalities.");
+            // Configure bulk insert for large geometry data (barangays have ~40k records)
+            var bulkConfig = new BulkConfig
+            {
+                BatchSize = 25,  // Even smaller batch size for barangays (most records)
+                BulkCopyTimeout = 600,  // 10 minutes timeout for large dataset
+                EnableStreaming = true,
+                UseTempDB = false,
+                PropertiesToIncludeOnUpdate = [],
+                PropertiesToExcludeOnUpdate = []
+            };
+
+            await dbContext.BulkInsertAsync(barangaysToInsert, bulkConfig);
+            logger.LogInformation("Inserted {Count} new barangays.", barangaysToInsert.Count);
+        }
+
+        // Update existing barangays (only when forceReseed=true)
+        if (barangaysToUpdate.Count > 0 && forceReseed)
+        {
+            await dbContext.BulkUpdateAsync(barangaysToUpdate, config =>
+            {
+                config.PropertiesToInclude =
+                [
+                    nameof(Barangay.Name),
+                    nameof(Barangay.Area),
+                    nameof(Barangay.Boundaries),
+                    nameof(Barangay.Center),
+                    nameof(Barangay.MunicipalityId),
+                    nameof(Barangay.UpdatedAt),
+                    nameof(Barangay.UpdatedBy)
+                ];
+            });
+            logger.LogInformation("Updated {Count} existing barangays.", barangaysToUpdate.Count);
+        }
+
+        if (barangaysToInsert.Count == 0 && barangaysToUpdate.Count == 0)
+        {
+            logger.LogInformation("No new barangays to seed. All barangays from the GeoJSON already exist in the database.");
             return;
         }
 
-        await dbContext.BulkInsertAsync(barangaysToAdd);
-        
-        logger.LogInformation("Barangay seeding completed with {Count} barangays added.", barangaysToAdd.Count);
+        logger.LogInformation("Barangay seeding completed. Inserted: {InsertCount}, Updated: {UpdateCount}",
+            barangaysToInsert.Count, barangaysToUpdate.Count);
     }
 
     /// <summary>

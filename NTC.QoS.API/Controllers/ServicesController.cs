@@ -15,7 +15,7 @@ namespace NTC.QoS.API.Controllers;
 
 public class ServicesController(IMediator mediator) : ControllerBase
 {
-    
+
     private const int BrowserCacheDuration = 21600;
     private readonly IMediator _mediator = mediator;
 

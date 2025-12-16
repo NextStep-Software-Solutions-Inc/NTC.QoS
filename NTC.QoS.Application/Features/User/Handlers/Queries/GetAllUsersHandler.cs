@@ -8,7 +8,7 @@ namespace NTC.QoS.Application.Features.User.Handlers.Queries;
 public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<GetAllUsersRequest, PaginatedResponse<UserDto>>
 {
     private readonly IUserRepository _repository = repository;
-    
+
     public async Task<PaginatedResponse<UserDto>> Handle(GetAllUsersRequest request, CancellationToken cancellationToken)
     {
         var query = _repository.Query();
@@ -52,6 +52,8 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
                 },
                 AuthUserId = u.AuthUserId,
                 Email = u.Email,
+                FirstName = u.FirstName,
+                LastName = u.LastName,
             });
 
         return await _repository.PaginateAsync(userDtosQuery, request.PageNumber, request.PageSize, cancellationToken);

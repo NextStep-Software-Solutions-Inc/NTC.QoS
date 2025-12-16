@@ -35,13 +35,13 @@ public class GetGenerationBandByIdHandler(IGenerationBandRepository repository) 
             Data = new GenerationBandDto
             {
                 Id = generationBand.Id,
-                Generation = new ()
+                Generation = new()
                 {
                     Id = generationBand.GenerationId,
                     Name = generationBand.Generation.Name,
                     Description = generationBand.Generation?.Description,
                 },
-                Band = new ()
+                Band = new()
                 {
                     Id = generationBand.BandId,
                     Name = generationBand.Band.Name,

@@ -155,7 +155,7 @@ public class UserAuthorizationService : IUserAuthorizationService
         var user = await GetCurrentUserAsync(cancellationToken);
         if (user == null)
         {
-            _cachedRegions = new List<Guid>();
+            _cachedRegions = [];
             return _cachedRegions;
         }
 
@@ -170,7 +170,7 @@ public class UserAuthorizationService : IUserAuthorizationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving accessible regions for user: {UserId}", user.Id);
-            _cachedRegions = new List<Guid>();
+            _cachedRegions = [];
             return _cachedRegions;
         }
     }
@@ -191,16 +191,16 @@ public class UserAuthorizationService : IUserAuthorizationService
         var user = await GetCurrentUserAsync(cancellationToken);
         if (user?.Role == null)
         {
-            _cachedPermissions = new List<string>();
+            _cachedPermissions = [];
             return _cachedPermissions;
         }
 
         try
         {
             var permissionsQuery = from rp in _dbContext.Set<Domain.Aggregates.RolePermission>()
-                                 join p in _dbContext.Set<Domain.Entities.Permission>() on rp.PermissionId equals p.Id
-                                 where rp.RoleId == user.Role.Id && !rp.IsDeleted && !p.IsDeleted
-                                 select p.Key;
+                                   join p in _dbContext.Set<Domain.Entities.Permission>() on rp.PermissionId equals p.Id
+                                   where rp.RoleId == user.Role.Id && !rp.IsDeleted && !p.IsDeleted
+                                   select p.Key;
 
             _cachedPermissions = await permissionsQuery.ToListAsync(cancellationToken);
             return _cachedPermissions;
@@ -208,7 +208,7 @@ public class UserAuthorizationService : IUserAuthorizationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving permissions for user: {UserId}", user.Id);
-            _cachedPermissions = new List<string>();
+            _cachedPermissions = [];
             return _cachedPermissions;
         }
     }

@@ -28,15 +28,20 @@ spec:
                 secretKeyRef:
                   name: ntc-qos-secrets
                   key: DB_CONNECTION_STRING
-            - name: ConnectionStrings__HangfireConnection
-              valueFrom:
-                secretKeyRef:
-                  name: ntc-qos-secrets
-                  key: HANGFIRE_CONNECTION_STRING
             - name: Clerk__SecretKey
               valueFrom:
                 secretKeyRef:
                   name: ntc-qos-secrets
                   key: Clerk__SecretKey
+            - name: Clerk__WebhookSecret
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: Clerk__WebhookSecret
+            - name: ConnectionStrings__BlobStorageConnection
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: BLOB_STORAGE_CONNECTION_STRING
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.env.ASPNETCORE_ENVIRONMENT | default "Production" }}

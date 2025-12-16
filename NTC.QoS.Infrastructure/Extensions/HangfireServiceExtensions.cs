@@ -31,7 +31,7 @@ internal static class HangfireServiceExtensions
             }
             // Defaults are already set in HangfireOptions class
         });
-        
+
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -44,7 +44,7 @@ internal static class HangfireServiceExtensions
         services.AddHangfire((serviceProvider, cfg) =>
         {
             var hangfireOptions = serviceProvider.GetRequiredService<IOptions<HangfireOptions>>().Value;
-            
+
             cfg.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
                 .UseSimpleAssemblyNameTypeSerializer()
                 .UseRecommendedSerializerSettings()
@@ -60,11 +60,11 @@ internal static class HangfireServiceExtensions
         services.AddHangfireServer((serviceProvider, options) =>
         {
             var hangfireOptions = serviceProvider.GetRequiredService<IOptions<HangfireOptions>>().Value;
-            
+
             // Configure worker count
             int fallback = Math.Min(Environment.ProcessorCount, hangfireOptions.MaxWorkerCount);
-            options.WorkerCount = hangfireOptions.WorkerCount is > 0 
-                ? Math.Min(hangfireOptions.WorkerCount.Value, hangfireOptions.MaxWorkerCount) 
+            options.WorkerCount = hangfireOptions.WorkerCount is > 0
+                ? Math.Min(hangfireOptions.WorkerCount.Value, hangfireOptions.MaxWorkerCount)
                 : fallback;
 
             // Configure server name

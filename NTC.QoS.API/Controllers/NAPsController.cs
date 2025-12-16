@@ -6,9 +6,14 @@ using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
+<<<<<<< HEAD
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+=======
+using NTC.QoS.Domain.Models.RequestParams;
+>>>>>>> development
 
 namespace NTC.QoS.API.Controllers;
 
@@ -46,7 +51,7 @@ public class NAPsController : ControllerBase
     [HttpGet("public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllPublicNAPs([FromQuery] CellsQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllPublicNAPs([FromQuery] LocationQueryParams query)
     {
         return await GetAllNAPs(query);
     }
@@ -54,7 +59,7 @@ public class NAPsController : ControllerBase
     [HttpGet]
     [RequirePermission(Permissions.ViewNAPs)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllInternalNAPs([FromQuery] CellsQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllInternalNAPs([FromQuery] LocationQueryParams query)
     {
         return await GetAllNAPs(query);
     }
@@ -82,14 +87,14 @@ public class NAPsController : ControllerBase
         return BadRequest(NAP);
     }
 
-    private async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(CellsQueryParams query)
+    private async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(LocationQueryParams query)
     {
         var cacheKey = $"{NAPsCachePrefix}{query.PageSize}_{query.PageNumber}_" +
-               $"{string.Join(",", query.ServiceProviderIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.BarangayIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.MunicipalityIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.ProvinceIds ?? new List<Guid>())}_" +
-               $"{string.Join(",", query.RegionIds ?? new List<Guid>())}_" +
+               $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+               $"{string.Join(",", query.BarangayIds ?? [])}_" +
+               $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+               $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+               $"{string.Join(",", query.RegionIds ?? [])}_" +
                $"_{query.Longitude}_{query.Latitude}_{query.Distance}";
 
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
@@ -116,7 +121,7 @@ public class NAPsController : ControllerBase
     }
     private void TrackCacheKey(string key)
     {
-        var keys = _memoryCache.GetOrCreate<HashSet<string>>(NAPsCacheKeysSet, _ => new HashSet<string>());
+        var keys = _memoryCache.GetOrCreate<HashSet<string>>(NAPsCacheKeysSet, _ => []);
         if (keys != null) // Ensure keys is not null before dereferencing  
         {
             keys.Add(key);
@@ -135,35 +140,91 @@ public class NAPsController : ControllerBase
     }
 
 
-    public sealed class CellsQueryParams
+    // ============================================================================
+    // V2 VIEWPORT-BASED ENDPOINTS (Optimized for map rendering)
+    // ============================================================================
+
+    /// <summary>
+    /// Get NAPs within a map viewport bounding box (v2 API - viewport-optimized).
+    /// This endpoint is optimized for map UI rendering and prevents OOM issues.
+    /// Uses spatial indexes and bounding box filtering instead of radius-based queries.
+    /// Returns lightweight data without Guid IDs for optimal payload size.
+    /// Route: GET /v2/NAPs/viewport
+    /// </summary>
+    /// <param name="query">Viewport query parameters including bounding box</param>
+    /// <returns>Paginated list of NAPs within the viewport (without IDs)</returns>
+    [HttpGet("/v2/NAPs/viewport")]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllNAPsViewport([FromQuery] ViewportQueryParams query)
     {
-        [JsonPropertyName("pageNumber")]
-        public int PageNumber { get; set; } = 1;
-        [JsonPropertyName("pageSize")]
-        public int PageSize { get; set; } = 10;
-        [JsonPropertyName("search")]
-        public string? Search { get; set; }
-        [JsonPropertyName("status")]
-        public string? Status { get; set; }
-        [JsonPropertyName("serviceProviderIds")]
-        public List<Guid>? ServiceProviderIds { get; set; }
-        [JsonPropertyName("providerIds")]
-        public List<Guid>? ProviderIds { get; set; }
-        [JsonPropertyName("serviceIds")]
-        public List<Guid>? ServiceIds { get; set; }
-        [JsonPropertyName("longitude")]
-        public double Longitude { get; set; } = 0;
-        [JsonPropertyName("latitude")]
-        public double Latitude { get; set; } = 0;
-        [JsonPropertyName("distance")]
-        public double Distance { get; set; } = 15000000;
-        [JsonPropertyName("barangayIds")]
-        public List<Guid>? BarangayIds { get; set; }
-        [JsonPropertyName("municipalityIds")]
-        public List<Guid>? MunicipalityIds { get; set; }
-        [JsonPropertyName("provinceIds")]
-        public List<Guid>? ProvinceIds { get; set; }
-        [JsonPropertyName("regionIds")]
-        public List<Guid>? RegionIds { get; set; }
+        // Validate viewport bounds
+        if (!query.IsViewportValid())
+        {
+            return BadRequest(new ApiResponse<PaginatedResponse<NAPViewportDto>>
+            {
+                Succeeded = false,
+                Message = "Invalid viewport bounds. Ensure minLatitude < maxLatitude and minLongitude < maxLongitude."
+            });
+        }
+
+        // Generate cache key based on viewport
+        var cacheKey = $"{NAPsCachePrefix}v2_viewport_{query.PageNumber}_{query.PageSize}_" +
+                      $"{query.MinLat:F6}_{query.MaxLat:F6}_{query.MinLng:F6}_{query.MaxLng:F6}_" +
+                      $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+                      $"{string.Join(",", query.BarangayIds ?? [])}_" +
+                      $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+                      $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+                      $"{string.Join(",", query.RegionIds ?? [])}";
+
+        // Check cache
+        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPViewportDto>? cachedNAPs))
+        {
+            return Ok(cachedNAPs);
+        }
+
+        // Create viewport bounds DTO
+        var viewport = query.ToViewportBounds();
+
+        // Create and send request
+        var request = new GetAllNAPsViewportRequest(query.PageNumber, query.PageSize, viewport)
+        {
+            Viewport = viewport,
+            ServiceProviderIds = query.ServiceProviderIds,
+            BarangayIds = query.BarangayIds,
+            MunicipalityIds = query.MunicipalityIds,
+            ProvinceIds = query.ProvinceIds,
+            RegionIds = query.RegionIds
+        };
+
+        var naps = await _mediator.Send(request);
+
+        // Cache successful results
+        if (naps.Succeeded && naps.Data != null)
+        {
+            _memoryCache.Set(cacheKey, naps, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
+
+        return naps.Succeeded ? Ok(naps) : BadRequest(naps);
+    }
+
+    /// <summary>
+    /// Get NAPs within a map viewport bounding box - public endpoint (v2 API - viewport-optimized).
+    /// Allows anonymous access for public map displays.
+    /// Returns lightweight data without Guid IDs for optimal payload size.
+    /// Route: GET /v2/NAPs/viewport/public
+    /// </summary>
+    /// <param name="query">Viewport query parameters including bounding box</param>
+    /// <returns>Paginated list of NAPs within the viewport (without IDs)</returns>
+    [HttpGet("/v2/NAPs/viewport/public")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllPublicNAPsViewport([FromQuery] ViewportQueryParams query)
+    {
+        return await GetAllNAPsViewport(query);
     }
 }

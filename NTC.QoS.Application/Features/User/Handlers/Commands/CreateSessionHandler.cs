@@ -15,7 +15,7 @@ public class CreateSessionHandler(IUserRepository userRepository, IClerkUserServ
         var userQuery = _userRepository.Query(u => u.AuthUserId == request.AuthUserId && !u.IsDeleted);
         var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
 
-        if (user is null) 
+        if (user is null)
         {
             return new ApiResponse<bool>
             {

@@ -331,7 +331,7 @@ public static class AuthorizationSeeder
                 Permissions.ViewFiles, Permissions.UploadFiles, Permissions.ProcessFiles, Permissions.DownloadFiles, Permissions.UpdateFiles,
                 Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
                 Permissions.ViewNetworks, Permissions.CreateNetworks, Permissions.UpdateNetworks,
-                Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors, 
+                Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors,
                 Permissions.ViewCellSectors, Permissions.CreateCellSectors, Permissions.UpdateCellSectors,
                 Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
                 Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars,

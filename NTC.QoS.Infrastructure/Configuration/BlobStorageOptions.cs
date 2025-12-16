@@ -19,7 +19,7 @@ public class BlobStorageOptions
     /// <summary>
     /// Allowed content types for uploads
     /// </summary>
-    public string[] AllowedContentTypes { get; set; } = 
+    public string[] AllowedContentTypes { get; set; } =
     [
         "application/pdf",
         "application/vnd.ms-excel",

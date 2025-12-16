@@ -11,7 +11,7 @@ namespace NTC.QoS.API.Controllers;
 [Route("antenna-patterns", Name = "antenna-patterns")]
 [Authorize]
 
-public class AntennaPatternsController: ControllerBase
+public class AntennaPatternsController : ControllerBase
 {
     private readonly IMediator _mediator;
 

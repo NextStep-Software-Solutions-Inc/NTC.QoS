@@ -11,22 +11,26 @@ namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 public class CreateNetworkHandler(
     INetworkRepository networkRepository,
     IRepository<Domain.Entities.NetworkTemplate> networkTemplateRepository,
-    ILinkRepository linkRepository,
+    IRepository<Domain.Entities.Band> bandRepository,
+    IRepository<Domain.Entities.Municipality> municipalityRepository,
     IRepository<Domain.Entities.SystemType> systemTypeRepository,
     IServiceProviderRepository serviceProviderRepository) : IRequestHandler<CreateNetworkRequest, ApiResponse<NetworkDto>>
 {
     private readonly INetworkRepository _networkRepository = networkRepository;
     private readonly IRepository<Domain.Entities.NetworkTemplate> _networkTemplateRepository = networkTemplateRepository;
-    private readonly ILinkRepository _linkRepository = linkRepository;
+    private readonly IRepository<Domain.Entities.Band> _bandRepository = bandRepository;
+    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
     private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository = systemTypeRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
 
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n => 
-            n.Name.Equals(request.Network.Name) && 
+        var networkQuery = _networkRepository.Query(n =>
+            n.Name.Equals(request.Network.Name) &&
             n.SystemTypeId == request.Network.SystemTypeId &&
             n.ServiceProviderId == request.Network.ServiceProviderId &&
+            n.BandId == request.Network.BandId &&
+            n.MunicipalityId == request.Network.MunicipalityId &&
             n.NetworkTemplateId == request.Network.NetworkTemplateId);
         var existingNetwork = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
         if (existingNetwork is not null)
@@ -42,19 +46,24 @@ public class CreateNetworkHandler(
             };
         }
 
-        var networkTemplateQuery = _networkTemplateRepository.Query(nt => nt.Id == request.Network.NetworkTemplateId);
-        var networkTemplate = await _networkTemplateRepository.FirstOrDefaultAsync(networkTemplateQuery, cancellationToken);
-        if (networkTemplate is null)
+        // NetworkTemplate is optional; only validate when an id is provided.
+        Domain.Entities.NetworkTemplate? networkTemplate = null;
+        if (request.Network.NetworkTemplateId.HasValue)
         {
-            return new ApiResponse<NetworkDto>
+            var networkTemplateQuery = _networkTemplateRepository.Query(nt => nt.Id == request.Network.NetworkTemplateId.Value);
+            networkTemplate = await _networkTemplateRepository.FirstOrDefaultAsync(networkTemplateQuery, cancellationToken);
+            if (networkTemplate is null)
             {
-                Succeeded = false,
-                Errors = new Dictionary<string, string[]>
+                return new ApiResponse<NetworkDto>
                 {
-                    { "NullNetworkTemplate", ["Network Template not found."] }
-                },
-                Message = "Network Template not found."
-            };
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "NullNetworkTemplate", ["Network Template not found."] }
+                    },
+                    Message = "Network Template not found."
+                };
+            }
         }
 
         var systemTypeQuery = _systemTypeRepository.Query(st => st.Id == request.Network.SystemTypeId);
@@ -100,71 +109,40 @@ public class CreateNetworkHandler(
             };
         }
 
-        var errorMessages = new List<string>();
-
-        var uplinkQuery = _linkRepository.Query(l => l.Id == request.Network.UplinkId)
-            .Include(l => l.ServiceProvider)
-            .Include(l => l.Band);
-        var uplink = await _linkRepository.FirstOrDefaultAsync(uplinkQuery, cancellationToken);
-
-        if (uplink is null)
-        {
-            errorMessages.Add("Uplink not found.");
-        }
-        else
-        {
-            if (uplink.Type != LinkTypeEnum.Uplink)
-            {
-                errorMessages.Add("Selected uplink is not of type Uplink.");
-            }
-
-            if (uplink.ServiceProviderId != request.Network.ServiceProviderId)
-            {
-                errorMessages.Add("Uplink service provider must match the network service provider.");
-            }
-        }
-
-        var downlinkQuery = _linkRepository.Query(l => l.Id == request.Network.DownLinkId)
-            .Include(l => l.ServiceProvider)
-            .Include(l => l.Band);
-        var downlink = await _linkRepository.FirstOrDefaultAsync(downlinkQuery, cancellationToken);
-
-        if (downlink is null)
-        {
-            errorMessages.Add("Downlink not found.");
-        }
-        else
-        {
-            if (downlink.Type != LinkTypeEnum.Downlink)
-            {
-                errorMessages.Add("Selected downlink is not of type Downlink.");
-            }
-
-            if (downlink.ServiceProviderId != request.Network.ServiceProviderId)
-            {
-                errorMessages.Add("Downlink service provider must match the network service provider.");
-            }
-        }
-
-        if (uplink is not null && downlink is not null)
-        {
-            if (uplink.BandId != downlink.BandId)
-            {
-                errorMessages.Add("Uplink and downlink must have the same band.");
-            }
-        }
-
-        if (errorMessages.Count > 0)
+        // Validate Band
+        var bandQuery = _bandRepository.Query(b => b.Id == request.Network.BandId);
+        var band = await _bandRepository.FirstOrDefaultAsync(bandQuery, cancellationToken);
+        if (band is null)
         {
             return new ApiResponse<NetworkDto>
             {
-                Message = string.Join(" ", errorMessages),
+                Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "ValidationError", errorMessages.ToArray() }
+                    { "NullBand", ["Band not found."] }
                 },
-                Succeeded = false,
+                Message = "Band not found."
             };
+        }
+
+        // Validate Municipality (optional)
+        Domain.Entities.Municipality? municipality = null;
+        if (request.Network.MunicipalityId.HasValue)
+        {
+            var municipalityQuery = _municipalityRepository.Query(m => m.Id == request.Network.MunicipalityId);
+            municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
+            if (municipality is null)
+            {
+                return new ApiResponse<NetworkDto>
+                {
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "NullMunicipality", ["Municipality not found."] }
+                    },
+                    Message = "Municipality not found."
+                };
+            }
         }
 
         var newNetwork = new Domain.Aggregates.Network
@@ -173,6 +151,8 @@ public class CreateNetworkHandler(
             NetworkTemplateId = request.Network.NetworkTemplateId,
             SystemTypeId = systemType.Id,
             ServiceProviderId = serviceProvider.Id,
+            BandId = band.Id,
+            MunicipalityId = municipality?.Id,
             ULCenterFreq = request.Network.ULCenterFreq,
             DLCenterFreq = request.Network.DLCenterFreq,
             Bandwidth = request.Network.Bandwidth,
@@ -187,7 +167,7 @@ public class CreateNetworkHandler(
             {
                 Id = newNetwork.Id,
                 Name = newNetwork.Name,
-                NetworkTemplate = new()
+                NetworkTemplate = networkTemplate is null ? null : new()
                 {
                     Id = networkTemplate.Id,
                     Name = networkTemplate.Name,
@@ -213,6 +193,21 @@ public class CreateNetworkHandler(
                         Name = serviceProvider.Service?.Name ?? string.Empty,
                         Type = serviceProvider.Service?.Type.ToString() ?? string.Empty
                     }
+                },
+                Band = new()
+                {
+                    Id = band.Id,
+                    Name = band.Name,
+                    Description = band.Description
+                },
+                Municipality = municipality == null ? null : new()
+                {
+                    Id = municipality.Id,
+                    Name = municipality.Name,
+                    Description = municipality.Description,
+                    IsCity = municipality.IsCity,
+                    Code = municipality.Code,
+                    Area = municipality.Area
                 },
                 ULCenterFreq = newNetwork.ULCenterFreq,
                 DLCenterFreq = newNetwork.DLCenterFreq,

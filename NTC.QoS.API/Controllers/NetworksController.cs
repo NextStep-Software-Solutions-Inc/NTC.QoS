@@ -10,7 +10,7 @@ using NTC.QoS.Domain.Models.DTOs.Network;
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
-[Route("networks", Name= "networks")]
+[Route("networks", Name = "networks")]
 [Authorize]
 
 public class NetworksController(IMediator mediator) : ControllerBase
@@ -26,10 +26,36 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+<<<<<<< HEAD
     [RequirePermission(Permissions.ViewNetworks)]
     public async Task<ActionResult<PaginatedResponse<NetworkDto>>> GetAllNetworks(int pageNumber = 1, int pageSize = 10, string? search = null, Guid? networkTemplateId = null)
+=======
+    public async Task<ActionResult<PaginatedResponse<NetworkDto>>> GetAllNetworks(
+        int pageNumber = 1, 
+        int pageSize = 10, 
+        string? search = null, 
+        Guid? networkTemplateId = null,
+        Guid? technologyId = null,
+        Guid? bandId = null,
+        Guid? locationId = null,
+        string? locationType = null,
+        Guid? systemTypeId = null,
+        Guid? serviceProviderId = null,
+        Guid? cellId = null)
+>>>>>>> development
     {
-        var request = new GetAllNetworksRequest(pageNumber, pageSize, search, networkTemplateId);
+        var request = new GetAllNetworksRequest(
+            pageNumber, 
+            pageSize, 
+            search, 
+            networkTemplateId, 
+            technologyId, 
+            bandId, 
+            locationId, 
+            locationType, 
+            systemTypeId,
+            serviceProviderId,
+            cellId);
         var networks = await _mediator.Send(request);
         return networks.Succeeded ? Ok(networks) : BadRequest(networks);
     }

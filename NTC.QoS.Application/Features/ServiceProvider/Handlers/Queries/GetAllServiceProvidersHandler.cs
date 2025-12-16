@@ -7,12 +7,12 @@ using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
 namespace NTC.QoS.Application.Features.ServiceProvider.Handlers.Queries;
 
-public class GetAllServiceProvidersHandler (IServiceProviderRepository serviceProviderRepository) : IRequestHandler<GetAllServiceProvidersRequest, PaginatedResponse<ServiceProviderDto>>
+public class GetAllServiceProvidersHandler(IServiceProviderRepository serviceProviderRepository) : IRequestHandler<GetAllServiceProvidersRequest, PaginatedResponse<ServiceProviderDto>>
 {
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     public async Task<PaginatedResponse<ServiceProviderDto>> Handle(GetAllServiceProvidersRequest request, CancellationToken cancellationToken)
     {
-        var allServiceProvidersQuery = _serviceProviderRepository.Query();
+        var allServiceProvidersQuery = _serviceProviderRepository.QueryAsNoTracking();
 
         var requestedServiceTypes = request.ServiceTypes?
             .Select(st => EnumHelper<ServiceTypeEnum>.GetValue(st))

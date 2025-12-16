@@ -19,7 +19,7 @@ public class DeleteCellularByIdHandler(IRepository<Domain.Entities.Cellular> rep
             return new ApiResponse<bool>
             {
                 Succeeded = false,
-                Errors = new Dictionary<string, string[]> 
+                Errors = new Dictionary<string, string[]>
                 {
                     { "Error", [ "Cellular record not found." ] }
                 },

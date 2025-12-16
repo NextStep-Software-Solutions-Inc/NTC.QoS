@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs.Generation;
 
 namespace NTC.QoS.Application.Features.Generation.Handlers.Queries;
 
-public class GetAllGenerationsHandler (IRepository<Domain.Aggregates.Generation> repository) : IRequestHandler<GetAllGenerationsRequest, PaginatedResponse<GenerationDto>>
+public class GetAllGenerationsHandler(IRepository<Domain.Aggregates.Generation> repository) : IRequestHandler<GetAllGenerationsRequest, PaginatedResponse<GenerationDto>>
 {
     private readonly IRepository<Domain.Aggregates.Generation> _repository = repository;
     public async Task<PaginatedResponse<GenerationDto>> Handle(GetAllGenerationsRequest request, CancellationToken cancellationToken)

@@ -19,14 +19,22 @@ internal static class BackgroundJobServiceExtensions
     {
         // Background job service
         services.AddTransient<IBackgroundJobService, BackgroundJobService>();
-        
+
+        // Scheduler service
+        services.AddScoped<ISchedulerService, SchedulerService>();
+
         // Job implementations
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
         services.AddTransient<IProcessCellJob, ProcessCellJob>();
         services.AddTransient<IDeleteUploadedFileJob, DeleteUploadedFileJob>();
         services.AddTransient<IProcessSpeedtestJob, ProcessSpeedtestJob>();
         services.AddTransient<IProcessCellularCoverageJob, ProcessCellularCoverageJob>();
+        services.AddTransient<IProcessCellularCoverageV2Job, ProcessCellularCoverageV2Job>();
+        services.AddTransient<IProcessConnectivityAssessmentJob, ProcessConnectivityAssessmentJob>();
         services.AddTransient<IProcessWirelessValidationJob, ProcessWirelessValidationJob>();
+        
+        // Scheduled job wrapper with date validation
+        services.AddTransient<IScheduledConnectivityAssessmentJob, ScheduledConnectivityAssessmentJob>();
 
         return services;
     }

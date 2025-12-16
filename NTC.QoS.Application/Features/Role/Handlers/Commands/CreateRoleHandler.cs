@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Role;
 
 namespace NTC.QoS.Application.Features.Role.Handlers.Commands;
 
-public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository): IRequestHandler<CreateRoleRequest, ApiResponse<RoleDto>>
+public class CreateRoleHandler(IRepository<Domain.Entities.Role> roleRepository) : IRequestHandler<CreateRoleRequest, ApiResponse<RoleDto>>
 {
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
 
@@ -36,7 +36,7 @@ public class CreateRoleHandler (IRepository<Domain.Entities.Role> roleRepository
                     Message = "Role restored successfully."
                 };
             }
-            else 
+            else
             {
                 return new ApiResponse<RoleDto>
                 {

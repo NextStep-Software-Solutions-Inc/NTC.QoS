@@ -82,7 +82,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
             using (fileStream)
             {
                 _logger.LogInformation("Processing Cellular Coverage file downloaded from blob storage");
-                
+
                 fileStream.Position = 0;
                 _logger.LogInformation("Excel processing started.");
 
