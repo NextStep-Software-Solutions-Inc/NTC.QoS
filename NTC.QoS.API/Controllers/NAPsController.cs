@@ -6,14 +6,9 @@ using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
-<<<<<<< HEAD
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-=======
 using NTC.QoS.Domain.Models.RequestParams;
->>>>>>> development
 
 namespace NTC.QoS.API.Controllers;
 

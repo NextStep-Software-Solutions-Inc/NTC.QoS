@@ -23,12 +23,8 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
     [HttpPost]
-<<<<<<< HEAD
     [RequirePermission(Permissions.CreateSpeedtests)]
-    public async Task<ActionResult<ApiResponse<SpeedtestDto>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
-=======
     public async Task<ActionResult<ApiResponse<Guid>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
->>>>>>> development
     {
         var speedtest = await mediator.Send(new CreateSpeedtestRequest(createSpeedtest));
         if (!speedtest.Succeeded) return BadRequest(speedtest);
@@ -81,12 +77,8 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
 
     [HttpGet("{id}")]
-<<<<<<< HEAD
     [RequirePermission(Permissions.ViewSpeedtests)]
-    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
-=======
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
->>>>>>> development
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
         var speedtest = await mediator.Send(new GetSpeedtestByIdRequest(id));

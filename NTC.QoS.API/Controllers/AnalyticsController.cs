@@ -1,11 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-<<<<<<< HEAD
 using NTC.QoS.API.Authorization;
-=======
-using NTC.QoS.Application.Features.Analytics.Handlers.Queries;
->>>>>>> development
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Constants;

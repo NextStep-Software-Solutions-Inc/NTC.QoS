@@ -26,10 +26,7 @@ public class NetworksController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-<<<<<<< HEAD
     [RequirePermission(Permissions.ViewNetworks)]
-    public async Task<ActionResult<PaginatedResponse<NetworkDto>>> GetAllNetworks(int pageNumber = 1, int pageSize = 10, string? search = null, Guid? networkTemplateId = null)
-=======
     public async Task<ActionResult<PaginatedResponse<NetworkDto>>> GetAllNetworks(
         int pageNumber = 1, 
         int pageSize = 10, 
@@ -42,7 +39,6 @@ public class NetworksController(IMediator mediator) : ControllerBase
         Guid? systemTypeId = null,
         Guid? serviceProviderId = null,
         Guid? cellId = null)
->>>>>>> development
     {
         var request = new GetAllNetworksRequest(
             pageNumber, 

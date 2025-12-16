@@ -2,11 +2,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-<<<<<<< HEAD
 using NTC.QoS.API.Authorization;
-=======
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
->>>>>>> development
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Application.Features.Municipality.Requests;
@@ -69,16 +66,10 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-<<<<<<< HEAD
     [RequirePermission(Permissions.ViewFiles)]
-    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, 
-                                                                            int pageNumber = 1, 
-                                                                            [FromQuery] string[]? types = default, 
-=======
     public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10,
                                                                             int pageNumber = 1,
                                                                             [FromQuery] string[]? types = default,
->>>>>>> development
                                                                             [FromQuery] string[]? statuses = default,
                                                                             string? search = default)
     {
