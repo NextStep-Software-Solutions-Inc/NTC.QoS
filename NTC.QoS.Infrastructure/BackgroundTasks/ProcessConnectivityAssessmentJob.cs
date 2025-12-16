@@ -202,6 +202,32 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     jobId, missingCount, actualTotalLocations);
             }
 
+            // CRITICAL: Verify database state before marking as complete
+            _logger.LogInformation("Job {JobId}: Performing final database verification before marking as complete...", jobId);
+            try
+            {
+                var dbVerificationCount = await VerifyDatabasePersistence(jobRequest.LocationIds, jobRequest.LocationType, cancellationToken);
+                _logger.LogInformation("Job {JobId}: Database verification confirmed {DbCount} assessments persisted out of {ExpectedCount} processed",
+                    jobId, dbVerificationCount, results.Count);
+                
+                if (dbVerificationCount < results.Count)
+                {
+                    var dbDiscrepancy = results.Count - dbVerificationCount;
+                    _logger.LogWarning(
+                        "Job {JobId}: DATABASE DISCREPANCY DETECTED - Processed {ProcessedCount} but only {DbCount} found in database. " +
+                        "Missing: {MissingInDb}. This indicates database write failures!",
+                        jobId, results.Count, dbVerificationCount, dbDiscrepancy);
+                    
+                    // Update success message to reflect database reality
+                    successMessage = $"Generated {dbVerificationCount}/{actualTotalLocations} connectivity assessments ({(actualTotalLocations > 0 ? (dbVerificationCount * 100.0 / actualTotalLocations) : 0):F1}%) in {totalTime:mm':'ss}. " +
+                        $"Warning: {dbDiscrepancy} assessments may not have been saved to database.";
+                }
+            }
+            catch (Exception verifyEx)
+            {
+                _logger.LogError(verifyEx, "Job {JobId}: Failed to verify database state. Job completing with uncertainty about data persistence.", jobId);
+            }
+
             // Update job status to Completed - keep actualTotalLocations to show expected vs actual
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Completed, successMessage,
                 endTime: endTime, processedCount: results.Count, totalCount: actualTotalLocations,
@@ -245,6 +271,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             jobId, locations.Count, processingContext);
 
         var results = new List<LocationConnectivityDto>();
+        var failedLocations = new List<(Guid Id, string Name, string Error)>();
         var startTime = DateTime.UtcNow;
         var processedCount = 0;
 
@@ -281,6 +308,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         {
                             results.Add(result);
                         }
+                        else
+                        {
+                            // Track failed location for reporting
+                            failedLocations.Add((location.Id, location.Name, "Processing returned null - check logs for details"));
+                            _logger.LogWarning("Job {JobId}: Failed to process location {LocationId} ({LocationName}) - result was null",
+                                jobId, location.Id, location.Name);
+                        }
                         
                         processedCount++;
 
@@ -289,8 +323,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Job {JobId}: Error processing location {LocationId} ({LocationName}). Continuing with next location.",
-                            jobId, location.Id, location.Name);
+                        failedLocations.Add((location.Id, location.Name, ex.Message));
+                        _logger.LogError(ex, "Job {JobId}: Error processing location {LocationId} ({LocationName}). Error: {ErrorMessage}",
+                            jobId, location.Id, location.Name, ex.Message);
                         processedCount++;
                         continue;
                     }
@@ -317,10 +352,23 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         }
 
         var totalElapsed = DateTime.UtcNow - startTime;
-        _logger.LogInformation("Job {JobId}: Completed processing {LocationCount} {Context}. " +
-            "Generated {ResultCount} assessments in {ElapsedTime:mm\\:ss}. Rate: {Rate:F1}/sec",
-            jobId, locations.Count, processingContext, results.Count, totalElapsed,
-            totalElapsed.TotalSeconds > 0 ? results.Count / totalElapsed.TotalSeconds : 0);
+        
+        if (failedLocations.Count > 0)
+        {
+            _logger.LogWarning("Job {JobId}: Completed processing {LocationCount} {Context} with {FailureCount} failures. " +
+                "Generated {ResultCount} assessments in {ElapsedTime:mm\\:ss}. Rate: {Rate:F1}/sec. " +
+                "Failed locations: {FailedLocations}",
+                jobId, locations.Count, processingContext, failedLocations.Count, results.Count, totalElapsed,
+                totalElapsed.TotalSeconds > 0 ? results.Count / totalElapsed.TotalSeconds : 0,
+                string.Join(", ", failedLocations.Select(f => $"{f.Name} ({f.Id}): {f.Error}")));
+        }
+        else
+        {
+            _logger.LogInformation("Job {JobId}: Completed processing {LocationCount} {Context}. " +
+                "Generated {ResultCount} assessments in {ElapsedTime:mm\\:ss}. Rate: {Rate:F1}/sec",
+                jobId, locations.Count, processingContext, results.Count, totalElapsed,
+                totalElapsed.TotalSeconds > 0 ? results.Count / totalElapsed.TotalSeconds : 0);
+        }
 
         return results;
     }
@@ -491,7 +539,32 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
 
-                await _connectivityRepository.SaveChangesAsync(cancellationToken);
+                _logger.LogDebug("Saving updated assessment for {LocationType} {LocationId} with {ProviderCount} providers",
+                    locationType, locationId, providers.Count);
+
+                try
+                {
+                    await _connectivityRepository.SaveChangesAsync(cancellationToken);
+                    
+                    // Verify the data was actually saved by checking if it exists in database
+                    var verifyExisting = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
+                    if (verifyExisting == null)
+                    {
+                        var errorMsg = $"Database verification failed: Assessment for {locationType} {locationId} not found after save";
+                        _logger.LogError(errorMsg);
+                        throw new InvalidOperationException(errorMsg);
+                    }
+                    
+                    _logger.LogInformation("Successfully saved and verified updated assessment for {LocationType} {LocationId}",
+                        locationType, locationId);
+                }
+                catch (Exception saveEx)
+                {
+                    _logger.LogError(saveEx, "CRITICAL: Failed to save assessment update for {LocationType} {LocationId}. Error: {ErrorMessage}",
+                        locationType, locationId, saveEx.Message);
+                    throw; // Re-throw to propagate error up the chain
+                }
+
                 return CreateLocationConnectivityDto(existing, locationName);
             }
             else
@@ -515,15 +588,42 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
 
-                // Save all changes atomically in a single transaction
-                await _connectivityRepository.SaveChangesAsync(cancellationToken);
+                _logger.LogDebug("Saving new assessment for {LocationType} {LocationId} with {ProviderCount} providers",
+                    locationType, locationId, providers.Count);
+
+                try
+                {
+                    // Save all changes atomically in a single transaction
+                    await _connectivityRepository.SaveChangesAsync(cancellationToken);
+                    
+                    // Verify the data was actually saved by checking if it exists in database
+                    var verifyNew = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
+                    if (verifyNew == null)
+                    {
+                        var errorMsg = $"Database verification failed: New assessment for {locationType} {locationId} not found after save";
+                        _logger.LogError(errorMsg);
+                        throw new InvalidOperationException(errorMsg);
+                    }
+                    
+                    _logger.LogInformation("Successfully saved and verified new assessment for {LocationType} {LocationId}",
+                        locationType, locationId);
+                }
+                catch (Exception saveEx)
+                {
+                    _logger.LogError(saveEx, "CRITICAL: Failed to save new assessment for {LocationType} {LocationId}. Error: {ErrorMessage}",
+                        locationType, locationId, saveEx.Message);
+                    throw; // Re-throw to propagate error up the chain
+                }
 
                 return CreateLocationConnectivityDto(newAssessmentData, locationName);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing assessment for {LocationType} {LocationId}", locationType, locationId);
+            _logger.LogError(ex, "Error processing assessment for {LocationType} {LocationId}. This location will be skipped.", 
+                locationType, locationId);
+            // Return null for this specific location, but log the error so we can track failures
+            // The calling method will continue processing other locations
             return null;
         }
     }
@@ -2447,6 +2547,27 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         var hasGoodSpeeds = speedStats?.MeetsMinimumSpeedRequirement == true;
 
         return hasInfrastructure && (hasMultipleProviders || hasGoodSpeeds);
+    }
+
+    /// <summary>
+    /// Verifies that assessments were actually persisted to the database
+    /// Returns the count of assessments found in the database
+    /// </summary>
+    private async Task<int> VerifyDatabasePersistence(
+        List<Guid> locationIds,
+        LocationTypeEnum locationType,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dbAssessments = await _connectivityRepository.GetByLocationIdsAsync(locationIds, locationType, cancellationToken);
+            return dbAssessments?.Count ?? 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying database persistence for {LocationType} locations", locationType);
+            throw;
+        }
     }
 
     /// <summary>
