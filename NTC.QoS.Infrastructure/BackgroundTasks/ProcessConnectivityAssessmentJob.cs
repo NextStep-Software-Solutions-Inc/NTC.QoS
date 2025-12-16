@@ -21,7 +21,15 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 /// - ActualTotalLocations includes primary + hierarchical child counts (pre-calculated)
 /// - Progress tracking is accurate throughout the entire job execution
 /// - Completion verification compares processed vs expected (actual) counts
+/// 
+/// JOB QUEUEING:
+/// - Uses dedicated queue "connectivity-assessment" to serialize jobs (prevents concurrent execution)
+/// - Prevents PostgreSQL memory exhaustion from multiple simultaneous spatial queries
+/// - Avoids unique constraint violations from concurrent processing of same locations
+/// - Automatic retry on transient failures (3 attempts with exponential backoff)
 /// </summary>
+[Queue("connectivity-assessment")]
+[AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
 public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJob
 {
     private readonly ILogger<ProcessConnectivityAssessmentJob> _logger;
@@ -620,8 +628,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         }
         catch (Exception ex)
         {
+            // Log comprehensive error details including inner exceptions
+            var errorDetails = new System.Text.StringBuilder();
+            errorDetails.AppendLine($"Error processing assessment for {locationType} {locationId}");
+            errorDetails.AppendLine($"Exception Type: {ex.GetType().FullName}");
+            errorDetails.AppendLine($"Message: {ex.Message}");
+            
+            if (ex.InnerException != null)
+            {
+                errorDetails.AppendLine($"Inner Exception: {ex.InnerException.GetType().FullName}");
+                errorDetails.AppendLine($"Inner Message: {ex.InnerException.Message}");
+                
+                if (ex.InnerException.InnerException != null)
+                {
+                    errorDetails.AppendLine($"Inner Inner Exception: {ex.InnerException.InnerException.GetType().FullName}");
+                    errorDetails.AppendLine($"Inner Inner Message: {ex.InnerException.InnerException.Message}");
+                }
+            }
+            
+            _logger.LogError(ex, "DETAILED ERROR - {ErrorDetails}", errorDetails.ToString());
             _logger.LogError(ex, "Error processing assessment for {LocationType} {LocationId}. This location will be skipped.", 
                 locationType, locationId);
+            
             // Return null for this specific location, but log the error so we can track failures
             // The calling method will continue processing other locations
             return null;
@@ -935,18 +963,61 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 query = query.Where(s => s.CreatedAt <= endOfDay);
             }
 
-            var speedtestResults = await _speedtestRepository.ToListAsync(
-                query.Select(s => new SpeedtestDto
-                {
-                    DownloadSpeed = s.DownloadSpeed,
-                    UploadSpeed = s.UploadSpeed,
-                    Ping = s.Ping,
-                    RSSI = s.RSSI,
-                    SignalQuality = s.SignalQuality
-                }),
-                cancellationToken);
+            try
+            {
+                // OPTIMIZATION: Use database-level aggregation instead of loading all records into memory
+                // This prevents PostgreSQL shared memory exhaustion when processing large regions
+                var count = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .CountAsync(query, cancellationToken);
+                
+                _logger.LogInformation("Processing {Count} speedtest records for location {LocationId} ({LocationType})", 
+                    count, locationId, locationType);
 
-            result = ProcessSpeedTestResults(speedtestResults);
+                if (count == 0)
+                {
+                    result = new SpeedStatsDto
+                    {
+                        SpeedTestCount = 0,
+                        AverageDownloadSpeedMbps = 0,
+                        AverageUploadSpeedMbps = 0,
+                        MedianDownloadSpeedMbps = 0,
+                        MedianUploadSpeedMbps = 0,
+                        AverageLatencyMs = 0,
+                        AverageSignalStrength = 0,
+                        MeetsMinimumSpeedRequirement = false
+                    };
+                }
+                else if (count > 100000)
+                {
+                    // For very large datasets, use pure SQL aggregation to avoid memory issues
+                    _logger.LogWarning("Large speedtest dataset ({Count} records) - using database aggregation for location {LocationId}", 
+                        count, locationId);
+                    
+                    result = await CalculateSpeedTestStatsWithDatabaseAggregation(query, count, cancellationToken);
+                }
+                else
+                {
+                    // For smaller datasets, load into memory for median calculation
+                    var speedtestResults = await _speedtestRepository.ToListAsync(
+                        query.Select(s => new SpeedtestDto
+                        {
+                            DownloadSpeed = s.DownloadSpeed,
+                            UploadSpeed = s.UploadSpeed,
+                            Ping = s.Ping,
+                            RSSI = s.RSSI,
+                            SignalQuality = s.SignalQuality
+                        }),
+                        cancellationToken);
+
+                    result = ProcessSpeedTestResults(speedtestResults);
+                }
+            }
+            catch (Exception speedTestEx)
+            {
+                _logger.LogError(speedTestEx, "Error querying speedtests for location {LocationId} ({LocationType}). Error: {ErrorMessage}",
+                    locationId, locationType, speedTestEx.Message);
+                throw;
+            }
         }
         else
         {
@@ -968,18 +1039,60 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 query = query.Where(s => s.CreatedAt <= endOfDay);
             }
 
-            var speedtestResults = await _speedtestRepository.ToListAsync(
-                query.Select(s => new SpeedtestDto
-                {
-                    DownloadSpeed = s.DownloadSpeed,
-                    UploadSpeed = s.UploadSpeed,
-                    Ping = s.Ping,
-                    RSSI = s.RSSI,
-                    SignalQuality = s.SignalQuality
-                }),
-                cancellationToken);
+            try
+            {
+                // OPTIMIZATION: Use database-level aggregation for large datasets
+                var count = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .CountAsync(query, cancellationToken);
+                
+                _logger.LogInformation("Processing {Count} speedtest records (radius-based) for location {LocationId} ({LocationType})", 
+                    count, locationId, locationType);
 
-            result = ProcessSpeedTestResults(speedtestResults);
+                if (count == 0)
+                {
+                    result = new SpeedStatsDto
+                    {
+                        SpeedTestCount = 0,
+                        AverageDownloadSpeedMbps = 0,
+                        AverageUploadSpeedMbps = 0,
+                        MedianDownloadSpeedMbps = 0,
+                        MedianUploadSpeedMbps = 0,
+                        AverageLatencyMs = 0,
+                        AverageSignalStrength = 0,
+                        MeetsMinimumSpeedRequirement = false
+                    };
+                }
+                else if (count > 100000)
+                {
+                    // For very large datasets, use pure SQL aggregation to avoid memory issues
+                    _logger.LogWarning("Large speedtest dataset ({Count} records) - using database aggregation for location {LocationId}", 
+                        count, locationId);
+                    
+                    result = await CalculateSpeedTestStatsWithDatabaseAggregation(query, count, cancellationToken);
+                }
+                else
+                {
+                    // For smaller datasets, load into memory for median calculation
+                    var speedtestResults = await _speedtestRepository.ToListAsync(
+                        query.Select(s => new SpeedtestDto
+                        {
+                            DownloadSpeed = s.DownloadSpeed,
+                            UploadSpeed = s.UploadSpeed,
+                            Ping = s.Ping,
+                            RSSI = s.RSSI,
+                            SignalQuality = s.SignalQuality
+                        }),
+                        cancellationToken);
+
+                    result = ProcessSpeedTestResults(speedtestResults);
+                }
+            }
+            catch (Exception speedTestEx)
+            {
+                _logger.LogError(speedTestEx, "Error querying speedtests (radius) for location {LocationId} ({LocationType}). Error: {ErrorMessage}",
+                    locationId, locationType, speedTestEx.Message);
+                throw;
+            }
         }
 
         // Always cache the fresh result
@@ -990,6 +1103,78 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Calculate speed test stats using database-level aggregation to avoid loading large datasets into memory.
+    /// This prevents PostgreSQL shared memory exhaustion (Error 53100) for regions with millions of speedtest records.
+    /// For large datasets, we use database aggregation for averages and approximate median using percentile approach.
+    /// </summary>
+    private async Task<SpeedStatsDto> CalculateSpeedTestStatsWithDatabaseAggregation(
+        IQueryable<Speedtest> query, 
+        int totalCount, 
+        CancellationToken cancellationToken)
+    {
+        // Calculate averages at database level using Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        var avgDownload = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            .AverageAsync(query.Select(s => s.DownloadSpeed), cancellationToken);
+        var avgUpload = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            .AverageAsync(query.Select(s => s.UploadSpeed), cancellationToken);
+        
+        var pingQuery = query.Where(s => s.Ping > 0).Select(s => s.Ping);
+        var hasPing = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(pingQuery, cancellationToken);
+        var avgPing = hasPing 
+            ? await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AverageAsync(pingQuery, cancellationToken)
+            : 0;
+        
+        // For RSSI, filter out null values first - calculate signal strength score
+        var rssiQuery = query.Where(s => s.RSSI.HasValue).Select(s => s.RSSI!.Value);
+        var hasRssi = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(rssiQuery, cancellationToken);
+        double avgSignalStrength = 0;
+        
+        if (hasRssi)
+        {
+            var avgRssi = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AverageAsync(rssiQuery, cancellationToken);
+            // Convert RSSI to signal strength score (1-5)
+            avgSignalStrength = avgRssi switch
+            {
+                <= -100 => 1.0, // No coverage
+                <= -90 => 2.0,  // Very weak
+                <= -80 => 3.0,  // Weak
+                <= -70 => 4.0,  // Average
+                _ => 5.0        // Good
+            };
+        }
+
+        // For median approximation, skip to middle record (faster than loading all records)
+        // Note: This is an approximation but avoids loading massive datasets into memory
+        var medianPosition = totalCount / 2;
+        var medianDownload = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            .FirstOrDefaultAsync(
+                query.OrderBy(s => s.DownloadSpeed)
+                    .Skip(medianPosition)
+                    .Select(s => s.DownloadSpeed), 
+                cancellationToken);
+            
+        var medianUpload = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            .FirstOrDefaultAsync(
+                query.OrderBy(s => s.UploadSpeed)
+                    .Skip(medianPosition)
+                    .Select(s => s.UploadSpeed), 
+                cancellationToken);
+
+        var avgDownloadDecimal = (decimal)avgDownload;
+        return new SpeedStatsDto
+        {
+            SpeedTestCount = totalCount,
+            AverageDownloadSpeedMbps = avgDownloadDecimal,
+            AverageUploadSpeedMbps = (decimal)avgUpload,
+            MedianDownloadSpeedMbps = medianDownload,
+            MedianUploadSpeedMbps = medianUpload,
+            AverageLatencyMs = (decimal)avgPing,
+            AverageSignalStrength = avgSignalStrength,
+            MeetsMinimumSpeedRequirement = avgDownloadDecimal >= 25
+        };
     }
 
     /// <summary>
@@ -2799,18 +2984,123 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             var cellQuery = _cellRepository.QueryAsNoTracking();
             cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
-            cells = await _cellRepository.ToListAsync(
-                cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
+            
+            try
+            {
+                // For Regional-level assessments, skip COUNT and use DISTINCT directly to avoid memory/timeout issues
+                if (locationType == LocationTypeEnum.Regional)
+                {
+                    _logger.LogInformation("Regional location {LocationId} - using database-level distinct for cells (skipping COUNT)", locationId);
+                    cells = await _cellRepository.ToListAsync(
+                        cellQuery.Select(c => c.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
+                }
+                else
+                {
+                    var cellCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .CountAsync(cellQuery, cancellationToken);
+                    _logger.LogInformation("Processing {Count} cell records for location {LocationId}", cellCount, locationId);
+                    
+                    if (cellCount > 50000)
+                    {
+                        // For large datasets, get distinct provider names at database level to avoid memory exhaustion
+                        _logger.LogWarning("Large cell dataset ({Count} records) - using database-level distinct for location {LocationId}", 
+                            cellCount, locationId);
+                        cells = await _cellRepository.ToListAsync(
+                            cellQuery.Select(c => c.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
+                    }
+                    else
+                    {
+                        cells = await _cellRepository.ToListAsync(
+                            cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
+                    }
+                }
+            }
+            catch (Exception cellEx)
+            {
+                _logger.LogError(cellEx, "Error querying cells for location {LocationId} ({LocationType}). Query: Select ServiceProvider.Provider.Name. Error: {ErrorMessage}",
+                    locationId, locationType, cellEx.Message);
+                throw;
+            }
 
             var napQuery = _napRepository.QueryAsNoTracking();
             napQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, napQuery);
-            naps = await _napRepository.ToListAsync(
-                napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
+            
+            try
+            {
+                // For Regional-level assessments, skip COUNT and use DISTINCT directly to avoid memory/timeout issues
+                if (locationType == LocationTypeEnum.Regional)
+                {
+                    _logger.LogInformation("Regional location {LocationId} - using database-level distinct for NAPs (skipping COUNT)", locationId);
+                    naps = await _napRepository.ToListAsync(
+                        napQuery.Select(n => n.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
+                }
+                else
+                {
+                    var napCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .CountAsync(napQuery, cancellationToken);
+                    _logger.LogInformation("Processing {Count} NAP records for location {LocationId}", napCount, locationId);
+                    
+                    if (napCount > 50000)
+                    {
+                        // For large datasets, get distinct provider names at database level to avoid memory exhaustion
+                        _logger.LogWarning("Large NAP dataset ({Count} records) - using database-level distinct for location {LocationId}", 
+                            napCount, locationId);
+                        naps = await _napRepository.ToListAsync(
+                            napQuery.Select(n => n.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
+                    }
+                    else
+                    {
+                        naps = await _napRepository.ToListAsync(
+                            napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
+                    }
+                }
+            }
+            catch (Exception napEx)
+            {
+                _logger.LogError(napEx, "Error querying NAPs for location {LocationId} ({LocationType}). Query: Select ServiceProvider.Provider.Name. Error: {ErrorMessage}",
+                    locationId, locationType, napEx.Message);
+                throw;
+            }
 
             var wifiQuery = _wifiRepository.QueryAsNoTracking();
             wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
-            wifiHotspots = await _wifiRepository.ToListAsync(
-                wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+            
+            try
+            {
+                // For Regional-level assessments, skip COUNT and use DISTINCT directly to avoid memory/timeout issues
+                if (locationType == LocationTypeEnum.Regional)
+                {
+                    _logger.LogInformation("Regional location {LocationId} - using database-level distinct for WiFi (skipping COUNT)", locationId);
+                    wifiHotspots = await _wifiRepository.ToListAsync(
+                        wifiQuery.Select(w => w.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
+                }
+                else
+                {
+                    var wifiCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .CountAsync(wifiQuery, cancellationToken);
+                    _logger.LogInformation("Processing {Count} WiFi records for location {LocationId}", wifiCount, locationId);
+                    
+                    if (wifiCount > 50000)
+                    {
+                        // For large datasets, get distinct provider names at database level to avoid memory exhaustion
+                        _logger.LogWarning("Large WiFi dataset ({Count} records) - using database-level distinct for location {LocationId}", 
+                            wifiCount, locationId);
+                        wifiHotspots = await _wifiRepository.ToListAsync(
+                            wifiQuery.Select(w => w.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
+                    }
+                    else
+                    {
+                        wifiHotspots = await _wifiRepository.ToListAsync(
+                            wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+                    }
+                }
+            }
+            catch (Exception wifiEx)
+            {
+                _logger.LogError(wifiEx, "Error querying WiFi hotspots for location {LocationId} ({LocationType}). Query: Select ServiceProvider.Provider.Name. Error: {ErrorMessage}",
+                    locationId, locationType, wifiEx.Message);
+                throw;
+            }
 
             // Get wireless validations using barangay center within boundary with date filter
             var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
