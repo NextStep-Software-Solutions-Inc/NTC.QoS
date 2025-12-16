@@ -5,6 +5,7 @@ using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Band.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Application.Features.Band.Queries.GetTechnologyBandsByLocation;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Band;
