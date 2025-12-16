@@ -303,16 +303,23 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
 
     /// <summary>
     /// Get the status of a background connectivity assessment job
+    /// Includes database verification for completed jobs to ensure data integrity
     /// </summary>
     /// <param name="jobId">Job identifier returned from the start job endpoint</param>
-    /// <returns>Current job status and progress information</returns>
+    /// <param name="forceVerification">Force database verification even if already verified (default: false)</param>
+    /// <returns>Current job status and progress information with database verification</returns>
     [HttpGet("connectivity-assessment/job/{jobId}/status")]
     [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobStatusDto>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<ConnectivityAssessmentJobStatusDto>>> GetConnectivityAssessmentJobStatus(
-        [FromRoute] int jobId)
+        [FromRoute] int jobId,
+        [FromQuery] bool forceVerification = false)
     {
-        var request = new GetConnectivityAssessmentJobStatusRequest { JobId = jobId };
+        var request = new GetConnectivityAssessmentJobStatusRequest 
+        { 
+            JobId = jobId,
+            ForceVerification = forceVerification
+        };
         var response = await mediator.Send(request);
         return response.Succeeded ? Ok(response) : NotFound(response);
     }
