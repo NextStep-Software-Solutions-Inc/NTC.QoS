@@ -7,6 +7,7 @@ public interface IClerkUserService
     Task UpdateUserMetadataAsync(string userId, UserMetadataPayload payload);
     Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload);
     Task<List<ClerkUserResponse>> GetUsersByEmailAsync(string email);
+    Task<ClerkUserResponse?> GetUserByIdAsync(string userId);
 }
 
 // Define DTOs or command objects relevant to what Clerk API operations you need

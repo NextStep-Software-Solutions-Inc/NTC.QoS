@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.CellSector.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.CellSector;
 
@@ -16,6 +18,7 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateCellSectors)]
     public async Task<ActionResult<ApiResponse<CellSectorDto>>> CreateCellSector(CreateCellSectorDto createCellSector)
     {
         var request = new CreateCellSectorRequest
@@ -27,6 +30,7 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewCellSectors)]
     public async Task<ActionResult<PaginatedResponse<CellSectorDto>>> GetAllCellSectors([FromQuery] int pageNumber = 1,
                                                                             [FromQuery] int pageSize = 10,
                                                                             [FromQuery] List<Guid>? cellIds = null)
@@ -40,6 +44,7 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewCellSectors)]
     public async Task<ActionResult<ApiResponse<CellSectorDto>>> GetCellSectorById(Guid id)
     {
         var cellSector = await _mediator.Send(new GetCellSectorByIdRequest(id));
@@ -47,6 +52,7 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateCellSectors)]
     public async Task<ActionResult<ApiResponse<CellSectorDto>>> UpdateCellSectorById(Guid id, UpdateCellSectorDto updateCellSector)
     {
         var request = new UpdateCellSectorByIdRequest
@@ -59,6 +65,7 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteCellSectors)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteCellSectorById(Guid id)
     {
         var cellSector = await _mediator.Send(new DeleteCellSectorByIdRequest(id));

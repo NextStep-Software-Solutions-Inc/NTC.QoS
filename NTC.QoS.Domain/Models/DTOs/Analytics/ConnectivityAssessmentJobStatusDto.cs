@@ -104,4 +104,81 @@ public class ConnectivityAssessmentJobStatusDto
         ConnectivityAssessmentJobStatusEnum.Cancelled => "Job was cancelled",
         _ => "Unknown status"
     };
+
+    /// <summary>
+    /// Number of assessments actually found in database (for completed jobs)
+    /// Used to detect cache vs database discrepancies
+    /// </summary>
+    public int? DatabaseVerifiedCount { get; set; }
+
+    /// <summary>
+    /// Indicates if database verification was performed
+    /// </summary>
+    public bool DatabaseVerified { get; set; }
+
+    /// <summary>
+    /// Database verification timestamp
+    /// </summary>
+    public DateTime? DatabaseVerificationTime { get; set; }
+
+    /// <summary>
+    /// Indicates if there's a discrepancy between processed count and database count
+    /// </summary>
+    public bool HasDatabaseDiscrepancy => DatabaseVerified && 
+        DatabaseVerifiedCount.HasValue && 
+        ProcessedCount.HasValue && 
+        DatabaseVerifiedCount.Value < ProcessedCount.Value;
+
+    /// <summary>
+    /// Number of assessments missing from database (if discrepancy exists)
+    /// </summary>
+    public int? MissingInDatabase => HasDatabaseDiscrepancy 
+        ? ProcessedCount!.Value - DatabaseVerifiedCount!.Value 
+        : null;
+
+    /// <summary>
+    /// Indicates if the status is stale (not updated in the last 5 minutes for running jobs)
+    /// </summary>
+    public bool IsStale
+    {
+        get
+        {
+            if (IsCompleted) return false; // Completed jobs don't become stale
+            var staleDuration = TimeSpan.FromMinutes(5);
+            return DateTime.UtcNow - LastUpdated > staleDuration;
+        }
+    }
+
+    /// <summary>
+    /// Sample of successfully saved location IDs (for verification purposes)
+    /// Only populated for completed jobs with database verification
+    /// </summary>
+    public List<Guid>? SampleLocationIds { get; set; }
+
+    /// <summary>
+    /// Number of locations that failed during processing
+    /// </summary>
+    public int? FailedLocationCount { get; set; }
+
+    /// <summary>
+    /// Detailed error messages for failed locations (limited to first 10)
+    /// </summary>
+    public List<string>? FailedLocationErrors { get; set; }
+
+    /// <summary>
+    /// Health status indicator combining all checks
+    /// </summary>
+    public string HealthStatus
+    {
+        get
+        {
+            if (Status == ConnectivityAssessmentJobStatusEnum.Failed) return "Failed";
+            if (IsStale) return "Stale";
+            if (HasDatabaseDiscrepancy) return "Warning - Data Loss Detected";
+            if (Status == ConnectivityAssessmentJobStatusEnum.Completed && DatabaseVerified) return "Healthy";
+            if (Status == ConnectivityAssessmentJobStatusEnum.Completed && !DatabaseVerified) return "Unknown - Not Verified";
+            if (Status == ConnectivityAssessmentJobStatusEnum.Processing) return "Running";
+            return "Pending";
+        }
+    }
 }
