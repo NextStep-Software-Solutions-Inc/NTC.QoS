@@ -7,7 +7,7 @@ public class ClerkWebhookPayload
     [JsonPropertyName("type")]
     public required string Type { get; set; }
     [JsonPropertyName("data")]
-    public required ClerkUserData Data { get; set; }
+    public required object Data { get; set; }
 }
 
 public class ClerkUserData
@@ -26,4 +26,12 @@ public class ClerkEmailAddress
 {
     [JsonPropertyName("email_address")]
     public required string EmailAddress { get; set; }
+}
+
+public class ClerkSessionData
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+    [JsonPropertyName("user_id")]
+    public required string UserId { get; set; }
 }
