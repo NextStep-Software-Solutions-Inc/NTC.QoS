@@ -329,19 +329,32 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<User>()
             .HasOne(u => u.Organization)
             .WithMany(o => o.Users)
-            .HasForeignKey(u => u.OrganizationId);
+            .HasForeignKey(u => u.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Organization>()
             .HasMany(o => o.Users);
 
+        modelBuilder.Entity<Organization>()
+            .HasIndex(o => o.Name)
+            .IsUnique();
+
         modelBuilder.Entity<Role>()
             .HasMany(r => r.Users);
+
+        modelBuilder.Entity<Permission>()
+            .HasIndex(p => p.Key)
+            .IsUnique();
 
         modelBuilder.Entity<Role>()
             .HasMany(r => r.RolePermissions)
             .WithOne(rp => rp.Role)
             .HasForeignKey(rp => rp.RoleId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Role>()
+            .HasIndex(r => r.Key)
+            .IsUnique();
 
         modelBuilder.Entity<Permission>()
             .HasMany(p => p.RolePermissions)
