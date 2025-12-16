@@ -1,8 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NTC.QoS.Application.Features.Analytics.Handlers.Queries;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Analytics.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
@@ -36,6 +37,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <response code="200">Returns the broadband analysis data for the specified area</response>
     /// <response code="400">Invalid bounding box parameters or validation errors</response>
     [HttpPost("area-broadband-info")]
+    [RequirePermission(Permissions.ViewAnalytics)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 400)]
     public async Task<ActionResult<ApiResponse<AreaBroadbandInfoDto>>> GetAreaBroadbandInfo(
@@ -64,6 +66,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <response code="200">Returns the broadband analysis data for the specified area</response>
     /// <response code="400">Invalid point/radius parameters or validation errors</response>
     [HttpPost("point-broadband-info")]
+    [RequirePermission(Permissions.ViewAnalytics)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<AreaBroadbandInfoDto>), 400)]
     public async Task<ActionResult<ApiResponse<AreaBroadbandInfoDto>>> GetPointBroadbandInfo(
@@ -144,6 +147,7 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <returns>Geographic constraints and limits</returns>
     /// <response code="200">Returns the geographic constraints and conversion factors</response>
     [HttpGet("geographic-constraints")]
+    [RequirePermission(Permissions.ViewAnalytics)]
     [ProducesResponseType(typeof(ApiResponse<GeographicConstraintsDto>), 200)]
     public ActionResult<ApiResponse<GeographicConstraintsDto>> GetGeographicConstraints()
     {

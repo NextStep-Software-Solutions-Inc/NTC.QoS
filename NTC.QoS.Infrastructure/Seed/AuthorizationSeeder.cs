@@ -52,12 +52,15 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UploadFiles, Name = "Upload Files", Description = "Can upload files" },
             new { Key = Permissions.DeleteFiles, Name = "Delete Files", Description = "Can delete files" },
             new { Key = Permissions.ProcessFiles, Name = "Process Files", Description = "Can process uploaded files" },
+            new { Key = Permissions.DownloadFiles, Name = "Download Files", Description = "Can download files" },
+            new { Key = Permissions.UpdateFiles, Name = "Update Files", Description = "Can update file metadata" },
 
             // User permissions
             new { Key = Permissions.ViewUsers, Name = "View Users", Description = "Can view user listings" },
             new { Key = Permissions.CreateUsers, Name = "Create Users", Description = "Can create new users" },
             new { Key = Permissions.UpdateUsers, Name = "Update Users", Description = "Can update user information" },
             new { Key = Permissions.DeleteUsers, Name = "Delete Users", Description = "Can delete users" },
+            new { Key = Permissions.InviteUsers, Name = "Invite Users", Description = "Can invite new users via email" },
 
             // Role permissions
             new { Key = Permissions.ViewRoles, Name = "View Roles", Description = "Can view role listings" },
@@ -211,7 +214,6 @@ public static class AuthorizationSeeder
             // Cellular permissions
             new { Key = Permissions.ViewCellulars, Name = "View Cellulars", Description = "Can view cellular listings" },
             new { Key = Permissions.CreateCellulars, Name = "Create Cellulars", Description = "Can create new cellular records" },
-            new { Key = Permissions.UpdateCellulars, Name = "Update Cellulars", Description = "Can update cellular information" },
             new { Key = Permissions.DeleteCellulars, Name = "Delete Cellulars", Description = "Can delete cellular records" },
 
             // Report permissions
@@ -326,13 +328,13 @@ public static class AuthorizationSeeder
         {
             var fieldOfficerPermissions = new[]
             {
-                Permissions.ViewFiles, Permissions.UploadFiles, Permissions.ProcessFiles,
+                Permissions.ViewFiles, Permissions.UploadFiles, Permissions.ProcessFiles, Permissions.DownloadFiles, Permissions.UpdateFiles,
                 Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
                 Permissions.ViewNetworks, Permissions.CreateNetworks, Permissions.UpdateNetworks,
                 Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors,
                 Permissions.ViewCellSectors, Permissions.CreateCellSectors, Permissions.UpdateCellSectors,
                 Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
-                Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars, Permissions.UpdateCellulars,
+                Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars,
                 Permissions.ViewSpeedtests, Permissions.CreateSpeedtests, Permissions.UpdateSpeedtests,
                 Permissions.ViewNAPs, Permissions.CreateNAPs, Permissions.UpdateNAPs,
                 Permissions.ViewAnalytics
