@@ -3,11 +3,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
+using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Application.Features.Municipality.Requests;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 using NTC.QoS.Domain.Models.DTOs.File;
 
 namespace NTC.QoS.API.Controllers;
@@ -28,11 +30,7 @@ public class FilesController(IMediator mediator) : ControllerBase
 
         if (file.Succeeded.Equals(false) || file == null || file.Data == null)
         {
-            return BadRequest(new ApiResponse<FileDto>
-            {
-                Succeeded = false,
-                Message = "File upload failed."
-            });
+            return BadRequest(file);
         }
 
         FileTypeEnum fileType = Enum.TryParse<FileTypeEnum>(uploadFile.Type, out var parsedType) ? parsedType : FileTypeEnum.Unknown;
@@ -59,7 +57,7 @@ public class FilesController(IMediator mediator) : ControllerBase
                 break;
 
             case FileTypeEnum.Unknown:
-                default:
+            default:
                 throw new InvalidEnumArgumentException();
         }
 
@@ -69,14 +67,13 @@ public class FilesController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewFiles)]
-    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10, 
-                                                                            int pageNumber = 1, 
-                                                                            [FromQuery] string[]? types = default, 
-                                                                            [FromQuery] string[]? statuses = default,
+    public async Task<ActionResult<PaginatedResponse<FileDto>>> GetAllFiles(int pageSize = 10,
+                                                                            int pageNumber = 1,
+                                                                            [FromQuery] string[]? types = default,
                                                                             string? search = default)
     {
         var files = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search)
-        { 
+        {
             Types = types,
             Statuses = statuses
         });
@@ -116,7 +113,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {
         var res = await _mediator.Send(new DownloadTemplateFileRequest(type));
-        if(res.Succeeded is false || res.Data is null || res.Data.Length is 0)
+        if (res.Succeeded is false || res.Data is null || res.Data.Length is 0)
         {
             return BadRequest(res);
         }
@@ -128,7 +125,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadWirelessValidationTemplate(Guid municipalityId)
     {
         var res = await _mediator.Send(new DownloadWirelessValidationTemplateRequest(municipalityId));
-        if(res.Succeeded is false || res.Data is null || res.Data.Length is 0)
+        if (res.Succeeded is false || res.Data is null || res.Data.Length is 0)
         {
             return BadRequest(res);
         }
@@ -145,4 +142,31 @@ public class FilesController(IMediator mediator) : ControllerBase
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         $"wireless_validation_template-{name}.xlsx");
     }
+
+    /// <summary>
+    /// Upload cellular coverage V2 CSV file with user-provided metadata.
+    /// Expects CSV format: Lat, Lng, Signal, Address
+    /// User provides: NetworkId, ServiceProviderId, MunicipalityId
+    /// System derives: BandId and TechnologyId from Network
+    /// </summary>
+    /// <param name="request">Upload request containing the CSV file and metadata</param>
+    /// <returns>Upload result with job ID for tracking</returns>
+    [HttpPost("cellular-coverage-v2")]
+    [DisableRequestSizeLimit]
+    public async Task<ActionResult<ApiResponse<CellularCoverageV2UploadResultDto>>> UploadCellularCoverageV2(
+        [FromForm] UploadCellularCoverageV2Request request)
+    {
+        var command = new UploadCellularCoverageV2Command
+        {
+            NetworkId = request.NetworkId,
+            ServiceProviderId = request.ServiceProviderId,
+            MunicipalityId = request.MunicipalityId,
+            RegionId = request.RegionId,
+            CsvFile = request.File
+        };
+
+        var result = await _mediator.Send(command);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
 }
+

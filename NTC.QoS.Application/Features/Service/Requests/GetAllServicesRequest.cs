@@ -10,4 +10,4 @@ public class GetAllServicesRequest(int pageSize, int pageNumber, List<Guid>? pro
     public int PageNumber { get; set; } = pageNumber;
     public List<Guid>? ProviderIds { get; set; } = providerIds;
     public List<string>? Types { get; set; } = types;
-} 
+}

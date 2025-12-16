@@ -1,4 +1,6 @@
+using AspNetCoreRateLimit;
 using Clerk.Net.DependencyInjection;
+using NTC.QoS.API.Middleware;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +12,6 @@ using NTC.QoS.API.Extensions;
 using NTC.QoS.API.Filters;
 using NTC.QoS.API.Infrastructure;
 using NTC.QoS.Application;
-using NTC.QoS.Application.Services;
 using NTC.QoS.Infrastructure;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.HealthChecks;
@@ -33,7 +34,7 @@ public class Program
             .AddEnvironmentVariables();
 
         // Validate Clerk secret for both Development and Production
-        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ??  throw new InvalidOperationException("Clerk Secret Key is not configured.");
+        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
         builder.Services.AddClerkApiClient(config =>
         {
             config.SecretKey = clerkSecret;
@@ -98,9 +99,32 @@ public class Program
                 options.JsonSerializerOptions.WriteIndented = env.IsDevelopment();
             });
 
+        // Configure file upload limits for large CSV files (streaming processing)
+        builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+        {
+            options.MultipartBodyLengthLimit = 1073741824; // 1 GB - streaming handles large files efficiently
+            options.ValueLengthLimit = int.MaxValue;
+            options.MultipartHeadersLengthLimit = int.MaxValue;
+            options.BufferBodyLengthLimit = 134217728; // 128 MB buffer
+        });
+
+        builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
+        {
+            options.Limits.MaxRequestBodySize = 1073741824; // 1 GB
+            options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5); // Allow more time for large uploads
+        });
+
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
         {
+            // Include XML documentation
+            var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath);
+            }
+
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name = "Authorization",
@@ -110,6 +134,16 @@ public class Program
                 BearerFormat = "JWT",
                 Scheme = "Bearer"
             });
+
+            options.AddSecurityDefinition("WebhookSignature", new OpenApiSecurityScheme
+            {
+                Name = "Webhook Signature",
+                Description = "Clerk webhook signature verification (handled automatically)",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.ApiKey,
+                Scheme = "Webhook"
+            });
+
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
@@ -124,26 +158,32 @@ public class Program
                     Array.Empty<string>()
                 }
             });
-            
+
             // Custom operation filter for file upload endpoints
             options.OperationFilter<FileUploadOperationFilter>();
             options.OperationFilter<CamelCaseQueryParamsOperationFilter>();
             options.OperationFilter<SwaggerOperationIdFilter>();
             options.OperationFilter<CamelCaseOperationFilter>();
+            options.OperationFilter<ClerkWebhookOperationFilter>();
         });
 
         builder.Services.AddApplication(builder.Configuration);
         builder.Services.AddInfrastructure(builder.Configuration);
 
+        // Add API-specific services
+        builder.Services.AddApiRateLimiting();
+
+        // Register Hangfire job server (required for processing jobs)
+        builder.Services.AddHangfireServer();
+
         builder.Services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-            options.Providers.Add<GzipCompressionProvider>();
-            options.Providers.Add<BrotliCompressionProvider>();
-        });
+            {
+                options.EnableForHttps = true;
+                options.Providers.Add<GzipCompressionProvider>();
+                options.Providers.Add<BrotliCompressionProvider>();
+            });
         builder.Services.AddMemoryCache();
         builder.Services.AddResponseCaching();
-        builder.Services.AddScoped<GeospatialQueryService>();
 
         // Health checks
         builder.Services.AddHealthChecks()
@@ -151,7 +191,7 @@ public class Program
             .AddCheck<DbConnectionHealthCheck>("db");
 
         var app = builder.Build();
-        
+
         // Initialize application startup processes (Hangfire filters, migrations, seeding)
         await app.Services.InitializeApplicationAsync(builder.Configuration, env);
 
@@ -181,6 +221,10 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Enable client-based rate limiting (per user)
+        app.UseClientRateLimiting();
+
 
         // Hangfire dashboard with authorization
         app.UseHangfireDashboard("/hangfire", new DashboardOptions

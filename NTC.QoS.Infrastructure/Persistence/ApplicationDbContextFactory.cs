@@ -9,7 +9,7 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
     public ApplicationDbContext CreateDbContext(string[] args)
     {
         var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
-        
+
         // Try different base paths to find configuration files
         var basePaths = new[]
         {
@@ -20,7 +20,7 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
         };
 
         ConfigurationBuilder configBuilder = new();
-        
+
         foreach (var basePath in basePaths)
         {
             if (Directory.Exists(basePath))
@@ -38,7 +38,7 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
             .Build();
 
         var connectionString = configuration.GetConnectionString("PostgreSqlConnection");
-        
+
         if (string.IsNullOrEmpty(connectionString))
         {
             // Create detailed error message showing what was checked
@@ -52,7 +52,7 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
         }
 
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseNpgsql(connectionString, x => x.UseNetTopologySuite());
+        optionsBuilder.UseNpgsql(connectionString, x => x.UseNetTopologySuite().MigrationsAssembly(typeof(ApplicationDbContext).Assembly.GetName().Name));
 
         return new ApplicationDbContext(optionsBuilder.Options, configuration);
     }

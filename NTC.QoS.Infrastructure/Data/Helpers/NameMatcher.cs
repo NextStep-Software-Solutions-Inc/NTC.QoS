@@ -43,7 +43,7 @@ public static class NameMatcher
             }
 
             // Try contains match (medium-high priority)
-            if (normalizedCandidateName.Contains(normalizedSearchName) || 
+            if (normalizedCandidateName.Contains(normalizedSearchName) ||
                 normalizedSearchName.Contains(normalizedCandidateName))
             {
                 var containsScore = Math.Max(
@@ -84,7 +84,7 @@ public static class NameMatcher
 
         // Remove common prefixes/suffixes and administrative markers
         normalized = RemoveCommonPrefixes(normalized);
-        
+
         // Remove special characters and normalize spacing
         normalized = Regex.Replace(normalized, @"[^\w\s]", " ");
         normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
@@ -203,7 +203,7 @@ public static class NameMatcher
 
         // Apply bonus for word-level matches (handles reordering)
         var wordSimilarity = CalculateWordSimilarity(s1, s2);
-        
+
         // Combine character-level and word-level similarities
         return Math.Max(similarity, wordSimilarity);
     }

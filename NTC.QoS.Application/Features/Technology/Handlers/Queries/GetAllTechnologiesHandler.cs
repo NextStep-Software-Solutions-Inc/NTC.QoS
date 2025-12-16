@@ -20,7 +20,7 @@ public class GetAllTechnologiesHandler(ITechnologyRepository technologyRepositor
             Id = t.Id,
             Standard = t.Standard,
             Description = t.Description,
-            Generation = new ()
+            Generation = new()
             {
                 Id = t.Generation.Id,
                 Name = t.Generation.Name,

@@ -9,6 +9,7 @@ using NTC.QoS.Domain.Interfaces;
 using System.Reflection;
 
 namespace NTC.QoS.Application;
+
 public static class ApplicationDependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
@@ -39,6 +40,8 @@ public static class ApplicationDependencyInjection
 
         // Register Application Services
         services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
+        services.AddScoped<IConnectivityReportingService, ConnectivityReportingService>();
+        services.AddScoped<BroadbandAnalyticsService>();
 
         // Configure ConnectivityCache options
         services.Configure<ConnectivityCacheOptions>(

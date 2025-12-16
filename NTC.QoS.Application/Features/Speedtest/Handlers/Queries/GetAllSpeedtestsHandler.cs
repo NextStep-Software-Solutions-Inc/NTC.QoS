@@ -1,129 +1,112 @@
 ﻿using MediatR;
-using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
-using NTC.QoS.Infrastructure.Helper;
 
 namespace NTC.QoS.Application.Features.Speedtest.Handlers.Queries;
 
-public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository,
-    IRepository<Domain.Entities.Barangay> barangayRepository,
-    IRepository<Domain.Entities.Municipality> municipalityRepository,
-    IRepository<Domain.Entities.Province> provinceRepository,
-    IRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllSpeedtestsRequest, PaginatedResponse<SpeedtestDto>>
+public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) : IRequestHandler<GetAllSpeedtestsRequest, PaginatedResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
-    private readonly IRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
-    private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
-    private readonly IRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
-    private readonly IRepository<Domain.Entities.Region> _regionRepository = regionRepository;
 
     public async Task<PaginatedResponse<SpeedtestDto>> Handle(GetAllSpeedtestsRequest request, CancellationToken cancellationToken)
     {
-        IQueryable<Domain.Entities.Speedtest> speedtestQuery = _speedtestRepository.Query();
+        // Start with optimized no-tracking query and apply spatial filtering via repository
+        var speedtestQuery = _speedtestRepository.GetEntitiesWithinBoundaries(
+            _speedtestRepository.QueryAsNoTracking(),
+            regionIds: request.RegionIds,
+            provinceIds: request.ProvinceIds,
+            municipalityIds: request.MunicipalityIds,
+            barangayIds: request.BarangayIds);
 
-        Point locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
-
+        // Apply search filter
         if (!string.IsNullOrEmpty(request.Search))
         {
-            var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Domain.Entities.Speedtest>(
-                request.Search,
-                s => s.PhoneModel,
-                s => s.MCC,
-                s => s.MNC,
-                s => s.TAC
-            );
-            speedtestQuery = speedtestQuery.Where(searchExpression);
+            var searchLower = request.Search.ToLower();
+            speedtestQuery = speedtestQuery.Where(s =>
+                (s.PhoneModel != null && s.PhoneModel.ToLower().Contains(searchLower)) ||
+                (s.MCC != null && s.MCC.ToLower().Contains(searchLower)) ||
+                (s.MNC != null && s.MNC.ToLower().Contains(searchLower)) ||
+                (s.TAC != null && s.TAC.ToLower().Contains(searchLower)));
         }
 
-        speedtestQuery = speedtestQuery
-            .Where(s => request.ServiceProviderIds == null || (request.ServiceProviderIds.Count > 0 && request.ServiceProviderIds.Contains(s.ServiceProviderId)))
-            .Where(s => request.ProviderIds == null || (request.ProviderIds.Count > 0 && (s.ServiceProvider != null && request.ProviderIds.Contains(s.ServiceProvider.ProviderId))))
-            .Where(s => request.ServiceIds == null || (request.ServiceIds.Count > 0 && (s.ServiceProvider != null && request.ServiceIds.Contains(s.ServiceProvider.ServiceId))))
-            .Where(s => request.GenerationIds == null || (request.GenerationIds.Count > 0 && s.GenerationId.HasValue && request.GenerationIds.Contains(s.GenerationId.Value)))
-            .Where(s => request.TechnologyIds == null || (request.TechnologyIds.Count > 0 && s.TechnologyId.HasValue && request.TechnologyIds.Contains(s.TechnologyId.Value)))
-            .Where(s => string.IsNullOrEmpty(request.SignalQuality) || s.SignalQuality == request.SignalQuality)
-            .Where(s => locationPoint.IsValid && s.Location.IsWithinDistance(locationPoint, request.Distance));
+        // Apply filters - use local variables to avoid closure issues
+        var serviceProviderIds = request.ServiceProviderIds;
+        var providerIds = request.ProviderIds;
+        var serviceIds = request.ServiceIds;
+        var generationIds = request.GenerationIds;
+        var technologyIds = request.TechnologyIds;
+        var signalQuality = request.SignalQuality;
 
-        if (request.BarangayIds is { Count: > 0 })
-        {
-            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.BarangayIds, _barangayRepository, speedtestQuery, cancellationToken);
-        }
-        else if (request.MunicipalityIds is { Count: > 0 })
-        {
-            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.MunicipalityIds, _municipalityRepository, speedtestQuery, cancellationToken);
-        }
-        else if (request.ProvinceIds is { Count: > 0 })
-        {
-            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.ProvinceIds, _provinceRepository, speedtestQuery, cancellationToken);
-        }
-        else if (request.RegionIds is { Count: > 0 })
-        {
-            speedtestQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.RegionIds, _regionRepository, speedtestQuery, cancellationToken);
-        }
-        speedtestQuery = speedtestQuery.OrderBy(s => s.Location.Distance(locationPoint));
+        // Combine all filters in a single Where clause for better query optimization
+        speedtestQuery = speedtestQuery.Where(s =>
+            (serviceProviderIds == null || serviceProviderIds.Count == 0 || serviceProviderIds.Contains(s.ServiceProviderId)) &&
+            (providerIds == null || providerIds.Count == 0 || (s.ServiceProvider != null && providerIds.Contains(s.ServiceProvider.ProviderId))) &&
+            (serviceIds == null || serviceIds.Count == 0 || (s.ServiceProvider != null && serviceIds.Contains(s.ServiceProvider.ServiceId))) &&
+            (generationIds == null || generationIds.Count == 0 || (s.GenerationId.HasValue && generationIds.Contains(s.GenerationId.Value))) &&
+            (technologyIds == null || technologyIds.Count == 0 || (s.TechnologyId.HasValue && technologyIds.Contains(s.TechnologyId.Value))) &&
+            (string.IsNullOrEmpty(signalQuality) || s.SignalQuality == signalQuality));
 
-        var speedtestDtos = speedtestQuery.Select(s => new SpeedtestDto
-        {
-            Id = s.Id,
-            DateTime = s.DateTime,
-            Ping = s.Ping,
-            Jitter = s.Jitter,
-            RSSI = s.RSSI,
-            SignalQuality = s.SignalQuality,
-            UploadSpeed = s.UploadSpeed,
-            DownloadSpeed = s.DownloadSpeed,
-            Latitude = s.Location.Coordinate.Y,
-            Longitude = s.Location.Coordinate.X,
-            PhoneModel = s.PhoneModel,
-            MCC = s.MCC,
-            MNC = s.MNC,
-            TAC = s.TAC,
-            CellIdentifier = s.CellIdentifier,
-            ServiceProvider = new()
+        // Project to DTO - ordered by DateTime descending (most recent first)
+        var speedtestDtos = speedtestQuery
+            .OrderByDescending(s => s.DateTime)
+            .Select(s => new SpeedtestDto
             {
-                Id = s.ServiceProviderId,
-                Service = new()
+                Id = s.Id,
+                DateTime = s.DateTime,
+                Ping = s.Ping,
+                Jitter = s.Jitter,
+                RSSI = s.RSSI,
+                SignalQuality = s.SignalQuality,
+                UploadSpeed = s.UploadSpeed,
+                DownloadSpeed = s.DownloadSpeed,
+                Latitude = s.Location.Coordinate.Y,
+                Longitude = s.Location.Coordinate.X,
+                PhoneModel = s.PhoneModel,
+                MCC = s.MCC,
+                MNC = s.MNC,
+                TAC = s.TAC,
+                CellIdentifier = s.CellIdentifier,
+                ServiceProvider = s.ServiceProvider == null ? null : new()
                 {
-                    Id = s.ServiceProvider.ServiceId,
-                    Name = s.ServiceProvider.Service.Name,
-                    Type = s.ServiceProvider.Service.Type.ToString()
+                    Id = s.ServiceProviderId,
+                    Service = s.ServiceProvider.Service == null ? null : new()
+                    {
+                        Id = s.ServiceProvider.ServiceId,
+                        Name = s.ServiceProvider.Service.Name,
+                        Type = s.ServiceProvider.Service.Type.ToString()
+                    },
+                    Provider = s.ServiceProvider.Provider == null ? null : new()
+                    {
+                        Id = s.ServiceProvider.ProviderId,
+                        Name = s.ServiceProvider.Provider.Name,
+                        Description = s.ServiceProvider.Provider.Description,
+                        LicenseNumber = s.ServiceProvider.Provider.LicenseNumber,
+                        Color = s.ServiceProvider.Provider.Color
+                    },
                 },
-                Provider = new()
+                Generation = s.Generation == null ? null : new()
                 {
-                    Id = s.ServiceProvider.ProviderId,
-                    Name = s.ServiceProvider.Provider.Name,
-                    Description = s.ServiceProvider.Provider.Description,
-                    LicenseNumber = s.ServiceProvider.Provider.LicenseNumber,
-                    Color = s.ServiceProvider.Provider.Color
+                    Id = s.GenerationId ?? Guid.Empty,
+                    Name = s.Generation.Name,
+                    Description = s.Generation.Description
                 },
-            },
-            Generation = s.Generation != null ? new()
-            {
-                Id = s.GenerationId ?? Guid.Empty,
-                Name = s.Generation.Name,
-                Description = s.Generation.Description
-            } : null,
-            Technology = s.Technology != null ? new()
-            {
-                Id = s.Technology.Id,
-                Standard = s.Technology.Standard,
-                Description = s.Technology.Description,
-                Generation = s.Technology.Generation != null ? new()
+                Technology = s.Technology == null ? null : new()
                 {
-                    Id = s.Technology.Generation.Id,
-                    Name = s.Technology.Generation.Name,
-                    Description = s.Technology.Generation.Description
-                } : null
-            } : null,
-            Address = s.Address,
-            IsFileUploaded = s.IsFileUploaded,
-            IsFixedBroadband = s.IsFixedBroadband,
-            Distance = Math.Round(s.Location.Distance(locationPoint), 2)
-        });
+                    Id = s.Technology.Id,
+                    Standard = s.Technology.Standard,
+                    Description = s.Technology.Description,
+                    Generation = s.Technology.Generation == null ? null : new()
+                    {
+                        Id = s.Technology.Generation.Id,
+                        Name = s.Technology.Generation.Name,
+                        Description = s.Technology.Generation.Description
+                    }
+                },
+                Address = s.Address,
+                IsFileUploaded = s.IsFileUploaded,
+                IsFixedBroadband = s.IsFixedBroadband
+            });
 
         return await _speedtestRepository.PaginateAsync(speedtestDtos, request.PageNumber, request.PageSize, cancellationToken);
     }

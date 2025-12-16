@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs.Band;
 
 namespace NTC.QoS.Application.Features.Band.Handlers.Queries;
 
-public class GetAllBandsHandler (IRepository<Domain.Entities.Band> repository) : IRequestHandler<GetAllBandsRequest, PaginatedResponse<BandDto>>
+public class GetAllBandsHandler(IRepository<Domain.Entities.Band> repository) : IRequestHandler<GetAllBandsRequest, PaginatedResponse<BandDto>>
 {
     private readonly IRepository<Domain.Entities.Band> _repository = repository;
     public async Task<PaginatedResponse<BandDto>> Handle(GetAllBandsRequest request, CancellationToken cancellationToken)

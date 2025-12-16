@@ -16,7 +16,7 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
 
         if (areaStudy is null)
         {
-            return new ApiResponse<AreaStudyDto> 
+            return new ApiResponse<AreaStudyDto>
             {
                 Succeeded = false,
                 Message = "Area study not found.",
@@ -50,13 +50,13 @@ public class UpdateAreaStudyByIdHandler(IRepository<Domain.Entities.AreaStudy> r
             };
         }
 
-         _repository.Update(areaStudy);
+        _repository.Update(areaStudy);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<AreaStudyDto>
         {
-            Data = new AreaStudyDto 
-            { 
+            Data = new AreaStudyDto
+            {
                 Id = areaStudy.Id,
                 Name = areaStudy.Name,
                 Description = areaStudy.Description

@@ -4,14 +4,14 @@
 public class WirelessCoverageAnalyticsDto
 {
     public int TotalCellTowers { get; set; }
-    public Dictionary<string, int> TechnologyDistribution { get; set; } = new();
-    public List<MunicipalityWirelessCoverageDto> CoverageByMunicipality { get; set; } = new();
+    public Dictionary<string, int> TechnologyDistribution { get; set; } = [];
+    public List<MunicipalityWirelessCoverageDto> CoverageByMunicipality { get; set; } = [];
     public SignalQualityAnalysisDto? SignalQualityAnalysis { get; set; }
-    public List<ProviderCoverageDto> ProviderCoverage { get; set; } = new();
+    public List<ProviderCoverageDto> ProviderCoverage { get; set; } = [];
 
     // Additional summary metrics
     public WirelessCoverageSummaryDto? Summary { get; set; }
-    public List<CoverageGapDto> CoverageGaps { get; set; } = new();
+    public List<CoverageGapDto> CoverageGaps { get; set; } = [];
 }
 
 // 2. SUMMARY DTO
@@ -33,8 +33,8 @@ public class MunicipalityWirelessCoverageDto
     public string MunicipalityName { get; set; } = string.Empty;
     public int CellTowerCount { get; set; }
     public double EstimatedCoveragePercent { get; set; }
-    public List<string> AvailableTechnologies { get; set; } = new();
-    public List<string> ServiceProviders { get; set; } = new();
+    public List<string> AvailableTechnologies { get; set; } = [];
+    public List<string> ServiceProviders { get; set; } = [];
 
     // Signal quality metrics
     public double AverageSignalStrength { get; set; }
@@ -45,8 +45,8 @@ public class MunicipalityWirelessCoverageDto
 
     // Coverage assessment
     public string CoverageStatus { get; set; } = string.Empty; // Well-Covered, Partially-Covered, Poor-Coverage, No-Coverage
-    public List<string> CoverageIssues { get; set; } = new();
-    public List<string> Recommendations { get; set; } = new();
+    public List<string> CoverageIssues { get; set; } = [];
+    public List<string> Recommendations { get; set; } = [];
 
     // Geographic info
     public CoordinateDto? EstimatedCenter { get; set; }
@@ -60,32 +60,32 @@ public class TechnologyBreakdownDto
     /// Count of 2G technology deployments
     /// </summary>
     public int Count2G { get; set; }
-    
+
     /// <summary>
     /// Count of 3G technology deployments  
     /// </summary>
     public int Count3G { get; set; }
-    
+
     /// <summary>
     /// Count of 4G/LTE technology deployments
     /// </summary>
     public int Count4G { get; set; }
-    
+
     /// <summary>
     /// Count of 5G technology deployments
     /// </summary>
     public int Count5G { get; set; }
-    
+
     /// <summary>
     /// List of available technology standards (e.g., GSM, WCDMA, LTE, NR)
     /// </summary>
     public List<string> AvailableTechnologies { get; set; } = [];
-    
+
     /// <summary>
     /// List of available generation names
     /// </summary>
     public List<string> AvailableGenerations { get; set; } = [];
-    
+
     /// <summary>
     /// Dominant generation based on deployment count
     /// </summary>
@@ -93,22 +93,22 @@ public class TechnologyBreakdownDto
 
     // Calculated properties
     public string PrimaryTechnology { get; set; } = string.Empty;
-    
+
     /// <summary>
     /// Whether modern technologies (4G/5G) are present
     /// </summary>
     public bool HasModernTechnology => Count4G > 0 || Count5G > 0;
-    
+
     /// <summary>
     /// Whether legacy technologies (2G/3G only) dominate
     /// </summary>
     public bool IsLegacyDominated => (Count2G + Count3G) > (Count4G + Count5G) && (Count4G + Count5G) > 0;
-    
+
     /// <summary>
     /// Total technology deployment count
     /// </summary>
     public int TotalTechnologyCount => Count2G + Count3G + Count4G + Count5G;
-    
+
     public bool HasModernCoverage { get; set; } // 4G/5G/LTE present
     public double ModernCoverageRatio { get; set; } // % of towers with 4G/5G/LTE
 }
@@ -117,9 +117,9 @@ public class TechnologyBreakdownDto
 public class SignalQualityAnalysisDto
 {
     public SignalQualityStatsDto? OverallStats { get; set; }
-    public List<SignalQualityByTechnologyDto> QualityByTechnology { get; set; } = new();
-    public List<SignalQualityByProviderDto> QualityByProvider { get; set; } = new();
-    public List<SignalQualityZoneDto> QualityZones { get; set; } = new();
+    public List<SignalQualityByTechnologyDto> QualityByTechnology { get; set; } = [];
+    public List<SignalQualityByProviderDto> QualityByProvider { get; set; } = [];
+    public List<SignalQualityZoneDto> QualityZones { get; set; } = [];
 }
 
 // 6. SIGNAL QUALITY STATS DTO
@@ -166,7 +166,7 @@ public class SignalQualityByProviderDto
     public double AverageSignalStrength { get; set; }
     public string QualityRating { get; set; } = string.Empty;
     public double CMTSComplianceRate { get; set; }
-    public List<string> TechnologiesOffered { get; set; } = new();
+    public List<string> TechnologiesOffered { get; set; } = [];
 }
 
 // 9. SIGNAL QUALITY ZONE DTO
@@ -174,11 +174,11 @@ public class SignalQualityZoneDto
 {
     public string ZoneName { get; set; } = string.Empty;
     public string QualityLevel { get; set; } = string.Empty; // Excellent, Good, Fair, Poor
-    public List<string> MunicipalitiesInZone { get; set; } = new();
+    public List<string> MunicipalitiesInZone { get; set; } = [];
     public int TowerCount { get; set; }
     public double AverageSignalStrength { get; set; }
     public string PrimaryIssue { get; set; } = string.Empty;
-    public List<string> RecommendedActions { get; set; } = new();
+    public List<string> RecommendedActions { get; set; } = [];
 }
 
 // 10. PROVIDER COVERAGE DTO
@@ -197,7 +197,7 @@ public class ProviderCoverageDto
 
     // Technology deployment
     public TechnologyBreakdownDto? TechnologyDeployment { get; set; }
-    public List<string> PrimaryTechnologies { get; set; } = new();
+    public List<string> PrimaryTechnologies { get; set; } = [];
 
     // Network quality
     public double AverageSignalStrength { get; set; }
@@ -205,11 +205,11 @@ public class ProviderCoverageDto
     public double CMTSComplianceRate { get; set; }
 
     // Geographic presence
-    public List<MunicipalityProviderPresenceDto> MunicipalityPresence { get; set; } = new();
+    public List<MunicipalityProviderPresenceDto> MunicipalityPresence { get; set; } = [];
 
     // Competitive analysis
-    public List<string> CompetitiveAdvantages { get; set; } = new();
-    public List<string> CoverageGaps { get; set; } = new();
+    public List<string> CompetitiveAdvantages { get; set; } = [];
+    public List<string> CoverageGaps { get; set; } = [];
     public string DeploymentStrategy { get; set; } = string.Empty;
 }
 
@@ -220,7 +220,7 @@ public class MunicipalityProviderPresenceDto
     public string MunicipalityName { get; set; } = string.Empty;
     public int TowerCount { get; set; }
     public double EstimatedCoveragePercent { get; set; }
-    public List<string> TechnologiesOffered { get; set; } = new();
+    public List<string> TechnologiesOffered { get; set; } = [];
     public double AverageSignalStrength { get; set; }
     public bool IsDominantProvider { get; set; }
     public string MarketPosition { get; set; } = string.Empty; // Leader, Competitor, Minor
@@ -231,11 +231,11 @@ public class CoverageGapDto
 {
     public string GapType { get; set; } = string.Empty; // No-Coverage, Poor-Signal, Technology-Gap, Single-Provider
     public string Severity { get; set; } = string.Empty; // Critical, High, Medium, Low
-    public List<string> AffectedMunicipalities { get; set; } = new();
+    public List<string> AffectedMunicipalities { get; set; } = [];
     public string Description { get; set; } = string.Empty;
     public double EstimatedAffectedPopulation { get; set; }
     public double EstimatedAffectedAreaKm2 { get; set; }
-    public List<string> RecommendedSolutions { get; set; } = new();
+    public List<string> RecommendedSolutions { get; set; } = [];
     public string Priority { get; set; } = string.Empty; // Immediate, Short-term, Medium-term, Long-term
     public double EstimatedInvestmentRequired { get; set; }
 }

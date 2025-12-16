@@ -8,6 +8,6 @@ public class Service : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public ServiceTypeEnum Type { get; set; } = ServiceTypeEnum.Unknown;
-    public virtual List<ServiceProvider> ServiceProviders { get; set; } = new();
+    public virtual List<ServiceProvider> ServiceProviders { get; set; } = [];
 
 }

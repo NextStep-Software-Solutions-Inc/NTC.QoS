@@ -38,7 +38,7 @@ public class LinksController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<LinkDto>>> GetAllLinks(
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? bandIds = null,
-        int pageSize = 10, 
+        int pageSize = 10,
         int pageNumber = 1
     )
     {

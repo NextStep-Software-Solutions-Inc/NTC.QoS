@@ -34,8 +34,8 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
         [FromQuery] List<string>? authUserIds = null,
         [FromQuery] List<string>? statuses = null)
     {
-        var userRegions = await _mediator.Send(new GetAllUserRegionsRequest 
-        { 
+        var userRegions = await _mediator.Send(new GetAllUserRegionsRequest
+        {
             PageSize = pageSize,
             PageNumber = pageNumber,
             UserIds = userIds,

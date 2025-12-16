@@ -32,7 +32,7 @@ public class GetTechnologyByIdHandler(ITechnologyRepository technologyRepository
                 Id = technology.Id,
                 Standard = technology.Standard,
                 Description = technology.Description,
-                Generation = new ()
+                Generation = new()
                 {
                     Id = technology.Generation.Id,
                     Name = technology.Generation.Name,

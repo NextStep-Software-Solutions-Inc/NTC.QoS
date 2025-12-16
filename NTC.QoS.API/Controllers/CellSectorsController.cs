@@ -22,7 +22,7 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<CellSectorDto>>> CreateCellSector(CreateCellSectorDto createCellSector)
     {
         var request = new CreateCellSectorRequest
-        { 
+        {
             CellSector = createCellSector
         };
         var cellSector = await _mediator.Send(request);
@@ -63,7 +63,7 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
         var cellSector = await _mediator.Send(request);
         return cellSector.Succeeded ? Ok(cellSector) : BadRequest(cellSector);
     }
-    
+
     [HttpDelete("{id}")]
     [RequirePermission(Permissions.DeleteCellSectors)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteCellSectorById(Guid id)

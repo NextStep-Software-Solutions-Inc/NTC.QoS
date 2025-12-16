@@ -56,7 +56,7 @@ public class AddProviderLogoByIdHandler(
                 };
             }
 
-            _logger.LogInformation("Successfully processed logo file for provider {ProviderId}. File size: {FileSize} bytes", 
+            _logger.LogInformation("Successfully processed logo file for provider {ProviderId}. File size: {FileSize} bytes",
                 provider.Id, logoData.Length);
 
             // Update provider with new logo data and metadata

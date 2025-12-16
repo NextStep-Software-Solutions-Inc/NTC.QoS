@@ -46,7 +46,7 @@ public class GetZoneByIdHandler(IZoneRepository zoneRepository) : IRequestHandle
                     Municipality = new()
                     {
                         Id = zone.Barangay?.MunicipalityId ?? Guid.Empty,
-                        Name =zone.Barangay?.Municipality?.Name ?? string.Empty,
+                        Name = zone.Barangay?.Municipality?.Name ?? string.Empty,
                         IsCity = zone.Barangay?.Municipality?.IsCity ?? false,
                         Description = zone.Barangay?.Municipality?.Description,
                         Province = new()

@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Treat all compiler warnings as errors across the solution -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Use highest warning level to catch more warnings -->
+    <WarningLevel>5</WarningLevel>
+    <!-- Fail the build on analyzer warnings too -->
+    <WarningsNotAsErrors></WarningsNotAsErrors>
+  </PropertyGroup>
+</Project>

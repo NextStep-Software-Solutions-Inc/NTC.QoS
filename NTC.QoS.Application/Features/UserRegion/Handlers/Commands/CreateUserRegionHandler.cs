@@ -17,11 +17,11 @@ public class CreateUserRegionHandler(
 
     public async Task<ApiResponse<UserRegionDto>> Handle(CreateUserRegionRequest request, CancellationToken cancellationToken)
     {
-        var existingUserRegionQuery = _userRegionRepository.Query(ur => 
-            ur.UserId == request.UserRegion.UserId && 
+        var existingUserRegionQuery = _userRegionRepository.Query(ur =>
+            ur.UserId == request.UserRegion.UserId &&
             ur.RegionId == request.UserRegion.RegionId);
         var existingUserRegion = await _userRegionRepository.FirstOrDefaultAsync(existingUserRegionQuery, cancellationToken);
-        
+
         if (existingUserRegion is not null)
         {
             return new ApiResponse<UserRegionDto>("User region already exists for the specified user and region.");
@@ -29,7 +29,7 @@ public class CreateUserRegionHandler(
 
         var userQuery = _userRepository.Query(u => u.Id == request.UserRegion.UserId);
         var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
-        
+
         if (user is null)
         {
             return new ApiResponse<UserRegionDto>("User not found.");
@@ -37,7 +37,7 @@ public class CreateUserRegionHandler(
 
         var regionQuery = _regionRepository.Query(r => r.Id == request.UserRegion.RegionId);
         var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
-        
+
         if (region is null)
         {
             return new ApiResponse<UserRegionDto>("Region not found.");
@@ -73,7 +73,7 @@ public class CreateUserRegionHandler(
                     Organization = new()
                     {
                         Id = user.OrganizationId,
-                        Name = user.Organization.Name ,
+                        Name = user.Organization.Name,
                         Description = user.Organization.Description
                     },
                 },

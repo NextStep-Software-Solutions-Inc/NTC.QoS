@@ -24,7 +24,7 @@ public class AreaStudiesController(IMediator mediator) : ControllerBase
         var areaStudy = await _mediator.Send(new CreateAreaStudyRequest(areaStudyDto));
         return areaStudy.Succeeded ? Ok(areaStudy) : BadRequest(areaStudy);
     }
-    
+
     [HttpGet]
     [RequirePermission(Permissions.ViewAreaStudyTypes)]
     public async Task<ActionResult<PaginatedResponse<AreaStudyDto>>> GetAllAreaStudies([FromQuery] int pageNumber = 1,

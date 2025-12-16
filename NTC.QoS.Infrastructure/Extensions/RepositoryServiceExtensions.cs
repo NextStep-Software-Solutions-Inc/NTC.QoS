@@ -18,7 +18,7 @@ internal static class RepositoryServiceExtensions
     {
         // Generic repository
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-        
+
         // Entity-specific repositories
         RegisterEntityRepositories(services);
         RegisterLocationRepositories(services);
@@ -78,7 +78,9 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<INAPRepository, NAPRepository>();
         services.AddScoped<ICellularRepository, CellularRepository>();
         services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
+        services.AddScoped<ICellularCoverageV2Repository, CellularCoverageV2Repository>();
         services.AddScoped<IConnectivityAssessmentRepository, ConnectivityAssessmentRepository>();
+        services.AddScoped<IConnectivityAssessmentSchedulerRepository, ConnectivityAssessmentSchedulerRepository>();
         services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
         services.AddScoped<IWirelessValidationRepository, WirelessValidationRepository>();
     }

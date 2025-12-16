@@ -1,68 +1,157 @@
-﻿using System.Text;
-using System.Text.Json;
-using Microsoft.Extensions.Configuration;
-using System.Net.Http.Headers;
+﻿using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace NTC.QoS.Infrastructure.Services;
 
-public class ClerkUserService : IClerkUserService
+public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> logger) : IClerkUserService
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _clerkApiKey;
-
-    public ClerkUserService(HttpClient httpClient, IConfiguration configuration)
+    private static readonly JsonSerializerOptions RequestSerializerOptions = new()
     {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        // Use GetSection and Value for more robust configuration access.
-        // Also, consider using `IClerkSettings` from options pattern if settings grow.
-        _clerkApiKey = configuration.GetSection("Clerk:SecretKey").Value ?? throw new InvalidOperationException("Clerk API Key is not configured.");
+        PropertyNamingPolicy = null,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
-        // HttpClient should ideally be configured once, typically in `AddHttpClient`.
-        // Setting DefaultRequestHeaders here is generally fine if ClerkService is scoped.
-        // For a more robust approach, use `HttpClientFactory` and named clients.
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _clerkApiKey);
-        _httpClient.BaseAddress = new Uri("https://api.clerk.com/v1/"); // Set base address
+    private static readonly JsonSerializerOptions ResponseSerializerOptions = new()
+    {
+        PropertyNamingPolicy = null
+    };
+
+    private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    private readonly ILogger<ClerkUserService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+    private sealed record ClerkApiErrorDetail([property: JsonPropertyName("message")] string Message,
+                                               [property: JsonPropertyName("long_message")] string? LongMessage,
+                                               [property: JsonPropertyName("code")] string? Code);
+
+    private sealed record ClerkApiErrorResponse([property: JsonPropertyName("errors")] List<ClerkApiErrorDetail>? Errors,
+                                                [property: JsonPropertyName("clerk_trace_id")] string? TraceId);
+
+    public async Task<ClerkUserResponse> CreateUserAsync(CreateClerkUserPayload payload)
+    {
+        // The Clerk API expects email_address to be an array.
+        // Construct a new object for serialization with email_address as an array.
+        var requestObject = new
+        {
+            email_address = new[] { payload.EmailAddress },
+            password = payload.Password,
+            first_name = payload.FirstName,
+            last_name = payload.LastName,
+            public_metadata = payload.PublicMetadata,
+            private_metadata = payload.PrivateMetadata
+        };
+
+        string jsonPayload = JsonSerializer.Serialize(requestObject, RequestSerializerOptions);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await _httpClient.PostAsync("users", content);
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var parsed = TryParseError(responseBody);
+            if (parsed != null)
+            {
+                foreach (var err in parsed.Errors ?? new())
+                {
+                    _logger.LogError("Clerk error code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status}",
+                        err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode);
+                }
+            }
+            else
+            {
+                _logger.LogError("Clerk create user failed. Status: {Status} RawBody: {Body}", response.StatusCode, responseBody);
+            }
+            
+            throw new InvalidOperationException($"Clerk create user failed: {(int)response.StatusCode} {response.StatusCode}");
+        }
+
+        var userResponse = JsonSerializer.Deserialize<ClerkUserResponse>(responseBody, ResponseSerializerOptions);
+        if (userResponse == null)
+        {
+            throw new InvalidOperationException(
+                $"Failed to deserialize Clerk user response. Status: {(int)response.StatusCode} {response.StatusCode}.");
+        }
+
+        _logger.LogInformation("Clerk user creation successful for user Id: {UserId}", userResponse.Id);
+        return userResponse;
+    }
+
+    public async Task<List<ClerkUserResponse>> GetUsersByEmailAsync(string email)
+    {
+        HttpResponseMessage response = await _httpClient.GetAsync($"users?email_address={Uri.EscapeDataString(email)}");
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var parsed = TryParseError(responseBody);
+            if (parsed != null)
+            {
+                foreach (var err in parsed.Errors ?? new())
+                {
+                    _logger.LogError("Clerk get users by email error code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status} email={Email}",
+                        err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode, email);
+                }
+            }
+            else
+            {
+                _logger.LogError("Clerk get users by email failed. Status: {Status} RawBody: {Body} Email: {Email}", response.StatusCode, responseBody, email);
+            }
+            
+            throw new InvalidOperationException($"Clerk get users by email failed: {(int)response.StatusCode} {response.StatusCode}");
+        }
+
+        _logger.LogInformation("Clerk get users by email successful. Email: {Email} Response: {Response}", email, responseBody);
+        var usersResponse = JsonSerializer.Deserialize<List<ClerkUserResponse>>(responseBody, ResponseSerializerOptions);
+        return usersResponse ?? new List<ClerkUserResponse>();
+    }
+
+    private ClerkApiErrorResponse? TryParseError(string body)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<ClerkApiErrorResponse>(body, ResponseSerializerOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to deserialize Clerk API error response. Body: {Body}", body);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during Clerk API error response deserialization. Body: {Body}", body);
+            return null;
+        }
     }
 
     public async Task UpdateUserMetadataAsync(string userId, UserMetadataPayload payload)
     {
-        try
-        {
-            string jsonPayload = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        string jsonPayload = JsonSerializer.Serialize(payload, RequestSerializerOptions);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-            HttpResponseMessage response = await _httpClient.PatchAsync($"users/{userId}/metadata", content);
+        HttpResponseMessage response = await _httpClient.PatchAsync($"users/{userId}/metadata", content);
+        string responseBody = await response.Content.ReadAsStringAsync();
 
-            // Directly check for success status code to throw HttpRequestException
-            response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var parsed = TryParseError(responseBody);
+            if (parsed != null)
+            {
+                foreach (var err in parsed.Errors ?? new())
+                {
+                    _logger.LogError("Clerk metadata update error user={UserId} code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status} payload={Payload}",
+                        userId, err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode, jsonPayload);
+                }
+            }
+            else
+            {
+                _logger.LogError("Clerk update metadata failed for {UserId}. Status: {Status} Body: {Body} Payload: {Payload}", userId, response.StatusCode, responseBody, jsonPayload);
+            }
+            throw new InvalidOperationException($"Clerk update metadata failed for {userId}: {(int)response.StatusCode} {response.StatusCode}");
+        }
 
-            string responseBody = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Metadata update successful. Response: {responseBody}");
-        }
-        // Catch specific exceptions first
-        catch (HttpRequestException ex) when (ex.StatusCode.HasValue) // Check if StatusCode has a value
-        {
-            Console.Error.WriteLine($"HTTP Request Error for user {userId}: Status Code - {ex.StatusCode}, Message - {ex.Message}");
-            // Depending on your error handling strategy, you might want to
-            // return a specific error result or re-throw a custom exception.
-            throw new InvalidOperationException($"Failed to update user metadata for user {userId} due to HTTP error.", ex);
-        }
-        catch (HttpRequestException ex) // General HttpRequestException
-        {
-            Console.Error.WriteLine($"HTTP Request Error for user {userId}: {ex.Message}");
-            throw new InvalidOperationException($"Failed to update user metadata for user {userId} due to HTTP error.", ex);
-        }
-        catch (JsonException ex)
-        {
-            Console.Error.WriteLine($"JSON Serialization/Deserialization Error: {ex.Message}");
-            throw new InvalidOperationException($"Failed to process JSON for user {userId}.", ex);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"An unexpected error occurred in ClerkService.UpdateUserMetadataAsync for user {userId}: {ex.Message}");
-            // Avoid re-throwing generic Exception. Wrap it in a more specific exception.
-            throw new ApplicationException($"An unexpected error occurred while updating user metadata for user {userId}.", ex);
-        }
+        _logger.LogInformation("Clerk metadata update successful for user {UserId}. Response: {Response}", userId, responseBody);
     }
 }

@@ -31,11 +31,15 @@ public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCo
             cellsQuery = cellsQuery.Where(c => c.CreatedAt <= request.EndDate.Value);
         }
 
-        var cells = cellsQuery.ToList();
+        // Single database roundtrip using GroupBy and aggregate
+        var counts = await _cellRepository.ToListAsync(
+            cellsQuery.GroupBy(c => c.IsVerified)
+                      .Select(g => new { IsVerified = g.Key, Count = g.Count() }),
+            cancellationToken);
 
-        var verifiedCells = cells.Count(c => c.IsVerified);
-        var unverifiedCells = cells.Count(c => !c.IsVerified);
-        var totalCells = cells.Count(); // Total cells after applying date filters
+        var verifiedCells = counts.FirstOrDefault(x => x.IsVerified)?.Count ?? 0;
+        var unverifiedCells = counts.FirstOrDefault(x => !x.IsVerified)?.Count ?? 0;
+        var totalCells = verifiedCells + unverifiedCells;
 
         var responseData = new CellsiteCountsDto
         {
@@ -63,11 +67,11 @@ public class GetTotalCellsitesCountHandler : IRequestHandler<GetTotalCellsitesCo
         }
 
 
-        return await Task.FromResult(new ApiResponse<CellsiteCountsDto>
+        return new ApiResponse<CellsiteCountsDto>
         {
             Data = responseData,
             Succeeded = true,
             Message = message
-        });
+        };
     }
 }

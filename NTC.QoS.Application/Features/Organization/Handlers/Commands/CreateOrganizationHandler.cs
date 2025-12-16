@@ -6,7 +6,7 @@ using NTC.QoS.Domain.Models.DTOs.Organization;
 
 namespace NTC.QoS.Application.Features.Organization.Handlers.Commands;
 
-public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization> repository): IRequestHandler<CreateOrganizationRequest, ApiResponse<OrganizationDto>>
+public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization> repository) : IRequestHandler<CreateOrganizationRequest, ApiResponse<OrganizationDto>>
 {
     private readonly IRepository<Domain.Entities.Organization> _repository = repository;
 
@@ -44,7 +44,7 @@ public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization>
                 }
             };
         }
-                
+
         var newOrganization = new Domain.Entities.Organization
         {
             Name = request.Organization.Name,

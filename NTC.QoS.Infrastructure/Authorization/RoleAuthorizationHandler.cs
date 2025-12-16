@@ -21,7 +21,7 @@ public class RoleAuthorizationHandler : AuthorizationHandler<RoleRequirement>
         RoleRequirement requirement)
     {
         var hasRole = await _userAuthorizationService.HasRoleAsync(requirement.Role);
-        
+
         if (hasRole)
         {
             context.Succeed(requirement);

@@ -46,16 +46,31 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
     }
 
     [HttpGet("regions/top-by-cell-count")]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
+    VaryByQueryKeys = new[] { "startDate", "endDate", "limit" })]
     public async Task<ActionResult<ApiResponse<List<GeoEntityCellCountDto>>>> GetTopRegionsByCellCount(
        [FromQuery] DateTime? startDate,
        [FromQuery] DateTime? endDate,
-       [FromQuery] int limit = 0)
+       [FromQuery] int limit = 5)
     {
         var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger);
 
+        var cacheKey = $"{DashboardCachePrefix}all_{finalStartDate:yyyyMMdd}_{finalEndDate:yyyyMMdd}_{limit}";
+
+        if (memoryCache.TryGetValue(cacheKey, out ApiResponse<List<GeoEntityCellCountDto>>? cached))
+        {
+            _logger.LogInformation("Cache HIT: {CacheKey}", cacheKey);
+            return Ok(cached);
+        }
+
         var query = new GetTopRegionsByCellCountRequest { Limit = limit, StartDate = finalStartDate, EndDate = finalEndDate };
         var result = await mediator.Send(query);
-        return Ok(result);
+        if (result.Succeeded && result.Data != null)
+        {
+            memoryCache.Set(cacheKey, result, TimeSpan.FromHours(24));
+            TrackCacheKey(cacheKey);
+        }
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
     [HttpGet("provinces/top-by-cell-count/region-id")]
@@ -63,7 +78,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
        [FromQuery] DateTime? startDate,
        [FromQuery] DateTime? endDate,
        [FromQuery] Guid regionId,
-       [FromQuery] int limit = 0)
+       [FromQuery] int limit = 5)
     {
         var (finalStartDate, finalEndDate) = DateTimeHelper.ResolveDateRange(startDate, endDate, _logger);
 
@@ -169,18 +184,24 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
             TopProvincesInRegionByCellCount = await mediator.Send(new GetTopProvincesInRegionByCellCountRequest
             {
                 RegionId = regionId,
+                StartDate = finalStartDate,
+                EndDate = finalEndDate,
                 Limit = limit
             }),
 
             TopMunicipalitiesInProvinceByCellCount = await mediator.Send(new GetTopMunicipalitiesInProvinceByCellCountRequest
             {
                 ProvinceId = provinceId,
+                StartDate = finalStartDate,
+                EndDate = finalEndDate,
                 Limit = limit
             }),
 
             TopBarangaysInMunicipalityByCellCount = await mediator.Send(new GetTopBarangaysInMunicipalityByCellCountRequest
             {
                 MunicipalityId = municipalityId,
+                StartDate = finalStartDate,
+                EndDate = finalEndDate,
                 Limit = limit
             })
         };
@@ -201,7 +222,7 @@ public class DashboardController(IMediator mediator, ILogger<DashboardController
 
     private void TrackCacheKey(string key)
     {
-        var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => new HashSet<string>());
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(DashboardCacheKeysSet, _ => []);
         if (keys != null)
         {
             keys.Add(key);

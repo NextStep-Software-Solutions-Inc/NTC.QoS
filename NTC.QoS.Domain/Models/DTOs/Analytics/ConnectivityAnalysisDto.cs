@@ -53,25 +53,25 @@ public class LocationConnectivityDto
     public LocationTypeEnum LocationType { get; set; }
     public ConnectivityStatusEnum ConnectivityStatus { get; set; }
     public int TotalScore { get; set; }
-    
+
     // CMTS Criteria Scores
     public CMTSScoresDto CMTSScores { get; set; } = new();
-    
+
     // Infrastructure
     public InfrastructureStatsDto Infrastructure { get; set; } = new();
-    
+
     // Speed Statistics
     public SpeedStatsDto? SpeedStats { get; set; }
-    
+
     // Coverage Information
     public CoverageStatsDto Coverage { get; set; } = new();
-    
+
     // Geographic Information
     public double AreaSizeKm2 { get; set; }
     public PointDto? CenterPoint { get; set; }
     public int? Population { get; set; }
     public int? HouseholdCount { get; set; }
-    
+
     public DateTime AssessmentDate { get; set; }
     public DateTime LastUpdated { get; set; }
     public string? Notes { get; set; }
@@ -118,13 +118,55 @@ public class InfrastructureStatsDto
     public int WiFiHotspotCount { get; set; }
     public int ServiceProviderCount { get; set; }
     public string? DominantServiceProvider { get; set; }
+
+    /// <summary>
+    /// Technology-band breakdown showing available bands for each technology standard,
+    /// plus technology generation summary (counts, dominant generation, modern coverage ratio, etc.)
+    /// Replaces the separate TechnologyBreakdown and BandBreakdown DTOs
+    /// </summary>
+    public TechnologyBandBreakdownDto? TechnologyBandBreakdown { get; set; }
     
     /// <summary>
-    /// Technology generation breakdown based on speedtest and cellular data
+    /// Detailed breakdown of service providers with their asset counts in descending order
     /// </summary>
-    public TechnologyBreakdownDto? TechnologyBreakdown { get; set; }
-    
+    public List<ProviderBreakdownDto> ProviderBreakdown { get; set; } = [];
     public int TotalAssets => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
+}
+
+/// <summary>
+/// Provider breakdown showing asset counts per provider
+/// </summary>
+public class ProviderBreakdownDto
+{
+    /// <summary>
+    /// Provider name
+    /// </summary>
+    public string ProviderName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Number of cell towers from this provider
+    /// </summary>
+    public int CellTowerCount { get; set; }
+
+    /// <summary>
+    /// Number of fiber NAPs from this provider
+    /// </summary>
+    public int FiberNAPCount { get; set; }
+
+    /// <summary>
+    /// Number of WiFi hotspots from this provider
+    /// </summary>
+    public int WiFiHotspotCount { get; set; }
+
+    /// <summary>
+    /// Total assets from this provider
+    /// </summary>
+    public int TotalAssetCount => CellTowerCount + FiberNAPCount + WiFiHotspotCount;
+    
+    /// <summary>
+    /// Percentage of total assets in the area
+    /// </summary>
+    public double AssetPercentage { get; set; }
 }
 
 /// <summary>
@@ -139,21 +181,21 @@ public class SpeedStatsDto
     public decimal? MedianUploadSpeedMbps { get; set; }
     public int SpeedTestCount { get; set; }
     public bool MeetsMinimumSpeedRequirement { get; set; } // 25 Mbps download
-    
+
     /// <summary>
     /// Average signal strength score (1-5) based on RSSI data
     /// 5 = Good (40-70 dBm), 4 = Average (70-80 dBm), 3 = Weak (80-90 dBm), 
     /// 2 = Very Weak (90-100 dBm), 1 = No Broadband Coverage (100+ dBm)
     /// </summary>
     public double AverageSignalStrength { get; set; }
-    
+
     /// <summary>
     /// Signal quality rating based on average signal strength
     /// </summary>
     public string SignalQualityRating => AverageSignalStrength switch
     {
         >= 4.5 => "Good",
-        >= 3.5 => "Average", 
+        >= 3.5 => "Average",
         >= 2.5 => "Weak",
         >= 1.5 => "Very Weak",
         _ => "No Broadband Coverage"
@@ -169,23 +211,23 @@ public class CoverageStatsDto
     public double? FixedBroadbandCoveragePercentage { get; set; }
     public double? FiberCoveragePercentage { get; set; }
     public bool HasReliableConnectivity { get; set; }
-    
+
     // NEW: Population-aware coverage metrics
     /// <summary>
     /// Estimated percentage of population with broadband access
     /// </summary>
     public double? EstimatedPopulationCoveragePercent { get; set; }
-    
+
     /// <summary>
     /// Estimated percentage of households with broadband access  
     /// </summary>
     public double? EstimatedHouseholdCoveragePercent { get; set; }
-    
+
     /// <summary>
     /// Infrastructure assets per 1000 people
     /// </summary>
     public double? AssetsPerThousandPeople { get; set; }
-    
+
     /// <summary>
     /// Service providers per thousand people
     /// </summary>
@@ -204,15 +246,15 @@ public class ConnectivitySummaryDto
     public double ServedPercentage => TotalLocations > 0 ? Math.Round((double)ServedCount / TotalLocations * 100, 2) : 0;
     public double UnderservedPercentage => TotalLocations > 0 ? Math.Round((double)UnderservedCount / TotalLocations * 100, 2) : 0;
     public double UnservedPercentage => TotalLocations > 0 ? Math.Round((double)UnservedCount / TotalLocations * 100, 2) : 0;
-    
+
     public InfrastructureStatsDto TotalInfrastructure { get; set; } = new();
     public double TotalAreaKm2 { get; set; }
     public int? TotalPopulation { get; set; }
     public int? TotalHouseholds { get; set; }
-    
+
     // Average scores across all locations
     public double AverageScore { get; set; }
     public CMTSScoresDto AverageCMTSScores { get; set; } = new();
-    
+
     public DateTime AnalysisDate { get; set; } = DateTime.UtcNow;
 }
