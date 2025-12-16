@@ -26,10 +26,12 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 /// - Uses dedicated queue "connectivity-assessment" to serialize jobs (prevents concurrent execution)
 /// - Prevents PostgreSQL memory exhaustion from multiple simultaneous spatial queries
 /// - Avoids unique constraint violations from concurrent processing of same locations
-/// - Automatic retry on transient failures (3 attempts with exponential backoff)
+/// - No automatic retry on failures (Attempts = 0) - job fails immediately on error
+/// - Extended timeout (4 hours) to prevent OperationCanceledException on large jobs
 /// </summary>
 [Queue("connectivity-assessment")]
-[AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+[AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+[DisableConcurrentExecution(timeoutInSeconds: 14400)] // 4 hours for large hierarchical jobs
 public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJob
 {
     private readonly ILogger<ProcessConnectivityAssessmentJob> _logger;
@@ -90,8 +92,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Execute connectivity assessment generation as a background job
+    /// No automatic retry - job fails immediately on error
     /// </summary>
-    [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(ConnectivityAssessmentJobRequestDto jobRequest, CancellationToken cancellationToken)
     {
         var jobId = jobRequest.JobId;
@@ -214,8 +217,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             _logger.LogInformation("Job {JobId}: Performing final database verification before marking as complete...", jobId);
             try
             {
-                var dbVerificationCount = await VerifyDatabasePersistence(jobRequest.LocationIds, jobRequest.LocationType, cancellationToken);
-                _logger.LogInformation("Job {JobId}: Database verification confirmed {DbCount} assessments persisted out of {ExpectedCount} processed",
+                // Verify ALL assessments created (primary + hierarchical), grouped by location type
+                var dbVerificationCount = 0;
+                var locationsByType = results.Where(r => r != null)
+                    .GroupBy(r => r.LocationType)
+                    .ToList();
+                
+                foreach (var typeGroup in locationsByType)
+                {
+                    var locationIds = typeGroup.Select(r => r.LocationId).ToList();
+                    var typeCount = await VerifyDatabasePersistence(locationIds, typeGroup.Key, cancellationToken);
+                    dbVerificationCount += typeCount;
+                    _logger.LogInformation("Job {JobId}: Verified {Count} {LocationType} assessments in database",
+                        jobId, typeCount, typeGroup.Key);
+                }
+                
+                _logger.LogInformation("Job {JobId}: Database verification confirmed {DbCount} total assessments persisted out of {ExpectedCount} processed",
                     jobId, dbVerificationCount, results.Count);
                 
                 if (dbVerificationCount < results.Count)
