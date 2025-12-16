@@ -71,12 +71,14 @@ public class FilesController(IMediator mediator) : ControllerBase
                                                                             int pageNumber = 1,
                                                                             [FromQuery] string[]? types = default,
                                                                             [FromQuery] string[]? statuses = default,
+                                                                            [FromQuery] Guid[]? regionIds = default,
                                                                             string? search = default)
     {
         var files = await _mediator.Send(new GetAllFilesRequest(pageNumber, pageSize, search)
         {
             Types = types,
-            Statuses = statuses
+            Statuses = statuses,
+            RegionIds = regionIds
         });
         return files.Succeeded ? Ok(files) : BadRequest(files);
     }
