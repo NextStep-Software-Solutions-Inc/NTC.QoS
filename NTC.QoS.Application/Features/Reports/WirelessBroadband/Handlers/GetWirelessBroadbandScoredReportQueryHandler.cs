@@ -3,8 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Report;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 using NTC.QoS.Infrastructure.Persistence;
@@ -18,21 +20,29 @@ using Color = System.Drawing.Color;
 
 namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Handlers;
 
+/// <summary>
+/// Handler for generating wireless broadband reports with connectivity scores.
+/// Reuses assessment scoring logic for consistency across the system.
+/// Scores are based on 2 CMTS criteria: Internet Access (speedtest) and Technology Type (wireless infrastructure).
+/// </summary>
 public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirelessBroadbandScoredReportQuery, ApiResponse<WirelessBroadbandReportResult>>
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<GetWirelessBroadbandScoredReportHandler> _logger;
+    private readonly IWirelessScoringService _scoringService;
+    private readonly IProviderTechnologyService _providerTechService;
     private const int StartColumn = 3;
-
-    // Scoring thresholds based on CMTS criteria
-    private const double MinimumSpeedThreshold = 25.0; // Mbps
 
     public GetWirelessBroadbandScoredReportHandler(
         ApplicationDbContext context,
-        ILogger<GetWirelessBroadbandScoredReportHandler> logger)
+        ILogger<GetWirelessBroadbandScoredReportHandler> logger,
+        IWirelessScoringService scoringService,
+        IProviderTechnologyService providerTechService)
     {
         _context = context;
         _logger = logger;
+        _scoringService = scoringService;
+        _providerTechService = providerTechService;
     }
 
     public async Task<ApiResponse<WirelessBroadbandReportResult>> Handle(
@@ -167,35 +177,13 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     BarangayName = barangay.Name
                 };
 
-                var cellulars = new List<CellularInfo>();
+                // Calculate per-provider technology breakdown using shared service
+                var providerTechBreakdown = await _providerTechService.CalculateProviderTechnologyBreakdownAsync(
+                    barangay.Boundaries,
+                    barangay.Id,
+                    cancellationToken);
 
-                // Aggregate cellulars from spatial data
-                if (barangay.Boundaries != null)
-                {
-                    var inBarangay = allCellulars
-                        .Where(c => c.Location != null && barangay.Boundaries.Contains(c.Location))
-                        .Select(c => new CellularInfo
-                        {
-                            ProviderName = c.ProviderName,
-                            GenerationName = c.GenerationName
-                        });
-
-                    cellulars.AddRange(inBarangay);
-                }
-
-                // Add validations
-                var validations = allValidations
-                    .Where(v => v.BarangayId == barangay.Id)
-                    .Select(v => new CellularInfo
-                    {
-                        ProviderName = v.ProviderName,
-                        GenerationName = v.GenerationName
-                    });
-
-                cellulars.AddRange(validations);
-                cellulars = cellulars.DistinctBy(c => new { c.ProviderName, c.GenerationName }).ToList();
-
-                // Aggregate speedtests
+                // Aggregate speedtests for this barangay
                 var barangaySpeedtests = new List<SpeedtestInfo>();
                 if (barangay.Boundaries != null)
                 {
@@ -204,20 +192,27 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                         .ToList();
                 }
 
-                // Map provider stats
+                // Map provider stats using technology breakdown
                 foreach (var provider in providers)
                 {
-                    var providerCellulars = cellulars
-                        .Where(c => c.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase));
                     var providerSpeedtests = barangaySpeedtests
                         .Where(s => s.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
-                    entry.ProviderStats[provider.Name] = MapProviderStats(providerCellulars, providerSpeedtests);
+                    var techBreakdown = providerTechBreakdown.GetValueOrDefault(provider.Name);
+                    entry.ProviderStats[provider.Name] = MapProviderStats(techBreakdown, providerSpeedtests);
                 }
 
-                // Calculate connectivity score
-                entry.ConnectivityScore = CalculateConnectivityScore(cellulars, barangaySpeedtests);
+                // Calculate overall barangay connectivity score
+                // Aggregate all provider technology into a single breakdown for overall scoring
+                var overallTechBreakdown = AggregateProviderTechnologyBreakdowns(providerTechBreakdown.Values);
+                
+                // Build overall speed stats for the barangay
+                var overallSpeedStats = barangaySpeedtests.Any() 
+                    ? BuildSpeedStats(barangaySpeedtests) 
+                    : null;
+
+                entry.ConnectivityScore = CalculateConnectivityScore(overallTechBreakdown, overallSpeedStats);
                 entry.ServiceStatus = DetermineServiceStatus(entry.ConnectivityScore.TotalScore);
                 entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
 
@@ -267,81 +262,26 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
     }
 
     /// <summary>
-    /// Calculate connectivity score based on CMTS criteria
+    /// Calculate connectivity score based on CMTS criteria.
+    /// Uses shared scoring service for consistency with connectivity assessment.
+    /// Scores are based on 2 criteria: Internet Access (speedtest) + Technology Type (wireless infrastructure).
     /// </summary>
     private WirelessConnectivityScoreDto CalculateConnectivityScore(
-        List<CellularInfo> cellulars,
-        List<SpeedtestInfo> speedtests)
+        TechnologyBandBreakdownDto? techBreakdown,
+        SpeedStatsDto? speedStats)
     {
         var score = new WirelessConnectivityScoreDto();
 
-        // Determine highest technology
-        var generations = cellulars.Select(c => c.GenerationName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Calculate scores using shared service (aligned with assessment logic)
+        score.TechnologyTypeScore = _scoringService.CalculateTechnologyTypeScore(techBreakdown);
+        score.InternetAccessScore = _scoringService.CalculateInternetAccessScore(speedStats);
+        score.HighestTechnology = _scoringService.GetHighestTechnology(techBreakdown);
 
-        // Add generations from speedtests
-        foreach (var st in speedtests.Where(s => !string.IsNullOrEmpty(s.GenerationName)))
+        // Populate speed data if available
+        if (speedStats != null && speedStats.SpeedTestCount > 0)
         {
-            generations.Add(st.GenerationName);
-        }
-
-        // Technology Type Score (1-3 points)
-        // 3 = LTE/5G or high-speed technology
-        // 2 = Legacy technologies (2G/3G)
-        // 1 = No broadband technology
-        if (generations.Contains("5G"))
-        {
-            score.TechnologyTypeScore = 3;
-            score.HighestTechnology = "5G";
-        }
-        else if (generations.Contains("4G") || generations.Contains("LTE"))
-        {
-            score.TechnologyTypeScore = 3;
-            score.HighestTechnology = "4G/LTE";
-        }
-        else if (generations.Contains("3G") || generations.Contains("2G"))
-        {
-            score.TechnologyTypeScore = 2;
-            score.HighestTechnology = generations.Contains("3G") ? "3G" : "2G";
-        }
-        else
-        {
-            score.TechnologyTypeScore = 1;
-            score.HighestTechnology = "None";
-        }
-
-        // Internet Access Score (1-3 points) - from Speedtest data
-        // 3 = Speeds ≥25 Mbps
-        // 2 = Speeds available but <25 Mbps
-        // 1 = No internet access or minimal
-        if (speedtests.Any())
-        {
-            score.AverageDownloadSpeed = (double)speedtests.Average(s => s.DownloadSpeed);
-            score.AverageUploadSpeed = (double)speedtests.Average(s => s.UploadSpeed);
-
-            if (score.AverageDownloadSpeed >= MinimumSpeedThreshold)
-            {
-                score.InternetAccessScore = 3;
-            }
-            else if (score.AverageDownloadSpeed > 0)
-            {
-                score.InternetAccessScore = 2;
-            }
-            else
-            {
-                score.InternetAccessScore = 1;
-            }
-        }
-        else
-        {
-            // No speedtest data - infer from technology
-            if (score.TechnologyTypeScore == 3)
-            {
-                score.InternetAccessScore = 2; // Assume available but not verified
-            }
-            else
-            {
-                score.InternetAccessScore = 1;
-            }
+            score.AverageDownloadSpeed = (double)(speedStats.AverageDownloadSpeedMbps ?? 0);
+            score.AverageUploadSpeed = (double)(speedStats.AverageUploadSpeedMbps ?? 0);
         }
 
         score.TotalScore = score.TechnologyTypeScore + score.InternetAccessScore;
@@ -351,22 +291,15 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
     }
 
     /// <summary>
-    /// Determine service status from total score
-    /// 6 points = Served
-    /// 4-5 points = Underserved
-    /// 2-3 points = Unserved
+    /// Determine service status from total score.
+    /// Uses shared scoring service for consistency with connectivity assessment.
     /// </summary>
-    private static ServiceStatusEnum DetermineServiceStatus(int totalScore)
+    private ServiceStatusEnum DetermineServiceStatus(int totalScore)
     {
-        return totalScore switch
-        {
-            6 => ServiceStatusEnum.Served,
-            >= 4 => ServiceStatusEnum.Underserved,
-            _ => ServiceStatusEnum.Unserved
-        };
+        return _scoringService.DetermineServiceStatus(totalScore);
     }
 
-    private static string GenerateRemarks(WirelessConnectivityScoreDto score)
+    private string GenerateRemarks(WirelessConnectivityScoreDto score)
     {
         var status = DetermineServiceStatus(score.TotalScore);
         var remarks = status.ToString().ToUpper();
@@ -423,24 +356,27 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         return summary;
     }
 
-    // Helper methods (reused from original handler)
-    private ProviderWirelessStatsDto MapProviderStats(
-        IEnumerable<CellularInfo> data,
+    // ===== Helper methods =====
+
+    /// <summary>
+    /// Map provider statistics from technology breakdown and speedtest data
+    /// </summary>
+    private static ProviderWirelessStatsDto MapProviderStats(
+        TechnologyBandBreakdownDto? techBreakdown,
         List<SpeedtestInfo> speedtests)
     {
         var stats = new ProviderWirelessStatsDto();
-        var generations = data.Select(d => d.GenerationName).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var st in speedtests.Where(s => !string.IsNullOrEmpty(s.GenerationName)))
+        // Map generation availability from technology breakdown
+        if (techBreakdown != null)
         {
-            generations.Add(st.GenerationName);
+            stats.Has2G = techBreakdown.Has2G;
+            stats.Has3G = techBreakdown.Has3G;
+            stats.Has4G = techBreakdown.Has4G;
+            stats.Has5G = techBreakdown.Has5G;
         }
 
-        stats.Has2G = generations.Contains("2G");
-        stats.Has3G = generations.Contains("3G");
-        stats.Has4G = generations.Contains("4G") || generations.Contains("LTE");
-        stats.Has5G = generations.Contains("5G");
-
+        // Populate TechUsed from speedtest generations
         var speedtestGenerations = speedtests
             .Where(s => !string.IsNullOrEmpty(s.GenerationName))
             .Select(s => s.GenerationName)
@@ -450,6 +386,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
         stats.TechUsed = speedtestGenerations.Any() ? string.Join(", ", speedtestGenerations) : "";
 
+        // Calculate average speeds if speedtests exist
         if (speedtests.Any())
         {
             stats.UploadSpeedMbps = (double)speedtests.Average(s => s.UploadSpeed);
@@ -457,6 +394,97 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         }
 
         return stats;
+    }
+
+    /// <summary>
+    /// Aggregate multiple provider technology breakdowns into a single overall breakdown
+    /// </summary>
+    private static TechnologyBandBreakdownDto AggregateProviderTechnologyBreakdowns(
+        IEnumerable<TechnologyBandBreakdownDto> breakdowns)
+    {
+        var aggregated = new TechnologyBandBreakdownDto();
+        var allTechnologies = new Dictionary<string, HashSet<string>>();
+
+        foreach (var breakdown in breakdowns)
+        {
+            foreach (var (tech, bands) in breakdown)
+            {
+                if (!allTechnologies.ContainsKey(tech))
+                {
+                    allTechnologies[tech] = new HashSet<string>();
+                }
+                foreach (var band in bands)
+                {
+                    allTechnologies[tech].Add(band);
+                }
+            }
+
+            // Aggregate counts
+            aggregated.Count2G += breakdown.Count2G;
+            aggregated.Count3G += breakdown.Count3G;
+            aggregated.Count4G += breakdown.Count4G;
+            aggregated.Count5G += breakdown.Count5G;
+        }
+
+        // Build the dictionary
+        foreach (var (tech, bands) in allTechnologies)
+        {
+            aggregated[tech] = bands.OrderBy(b => b).ToList();
+        }
+
+        // Calculate summary properties
+        aggregated.TotalTechnologyCount = aggregated.Count2G + aggregated.Count3G + 
+                                         aggregated.Count4G + aggregated.Count5G;
+        
+        if (aggregated.TotalTechnologyCount > 0)
+        {
+            aggregated.ModernCoverageRatio = (double)(aggregated.Count4G + aggregated.Count5G) / 
+                                            aggregated.TotalTechnologyCount;
+            aggregated.HasModernCoverage = aggregated.ModernCoverageRatio > 0;
+        }
+
+        var generations = new List<string>();
+        if (aggregated.Has2G) generations.Add("2G");
+        if (aggregated.Has3G) generations.Add("3G");
+        if (aggregated.Has4G) generations.Add("4G");
+        if (aggregated.Has5G) generations.Add("5G");
+        aggregated.AvailableGenerations = generations;
+
+        return aggregated;
+    }
+
+    /// <summary>
+    /// Build SpeedStatsDto from speedtest information list
+    /// </summary>
+    private static SpeedStatsDto BuildSpeedStats(List<SpeedtestInfo> speedtests)
+    {
+        if (!speedtests.Any()) return new SpeedStatsDto();
+
+        var downloads = speedtests.Select(s => s.DownloadSpeed).OrderBy(x => x).ToList();
+        var uploads = speedtests.Select(s => s.UploadSpeed).OrderBy(x => x).ToList();
+
+        return new SpeedStatsDto
+        {
+            SpeedTestCount = speedtests.Count,
+            AverageDownloadSpeedMbps = speedtests.Average(s => s.DownloadSpeed),
+            AverageUploadSpeedMbps = speedtests.Average(s => s.UploadSpeed),
+            MedianDownloadSpeedMbps = CalculateMedian(downloads),
+            MedianUploadSpeedMbps = CalculateMedian(uploads),
+            MeetsMinimumSpeedRequirement = speedtests.Average(s => s.DownloadSpeed) >= 25m
+        };
+    }
+
+    /// <summary>
+    /// Calculate median from a sorted list of values
+    /// </summary>
+    private static decimal CalculateMedian(List<decimal> sortedValues)
+    {
+        if (sortedValues.Count == 0) return 0;
+        
+        int mid = sortedValues.Count / 2;
+        return sortedValues.Count % 2 == 0
+            ? (sortedValues[mid - 1] + sortedValues[mid]) / 2
+            : sortedValues[mid];
     }
 
     private byte[] GenerateExcel(
@@ -472,23 +500,22 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
         // Collect all present generations for dynamic headers
         var providerGenerationsMap = new Dictionary<string, List<string>>();
-        var allCellularData = new List<CellularInfo>();
 
         foreach (var entry in reportData)
         {
-            foreach (var providerStat in entry.ProviderStats)
+            foreach (var (providerName, stats) in entry.ProviderStats)
             {
-                if (providerStat.Value.Has2G) allCellularData.Add(new CellularInfo { ProviderName = providerStat.Key, GenerationName = "2G" });
-                if (providerStat.Value.Has3G) allCellularData.Add(new CellularInfo { ProviderName = providerStat.Key, GenerationName = "3G" });
-                if (providerStat.Value.Has4G) allCellularData.Add(new CellularInfo { ProviderName = providerStat.Key, GenerationName = "4G" });
-                if (providerStat.Value.Has5G) allCellularData.Add(new CellularInfo { ProviderName = providerStat.Key, GenerationName = "5G" });
-            }
-        }
+                if (!providerGenerationsMap.ContainsKey(providerName))
+                {
+                    providerGenerationsMap[providerName] = new List<string>();
+                }
 
-        foreach (var provider in providers)
-        {
-            var generations = GetPresentGenerations(allCellularData, provider.Name);
-            providerGenerationsMap[provider.Name] = generations;
+                var gens = providerGenerationsMap[providerName];
+                if (stats.Has2G && !gens.Contains("2G")) gens.Add("2G");
+                if (stats.Has3G && !gens.Contains("3G")) gens.Add("3G");
+                if (stats.Has4G && !gens.Contains("4G")) gens.Add("4G");
+                if (stats.Has5G && !gens.Contains("5G")) gens.Add("5G");
+            }
         }
 
         // --- HEADERS ---
@@ -819,21 +846,10 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         }
     }
 
-    private List<string> GetPresentGenerations(IEnumerable<CellularInfo> data, string providerName)
-    {
-        var providerData = data.Where(d => d.ProviderName.Contains(providerName, StringComparison.OrdinalIgnoreCase));
-        var rawGens = providerData.Select(d => d.GenerationName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var present = new List<string>();
-        if (rawGens.Contains("2G")) present.Add("2G");
-        if (rawGens.Contains("3G")) present.Add("3G");
-        if (rawGens.Contains("4G") || rawGens.Contains("LTE")) present.Add("4G");
-        if (rawGens.Contains("5G")) present.Add("5G");
-
-        return present;
-    }
-
-    private bool HasGeneration(ProviderWirelessStatsDto stats, string generation)
+    /// <summary>
+    /// Helper to check if provider stats has a specific generation
+    /// </summary>
+    private static bool HasGeneration(ProviderWirelessStatsDto stats, string generation)
     {
         return generation switch
         {
@@ -845,19 +861,11 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         };
     }
 
-    private class CellularInfo
-    {
-        public string ProviderName { get; set; } = string.Empty;
-        public string GenerationName { get; set; } = string.Empty;
-    }
+    // ===== Private DTOs for data aggregation =====
 
-    private class CellularLocationInfo
-    {
-        public string ProviderName { get; set; } = string.Empty;
-        public string GenerationName { get; set; } = string.Empty;
-        public NetTopologySuite.Geometries.Point? Location { get; set; }
-    }
-
+    /// <summary>
+    /// Speedtest information with location
+    /// </summary>
     private class SpeedtestInfo
     {
         public string ProviderName { get; set; } = string.Empty;
@@ -865,5 +873,15 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         public decimal DownloadSpeed { get; set; }
         public NetTopologySuite.Geometries.Point? Location { get; set; }
         public string GenerationName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Cellular location information for spatial queries
+    /// </summary>
+    private class CellularLocationInfo
+    {
+        public string ProviderName { get; set; } = string.Empty;
+        public string GenerationName { get; set; } = string.Empty;
+        public NetTopologySuite.Geometries.Point? Location { get; set; }
     }
 }
