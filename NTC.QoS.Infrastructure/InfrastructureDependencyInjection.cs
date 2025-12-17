@@ -8,6 +8,7 @@ using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
+using NTC.QoS.Infrastructure.Services.Connectivity;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -37,6 +38,9 @@ public static class InfrastructureDependencyInjection
         services.AddRepositories();
         services.AddBackgroundJobServices();
         services.AddReportingServices();
+        
+        // Register Connectivity Services
+        services.AddScoped<ICMTSScoringService, CMTSScoringService>();
 
         return services;
     }
