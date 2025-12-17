@@ -45,7 +45,7 @@ public class SchedulerService : ISchedulerService
         // Create the job request DTO
         var jobRequest = new ConnectivityAssessmentJobRequestDto
         {
-            JobId = Guid.NewGuid().GetHashCode(), // Generate a unique job ID
+            JobId = Guid.NewGuid().ToString("N"), // Generate a unique job ID for scheduled job
             LocationType = scheduler.LocationType,
             LocationIds = locationIds,
             UserId = scheduler.CreatedBy,

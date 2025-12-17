@@ -26,10 +26,12 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 /// - Uses dedicated queue "connectivity-assessment" to serialize jobs (prevents concurrent execution)
 /// - Prevents PostgreSQL memory exhaustion from multiple simultaneous spatial queries
 /// - Avoids unique constraint violations from concurrent processing of same locations
-/// - Automatic retry on transient failures (3 attempts with exponential backoff)
+/// - No automatic retry on failures (Attempts = 0) - job fails immediately on error
+/// - Extended timeout (4 hours) to prevent OperationCanceledException on large jobs
 /// </summary>
 [Queue("connectivity-assessment")]
-[AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+[AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+[DisableConcurrentExecution(timeoutInSeconds: 14400)] // 4 hours for large hierarchical jobs
 public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJob
 {
     private readonly ILogger<ProcessConnectivityAssessmentJob> _logger;
@@ -90,11 +92,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Execute connectivity assessment generation as a background job
+    /// No automatic retry - job fails immediately on error
     /// </summary>
-    [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(ConnectivityAssessmentJobRequestDto jobRequest, CancellationToken cancellationToken)
     {
-        var jobId = jobRequest.JobId;
+        var jobId = jobRequest.JobId; // Hangfire job ID
         var startTime = DateTime.UtcNow;
 
         // Store the user ID for this job execution
@@ -214,8 +217,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             _logger.LogInformation("Job {JobId}: Performing final database verification before marking as complete...", jobId);
             try
             {
-                var dbVerificationCount = await VerifyDatabasePersistence(jobRequest.LocationIds, jobRequest.LocationType, cancellationToken);
-                _logger.LogInformation("Job {JobId}: Database verification confirmed {DbCount} assessments persisted out of {ExpectedCount} processed",
+                // Verify ALL assessments created (primary + hierarchical), grouped by location type
+                var dbVerificationCount = 0;
+                var locationsByType = results.Where(r => r != null)
+                    .GroupBy(r => r.LocationType)
+                    .ToList();
+                
+                foreach (var typeGroup in locationsByType)
+                {
+                    var locationIds = typeGroup.Select(r => r.LocationId).ToList();
+                    var typeCount = await VerifyDatabasePersistence(locationIds, typeGroup.Key, cancellationToken);
+                    dbVerificationCount += typeCount;
+                    _logger.LogInformation("Job {JobId}: Verified {Count} {LocationType} assessments in database",
+                        jobId, typeCount, typeGroup.Key);
+                }
+                
+                _logger.LogInformation("Job {JobId}: Database verification confirmed {DbCount} total assessments persisted out of {ExpectedCount} processed",
                     jobId, dbVerificationCount, results.Count);
                 
                 if (dbVerificationCount < results.Count)
@@ -266,7 +283,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<List<LocationConnectivityDto>> ProcessLocationsSequentially(
         List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
         bool forceRecalculate,
-        int jobId,
+        string jobId,
         string processingContext,
         DateTime? startDate,
         DateTime? endDate,
@@ -387,7 +404,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment>> PreloadExistingAssessments(
         List<(Guid Id, LocationTypeEnum Type, string Name)> locations,
         bool forceRecalculate,
-        int jobId,
+        string jobId,
         CancellationToken cancellationToken)
     {
         var existingAssessments = new Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment>();
@@ -2408,7 +2425,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Updates job status in the database with tracking information
     /// </summary>
     private Task UpdateJobStatus(
-        int jobId,
+        string jobId,
         ConnectivityAssessmentJobStatusEnum status,
         string message,
         DateTime? startTime = null,
@@ -2475,7 +2492,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Reports progress during processing with cumulative count tracking
     /// </summary>
     private async Task ReportProgressWithCumulativeCount(
-        int jobId,
+        string jobId,
         int cumulativeProcessedCount,
         string context,
         DateTime batchStartTime,
@@ -2542,7 +2559,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// </summary>
     [Obsolete("Use ReportProgressWithCumulativeCount instead")]
     private async Task ReportProgress(
-        int jobId,
+        string jobId,
         int currentBatchProcessedCount,
         int currentBatchTotalCount,
         string context,
@@ -2555,7 +2572,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// <summary>
     /// Performs memory management operations
     /// </summary>
-    private async Task PerformMemoryManagement(int jobId, int batchIndex)
+    private async Task PerformMemoryManagement(string jobId, int batchIndex)
     {
         try
         {
@@ -2763,7 +2780,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         LocationTypeEnum locationType,
         int hierarchicalDepth,
         bool forceRecalculate,
-        int jobId,
+        string jobId,
         int currentProcessedCount,
         DateTime? startDate,
         DateTime? endDate,

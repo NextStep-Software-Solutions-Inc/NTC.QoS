@@ -12,6 +12,8 @@ public class File : BaseEntity
     public DateTime UploadDate { get; set; }
     public FileTypeEnum Type { get; set; } = FileTypeEnum.Unknown;
     public FileStatusEnum Status { get; set; } = FileStatusEnum.Pending;
+    public Guid? RegionId { get; set; }
+    public virtual Region? Region { get; set; }
 
     // Batch processing checkpoint tracking (for resume on failure)
     public int? LastProcessedBatchNumber { get; set; }

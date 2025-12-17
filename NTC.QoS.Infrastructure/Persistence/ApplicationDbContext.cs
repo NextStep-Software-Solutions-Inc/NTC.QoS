@@ -310,6 +310,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Region>()
             .HasMany(r => r.Provinces);
 
+        modelBuilder.Entity<Domain.Entities.File>()
+            .HasOne(f => f.Region)
+            .WithMany()
+            .HasForeignKey(f => f.RegionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Domain.Entities.File>()
+            .HasIndex(f => f.RegionId)
+            .HasDatabaseName("IX_Files_RegionId");
+
         modelBuilder.Entity<Municipality>()
             .HasMany(m => m.Barangays)
             .WithOne(b => b.Municipality)
