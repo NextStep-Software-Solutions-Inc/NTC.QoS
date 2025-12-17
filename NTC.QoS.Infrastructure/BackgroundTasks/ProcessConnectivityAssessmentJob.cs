@@ -940,51 +940,86 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             try
             {
-                // OPTIMIZATION: Use database-level aggregation instead of loading all records into memory
-                // This prevents PostgreSQL shared memory exhaustion when processing large regions
-                var count = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                    .CountAsync(query, cancellationToken);
-                
-                _logger.LogInformation("Processing {Count} speedtest records for location {LocationId} ({LocationType})", 
-                    count, locationId, locationType);
-
-                if (count == 0)
+                // OPTIMIZATION: For Regional locations, skip expensive COUNT and use direct aggregation
+                // This prevents PostgreSQL shared memory exhaustion on large spatial queries
+                if (locationType == LocationTypeEnum.Regional)
                 {
-                    result = new SpeedStatsDto
-                    {
-                        SpeedTestCount = 0,
-                        AverageDownloadSpeedMbps = 0,
-                        AverageUploadSpeedMbps = 0,
-                        MedianDownloadSpeedMbps = 0,
-                        MedianUploadSpeedMbps = 0,
-                        AverageLatencyMs = 0,
-                        AverageSignalStrength = 0,
-                        MeetsMinimumSpeedRequirement = false
-                    };
-                }
-                else if (count > 100000)
-                {
-                    // For very large datasets, use pure SQL aggregation to avoid memory issues
-                    _logger.LogWarning("Large speedtest dataset ({Count} records) - using database aggregation for location {LocationId}", 
-                        count, locationId);
+                    _logger.LogInformation("Regional location {LocationId} - using direct aggregation for speedtests (skipping COUNT to avoid shared memory issues)", locationId);
                     
-                    result = await CalculateSpeedTestStatsWithDatabaseAggregation(query, count, cancellationToken);
+                    // Check if any data exists first with LIMIT 1 (very fast)
+                    var hasData = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .AnyAsync(query, cancellationToken);
+                    
+                    if (!hasData)
+                    {
+                        result = new SpeedStatsDto
+                        {
+                            SpeedTestCount = 0,
+                            AverageDownloadSpeedMbps = 0,
+                            AverageUploadSpeedMbps = 0,
+                            MedianDownloadSpeedMbps = 0,
+                            MedianUploadSpeedMbps = 0,
+                            AverageLatencyMs = 0,
+                            AverageSignalStrength = 0,
+                            MeetsMinimumSpeedRequirement = false
+                        };
+                    }
+                    else
+                    {
+                        // Use batched counting to avoid memory issues
+                        var count = await CountInBatchesAsync(query, cancellationToken);
+                        _logger.LogInformation("Batched count result: {Count} speedtest records for Regional location {LocationId}", count, locationId);
+                        
+                        result = await CalculateSpeedTestStatsWithDatabaseAggregation(query, count, cancellationToken);
+                    }
                 }
                 else
                 {
-                    // For smaller datasets, load into memory for median calculation
-                    var speedtestResults = await _speedtestRepository.ToListAsync(
-                        query.Select(s => new SpeedtestDto
-                        {
-                            DownloadSpeed = s.DownloadSpeed,
-                            UploadSpeed = s.UploadSpeed,
-                            Ping = s.Ping,
-                            RSSI = s.RSSI,
-                            SignalQuality = s.SignalQuality
-                        }),
-                        cancellationToken);
+                    // For non-Regional locations, use standard counting
+                    var count = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .CountAsync(query, cancellationToken);
+                    
+                    _logger.LogInformation("Processing {Count} speedtest records for location {LocationId} ({LocationType})", 
+                        count, locationId, locationType);
 
-                    result = ProcessSpeedTestResults(speedtestResults);
+                    if (count == 0)
+                    {
+                        result = new SpeedStatsDto
+                        {
+                            SpeedTestCount = 0,
+                            AverageDownloadSpeedMbps = 0,
+                            AverageUploadSpeedMbps = 0,
+                            MedianDownloadSpeedMbps = 0,
+                            MedianUploadSpeedMbps = 0,
+                            AverageLatencyMs = 0,
+                            AverageSignalStrength = 0,
+                            MeetsMinimumSpeedRequirement = false
+                        };
+                    }
+                    else if (count > 100000)
+                    {
+                        // For very large datasets, use pure SQL aggregation to avoid memory issues
+                        _logger.LogWarning("Large speedtest dataset ({Count} records) - using database aggregation for location {LocationId}", 
+                            count, locationId);
+                        
+                        result = await CalculateSpeedTestStatsWithDatabaseAggregation(query, count, cancellationToken);
+                    }
+                    else
+                    {
+                        // For smaller datasets, load into memory for median calculation
+                        var speedtestResults = await _speedtestRepository.ToListAsync(
+                            query.Select(s => new SpeedtestDto
+                            {
+                                DownloadSpeed = s.DownloadSpeed,
+                                UploadSpeed = s.UploadSpeed,
+                                Ping = s.Ping,
+                                RSSI = s.RSSI,
+                                SignalQuality = s.SignalQuality
+                            }),
+                            cancellationToken);
+
+                        result = ProcessSpeedTestResults(speedtestResults);
+                    }
                 }
             }
             catch (Exception speedTestEx)
@@ -1085,6 +1120,49 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// This prevents PostgreSQL shared memory exhaustion (Error 53100) for regions with millions of speedtest records.
     /// For large datasets, we use database aggregation for averages and approximate median using percentile approach.
     /// </summary>
+    /// <summary>
+    /// Counts records in batches to avoid PostgreSQL shared memory exhaustion on large spatial queries.
+    /// Uses LIMIT/OFFSET batching with smaller chunks to reduce memory pressure.
+    /// </summary>
+    private async Task<int> CountInBatchesAsync<T>(IQueryable<T> query, CancellationToken cancellationToken)
+    {
+        const int batchSize = 50000;
+        int totalCount = 0;
+        int offset = 0;
+        
+        try
+        {
+            while (true)
+            {
+                // Count records in batches using Skip/Take to limit memory usage per query
+                var batchCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .CountAsync(query.Skip(offset).Take(batchSize), cancellationToken);
+                
+                totalCount += batchCount;
+                
+                // If we got less than batch size, we've reached the end
+                if (batchCount < batchSize)
+                {
+                    break;
+                }
+                
+                offset += batchSize;
+                
+                // Log progress for very large datasets
+                if (offset % 250000 == 0)
+                {
+                    _logger.LogInformation("Batched counting progress: {Count}+ records processed", totalCount);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Batched counting failed, returning estimated count based on partial results: {Count}", totalCount);
+        }
+        
+        return totalCount;
+    }
+
     private async Task<SpeedStatsDto> CalculateSpeedTestStatsWithDatabaseAggregation(
         IQueryable<Speedtest> query, 
         int totalCount, 
