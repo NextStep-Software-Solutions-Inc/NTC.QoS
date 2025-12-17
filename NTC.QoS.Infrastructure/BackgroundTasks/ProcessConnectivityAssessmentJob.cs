@@ -592,7 +592,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
 
             // Extract individual scores from the array for entity mapping - using dictionary for O(1) lookups
-            var scoreDict = cmtsScores.Scores.ToDictionary(s => s.Subject);
+            var scoreDict = cmtsScores.ToDictionary(s => s.Subject);
             var fiberCoverage = scoreDict.TryGetValue(CMTSSubjects.FiberCoverage, out var fiberScore) ? fiberScore.A : 0;
             var internetAccess = scoreDict.TryGetValue(CMTSSubjects.InternetAccess, out var internetScore) ? internetScore.A : 0;
             var technologyType = scoreDict.TryGetValue(CMTSSubjects.TechnologyType, out var techScore) ? techScore.A : 0;
@@ -1663,14 +1663,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         return new CMTSScoresDto
         {
-            Scores =
-            [
-                new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = fiberCoverage },
-                new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = internetAccess },
-                new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = technologyType },
-                new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = qualityOfService },
-                new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = coverageAvailability }
-            ]
+            new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = fiberCoverage },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = internetAccess },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = technologyType },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = qualityOfService },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = coverageAvailability }
         };
     }
 
@@ -2385,14 +2382,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 TotalScore = assessment.TotalScore,
                 CMTSScores = new()
                 {
-                    Scores =
-                    [
-                        new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = assessment.FiberCoverageScore },
-                        new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = assessment.InternetAccessScore },
-                        new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = assessment.TechnologyTypeScore },
-                        new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = assessment.QualityOfServiceScore },
-                        new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = assessment.CoverageAvailabilityScore }
-                    ]
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = assessment.FiberCoverageScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = assessment.InternetAccessScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = assessment.TechnologyTypeScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = assessment.QualityOfServiceScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = assessment.CoverageAvailabilityScore }
                 },
                 Infrastructure = new()
                 {

@@ -118,12 +118,8 @@ public class CMTSScoreItemDto
 /// <summary>
 /// CMTS rubric scores breakdown as array of score items
 /// </summary>
-public class CMTSScoresDto
+public class CMTSScoresDto : List<CMTSScoreItemDto>
 {
-    /// <summary>
-    /// Array of CMTS score items for each criterion
-    /// </summary>
-    public List<CMTSScoreItemDto> Scores { get; set; } = [];
 }
 
 /// <summary>
