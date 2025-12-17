@@ -53,7 +53,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private string _currentUserId = "System";
 
     // Simplified configuration for sequential processing
-    private const int BATCH_SIZE = 20; // Optimal batch size for sequential processing
+    private const int BATCH_SIZE = 50; // Optimal batch size for batch-commit processing
     private const int PROGRESS_REPORT_INTERVAL = 5; // Report progress every 5 items for smoother updates
     private const int MEMORY_CHECK_INTERVAL = 5; // Check memory every 5 batches
     private const int RECENT_ASSESSMENT_DAYS = 30; // Consider assessments within 30 days as recent
@@ -314,12 +314,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             try
             {
-                // Process batch and track progress for each item
+                // Accumulate batch data before saving
+                var batchAssessments = new List<(ConnectivityAssessment Assessment, List<ConnectivityAssessmentProvider> Providers, string LocationName, Guid LocationId)>();
+                
+                // Process batch and accumulate changes
                 foreach (var location in batch)
                 {
                     try
                     {
-                        var result = await ProcessSingleLocation(
+                        var result = await ProcessSingleLocationForBatch(
                             location.Id,
                             location.Type,
                             location.Name,
@@ -331,7 +334,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         
                         if (result != null)
                         {
-                            results.Add(result);
+                            batchAssessments.Add((result.Value.Assessment, result.Value.Providers, result.Value.LocationName, location.Id));
                         }
                         else
                         {
@@ -342,9 +345,6 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         }
                         
                         processedCount++;
-
-                        // Update progress after each location for smooth tracking
-                        await ReportProgressWithCumulativeCount(jobId, results.Count, processingContext, startTime, cancellationToken);
                     }
                     catch (Exception ex)
                     {
@@ -353,6 +353,45 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                             jobId, location.Id, location.Name, ex.Message);
                         processedCount++;
                         continue;
+                    }
+                }
+                
+                // Save entire batch in one transaction
+                if (batchAssessments.Count > 0)
+                {
+                    try
+                    {
+                        _logger.LogInformation("Job {JobId}: Saving batch of {Count} assessments to database",
+                            jobId, batchAssessments.Count);
+                        
+                        await _connectivityRepository.SaveChangesAsync(cancellationToken);
+                        
+                        _logger.LogInformation("Job {JobId}: Successfully saved batch of {Count} assessments",
+                            jobId, batchAssessments.Count);
+                        
+                        // Convert saved assessments to DTOs and add to results
+                        foreach (var (assessment, providers, locationName, locationId) in batchAssessments)
+                        {
+                            var dto = CreateLocationConnectivityDto(assessment, locationName);
+                            results.Add(dto);
+                        }
+                        
+                        // Update progress after batch save
+                        await ReportProgressWithCumulativeCount(jobId, results.Count, processingContext, startTime, cancellationToken);
+                    }
+                    catch (Exception saveEx)
+                    {
+                        _logger.LogError(saveEx, "Job {JobId}: CRITICAL - Failed to save batch of {Count} assessments. Error: {ErrorMessage}",
+                            jobId, batchAssessments.Count, saveEx.Message);
+                        
+                        // Mark all locations in this batch as failed
+                        foreach (var (assessment, providers, locationName, locationId) in batchAssessments)
+                        {
+                            if (!failedLocations.Any(f => f.Id == locationId))
+                            {
+                                failedLocations.Add((locationId, locationName, $"Batch save failed: {saveEx.Message}"));
+                            }
+                        }
                     }
                 }
 
@@ -439,49 +478,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         return existingAssessments;
     }
 
-    /// <summary>
-    /// Process a batch of locations sequentially with real-time progress updates
-    /// </summary>
-    private async Task<List<LocationConnectivityDto?>> ProcessBatch(
-        List<(Guid Id, LocationTypeEnum Type, string Name)> batchLocations,
-        bool forceRecalculate,
-        Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment> existingAssessments,
-        DateTime? startDate,
-        DateTime? endDate,
-        CancellationToken cancellationToken)
-    {
-        var results = new List<LocationConnectivityDto?>();
 
-        foreach (var location in batchLocations)
-        {
-            try
-            {
-                var result = await ProcessSingleLocation(
-                    location.Id,
-                    location.Type,
-                    location.Name,
-                    forceRecalculate,
-                    existingAssessments,
-                    startDate,
-                    endDate,
-                    cancellationToken);
-                results.Add(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to generate assessment for {LocationType} {LocationId} ({LocationName})",
-                    location.Type, location.Id, location.Name);
-                results.Add(null);
-            }
-        }
-
-        return results;
-    }
 
     /// <summary>
-    /// Process a single location assessment - NOW SAVES PROVIDER BREAKDOWN
+    /// Process a single location and prepare assessment data WITHOUT saving to database.
+    /// Saving is done at batch level for better performance.
     /// </summary>
-    private async Task<LocationConnectivityDto?> ProcessSingleLocation(
+    private async Task<(ConnectivityAssessment Assessment, List<ConnectivityAssessmentProvider> Providers, string LocationName)?> ProcessSingleLocationForBatch(
         Guid locationId,
         LocationTypeEnum locationType,
         string locationName,
@@ -498,11 +501,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // First check the pre-loaded cache
             if (existingAssessments.TryGetValue((locationId, locationType), out existing))
             {
-                // If not forcing recalculation and assessment is recent, use it
+                // If not forcing recalculation and assessment is recent, skip regeneration
                 if (!forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
                 {
-                    _logger.LogDebug("Using existing recent assessment for {LocationType} {LocationId}", locationType, locationId);
-                    return CreateLocationConnectivityDto(existing, locationName);
+                    _logger.LogDebug("Skipping {LocationType} {LocationId} - recent assessment exists", locationType, locationId);
+                    // Return null to indicate no processing needed (assessment is recent)
+                    return null;
                 }
             }
             else
@@ -510,11 +514,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 // If not in cache, check database directly to avoid duplicate key errors
                 existing = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
 
-                // If found and not forcing recalculation and is recent, use it
+                // If found and not forcing recalculation and is recent, skip regeneration
                 if (existing != null && !forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
                 {
-                    _logger.LogDebug("Using existing recent assessment (from DB) for {LocationType} {LocationId}", locationType, locationId);
-                    return CreateLocationConnectivityDto(existing, locationName);
+                    _logger.LogDebug("Skipping {LocationType} {LocationId} - recent assessment exists (from DB)", locationType, locationId);
+                    // Return null to indicate no processing needed (assessment is recent)
+                    return null;
                 }
             }
 
@@ -548,7 +553,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 // Update provider breakdown - delete old records and insert new ones
                 await _connectivityRepository.DeleteProvidersByAssessmentIdAsync(existing.Id, cancellationToken);
 
-                // Batch insert all providers at once for better performance
+                // Prepare provider data for batch insert
                 var providers = infrastructureStats.ProviderBreakdown
                     .Select(provider => new ConnectivityAssessmentProvider
                     {
@@ -564,40 +569,17 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
 
-                _logger.LogDebug("Saving updated assessment for {LocationType} {LocationId} with {ProviderCount} providers",
+                _logger.LogDebug("Prepared updated assessment for {LocationType} {LocationId} with {ProviderCount} providers (deferred save)",
                     locationType, locationId, providers.Count);
 
-                try
-                {
-                    await _connectivityRepository.SaveChangesAsync(cancellationToken);
-                    
-                    // Verify the data was actually saved by checking if it exists in database
-                    var verifyExisting = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
-                    if (verifyExisting == null)
-                    {
-                        var errorMsg = $"Database verification failed: Assessment for {locationType} {locationId} not found after save";
-                        _logger.LogError(errorMsg);
-                        throw new InvalidOperationException(errorMsg);
-                    }
-                    
-                    _logger.LogInformation("Successfully saved and verified updated assessment for {LocationType} {LocationId}",
-                        locationType, locationId);
-                }
-                catch (Exception saveEx)
-                {
-                    _logger.LogError(saveEx, "CRITICAL: Failed to save assessment update for {LocationType} {LocationId}. Error: {ErrorMessage}",
-                        locationType, locationId, saveEx.Message);
-                    throw; // Re-throw to propagate error up the chain
-                }
-
-                return CreateLocationConnectivityDto(existing, locationName);
+                return (existing, providers, locationName);
             }
             else
             {
-                // Create new assessment
+                // Create new assessment (but don't save yet)
                 await _connectivityRepository.AddAsync(newAssessmentData, cancellationToken);
         
-                // Save provider breakdown for new assessment - batch insert for better performance
+                // Prepare provider breakdown for batch insert
                 var providers = infrastructureStats.ProviderBreakdown
                     .Select(provider => new ConnectivityAssessmentProvider
                     {
@@ -613,34 +595,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
 
-                _logger.LogDebug("Saving new assessment for {LocationType} {LocationId} with {ProviderCount} providers",
+                _logger.LogDebug("Prepared new assessment for {LocationType} {LocationId} with {ProviderCount} providers (deferred save)",
                     locationType, locationId, providers.Count);
 
-                try
-                {
-                    // Save all changes atomically in a single transaction
-                    await _connectivityRepository.SaveChangesAsync(cancellationToken);
-                    
-                    // Verify the data was actually saved by checking if it exists in database
-                    var verifyNew = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
-                    if (verifyNew == null)
-                    {
-                        var errorMsg = $"Database verification failed: New assessment for {locationType} {locationId} not found after save";
-                        _logger.LogError(errorMsg);
-                        throw new InvalidOperationException(errorMsg);
-                    }
-                    
-                    _logger.LogInformation("Successfully saved and verified new assessment for {LocationType} {LocationId}",
-                        locationType, locationId);
-                }
-                catch (Exception saveEx)
-                {
-                    _logger.LogError(saveEx, "CRITICAL: Failed to save new assessment for {LocationType} {LocationId}. Error: {ErrorMessage}",
-                        locationType, locationId, saveEx.Message);
-                    throw; // Re-throw to propagate error up the chain
-                }
-
-                return CreateLocationConnectivityDto(newAssessmentData, locationName);
+                return (newAssessmentData, providers, locationName);
             }
         }
         catch (Exception ex)
