@@ -92,7 +92,7 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Generate and download wired broadband coverage report in PDF or Excel format
     /// </summary>
-    /// <param name="format">Report format: 'pdf' or 'excel' (default: pdf)</param>
+    /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
@@ -101,23 +101,13 @@ public class ReportsController : ControllerBase
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("wired-broadband/download")]
     public async Task<ActionResult> DownloadWiredBroadbandReport(
-        [FromQuery] string format = "pdf",
+        [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
         [FromQuery] ServiceStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
-        // Validate format parameter
-        var normalizedFormat = format?.ToLowerInvariant();
-        if (normalizedFormat != "pdf" && normalizedFormat != "excel")
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Message = "Invalid format. Supported formats: 'pdf', 'excel'",
-                Succeeded = false
-            });
-        }
 
         // Generate location-based default title if not provided
         var defaultTitle = await GenerateLocationBasedTitleAsync(
@@ -128,12 +118,12 @@ public class ReportsController : ControllerBase
         
         var title = SanitizeReportTitle(reportTitle, defaultTitle);
         var fileName = await GenerateFileNameAsync("WiredBroadband", 
-            normalizedFormat == "pdf" ? "pdf" : "xlsx", 
+            format == ReportFormat.Pdf ? "pdf" : "xlsx", 
             regionId, 
             provinceId, 
             municipalityId);
 
-        if (normalizedFormat == "pdf")
+        if (format == ReportFormat.Pdf)
         {
             var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
                 regionId, provinceId, municipalityId, filterByStatus, title);
@@ -183,28 +173,18 @@ public class ReportsController : ControllerBase
     /// Generate and download connectivity gap analysis report in PDF or Excel format.
     /// Includes all unserved and underserved areas with complete data (no samples or limits).
     /// </summary>
-    /// <param name="format">Report format: 'pdf' or 'excel' (default: pdf)</param>
+    /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity-gap/download")]
     public async Task<ActionResult> DownloadConnectivityGapReport(
-        [FromQuery] string format = "pdf",
+        [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] string? reportTitle = null)
     {
-        // Validate format parameter
-        var normalizedFormat = format?.ToLowerInvariant();
-        if (normalizedFormat != "pdf" && normalizedFormat != "excel")
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Message = "Invalid format. Supported formats: 'pdf', 'excel'",
-                Succeeded = false
-            });
-        }
 
         // Generate location-based default title if not provided
         var defaultTitle = await GenerateLocationBasedTitleAsync(
@@ -215,12 +195,12 @@ public class ReportsController : ControllerBase
         
         var title = SanitizeReportTitle(reportTitle, defaultTitle);
         var fileName = await GenerateFileNameAsync("ConnectivityGap", 
-            normalizedFormat == "pdf" ? "pdf" : "xlsx", 
+            format == ReportFormat.Pdf ? "pdf" : "xlsx", 
             regionId, 
             provinceId, 
             null);
 
-        if (normalizedFormat == "pdf")
+        if (format == ReportFormat.Pdf)
         {
             var pdfBytes = await _connectivityReportingService.GenerateConnectivityGapPdfAsync(
                 regionId, provinceId, title);

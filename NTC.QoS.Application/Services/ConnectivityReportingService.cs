@@ -173,7 +173,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
             .ToList();
 
         // OPTIMIZED: Batch load location names instead of individual calls
-        var priorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).Take(20).ToList();
+        // Include ALL priority gaps (no limit) - sorted by population descending
+        var priorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).ToList();
         var locationNames = await GetLocationNamesBatchAsync(
             priorityGaps.Select(a => (a.LocationId, a.LocationType)).ToList(), 
             cancellationToken);
