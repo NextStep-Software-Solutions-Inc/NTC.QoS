@@ -10,6 +10,7 @@ using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Report;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 using NTC.QoS.Infrastructure.Persistence;
+using NTC.QoS.Infrastructure.Services;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using QuestPDF.Fluent;

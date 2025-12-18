@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Infrastructure.Persistence;
 
-namespace NTC.QoS.Application.Services;
+namespace NTC.QoS.Infrastructure.Services;
 
 /// <summary>
 /// Service for calculating per-provider technology breakdown.
