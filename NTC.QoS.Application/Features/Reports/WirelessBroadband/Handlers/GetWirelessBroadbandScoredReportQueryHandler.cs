@@ -109,36 +109,41 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 .OrderBy(p => p.Name)
                 .ToListAsync(cancellationToken);
 
-            // 3. Fetch bulk data for optimization
-            var barangayIds = barangays.Select(b => b.Id).ToList();
-
-            var allSpeedtests = new List<SpeedtestInfo>();
-            if (targetBoundaries != null)
+            // 3. Safeguard against excessive scope
+            if (barangays.Count > 5000)
             {
-                allSpeedtests = await _context.Speedtests
-                    .AsNoTracking()
-                    .Where(s => s.Location != null && targetBoundaries.Contains(s.Location)
-                             && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless)
-                    .Select(s => new SpeedtestInfo
-                    {
-                        ProviderName = s.ServiceProvider.Provider.Name,
-                        UploadSpeed = s.UploadSpeed,
-                        DownloadSpeed = s.DownloadSpeed,
-                        Location = s.Location,
-                        GenerationName = s.Generation != null ? s.Generation.Name : ""
-                    })
-                    .ToListAsync(cancellationToken);
+                return new ApiResponse<WirelessBroadbandReportResult>(
+                    $"Report scope too large. Selected area contains {barangays.Count} barangays (maximum: 5,000). " +
+                    "Please select a smaller geographic area (province or municipality).");
             }
+
+            _logger.LogInformation("Generating wireless broadband scored report for {Count} barangays in {Area}", 
+                barangays.Count, reportTitleName);
 
             // 4. Process barangays with scoring
             var reportData = new List<BarangayWirelessScoredEntryDto>();
+            var barangayIds = barangays.Select(b => b.Id).ToList();
 
-            // Batch calculate provider technology breakdowns for all barangays (optimized)
+            // Batch calculate provider technology breakdowns for all barangays (optimized - 3 queries total)
             var batchTechBreakdowns = await _providerTechService.CalculateBatchProviderTechnologyBreakdownAsync(
                 barangayIds,
                 targetBoundaries,
                 cancellationToken);
 
+            // Query speedtests using spatial filter (database-side, leveraging spatial indexes)
+            // Group by barangay in-memory to avoid loading full dataset multiple times
+            _logger.LogInformation("Loading speedtests for {Area}...", reportTitleName);
+            
+            var speedtestsByBarangay = await LoadSpeedtestsByBarangayAsync(
+                barangays, 
+                targetBoundaries, 
+                cancellationToken);
+            
+            _logger.LogInformation("Loaded speedtests for {Count} barangays", speedtestsByBarangay.Count);
+
+            // Process barangays in batches for progress tracking
+            const int progressBatchSize = 500;
+            var processedCount = 0;
             foreach (var barangay in barangays)
             {
                 var entry = new BarangayWirelessScoredEntryDto
@@ -151,16 +156,11 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 var providerTechBreakdown = batchTechBreakdowns.GetValueOrDefault(barangay.Id) 
                     ?? new Dictionary<string, TechnologyBandBreakdownDto>();
 
-                // Aggregate speedtests for this barangay
-                var barangaySpeedtests = new List<SpeedtestInfo>();
-                if (barangay.Boundaries != null)
-                {
-                    barangaySpeedtests = allSpeedtests
-                        .Where(s => s.Location != null && barangay.Boundaries.Contains(s.Location))
-                        .ToList();
-                }
+                // Get speedtests for this barangay
+                var barangaySpeedtests = speedtestsByBarangay.GetValueOrDefault(barangay.Id) 
+                    ?? new List<SpeedtestInfo>();
 
-                // Map provider stats using technology breakdown
+                // Map provider stats using technology breakdown and speedtests
                 foreach (var provider in providers)
                 {
                     var providerSpeedtests = barangaySpeedtests
@@ -172,7 +172,6 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 }
 
                 // Calculate overall barangay connectivity score
-                // Aggregate all provider technology into a single breakdown for overall scoring
                 var overallTechBreakdown = AggregateProviderTechnologyBreakdowns(providerTechBreakdown.Values);
                 
                 // Build overall speed stats for the barangay
@@ -185,6 +184,14 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
 
                 reportData.Add(entry);
+                processedCount++;
+
+                // Log progress for large reports
+                if (processedCount % progressBatchSize == 0)
+                {
+                    _logger.LogInformation("Processed {Processed}/{Total} barangays ({Percentage:F1}%)", 
+                        processedCount, barangays.Count, (processedCount * 100.0 / barangays.Count));
+                }
             }
 
             // Apply filtering
@@ -826,10 +833,66 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         };
     }
 
+    // ===== Optimized Data Loading =====
+
+    /// <summary>
+    /// Load speedtests grouped by barangay using database-side spatial filtering.
+    /// Each barangay gets its own simple spatial query to maximize spatial index usage.
+    /// Processes in batches for progress tracking and to avoid overwhelming the database.
+    /// </summary>
+    private async Task<Dictionary<Guid, List<SpeedtestInfo>>> LoadSpeedtestsByBarangayAsync(
+        List<Domain.Entities.Barangay> barangays,
+        NetTopologySuite.Geometries.MultiPolygon? overallBoundary,
+        CancellationToken cancellationToken)
+    {
+        if (overallBoundary == null || !barangays.Any())
+            return new Dictionary<Guid, List<SpeedtestInfo>>();
+
+        var result = new Dictionary<Guid, List<SpeedtestInfo>>();
+        
+        // Process barangays in batches for progress tracking
+        const int batchSize = 100;
+        var barangayBatches = barangays.Chunk(batchSize);
+
+        foreach (var batch in barangayBatches)
+        {
+            // Query speedtests for each barangay in this batch
+            // Each query is simple and leverages spatial indexes optimally
+            foreach (var barangay in batch)
+            {
+                if (barangay.Boundaries != null)
+                {
+                    var barangaySpeedtests = await _context.Speedtests
+                        .AsNoTracking()
+                        .Where(s => s.Location != null 
+                                 && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
+                                 && barangay.Boundaries.Contains(s.Location))
+                        .Select(s => new SpeedtestInfo
+                        {
+                            ProviderName = s.ServiceProvider.Provider.Name,
+                            UploadSpeed = s.UploadSpeed,
+                            DownloadSpeed = s.DownloadSpeed,
+                            Location = s.Location!,
+                            GenerationName = s.Generation != null ? s.Generation.Name : ""
+                        })
+                        .ToListAsync(cancellationToken);
+
+                    result[barangay.Id] = barangaySpeedtests;
+                }
+                else
+                {
+                    result[barangay.Id] = new List<SpeedtestInfo>();
+                }
+            }
+        }
+
+        return result;
+    }
+
     // ===== Private DTOs for data aggregation =====
 
     /// <summary>
-    /// Speedtest information with location
+    /// Speedtest information with location for spatial filtering
     /// </summary>
     private class SpeedtestInfo
     {
