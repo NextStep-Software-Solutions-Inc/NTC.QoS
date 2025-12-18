@@ -112,43 +112,6 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             // 3. Fetch bulk data for optimization
             var barangayIds = barangays.Select(b => b.Id).ToList();
 
-            var allValidations = await _context.WirelessValidations
-                .AsNoTracking()
-                .Include(wv => wv.ServiceProvider)
-                    .ThenInclude(sp => sp.Provider)
-                .Include(wv => wv.Technology)
-                    .ThenInclude(t => t!.Generation)
-                .Where(wv => barangayIds.Contains(wv.BarangayId))
-                .Select(wv => new
-                {
-                    wv.BarangayId,
-                    ProviderName = wv.ServiceProvider != null && wv.ServiceProvider.Provider != null
-                        ? wv.ServiceProvider.Provider.Name : "",
-                    GenerationName = wv.Technology != null && wv.Technology.Generation != null
-                        ? wv.Technology.Generation.Name : ""
-                })
-                .ToListAsync(cancellationToken);
-
-            var allCellulars = new List<CellularLocationInfo>();
-            if (targetBoundaries != null)
-            {
-                allCellulars = await _context.Cellulars
-                    .AsNoTracking()
-                    .Where(c => c.CellSector != null
-                             && c.CellSector.Cell != null
-                             && c.CellSector.Cell.Location != null
-                             && targetBoundaries.Contains(c.CellSector.Cell.Location))
-                    .Select(c => new CellularLocationInfo
-                    {
-                        ProviderName = c.ServiceProvider != null && c.ServiceProvider.Provider != null
-                            ? c.ServiceProvider.Provider.Name : "",
-                        GenerationName = c.Technology != null && c.Technology.Generation != null
-                            ? c.Technology.Generation.Name : "",
-                        Location = c.CellSector!.Cell!.Location
-                    })
-                    .ToListAsync(cancellationToken);
-            }
-
             var allSpeedtests = new List<SpeedtestInfo>();
             if (targetBoundaries != null)
             {
@@ -557,7 +520,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         // Draw all provider sections
         foreach (var provider in providers)
         {
-            if (!providerGenerationsMap.ContainsKey(provider.Name)) continue;
+            if (!providerGenerationsMap.TryGetValue(provider.Name, out var generations)) continue;
 
             Color color;
             try
@@ -574,7 +537,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             DrawProviderSection(
                 provider.Name,
                 provider.Name.ToUpper(),
-                providerGenerationsMap[provider.Name],
+                generations,
                 color);
         }
 
@@ -643,9 +606,8 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 {
                     if (!providerGenerationsMap.TryGetValue(provider.Name, out var generations)) continue;
 
-                    var stats = item.ProviderStats.ContainsKey(provider.Name)
-                        ? item.ProviderStats[provider.Name]
-                        : new ProviderWirelessStatsDto();
+                    if (!item.ProviderStats.TryGetValue(provider.Name, out var stats))
+                        stats = new ProviderWirelessStatsDto();
 
                     foreach (var gen in generations)
                     {
@@ -770,7 +732,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                             columns.ConstantColumn(100); // Barangay
 
                             // Provider columns (simplified for PDF)
-                            foreach (var provider in providers)
+                            foreach (var _ in providers)
                             {
                                 columns.RelativeColumn(); // Has service indicator
                             }
@@ -809,10 +771,8 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
                             foreach (var provider in providers)
                             {
-                                var hasService = item.ProviderStats.ContainsKey(provider.Name)
-                                    && (item.ProviderStats[provider.Name].Has4G
-                                        || item.ProviderStats[provider.Name].Has5G
-                                        || item.ProviderStats[provider.Name].Has3G);
+                                var hasService = item.ProviderStats.TryGetValue(provider.Name, out var stats)
+                                    && (stats.Has4G || stats.Has5G || stats.Has3G);
 
                                 table.Cell().Element(CellStyle).Text(hasService ? "✓" : "-");
                             }
