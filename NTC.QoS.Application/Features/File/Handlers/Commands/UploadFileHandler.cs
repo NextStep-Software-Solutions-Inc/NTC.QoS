@@ -93,9 +93,8 @@ public class UploadFileHandler(
                 Path = blobUrl,
                 Status = FileStatusEnum.Pending,
                 UploadedBy = uploadedBy,
-                UploadDate = DateTime.UtcNow
-                // Store region information if you have a RegionId field in File entity
-                // RegionId = request.File.RegionId
+                UploadDate = DateTime.UtcNow,
+                RegionId = request.File.RegionId
             };
 
             _repository.Add(newFile);
@@ -109,7 +108,8 @@ public class UploadFileHandler(
                 UploadedBy = newFile.UploadedBy,
                 UploadDate = newFile.UploadDate,
                 Type = newFile.Type.ToString() ?? string.Empty,
-                Status = newFile.Status.ToString()
+                Status = newFile.Status.ToString(),
+                RegionId = newFile.RegionId
             };
 
             return new ApiResponse<FileDto>

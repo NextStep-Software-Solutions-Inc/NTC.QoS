@@ -1549,6 +1549,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("ProcessingJobId")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("RegionId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -1570,6 +1573,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RegionId")
+                        .HasDatabaseName("IX_Files_RegionId");
 
                     b.ToTable("Files");
                 });
@@ -3230,6 +3236,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ConnectivityAssessment");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
+                        .WithMany()
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Region");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>

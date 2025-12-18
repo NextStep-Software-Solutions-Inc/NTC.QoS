@@ -115,12 +115,12 @@ public class GetConnectivityAssessmentJobStatusHandler : IRequestHandler<GetConn
             }
 
             _logger.LogDebug("Job {JobId}: Performing database verification for {LocationCount} {LocationType}s",
-                jobStatus.JobId, jobRequest.LocationIds.Count, jobRequest.LocationType);
+                jobStatus.JobId, jobRequest.GetLocationCount(), jobRequest.GetLocationType());
 
             // Query database to get actual saved assessments
             var dbAssessments = await _connectivityRepository.GetByLocationIdsAsync(
-                jobRequest.LocationIds,
-                jobRequest.LocationType,
+                jobRequest.GetLocationIds(),
+                jobRequest.GetLocationType(),
                 cancellationToken);
 
             var dbCount = dbAssessments?.Count ?? 0;
