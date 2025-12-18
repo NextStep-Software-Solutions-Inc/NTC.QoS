@@ -385,13 +385,23 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 {
                     try
                     {
-                        _logger.LogInformation("Job {JobId}: Saving batch of {Count} assessments to database",
-                            jobId, batchAssessments.Count);
+                        // Log detailed asset counts before saving
+                        var totalCells = batchAssessments.Sum(b => b.Assessment.CellTowerCount);
+                        var totalNAPs = batchAssessments.Sum(b => b.Assessment.FiberNAPCount);
+                        var totalWiFi = batchAssessments.Sum(b => b.Assessment.WifiHotspotCount);
+                        var totalProviders = batchAssessments.Sum(b => b.Providers.Count);
+                        
+                        _logger.LogInformation(
+                            "Job {JobId}: Saving batch of {Count} assessments to database. " +
+                            "Asset totals: Cells={TotalCells}, NAPs={TotalNAPs}, WiFi={TotalWiFi}, ProviderRecords={TotalProviders}",
+                            jobId, batchAssessments.Count, totalCells, totalNAPs, totalWiFi, totalProviders);
                         
                         await _connectivityRepository.SaveChangesAsync(cancellationToken);
                         
-                        _logger.LogInformation("Job {JobId}: Successfully saved batch of {Count} assessments",
-                            jobId, batchAssessments.Count);
+                        _logger.LogInformation(
+                            "Job {JobId}: Successfully SAVED batch of {Count} assessments. " +
+                            "Persisted assets: Cells={TotalCells}, NAPs={TotalNAPs}, WiFi={TotalWiFi}, ProviderRecords={TotalProviders}",
+                            jobId, batchAssessments.Count, totalCells, totalNAPs, totalWiFi, totalProviders);
                         
                         // Convert saved assessments to DTOs and add to results
                         foreach (var (assessment, providers, locationName, locationId) in batchAssessments)
@@ -593,6 +603,17 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 endDate,
                 cancellationToken);
 
+            // Log calculated infrastructure stats
+            _logger.LogInformation(
+                "Calculated infrastructure for {LocationType} {LocationId} ({LocationName}): " +
+                "Cells={Cells}, NAPs={NAPs}, WiFi={WiFi}, Providers={Providers}, DominantProvider={Dominant}",
+                locationType, locationId, locationName,
+                infrastructureStats.CellTowerCount,
+                infrastructureStats.FiberNAPCount,
+                infrastructureStats.WiFiHotspotCount,
+                infrastructureStats.ServiceProviderCount,
+                infrastructureStats.DominantServiceProvider ?? "None");
+
             if (existing != null)
             {
                 // Update existing assessment
@@ -618,8 +639,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
 
-                _logger.LogDebug("Prepared updated assessment for {LocationType} {LocationId} with {ProviderCount} providers (deferred save)",
-                    locationType, locationId, providers.Count);
+                _logger.LogInformation(
+                    "Prepared UPDATED assessment for {LocationType} {LocationId}: " +
+                    "Cells={Cells}, NAPs={NAPs}, WiFi={WiFi}, Providers={ProviderCount}, " +
+                    "ProviderBreakdown: {ProviderDetails}",
+                    locationType, locationId,
+                    existing.CellTowerCount, existing.FiberNAPCount, existing.WifiHotspotCount,
+                    providers.Count,
+                    string.Join(", ", providers.Select(p => $"{p.ProviderName}(C:{p.CellTowerCount},N:{p.FiberNAPCount},W:{p.WiFiHotspotCount})")));
 
                 return (existing, providers, locationName);
             }
@@ -644,8 +671,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 await _connectivityRepository.AddProvidersRangeAsync(providers, cancellationToken);
 
-                _logger.LogDebug("Prepared new assessment for {LocationType} {LocationId} with {ProviderCount} providers (deferred save)",
-                    locationType, locationId, providers.Count);
+                _logger.LogInformation(
+                    "Prepared NEW assessment for {LocationType} {LocationId}: " +
+                    "Cells={Cells}, NAPs={NAPs}, WiFi={WiFi}, Providers={ProviderCount}, " +
+                    "ProviderBreakdown: {ProviderDetails}",
+                    locationType, locationId,
+                    newAssessmentData.CellTowerCount, newAssessmentData.FiberNAPCount, newAssessmentData.WifiHotspotCount,
+                    providers.Count,
+                    string.Join(", ", providers.Select(p => $"{p.ProviderName}(C:{p.CellTowerCount},N:{p.FiberNAPCount},W:{p.WiFiHotspotCount})")));
 
                 return (newAssessmentData, providers, locationName);
             }
@@ -3208,7 +3241,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
-        List<string> cells, naps, wifiHotspots, wirelessValidations;
+        List<string> cellProviders, napProviders, wifiProviders, wirelessValidations;
+        int actualCellCount, actualNapCount, actualWifiCount;
         TechnologyBandBreakdownDto? technologyBandBreakdown = null;
 
         if (boundary != null)
@@ -3231,33 +3265,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             
             try
             {
-                // For Regional-level assessments, skip COUNT and use DISTINCT directly to avoid memory/timeout issues
-                if (locationType == LocationTypeEnum.Regional)
-                {
-                    _logger.LogInformation("Regional location {LocationId} - using database-level distinct for cells (skipping COUNT)", locationId);
-                    cells = await _cellRepository.ToListAsync(
-                        cellQuery.Select(c => c.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
-                }
-                else
-                {
-                    var cellCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                        .CountAsync(cellQuery, cancellationToken);
-                    _logger.LogInformation("Processing {Count} cell records for location {LocationId}", cellCount, locationId);
-                    
-                    if (cellCount > 50000)
-                    {
-                        // For large datasets, get distinct provider names at database level to avoid memory exhaustion
-                        _logger.LogWarning("Large cell dataset ({Count} records) - using database-level distinct for location {LocationId}", 
-                            cellCount, locationId);
-                        cells = await _cellRepository.ToListAsync(
-                            cellQuery.Select(c => c.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
-                    }
-                    else
-                    {
-                        cells = await _cellRepository.ToListAsync(
-                            cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
-                    }
-                }
+                // Get actual cell count using optimized query (no materialization)
+                actualCellCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .CountAsync(cellQuery, cancellationToken);
+                _logger.LogInformation("Actual cell count for {LocationType} {LocationId}: {Count}", 
+                    locationType, locationId, actualCellCount);
+                
+                // Get provider names for provider breakdown (always use distinct to minimize data transfer)
+                cellProviders = await _cellRepository.ToListAsync(
+                    cellQuery.Select(c => c.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
             }
             catch (Exception cellEx)
             {
@@ -3282,33 +3298,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             
             try
             {
-                // For Regional-level assessments, skip COUNT and use DISTINCT directly to avoid memory/timeout issues
-                if (locationType == LocationTypeEnum.Regional)
-                {
-                    _logger.LogInformation("Regional location {LocationId} - using database-level distinct for NAPs (skipping COUNT)", locationId);
-                    naps = await _napRepository.ToListAsync(
-                        napQuery.Select(n => n.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
-                }
-                else
-                {
-                    var napCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                        .CountAsync(napQuery, cancellationToken);
-                    _logger.LogInformation("Processing {Count} NAP records for location {LocationId}", napCount, locationId);
-                    
-                    if (napCount > 50000)
-                    {
-                        // For large datasets, get distinct provider names at database level to avoid memory exhaustion
-                        _logger.LogWarning("Large NAP dataset ({Count} records) - using database-level distinct for location {LocationId}", 
-                            napCount, locationId);
-                        naps = await _napRepository.ToListAsync(
-                            napQuery.Select(n => n.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
-                    }
-                    else
-                    {
-                        naps = await _napRepository.ToListAsync(
-                            napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
-                    }
-                }
+                // Get actual NAP count using optimized query (no materialization)
+                actualNapCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .CountAsync(napQuery, cancellationToken);
+                _logger.LogInformation("Actual NAP count for {LocationType} {LocationId}: {Count}", 
+                    locationType, locationId, actualNapCount);
+                
+                // Get provider names for provider breakdown (always use distinct to minimize data transfer)
+                napProviders = await _napRepository.ToListAsync(
+                    napQuery.Select(n => n.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
             }
             catch (Exception napEx)
             {
@@ -3333,33 +3331,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             
             try
             {
-                // For Regional-level assessments, skip COUNT and use DISTINCT directly to avoid memory/timeout issues
-                if (locationType == LocationTypeEnum.Regional)
-                {
-                    _logger.LogInformation("Regional location {LocationId} - using database-level distinct for WiFi (skipping COUNT)", locationId);
-                    wifiHotspots = await _wifiRepository.ToListAsync(
-                        wifiQuery.Select(w => w.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
-                }
-                else
-                {
-                    var wifiCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                        .CountAsync(wifiQuery, cancellationToken);
-                    _logger.LogInformation("Processing {Count} WiFi records for location {LocationId}", wifiCount, locationId);
-                    
-                    if (wifiCount > 50000)
-                    {
-                        // For large datasets, get distinct provider names at database level to avoid memory exhaustion
-                        _logger.LogWarning("Large WiFi dataset ({Count} records) - using database-level distinct for location {LocationId}", 
-                            wifiCount, locationId);
-                        wifiHotspots = await _wifiRepository.ToListAsync(
-                            wifiQuery.Select(w => w.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
-                    }
-                    else
-                    {
-                        wifiHotspots = await _wifiRepository.ToListAsync(
-                            wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
-                    }
-                }
+                // Get actual WiFi count using optimized query (no materialization)
+                actualWifiCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .CountAsync(wifiQuery, cancellationToken);
+                _logger.LogInformation("Actual WiFi count for {LocationType} {LocationId}: {Count}", 
+                    locationType, locationId, actualWifiCount);
+                
+                // Get provider names for provider breakdown (always use distinct to minimize data transfer)
+                wifiProviders = await _wifiRepository.ToListAsync(
+                    wifiQuery.Select(w => w.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
             }
             catch (Exception wifiEx)
             {
@@ -3440,18 +3420,24 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Get infrastructure using distance-based queries
             var cellQuery = _cellRepository.QueryAsNoTracking()
                 .Where(c => c.Location.Distance(center) <= searchRadiusMeters);
-            cells = await _cellRepository.ToListAsync(
-                cellQuery.Select(c => c.ServiceProvider.Provider.Name), cancellationToken);
+            actualCellCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                .CountAsync(cellQuery, cancellationToken);
+            cellProviders = await _cellRepository.ToListAsync(
+                cellQuery.Select(c => c.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
 
             var napQuery = _napRepository.QueryAsNoTracking()
                 .Where(n => n.Location.Distance(center) <= searchRadiusMeters);
-            naps = await _napRepository.ToListAsync(
-                napQuery.Select(n => n.ServiceProvider.Provider.Name), cancellationToken);
+            actualNapCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                .CountAsync(napQuery, cancellationToken);
+            napProviders = await _napRepository.ToListAsync(
+                napQuery.Select(n => n.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
 
             var wifiQuery = _wifiRepository.QueryAsNoTracking()
                 .Where(w => w.Location.Distance(center) <= searchRadiusMeters);
-            wifiHotspots = await _wifiRepository.ToListAsync(
-                wifiQuery.Select(w => w.ServiceProvider.Provider.Name), cancellationToken);
+            actualWifiCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                .CountAsync(wifiQuery, cancellationToken);
+            wifiProviders = await _wifiRepository.ToListAsync(
+                wifiQuery.Select(w => w.ServiceProvider.Provider.Name).Distinct(), cancellationToken);
 
             // Get wireless validation technology data using barangay center distance
             var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
@@ -3480,18 +3466,27 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         }
 
         // Include wireless validations in provider list
-        var allProviders = cells.Concat(naps).Concat(wifiHotspots).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
+        var allProviders = cellProviders.Concat(napProviders).Concat(wifiProviders).Concat(wirelessValidations).Where(p => !string.IsNullOrEmpty(p)).ToList();
         var uniqueProviders = allProviders.Distinct().ToList();
         var dominantProvider = allProviders.GroupBy(p => p).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
-        // Calculate provider breakdown with asset counts
-        var providerBreakdown = CalculateProviderBreakdown(cells, naps, wifiHotspots, wirelessValidations);
+        // Calculate provider breakdown - Note: This uses provider names for breakdown percentage, not individual asset counts per provider
+        var providerBreakdown = CalculateProviderBreakdown(cellProviders, napProviders, wifiProviders, wirelessValidations, actualCellCount, actualNapCount, actualWifiCount);
+
+        // Log final aggregated counts
+        _logger.LogInformation(
+            "Infrastructure aggregation complete for {LocationType} {LocationId}: " +
+            "ACTUAL asset counts - Cells={CellCount}, NAPs={NAPCount}, WiFi={WiFiCount}, " +
+            "Unique providers={ProviderCount}, Provider breakdown entries={BreakdownCount}",
+            locationType, locationId,
+            actualCellCount, actualNapCount, actualWifiCount,
+            uniqueProviders.Count, providerBreakdown.Count);
 
         return new()
         {
-            CellTowerCount = cells.Count,
-            FiberNAPCount = naps.Count,
-            WiFiHotspotCount = wifiHotspots.Count,
+            CellTowerCount = actualCellCount,
+            FiberNAPCount = actualNapCount,
+            WiFiHotspotCount = actualWifiCount,
             ServiceProviderCount = uniqueProviders.Count,
             DominantServiceProvider = dominantProvider,
             TechnologyBandBreakdown = technologyBandBreakdown,
@@ -3501,14 +3496,23 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Calculates detailed provider breakdown showing asset counts per provider in descending order
+    /// Note: Provider-level counts are estimates based on provider name distribution
+    /// The total counts (actualCellCount, actualNapCount, actualWifiCount) are accurate
     /// </summary>
-    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(List<string> cells, List<string> naps, List<string> wifiHotspots, List<string> wirelessValidations)
+    private static List<ProviderBreakdownDto> CalculateProviderBreakdown(
+        List<string> cellProviders, 
+        List<string> napProviders, 
+        List<string> wifiProviders, 
+        List<string> wirelessValidations,
+        int actualCellCount,
+        int actualNapCount,
+        int actualWifiCount)
     {
-        // Group all assets by provider
+        // Group providers and calculate their distribution
         var providerAssets = new Dictionary<string, (int Cells, int NAPs, int WiFi)>();
 
-        // Count cell towers per provider
-        foreach (var provider in cells.Where(p => !string.IsNullOrEmpty(p)))
+        // Count occurrences of each provider in cell data (for distribution ratio)
+        foreach (var provider in cellProviders.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
                 providerAssets[provider] = (0, 0, 0);
@@ -3517,8 +3521,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             providerAssets[provider] = (current.Cells + 1, current.NAPs, current.WiFi);
         }
 
-        // Count NAPs per provider
-        foreach (var provider in naps.Where(p => !string.IsNullOrEmpty(p)))
+        // Count occurrences of each provider in NAP data (for distribution ratio)
+        foreach (var provider in napProviders.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
                 providerAssets[provider] = (0, 0, 0);
@@ -3527,8 +3531,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             providerAssets[provider] = (current.Cells, current.NAPs + 1, current.WiFi);
         }
 
-        // Count WiFi hotspots per provider
-        foreach (var provider in wifiHotspots.Where(p => !string.IsNullOrEmpty(p)))
+        // Count occurrences of each provider in WiFi data (for distribution ratio)
+        foreach (var provider in wifiProviders.Where(p => !string.IsNullOrEmpty(p)))
         {
             if (!providerAssets.ContainsKey(provider))
                 providerAssets[provider] = (0, 0, 0);
@@ -3537,7 +3541,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             providerAssets[provider] = (current.Cells, current.NAPs, current.WiFi + 1);
         }
 
-        var totalAssets = cells.Count + naps.Count + wifiHotspots.Count;
+        var totalAssets = actualCellCount + actualNapCount + actualWifiCount;
 
         // Create breakdown DTOs ordered by total asset count descending
         var breakdown = providerAssets
