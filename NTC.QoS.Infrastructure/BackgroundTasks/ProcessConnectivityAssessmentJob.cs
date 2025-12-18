@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
@@ -52,8 +52,16 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     // Store the current user ID for the job execution
     private string _currentUserId = "System";
 
-    // Simplified configuration for sequential processing
-    private const int BATCH_SIZE = 50; // Optimal batch size for batch-commit processing
+    // Dynamic batch sizing based on location type and hierarchy level
+    // Regional: 1 per batch (each region has 1K-4K child assessments, save per region)
+    // Provincial: 5 per batch (each province has 100-300 child assessments)
+    // Municipality: 25 per batch (each municipality has 10-50 barangays)
+    // Barangay: 50 per batch (leaf level, no children)
+    private const int REGIONAL_BATCH_SIZE = 1;
+    private const int PROVINCIAL_BATCH_SIZE = 5;
+    private const int MUNICIPALITY_BATCH_SIZE = 25;
+    private const int BARANGAY_BATCH_SIZE = 50;
+    
     private const int PROGRESS_REPORT_INTERVAL = 5; // Report progress every 5 items for smoother updates
     private const int MEMORY_CHECK_INTERVAL = 5; // Check memory every 5 batches
     private const int RECENT_ASSESSMENT_DAYS = 30; // Consider assessments within 30 days as recent
@@ -105,8 +113,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         try
         {
+            // Extract location type and IDs using typed properties
+            var locationType = jobRequest.GetLocationType();
+            var locationIds = jobRequest.GetLocationIds();
+            
             // Initial counts
-            var primaryCount = jobRequest.LocationIds.Count;
+            var primaryCount = locationIds.Count;
             var hierarchicalCount = 0;
             var actualTotalLocations = primaryCount;
 
@@ -114,7 +126,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 "Starting connectivity assessment job {JobId} for {LocationCount} {LocationType}s. " +
                 "Hierarchical: {Hierarchical}, Depth: {Depth}, Force: {Force}, " +
                 "ActualTotal: {ActualTotal} (Primary: {Primary}, Hierarchical: {HierarchicalCount}), User: {UserId}",
-                jobId, primaryCount, jobRequest.LocationType,
+                jobId, primaryCount, locationType,
                 jobRequest.GenerateHierarchicalAssessments,
                 jobRequest.HierarchicalDepth, jobRequest.ForceRecalculate,
                 actualTotalLocations, primaryCount, hierarchicalCount, _currentUserId);
@@ -130,8 +142,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 _logger.LogInformation("Job {JobId}: Hierarchical processing is enabled. Discovering child locations...", jobId);
 
                 var childLocations = await GetChildLocationsAsync(
-                    jobRequest.LocationIds,
-                    jobRequest.LocationType,
+                    locationIds,
+                    locationType,
                     jobRequest.HierarchicalDepth,
                     cancellationToken);
 
@@ -151,14 +163,14 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Update job status to Processing with startTime and actual total count
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
                 $"Starting assessment generation for {actualTotalLocations} locations (Primary: {primaryCount}, Hierarchical: {hierarchicalCount})",
-                startTime: startTime, processedCount: 0, totalCount: actualTotalLocations,
+                startTime: startTime, processingCount: 0, processedCount: 0, totalCount: actualTotalLocations,
                 cancellationToken: cancellationToken);
 
             var results = new List<LocationConnectivityDto>();
 
             // Process primary locations
             var primaryResults = await ProcessLocationsSequentially(
-                jobRequest.LocationIds.Select(id => (id, jobRequest.LocationType, "Primary")).ToList(),
+                locationIds.Select(id => (id, locationType, "Primary")).ToList(),
                 jobRequest.ForceRecalculate,
                 jobId,
                 "primary locations",
@@ -181,7 +193,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             // Update status with accurate progress tracking
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
-                progressMessage, processedCount: results.Count, totalCount: actualTotalLocations,
+                progressMessage, processingCount: results.Count, processedCount: results.Count, totalCount: actualTotalLocations,
                 cancellationToken: cancellationToken);
 
             // Clean up cached job request
@@ -225,8 +237,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 
                 foreach (var typeGroup in locationsByType)
                 {
-                    var locationIds = typeGroup.Select(r => r.LocationId).ToList();
-                    var typeCount = await VerifyDatabasePersistence(locationIds, typeGroup.Key, cancellationToken);
+                    var groupLocationIds = typeGroup.Select(r => r.LocationId).ToList();
+                    var typeCount = await VerifyDatabasePersistence(groupLocationIds, typeGroup.Key, cancellationToken);
                     dbVerificationCount += typeCount;
                     _logger.LogInformation("Job {JobId}: Verified {Count} {LocationType} assessments in database",
                         jobId, typeCount, typeGroup.Key);
@@ -255,7 +267,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             // Update job status to Completed - keep actualTotalLocations to show expected vs actual
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Completed, successMessage,
-                endTime: endTime, processedCount: results.Count, totalCount: actualTotalLocations,
+                endTime: endTime, processingCount: results.Count, processedCount: results.Count, totalCount: actualTotalLocations,
                 cancellationToken: cancellationToken);
 
             _logger.LogInformation("Job {JobId} completed successfully. {Message}", jobId, successMessage);
@@ -272,7 +284,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             // Update job status to Failed with endTime
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Failed, errorMessage,
-                endTime: endTime, cancellationToken: cancellationToken);
+                endTime: endTime, processingCount: 0, processedCount: 0, cancellationToken: cancellationToken);
             throw; // Re-throw for Hangfire retry logic
         }
     }
@@ -292,24 +304,29 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         if (locations.Count == 0)
             return [];
 
-        _logger.LogInformation("Job {JobId}: Processing {LocationCount} {Context}",
-            jobId, locations.Count, processingContext);
+        // Determine batch size based on location type for optimal performance
+        var locationType = locations.First().Type;
+        var batchSize = GetBatchSizeForLocationType(locationType);
+
+        _logger.LogInformation("Job {JobId}: Processing {LocationCount} {Context} with batch size {BatchSize}",
+            jobId, locations.Count, processingContext, batchSize);
 
         var results = new List<LocationConnectivityDto>();
         var failedLocations = new List<(Guid Id, string Name, string Error)>();
         var startTime = DateTime.UtcNow;
-        var processedCount = 0;
+        var processingCount = 0; // Optimistic count - items being processed
+        var savedCount = 0; // Pessimistic count - items successfully saved
 
         // Pre-load existing assessments if not forcing recalculation
         var existingAssessments = await PreloadExistingAssessments(locations, forceRecalculate, jobId, cancellationToken);
 
-        // Process locations in batches
-        var totalBatches = (int)Math.Ceiling((double)locations.Count / BATCH_SIZE);
+        // Process locations in batches with dynamic batch sizing
+        var totalBatches = (int)Math.Ceiling((double)locations.Count / batchSize);
         for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
             var batch = locations
-                .Skip(batchIndex * BATCH_SIZE)
-                .Take(BATCH_SIZE)
+                .Skip(batchIndex * batchSize)
+                .Take(batchSize)
                 .ToList();
 
             try
@@ -344,14 +361,21 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                                 jobId, location.Id, location.Name);
                         }
                         
-                        processedCount++;
+                        processingCount++; // Increment optimistic counter
+                        
+                        // Report processing progress immediately for responsive feedback
+                        if (processingCount % PROGRESS_REPORT_INTERVAL == 0 || processingCount == locations.Count)
+                        {
+                            await ReportProgressWithCumulativeCount(jobId, processingCount, savedCount, 
+                                processingContext, startTime, cancellationToken);
+                        }
                     }
                     catch (Exception ex)
                     {
                         failedLocations.Add((location.Id, location.Name, ex.Message));
                         _logger.LogError(ex, "Job {JobId}: Error processing location {LocationId} ({LocationName}). Error: {ErrorMessage}",
                             jobId, location.Id, location.Name, ex.Message);
-                        processedCount++;
+                        processingCount++; // Still count as processed even if failed
                         continue;
                     }
                 }
@@ -374,10 +398,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         {
                             var dto = CreateLocationConnectivityDto(assessment, locationName);
                             results.Add(dto);
+                            savedCount++; // Increment pessimistic counter only after successful save
                         }
                         
-                        // Update progress after batch save
-                        await ReportProgressWithCumulativeCount(jobId, results.Count, processingContext, startTime, cancellationToken);
+                        // Update progress after batch save with accurate saved count
+                        await ReportProgressWithCumulativeCount(jobId, processingCount, savedCount, 
+                            processingContext, startTime, cancellationToken);
                     }
                     catch (Exception saveEx)
                     {
@@ -392,6 +418,10 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                                 failedLocations.Add((locationId, locationName, $"Batch save failed: {saveEx.Message}"));
                             }
                         }
+                        
+                        // Still report progress even on failure to show work was attempted
+                        await ReportProgressWithCumulativeCount(jobId, processingCount, savedCount,
+                            processingContext, startTime, cancellationToken);
                     }
                 }
 
@@ -435,6 +465,25 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Determines optimal batch size based on location type
+    /// Regional: 1 (each region has 1K-4K child assessments)
+    /// Provincial: 5 (each province has 100-300 child assessments)
+    /// Municipality: 25 (each municipality has 10-50 barangays)
+    /// Barangay: 50 (leaf level, no children)
+    /// </summary>
+    private int GetBatchSizeForLocationType(LocationTypeEnum locationType)
+    {
+        return locationType switch
+        {
+            LocationTypeEnum.Regional => REGIONAL_BATCH_SIZE,
+            LocationTypeEnum.Provincial => PROVINCIAL_BATCH_SIZE,
+            LocationTypeEnum.Municipality => MUNICIPALITY_BATCH_SIZE,
+            LocationTypeEnum.Barangay => BARANGAY_BATCH_SIZE,
+            _ => BARANGAY_BATCH_SIZE // Default to barangay batch size for unknown types
+        };
     }
 
     /// <summary>
@@ -687,7 +736,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 {
                     _logger.LogInformation("Force recalculating technology breakdown for {LocationType} {LocationId}", locationType, locationId);
                 }
-                technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
+                technologyBreakdown = await AnalyzeTechnologyGenerationsAsync(locationId, locationType, boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
                 _memoryCache.Set(techCacheKey, technologyBreakdown, TimeSpan.FromHours(12));
             }
 
@@ -886,7 +935,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             _logger.LogInformation("Force recalculating infrastructure stats for {LocationType} {LocationId} (ignored cache)", locationType, locationId);
         }
 
-        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km²)", locationType, locationId, areaKm2);
+        _logger.LogDebug("Calculating infrastructure stats for {LocationType} {LocationId} (Area: {Area} km�)", locationType, locationId, areaKm2);
 
         // Use accurate boundaries with optimizations
         var result = await CalculateInfrastructureWithBoundaryOptimization(boundary, center, areaKm2, locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
@@ -899,7 +948,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Enhanced speed stats calculation with caching
+    /// Enhanced speed stats calculation with subquery-based filtering (NO boundary materialization)
+    /// CRITICAL FIX: For Regional assessments, uses subquery filtering to avoid timeout issues
     /// </summary>
     private async Task<SpeedStatsDto?> CalculateSpeedTestStatsAsync(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
@@ -923,9 +973,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         if (boundary != null)
         {
-            // Use accurate boundary with envelope optimization
             var query = _speedtestRepository.QueryAsNoTracking();
-            query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
+            
+            // Use conditional filtering: subquery for large areas (prevents timeout), envelope for small areas (faster than correlated subquery)
+            if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+            {
+                _logger.LogInformation("{LocationType} {LocationId}: Using subquery-based filtering (large area - NO boundary materialization)", locationType, locationId);
+                query = locationType == LocationTypeEnum.Regional
+                    ? await ApplyLocationBoundaryFilterAsync(query, regionId: locationId, cancellationToken: cancellationToken)
+                    : await ApplyLocationBoundaryFilterAsync(query, provinceId: locationId, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                // For small areas (Municipality/Barangay), envelope filtering with materialized boundary is faster
+                _logger.LogDebug("{LocationType} {LocationId}: Using envelope filter (small area - single boundary materialization)", locationType, locationId);
+                query = GeoQueryHelper.ApplyEnvelopeFilter(boundary, query);
+            }
 
             // Apply date range filter if provided
             if (startDate.HasValue)
@@ -1198,7 +1261,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// <summary>
     /// Analyzes technology generations in the area from speedtest data and cellular infrastructure
     /// </summary>
-    private async Task<TechnologyBreakdownDto> AnalyzeTechnologyGenerationsAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+    private async Task<TechnologyBreakdownDto> AnalyzeTechnologyGenerationsAsync(Guid locationId, LocationTypeEnum locationType, Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         try
         {
@@ -1206,9 +1269,19 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             if (useBoundary && boundary != null)
             {
-                // Use boundary-based queries for speedtest data
                 var speedtestQuery = _speedtestRepository.QueryAsNoTracking();
-                speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, speedtestQuery);
+                
+                // Conditional filtering: subquery for large areas, envelope for small areas
+                if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+                {
+                    speedtestQuery = locationType == LocationTypeEnum.Regional
+                        ? await ApplyLocationBoundaryFilterAsync(speedtestQuery, regionId: locationId, cancellationToken: cancellationToken)
+                        : await ApplyLocationBoundaryFilterAsync(speedtestQuery, provinceId: locationId, cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    speedtestQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, speedtestQuery);
+                }
 
                 // Apply date range filter if provided
                 if (startDate.HasValue)
@@ -1235,7 +1308,18 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 // Get cellular technology data using cell repository with spatial filter
                 var cellQuery = _cellRepository.QueryAsNoTracking();
-                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                
+                // Conditional filtering: subquery for large areas, envelope for small areas
+                if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+                {
+                    cellQuery = locationType == LocationTypeEnum.Regional
+                        ? await ApplyLocationBoundaryFilterAsync(cellQuery, regionId: locationId, cancellationToken: cancellationToken)
+                        : await ApplyLocationBoundaryFilterAsync(cellQuery, provinceId: locationId, cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                }
 
                 var cellularResults = await _cellRepository.ToListAsync(
                     cellQuery
@@ -1251,13 +1335,35 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 allTechData.AddRange(cellularResults.Select(c => (c.GenerationName, c.TechnologyStandard, c.Id)));
 
-                // Get wireless validation technology data
-                var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
-                    .Where(wv => wv.Barangay != null
-                               && wv.Barangay.Center != null
-                               && boundary.Intersects(wv.Barangay.Center)
-                               && wv.Technology != null
-                               && wv.Technology.Generation != null);
+                // Get wireless validation technology data with conditional filtering
+                IQueryable<WirelessValidation> wirelessValidationQuery;
+                
+                if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+                {
+                    // Large areas: use barangay ID subquery
+                    IQueryable<Guid> barangayIds = locationType == LocationTypeEnum.Regional
+                        ? _barangayRepository.QueryAsNoTracking()
+                            .Where(b => b.Municipality != null && b.Municipality.Province != null && b.Municipality.Province.RegionId == locationId)
+                            .Select(b => b.Id)
+                        : _barangayRepository.QueryAsNoTracking()
+                            .Where(b => b.Municipality != null && b.Municipality.ProvinceId == locationId)
+                            .Select(b => b.Id);
+                    
+                    wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
+                        .Where(wv => barangayIds.Contains(wv.BarangayId)
+                                   && wv.Technology != null
+                                   && wv.Technology.Generation != null);
+                }
+                else
+                {
+                    // Small areas: use Within() with materialized boundary
+                    wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
+                        .Where(wv => wv.Barangay != null
+                                   && wv.Barangay.Center != null
+                                   && wv.Barangay.Center.Within(boundary!)
+                                   && wv.Technology != null
+                                   && wv.Technology.Generation != null);
+                }
 
                 // Apply date range filter if provided
                 if (startDate.HasValue)
@@ -1428,7 +1534,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// Analyzes band frequency distribution from cellular deployments in the area
     /// Uses database-side aggregation with single query and projection
     /// </summary>
-    private async Task<BandBreakdownDto> AnalyzeBandFrequencyAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+    private async Task<BandBreakdownDto> AnalyzeBandFrequencyAsync(Guid locationId, LocationTypeEnum locationType, Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         try
         {
@@ -1437,9 +1543,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             if (useBoundary && boundary != null)
             {
+                // Determine if we should use subquery filtering to avoid boundary materialization
+                var useSubqueryFilter = locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial;
+                
                 // OPTIMIZED: Single query with joins - let database do the work
                 var cellQuery = _cellRepository.Query();
-                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                
+                if (useSubqueryFilter)
+                {
+                    cellQuery = locationType == LocationTypeEnum.Regional
+                        ? await ApplyLocationBoundaryFilterAsync(cellQuery, regionId: locationId, cancellationToken: cancellationToken)
+                        : await ApplyLocationBoundaryFilterAsync(cellQuery, provinceId: locationId, cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                }
 
                 // Get band data from Cellular using single query with joins
                 var cellularBandData = await _cellularRepository.ToListAsync(
@@ -1459,12 +1578,33 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     bandCounts[normalizedBand] = bandCounts.GetValueOrDefault(normalizedBand, 0) + 1;
                 }
 
-                // Get wireless validation band data with date filtering
-                var wirelessValidationQuery = _wirelessValidationRepository.Query()
-                    .Where(wv => wv.Barangay != null 
-                               && wv.Barangay.Center != null
-                               && boundary.Intersects(wv.Barangay.Center)
-                               && wv.Band != null);
+                // Get wireless validation band data with conditional filtering
+                IQueryable<WirelessValidation> wirelessValidationQuery;
+                
+                if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+                {
+                    // Large areas: use barangay ID subquery
+                    IQueryable<Guid> barangayIds = locationType == LocationTypeEnum.Regional
+                        ? _barangayRepository.QueryAsNoTracking()
+                            .Where(b => b.Municipality != null && b.Municipality.Province != null && b.Municipality.Province.RegionId == locationId)
+                            .Select(b => b.Id)
+                        : _barangayRepository.QueryAsNoTracking()
+                            .Where(b => b.Municipality != null && b.Municipality.ProvinceId == locationId)
+                            .Select(b => b.Id);
+                    
+                    wirelessValidationQuery = _wirelessValidationRepository.Query()
+                        .Where(wv => barangayIds.Contains(wv.BarangayId)
+                                   && wv.Band != null);
+                }
+                else
+                {
+                    // Small areas: use Within() with materialized boundary
+                    wirelessValidationQuery = _wirelessValidationRepository.Query()
+                        .Where(wv => wv.Barangay != null
+                                   && wv.Barangay.Center != null
+                                   && wv.Barangay.Center.Within(boundary!)
+                                   && wv.Band != null);
+                }
                 
                 // Apply date range filter if provided
                 if (startDate.HasValue)
@@ -1627,7 +1767,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// plus generation counts, dominant technology, and modern coverage statistics
     /// OPTIMIZED: Uses database-side aggregation with single query and joins
     /// </summary>
-    private async Task<TechnologyBandBreakdownDto> AnalyzeTechnologyBandBreakdownAsync(Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
+    private async Task<TechnologyBandBreakdownDto> AnalyzeTechnologyBandBreakdownAsync(Guid locationId, LocationTypeEnum locationType, Geometry? boundary, Point center, double areaKm2, bool useBoundary, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
     {
         try
         {
@@ -1640,9 +1780,19 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
             if (useBoundary && boundary != null)
             {
-                // OPTIMIZED: Single query with joins - let database do the work
                 var cellQuery = _cellRepository.Query();
-                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                
+                // Conditional filtering: subquery for large areas, envelope for small areas
+                if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+                {
+                    cellQuery = locationType == LocationTypeEnum.Regional
+                        ? await ApplyLocationBoundaryFilterAsync(cellQuery, regionId: locationId, cancellationToken: cancellationToken)
+                        : await ApplyLocationBoundaryFilterAsync(cellQuery, provinceId: locationId, cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+                }
 
                 // Get technology-band data from Cellular using single query with joins
                 var cellularTechBandData = await _cellularRepository.ToListAsync(
@@ -1684,15 +1834,39 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     }
                 }
 
-                // Get wireless validation technology-band data with date filtering
-                var wirelessValidationQuery = _wirelessValidationRepository.Query()
-                    .Where(wv => wv.Barangay != null 
-                               && wv.Barangay.Center != null
-                               && boundary.Intersects(wv.Barangay.Center)
-                               && wv.Band != null
-                               && wv.Technology != null
-                               && wv.Technology.Standard != null
-                               && wv.Technology.Generation != null);
+                // Get wireless validation technology-band data with conditional filtering
+                IQueryable<WirelessValidation> wirelessValidationQuery;
+                
+                if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+                {
+                    // Large areas: use barangay ID subquery
+                    IQueryable<Guid> barangayIds = locationType == LocationTypeEnum.Regional
+                        ? _barangayRepository.QueryAsNoTracking()
+                            .Where(b => b.Municipality != null && b.Municipality.Province != null && b.Municipality.Province.RegionId == locationId)
+                            .Select(b => b.Id)
+                        : _barangayRepository.QueryAsNoTracking()
+                            .Where(b => b.Municipality != null && b.Municipality.ProvinceId == locationId)
+                            .Select(b => b.Id);
+                    
+                    wirelessValidationQuery = _wirelessValidationRepository.Query()
+                        .Where(wv => barangayIds.Contains(wv.BarangayId)
+                                   && wv.Band != null
+                                   && wv.Technology != null
+                                   && wv.Technology.Standard != null
+                                   && wv.Technology.Generation != null);
+                }
+                else
+                {
+                    // Small areas: use Within() with materialized boundary
+                    wirelessValidationQuery = _wirelessValidationRepository.Query()
+                        .Where(wv => wv.Barangay != null
+                                   && wv.Barangay.Center != null
+                                   && wv.Barangay.Center.Within(boundary!)
+                                   && wv.Band != null
+                                   && wv.Technology != null
+                                   && wv.Technology.Standard != null
+                                   && wv.Technology.Generation != null);
+                }
                 
                 // Apply date range filter if provided
                 if (startDate.HasValue)
@@ -1925,8 +2099,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private static (double PopulationDensity, bool IsUrbanArea, bool IsHighDensityArea) CalculatePopulationContext(int? population, double areaKm2)
     {
         var populationDensity = population.HasValue && areaKm2 > 0 ? population.Value / areaKm2 : 0;
-        var isHighDensityArea = populationDensity > 500; // >500 people per km² = high density
-        var isUrbanArea = populationDensity > 1000; // >1000 people per km² = urban
+        var isHighDensityArea = populationDensity > 500; // >500 people per km� = high density
+        var isUrbanArea = populationDensity > 1000; // >1000 people per km� = urban
 
         return (populationDensity, isUrbanArea, isHighDensityArea);
     }
@@ -2388,6 +2562,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         string message,
         DateTime? startTime = null,
         DateTime? endTime = null,
+        int? processingCount = null,
         int? processedCount = null,
         int? totalCount = null,
         CancellationToken cancellationToken = default)
@@ -2408,6 +2583,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     LastUpdated = DateTime.UtcNow,
                     StartTime = null,
                     EndTime = null,
+                    ProcessingCount = 0,
                     ProcessedCount = 0,
                     TotalCount = totalCount ?? 1 // Use provided total or default to 1
                 };
@@ -2424,6 +2600,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             if (endTime.HasValue)
                 currentStatus.EndTime = endTime.Value;
 
+            if (processingCount.HasValue)
+                currentStatus.ProcessingCount = processingCount.Value;
+
             if (processedCount.HasValue)
                 currentStatus.ProcessedCount = processedCount.Value;
 
@@ -2434,8 +2613,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             _memoryCache.Set(cacheKey, currentStatus, TimeSpan.FromHours(24));
 
             _logger.LogInformation("Job {JobId} status update: {Status} - {Message}. " +
-                "StartTime: {StartTime}, EndTime: {EndTime}, ProcessedCount: {ProcessedCount}",
-                jobId, status, message, startTime, endTime, processedCount);
+                "StartTime: {StartTime}, EndTime: {EndTime}, ProcessingCount: {ProcessingCount}, ProcessedCount: {ProcessedCount}",
+                jobId, status, message, startTime, endTime, processingCount, processedCount);
         }
         catch (Exception ex)
         {
@@ -2447,11 +2626,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Reports progress during processing with cumulative count tracking
+    /// Reports progress during processing with separate tracking of processing vs saved counts
     /// </summary>
     private async Task ReportProgressWithCumulativeCount(
         string jobId,
-        int cumulativeProcessedCount,
+        int cumulativeProcessingCount,
+        int cumulativeSavedCount,
         string context,
         DateTime batchStartTime,
         CancellationToken cancellationToken)
@@ -2472,35 +2652,41 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var jobStartTime = jobStatus.StartTime.HasValue ? jobStatus.StartTime.Value : DateTime.UtcNow;
             var elapsed = DateTime.UtcNow - jobStartTime;
             
-            var percentage = actualTotalCount > 0 
-                ? Math.Round((double)cumulativeProcessedCount / (double)actualTotalCount * 100.0, 1) 
+            var processingPercentage = actualTotalCount > 0 
+                ? Math.Round((double)cumulativeProcessingCount / (double)actualTotalCount * 100.0, 1) 
+                : 0.0;
+            
+            var savedPercentage = actualTotalCount > 0 
+                ? Math.Round((double)cumulativeSavedCount / (double)actualTotalCount * 100.0, 1) 
                 : 0.0;
             
             var rate = elapsed.TotalSeconds > 0 
-                ? (double)cumulativeProcessedCount / elapsed.TotalSeconds 
+                ? (double)cumulativeSavedCount / elapsed.TotalSeconds 
                 : 0.0;
 
-            var remainingSeconds = (cumulativeProcessedCount > 0 && rate > 0)
-                ? ((double)actualTotalCount - (double)cumulativeProcessedCount) / rate
+            var remainingSeconds = (cumulativeSavedCount > 0 && rate > 0)
+                ? ((double)actualTotalCount - (double)cumulativeSavedCount) / rate
                 : 0.0;
 
             var estimatedRemaining = remainingSeconds > 0 
                 ? TimeSpan.FromSeconds(remainingSeconds)
                 : TimeSpan.Zero;
 
-            var progressMessage = $"Processing {context}: {cumulativeProcessedCount}/{actualTotalCount} ({percentage}%) - " +
-                $"Rate: {rate:F1}/sec - ETA: {estimatedRemaining:mm\\:ss}";
+            // Show both processing (optimistic) and saved (pessimistic) counts for transparency
+            var progressMessage = $"Processing {context}: Processing {cumulativeProcessingCount} (Saved: {cumulativeSavedCount})/{actualTotalCount} " +
+                $"({savedPercentage}% saved) - Rate: {rate:F1}/sec - ETA: {estimatedRemaining:mm\\:ss}";
 
-            // Always update the job status cache with current progress
+            // Always update the job status cache with both counts
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Processing,
                 progressMessage, 
-                processedCount: cumulativeProcessedCount, 
+                processingCount: cumulativeProcessingCount,
+                processedCount: cumulativeSavedCount, 
                 totalCount: actualTotalCount,
                 cancellationToken: cancellationToken);
 
-            // Log progress every 5 processed items or at completion milestones
-            if (cumulativeProcessedCount % PROGRESS_REPORT_INTERVAL == 0 || 
-                cumulativeProcessedCount == actualTotalCount)
+            // Log progress every 5 saved items or at completion milestones
+            if (cumulativeSavedCount % PROGRESS_REPORT_INTERVAL == 0 || 
+                cumulativeSavedCount == actualTotalCount)
             {
                 _logger.LogInformation("Job {JobId}: {ProgressMessage}", jobId, progressMessage);
             }
@@ -2514,6 +2700,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Legacy method - kept for backward compatibility but redirects to new implementation
+    /// Assumes processing count equals saved count for backward compatibility
     /// </summary>
     [Obsolete("Use ReportProgressWithCumulativeCount instead")]
     private async Task ReportProgress(
@@ -2524,7 +2711,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         DateTime startTime,
         CancellationToken cancellationToken)
     {
-        await ReportProgressWithCumulativeCount(jobId, currentBatchProcessedCount, context, startTime, cancellationToken);
+        // Legacy calls assume processing count == saved count
+        await ReportProgressWithCumulativeCount(jobId, currentBatchProcessedCount, currentBatchProcessedCount, 
+            context, startTime, cancellationToken);
     }
 
     /// <summary>
@@ -2945,7 +3134,76 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Smart boundary optimization that maintains accuracy while improving performance
+    /// Apply subquery-based boundary filtering using specific typed location IDs (NO materialization)
+    /// This uses GeoQueryHelper.ApplyBoundaryFilterAsync to keep spatial operations in the database
+    /// 
+    /// USAGE EXAMPLE:
+    /// <code>
+    /// // For a municipality query (NO boundary materialization):
+    /// var cellQuery = _cellRepository.QueryAsNoTracking();
+    /// cellQuery = await ApplyLocationBoundaryFilterAsync(cellQuery, municipalityId: someMunicipalityId, cancellationToken: ct);
+    /// var cells = await _cellRepository.ToListAsync(cellQuery.Select(c => c.ServiceProvider.Provider.Name), ct);
+    /// 
+    /// // For a region query (NO boundary materialization):
+    /// var napQuery = _napRepository.QueryAsNoTracking();
+    /// napQuery = await ApplyLocationBoundaryFilterAsync(napQuery, regionId: someRegionId, cancellationToken: ct);
+    /// var naps = await _napRepository.ToListAsync(napQuery.Select(n => n.ServiceProvider.Provider.Name), ct);
+    /// </code>
+    /// 
+    /// This pattern eliminates the need for switch statements and keeps boundaries in the database
+    /// </summary>
+    private async Task<IQueryable<TSource>> ApplyLocationBoundaryFilterAsync<TSource>(
+        IQueryable<TSource> query,
+        Guid? regionId = null,
+        Guid? provinceId = null,
+        Guid? municipalityId = null,
+        Guid? barangayId = null,
+        CancellationToken cancellationToken = default)
+        where TSource : IGeoLocatedEntity
+    {
+        if (barangayId.HasValue)
+        {
+            return await GeoQueryHelper.ApplyBoundaryFilterAsync(
+                new List<Guid> { barangayId.Value }, 
+                _barangayRepository, 
+                query, 
+                cancellationToken);
+        }
+        
+        if (municipalityId.HasValue)
+        {
+            return await GeoQueryHelper.ApplyBoundaryFilterAsync(
+                new List<Guid> { municipalityId.Value }, 
+                _municipalityRepository, 
+                query, 
+                cancellationToken);
+        }
+        
+        if (provinceId.HasValue)
+        {
+            return await GeoQueryHelper.ApplyBoundaryFilterAsync(
+                new List<Guid> { provinceId.Value }, 
+                _provinceRepository, 
+                query, 
+                cancellationToken);
+        }
+        
+        if (regionId.HasValue)
+        {
+            return await GeoQueryHelper.ApplyBoundaryFilterAsync(
+                new List<Guid> { regionId.Value }, 
+                _regionRepository, 
+                query, 
+                cancellationToken);
+        }
+        
+        // No location specified, return unfiltered query
+        return query;
+    }
+
+    /// <summary>
+    /// Infrastructure calculation with optimized boundary handling (NO materialization for large areas)
+    /// CRITICAL FIX: Regional/Provincial use subquery-based filtering to prevent timeout issues
     /// </summary>
     private async Task<InfrastructureStatsDto> CalculateInfrastructureWithBoundaryOptimization(
         Geometry? boundary, Point center, double areaKm2, Guid locationId, LocationTypeEnum locationType, bool forceRecalculate, DateTime? startDate, DateTime? endDate, CancellationToken cancellationToken)
@@ -2955,10 +3213,21 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
         if (boundary != null)
         {
-            _logger.LogDebug("Using accurate MultiPolygon boundaries for precise infrastructure counting");
-
             var cellQuery = _cellRepository.QueryAsNoTracking();
-            cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+            
+            // Use conditional filtering: subquery for large areas, envelope for small areas
+            if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+            {
+                _logger.LogInformation("{LocationType} {LocationId}: Using subquery-based filtering (large area)", locationType, locationId);
+                cellQuery = locationType == LocationTypeEnum.Regional
+                    ? await ApplyLocationBoundaryFilterAsync(cellQuery, regionId: locationId, cancellationToken: cancellationToken)
+                    : await ApplyLocationBoundaryFilterAsync(cellQuery, provinceId: locationId, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                _logger.LogDebug("{LocationType} {LocationId}: Using envelope filter (small area)", locationType, locationId);
+                cellQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, cellQuery);
+            }
             
             try
             {
@@ -2998,7 +3267,18 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             }
 
             var napQuery = _napRepository.QueryAsNoTracking();
-            napQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, napQuery);
+            
+            // Use conditional filtering: subquery for large areas, envelope for small areas
+            if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+            {
+                napQuery = locationType == LocationTypeEnum.Regional
+                    ? await ApplyLocationBoundaryFilterAsync(napQuery, regionId: locationId, cancellationToken: cancellationToken)
+                    : await ApplyLocationBoundaryFilterAsync(napQuery, provinceId: locationId, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                napQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, napQuery);
+            }
             
             try
             {
@@ -3038,7 +3318,18 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             }
 
             var wifiQuery = _wifiRepository.QueryAsNoTracking();
-            wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
+            
+            // Use conditional filtering: subquery for large areas, envelope for small areas
+            if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+            {
+                wifiQuery = locationType == LocationTypeEnum.Regional
+                    ? await ApplyLocationBoundaryFilterAsync(wifiQuery, regionId: locationId, cancellationToken: cancellationToken)
+                    : await ApplyLocationBoundaryFilterAsync(wifiQuery, provinceId: locationId, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                wifiQuery = GeoQueryHelper.ApplyEnvelopeFilter(boundary, wifiQuery);
+            }
             
             try
             {
@@ -3077,13 +3368,35 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 throw;
             }
 
-            // Get wireless validations using barangay center within boundary with date filter
-            var wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
-                .Where(wv => wv.Barangay != null
-                           && wv.Barangay.Center != null
-                           && boundary.Intersects(wv.Barangay.Center)
-                           && wv.ServiceProvider != null
-                           && wv.ServiceProvider.Provider != null);
+            // Get wireless validations with conditional filtering
+            IQueryable<WirelessValidation> wirelessValidationQuery;
+            
+            if (locationType == LocationTypeEnum.Regional || locationType == LocationTypeEnum.Provincial)
+            {
+                // Large areas: use barangay ID subquery to avoid boundary materialization
+                IQueryable<Guid> barangayIds = locationType == LocationTypeEnum.Regional
+                    ? _barangayRepository.QueryAsNoTracking()
+                        .Where(b => b.Municipality != null && b.Municipality.Province != null && b.Municipality.Province.RegionId == locationId)
+                        .Select(b => b.Id)
+                    : _barangayRepository.QueryAsNoTracking()
+                        .Where(b => b.Municipality != null && b.Municipality.ProvinceId == locationId)
+                        .Select(b => b.Id);
+                
+                wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
+                    .Where(wv => barangayIds.Contains(wv.BarangayId)
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null);
+            }
+            else
+            {
+                // Small areas: use Within() with materialized boundary (faster than correlated subquery)
+                wirelessValidationQuery = _wirelessValidationRepository.QueryAsNoTracking()
+                    .Where(wv => wv.Barangay != null
+                               && wv.Barangay.Center != null
+                               && wv.Barangay.Center.Within(boundary!)
+                               && wv.ServiceProvider != null
+                               && wv.ServiceProvider.Provider != null);
+            }
 
             // Apply date range filter if provided
             if (startDate.HasValue)
@@ -3112,7 +3425,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                     _logger.LogInformation("Force recalculating technology-band breakdown for {LocationType} {LocationId}", locationType, locationId);
                 }
                 
-                technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
+                technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(locationId, locationType, boundary, center, areaKm2, true, startDate, endDate, cancellationToken);
                 _memoryCache.Set(techBandCacheKey, technologyBandBreakdown, TimeSpan.FromHours(12));
             }
         }
@@ -3163,7 +3476,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 wirelessValidationQuery.Select(wv => wv.ServiceProvider.Provider.Name), cancellationToken);
 
             // Calculate consolidated technology-band breakdown for radius-based queries
-            technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(null, center, areaKm2, false, startDate, endDate, cancellationToken);
+            technologyBandBreakdown = await AnalyzeTechnologyBandBreakdownAsync(locationId, locationType, null, center, areaKm2, false, startDate, endDate, cancellationToken);
         }
 
         // Include wireless validations in provider list

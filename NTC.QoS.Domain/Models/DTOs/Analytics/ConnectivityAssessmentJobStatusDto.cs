@@ -45,8 +45,16 @@ public class ConnectivityAssessmentJobStatusDto
         : null;
 
     /// <summary>
-    /// Number of locations actually processed (updated during job execution)
-    /// For completed jobs, this represents the actual total that was processable
+    /// Number of locations currently being processed (optimistic count, includes items not yet saved to database)
+    /// This count increments immediately as items are processed, before batch save
+    /// Used for real-time progress feedback to users
+    /// </summary>
+    public int? ProcessingCount { get; set; }
+
+    /// <summary>
+    /// Number of locations actually processed and saved to database (pessimistic/accurate count)
+    /// This count increments only after successful batch saves to database
+    /// For completed jobs, this represents the actual total that was successfully saved
     /// </summary>
     public int? ProcessedCount { get; set; }
 
@@ -58,9 +66,10 @@ public class ConnectivityAssessmentJobStatusDto
     public int? TotalCount { get; set; }
 
     /// <summary>
-    /// Progress percentage based on processed count vs total count
+    /// Progress percentage based on saved (processed) count vs total count
     /// For completed jobs, always returns 100% since all available items were processed
-    /// For running jobs, calculates based on ProcessedCount vs TotalCount
+    /// For running jobs, calculates based on ProcessedCount (saved) vs TotalCount
+    /// This is the pessimistic/accurate progress percentage
     /// </summary>
     public double? ProgressPercentage
     {
@@ -77,6 +86,30 @@ public class ConnectivityAssessmentJobStatusDto
             // For running or failed jobs, calculate based on actual total
             return TotalCount.HasValue && TotalCount.Value > 0
                 ? Math.Round((double)ProcessedCount.Value / TotalCount.Value * 100, 1)
+                : null;
+        }
+    }
+
+    /// <summary>
+    /// Processing percentage based on items being processed (optimistic progress)
+    /// Shows real-time progress including items not yet saved
+    /// This gives more responsive feedback to users during batch processing
+    /// </summary>
+    public double? ProcessingPercentage
+    {
+        get
+        {
+            if (!ProcessingCount.HasValue) return null;
+
+            // For completed jobs, processing percentage matches progress percentage
+            if (Status == ConnectivityAssessmentJobStatusEnum.Completed)
+            {
+                return 100.0;
+            }
+
+            // For running jobs, calculate based on processing count
+            return TotalCount.HasValue && TotalCount.Value > 0
+                ? Math.Round((double)ProcessingCount.Value / TotalCount.Value * 100, 1)
                 : null;
         }
     }
