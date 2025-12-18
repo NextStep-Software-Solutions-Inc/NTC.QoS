@@ -41,7 +41,8 @@ public class GetByIdFileHandler(IFileRepository repository) : IRequestHandler<Ge
                 UploadedBy = file.UploadedBy,
                 UploadDate = file.UploadDate,
                 Type = file.Type.ToString() ?? string.Empty,
-                Status = file.Status.ToString() ?? string.Empty
+                Status = file.Status.ToString() ?? string.Empty,
+                RegionId = file.RegionId
             }
         };
     }
