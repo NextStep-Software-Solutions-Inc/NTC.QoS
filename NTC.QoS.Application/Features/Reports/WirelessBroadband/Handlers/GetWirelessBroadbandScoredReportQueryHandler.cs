@@ -706,16 +706,19 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             }
         }
 
-        // Borders for data
-        var dataRange = worksheet.Cells[5, 1, row - 1, totalCols];
-        dataRange.Style.Border.Top.Style = ExcelBorderStyle.Thin;
-        dataRange.Style.Border.Left.Style = ExcelBorderStyle.Thin;
-        dataRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
-        dataRange.Style.Border.Bottom.Style = ExcelBorderStyle.Thin;
-        dataRange.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        // Borders for data (only if there's data)
+        if (row > 5)
+        {
+            var dataRange = worksheet.Cells[5, 1, row - 1, totalCols];
+            dataRange.Style.Border.Top.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.Border.Left.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.Border.Bottom.Style = ExcelBorderStyle.Thin;
+            dataRange.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
 
-        // Left-align barangay names
-        worksheet.Cells[5, 2, row - 1, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+            // Left-align barangay names
+            worksheet.Cells[5, 2, row - 1, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+        }
 
         worksheet.Cells.AutoFitColumns();
         worksheet.View.FreezePanes(5, 3);
