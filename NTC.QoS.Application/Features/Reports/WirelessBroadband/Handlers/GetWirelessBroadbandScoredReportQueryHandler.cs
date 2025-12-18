@@ -170,6 +170,12 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             // 4. Process barangays with scoring
             var reportData = new List<BarangayWirelessScoredEntryDto>();
 
+            // Batch calculate provider technology breakdowns for all barangays (optimized)
+            var batchTechBreakdowns = await _providerTechService.CalculateBatchProviderTechnologyBreakdownAsync(
+                barangayIds,
+                targetBoundaries,
+                cancellationToken);
+
             foreach (var barangay in barangays)
             {
                 var entry = new BarangayWirelessScoredEntryDto
@@ -178,11 +184,9 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     BarangayName = barangay.Name
                 };
 
-                // Calculate per-provider technology breakdown using shared service
-                var providerTechBreakdown = await _providerTechService.CalculateProviderTechnologyBreakdownAsync(
-                    barangay.Boundaries,
-                    barangay.Id,
-                    cancellationToken);
+                // Get pre-calculated provider technology breakdown for this barangay
+                var providerTechBreakdown = batchTechBreakdowns.GetValueOrDefault(barangay.Id) 
+                    ?? new Dictionary<string, TechnologyBandBreakdownDto>();
 
                 // Aggregate speedtests for this barangay
                 var barangaySpeedtests = new List<SpeedtestInfo>();
@@ -227,9 +231,6 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     .Where(r => r.ServiceStatus == request.FilterByStatus.Value)
                     .ToList();
             }
-
-            // Generate summary
-            var summary = GenerateSummary(reportData);
 
             // 5. Generate Report
             byte[] fileContent;

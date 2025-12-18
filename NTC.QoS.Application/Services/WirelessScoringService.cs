@@ -60,9 +60,13 @@ public class WirelessScoringService : IWirelessScoringService
         var avgDownloadSpeed = (double)(speedStats.AverageDownloadSpeedMbps ?? 0);
         var medianDownloadSpeed = (double)(speedStats.MedianDownloadSpeedMbps ?? 0);
 
-        // Check for unreliable connection (high variance between average and median)
-        var speedVariance = Math.Abs(avgDownloadSpeed - medianDownloadSpeed);
-        var isUnreliable = speedVariance > (medianDownloadSpeed * 0.5); // >50% variance
+        // Calculate speed consistency (variability indicator)
+        // Large difference between average and median indicates unreliability
+        // Uses relative variance to match GenerateConnectivityAssessmentHandler
+        var speedVariability = avgDownloadSpeed > 0
+            ? Math.Abs((avgDownloadSpeed - medianDownloadSpeed) / avgDownloadSpeed)
+            : 0;
+        var isUnreliable = speedVariability > 0.3; // >30% variance = unreliable
 
         // SERVED (3 points): Speeds ≥25 Mbps and reliable
         if (avgDownloadSpeed >= MinimumSpeedThreshold && !isUnreliable)

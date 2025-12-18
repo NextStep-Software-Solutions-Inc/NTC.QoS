@@ -21,6 +21,16 @@ public interface IProviderTechnologyService
         Geometry? boundary,
         Guid? barangayId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calculate technology breakdown for multiple barangays in a single batch operation.
+    /// Returns a dictionary mapping barangay IDs to provider technology breakdowns.
+    /// Optimized to avoid N+1 query problems.
+    /// </summary>
+    Task<Dictionary<Guid, Dictionary<string, TechnologyBandBreakdownDto>>> CalculateBatchProviderTechnologyBreakdownAsync(
+        List<Guid> barangayIds,
+        Geometry? overallBoundary,
+        CancellationToken cancellationToken = default);
 }
 
 public class ProviderTechnologyService : IProviderTechnologyService
@@ -189,6 +199,208 @@ public class ProviderTechnologyService : IProviderTechnologyService
                 breakdown.HasModernCoverage = breakdown.ModernCoverageRatio > 0;
 
                 // Determine dominant generation
+                var maxCount = generationCounts.Max(kvp => kvp.Value);
+                breakdown.DominantGeneration = generationCounts.FirstOrDefault(kvp => kvp.Value == maxCount).Key;
+            }
+
+            result[providerName] = breakdown;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Calculate technology breakdown for multiple barangays in a single batch operation.
+    /// Optimized to reduce database queries from N+1 to 3 queries total.
+    /// </summary>
+    public async Task<Dictionary<Guid, Dictionary<string, TechnologyBandBreakdownDto>>> CalculateBatchProviderTechnologyBreakdownAsync(
+        List<Guid> barangayIds,
+        Geometry? overallBoundary,
+        CancellationToken cancellationToken = default)
+    {
+        if (!barangayIds.Any())
+            return new Dictionary<Guid, Dictionary<string, TechnologyBandBreakdownDto>>();
+
+        // Get all barangays with their boundaries in one query
+        var barangays = await _context.Barangays
+            .AsNoTracking()
+            .Where(b => barangayIds.Contains(b.Id))
+            .Select(b => new { b.Id, b.Boundaries })
+            .ToListAsync(cancellationToken);
+
+        var result = new Dictionary<Guid, Dictionary<string, TechnologyBandBreakdownDto>>();
+
+        // 1. Batch query: Get all cellular data within overall boundary
+        var allCellularData = new List<(string ProviderName, string GenerationName, string TechnologyStandard, List<string> Bands, Point? Location)>();
+        if (overallBoundary != null)
+        {
+            allCellularData = await _context.Cellulars
+                .AsNoTracking()
+                .Where(c => c.CellSector != null
+                         && c.CellSector.Cell != null
+                         && c.CellSector.Cell.Location != null
+                         && overallBoundary.Contains(c.CellSector.Cell.Location)
+                         && c.ServiceProvider != null
+                         && c.ServiceProvider.Provider != null
+                         && c.Technology != null
+                         && c.Technology.Generation != null)
+                .Include(c => c.Technology)
+                    .ThenInclude(t => t!.TechnologyBands)
+                    .ThenInclude(tb => tb.Band)
+                .Select(c => new ValueTuple<string, string, string, List<string>, Point?>(
+                    c.ServiceProvider!.Provider!.Name,
+                    c.Technology!.Generation!.Name,
+                    c.Technology.Standard,
+                    c.Technology.TechnologyBands.Select(tb => tb.Band.Name).ToList(),
+                    c.CellSector!.Cell!.Location
+                ))
+                .ToListAsync(cancellationToken);
+        }
+
+        // 2. Batch query: Get all wireless validations for all barangays
+        var allValidationData = await _context.WirelessValidations
+            .AsNoTracking()
+            .Where(wv => barangayIds.Contains(wv.BarangayId)
+                      && wv.ServiceProvider != null
+                      && wv.ServiceProvider.Provider != null
+                      && wv.Technology != null
+                      && wv.Technology.Generation != null)
+            .Include(wv => wv.Technology)
+                .ThenInclude(t => t!.TechnologyBands)
+                .ThenInclude(tb => tb.Band)
+            .Select(wv => new
+            {
+                wv.BarangayId,
+                ProviderName = wv.ServiceProvider!.Provider!.Name,
+                GenerationName = wv.Technology!.Generation!.Name,
+                TechnologyStandard = wv.Technology.Standard,
+                Bands = wv.Technology.TechnologyBands.Select(tb => tb.Band.Name).ToList()
+            })
+            .ToListAsync(cancellationToken);
+
+        // 3. Batch query: Get all speedtests within overall boundary
+        var allSpeedtestData = new List<(string ProviderName, string GenerationName, Point? Location)>();
+        if (overallBoundary != null)
+        {
+            allSpeedtestData = await _context.Speedtests
+                .AsNoTracking()
+                .Where(s => s.Location != null
+                         && overallBoundary.Contains(s.Location)
+                         && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
+                         && s.Generation != null)
+                .Select(s => new ValueTuple<string, string, Point?>(
+                    s.ServiceProvider.Provider.Name,
+                    s.Generation!.Name,
+                    s.Location
+                ))
+                .ToListAsync(cancellationToken);
+        }
+
+        // Process each barangay using the batched data
+        foreach (var barangay in barangays)
+        {
+            var providerTechMap = new Dictionary<string, Dictionary<string, HashSet<string>>>();
+
+            // Filter cellular data for this barangay
+            if (barangay.Boundaries != null)
+            {
+                var barangayCellularData = allCellularData
+                    .Where(c => c.Location != null && barangay.Boundaries.Contains(c.Location));
+
+                foreach (var item in barangayCellularData)
+                {
+                    foreach (var band in item.Bands)
+                    {
+                        AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, band);
+                    }
+                    if (!item.Bands.Any())
+                    {
+                        AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, "");
+                    }
+                }
+            }
+
+            // Filter validation data for this barangay
+            var barangayValidationData = allValidationData.Where(v => v.BarangayId == barangay.Id);
+            foreach (var item in barangayValidationData)
+            {
+                foreach (var band in item.Bands)
+                {
+                    AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, band);
+                }
+                if (!item.Bands.Any())
+                {
+                    AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, "");
+                }
+            }
+
+            // Filter speedtest data for this barangay
+            if (barangay.Boundaries != null)
+            {
+                var barangaySpeedtestData = allSpeedtestData
+                    .Where(s => s.Location != null && barangay.Boundaries.Contains(s.Location));
+
+                foreach (var item in barangaySpeedtestData)
+                {
+                    AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, "", "");
+                }
+            }
+
+            // Convert to TechnologyBandBreakdownDto
+            result[barangay.Id] = ConvertToBreakdownDtos(providerTechMap);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Convert provider tech map to TechnologyBandBreakdownDto dictionary
+    /// </summary>
+    private static Dictionary<string, TechnologyBandBreakdownDto> ConvertToBreakdownDtos(
+        Dictionary<string, Dictionary<string, HashSet<string>>> providerTechMap)
+    {
+        var result = new Dictionary<string, TechnologyBandBreakdownDto>();
+
+        foreach (var (providerName, techData) in providerTechMap)
+        {
+            var breakdown = new TechnologyBandBreakdownDto();
+
+            // Build technology-band mapping
+            foreach (var (tech, bands) in techData)
+            {
+                if (!string.IsNullOrEmpty(tech))
+                {
+                    breakdown[tech] = bands.Where(b => !string.IsNullOrEmpty(b)).OrderBy(b => b).ToList();
+                }
+            }
+
+            // Calculate generation counts
+            var generationCounts = new Dictionary<string, int>();
+            foreach (var (tech, _) in techData)
+            {
+                if (string.IsNullOrEmpty(tech)) continue;
+
+                var normalizedGen = NormalizeGenerationName(tech);
+                if (!string.IsNullOrEmpty(normalizedGen))
+                {
+                    generationCounts[normalizedGen] = generationCounts.GetValueOrDefault(normalizedGen) + 1;
+                }
+            }
+
+            breakdown.Count2G = generationCounts.GetValueOrDefault("2G");
+            breakdown.Count3G = generationCounts.GetValueOrDefault("3G");
+            breakdown.Count4G = generationCounts.GetValueOrDefault("4G");
+            breakdown.Count5G = generationCounts.GetValueOrDefault("5G");
+
+            // Calculate summary properties
+            breakdown.TotalTechnologyCount = breakdown.Count2G + breakdown.Count3G + breakdown.Count4G + breakdown.Count5G;
+            breakdown.AvailableGenerations = generationCounts.Keys.OrderBy(g => g).ToList();
+
+            if (breakdown.TotalTechnologyCount > 0)
+            {
+                breakdown.ModernCoverageRatio = (double)(breakdown.Count4G + breakdown.Count5G) / breakdown.TotalTechnologyCount;
+                breakdown.HasModernCoverage = breakdown.ModernCoverageRatio > 0;
+
                 var maxCount = generationCounts.Max(kvp => kvp.Value);
                 breakdown.DominantGeneration = generationCounts.FirstOrDefault(kvp => kvp.Value == maxCount).Key;
             }
