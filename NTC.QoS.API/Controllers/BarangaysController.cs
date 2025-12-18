@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Barangay.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 
@@ -22,6 +24,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateBarangays)]
     public async Task<ActionResult<ApiResponse<BarangayDto>>> CreateBarangay([FromForm] CreateBarangayDto barangayDto)
     {
         var barangay = await _mediator.Send(new CreateBarangayRequest
@@ -33,6 +36,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewBarangays)]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "name", "municipality", "province" })]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1,
@@ -55,6 +59,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewBarangays)]
     public async Task<ActionResult<ApiResponse<BarangayDto>>> GetBarangayById(Guid id)
     {
         var request = new GetBarangayByIdRequest(id);
@@ -63,6 +68,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateBarangays)]
     public async Task<ActionResult<ApiResponse<BarangayDto>>> UpdateBarangayById(Guid id, [FromForm] UpdateBarangayDto updateBarangay)
     {
         var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(id, updateBarangay));
@@ -70,6 +76,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteBarangays)]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
         var request = new DeleteBarangayByIdRequest(id);

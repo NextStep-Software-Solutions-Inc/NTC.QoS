@@ -17,4 +17,5 @@ public class GetAllFilesRequest : IRequest<PaginatedResponse<FileDto>>
     public string? Search { get; set; }
     public string[]? Types { get; set; }
     public string[]? Statuses { get; set; }
+    public Guid[]? RegionIds { get; set; }
 }

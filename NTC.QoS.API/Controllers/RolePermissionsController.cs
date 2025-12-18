@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.RolePermission.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.RolePermission;
 
@@ -16,6 +18,7 @@ public class RolePermissionsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateRolePermissions)]
     public async Task<ActionResult<ApiResponse<CreateRolePermissionDto>>> CreateRolePermission(CreateRolePermissionDto rolePermissionDto)
     {
         var rolePermission = await _mediator.Send(new CreateRolePermissionRequest
@@ -26,6 +29,7 @@ public class RolePermissionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewRolePermissions)]
     public async Task<ActionResult<PaginatedResponse<GetRolePermissionDto>>> GetAllRolePermissions(int pageSize = 10,
                                                                                                    int pageNumber = 1,
                                                                                                    Guid? roleId = null,
@@ -36,6 +40,7 @@ public class RolePermissionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewRolePermissions)]
     public async Task<ActionResult<ApiResponse<GetRolePermissionDto>>> GetRolePermissionById(Guid id)
     {
         var rolePermission = await _mediator.Send(new GetRolePermissionByIdRequest(id));
@@ -43,6 +48,7 @@ public class RolePermissionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteRolePermissions)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteRolePermission(Guid id)
     {
         var rolePermission = await _mediator.Send(new DeleteRolePermissionByIdRequest(id));

@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Zone.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Zone;
 
@@ -14,6 +16,7 @@ namespace NTC.QoS.API.Controllers;
 public class ZonesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private const int BrowserCacheDuration = 86400;
 
     public ZonesController(IMediator mediator)
     {
@@ -21,6 +24,7 @@ public class ZonesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateZones)]
     public async Task<ActionResult<ApiResponse<ZoneDto>>> Post(CreateZoneDto zoneDto)
     {
         var zone = await _mediator.Send(new CreateZoneRequest
@@ -32,6 +36,8 @@ public class ZonesController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewZones)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "barangayId" })]
     public async Task<ActionResult<PaginatedResponse<ZoneDto>>> GetAllZones(int pageSize = 10, int pageNumber = 1, Guid? barangayId = null)
     {
         var request = new GetAllZonesRequest()
@@ -45,6 +51,7 @@ public class ZonesController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewZones)]
     public async Task<ActionResult<ApiResponse<ZoneDto>>> GetZoneById(Guid id)
     {
         var request = new GetZoneByIdRequest(id);
@@ -53,6 +60,7 @@ public class ZonesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.UpdateZones)]
     public async Task<ActionResult<ApiResponse<ZoneDto>>> UpdateZoneById(Guid id, UpdateZoneDto updateZone)
     {
         var zone = await _mediator.Send(new UpdateZoneByIdRequest(id, new UpdateZoneDto
@@ -63,6 +71,7 @@ public class ZonesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteZones)]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
         var request = new DeleteZoneByIdRequest(id);

@@ -108,6 +108,41 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
         return usersResponse ?? new List<ClerkUserResponse>();
     }
 
+    public async Task<ClerkUserResponse?> GetUserByIdAsync(string userId)
+    {
+        HttpResponseMessage response = await _httpClient.GetAsync($"users/{userId}");
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogInformation("Clerk user not found. UserId: {UserId}", userId);
+                return null;
+            }
+
+            var parsed = TryParseError(responseBody);
+            if (parsed != null)
+            {
+                foreach (var err in parsed.Errors ?? new())
+                {
+                    _logger.LogError("Clerk get user by id error user={UserId} code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status}",
+                        userId, err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode);
+                }
+            }
+            else
+            {
+                _logger.LogError("Clerk get user by id failed. UserId: {UserId} Status: {Status} RawBody: {Body}", userId, response.StatusCode, responseBody);
+            }
+            
+            throw new InvalidOperationException($"Clerk get user by id failed: {(int)response.StatusCode} {response.StatusCode}");
+        }
+
+        _logger.LogInformation("Clerk get user by id successful. UserId: {UserId} Response: {Response}", userId, responseBody);
+        var userResponse = JsonSerializer.Deserialize<ClerkUserResponse>(responseBody, ResponseSerializerOptions);
+        return userResponse;
+    }
+
     private ClerkApiErrorResponse? TryParseError(string body)
     {
         try

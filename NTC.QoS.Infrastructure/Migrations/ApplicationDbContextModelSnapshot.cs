@@ -1549,6 +1549,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("ProcessingJobId")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("RegionId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -1570,6 +1573,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RegionId")
+                        .HasDatabaseName("IX_Files_RegionId");
 
                     b.ToTable("Files");
                 });
@@ -1799,6 +1805,10 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
                     b.ToTable("Organizations");
                 });
 
@@ -1843,6 +1853,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
 
                     b.ToTable("Permissions");
                 });
@@ -2113,6 +2126,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
 
                     b.ToTable("Roles");
                 });
@@ -3222,6 +3238,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("ConnectivityAssessment");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
+                        .WithMany()
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Region");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Province", "Province")
@@ -3356,13 +3382,13 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasOne("NTC.QoS.Domain.Entities.Organization", "Organization")
                         .WithMany("Users")
                         .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Entities.Role", "Role")
                         .WithMany("Users")
                         .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Entities.UserType", null)

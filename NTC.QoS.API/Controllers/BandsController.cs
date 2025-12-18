@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Band.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Application.Features.Band.Queries.GetTechnologyBandsByLocation;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
@@ -24,6 +26,7 @@ public class BandsController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateBands)]
     public async Task<IActionResult> Post(CreateBandDto bandDto)
     {
         var band = await _mediator.Send(new CreateBandRequest
@@ -35,6 +38,7 @@ public class BandsController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewBands)]
     public async Task<ActionResult<PaginatedResponse<BandDto>>> GetAllBands(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? technologies = default)
     {
         var result = await _mediator.Send(new GetAllBandsRequest
@@ -48,6 +52,7 @@ public class BandsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewBands)]
     public async Task<ActionResult<ApiResponse<BandDto>>> GetBandById(Guid id)
     {
         var request = new GetBandByIdRequest(id);
@@ -56,6 +61,7 @@ public class BandsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.UpdateBands)]
     public async Task<ActionResult<ApiResponse<UpdateBandDto>>> UpdateBandById(Guid id, UpdateBandDto updateBand)
     {
         var band = await _mediator.Send(new UpdateBandByIdRequest
@@ -68,6 +74,7 @@ public class BandsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteBands)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteBandById(Guid id)
     {
         var band = await _mediator.Send(new DeleteBandByIdRequest(id));
