@@ -90,56 +90,61 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate and download wired broadband coverage report as PDF
+    /// Generate and download wired broadband coverage report in PDF or Excel format
     /// </summary>
+    /// <param name="format">Report format: 'pdf' or 'excel' (default: pdf)</param>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="reportTitle">Custom title for the report</param>
-    /// <param name="includeFullDetail">If true, includes all barangays (all statuses). If false (default), shows summary with served barangays only</param>
-    /// <returns>PDF file download</returns>
-    [HttpGet("wired-broadband/pdf")]
-    public async Task<ActionResult> GetWiredBroadbandPdfReport(
-        [FromQuery] Guid? regionId = null,
-        [FromQuery] Guid? provinceId = null,
-        [FromQuery] Guid? municipalityId = null,
-        [FromQuery] string? reportTitle = null,
-        [FromQuery] bool includeFullDetail = false)
-    {
-        // When includeFullDetail is false, automatically filter by Served status
-        ServiceStatusEnum? filterByStatus = includeFullDetail ? null : ServiceStatusEnum.Served;
-        
-        var title = SanitizeReportTitle(reportTitle, "Wired Broadband Coverage Report");
-        var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
-            regionId, provinceId, municipalityId, filterByStatus, title, includeFullDetail);
-
-        var fileName = await GenerateFileNameAsync("WiredBroadband", "pdf", regionId, provinceId, municipalityId);
-        return File(pdfBytes, "application/pdf", fileName);
-    }
-
-    /// <summary>
-    /// Generate and download wired broadband coverage report as Excel
-    /// </summary>
-    /// <param name="regionId">Optional filter by Region ID</param>
-    /// <param name="provinceId">Optional filter by Province ID</param>
-    /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
-    /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0)</param>
-    /// <param name="reportTitle">Custom title for the report</param>
-    /// <returns>Excel file download</returns>
-    [HttpGet("wired-broadband/excel")]
-    public async Task<ActionResult> GetWiredBroadbandExcelReport(
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0). Default includes all statuses.</param>
+    /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
+    /// <returns>PDF or Excel file download</returns>
+    [HttpGet("wired-broadband/download")]
+    public async Task<ActionResult> DownloadWiredBroadbandReport(
+        [FromQuery] string format = "pdf",
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
         [FromQuery] ServiceStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
-        var title = SanitizeReportTitle(reportTitle, "Wired Broadband Coverage Report");
-        var excelBytes = await _connectivityReportingService.GenerateWiredBroadbandExcelAsync(
-            regionId, provinceId, municipalityId, filterByStatus, title);
+        // Validate format parameter
+        var normalizedFormat = format?.ToLowerInvariant();
+        if (normalizedFormat != "pdf" && normalizedFormat != "excel")
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Message = "Invalid format. Supported formats: 'pdf', 'excel'",
+                Succeeded = false
+            });
+        }
 
-        var fileName = await GenerateFileNameAsync("WiredBroadband", "xlsx", regionId, provinceId, municipalityId);
-        return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        // Generate location-based default title if not provided
+        var defaultTitle = await GenerateLocationBasedTitleAsync(
+            "Wired Broadband Coverage Report",
+            regionId, 
+            provinceId, 
+            municipalityId);
+        
+        var title = SanitizeReportTitle(reportTitle, defaultTitle);
+        var fileName = await GenerateFileNameAsync("WiredBroadband", 
+            normalizedFormat == "pdf" ? "pdf" : "xlsx", 
+            regionId, 
+            provinceId, 
+            municipalityId);
+
+        if (normalizedFormat == "pdf")
+        {
+            var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
+                regionId, provinceId, municipalityId, filterByStatus, title);
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+        else
+        {
+            var excelBytes = await _connectivityReportingService.GenerateWiredBroadbandExcelAsync(
+                regionId, provinceId, municipalityId, filterByStatus, title);
+            return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
     }
 
     /// <summary>
@@ -175,45 +180,108 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate and download connectivity gap analysis report as PDF
+    /// Generate and download connectivity gap analysis report in PDF or Excel format.
+    /// Includes all unserved and underserved areas with complete data (no samples or limits).
     /// </summary>
+    /// <param name="format">Report format: 'pdf' or 'excel' (default: pdf)</param>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
-    /// <param name="reportTitle">Custom title for the report</param>
-    /// <returns>PDF file download</returns>
-    [HttpGet("connectivity-gap/pdf")]
-    public async Task<ActionResult> GetConnectivityGapPdfReport(
+    /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
+    /// <returns>PDF or Excel file download</returns>
+    [HttpGet("connectivity-gap/download")]
+    public async Task<ActionResult> DownloadConnectivityGapReport(
+        [FromQuery] string format = "pdf",
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] string? reportTitle = null)
     {
-        var title = SanitizeReportTitle(reportTitle, "Connectivity Gap Analysis Report");
-        var pdfBytes = await _connectivityReportingService.GenerateConnectivityGapPdfAsync(
-            regionId, provinceId, title);
+        // Validate format parameter
+        var normalizedFormat = format?.ToLowerInvariant();
+        if (normalizedFormat != "pdf" && normalizedFormat != "excel")
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Message = "Invalid format. Supported formats: 'pdf', 'excel'",
+                Succeeded = false
+            });
+        }
 
-        var fileName = await GenerateFileNameAsync("ConnectivityGap", "pdf", regionId, provinceId, null);
-        return File(pdfBytes, "application/pdf", fileName);
+        // Generate location-based default title if not provided
+        var defaultTitle = await GenerateLocationBasedTitleAsync(
+            "Connectivity Gap Analysis Report",
+            regionId, 
+            provinceId, 
+            null);
+        
+        var title = SanitizeReportTitle(reportTitle, defaultTitle);
+        var fileName = await GenerateFileNameAsync("ConnectivityGap", 
+            normalizedFormat == "pdf" ? "pdf" : "xlsx", 
+            regionId, 
+            provinceId, 
+            null);
+
+        if (normalizedFormat == "pdf")
+        {
+            var pdfBytes = await _connectivityReportingService.GenerateConnectivityGapPdfAsync(
+                regionId, provinceId, title);
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+        else
+        {
+            var excelBytes = await _connectivityReportingService.GenerateConnectivityGapExcelAsync(
+                regionId, provinceId, title);
+            return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
     }
 
     /// <summary>
-    /// Generate and download connectivity gap analysis report as Excel
+    /// Generate a location-based default title for reports
     /// </summary>
-    /// <param name="regionId">Optional filter by Region ID</param>
-    /// <param name="provinceId">Optional filter by Province ID</param>
-    /// <param name="reportTitle">Custom title for the report</param>
-    /// <returns>Excel file download</returns>
-    [HttpGet("connectivity-gap/excel")]
-    public async Task<ActionResult> GetConnectivityGapExcelReport(
-        [FromQuery] Guid? regionId = null,
-        [FromQuery] Guid? provinceId = null,
-        [FromQuery] string? reportTitle = null)
+    private async Task<string> GenerateLocationBasedTitleAsync(
+        string baseTitle,
+        Guid? regionId = null, 
+        Guid? provinceId = null, 
+        Guid? municipalityId = null)
     {
-        var title = SanitizeReportTitle(reportTitle, "Connectivity Gap Analysis Report");
-        var excelBytes = await _connectivityReportingService.GenerateConnectivityGapExcelAsync(
-            regionId, provinceId, title);
-
-        var fileName = await GenerateFileNameAsync("ConnectivityGap", "xlsx", regionId, provinceId, null);
-        return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        try
+        {
+            if (municipalityId.HasValue)
+            {
+                var municipalityQuery = _municipalityRepository.Query(m => m.Id == municipalityId.Value);
+                var municipality = await _municipalityRepository.FirstOrDefaultAsync(municipalityQuery);
+                
+                if (municipality != null)
+                {
+                    return $"{baseTitle} - {municipality.Name}";
+                }
+            }
+            else if (provinceId.HasValue)
+            {
+                var provinceQuery = _provinceRepository.Query(p => p.Id == provinceId.Value);
+                var province = await _provinceRepository.FirstOrDefaultAsync(provinceQuery);
+                
+                if (province != null)
+                {
+                    return $"{baseTitle} - {province.Name}";
+                }
+            }
+            else if (regionId.HasValue)
+            {
+                var regionQuery = _regionRepository.Query(r => r.Id == regionId.Value);
+                var region = await _regionRepository.FirstOrDefaultAsync(regionQuery);
+                
+                if (region != null)
+                {
+                    return $"{baseTitle} - {region.Name}";
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Fallback to base title if there's any error fetching names
+        }
+        
+        return $"{baseTitle} - National";
     }
 
     /// <summary>
