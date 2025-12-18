@@ -42,12 +42,10 @@ public class SchedulerService : ISchedulerService
             ? new JobExecutionConfigurationDto()
             : JsonConvert.DeserializeObject<JobExecutionConfigurationDto>(scheduler.ConfigurationJson) ?? new JobExecutionConfigurationDto();
 
-        // Create the job request DTO
+        // Create the job request DTO with typed location properties
         var jobRequest = new ConnectivityAssessmentJobRequestDto
         {
             JobId = Guid.NewGuid().ToString("N"), // Generate a unique job ID for scheduled job
-            LocationType = scheduler.LocationType,
-            LocationIds = locationIds,
             UserId = scheduler.CreatedBy,
             ActualTotalLocations = locationIds.Count, // Initial count, will be recalculated by job
             GenerateHierarchicalAssessments = config.GenerateHierarchicalAssessments,
@@ -55,6 +53,31 @@ public class SchedulerService : ISchedulerService
             MaxHierarchicalLocations = config.MaxHierarchicalLocations, // null = no limit, value = apply limit
             ForceRecalculate = config.ForceRecalculate
         };
+
+        // Populate typed location ID properties based on location type
+        switch (scheduler.LocationType)
+        {
+            case LocationTypeEnum.Regional:
+                jobRequest.RegionIds = locationIds;
+                break;
+            case LocationTypeEnum.Provincial:
+                jobRequest.ProvinceIds = locationIds;
+                break;
+            case LocationTypeEnum.Municipality:
+                jobRequest.MunicipalityIds = locationIds;
+                break;
+            case LocationTypeEnum.Barangay:
+                jobRequest.BarangayIds = locationIds;
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported location type: {scheduler.LocationType}");
+        }
+
+        // Also populate deprecated properties for backward compatibility
+        #pragma warning disable CS0618 // Type or member is obsolete
+        jobRequest.LocationType = scheduler.LocationType;
+        jobRequest.LocationIds = locationIds;
+        #pragma warning restore CS0618
 
         // Validate end date timing - warn if end date would cut off a scheduled run
         if (scheduler.EndDate.HasValue)

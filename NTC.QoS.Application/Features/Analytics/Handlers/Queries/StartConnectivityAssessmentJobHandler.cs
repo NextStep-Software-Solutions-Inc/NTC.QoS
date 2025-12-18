@@ -192,11 +192,9 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
         DateTime startTime,
         int actualTotalLocations)
     {
-        return new ConnectivityAssessmentJobRequestDto
+        var jobRequest = new ConnectivityAssessmentJobRequestDto
         {
             JobId = jobId,
-            LocationIds = request.LocationIds,
-            LocationType = request.LocationType,
             ForceRecalculate = request.ForceRecalculate,
             GenerateHierarchicalAssessments = request.GenerateHierarchicalAssessments,
             HierarchicalDepth = request.HierarchicalDepth,
@@ -209,6 +207,33 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             UserId = userId,
             RequestedAt = startTime
         };
+
+        // Populate typed location ID properties based on location type
+        switch (request.LocationType)
+        {
+            case LocationTypeEnum.Regional:
+                jobRequest.RegionIds = request.LocationIds;
+                break;
+            case LocationTypeEnum.Provincial:
+                jobRequest.ProvinceIds = request.LocationIds;
+                break;
+            case LocationTypeEnum.Municipality:
+                jobRequest.MunicipalityIds = request.LocationIds;
+                break;
+            case LocationTypeEnum.Barangay:
+                jobRequest.BarangayIds = request.LocationIds;
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported location type: {request.LocationType}");
+        }
+
+        // Also populate deprecated properties for backward compatibility
+        #pragma warning disable CS0618 // Type or member is obsolete
+        jobRequest.LocationIds = request.LocationIds;
+        jobRequest.LocationType = request.LocationType;
+        #pragma warning restore CS0618
+
+        return jobRequest;
     }
 
     /// <summary>
@@ -224,6 +249,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             LastUpdated = startTime,
             StartTime = null,
             EndTime = null,
+            ProcessingCount = 0,
             ProcessedCount = 0,
             TotalCount = estimatedLocations
         };
@@ -273,7 +299,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
         if (!jobRequest.GenerateHierarchicalAssessments)
             return;
 
-        var primaryCount = jobRequest.LocationIds.Count;
+        var primaryCount = jobRequest.GetLocationCount();
         var actualChildrenCount = actualTotalLocations - primaryCount;
         var hasLimit = jobRequest.MaxHierarchicalLocations < int.MaxValue;
         var limitInfo = hasLimit ? $", limited to: {jobRequest.MaxHierarchicalLocations}" : ", no limit (processing all)";
@@ -282,7 +308,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             "Job {JobId} actual location counts - Primary: {Primary}, Actual children: {ActualChildren}, " +
             "Total: {Total}, LocationType: {LocationType}, Depth: {Depth}{LimitInfo}",
             jobId, primaryCount, actualChildrenCount, actualTotalLocations,
-            jobRequest.LocationType, jobRequest.HierarchicalDepth, limitInfo);
+            jobRequest.GetLocationType(), jobRequest.HierarchicalDepth, limitInfo);
     }
 
     /// <summary>
