@@ -12,13 +12,11 @@ public interface IReportGenerationService
     /// </summary>
     /// <param name="reportData">The wired broadband report data</param>
     /// <param name="reportTitle">Title for the report</param>
-    /// <param name="includeFullDetail">If true, includes all barangays. If false, shows summary with served status samples</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>PDF file as byte array</returns>
     Task<byte[]> GenerateWiredBroadbandPdfAsync(
         WiredBroadbandReportDto reportData, 
         string reportTitle = "Wired Broadband Report",
-        bool includeFullDetail = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>

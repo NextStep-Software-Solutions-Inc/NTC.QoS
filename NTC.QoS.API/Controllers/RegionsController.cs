@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Region.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Region;
 
@@ -22,6 +24,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateRegions)]
     public async Task<ActionResult<ApiResponse<RegionDto>>> CreateRegion([FromForm] CreateRegionDto regionDto)
     {
         var region = await _mediator.Send(new CreateRegionRequest
@@ -33,6 +36,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewRegions)]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber" })]
     public async Task<ActionResult<PaginatedResponse<RegionDto>>> GetAllRegions(int pageSize = 10, int pageNumber = 1)
     {
@@ -47,6 +51,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewRegions)]
     public async Task<ActionResult<ApiResponse<RegionDto>>> GetRegionById(Guid id)
     {
         var request = new GetRegionByIdRequest(id);
@@ -56,6 +61,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateRegions)]
     public async Task<ActionResult<ApiResponse<UpdateRegionDto>>> UpdateRegionById(Guid id, [FromForm] UpdateRegionDto updateRegionDto)
     {
         var region = await _mediator.Send(new UpdateRegionRequest { Id = id, Region = updateRegionDto });
@@ -63,6 +69,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteRegions)]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
         var request = new DeleteRegionRequest(id);

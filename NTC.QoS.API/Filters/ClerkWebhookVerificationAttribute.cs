@@ -9,6 +9,10 @@ namespace NTC.QoS.API.Filters;
 
 public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncActionFilter
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNamingPolicy = null
+    };
     public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
@@ -61,6 +65,31 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
             context.Result = new BadRequestObjectResult("Invalid payload");
             return;
         }
+
+        // Deserialize Data based on Type
+        if (payload.Type.StartsWith("user."))
+        {
+            var dataJson = ((JsonElement)payload.Data).GetRawText();
+            var userData = JsonSerializer.Deserialize<ClerkUserData>(dataJson, SerializerOptions);
+            if (userData == null)
+            {
+                context.Result = new BadRequestObjectResult("Invalid user data in payload");
+                return;
+            }
+            payload.Data = userData;
+        }
+        else if (payload.Type.StartsWith("session."))
+        {
+            var dataJson = ((JsonElement)payload.Data).GetRawText();
+            var sessionData = JsonSerializer.Deserialize<ClerkSessionData>(dataJson, SerializerOptions);
+            if (sessionData == null)
+            {
+                context.Result = new BadRequestObjectResult("Invalid session data in payload");
+                return;
+            }
+            payload.Data = sessionData;
+        }
+        // For other types, leave as is
 
         context.HttpContext.Items["ClerkWebhookPayload"] = payload;
 

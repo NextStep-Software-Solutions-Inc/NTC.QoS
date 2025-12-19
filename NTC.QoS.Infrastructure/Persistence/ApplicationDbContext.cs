@@ -28,7 +28,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Band> Bands { get; set; }
     public DbSet<Barangay> Barangays { get; set; }
     public DbSet<Cellular> Cellulars { get; set; }
-    public DbSet<NTC.QoS.Domain.Entities.File> Files { get; set; }
+    public DbSet<Domain.Entities.File> Files { get; set; }
     public DbSet<MIMO> MIMOs { get; set; }
     public DbSet<Municipality> Municipalities { get; set; }
     public DbSet<NetworkTemplate> NetworkTemplates { get; set; }
@@ -310,6 +310,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Region>()
             .HasMany(r => r.Provinces);
 
+        modelBuilder.Entity<Domain.Entities.File>()
+            .HasOne(f => f.Region)
+            .WithMany()
+            .HasForeignKey(f => f.RegionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Domain.Entities.File>()
+            .HasIndex(f => f.RegionId)
+            .HasDatabaseName("IX_Files_RegionId");
+
         modelBuilder.Entity<Municipality>()
             .HasMany(m => m.Barangays)
             .WithOne(b => b.Municipality)
@@ -323,24 +333,39 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<User>()
             .HasOne(u => u.Role)
             .WithMany(r => r.Users)
-            .HasForeignKey(u => u.RoleId);
+            .HasForeignKey(u => u.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<User>()
             .HasOne(u => u.Organization)
             .WithMany(o => o.Users)
-            .HasForeignKey(u => u.OrganizationId);
+            .HasForeignKey(u => u.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Organization>()
             .HasMany(o => o.Users);
 
+        modelBuilder.Entity<Organization>()
+            .HasIndex(o => o.Name)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
         modelBuilder.Entity<Role>()
             .HasMany(r => r.Users);
+
+        modelBuilder.Entity<Permission>()
+            .HasIndex(p => p.Key)
+            .IsUnique();
 
         modelBuilder.Entity<Role>()
             .HasMany(r => r.RolePermissions)
             .WithOne(rp => rp.Role)
             .HasForeignKey(rp => rp.RoleId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Role>()
+            .HasIndex(r => r.Key)
+            .IsUnique();
 
         modelBuilder.Entity<Permission>()
             .HasMany(p => p.RolePermissions)

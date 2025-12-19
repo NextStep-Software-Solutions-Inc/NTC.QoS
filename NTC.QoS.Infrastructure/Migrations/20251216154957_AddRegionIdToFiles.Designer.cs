@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NTC.QoS.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251114080308_RemoveWirelessValidationCountFromProviderBreakdown")]
-    partial class RemoveWirelessValidationCountFromProviderBreakdown
+    [Migration("20251216154957_AddRegionIdToFiles")]
+    partial class AddRegionIdToFiles
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -81,7 +81,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Name")
@@ -313,7 +313,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("ServiceProviderId")
@@ -346,6 +346,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("Bandwidth")
                         .HasColumnType("numeric");
 
@@ -367,6 +370,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<Guid?>("MunicipalityId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -392,6 +398,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("MunicipalityId");
 
                     b.HasIndex("NetworkTemplateId");
 
@@ -828,13 +838,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1061,7 +1071,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("NetworkId")
@@ -1087,6 +1097,88 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("NetworkId");
 
                     b.ToTable("CellularCoverages");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverageVersion2", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CellSectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFileUploaded")
+                        .HasColumnType("boolean");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("geometry (Point,4326)")
+                        .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NetworkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("SignalStrength")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("TechnologyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("CellSectorId")
+                        .HasDatabaseName("IX_CellularCoverageV2_CellSectorId");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("IX_CellularCoverageV2_Location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
+                    b.HasIndex("MunicipalityId")
+                        .HasDatabaseName("IX_CellularCoverageV2_MunicipalityId");
+
+                    b.HasIndex("TechnologyId");
+
+                    b.HasIndex("NetworkId", "BandId", "MunicipalityId")
+                        .HasDatabaseName("IX_CellularCoverageV2_Network_Band_Municipality");
+
+                    b.ToTable("CellularCoveragesV2");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
@@ -1181,7 +1273,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<Guid>("LocationId")
@@ -1314,6 +1406,110 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("ConnectivityAssessmentProvider");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentScheduler", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConfigurationJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CronExpression")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ExecutionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FailureCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("HangfireJobId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("LastExecutionTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LocationIdsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("LocationType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("NextExecutionTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NotificationEmailsJson")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("SendNotifications")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ConnectivityAssessmentSchedulers");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1336,6 +1532,15 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("LastCheckpointTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LastProcessedBatchNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LastProcessedRowNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1343,6 +1548,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("Path")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("ProcessingJobId")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("RegionId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -1365,6 +1576,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RegionId")
+                        .HasDatabaseName("IX_Files_RegionId");
 
                     b.ToTable("Files");
                 });
@@ -1436,13 +1650,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1594,6 +1808,10 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
                     b.ToTable("Organizations");
                 });
 
@@ -1638,6 +1856,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
 
                     b.ToTable("Permissions");
                 });
@@ -1717,13 +1938,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1800,13 +2021,13 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<MultiPolygon>("Boundaries")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (MultiPolygon,4326)")
+                        .HasColumnType("geometry (MultiPolygon,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.MultiPolygon)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;MULTIPOLYGON EMPTY"));
 
                     b.Property<Point>("Center")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("Code")
@@ -1908,6 +2129,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
 
                     b.ToTable("Roles");
                 });
@@ -2147,7 +2371,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<string>("MCC")
@@ -2512,7 +2736,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Point>("Location")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("geography (Point,4326)")
+                        .HasColumnType("geometry (Point,4326)")
                         .HasDefaultValue((NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read("SRID=4326;POINT (0 0)"));
 
                     b.Property<decimal?>("MaxBandwidthMbps")
@@ -2562,9 +2786,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("BandId1")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("BarangayId")
                         .HasColumnType("uuid");
 
@@ -2593,13 +2814,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("ServiceProviderId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ServiceProviderId1")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("TechnologyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TechnologyId1")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -2613,8 +2828,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
-                    b.HasIndex("BandId1");
-
                     b.HasIndex("BarangayId")
                         .HasDatabaseName("IX_WirelessValidation_BarangayId");
 
@@ -2623,10 +2836,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId")
                         .HasDatabaseName("IX_WirelessValidation_ServiceProviderId");
-
-                    b.HasIndex("ServiceProviderId1");
-
-                    b.HasIndex("TechnologyId1");
 
                     b.HasIndex("TechnologyId", "BandId")
                         .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
@@ -2747,6 +2956,16 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
                 {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany("Networks")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Municipality", "Municipality")
+                        .WithMany("Networks")
+                        .HasForeignKey("MunicipalityId");
+
                     b.HasOne("NTC.QoS.Domain.Entities.NetworkTemplate", "NetworkTemplate")
                         .WithMany("Networks")
                         .HasForeignKey("NetworkTemplateId");
@@ -2762,6 +2981,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasForeignKey("SystemTypeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Municipality");
 
                     b.Navigation("NetworkTemplate");
 
@@ -2964,6 +3187,49 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Network");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverageVersion2", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.CellSector", "CellSector")
+                        .WithMany()
+                        .HasForeignKey("CellSectorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Municipality", "Municipality")
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Network", "Network")
+                        .WithMany()
+                        .HasForeignKey("NetworkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
+                        .WithMany()
+                        .HasForeignKey("TechnologyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("CellSector");
+
+                    b.Navigation("Municipality");
+
+                    b.Navigation("Network");
+
+                    b.Navigation("Technology");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.ConnectivityAssessment", "ConnectivityAssessment")
@@ -2973,6 +3239,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ConnectivityAssessment");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
+                        .WithMany()
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Region");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
@@ -3109,13 +3385,13 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasOne("NTC.QoS.Domain.Entities.Organization", "Organization")
                         .WithMany("Users")
                         .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Entities.Role", "Role")
                         .WithMany("Users")
                         .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Entities.UserType", null)
@@ -3130,7 +3406,7 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
-                        .WithMany()
+                        .WithMany("WiFiHotspots")
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -3141,40 +3417,28 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.Band", null)
-                        .WithMany("WirelessValidations")
-                        .HasForeignKey("BandId1");
-
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("BarangayId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", null)
-                        .WithMany("WirelessValidations")
-                        .HasForeignKey("ServiceProviderId1");
-
                     b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
-                        .WithMany()
+                        .WithMany("WirelessValidations")
                         .HasForeignKey("TechnologyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("NTC.QoS.Domain.Entities.Technology", null)
-                        .WithMany("WirelessValidations")
-                        .HasForeignKey("TechnologyId1");
 
                     b.Navigation("Band");
 
@@ -3235,6 +3499,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Navigation("Speedtests");
 
+                    b.Navigation("WiFiHotspots");
+
                     b.Navigation("WirelessValidations");
                 });
 
@@ -3258,6 +3524,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Navigation("Links");
 
+                    b.Navigation("Networks");
+
                     b.Navigation("TechnologyBands");
 
                     b.Navigation("WirelessValidations");
@@ -3266,6 +3534,8 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
                 {
                     b.Navigation("Speedtests");
+
+                    b.Navigation("WirelessValidations");
 
                     b.Navigation("Zones");
                 });
@@ -3301,6 +3571,8 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
                 {
                     b.Navigation("Barangays");
+
+                    b.Navigation("Networks");
 
                     b.Navigation("StudyMunicipalities");
                 });
