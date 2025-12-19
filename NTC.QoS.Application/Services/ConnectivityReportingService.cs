@@ -40,7 +40,6 @@ public interface IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
-        bool includeFullDetail = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -174,7 +173,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
             .ToList();
 
         // OPTIMIZED: Batch load location names instead of individual calls
-        var priorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).Take(20).ToList();
+        // Include ALL priority gaps (no limit) - sorted by population descending
+        var priorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).ToList();
         var locationNames = await GetLocationNamesBatchAsync(
             priorityGaps.Select(a => (a.LocationId, a.LocationType)).ToList(), 
             cancellationToken);
@@ -208,10 +208,9 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
-        bool includeFullDetail = false,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Generating wired broadband PDF report (FullDetail: {FullDetail})", includeFullDetail);
+        _logger.LogInformation("Generating wired broadband PDF report with filterByStatus: {FilterByStatus}", filterByStatus);
 
         // Use the MediatR handler for consistent data processing
         var query = new GetWiredBroadbandReportQuery
@@ -231,7 +230,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
         }
 
-        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, includeFullDetail, cancellationToken);
+        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, cancellationToken);
     }
 
     public async Task<byte[]> GenerateWiredBroadbandExcelAsync(
