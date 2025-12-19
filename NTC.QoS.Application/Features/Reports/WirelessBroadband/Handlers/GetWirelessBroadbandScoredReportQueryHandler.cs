@@ -348,19 +348,17 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             stats.Has5G = techBreakdown.Has5G;
         }
 
-        // Populate TechUsed from speedtest generations
-        var speedtestGenerations = speedtests
-            .Where(s => !string.IsNullOrEmpty(s.GenerationName))
-            .Select(s => s.GenerationName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g)
-            .ToList();
-
-        stats.TechUsed = speedtestGenerations.Any() ? string.Join(", ", speedtestGenerations) : "";
-
-        // Calculate average speeds if speedtests exist
+        // Populate TechUsed from the median speedtest (the one representing typical experience)
         if (speedtests.Any())
         {
+            // Sort by download speed to find the median speedtest
+            var sortedSpeedtests = speedtests.OrderBy(s => s.DownloadSpeed).ToList();
+            int medianIndex = sortedSpeedtests.Count / 2;
+            var medianSpeedtest = sortedSpeedtests.Count % 2 == 0
+                ? sortedSpeedtests[medianIndex - 1]  // For even count, use lower middle
+                : sortedSpeedtests[medianIndex];
+
+            stats.TechUsed = medianSpeedtest.GenerationName ?? "";
             stats.UploadSpeedMbps = (double)speedtests.Average(s => s.UploadSpeed);
             stats.DownloadSpeedMbps = (double)speedtests.Average(s => s.DownloadSpeed);
         }
