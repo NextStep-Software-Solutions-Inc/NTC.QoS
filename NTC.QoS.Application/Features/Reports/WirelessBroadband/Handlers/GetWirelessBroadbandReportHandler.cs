@@ -16,7 +16,7 @@ using QuestPDF.Infrastructure;
 using System.IO.Compression;
 using Color = System.Drawing.Color;
 
-namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Commands;
+namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Handlers;
 
 public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroadbandReportQuery, ApiResponse<WirelessBroadbandReportResult>>
 {
@@ -41,7 +41,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             // 1. Determine Scope and Fetch Target Area
             string reportTitleName = "";
             NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
-            List<NTC.QoS.Domain.Entities.Barangay> barangays;
+            List<Domain.Entities.Barangay> barangays;
 
             if (request.MunicipalityId.HasValue)
             {
@@ -419,7 +419,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
 
     private byte[] GeneratePdf(
         string title, 
-        List<NTC.QoS.Domain.Entities.Provider> providers, 
+        List<Domain.Entities.Provider> providers, 
         List<BarangayWirelessEntryDto> data,
         Dictionary<string, List<string>> providerGenerationsMap)
     {
