@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -50,13 +49,39 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(
             parameters.Id, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
 
+        // Check if file is already successfully processed
+        if (file.Status == FileStatusEnum.Success)
+        {
+            _logger.LogInformation(
+                "File {FileId} is already successfully processed. Skipping duplicate execution.",
+                file.Id);
+            return;
+        }
+
+        // Check if file is already being processed (duplicate job prevention)
+        if (file.Status == FileStatusEnum.Processing && !string.IsNullOrEmpty(file.ProcessingJobId))
+        {
+            _logger.LogWarning(
+                "File {FileId} is already being processed by job {ExistingJobId}. Skipping duplicate execution.",
+                file.Id, file.ProcessingJobId);
+            return;
+        }
+
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
             file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
 
+        // Resume from checkpoint if available
+        int startRecordIndex = file.LastProcessedRowNumber ?? 0;
+
+        if (startRecordIndex > 0)
+        {
+            _logger.LogInformation(
+                "Resuming from checkpoint: Record {RecordNumber}, Last checkpoint: {CheckpointTime}",
+                startRecordIndex, file.LastCheckpointTime);
+        }
+
         try
         {
-            var cellularCoverageList = new List<Domain.Entities.CellularCoverage>();
-
             _logger.LogInformation("Pre-loading reference data.");
 
             // Initialize mapping service (pre-load CellSectors and Municipalities)
@@ -171,10 +196,27 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 _logger.LogInformation("Built spatial index with {Count} network-band combinations.", spatialIndex.Count);
 
                 // Track statistics
-                int processedCount = 0;
+                int totalRecordsProcessed = 0;
+                int processedSuccessfully = 0;
                 int skippedDuplicates = 0;
 
-                foreach (var record in cellularCoverageRecords)
+                // Batch processing configuration
+                const int insertBatchSize = 500; // Insert 500 records to DB at a time
+                var currentBatch = new List<Domain.Entities.CellularCoverage>();
+
+                // Skip already processed records on resume
+                var recordsToProcess = startRecordIndex > 0 
+                    ? cellularCoverageRecords.Skip(startRecordIndex).ToList()
+                    : cellularCoverageRecords;
+
+                if (startRecordIndex > 0)
+                {
+                    _logger.LogInformation(
+                        "Skipping {Count} already processed records, starting from record {Index}",
+                        startRecordIndex, startRecordIndex + 1);
+                }
+
+                foreach (var record in recordsToProcess)
                 {
                     _logger.LogInformation("Processing record: {Record}", record);
 
@@ -325,8 +367,9 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         Address = record.Address,
                         IsFileUploaded = true,
                     };
-                    cellularCoverageList.Add(cellularCoverage);
-                    processedCount++;
+                    currentBatch.Add(cellularCoverage);
+                    processedSuccessfully++;
+                    totalRecordsProcessed++;
                     
                     // Update spatial index with new point to catch duplicates within the same file
                     if (!spatialIndex.ContainsKey(indexKey))
@@ -334,52 +377,46 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         spatialIndex[indexKey] = new List<Point>();
                     }
                     spatialIndex[indexKey].Add(cellularCoverage.Location);
+
+                    // Insert batch when it reaches the batch size
+                    if (currentBatch.Count >= insertBatchSize)
+                    {
+                        await InsertBatchAsync(currentBatch, token);
+                        _logger.LogInformation(
+                            "Inserted batch of {Count} records (total processed: {Total}/{TotalRecords})",
+                            currentBatch.Count, totalRecordsProcessed + startRecordIndex, cellularCoverageRecords.Count);
+                        currentBatch.Clear();
+                        
+                        // Save checkpoint after successful database insert
+                        await SaveCheckpointAsync(file, startRecordIndex + totalRecordsProcessed, token);
+                    }
                 }
 
-                if (cellularCoverageList.Count != 0)
+                // Insert remaining records
+                if (currentBatch.Count > 0)
                 {
-                    _cellularCoverageRepository.AddRange(cellularCoverageList);
+                    await InsertBatchAsync(currentBatch, token);
+                    _logger.LogInformation(
+                        "Inserted final batch of {Count} records (total: {Total})",
+                        currentBatch.Count, processedSuccessfully);
                     
-                    try
-                    {
-                        await _cellularCoverageRepository.SaveChangesAsync(token);
-                        _logger.LogInformation("{Count} cellular coverage records saved successfully.", cellularCoverageList.Count);
-                    }
-                    catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("FK_CellularCoverages_Municipalities_MunicipalityId") == true)
-                    {
-                        // Log the problematic municipality IDs for debugging
-                        var uniqueMunicipalityIds = cellularCoverageList
-                            .Where(c => c.MunicipalityId.HasValue)
-                            .Select(c => c.MunicipalityId!.Value)
-                            .Distinct()
-                            .ToList();
+                    // Save final checkpoint
+                    await SaveCheckpointAsync(file, startRecordIndex + totalRecordsProcessed, token);
+                }
 
-                        _logger.LogError(ex, 
-                            "Foreign key constraint violation for MunicipalityId. Attempted to insert records with {Count} unique municipality IDs: {Ids}",
-                            uniqueMunicipalityIds.Count, string.Join(", ", uniqueMunicipalityIds));
-
-                        // Verify which IDs don't exist in the database
-                        var existingIds = await _municipalityRepository
-                            .Query(m => uniqueMunicipalityIds.Contains(m.Id))
-                            .Select(m => m.Id)
-                            .ToListAsync(token);
-
-                        var missingIds = uniqueMunicipalityIds.Except(existingIds).ToList();
-                        _logger.LogError("Municipality IDs that don't exist in database: {MissingIds}", 
-                            string.Join(", ", missingIds));
-
-                        throw;
-                    }
+                if (processedSuccessfully == 0 && skippedDuplicates == 0)
+                {
+                    _logger.LogInformation("No new cellular coverage records to add (Excel file was empty or all already processed).");
                 }
                 else
                 {
-                    _logger.LogInformation("No new cellular coverage records to add (all were duplicates).");
+                    _logger.LogInformation(
+                        "Processing complete: Total={Total}, Processed={Processed}, Duplicates={Duplicates}",
+                        cellularCoverageRecords.Count, processedSuccessfully, skippedDuplicates);
                 }
 
-                // Log processing summary
-                _logger.LogInformation(
-                    "Processing complete: Total={Total}, Processed={Processed}, Duplicates={Duplicates}",
-                    cellularCoverageRecords.Count, processedCount, skippedDuplicates);
+                // Clear checkpoint on success
+                await ClearCheckpointAsync(file, token);
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
@@ -394,6 +431,99 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 file, _fileRepository, _logger, FileTypeEnum.CellularCoverage,
                 $"Error occurred while processing: {ex.Message}", token);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Inserts a batch of records using bulk insert for better performance
+    /// </summary>
+    private async Task InsertBatchAsync(
+        List<Domain.Entities.CellularCoverage> records,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _cellularCoverageRepository.BulkInsertAsync(records, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("FK_CellularCoverages_Municipalities_MunicipalityId") == true)
+        {
+            // Log the problematic municipality IDs for debugging
+            var uniqueMunicipalityIds = records
+                .Where(c => c.MunicipalityId.HasValue)
+                .Select(c => c.MunicipalityId!.Value)
+                .Distinct()
+                .ToList();
+
+            _logger.LogError(ex, 
+                "Foreign key constraint violation for MunicipalityId. Attempted to insert records with {Count} unique municipality IDs: {Ids}",
+                uniqueMunicipalityIds.Count, string.Join(", ", uniqueMunicipalityIds));
+
+            // Verify which IDs don't exist in the database
+            var existingIds = await _municipalityRepository
+                .Query(m => uniqueMunicipalityIds.Contains(m.Id))
+                .Select(m => m.Id)
+                .ToListAsync(cancellationToken);
+
+            var missingIds = uniqueMunicipalityIds.Except(existingIds).ToList();
+            _logger.LogError("Municipality IDs that don't exist in database: {MissingIds}", 
+                string.Join(", ", missingIds));
+
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during bulk insert of {Count} records", records.Count);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Saves checkpoint after successful batch processing
+    /// </summary>
+    private async Task SaveCheckpointAsync(
+        Domain.Entities.File file,
+        int rowNumber,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            file.LastProcessedRowNumber = rowNumber;
+            file.LastCheckpointTime = DateTime.UtcNow;
+
+            _fileRepository.Update(file);
+            await _fileRepository.SaveChangesAsync(cancellationToken);
+
+            _logger.LogDebug("Checkpoint saved: Row {RowNumber}", rowNumber);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to save checkpoint. Processing will continue.");
+            // Don't throw - checkpoint failure shouldn't stop processing
+        }
+    }
+
+    /// <summary>
+    /// Clears checkpoint and job ID after successful completion
+    /// </summary>
+    private async Task ClearCheckpointAsync(
+        Domain.Entities.File file,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            file.LastProcessedRowNumber = null;
+            file.LastCheckpointTime = null;
+            file.ProcessingJobId = null;
+
+            _fileRepository.Update(file);
+            await _fileRepository.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Checkpoint and job ID cleared after successful processing");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clear checkpoint. This may cause issues on retry.");
+            // Don't throw - this is cleanup code
         }
     }
 }
