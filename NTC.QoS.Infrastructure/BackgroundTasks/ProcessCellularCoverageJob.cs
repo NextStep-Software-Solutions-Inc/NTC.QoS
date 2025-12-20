@@ -21,6 +21,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
     private readonly IRepository<Domain.Entities.CellularCoverage> _cellularCoverageRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly ICellularCoverageMappingService _mappingService;
+    private readonly IMunicipalityRepository _municipalityRepository;
 
     public ProcessCellularCoverageJob(
         ILogger<ProcessCellularCoverageJob> logger,
@@ -29,7 +30,8 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IRepository<Domain.Entities.CellularCoverage> cellularCoverageRepository,
         IBlobStorageService blobStorageService,
-        ICellularCoverageMappingService mappingService
+        ICellularCoverageMappingService mappingService,
+        IMunicipalityRepository municipalityRepository
         )
     {
         _logger = logger;
@@ -39,6 +41,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         _cellularCoverageRepository = cellularCoverageRepository;
         _blobStorageService = blobStorageService;
         _mappingService = mappingService;
+        _municipalityRepository = municipalityRepository;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -336,8 +339,37 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 if (cellularCoverageList.Count != 0)
                 {
                     _cellularCoverageRepository.AddRange(cellularCoverageList);
-                    await _cellularCoverageRepository.SaveChangesAsync(token);
-                    _logger.LogInformation("{Count} cellular coverage records saved successfully.", cellularCoverageList.Count);
+                    
+                    try
+                    {
+                        await _cellularCoverageRepository.SaveChangesAsync(token);
+                        _logger.LogInformation("{Count} cellular coverage records saved successfully.", cellularCoverageList.Count);
+                    }
+                    catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("FK_CellularCoverages_Municipalities_MunicipalityId") == true)
+                    {
+                        // Log the problematic municipality IDs for debugging
+                        var uniqueMunicipalityIds = cellularCoverageList
+                            .Where(c => c.MunicipalityId.HasValue)
+                            .Select(c => c.MunicipalityId!.Value)
+                            .Distinct()
+                            .ToList();
+
+                        _logger.LogError(ex, 
+                            "Foreign key constraint violation for MunicipalityId. Attempted to insert records with {Count} unique municipality IDs: {Ids}",
+                            uniqueMunicipalityIds.Count, string.Join(", ", uniqueMunicipalityIds));
+
+                        // Verify which IDs don't exist in the database
+                        var existingIds = await _municipalityRepository
+                            .Query(m => uniqueMunicipalityIds.Contains(m.Id))
+                            .Select(m => m.Id)
+                            .ToListAsync(token);
+
+                        var missingIds = uniqueMunicipalityIds.Except(existingIds).ToList();
+                        _logger.LogError("Municipality IDs that don't exist in database: {MissingIds}", 
+                            string.Join(", ", missingIds));
+
+                        throw;
+                    }
                 }
                 else
                 {

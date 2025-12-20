@@ -224,12 +224,22 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
         
         foreach (var municipalityId in uniqueMunicipalityIds)
         {
+            // Get municipality boundaries first to avoid nested repository query translation issues
+            var municipality = await _municipalityRepository
+                .Query(m => m.Id == municipalityId && m.Boundaries != null)
+                .Select(m => m.Boundaries)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (municipality == null)
+            {
+                municipalityCellSectorCache[municipalityId] = new HashSet<Guid>();
+                continue;
+            }
+
             var cellSectorIds = await _cellSectorRepository
-                .Query(cs => !cs.IsDeleted && cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted)
+                .Query(cs => !cs.IsDeleted && cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted
+                    && municipality.Intersects(cs.Cell.Location))
                 .Include(cs => cs.Cell)
-                .Where(cs => _municipalityRepository
-                    .Query(m => m.Id == municipalityId && m.Boundaries != null && m.Boundaries.Intersects(cs.Cell!.Location))
-                    .Any())
                 .Select(cs => cs.Id)
                 .ToHashSetAsync(cancellationToken);
 
@@ -290,12 +300,18 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
 
         // Use subquery approach with Intersects (not Contains) to avoid boundary materialization
         // Follows pattern from GeoQueryHelper.ApplyBoundaryFilterAsync
-        var municipalityId = await _municipalityRepository
+        var municipality = await _municipalityRepository
             .Query(m => !m.IsDeleted && m.Boundaries != null && m.Boundaries.Intersects(point))
-            .Select(m => m.Id)
+            .Select(m => new { m.Id, m.Name })
             .FirstOrDefaultAsync();
 
-        return municipalityId;
+        if (municipality != null)
+        {
+            _logger.LogDebug("Found municipality {MunicipalityId} ({Name}) for point ({Lat}, {Lng})",
+                municipality.Id, municipality.Name, latitude, longitude);
+        }
+
+        return municipality?.Id;
     }
 
     /// <summary>
@@ -308,14 +324,24 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
     {
         var coveragePoint = GeometryHelper.CreatePoint(new Coordinate(x: longitude, y: latitude));
 
+        // Get municipality boundaries first
+        var municipality = await _municipalityRepository
+            .Query(m => m.Id == municipalityId && m.Boundaries != null)
+            .Select(m => m.Boundaries)
+            .FirstOrDefaultAsync();
+
+        if (municipality == null)
+        {
+            _logger.LogDebug("Municipality {MunicipalityId} not found or has no boundaries", municipalityId);
+            return null;
+        }
+
         // CRITICAL FIX: Query database to find CellSectors within the municipality boundary FIRST
         // This avoids the logic bug where globally nearest CellSector outside municipality returns null
         var cellSectorsInMunicipality = await _cellSectorRepository
-            .Query(cs => !cs.IsDeleted && cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted)
+            .Query(cs => !cs.IsDeleted && cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted 
+                && municipality.Intersects(cs.Cell.Location))
             .Include(cs => cs.Cell)
-            .Where(cs => _municipalityRepository
-                .Query(m => m.Id == municipalityId && m.Boundaries != null && m.Boundaries.Intersects(cs.Cell!.Location))
-                .Any())
             .Select(cs => new
             {
                 cs.Id,
@@ -353,13 +379,20 @@ public class CellularCoverageMappingService : ICellularCoverageMappingService
         if (_cellSectorCache == null || _cellSectorCache.Count == 0)
             return null;
 
+        // Get municipality boundaries first
+        var municipality = await _municipalityRepository
+            .Query(m => m.Id == municipalityId && m.Boundaries != null)
+            .Select(m => m.Boundaries)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (municipality == null)
+            return null;
+
         // Get CellSector IDs within municipality from database (using spatial index)
         var cellSectorIdsInMunicipality = await _cellSectorRepository
-            .Query(cs => !cs.IsDeleted && cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted)
+            .Query(cs => !cs.IsDeleted && cs.Cell != null && cs.Cell.Location != null && !cs.Cell.IsDeleted
+                && municipality.Intersects(cs.Cell.Location))
             .Include(cs => cs.Cell)
-            .Where(cs => _municipalityRepository
-                .Query(m => m.Id == municipalityId && m.Boundaries != null && m.Boundaries.Intersects(cs.Cell!.Location))
-                .Any())
             .Select(cs => cs.Id)
             .ToHashSetAsync(cancellationToken);
 
