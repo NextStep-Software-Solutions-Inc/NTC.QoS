@@ -17,6 +17,7 @@ internal static class ReportingServiceExtensions
     public static IServiceCollection AddReportingServices(this IServiceCollection services)
     {
         services.AddScoped<IReportGenerationService, ReportGenerationService>();
+        services.AddScoped<IProviderTechnologyService, ProviderTechnologyService>();
         return services;
     }
 }

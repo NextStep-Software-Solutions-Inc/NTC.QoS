@@ -42,6 +42,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
         services.AddScoped<IConnectivityReportingService, ConnectivityReportingService>();
         services.AddScoped<BroadbandAnalyticsService>();
+        services.AddScoped<IWirelessScoringService, WirelessScoringService>();
 
         // Configure ConnectivityCache options
         services.Configure<ConnectivityCacheOptions>(

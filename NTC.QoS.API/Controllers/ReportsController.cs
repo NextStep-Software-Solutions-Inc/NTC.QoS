@@ -51,6 +51,38 @@ public class ReportsController : ControllerBase
         return BadRequest(result);
     }
 
+    [HttpGet("wireless-broadband-scored")]
+    public async Task<ActionResult> GetWirelessBroadbandScoredReport(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
+        [FromQuery] ReportFormat format = ReportFormat.Excel)
+    {
+        var request = new GetWirelessBroadbandScoredReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            Format = format
+        };
+
+        var result = await _mediator.Send(request);
+
+        if (!result.Succeeded || result.Data == null)
+            return BadRequest(result);
+
+        var contentType = format == ReportFormat.Pdf
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+        return File(
+            result.Data.FileContent,
+            contentType,
+            result.Data.FileName);
+    }
+
     /// <summary>
     /// Generate a comprehensive wired broadband coverage report for municipalities and barangays.
     /// Shows service provider availability (PLDT, Globe, Converge, etc.) and service status.
@@ -263,6 +295,8 @@ public class ReportsController : ControllerBase
         
         return $"{baseTitle} - National";
     }
+
+    
 
     /// <summary>
     /// Generate a descriptive filename for downloaded reports using location names instead of UUIDs
