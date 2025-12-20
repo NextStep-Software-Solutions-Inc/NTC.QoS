@@ -47,7 +47,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
-    public DbSet<CellularCoverageVersion2> CellularCoveragesV2 { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
     public DbSet<UserRegion> UserRegions { get; set; }
     public DbSet<WirelessValidation> WirelessValidations { get; set; }
@@ -426,59 +425,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(cc => cc.Location)
             .HasDatabaseName("IX_CellularCoverage_Location")
             .HasMethod("GIST");
-
-        // CellularCoverageVersion2 configuration
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Network)
-            .WithMany()
-            .HasForeignKey(cc => cc.NetworkId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Band)
-            .WithMany()
-            .HasForeignKey(cc => cc.BandId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Technology)
-            .WithMany()
-            .HasForeignKey(cc => cc.TechnologyId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.CellSector)
-            .WithMany()
-            .HasForeignKey(cc => cc.CellSectorId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Municipality)
-            .WithMany()
-            .HasForeignKey(cc => cc.MunicipalityId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .Property(cc => cc.Location)
-            .HasColumnType("geometry (Point,4326)")
-            .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => cc.Location)
-            .HasDatabaseName("IX_CellularCoverageV2_Location")
-            .HasMethod("GIST");
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => new { cc.NetworkId, cc.BandId, cc.MunicipalityId })
-            .HasDatabaseName("IX_CellularCoverageV2_Network_Band_Municipality");
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => cc.CellSectorId)
-            .HasDatabaseName("IX_CellularCoverageV2_CellSectorId");
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => cc.MunicipalityId)
-            .HasDatabaseName("IX_CellularCoverageV2_MunicipalityId");
 
         modelBuilder.Entity<SystemType>()
             .HasMany(st => st.Networks)

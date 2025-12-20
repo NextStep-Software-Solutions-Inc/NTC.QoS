@@ -54,7 +54,7 @@ public class CellularCoverage : BaseEntity, IGeoLocatedEntity
     /// <summary>
     /// Signal strength measurement (from Excel)
     /// </summary>
-    public decimal Strength { get; set; }
+    public decimal SignalStrength { get; set; }
 
     /// <summary>
     /// Address description (from Excel)

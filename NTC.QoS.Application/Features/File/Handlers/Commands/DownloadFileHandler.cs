@@ -283,14 +283,9 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     {
         AddCommonHeaders(worksheet, "ServiceProvider", "Network", "Lat", "Lng", "Strength", "Address");
 
-        // Fetch data in parallel for better performance
-        var serviceProvidersTask = GetWirelessServiceProviders(cancellationToken);
-        var networksTask = GetUniqueNetworksForDropdown(cancellationToken);
-        
-        await Task.WhenAll(serviceProvidersTask, networksTask);
-        
-        var serviceProviders = await serviceProvidersTask;
-        var networks = await networksTask;
+        // Fetch data sequentially to avoid DbContext threading issues
+        var serviceProviders = await GetWirelessServiceProviders(cancellationToken);
+        var networks = await GetUniqueNetworksForDropdown(cancellationToken);
 
         // Add ServiceProvider dropdown using helper method
         AddDropdownWithHiddenSheetIfNeeded(

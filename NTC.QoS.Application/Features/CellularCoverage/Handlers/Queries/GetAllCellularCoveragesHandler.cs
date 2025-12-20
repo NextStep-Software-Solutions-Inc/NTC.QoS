@@ -56,7 +56,7 @@ public class GetAllCellularCoveragesHandler(ICellularCoverageRepository cellular
                 NetworkId = cc.NetworkId,
                 Lat = cc.Location.Coordinate.Y,
                 Lng = cc.Location.Coordinate.X,
-                Strength = cc.Strength,
+                SignalStrength = cc.SignalStrength,
                 Gen = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Generation.Name : string.Empty,
                 Std = cc.Network.SystemType != null && cc.Network.SystemType.Technology != null ? cc.Network.SystemType.Technology.Standard : string.Empty,
             });

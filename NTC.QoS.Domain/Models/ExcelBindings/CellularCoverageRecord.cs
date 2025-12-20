@@ -17,7 +17,7 @@ public record CellularCoverageRecord
     public double Longitude { get; set; }
 
     [ExcelHeader("Strength")]
-    public decimal Strength { get; set; }
+    public decimal SignalStrength { get; set; }
 
     [ExcelHeader("Address")]
     public string Address { get; set; } = string.Empty;

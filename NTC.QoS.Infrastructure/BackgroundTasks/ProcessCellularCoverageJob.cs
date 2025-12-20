@@ -175,7 +175,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                 {
                     _logger.LogInformation("Processing record: {Record}", record);
 
-                    ProcessingJobHelper.ReportProgress($"Processing record: SP={record.ServiceProvider}, Network={record.Network}, Lat={record.Latitude}, Lng={record.Longitude}, Strength={record.Strength}", _logger);
+                    ProcessingJobHelper.ReportProgress($"Processing record: SP={record.ServiceProvider}, Network={record.Network}, Lat={record.Latitude}, Lng={record.Longitude}, SignalStrength={record.SignalStrength}", _logger);
 
                     // Validate Service Provider
                     Guid? serviceProviderId = null;
@@ -318,7 +318,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         CellSectorId = cellSectorId,
                         MunicipalityId = municipalityId,
                         Location = GeometryHelper.CreatePoint(new Coordinate(x: record.Longitude, y: record.Latitude)),
-                        Strength = record.Strength,
+                        SignalStrength = record.SignalStrength,
                         Address = record.Address,
                         IsFileUploaded = true,
                     };
