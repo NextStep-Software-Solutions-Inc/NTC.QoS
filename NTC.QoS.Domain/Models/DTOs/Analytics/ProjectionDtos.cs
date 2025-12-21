@@ -23,7 +23,7 @@ public class CellularBandwidthProjectionDto
 public class CellularCoverageProjectionDto
 {
     public Point Location { get; set; } = null!;
-    public decimal Strength { get; set; }
+    public decimal SignalStrength { get; set; }
 }
 
 // Provider/info DTO used for cells and NAPs projections

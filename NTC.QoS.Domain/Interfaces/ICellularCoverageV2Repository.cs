@@ -3,9 +3,9 @@ using NTC.QoS.Domain.Entities;
 namespace NTC.QoS.Domain.Interfaces;
 
 /// <summary>
-/// Repository interface for CellularCoverageVersion2 entity
+/// Repository interface for CellularCoverage entity (CSV uploads)
 /// </summary>
-public interface ICellularCoverageV2Repository : IRepository<CellularCoverageVersion2>
+public interface ICellularCoverageV2Repository : IRepository<CellularCoverage>
 {
     /// <summary>
     /// Check if a duplicate exists based on location and identifiers
@@ -21,7 +21,7 @@ public interface ICellularCoverageV2Repository : IRepository<CellularCoverageVer
     /// <summary>
     /// Get coverage records by municipality
     /// </summary>
-    Task<List<CellularCoverageVersion2>> GetByMunicipalityAsync(
+    Task<List<CellularCoverage>> GetByMunicipalityAsync(
         Guid municipalityId,
         CancellationToken cancellationToken = default);
 }

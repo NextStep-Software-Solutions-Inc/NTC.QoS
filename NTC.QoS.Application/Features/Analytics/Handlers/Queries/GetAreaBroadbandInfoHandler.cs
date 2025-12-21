@@ -113,7 +113,7 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 cellularCoverageQuery.Select(cc => new CellularCoverageProjectionDto
                 {
                     Location = cc.Location,
-                    Strength = cc.Strength
+                    SignalStrength = cc.SignalStrength
                 }),
                 cancellationToken);
                 

@@ -26,10 +26,9 @@ public class ReportGenerationService : IReportGenerationService
     public async Task<byte[]> GenerateWiredBroadbandPdfAsync(
         WiredBroadbandReportDto reportData, 
         string reportTitle = "Wired Broadband Report",
-        bool includeFullDetail = false,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Generating PDF report: {ReportTitle} (FullDetail: {FullDetail})", reportTitle, includeFullDetail);
+        _logger.LogInformation("Generating PDF report: {ReportTitle}", reportTitle);
 
         // Configure QuestPDF license (Community license is free for open source/non-commercial)
         QuestPDF.Settings.License = LicenseType.Community;
@@ -44,7 +43,7 @@ public class ReportGenerationService : IReportGenerationService
                 page.DefaultTextStyle(x => x.FontSize(10));
 
                 page.Header().Element(c => ComposeWiredBroadbandHeader(c, reportTitle, reportData.Summary.GeneratedAt));
-                page.Content().Element(c => ComposeWiredBroadbandContent(c, reportData, includeFullDetail));
+                page.Content().Element(c => ComposeWiredBroadbandContent(c, reportData));
                 page.Footer().AlignCenter().Text(x =>
                 {
                     x.Span("Page ");
@@ -172,7 +171,7 @@ public class ReportGenerationService : IReportGenerationService
         });
     }
 
-    private void ComposeWiredBroadbandContent(IContainer container, WiredBroadbandReportDto reportData, bool includeFullDetail)
+    private void ComposeWiredBroadbandContent(IContainer container, WiredBroadbandReportDto reportData)
     {
         container.PaddingVertical(10).Column(column =>
         {
@@ -240,17 +239,7 @@ public class ReportGenerationService : IReportGenerationService
             }
 
             // Municipality Breakdown
-            var sectionTitle = includeFullDetail 
-                ? "Municipality Breakdown (Complete Details)" 
-                : "Municipality Breakdown (Sample - Top 10 Municipalities)";
-            
-            column.Item().PaddingTop(15).Text(sectionTitle).FontSize(12).Bold();
-            
-            if (!includeFullDetail)
-            {
-                column.Item().PaddingTop(5).Text("Note: This PDF shows a sample of the data. Complete detailed report is available in Excel format.")
-                    .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
-            }
+            column.Item().PaddingTop(15).Text("Municipality Breakdown").FontSize(12).Bold();
 
             // Municipality Sample Table
             column.Item().PaddingTop(5).Table(table =>
@@ -269,17 +258,9 @@ public class ReportGenerationService : IReportGenerationService
                     header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Status").Bold();
                 });
 
-                var municipalitiesToShow = includeFullDetail ? reportData.Municipalities : reportData.Municipalities.Take(10);
-
-                foreach (var municipality in municipalitiesToShow)
+                foreach (var municipality in reportData.Municipalities)
                 {
-                    // For summary: show first 5 barangays (any status)
-                    // For full detail: show all barangays
-                    var barangaysToShow = includeFullDetail 
-                        ? municipality.Barangays 
-                        : municipality.Barangays.Take(5);
-
-                    foreach (var barangay in barangaysToShow)
+                    foreach (var barangay in municipality.Barangays)
                     {
                         var providersText = string.Join(", ", barangay.ProviderAvailability.AvailableProviders);
                         var statusColor = barangay.ServiceStatus switch

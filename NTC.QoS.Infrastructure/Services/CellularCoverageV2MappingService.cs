@@ -16,7 +16,7 @@ namespace NTC.QoS.Infrastructure.Services;
 /// </summary>
 public class CellularCoverageV2MappingService : ICellularCoverageV2MappingService
 {
-    private readonly IRepository<CellularCoverageVersion2> _coverageRepository;
+    private readonly IRepository<CellularCoverage> _coverageRepository;
     private readonly IRepository<CellSector> _cellSectorRepository;
     private readonly IRepository<Network> _networkRepository;
     private readonly IRepository<Technology> _technologyRepository;
@@ -41,7 +41,7 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
     }
 
     public CellularCoverageV2MappingService(
-        IRepository<CellularCoverageVersion2> coverageRepository,
+        IRepository<CellularCoverage> coverageRepository,
         IRepository<CellSector> cellSectorRepository,
         IRepository<Network> networkRepository,
         IRepository<Technology> technologyRepository,
@@ -91,14 +91,14 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
     /// <summary>
     /// Optimized batch processing - maps multiple records at once with minimal DB queries
     /// </summary>
-    public async Task<List<CellularCoverageVersion2>> MapCoveragePointsBatchAsync(
+    public async Task<List<CellularCoverage>> MapCoveragePointsBatchAsync(
         List<CellularCoverageV2CsvRecord> csvRecords,
         Guid networkId,
         Guid bandId,
         Guid municipalityId,
         CancellationToken cancellationToken = default)
     {
-        var results = new List<CellularCoverageVersion2>();
+        var results = new List<CellularCoverage>();
 
         if (_cachedTechnologyId == null)
         {
@@ -153,9 +153,10 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
             }
 
             // Create entity
-            var coveragePoint = new CellularCoverageVersion2
+            var coveragePoint = new CellularCoverage
             {
                 NetworkId = networkId,
+                ServiceProviderId = null,  // CSV uploads don't have ServiceProvider
                 BandId = bandId,
                 TechnologyId = _cachedTechnologyId.Value,
                 CellSectorId = cellSectorId.Value,
@@ -254,7 +255,7 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
         return R * c;
     }
 
-    public async Task<CellularCoverageVersion2?> MapCoveragePointAsync(
+    public async Task<CellularCoverage?> MapCoveragePointAsync(
         CellularCoverageV2CsvRecord csvRecord,
         Guid networkId,
         Guid bandId,
@@ -315,9 +316,10 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
             }
 
             // Step 5: Create mapped entity
-            var coveragePoint = new CellularCoverageVersion2
+            var coveragePoint = new CellularCoverage
             {
                 NetworkId = networkId,
+                ServiceProviderId = null,  // CSV uploads don't have ServiceProvider
                 BandId = bandId,
                 TechnologyId = technologyId.Value,
                 CellSectorId = cellSectorId.Value,
