@@ -886,5 +886,331 @@ public class ReportGenerationService : IReportGenerationService
              $"Invalid hex color format: {hexColor}. Expected 3, 6, or 8 characters.");
         }
     }
+
+    public async Task<byte[]> GenerateConnectivityPdfAsync(
+        ConnectivityReportDto reportData,
+        string reportTitle = "Connectivity Report",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating connectivity PDF report: {ReportTitle}", reportTitle);
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(1, Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+
+                page.Header().Text(reportTitle).Bold().FontSize(16).AlignCenter();
+                page.Content().Element(content => ComposeConnectivityContent(content, reportData));
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("Page ");
+                    x.CurrentPageNumber();
+                    x.Span(" of ");
+                    x.TotalPages();
+                });
+            });
+        });
+
+        var pdfBytes = await Task.Run(() => document.GeneratePdf(), cancellationToken);
+
+        _logger.LogInformation("Connectivity PDF report generated successfully. Size: {FileSize} bytes", pdfBytes.Length);
+        return pdfBytes;
+    }
+
+    public async Task<byte[]> GenerateConnectivityExcelAsync(
+        ConnectivityReportDto reportData,
+        string reportTitle = "Connectivity Report",
+        CancellationToken cancellationToken = default)
+    {
+        return await Task.Run(() =>
+        {
+            _logger.LogInformation("Generating connectivity Excel report: {ReportTitle}", reportTitle);
+
+            using var workbook = new XLWorkbook();
+            
+            // Create summary worksheet
+            CreateConnectivitySummaryWorksheet(workbook, reportData, reportTitle);
+            
+            // Create detailed area data worksheet
+            CreateConnectivityDetailWorksheet(workbook, reportData);
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var excelBytes = stream.ToArray();
+
+            _logger.LogInformation("Connectivity Excel report generated successfully. Size: {FileSize} bytes", excelBytes.Length);
+            
+            return excelBytes;
+        }, cancellationToken);
+    }
+
+    private void ComposeConnectivityContent(IContainer container, ConnectivityReportDto reportData)
+    {
+        container.Column(column =>
+        {
+            column.Spacing(15);
+
+            // Summary Section
+            column.Item().Row(row =>
+            {
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Text("Summary Statistics").Bold().FontSize(14);
+                    col.Item().PaddingTop(5).Text($"Total Served Areas: {reportData.TotalServedAreas:N0}");
+                    col.Item().Text($"Total Population Served: {reportData.ServedPopulation:N0}");
+                    col.Item().Text($"Average Total Score: {reportData.ScoreSummary.AverageTotalScore:F2}/15");
+                });
+
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Text("Score Distribution").Bold().FontSize(14);
+                    col.Item().PaddingTop(5).Text($"Excellent (13-15): {reportData.ScoreSummary.ExcellentCount:N0}");
+                    col.Item().Text($"Good (11-12): {reportData.ScoreSummary.GoodCount:N0}");
+                    col.Item().Text($"Moderate (8-10): {reportData.ScoreSummary.ModerateCount:N0}");
+                    col.Item().Text($"Fair (6-7): {reportData.ScoreSummary.FairCount:N0}");
+                });
+            });
+
+            // Average Rubric Scores
+            column.Item().Row(row =>
+            {
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Text("Average Rubric Scores").Bold().FontSize(14);
+                    col.Item().PaddingTop(5).Text($"Fiber Coverage: {reportData.ScoreSummary.AverageFiberCoverageScore:F2}/3");
+                    col.Item().Text($"Internet Access: {reportData.ScoreSummary.AverageInternetAccessScore:F2}/3");
+                    col.Item().Text($"Technology Type: {reportData.ScoreSummary.AverageTechnologyTypeScore:F2}/3");
+                });
+
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Text("").FontSize(14);
+                    col.Item().PaddingTop(5).Text($"Quality of Service: {reportData.ScoreSummary.AverageQualityOfServiceScore:F2}/3");
+                    col.Item().Text($"Coverage Availability: {reportData.ScoreSummary.AverageCoverageAvailabilityScore:F2}/3");
+                });
+            });
+
+            // Top areas table (limited to first 20)
+            column.Item().Text($"Top {Math.Min(20, reportData.Areas.Count)} Areas by Score").Bold().FontSize(14);
+            column.Item().Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.RelativeColumn(3);
+                    columns.RelativeColumn(1);
+                    columns.RelativeColumn(1);
+                    columns.RelativeColumn(1);
+                    columns.RelativeColumn(1);
+                    columns.RelativeColumn(1);
+                    columns.RelativeColumn(1);
+                    columns.RelativeColumn(1);
+                });
+
+                // Header
+                table.Header(header =>
+                {
+                    header.Cell().Element(CellStyle).Text("Location").Bold();
+                    header.Cell().Element(CellStyle).Text("Pop").Bold();
+                    header.Cell().Element(CellStyle).Text("Fiber").Bold();
+                    header.Cell().Element(CellStyle).Text("Internet").Bold();
+                    header.Cell().Element(CellStyle).Text("Tech").Bold();
+                    header.Cell().Element(CellStyle).Text("QoS").Bold();
+                    header.Cell().Element(CellStyle).Text("Cov").Bold();
+                    header.Cell().Element(CellStyle).Text("Total").Bold();
+
+                    static IContainer CellStyle(IContainer container)
+                    {
+                        return container.BorderBottom(1).BorderColor(Colors.Grey.Lighten1)
+                            .PaddingVertical(5).Background(Colors.Grey.Lighten3);
+                    }
+                });
+
+                // Data rows
+                foreach (var area in reportData.Areas.Take(20))
+                {
+                    table.Cell().Element(CellStyle).Text(area.LocationName).FontSize(8);
+                    table.Cell().Element(CellStyle).Text(area.Population?.ToString("N0") ?? "N/A").FontSize(8);
+                    table.Cell().Element(CellStyle).Text(area.FiberCoverageScore.ToString()).FontSize(8);
+                    table.Cell().Element(CellStyle).Text(area.InternetAccessScore.ToString()).FontSize(8);
+                    table.Cell().Element(CellStyle).Text(area.TechnologyTypeScore.ToString()).FontSize(8);
+                    table.Cell().Element(CellStyle).Text(area.QualityOfServiceScore.ToString()).FontSize(8);
+                    table.Cell().Element(CellStyle).Text(area.CoverageAvailabilityScore.ToString()).FontSize(8);
+                    table.Cell().Element(CellStyle).Text(area.TotalScore.ToString()).Bold().FontSize(8);
+
+                    static IContainer CellStyle(IContainer container)
+                    {
+                        return container.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(3);
+                    }
+                }
+            });
+        });
+    }
+
+    private void CreateConnectivitySummaryWorksheet(XLWorkbook workbook, ConnectivityReportDto reportData, string reportTitle)
+    {
+        var worksheet = workbook.Worksheets.Add("Summary");
+
+        // Title
+        worksheet.Cell(1, 1).Value = reportTitle;
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 16;
+
+        // Summary Statistics
+        int row = 3;
+        worksheet.Cell(row, 1).Value = "Summary Statistics";
+        worksheet.Cell(row, 1).Style.Font.Bold = true;
+        worksheet.Cell(row, 1).Style.Font.FontSize = 14;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Served Areas:";
+        worksheet.Cell(row, 2).Value = reportData.TotalServedAreas;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Population Served:";
+        worksheet.Cell(row, 2).Value = reportData.ServedPopulation;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Average Total Score:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageTotalScore;
+        worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+
+        // Score Distribution
+        row += 2;
+        worksheet.Cell(row, 1).Value = "Score Distribution";
+        worksheet.Cell(row, 1).Style.Font.Bold = true;
+        worksheet.Cell(row, 1).Style.Font.FontSize = 14;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Excellent (13-15):";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.ExcellentCount;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Good (11-12):";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.GoodCount;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Moderate (8-10):";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.ModerateCount;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Fair (6-7):";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.FairCount;
+
+        // Average Rubric Scores
+        row += 2;
+        worksheet.Cell(row, 1).Value = "Average Rubric Scores (0-3 each)";
+        worksheet.Cell(row, 1).Style.Font.Bold = true;
+        worksheet.Cell(row, 1).Style.Font.FontSize = 14;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Fiber Coverage:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageFiberCoverageScore;
+        worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Internet Access:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageInternetAccessScore;
+        worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Technology Type:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageTechnologyTypeScore;
+        worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Quality of Service:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageQualityOfServiceScore;
+        worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Coverage Availability:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageCoverageAvailabilityScore;
+        worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+
+        // Infrastructure Summary
+        row += 2;
+        worksheet.Cell(row, 1).Value = "Total Infrastructure";
+        worksheet.Cell(row, 1).Style.Font.Bold = true;
+        worksheet.Cell(row, 1).Style.Font.FontSize = 14;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Cell Towers:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.TotalCellTowers;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "Fiber NAPs:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.TotalFiberNAPs;
+        
+        row++;
+        worksheet.Cell(row, 1).Value = "WiFi Hotspots:";
+        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.TotalWifiHotspots;
+
+        worksheet.Columns().AdjustToContents();
+    }
+
+    private void CreateConnectivityDetailWorksheet(XLWorkbook workbook, ConnectivityReportDto reportData)
+    {
+        var worksheet = workbook.Worksheets.Add("Detailed Data");
+
+        // Headers
+        int col = 1;
+        worksheet.Cell(1, col++).Value = "Location";
+        worksheet.Cell(1, col++).Value = "Population";
+        worksheet.Cell(1, col++).Value = "Fiber Score";
+        worksheet.Cell(1, col++).Value = "Internet Score";
+        worksheet.Cell(1, col++).Value = "Tech Score";
+        worksheet.Cell(1, col++).Value = "QoS Score";
+        worksheet.Cell(1, col++).Value = "Coverage Score";
+        worksheet.Cell(1, col++).Value = "Total Score";
+        worksheet.Cell(1, col++).Value = "Cell Towers";
+        worksheet.Cell(1, col++).Value = "Fiber NAPs";
+        worksheet.Cell(1, col++).Value = "WiFi Hotspots";
+        worksheet.Cell(1, col++).Value = "Providers";
+        worksheet.Cell(1, col++).Value = "Dominant Provider";
+        worksheet.Cell(1, col++).Value = "Avg Download (Mbps)";
+        worksheet.Cell(1, col++).Value = "Avg Upload (Mbps)";
+        worksheet.Cell(1, col++).Value = "Speed Tests";
+        worksheet.Cell(1, col++).Value = "Last Assessed";
+
+        // Style header
+        var headerRange = worksheet.Range(1, 1, 1, col - 1);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#4472C4");
+        headerRange.Style.Font.FontColor = XLColor.White;
+        headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+
+        // Data rows
+        int row = 2;
+        foreach (var area in reportData.Areas)
+        {
+            col = 1;
+            worksheet.Cell(row, col++).Value = area.LocationName;
+            worksheet.Cell(row, col++).Value = area.Population ?? 0;
+            worksheet.Cell(row, col++).Value = area.FiberCoverageScore;
+            worksheet.Cell(row, col++).Value = area.InternetAccessScore;
+            worksheet.Cell(row, col++).Value = area.TechnologyTypeScore;
+            worksheet.Cell(row, col++).Value = area.QualityOfServiceScore;
+            worksheet.Cell(row, col++).Value = area.CoverageAvailabilityScore;
+            worksheet.Cell(row, col++).Value = area.TotalScore;
+            worksheet.Cell(row, col++).Value = area.CellTowerCount;
+            worksheet.Cell(row, col++).Value = area.FiberNAPCount;
+            worksheet.Cell(row, col++).Value = area.WifiHotspotCount;
+            worksheet.Cell(row, col++).Value = area.ServiceProviderCount;
+            worksheet.Cell(row, col++).Value = area.DominantServiceProvider ?? "";
+            worksheet.Cell(row, col++).Value = area.AverageDownloadSpeedMbps ?? 0;
+            worksheet.Cell(row, col++).Value = area.AverageUploadSpeedMbps ?? 0;
+            worksheet.Cell(row, col++).Value = area.SpeedTestCount;
+            worksheet.Cell(row, col++).Value = area.LastAssessed.ToString("yyyy-MM-dd");
+
+            row++;
+        }
+
+        // Auto-fit columns
+        worksheet.Columns().AdjustToContents();
+    }
     #endregion
 }

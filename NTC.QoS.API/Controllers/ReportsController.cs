@@ -804,5 +804,178 @@ public class ReportsController : ControllerBase
             return BadRequest(new { message = $"Failed to download report: {ex.Message}" });
         }
     }
+
+    // ============================================================================
+    // CONNECTIVITY REPORT - ASYNC JOB-BASED ENDPOINTS (SERVED AREAS)
+    // ============================================================================
+
+    /// <summary>
+    /// Generate a connectivity report (served areas) asynchronously as a background job
+    /// </summary>
+    /// <param name="regionId">Optional filter by region</param>
+    /// <param name="provinceId">Optional filter by province</param>
+    /// <param name="municipalityId">Optional filter by municipality</param>
+    /// <param name="format">Report format (Excel or PDF)</param>
+    /// <param name="reportTitle">Optional custom report title</param>
+    /// <returns>Job information including job ID for status tracking</returns>
+    [HttpPost("connectivity/generate-async")]
+    public async Task<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>> GenerateConnectivityReportAsync(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ReportFormat format = ReportFormat.Excel,
+        [FromQuery] string? reportTitle = null)
+    {
+        try
+        {
+            // Get current user ID
+            var userId = User.Identity?.Name ?? "Anonymous";
+
+            // Generate unique job ID
+            var jobId = Guid.NewGuid().ToString();
+
+            var jobRequest = new ConnectivityReportJobRequestDto
+            {
+                JobId = jobId,
+                UserId = userId,
+                RegionId = regionId,
+                ProvinceId = provinceId,
+                MunicipalityId = municipalityId,
+                Format = format,
+                ReportTitle = reportTitle
+            };
+
+            // Enqueue background job
+            _backgroundJobClient.Enqueue<IProcessConnectivityReportJob>(
+                job => job.ExecuteAsync(jobRequest, CancellationToken.None));
+
+            var statusDto = new ConnectivityReportJobStatusDto
+            {
+                JobId = jobId,
+                Status = ConnectivityReportJobStatusEnum.Pending,
+                Message = "Report generation job has been queued",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            // Cache initial status
+            var cacheKey = $"connectivity_report_job_{jobId}";
+            _memoryCache.Set(cacheKey, statusDto, TimeSpan.FromHours(1));
+
+            var response = new ConnectivityReportJobResponseDto
+            {
+                JobId = jobId,
+                Status = ConnectivityReportJobStatusEnum.Pending,
+                Message = "Report generation job has been queued successfully",
+                EstimatedDurationMinutes = 2
+            };
+
+            return Ok(new ApiResponse<ConnectivityReportJobResponseDto>
+            {
+                Succeeded = true,
+                Data = response,
+                Message = "Report generation job started successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new ApiResponse<ConnectivityReportJobResponseDto>
+            {
+                Succeeded = false,
+                Message = $"Failed to start report generation: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get the status of a connectivity report generation job
+    /// </summary>
+    /// <param name="jobId">Job ID returned from generate-async endpoint</param>
+    /// <returns>Current job status with progress information</returns>
+    [HttpGet("connectivity/job/{jobId}/status")]
+    public ActionResult<ApiResponse<ConnectivityReportJobStatusDto>> GetConnectivityReportJobStatus(string jobId)
+    {
+        try
+        {
+            var cacheKey = $"connectivity_report_job_{jobId}";
+            
+            if (!_memoryCache.TryGetValue(cacheKey, out ConnectivityReportJobStatusDto? statusDto) || statusDto == null)
+            {
+                return NotFound(new ApiResponse<ConnectivityReportJobStatusDto>
+                {
+                    Succeeded = false,
+                    Message = "Job not found or has expired"
+                });
+            }
+
+            return Ok(new ApiResponse<ConnectivityReportJobStatusDto>
+            {
+                Succeeded = true,
+                Data = statusDto,
+                Message = "Job status retrieved successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new ApiResponse<ConnectivityReportJobStatusDto>
+            {
+                Succeeded = false,
+                Message = $"Failed to retrieve job status: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// Download a generated connectivity report
+    /// </summary>
+    /// <param name="jobId">Job ID returned from generate-async endpoint</param>
+    /// <returns>Report file download</returns>
+    [HttpGet("connectivity/job/{jobId}/download")]
+    public async Task<ActionResult> DownloadConnectivityReportFromJob(string jobId)
+    {
+        try
+        {
+            var cacheKey = $"connectivity_report_job_{jobId}";
+            
+            if (!_memoryCache.TryGetValue(cacheKey, out ConnectivityReportJobStatusDto? statusDto) || statusDto == null)
+            {
+                return NotFound(new { message = "Job not found or has expired" });
+            }
+
+            if (statusDto.Status != ConnectivityReportJobStatusEnum.Completed)
+            {
+                return BadRequest(new { 
+                    message = "Report is not ready for download", 
+                    status = statusDto.Status.ToString(),
+                    currentStep = statusDto.CurrentStep
+                });
+            }
+
+            if (string.IsNullOrEmpty(statusDto.FilePath))
+            {
+                return NotFound(new { message = "Report file path not found" });
+            }
+
+            // Download file from blob storage
+            var containerName = "connectivity-reports";
+            var blobFileName = Path.GetFileName(statusDto.FilePath);
+            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+
+            if (fileStream == null)
+            {
+                return NotFound(new { message = "Report file not found in storage" });
+            }
+
+            // Determine content type and file name from format
+            var contentType = statusDto.Format == ReportFormat.Pdf
+                ? "application/pdf"
+                : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+            return File(fileStream, contentType, blobFileName);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = $"Failed to download report: {ex.Message}" });
+        }
+    }
 }
 
