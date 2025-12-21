@@ -45,3 +45,8 @@ spec:
                   key: BLOB_STORAGE_CONNECTION_STRING
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.env.ASPNETCORE_ENVIRONMENT | default "Production" }}
+            - name: GoogleAI__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: ntc-qos-secrets
+                  key: GoogleAI__ApiKey

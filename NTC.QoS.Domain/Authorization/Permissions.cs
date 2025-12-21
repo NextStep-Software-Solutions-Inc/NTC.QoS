@@ -182,4 +182,8 @@ public static class Permissions
     public const string SystemAdministration = "system.admin";
     public const string ViewLogs = "logs.view";
     public const string ManageSettings = "settings.manage";
+
+    // GenAI permissions
+    public const string ChatWithAI = "genai.chat";
+    public const string GenerateReports = "genai.generate_reports";
 }
