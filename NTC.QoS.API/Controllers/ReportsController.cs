@@ -478,10 +478,13 @@ public class ReportsController : ControllerBase
             // Get user ID from claims
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "Unknown";
 
-            // Create job request
+            // Generate unique job ID before enqueueing (Hangfire pattern)
+            var jobId = Guid.NewGuid().ToString("N");
+
+            // Create job request with pre-generated job ID
             var jobRequest = new WiredBroadbandReportJobRequestDto
             {
-                JobId = string.Empty, // Will be set by Hangfire
+                JobId = jobId,
                 UserId = userId,
                 RegionId = regionId,
                 ProvinceId = provinceId,
@@ -493,12 +496,9 @@ public class ReportsController : ControllerBase
                 ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment
             };
 
-            // Enqueue background job
-            var jobId = _backgroundJobClient.Enqueue<IProcessWiredBroadbandReportJob>(
+            // Enqueue background job (Hangfire may return a different ID, but we use our generated one)
+            _backgroundJobClient.Enqueue<IProcessWiredBroadbandReportJob>(
                 job => job.ExecuteAsync(jobRequest, CancellationToken.None));
-
-            // Update job ID in request
-            jobRequest.JobId = jobId;
 
             // Initialize job status in cache
             var statusDto = new WiredBroadbandReportJobStatusDto

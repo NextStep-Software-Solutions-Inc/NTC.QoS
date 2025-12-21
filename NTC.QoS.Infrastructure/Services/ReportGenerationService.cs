@@ -444,6 +444,14 @@ public class ReportGenerationService : IReportGenerationService
             _logger.LogInformation("  - {Provider}: {Coverage} barangays", kvp.Key, kvp.Value);
         }
 
+        // CRITICAL: Handle case when no providers found (prevents Excel corruption)
+        var hasProviders = providerHeaders.Length > 0;
+        if (!hasProviders)
+        {
+            _logger.LogWarning("EXCEL GENERATION - No providers found! Adding placeholder column to prevent Excel corruption.");
+            providerHeaders = new[] { "No Providers" }; // Add placeholder
+        }
+
         // Fetch provider colors from database
         var providerColors = await FetchProviderColorsAsync(providerHeaders, cancellationToken);
  
@@ -543,8 +551,19 @@ public class ReportGenerationService : IReportGenerationService
                 for (int i = 0; i < providerHeaders.Length; i++)
                 {
                     var providerName = providerHeaders[i];
+                    
+                    // Skip checkmark logic if using placeholder (no real providers)
+                    if (!hasProviders)
+                    {
+                        var cell = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
+                        cell.Value = "N/A";
+                        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        cell.Style.Font.FontColor = XLColor.Gray;
+                        continue;
+                    }
+                    
                     var hasProvider = barangay.ProviderAvailability.Providers.GetValueOrDefault(providerName, false);
-                    var cell = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
+                    var cell2 = worksheet.Cell(currentRow, wiredBroadbandStartCol + i);
    
                     // Log first row for debugging
                     if (currentRow == 4)
@@ -555,11 +574,11 @@ public class ReportGenerationService : IReportGenerationService
 
                     if (hasProvider)
                     {
-                        cell.Value = "✓";  // Unicode checkmark symbol
-                        cell.Style.Font.FontSize = 14;
-                        cell.Style.Font.Bold = true;
-                        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        cell.Style.Font.FontColor = XLColor.Green;
+                        cell2.Value = "✓";  // Unicode checkmark symbol
+                        cell2.Style.Font.FontSize = 14;
+                        cell2.Style.Font.Bold = true;
+                        cell2.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        cell2.Style.Font.FontColor = XLColor.Green;
                     }
                 }
   

@@ -69,13 +69,11 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 }
             }
 
-            // Build municipality query with geographic filters
-            var municipalityQuery = _municipalityRepository.Query()
-                .Include(m => m.Province)
-                .ThenInclude(p => p.Region)
-                .AsQueryable();
+            // Build municipality query with geographic filters using subquery projection pattern
+            // OPTIMIZATION: Use AsNoTracking + projection to avoid geometry materialization
+            var municipalityQuery = _municipalityRepository.QueryAsNoTracking();
 
-            // Apply filters
+            // Apply filters using subquery pattern (filters work via navigation properties)
             if (request.RegionId.HasValue)
             {
                 municipalityQuery = municipalityQuery.Where(m => m.Province.RegionId == request.RegionId.Value);
@@ -114,24 +112,28 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 };
             }
 
-            // Apply pagination conditionally
-            List<Domain.Entities.Municipality> municipalities;
-            
+            // Apply pagination conditionally with subquery projection
+            var municipalities = request.DisablePagination
+                ? await _municipalityRepository.ToListAsync(
+                    municipalityQuery
+                        .Select(m => new { m.Id, m.Name, m.Code })
+                        .OrderBy(m => m.Name),
+                    cancellationToken)
+                : await _municipalityRepository.ToListAsync(
+                    municipalityQuery
+                        .Select(m => new { m.Id, m.Name, m.Code })
+                        .OrderBy(m => m.Name)
+                        .Skip((request.PageNumber - 1) * request.PageSize)
+                        .Take(request.PageSize),
+                    cancellationToken);
+
             if (request.DisablePagination)
             {
                 _logger.LogInformation("Pagination disabled - fetching all {Count} municipalities", totalMunicipalities);
-                municipalities = await municipalityQuery
-                    .OrderBy(m => m.Name)
-                    .ToListAsync(cancellationToken);
             }
             else
             {
                 _logger.LogInformation("Pagination enabled - fetching page {PageNumber} (size: {PageSize})", request.PageNumber, request.PageSize);
-                municipalities = await municipalityQuery
-                    .OrderBy(m => m.Name)
-                    .Skip((request.PageNumber - 1) * request.PageSize)
-                    .Take(request.PageSize)
-                    .ToListAsync(cancellationToken);
             }
 
             // If force recalculation is requested, trigger background job for assessment generation
@@ -190,8 +192,9 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             // Process each municipality using connectivity assessment approach
             foreach (var municipality in municipalities)
             {
-                var municipalityDto = await ProcessMunicipalityFromAssessmentAsync(municipality, request, 
-                    municipalitiesWithoutAssessments, barangaysWithoutAssessments, cancellationToken);
+                var municipalityDto = await ProcessMunicipalityFromAssessmentAsync(
+                    municipality.Id, municipality.Name, municipality.Code, 
+                    request, municipalitiesWithoutAssessments, barangaysWithoutAssessments, cancellationToken);
                 
                 if (municipalityDto == null)
                 {
@@ -216,7 +219,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 }
 
                 // Only include municipality if it has barangays (after filtering)
-                if (municipalityDto.Barangays.Count != 0)
+                if (municipalityDto.Barangays.Any())
                 {
                     municipalityBroadbandData.Add(municipalityDto);
                 }
@@ -304,7 +307,9 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// Returns null if municipality assessment is not available
     /// </summary>
     private async Task<MunicipalityBroadbandDto?> ProcessMunicipalityFromAssessmentAsync(
-        Domain.Entities.Municipality municipality,
+        Guid municipalityId,
+        string municipalityName,
+        string municipalityCode,
         GetWiredBroadbandReportQuery request,
         List<string> municipalitiesWithoutAssessments,
         List<string> barangaysWithoutAssessments,
@@ -312,7 +317,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     {
         // Check if connectivity assessment exists for this municipality
         var municipalityAssessment = await _connectivityAssessmentRepository
-            .GetByLocationAsync(municipality.Id, LocationTypeEnum.Municipality, cancellationToken);
+            .GetByLocationAsync(municipalityId, LocationTypeEnum.Municipality, cancellationToken);
 
         if (municipalityAssessment == null || municipalityAssessment.LastUpdated <= DateTime.UtcNow.AddDays(-30))
         {
@@ -321,35 +326,39 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 : $"stale (last updated: {municipalityAssessment.LastUpdated:yyyy-MM-dd})";
 
             _logger.LogWarning("Connectivity assessment for municipality {MunicipalityName} (ID: {MunicipalityId}) is {Status}. Skipping municipality.",
-                municipality.Name, municipality.Id, statusMessage);
+                municipalityName, municipalityId, statusMessage);
             
-            municipalitiesWithoutAssessments.Add(municipality.Name);
+            municipalitiesWithoutAssessments.Add(municipalityName);
             return null;
         }
 
         _logger.LogInformation("Using connectivity assessment for municipality {MunicipalityName} (last updated: {LastUpdated})",
-            municipality.Name, municipalityAssessment.LastUpdated);
+            municipalityName, municipalityAssessment.LastUpdated);
 
-        // Get barangays for this municipality
-        var barangays = await _barangayRepository
-            .Query(b => b.MunicipalityId == municipality.Id)
-            .OrderBy(b => b.Name)
-            .ToListAsync(cancellationToken);
+        // Get barangays for this municipality using subquery projection
+        // OPTIMIZATION: Project only needed fields (Id, Name, Code) to avoid geometry materialization
+        var barangays = await _barangayRepository.ToListAsync(
+            _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
+                .Select(b => new { b.Id, b.Name, b.Code })
+                .OrderBy(b => b.Name),
+            cancellationToken);
 
         var barangayBroadbandData = new List<BarangayBroadbandDto>();
 
         // Process barangays using assessments (prioritize barangay-level, fallback to municipality-level)
         foreach (var barangay in barangays)
         {
-            var barangayDto = await ProcessBarangayFromAssessmentAsync(barangay, municipalityAssessment, barangaysWithoutAssessments, cancellationToken);
+            var barangayDto = await ProcessBarangayFromAssessmentAsync(
+                barangay.Id, barangay.Name, barangay.Code,
+                municipalityAssessment, barangaysWithoutAssessments, cancellationToken);
             barangayBroadbandData.Add(barangayDto);
         }
 
         return new MunicipalityBroadbandDto
         {
-            Id = municipality.Id,
-            Name = municipality.Name,
-            Code = municipality.Code,
+            Id = municipalityId,
+            Name = municipalityName,
+            Code = municipalityCode,
             Barangays = barangayBroadbandData
         };
     }
@@ -358,14 +367,16 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// Process barangay using assessment data (check barangay first, fallback to municipality)
     /// </summary>
     private async Task<BarangayBroadbandDto> ProcessBarangayFromAssessmentAsync(
-        Domain.Entities.Barangay barangay,
+        Guid barangayId,
+        string barangayName,
+        string barangayCode,
         Domain.Entities.ConnectivityAssessment municipalityAssessment,
         List<string> barangaysWithoutAssessments,
         CancellationToken cancellationToken)
     {
         // Check for barangay-level assessment first (most accurate)
         var barangayAssessment = await _connectivityAssessmentRepository
-            .GetByLocationAsync(barangay.Id, LocationTypeEnum.Barangay, cancellationToken);
+            .GetByLocationAsync(barangayId, LocationTypeEnum.Barangay, cancellationToken);
 
         var useBarangayAssessment = barangayAssessment != null &&
             barangayAssessment.LastUpdated > DateTime.UtcNow.AddDays(-30);
@@ -373,17 +384,21 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         if (useBarangayAssessment)
         {
             // Use barangay-level assessment (highest priority)
-            return await CreateBarangayDtoFromAssessmentAsync(barangay, barangayAssessment!, isBarangayLevel: true, cancellationToken);
+            return await CreateBarangayDtoFromAssessmentAsync(
+                barangayId, barangayName, barangayCode, 
+                barangayAssessment!, true, cancellationToken);
         }
         else
         {
             // Use municipality-level assessment as approximation
             if (barangayAssessment == null)
             {
-                barangaysWithoutAssessments.Add($"{barangay.Name} (using municipality estimate)");
+                barangaysWithoutAssessments.Add($"{barangayName} (using municipality estimate)");
             }
             
-            return await CreateBarangayDtoFromMunicipalityAssessmentAsync(barangay, municipalityAssessment, cancellationToken);
+            return await CreateBarangayDtoFromMunicipalityAssessmentAsync(
+                barangayId, barangayName, barangayCode,
+                municipalityAssessment, cancellationToken);
         }
     }
 
@@ -391,7 +406,9 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// Create BarangayBroadbandDto from barangay-level connectivity assessment data
     /// </summary>
     private async Task<BarangayBroadbandDto> CreateBarangayDtoFromAssessmentAsync(
-        Domain.Entities.Barangay barangay,
+        Guid barangayId,
+        string barangayName,
+        string barangayCode,
         Domain.Entities.ConnectivityAssessment assessment,
         bool isBarangayLevel,
         CancellationToken cancellationToken)
@@ -406,7 +423,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 .GetProvidersByAssessmentIdAsync(assessment.Id, cancellationToken);
 
             _logger.LogDebug("Barangay {BarangayName}: Found {ProviderCount} providers in breakdown, {FiberProviderCount} with fiber NAPs",
-                barangay.Name, providerBreakdown.Count, providerBreakdown.Count(p => p.FiberNAPCount > 0));
+                barangayName, providerBreakdown.Count, providerBreakdown.Count(p => p.FiberNAPCount > 0));
 
             // Add all providers that have wired infrastructure (fiber NAPs)
             var fiberProviders = providerBreakdown
@@ -420,7 +437,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             if (fiberProviders.Count != 0)
             {
                 _logger.LogDebug("Barangay {BarangayName}: Fiber providers: {Providers}",
-                barangay.Name, string.Join(", ", fiberProviders));
+                    barangayName, string.Join(", ", fiberProviders));
             }
 
         }
@@ -434,15 +451,22 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         // For wired broadband, use fiber coverage score to determine status
         var serviceStatus = DetermineWiredBroadbandStatus(assessment.FiberCoverageScore);
         
+        // CRITICAL WARNING: Log inconsistency if served but no providers
+        if (serviceStatus == ServiceStatusEnum.Served && providerAvailability.ProviderCount == 0)
+        {
+            _logger.LogWarning("DATA INCONSISTENCY - Barangay {BarangayName}: Status is SERVED (FiberCoverageScore={Score}) but NO providers with fiber NAPs found. Assessment ID: {AssessmentId}, ServiceProviderCount: {ProviderCount}",
+                barangayName, assessment.FiberCoverageScore, assessment.Id, assessment.ServiceProviderCount);
+        }
+        
         // Pass actual fiber provider count instead of total ServiceProviderCount
         var actualFiberProviderCount = providerAvailability.ProviderCount;
         var remarks = GenerateRemarksFromAssessment(assessment, actualFiberProviderCount, isBarangayLevel);
 
         return new BarangayBroadbandDto
         {
-            Id = barangay.Id,
-            Name = barangay.Name,
-            Code = barangay.Code,
+            Id = barangayId,
+            Name = barangayName,
+            Code = barangayCode,
             ProviderAvailability = providerAvailability,
             ServiceStatus = serviceStatus,
             Remarks = remarks
@@ -453,7 +477,9 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
     /// Create BarangayBroadbandDto using municipality-level assessment as approximation
     /// </summary>
     private async Task<BarangayBroadbandDto> CreateBarangayDtoFromMunicipalityAssessmentAsync(
-        Domain.Entities.Barangay barangay,
+        Guid barangayId,
+        string barangayName,
+        string barangayCode,
         Domain.Entities.ConnectivityAssessment municipalityAssessment,
         CancellationToken cancellationToken)
     {
@@ -467,7 +493,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 .GetProvidersByAssessmentIdAsync(municipalityAssessment.Id, cancellationToken);
 
             _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Found {ProviderCount} providers in breakdown, {FiberProviderCount} with fiber NAPs",
-                barangay.Name, providerBreakdown.Count, providerBreakdown.Count(p => p.FiberNAPCount > 0));
+                barangayName, providerBreakdown.Count, providerBreakdown.Count(p => p.FiberNAPCount > 0));
 
             // Add all providers that have wired infrastructure
             var fiberProviders = providerBreakdown
@@ -481,7 +507,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             if (fiberProviders.Count != 0)
             {
                 _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): Fiber providers: {Providers}",
-                barangay.Name, string.Join(", ", fiberProviders));
+                    barangayName, string.Join(", ", fiberProviders));
             }
 
             // Fallback to dominant provider
@@ -489,7 +515,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             {
                 providers.Add(municipalityAssessment.DominantServiceProvider);
                 _logger.LogDebug("Barangay {BarangayName} (using municipality estimate): No fiber providers found, using dominant provider: {Provider}",
-                    barangay.Name, municipalityAssessment.DominantServiceProvider);
+                    barangayName, municipalityAssessment.DominantServiceProvider);
             }
         }
 
@@ -502,15 +528,22 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         // For wired broadband, use fiber coverage score to determine status
         var serviceStatus = DetermineWiredBroadbandStatus(municipalityAssessment.FiberCoverageScore);
         
+        // CRITICAL WARNING: Log inconsistency if served but no providers (municipality estimate)
+        if (serviceStatus == ServiceStatusEnum.Served && providerAvailability.ProviderCount == 0)
+        {
+            _logger.LogWarning("DATA INCONSISTENCY - Barangay {BarangayName} (municipality estimate): Status is SERVED (FiberCoverageScore={Score}) but NO providers with fiber NAPs found. Assessment ID: {AssessmentId}, ServiceProviderCount: {ProviderCount}",
+                barangayName, municipalityAssessment.FiberCoverageScore, municipalityAssessment.Id, municipalityAssessment.ServiceProviderCount);
+        }
+        
         // Pass actual fiber provider count instead of total ServiceProviderCount
         var actualFiberProviderCount = providerAvailability.ProviderCount;
         var remarks = GenerateRemarksFromMunicipalityAssessment(municipalityAssessment, actualFiberProviderCount);
 
         return new BarangayBroadbandDto
         {
-            Id = barangay.Id,
-            Name = barangay.Name,
-            Code = barangay.Code,
+            Id = barangayId,
+            Name = barangayName,
+            Code = barangayCode,
             ProviderAvailability = providerAvailability,
             ServiceStatus = serviceStatus,
             Remarks = remarks

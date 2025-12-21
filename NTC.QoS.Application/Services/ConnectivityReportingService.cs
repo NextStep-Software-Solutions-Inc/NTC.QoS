@@ -554,22 +554,22 @@ public class ConnectivityReportingService : IConnectivityReportingService
         return locationType switch
         {
             LocationTypeEnum.Barangay => await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => locationIds.Contains(b.Id))
+                _barangayRepository.QueryAsNoTracking(b => locationIds.Contains(b.Id))
                     .Select(b => new { b.Id, b.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 
             LocationTypeEnum.Municipality => await _municipalityRepository.ToListAsync(
-                _municipalityRepository.Query(m => locationIds.Contains(m.Id))
+                _municipalityRepository.QueryAsNoTracking(m => locationIds.Contains(m.Id))
                     .Select(m => new { m.Id, m.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 
             LocationTypeEnum.Provincial => await _provinceRepository.ToListAsync(
-                _provinceRepository.Query(p => locationIds.Contains(p.Id))
+                _provinceRepository.QueryAsNoTracking(p => locationIds.Contains(p.Id))
                     .Select(p => new { p.Id, p.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 
             LocationTypeEnum.Regional => await _regionRepository.ToListAsync(
-                _regionRepository.Query(r => locationIds.Contains(r.Id))
+                _regionRepository.QueryAsNoTracking(r => locationIds.Contains(r.Id))
                     .Select(r => new { r.Id, r.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 

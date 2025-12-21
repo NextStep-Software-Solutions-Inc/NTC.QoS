@@ -123,13 +123,11 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
 
             _logger.LogInformation("Job {JobId}: Fetching municipalities with filters", jobId);
 
-            // Build municipality query with geographic filters
-            var municipalityQuery = _municipalityRepository.Query()
-                .Include(m => m.Province)
-                .ThenInclude(p => p.Region)
-                .AsQueryable();
+            // Build municipality query with geographic filters using subquery projection pattern
+            // OPTIMIZATION: Use AsNoTracking + immediate projection to avoid geometry materialization
+            var municipalityQuery = _municipalityRepository.QueryAsNoTracking();
 
-            // Apply filters
+            // Apply filters using subquery pattern
             if (jobRequest.RegionId.HasValue)
             {
                 municipalityQuery = municipalityQuery.Where(m => m.Province.RegionId == jobRequest.RegionId.Value);
@@ -145,7 +143,13 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
                 municipalityQuery = municipalityQuery.Where(m => m.Id == jobRequest.MunicipalityId.Value);
             }
 
-            var municipalities = await municipalityQuery.OrderBy(m => m.Name).ToListAsync(cancellationToken);
+            // Use subquery projection to select only required fields (Id, Name, Code)
+            // This prevents loading geometry fields (Boundaries, Center, Area)
+            var municipalities = await _municipalityRepository.ToListAsync(
+                municipalityQuery
+                    .Select(m => new { m.Id, m.Name, m.Code })
+                    .OrderBy(m => m.Name),
+                cancellationToken);
             var municipalityBroadbandData = new List<MunicipalityBroadbandDto>();
 
             _logger.LogInformation("Job {JobId}: Found {Count} municipalities, generating report data", jobId, municipalities.Count);
@@ -153,7 +157,8 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
             // Process each municipality
             foreach (var municipality in municipalities)
             {
-                var municipalityDto = await ProcessMunicipalityAsync(municipality, jobRequest, cancellationToken);
+                var municipalityDto = await ProcessMunicipalityAsync(
+                    municipality.Id, municipality.Name, municipality.Code, jobRequest, cancellationToken);
                 
                 if (municipalityDto != null && municipalityDto.Barangays.Any())
                 {
@@ -348,33 +353,39 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
     /// Process municipality to generate report data using connectivity assessments
     /// </summary>
     private async Task<MunicipalityBroadbandDto?> ProcessMunicipalityAsync(
-        Municipality municipality,
+        Guid municipalityId,
+        string municipalityName,
+        string municipalityCode,
         WiredBroadbandReportJobRequestDto jobRequest,
         CancellationToken cancellationToken)
     {
         // Check if connectivity assessment exists for this municipality
         var municipalityAssessment = await _connectivityAssessmentRepository
-            .GetByLocationAsync(municipality.Id, LocationTypeEnum.Municipality, cancellationToken);
+            .GetByLocationAsync(municipalityId, LocationTypeEnum.Municipality, cancellationToken);
 
         if (municipalityAssessment == null || municipalityAssessment.LastUpdated <= DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
         {
             _logger.LogWarning("Connectivity assessment for municipality {MunicipalityName} (ID: {MunicipalityId}) is missing or stale. Skipping.",
-                municipality.Name, municipality.Id);
+                municipalityName, municipalityId);
             return null;
         }
 
-        // Get barangays for this municipality
-        var barangays = await _barangayRepository
-            .Query(b => b.MunicipalityId == municipality.Id)
-            .OrderBy(b => b.Name)
-            .ToListAsync(cancellationToken);
+        // Get barangays for this municipality using subquery projection
+        // OPTIMIZATION: Project only needed fields (Id, Name, Code) to avoid geometry materialization
+        var barangays = await _barangayRepository.ToListAsync(
+            _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
+                .Select(b => new { b.Id, b.Name, b.Code })
+                .OrderBy(b => b.Name),
+            cancellationToken);
 
         var barangayBroadbandData = new List<BarangayBroadbandDto>();
 
         // Process barangays
         foreach (var barangay in barangays)
         {
-            var barangayDto = await ProcessBarangayAsync(barangay, municipalityAssessment, cancellationToken);
+            var barangayDto = await ProcessBarangayAsync(
+                barangay.Id, barangay.Name, barangay.Code,
+                municipalityAssessment, cancellationToken);
             
             // Apply status filter if specified
             if (!jobRequest.FilterByStatus.HasValue || barangayDto.ServiceStatus == jobRequest.FilterByStatus.Value)
@@ -391,9 +402,9 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
 
         return new MunicipalityBroadbandDto
         {
-            Id = municipality.Id,
-            Name = municipality.Name,
-            Code = municipality.Code,
+            Id = municipalityId,
+            Name = municipalityName,
+            Code = municipalityCode,
             Barangays = barangayBroadbandData
         };
     }
@@ -402,13 +413,15 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
     /// Process barangay using assessment data
     /// </summary>
     private async Task<BarangayBroadbandDto> ProcessBarangayAsync(
-        Barangay barangay,
+        Guid barangayId,
+        string barangayName,
+        string barangayCode,
         ConnectivityAssessment municipalityAssessment,
         CancellationToken cancellationToken)
     {
         // Check for barangay-level assessment first
         var barangayAssessment = await _connectivityAssessmentRepository
-            .GetByLocationAsync(barangay.Id, LocationTypeEnum.Barangay, cancellationToken);
+            .GetByLocationAsync(barangayId, LocationTypeEnum.Barangay, cancellationToken);
 
         var useBarangayAssessment = barangayAssessment != null &&
             barangayAssessment.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS);
@@ -430,12 +443,6 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
                 .ToList();
 
             providers.AddRange(fiberProviders);
-
-            // Fallback to dominant provider if no fiber providers found
-            if (!providers.Any() && !string.IsNullOrEmpty(assessment.DominantServiceProvider))
-            {
-                providers.Add(assessment.DominantServiceProvider);
-            }
         }
 
         var providerAvailability = new ServiceProviderAvailabilityDto();
@@ -452,9 +459,9 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
 
         return new BarangayBroadbandDto
         {
-            Id = barangay.Id,
-            Name = barangay.Name,
-            Code = barangay.Code,
+            Id = barangayId,
+            Name = barangayName,
+            Code = barangayCode,
             ProviderAvailability = providerAvailability,
             ServiceStatus = serviceStatus,
             Remarks = remarks
@@ -463,14 +470,16 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
 
     /// <summary>
     /// Determine wired broadband service status from fiber coverage score
+    /// Score 3 = Served, Score 2 = Underserved, Score 1 or 0 = Unserved
+    /// CRITICAL: FiberCoverageScore is an INT (1-3), not a double (0.0-1.0)
     /// </summary>
-    private static ServiceStatusEnum DetermineWiredBroadbandStatus(double fiberCoverageScore)
+    private static ServiceStatusEnum DetermineWiredBroadbandStatus(int fiberCoverageScore)
     {
         return fiberCoverageScore switch
         {
-            >= 0.8 => ServiceStatusEnum.Served,
-            >= 0.5 => ServiceStatusEnum.Underserved,
-            _ => ServiceStatusEnum.Unserved
+            3 => ServiceStatusEnum.Served,
+            2 => ServiceStatusEnum.Underserved,
+            _ => ServiceStatusEnum.Unserved  // 1 or 0
         };
     }
 
@@ -514,6 +523,7 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
         var allBarangays = municipalities.SelectMany(m => m.Barangays).ToList();
         var allProviders = new HashSet<string>();
 
+        // Collect all unique providers from all barangays
         foreach (var barangay in allBarangays)
         {
             foreach (var provider in barangay.ProviderAvailability.AvailableProviders)
@@ -522,14 +532,27 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
             }
         }
 
+        var allProvidersList = allProviders.OrderBy(p => p).ToList();
+
+        // Calculate provider coverage (how many barangays each provider serves)
+        var providerCoverage = new Dictionary<string, int>();
+        foreach (var provider in allProvidersList)
+        {
+            var coverageCount = allBarangays.Count(b => 
+                b.ProviderAvailability.Providers.TryGetValue(provider, out var isAvailable) && isAvailable);
+            providerCoverage[provider] = coverageCount;
+        }
+
         return new WiredBroadbandSummaryDto
         {
             TotalMunicipalities = municipalities.Count,
             TotalBarangays = allBarangays.Count,
             ServedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Served),
-            UnservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Unserved),
             UnderservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Underserved),
-            AllProviders = allProviders.OrderBy(p => p).ToList()
+            UnservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Unserved),
+            AllProviders = allProvidersList,
+            ProviderCoverage = providerCoverage,
+            GeneratedAt = DateTime.UtcNow
         };
     }
 
