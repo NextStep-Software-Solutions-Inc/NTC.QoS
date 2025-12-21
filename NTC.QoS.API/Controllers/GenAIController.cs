@@ -27,24 +27,38 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
-    /// Chat with AI assistant
+    /// Chat with AI assistant (Streaming Response)
     /// </summary>
     /// <remarks>
-    /// This endpoint allows users to interact with an AI assistant powered by Google's Gemini model.
+    /// This endpoint allows users to interact with an AI assistant powered by Google's Gemini model with real-time streaming responses.
     /// 
     /// **Features:**
     /// - Natural language Q&A about project data and outputs
-    /// - Multi-modal support: accepts text prompts with optional file attachments
-    /// - Supported file types: Images (JPEG, PNG, WebP, HEIC), PDFs, Excel files (.xlsx, .xls), and text files (.txt, .csv, .json)
-    /// - Real-time conversational responses
+    /// - **Streaming responses**: Real-time AI response chunks via Server-Sent Events (SSE)
+    /// - **Multi-modal support**: Accepts text prompts with optional file attachments
+    /// - **Supported file types**: 
+    ///   - Images: JPEG, PNG, WebP, HEIC, GIF
+    ///   - Documents: PDF files
+    ///   - Text files: .txt, .csv, .json, .xml
+    ///   - Spreadsheets: Excel (.xlsx, .xls) - extracted as text
+    /// - File content is analyzed by the AI model for comprehensive responses
     /// 
-    /// **Usage Example:**
-    /// - Ask questions about uploaded data: "What are the coverage statistics for Region 10?"
+    /// **Usage Examples:**
+    /// - Ask questions: "What are the coverage statistics for Region 10?"
     /// - Analyze attached files: Upload a spreadsheet and ask "Summarize the key metrics in this file"
+    /// - Multi-file analysis: Upload multiple images/PDFs and ask "Compare these documents"
     /// - Get insights: "What patterns do you see in the network performance data?"
     /// 
     /// **Request Format:**
-    /// Use `multipart/form-data` when including file attachments.
+    /// - Content-Type: `multipart/form-data` (required for file attachments)
+    /// - Fields:
+    ///   - `prompt` (required): Your question or instruction as text (max 10,000 characters)
+    ///   - `files` (optional): One or more file attachments (max 10 files)
+    /// 
+    /// **Response Format:**
+    /// - Content-Type: `text/event-stream` (Server-Sent Events)
+    /// - Each chunk of the AI response is sent as it's generated
+    /// - Connection stays open until the response is complete
     /// 
     /// **Permissions Required:**
     /// - `genai.chat` - Allows access to the AI chat assistant
@@ -52,60 +66,63 @@ public class GenAIController : ControllerBase
     /// **Rate Limiting:**
     /// Subject to standard API rate limits and Google AI API quotas.
     /// </remarks>
-    /// <param name="chatRequest">The chat request containing the prompt and optional files</param>
-    /// <returns>AI-generated response</returns>
-    /// <response code="200">Successfully generated chat response</response>
+    /// <param name="chatRequest">The chat request containing the prompt and optional file attachments (max 10 files)</param>
+    /// <returns>Streaming AI-generated response</returns>
+    /// <response code="200">Successfully streaming chat response</response>
     /// <response code="400">Invalid request or AI service error</response>
     /// <response code="401">Unauthorized - authentication required</response>
     /// <response code="403">Forbidden - insufficient permissions</response>
     [HttpPost("chat")]
     [RequirePermission(Permissions.ChatWithAI)]
-    [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 200)]
+    [ProducesResponseType(200)]
     [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 400)]
-    public async Task<ActionResult<ApiResponse<ChatResponseDto>>> Chat([FromForm] ChatRequestDto chatRequest)
+    [Consumes("multipart/form-data")]
+    public async Task Chat([FromForm] ChatRequestDto chatRequest)
     {
         try
         {
-            _logger.LogInformation("Received chat request with {FileCount} files", chatRequest.Files?.Count ?? 0);
+            _logger.LogInformation("Received streaming chat request with {FileCount} files", chatRequest.Files?.Count ?? 0);
 
-            var request = new ChatRequest(chatRequest);
-            var response = await _mediator.Send(request);
+            // Set headers for Server-Sent Events (SSE)
+            Response.Headers.Append("Content-Type", "text/event-stream");
+            Response.Headers.Append("Cache-Control", "no-cache");
+            Response.Headers.Append("Connection", "keep-alive");
 
-            return response.Succeeded ? Ok(response) : BadRequest(response);
+            var request = new ChatRequest(chatRequest, Response);
+            await _mediator.Send(request);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing chat request");
-            return BadRequest(new ApiResponse<ChatResponseDto>
-            {
-                Succeeded = false,
-                Message = "An error occurred while processing your request"
-            });
+            _logger.LogError(ex, "Error processing streaming chat request");
+            Response.StatusCode = 400;
+            await Response.WriteAsync($"data: {{\"error\": \"An error occurred while processing your request: {ex.Message}\"}}\n\n");
         }
     }
 
     /// <summary>
-    /// Generate a report using AI
+    /// Generate a report using AI (Streaming Response)
     /// </summary>
     /// <remarks>
-    /// This endpoint uses AI to generate comprehensive reports based on provided instructions and attached resources.
+    /// This endpoint uses AI to generate comprehensive reports based on provided instructions and attached resources with real-time streaming.
     /// 
     /// **Features:**
+    /// - **Streaming responses**: Real-time report generation via Server-Sent Events (SSE)
     /// - Automatic report generation from data files
     /// - Intelligent analysis and insight extraction
     /// - Professional formatting with executive summaries, key findings, and recommendations
-    /// - Multi-file analysis: Combine data from multiple sources
+    /// - **Multi-file analysis**: Combine data from multiple sources
     /// 
-    /// **Supported File Types:**
-    /// - Images: JPEG, PNG, WebP, HEIC (for visual data analysis)
-    /// - Documents: PDF files
-    /// - Spreadsheets: Excel (.xlsx, .xls) files
-    /// - Text: Plain text (.txt), CSV, JSON files
+    /// **Supported File Types (with actual processing):**
+    /// - Images: JPEG, PNG, WebP, HEIC, GIF (for visual data analysis)
+    /// - Documents: PDF files (content extracted and analyzed)
+    /// - Text: Plain text (.txt), CSV, JSON, XML files (content included in analysis)
+    /// - Spreadsheets: Excel (.xlsx, .xls) files (extracted as text)
     /// 
     /// **Usage Examples:**
     /// - Network Analysis: "Generate a coverage analysis report" + attach speedtest data
     /// - Performance Review: "Create a summary of network performance trends" + attach multiple data files
     /// - Custom Reports: "Compare the coverage between Region A and Region B" + attach regional data
+    /// - Visual Analysis: "Analyze these network topology diagrams" + attach images
     /// 
     /// **Report Structure:**
     /// The AI will generate reports containing:
@@ -115,43 +132,52 @@ public class GenAIController : ControllerBase
     /// 4. Recommendations (when applicable)
     /// 
     /// **Request Format:**
-    /// Use `multipart/form-data` when including file attachments.
+    /// - Content-Type: `multipart/form-data` (required for file attachments)
+    /// - Fields:
+    ///   - `prompt` (required): Instructions for report generation (max 10,000 characters)
+    ///   - `files` (optional): One or more resource files to analyze (max 10 files)
+    /// 
+    /// **Response Format:**
+    /// - Content-Type: `text/event-stream` (Server-Sent Events)
+    /// - Each chunk of the report is sent as it's generated
+    /// - Connection stays open until the report is complete
     /// 
     /// **Permissions Required:**
     /// - `genai.generate_reports` - Allows generating AI-powered reports
     /// 
     /// **Performance:**
-    /// Report generation time varies based on file size and complexity (typically 5-30 seconds).
+    /// Report generation time varies based on file size and complexity. Streaming provides real-time feedback.
     /// </remarks>
-    /// <param name="reportRequest">The report generation request containing instructions and optional resource files</param>
-    /// <returns>Generated report content</returns>
-    /// <response code="200">Successfully generated report</response>
+    /// <param name="reportRequest">The report generation request containing instructions and optional resource files (max 10 files)</param>
+    /// <returns>Streaming generated report content</returns>
+    /// <response code="200">Successfully streaming generated report</response>
     /// <response code="400">Invalid request or AI service error</response>
     /// <response code="401">Unauthorized - authentication required</response>
     /// <response code="403">Forbidden - insufficient permissions</response>
     [HttpPost("generate-report")]
     [RequirePermission(Permissions.GenerateReports)]
-    [ProducesResponseType(typeof(ApiResponse<GenerateReportResponseDto>), 200)]
+    [ProducesResponseType(200)]
     [ProducesResponseType(typeof(ApiResponse<GenerateReportResponseDto>), 400)]
-    public async Task<ActionResult<ApiResponse<GenerateReportResponseDto>>> GenerateReport([FromForm] GenerateReportRequestDto reportRequest)
+    [Consumes("multipart/form-data")]
+    public async Task GenerateReport([FromForm] GenerateReportRequestDto reportRequest)
     {
         try
         {
-            _logger.LogInformation("Received report generation request with {FileCount} files", reportRequest.Files?.Count ?? 0);
+            _logger.LogInformation("Received streaming report generation request with {FileCount} files", reportRequest.Files?.Count ?? 0);
 
-            var request = new GenerateReportRequest(reportRequest);
-            var response = await _mediator.Send(request);
+            // Set headers for Server-Sent Events (SSE)
+            Response.Headers.Append("Content-Type", "text/event-stream");
+            Response.Headers.Append("Cache-Control", "no-cache");
+            Response.Headers.Append("Connection", "keep-alive");
 
-            return response.Succeeded ? Ok(response) : BadRequest(response);
+            var request = new GenerateReportRequest(reportRequest, Response);
+            await _mediator.Send(request);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating report");
-            return BadRequest(new ApiResponse<GenerateReportResponseDto>
-            {
-                Succeeded = false,
-                Message = "An error occurred while generating the report"
-            });
+            _logger.LogError(ex, "Error streaming report generation");
+            Response.StatusCode = 400;
+            await Response.WriteAsync($"data: {{\"error\": \"An error occurred while generating the report: {ex.Message}\"}}\n\n");
         }
     }
 }

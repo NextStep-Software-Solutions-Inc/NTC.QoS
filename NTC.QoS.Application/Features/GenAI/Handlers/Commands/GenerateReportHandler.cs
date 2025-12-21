@@ -1,16 +1,15 @@
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.GenAI;
 
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Commands;
 
 /// <summary>
-/// Handler for AI report generation requests
+/// Handler for AI report generation requests with streaming response
 /// </summary>
-public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, ApiResponse<GenerateReportResponseDto>>
+public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit>
 {
     private readonly IGenAIService _genAIService;
     private readonly ILogger<GenerateReportHandler> _logger;
@@ -21,39 +20,35 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, ApiR
         _logger = logger;
     }
 
-    public async Task<ApiResponse<GenerateReportResponseDto>> Handle(GenerateReportRequest request, CancellationToken cancellationToken)
+    public async Task<Unit> Handle(GenerateReportRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            _logger.LogInformation("Processing report generation request with {FileCount} files", request.Request.Files?.Count ?? 0);
+            _logger.LogInformation("Processing streaming report generation request with {FileCount} files", request.Request.Files?.Count ?? 0);
 
-            var reportContent = await _genAIService.GenerateReportAsync(
+            await foreach (var chunk in _genAIService.GenerateReportStreamAsync(
                 request.Request.Prompt,
                 request.Request.Files,
-                cancellationToken);
-
-            var reportResponse = new GenerateReportResponseDto
+                cancellationToken))
             {
-                ReportContent = reportContent,
-                FilesAnalyzed = request.Request.Files?.Count ?? 0,
-                GeneratedAt = DateTime.UtcNow
-            };
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
 
-            return new ApiResponse<GenerateReportResponseDto>
-            {
-                Data = reportResponse,
-                Succeeded = true,
-                Message = "Report generated successfully"
-            };
+                // Write chunk in SSE format
+                await request.HttpResponse.WriteAsync($"data: {chunk}\n\n", cancellationToken);
+                await request.HttpResponse.Body.FlushAsync(cancellationToken);
+            }
+
+            _logger.LogInformation("Report streaming completed successfully");
+            return Unit.Value;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating report");
-            return new ApiResponse<GenerateReportResponseDto>
-            {
-                Succeeded = false,
-                Message = $"Failed to generate report: {ex.Message}"
-            };
+            _logger.LogError(ex, "Error streaming report generation");
+            await request.HttpResponse.WriteAsync($"data: {{\"error\": \"{ex.Message}\"}}\n\n", cancellationToken);
+            throw;
         }
     }
 }
