@@ -69,18 +69,17 @@ public class GenAIService : IGenAIService
         _logger.LogInformation("Processing streaming report generation request with prompt length: {PromptLength}, files: {FileCount}", 
             prompt.Length, files?.Count ?? 0);
 
-        var enhancedPrompt = $@"You are a professional report generator. Generate a comprehensive, well-structured report based on the following instructions and any attached files.
+        var enhancedPrompt = $@"Generate a comprehensive, well-structured report in clean markdown format based on the following instructions and any attached files. Output ONLY the report content with proper markdown headings and sections. Do not include any conversational text, meta-commentary, or explanations about the report - just the clean report itself.
 
-Instructions:
 {prompt}
 
-Please provide:
+Structure the report with:
 1. An executive summary
 2. Detailed analysis based on the data provided
 3. Key findings and insights
 4. Recommendations (if applicable)
 
-Format the report in a clear, professional manner with proper headings and sections.";
+Use proper markdown formatting with # for headings, ## for subheadings, - for bullet points, etc. The output should be ready for download or printing as a markdown document.";
 
         var parts = new List<Part>();
         
