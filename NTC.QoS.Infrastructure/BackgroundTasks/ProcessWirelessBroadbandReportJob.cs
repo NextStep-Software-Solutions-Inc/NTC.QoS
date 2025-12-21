@@ -72,6 +72,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             UpdateJobStatus(cacheKey, status: ReportJobStatusEnum.Processing);
 
             // Generate the report
+            var reportGenStopwatch = Stopwatch.StartNew();
             var (fileContent, fileName, barangayCount) = await GenerateReportAsync(
                 regionId, 
                 provinceId, 
@@ -79,18 +80,30 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 format, 
                 filterByStatus, 
                 cancellationToken);
+            reportGenStopwatch.Stop();
+
+            _logger.LogInformation(
+                "Report generation completed in {ElapsedMs}ms for {BarangayCount} barangays. Format: {Format}",
+                reportGenStopwatch.ElapsedMilliseconds, barangayCount, format);
 
             // Save file to disk
+            var fileSaveStopwatch = Stopwatch.StartNew();
             var reportsDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Reports", "WirelessBroadband");
             Directory.CreateDirectory(reportsDirectory);
 
             var filePath = Path.Combine(reportsDirectory, fileName);
             await File.WriteAllBytesAsync(filePath, fileContent, cancellationToken);
+            fileSaveStopwatch.Stop();
+
+            _logger.LogInformation(
+                "File saved to disk in {ElapsedMs}ms. Size: {FileSize} KB. Path: {FilePath}",
+                fileSaveStopwatch.ElapsedMilliseconds, fileContent.Length / 1024, filePath);
 
             stopwatch.Stop();
             _logger.LogInformation(
-                "Wireless broadband report job {JobId} completed successfully in {ElapsedMs}ms. File: {FileName}",
-                jobId, stopwatch.ElapsedMilliseconds, fileName);
+                "Wireless broadband report job {JobId} completed successfully in {TotalMs}ms (Data: {DataMs}ms, File: {FileMs}ms). Barangays: {BarangayCount}",
+                jobId, stopwatch.ElapsedMilliseconds, reportGenStopwatch.ElapsedMilliseconds, 
+                fileSaveStopwatch.ElapsedMilliseconds, barangayCount);
 
             // Update status to Completed
             UpdateJobStatus(
@@ -149,10 +162,13 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         ServiceStatusEnum? filterByStatus,
         CancellationToken cancellationToken)
     {
+        var overallStopwatch = Stopwatch.StartNew();
+        
         // NOTE: This is extracted from GetWirelessBroadbandScoredReportQueryHandler
         // TODO: Consider refactoring into a shared service to avoid code duplication
 
         // 1. Determine Scope and Fetch Target Area
+        var scopeFetchStopwatch = Stopwatch.StartNew();
         string reportTitleName = "";
         NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
         List<Domain.Entities.Barangay> barangays;
@@ -200,13 +216,26 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         {
             throw new InvalidOperationException("Please provide a Municipality, Province, or Region ID.");
         }
+        scopeFetchStopwatch.Stop();
+        _logger.LogInformation(
+            "Step 1: Fetched {BarangayCount} barangays for {Area} in {ElapsedMs}ms",
+            barangays.Count, reportTitleName, scopeFetchStopwatch.ElapsedMilliseconds);
 
         // 2. Fetch Providers
+        var providerFetchStopwatch = Stopwatch.StartNew();
         var providers = await _context.Providers
             .AsNoTracking()
             .Where(p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
+        providerFetchStopwatch.Stop();
+        _logger.LogInformation(
+            "Step 2: Fetched {ProviderCount} wireless providers in {ElapsedMs}ms",
+            providers.Count, providerFetchStopwatch.ElapsedMilliseconds);
+
+        _logger.LogInformation(
+            "Step 2: Fetched {ProviderCount} wireless providers in {ElapsedMs}ms",
+            providers.Count, providerFetchStopwatch.ElapsedMilliseconds);
 
         // 3. Safeguard against excessive scope
         if (barangays.Count > 5000)
@@ -224,23 +253,37 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         var barangayIds = barangays.Select(b => b.Id).ToList();
 
         // Batch calculate provider technology breakdowns for all barangays (optimized - 3 queries total)
+        var techBreakdownStopwatch = Stopwatch.StartNew();
         var batchTechBreakdowns = await _providerTechService.CalculateBatchProviderTechnologyBreakdownAsync(
             barangayIds,
             targetBoundaries,
             cancellationToken);
+        techBreakdownStopwatch.Stop();
+        _logger.LogInformation(
+            "Step 3: Calculated technology breakdowns for {BarangayCount} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
+            barangayIds.Count, techBreakdownStopwatch.ElapsedMilliseconds,
+            barangayIds.Count > 0 ? techBreakdownStopwatch.ElapsedMilliseconds / barangayIds.Count : 0);
 
         // Query speedtests using spatial filter (database-side, leveraging spatial indexes)
         // Group by barangay in-memory to avoid loading full dataset multiple times
-        _logger.LogInformation("Loading speedtests for {Area}...", reportTitleName);
+        _logger.LogInformation("Step 4: Loading speedtests for {Area}...", reportTitleName);
         
+        var speedtestLoadStopwatch = Stopwatch.StartNew();
         var speedtestsByBarangay = await LoadSpeedtestsByBarangayAsync(
             barangays, 
             targetBoundaries, 
             cancellationToken);
+        speedtestLoadStopwatch.Stop();
         
-        _logger.LogInformation("Loaded speedtests for {Count} barangays", speedtestsByBarangay.Count);
+        var totalSpeedtests = speedtestsByBarangay.Values.Sum(list => list.Count);
+        _logger.LogInformation(
+            "Step 4: Loaded {SpeedtestCount} speedtests for {BarangayCount} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
+            totalSpeedtests, speedtestsByBarangay.Count, speedtestLoadStopwatch.ElapsedMilliseconds,
+            speedtestsByBarangay.Count > 0 ? speedtestLoadStopwatch.ElapsedMilliseconds / speedtestsByBarangay.Count : 0);
 
         // Process barangays in batches for progress tracking
+        _logger.LogInformation("Step 5: Processing scoring calculations for {BarangayCount} barangays...", barangays.Count);
+        var scoringStopwatch = Stopwatch.StartNew();
         const int progressBatchSize = 500;
         var processedCount = 0;
         foreach (var barangay in barangays)
@@ -292,16 +335,28 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                     processedCount, barangays.Count, (processedCount * 100.0 / barangays.Count));
             }
         }
+        
+        scoringStopwatch.Stop();
+        _logger.LogInformation(
+            "Step 5: Completed scoring for {ProcessedCount} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
+            processedCount, scoringStopwatch.ElapsedMilliseconds,
+            processedCount > 0 ? scoringStopwatch.ElapsedMilliseconds / processedCount : 0);
 
         // Apply filtering
         if (filterByStatus.HasValue)
         {
+            var beforeFilter = reportData.Count;
             reportData = reportData
                 .Where(r => r.ServiceStatus == filterByStatus.Value)
                 .ToList();
+            _logger.LogInformation(
+                "Filtered report data by status {Status}: {Before} -> {After} entries",
+                filterByStatus.Value, beforeFilter, reportData.Count);
         }
 
         // 5. Generate Report
+        _logger.LogInformation("Step 6: Generating {Format} report file...", format);
+        var reportGenStopwatch = Stopwatch.StartNew();
         byte[] fileContent;
         string fileName;
 
@@ -315,6 +370,21 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             fileContent = GeneratePdf(reportTitleName, providers, reportData);
             fileName = $"WirelessBroadband_{reportTitleName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
         }
+        reportGenStopwatch.Stop();
+        
+        overallStopwatch.Stop();
+        _logger.LogInformation(
+            "Step 6: Generated {Format} file ({FileSize} KB) in {ElapsedMs}ms",
+            format, fileContent.Length / 1024, reportGenStopwatch.ElapsedMilliseconds);
+        _logger.LogInformation(
+            "Report generation pipeline completed in {TotalMs}ms - Breakdown: Scope:{Scope}ms + Providers:{Prov}ms + TechBreakdown:{Tech}ms + Speedtests:{Speed}ms + Scoring:{Score}ms + FileGen:{File}ms",
+            overallStopwatch.ElapsedMilliseconds, 
+            scopeFetchStopwatch.ElapsedMilliseconds, 
+            providerFetchStopwatch.ElapsedMilliseconds,
+            techBreakdownStopwatch.ElapsedMilliseconds,
+            speedtestLoadStopwatch.ElapsedMilliseconds,
+            scoringStopwatch.ElapsedMilliseconds,
+            reportGenStopwatch.ElapsedMilliseconds);
 
         return (fileContent, fileName, barangays.Count);
     }
@@ -331,13 +401,21 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             return new Dictionary<Guid, List<SpeedtestInfo>>();
 
         var result = new Dictionary<Guid, List<SpeedtestInfo>>();
+        var loadStopwatch = Stopwatch.StartNew();
         
         // Process barangays in batches for progress tracking
         const int batchSize = 100;
         var barangayBatches = barangays.Chunk(batchSize);
+        var batchNumber = 0;
+        var totalBatches = (int)Math.Ceiling(barangays.Count / (double)batchSize);
+        var totalSpeedtestsLoaded = 0;
 
         foreach (var batch in barangayBatches)
         {
+            batchNumber++;
+            var batchStopwatch = Stopwatch.StartNew();
+            var batchSpeedtestCount = 0;
+            
             // Query speedtests for each barangay in this batch
             // Each query is simple and leverages spatial indexes optimally
             foreach (var barangay in batch)
@@ -360,13 +438,27 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                         .ToListAsync(cancellationToken);
 
                     result[barangay.Id] = barangaySpeedtests;
+                    batchSpeedtestCount += barangaySpeedtests.Count;
                 }
                 else
                 {
                     result[barangay.Id] = new List<SpeedtestInfo>();
                 }
             }
+            
+            batchStopwatch.Stop();
+            totalSpeedtestsLoaded += batchSpeedtestCount;
+            
+            _logger.LogInformation(
+                "Speedtest batch {BatchNumber}/{TotalBatches}: Loaded {SpeedtestCount} speedtests for {BarangayCount} barangays in {ElapsedMs}ms",
+                batchNumber, totalBatches, batchSpeedtestCount, batch.Count(), batchStopwatch.ElapsedMilliseconds);
         }
+        
+        loadStopwatch.Stop();
+        _logger.LogInformation(
+            "Total speedtest loading: {TotalSpeedtests} speedtests for {TotalBarangays} barangays in {TotalMs}ms (avg {AvgMs}ms/barangay)",
+            totalSpeedtestsLoaded, barangays.Count, loadStopwatch.ElapsedMilliseconds,
+            barangays.Count > 0 ? loadStopwatch.ElapsedMilliseconds / barangays.Count : 0);
 
         return result;
     }
