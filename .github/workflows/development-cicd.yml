@@ -120,6 +120,7 @@ jobs:
               -e ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
               -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
               -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
+              -e GoogleAI__ApiKey="${{ secrets.GOOGLE_AI_API_KEY }}" \
               ${{ env.IMAGE_NAME }}:dev
 
             # Verify container is running
