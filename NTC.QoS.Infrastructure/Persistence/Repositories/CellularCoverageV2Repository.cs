@@ -6,21 +6,21 @@ using System.Linq.Expressions;
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Repository implementation for CellularCoverageVersion2
+/// Repository implementation for CellularCoverage (CSV uploads)
 /// </summary>
-internal sealed class CellularCoverageV2Repository : Repository<CellularCoverageVersion2>, ICellularCoverageV2Repository
+internal sealed class CellularCoverageV2Repository : Repository<CellularCoverage>, ICellularCoverageV2Repository
 {
     public CellularCoverageV2Repository(ApplicationDbContext context) : base(context)
     {
     }
 
-    public override IQueryable<CellularCoverageVersion2> Query(Expression<Func<CellularCoverageVersion2, bool>>? expression = null)
+    public override IQueryable<CellularCoverage> Query(Expression<Func<CellularCoverage, bool>>? expression = null)
     {
-        var query = _context.Set<CellularCoverageVersion2>()
+        var query = _context.Set<CellularCoverage>()
             .Include(cc => cc.Network)
             .Include(cc => cc.Band)
             .Include(cc => cc.Technology)
-            .Include(cc => cc.CellSector)
+            .Include(cc => cc.CellSector!)
                 .ThenInclude(cs => cs.Cell)
             .Include(cc => cc.Municipality)
             .AsQueryable();
@@ -44,7 +44,7 @@ internal sealed class CellularCoverageV2Repository : Repository<CellularCoverage
         // Use small tolerance for coordinate comparison (~11 meters)
         const double tolerance = 0.0001;
 
-        return await _context.Set<CellularCoverageVersion2>()
+        return await _context.Set<CellularCoverage>()
             .Where(cc =>
                 !cc.IsDeleted &&
                 cc.NetworkId == networkId &&
@@ -55,7 +55,7 @@ internal sealed class CellularCoverageV2Repository : Repository<CellularCoverage
             .AnyAsync(cancellationToken);
     }
 
-    public async Task<List<CellularCoverageVersion2>> GetByMunicipalityAsync(
+    public async Task<List<CellularCoverage>> GetByMunicipalityAsync(
         Guid municipalityId,
         CancellationToken cancellationToken = default)
     {

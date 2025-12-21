@@ -6,7 +6,7 @@ public class CellularCoverageDto
     public Guid NetworkId { get; set; }
     public double Lat { get; set; }
     public double Lng { get; set; }
-    public decimal Strength { get; set; }
+    public decimal SignalStrength { get; set; }
     public string Gen { get; set; } = string.Empty;
     public string Std { get; set; } = string.Empty;
     public string Band { get; set; } = string.Empty;

@@ -178,7 +178,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                 const int csvBatchSize = 1000;   // Read 1000 CSV records at a time from stream
                 const int insertBatchSize = 500; // Insert 500 to DB at a time
 
-                var allMappedRecords = new List<CellularCoverageVersion2>();
+                var allMappedRecords = new List<CellularCoverage>();
                 int totalRecordsProcessed = 0;
                 int batchNumber = 0;
 
@@ -291,7 +291,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
     }
 
     private async Task InsertBatchAsync(
-        List<CellularCoverageVersion2> records,
+        List<CellularCoverage> records,
         CancellationToken cancellationToken)
     {
         try

@@ -4,6 +4,9 @@ namespace NTC.QoS.Domain.Models.ExcelBindings;
 
 public record CellularCoverageRecord
 {
+    [ExcelHeader("ServiceProvider")]
+    public string ServiceProvider { get; set; } = string.Empty;
+
     [ExcelHeader("Network")]
     public string Network { get; set; } = string.Empty;
 
@@ -14,7 +17,7 @@ public record CellularCoverageRecord
     public double Longitude { get; set; }
 
     [ExcelHeader("Strength")]
-    public decimal Strength { get; set; }
+    public decimal SignalStrength { get; set; }
 
     [ExcelHeader("Address")]
     public string Address { get; set; } = string.Empty;
