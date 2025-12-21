@@ -567,28 +567,23 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         stats.Has4G = generations.Contains("4G") || generations.Contains("LTE");
         stats.Has5G = generations.Contains("5G");
 
-        // Populate TechUsed from Speedtests
-        var speedtestGenerations = speedtests
-            .Where(s => !string.IsNullOrEmpty(s.GenerationName))
-            .Select(s => s.GenerationName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g)
-            .ToList();
-
-        if (speedtestGenerations.Any())
+        // Populate TechUsed from the median speedtest (the one representing typical experience)
+        if (speedtests.Any())
         {
-            stats.TechUsed = string.Join(", ", speedtestGenerations);
+            // Sort by download speed to find the median speedtest
+            var sortedSpeedtests = speedtests.OrderBy(s => s.DownloadSpeed).ToList();
+            int medianIndex = sortedSpeedtests.Count / 2;
+            var medianSpeedtest = sortedSpeedtests.Count % 2 == 0
+                ? sortedSpeedtests[medianIndex - 1]  // For even count, use lower middle
+                : sortedSpeedtests[medianIndex];
+
+            stats.TechUsed = medianSpeedtest.GenerationName ?? "";
+            stats.UploadSpeedMbps = (double)speedtests.Average(s => s.UploadSpeed);
+            stats.DownloadSpeedMbps = (double)speedtests.Average(s => s.DownloadSpeed);
         }
         else
         {
             stats.TechUsed = "";
-        }
-
-        // Calculate Average Speed
-        if (speedtests.Any())
-        {
-            stats.UploadSpeedMbps = (double)speedtests.Average(s => s.UploadSpeed);
-            stats.DownloadSpeedMbps = (double)speedtests.Average(s => s.DownloadSpeed);
         }
 
         return stats;
