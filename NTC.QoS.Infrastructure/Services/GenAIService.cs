@@ -12,16 +12,15 @@ namespace NTC.QoS.Infrastructure.Services;
 public class GenAIService : IGenAIService
 {
     private readonly ILogger<GenAIService> _logger;
-    private readonly string _apiKey;
     private readonly GoogleAI _googleAI;
 
     public GenAIService(IConfiguration configuration, ILogger<GenAIService> logger)
     {
         _logger = logger;
-        _apiKey = configuration["GoogleAI:ApiKey"] 
+        var apiKey = configuration["GoogleAI:ApiKey"] 
             ?? throw new InvalidOperationException("GoogleAI:ApiKey is not configured. Please set it in user secrets or environment variables.");
         
-        _googleAI = new GoogleAI(_apiKey);
+        _googleAI = new GoogleAI(apiKey);
     }
 
     /// <summary>
@@ -37,16 +36,10 @@ public class GenAIService : IGenAIService
             // Use Gemini 1.5 Flash (free tier, fast and efficient)
             var model = _googleAI.GenerativeModel(model: Model.Gemini15Flash);
             
-            // For now, use text-only approach. File attachments would require multimodal handling
-            // which may need a different API approach or the Vertex AI endpoint
-            var enhancedPrompt = prompt;
-            
-            if (files != null && files.Count > 0)
-            {
-                enhancedPrompt += $"\n\n[Note: {files.Count} file(s) were uploaded. File processing is being implemented.]";
-                _logger.LogWarning("File attachments received but not yet processed in this version");
-            }
+            var enhancedPrompt = BuildPromptWithFileNote(prompt, files);
 
+            // Note: GenerateContent in Mscc.GenerativeAI doesn't support cancellation tokens directly
+            // The operation is typically fast (< 10 seconds) so this is acceptable
             var response = await model.GenerateContent(enhancedPrompt);
             
             if (response?.Text == null)
@@ -91,12 +84,10 @@ Please provide:
 
 Format the report in a clear, professional manner with proper headings and sections.";
 
-            if (files != null && files.Count > 0)
-            {
-                enhancedPrompt += $"\n\n[Note: {files.Count} file(s) were uploaded for analysis. File processing is being implemented.]";
-                _logger.LogWarning("File attachments received but not yet processed in this version");
-            }
+            enhancedPrompt = BuildPromptWithFileNote(enhancedPrompt, files);
 
+            // Note: GenerateContent in Mscc.GenerativeAI doesn't support cancellation tokens directly
+            // The operation is typically fast (< 10 seconds) so this is acceptable
             var response = await model.GenerateContent(enhancedPrompt);
             
             if (response?.Text == null)
@@ -113,6 +104,19 @@ Format the report in a clear, professional manner with proper headings and secti
             _logger.LogError(ex, "Error generating report");
             throw new InvalidOperationException("Failed to generate report. Please try again later.", ex);
         }
+    }
+
+    /// <summary>
+    /// Helper method to add file note to prompt when files are present
+    /// </summary>
+    private string BuildPromptWithFileNote(string prompt, IFormFileCollection? files)
+    {
+        if (files != null && files.Count > 0)
+        {
+            _logger.LogInformation("File attachments present but multimodal processing not yet implemented");
+            return prompt + $"\n\n[Note: {files.Count} file(s) were uploaded but cannot be processed in text-only mode. For full file analysis, multimodal API integration is required.]";
+        }
+        return prompt;
     }
 }
 
