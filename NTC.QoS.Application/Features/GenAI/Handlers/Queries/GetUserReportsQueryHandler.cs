@@ -14,15 +14,18 @@ public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, A
 {
     private readonly IGeneratedReportRepository _reportRepository;
     private readonly IUserContextService _userContextService;
+    private readonly IUserRepository _userRepository;
     private readonly ILogger<GetUserReportsQueryHandler> _logger;
 
     public GetUserReportsQueryHandler(
         IGeneratedReportRepository reportRepository,
         IUserContextService userContextService,
+        IUserRepository userRepository,
         ILogger<GetUserReportsQueryHandler> logger)
     {
         _reportRepository = reportRepository;
         _userContextService = userContextService;
+        _userRepository = userRepository;
         _logger = logger;
     }
 
@@ -32,8 +35,8 @@ public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, A
     {
         try
         {
-            var userIdString = _userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            var authUserId = _userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(authUserId))
             {
                 return new ApiResponse<List<GeneratedReportSummaryDto>>
                 {
@@ -42,8 +45,23 @@ public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, A
                 };
             }
 
+            // Look up the User entity to get the GUID ID
+            var user = await _userRepository.FirstOrDefaultAsync(
+                _userRepository.Query(u => u.AuthUserId == authUserId),
+                cancellationToken);
+
+            if (user == null)
+            {
+                _logger.LogWarning("User not found for AuthUserId: {AuthUserId}", authUserId);
+                return new ApiResponse<List<GeneratedReportSummaryDto>>
+                {
+                    Succeeded = false,
+                    Message = "User not found"
+                };
+            }
+
             var reports = await _reportRepository.GetUserReportsAsync(
-                userId,
+                user.Id,
                 request.Skip,
                 request.Take,
                 cancellationToken);
@@ -58,7 +76,7 @@ public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, A
                 ContentPreview = r.Content.Length > 200 ? r.Content.Substring(0, 200) + "..." : r.Content
             }).ToList();
 
-            _logger.LogInformation("Retrieved {Count} reports for user {UserId}", reportDtos.Count, userId);
+            _logger.LogInformation("Retrieved {Count} reports for user {UserId}", reportDtos.Count, user.Id);
 
             return new ApiResponse<List<GeneratedReportSummaryDto>>
             {

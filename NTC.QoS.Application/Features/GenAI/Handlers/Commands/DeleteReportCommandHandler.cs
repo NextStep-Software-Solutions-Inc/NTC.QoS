@@ -13,15 +13,18 @@ public class DeleteReportCommandHandler : IRequestHandler<DeleteReportCommand, A
 {
     private readonly IGeneratedReportRepository _reportRepository;
     private readonly IUserContextService _userContextService;
+    private readonly IUserRepository _userRepository;
     private readonly ILogger<DeleteReportCommandHandler> _logger;
 
     public DeleteReportCommandHandler(
         IGeneratedReportRepository reportRepository,
         IUserContextService userContextService,
+        IUserRepository userRepository,
         ILogger<DeleteReportCommandHandler> logger)
     {
         _reportRepository = reportRepository;
         _userContextService = userContextService;
+        _userRepository = userRepository;
         _logger = logger;
     }
 
@@ -31,8 +34,8 @@ public class DeleteReportCommandHandler : IRequestHandler<DeleteReportCommand, A
     {
         try
         {
-            var userIdString = _userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            var authUserId = _userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(authUserId))
             {
                 return new ApiResponse<bool>
                 {
@@ -41,9 +44,24 @@ public class DeleteReportCommandHandler : IRequestHandler<DeleteReportCommand, A
                 };
             }
 
+            // Look up the User entity to get the GUID ID
+            var user = await _userRepository.FirstOrDefaultAsync(
+                _userRepository.Query(u => u.AuthUserId == authUserId),
+                cancellationToken);
+
+            if (user == null)
+            {
+                _logger.LogWarning("User not found for AuthUserId: {AuthUserId}", authUserId);
+                return new ApiResponse<bool>
+                {
+                    Succeeded = false,
+                    Message = "User not found"
+                };
+            }
+
             var report = await _reportRepository.GetUserReportByIdAsync(
                 request.ReportId,
-                userId,
+                user.Id,
                 cancellationToken);
 
             if (report == null)
@@ -58,7 +76,7 @@ public class DeleteReportCommandHandler : IRequestHandler<DeleteReportCommand, A
             _reportRepository.Delete(report);
             await _reportRepository.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Deleted report {ReportId} for user {UserId}", request.ReportId, userId);
+            _logger.LogInformation("Deleted report {ReportId} for user {UserId}", request.ReportId, user.Id);
 
             return new ApiResponse<bool>
             {

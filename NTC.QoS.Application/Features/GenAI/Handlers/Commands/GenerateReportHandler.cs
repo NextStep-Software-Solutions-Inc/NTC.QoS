@@ -17,17 +17,20 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
     private readonly IGenAIService _genAIService;
     private readonly IGeneratedReportRepository _reportRepository;
     private readonly IUserContextService _userContextService;
+    private readonly IUserRepository _userRepository;
     private readonly ILogger<GenerateReportHandler> _logger;
 
     public GenerateReportHandler(
         IGenAIService genAIService,
         IGeneratedReportRepository reportRepository,
         IUserContextService userContextService,
+        IUserRepository userRepository,
         ILogger<GenerateReportHandler> logger)
     {
         _genAIService = genAIService;
         _reportRepository = reportRepository;
         _userContextService = userContextService;
+        _userRepository = userRepository;
         _logger = logger;
     }
 
@@ -73,10 +76,21 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
     {
         try
         {
-            var userIdString = _userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            var authUserId = _userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(authUserId))
             {
                 _logger.LogWarning("Cannot save report: User context not available");
+                return;
+            }
+
+            // Look up the User entity to get the GUID ID
+            var user = await _userRepository.FirstOrDefaultAsync(
+                _userRepository.Query(u => u.AuthUserId == authUserId),
+                cancellationToken);
+
+            if (user == null)
+            {
+                _logger.LogWarning("Cannot save report: User not found for AuthUserId: {AuthUserId}", authUserId);
                 return;
             }
 
@@ -105,7 +119,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
                 Content = content,
                 FilesAnalyzed = request.Request.Files?.Length ?? 0,
                 FileMetadata = fileMetadata,
-                UserId = userId,
+                UserId = user.Id,
                 GeneratedAt = DateTime.UtcNow,
                 Title = title
             };
