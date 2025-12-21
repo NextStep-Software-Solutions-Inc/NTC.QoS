@@ -36,7 +36,7 @@ public class RegionsController : ControllerBase
     }
 
     [HttpGet]
-    [RequirePermission(Permissions.ViewRegions)]
+    //[RequirePermission(Permissions.ViewRegions)]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber" })]
     public async Task<ActionResult<PaginatedResponse<RegionDto>>> GetAllRegions(int pageSize = 10, int pageNumber = 1)
     {

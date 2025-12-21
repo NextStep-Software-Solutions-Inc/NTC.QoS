@@ -363,6 +363,9 @@ MigrationBackup/
 FodyWeavers.xsd
 /NTC.QoS.API/Uploads/
 
+# Generated reports (background jobs)
+**/Reports/
+
 # geospatial files
 *.geojson
 

@@ -1,10 +1,12 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
@@ -81,6 +83,86 @@ public class ReportsController : ControllerBase
             result.Data.FileContent,
             contentType,
             result.Data.FileName);
+    }
+
+    /// <summary>
+    /// Start background job for wireless broadband scored report generation.
+    /// Use this for large reports (region-level) that may take several minutes to generate.
+    /// </summary>
+    [HttpPost("wireless-broadband-scored/start")]
+    public async Task<ActionResult<ApiResponse<string>>> StartWirelessBroadbandScoredReportJob(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
+        [FromQuery] ReportFormatEnum format = ReportFormatEnum.Excel)
+    {
+        var command = new StartWirelessBroadbandReportJobCommand
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            Format = format
+        };
+
+        var jobId = await _mediator.Send(command);
+
+        return Ok(new ApiResponse<string>(
+            jobId,
+            true,
+            "Wireless broadband report job started successfully. Use the job ID to check status."));
+    }
+
+    /// <summary>
+    /// Get status of wireless broadband report background job
+    /// </summary>
+    [HttpGet("wireless-broadband-scored/status/{jobId}")]
+    public ActionResult<ApiResponse<object>> GetWirelessBroadbandReportJobStatus(string jobId)
+    {
+        var cache = HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+        var cacheKey = $"wireless_report_job_{jobId}";
+
+        if (!cache.TryGetValue<WirelessBroadbandReportJobStatus>(cacheKey, out var job) || job == null)
+            return NotFound(new ApiResponse<object>("Report job not found"));
+
+        return Ok(new ApiResponse<object>(new
+        {
+            jobId = job.JobId,
+            status = job.Status.ToString(),
+            createdAt = job.CreatedAt,
+            completedAt = job.CompletedAt,
+            processingTimeMs = job.ProcessingTimeMs,
+            errorMessage = job.ErrorMessage,
+            filePath = job.FilePath,
+            fileName = job.FileName
+        }));
+    }
+
+    /// <summary>
+    /// Download completed wireless broadband report
+    /// </summary>
+    [HttpGet("wireless-broadband-scored/download/{jobId}")]
+    public ActionResult DownloadWirelessBroadbandReport(string jobId)
+    {
+        var cache = HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+        var cacheKey = $"wireless_report_job_{jobId}";
+
+        if (!cache.TryGetValue<WirelessBroadbandReportJobStatus>(cacheKey, out var job) || job == null)
+            return NotFound(new ApiResponse<object>("Report job not found"));
+
+        if (job.Status != Domain.Enums.ReportJobStatusEnum.Completed)
+            return BadRequest(new ApiResponse<object>($"Report is not ready. Current status: {job.Status}"));
+
+        if (string.IsNullOrEmpty(job.FilePath) || !System.IO.File.Exists(job.FilePath))
+            return NotFound(new ApiResponse<object>("Report file not found"));
+
+        var fileBytes = System.IO.File.ReadAllBytes(job.FilePath);
+        var contentType = job.Format == ReportFormatEnum.Pdf
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+        return File(fileBytes, contentType, job.FileName);
     }
 
     /// <summary>
