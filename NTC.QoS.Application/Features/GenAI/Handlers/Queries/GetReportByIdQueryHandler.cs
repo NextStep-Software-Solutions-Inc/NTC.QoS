@@ -88,7 +88,7 @@ public class GetReportByIdQueryHandler : IRequestHandler<GetReportByIdQuery, Api
                     : "Unknown"
             };
 
-            _logger.LogInformation("Retrieved report {ReportId} for user {UserId}", request.ReportId, userId);
+            _logger.LogInformation("Retrieved report {ReportId} for user {UserId}", request.ReportId, user.Id);
 
             return new ApiResponse<GeneratedReportDto>
             {
