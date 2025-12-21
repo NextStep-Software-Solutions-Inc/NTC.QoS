@@ -76,6 +76,14 @@ internal static class HangfireServiceExtensions
 
             // Increase cancellation timeout to allow database operations to complete
             options.CancellationCheckInterval = TimeSpan.FromSeconds(30);
+
+            // CRITICAL: Set worker stop timeout to prevent 30-minute job cancellation
+            // Default is 30 minutes which causes long-running jobs to be cancelled
+            // Set to a very high value to allow multi-hour processing jobs
+            options.StopTimeout = TimeSpan.FromHours(6);
+
+            // Increase schedule polling interval to reduce database load
+            options.SchedulePollingInterval = TimeSpan.FromMinutes(1);
         });
 
         // Register Hangfire filter registrar
