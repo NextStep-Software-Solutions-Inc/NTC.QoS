@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NTC.QoS.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251221113004_AddGeneratedReportIndexes")]
+    [Migration("20251221113346_AddGeneratedReportIndexes")]
     partial class AddGeneratedReportIndexes
     {
         /// <inheritdoc />
@@ -1579,12 +1579,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Content")
-                        .HasDatabaseName("IX_GeneratedReport_Content_FullText");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Content"), "GIN");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Content"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("Title")
                         .HasDatabaseName("IX_GeneratedReport_Title")

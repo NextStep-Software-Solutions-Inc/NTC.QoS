@@ -1577,12 +1577,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Content")
-                        .HasDatabaseName("IX_GeneratedReport_Content_FullText");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Content"), "GIN");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Content"), new[] { "gin_trgm_ops" });
-
                     b.HasIndex("Title")
                         .HasDatabaseName("IX_GeneratedReport_Title")
                         .HasFilter("\"IsDeleted\" = FALSE");

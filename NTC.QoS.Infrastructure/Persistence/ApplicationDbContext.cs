@@ -659,13 +659,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasDatabaseName("IX_GeneratedReport_Title")
             .HasFilter("\"IsDeleted\" = FALSE");
 
-        // Full-text search index for Content field (PostgreSQL GIN)
-        modelBuilder.Entity<GeneratedReport>()
-            .HasIndex(gr => gr.Content)
-            .HasDatabaseName("IX_GeneratedReport_Content_FullText")
-            .HasMethod("GIN")
-            .HasOperators("gin_trgm_ops");
-
         base.OnModelCreating(modelBuilder);
     }
 }

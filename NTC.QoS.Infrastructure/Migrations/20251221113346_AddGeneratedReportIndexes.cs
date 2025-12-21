@@ -15,13 +15,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                 table: "GeneratedReports");
 
             migrationBuilder.CreateIndex(
-                name: "IX_GeneratedReport_Content_FullText",
-                table: "GeneratedReports",
-                column: "Content")
-                .Annotation("Npgsql:IndexMethod", "GIN")
-                .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
-
-            migrationBuilder.CreateIndex(
                 name: "IX_GeneratedReport_Title",
                 table: "GeneratedReports",
                 column: "Title",
@@ -37,10 +30,6 @@ namespace NTC.QoS.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_GeneratedReport_Content_FullText",
-                table: "GeneratedReports");
-
             migrationBuilder.DropIndex(
                 name: "IX_GeneratedReport_Title",
                 table: "GeneratedReports");
