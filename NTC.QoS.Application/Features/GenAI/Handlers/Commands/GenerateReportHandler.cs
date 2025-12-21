@@ -50,7 +50,8 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
                 }
 
                 reportContent.Append(chunk);
-                await request.HttpResponse.WriteAsync($"data: {chunk}\n\n", cancellationToken);
+                var jsonChunk = JsonSerializer.Serialize(chunk);
+                await request.HttpResponse.WriteAsync($"data: {jsonChunk}\n\n", cancellationToken);
                 await request.HttpResponse.Body.FlushAsync(cancellationToken);
             }
 

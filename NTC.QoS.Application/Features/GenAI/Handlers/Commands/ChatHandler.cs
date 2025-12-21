@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Interfaces;
+using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Commands;
 
@@ -36,7 +37,8 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
                     break;
                 }
 
-                await request.HttpResponse.WriteAsync($"data: {chunk}\n\n", cancellationToken);
+                var jsonChunk = JsonSerializer.Serialize(chunk);
+                await request.HttpResponse.WriteAsync($"data: {jsonChunk}\n\n", cancellationToken);
                 await request.HttpResponse.Body.FlushAsync(cancellationToken);
             }
 
