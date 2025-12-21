@@ -1,16 +1,15 @@
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.GenAI;
 
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Commands;
 
 /// <summary>
-/// Handler for AI chat requests
+/// Handler for AI chat requests with streaming response
 /// </summary>
-public class ChatHandler : IRequestHandler<ChatRequest, ApiResponse<ChatResponseDto>>
+public class ChatHandler : IRequestHandler<ChatRequest, Unit>
 {
     private readonly IGenAIService _genAIService;
     private readonly ILogger<ChatHandler> _logger;
@@ -21,39 +20,35 @@ public class ChatHandler : IRequestHandler<ChatRequest, ApiResponse<ChatResponse
         _logger = logger;
     }
 
-    public async Task<ApiResponse<ChatResponseDto>> Handle(ChatRequest request, CancellationToken cancellationToken)
+    public async Task<Unit> Handle(ChatRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            _logger.LogInformation("Processing chat request with {FileCount} files", request.Request.Files?.Count ?? 0);
+            _logger.LogInformation("Processing streaming chat request with {FileCount} files", request.Request.Files?.Count ?? 0);
 
-            var response = await _genAIService.ChatAsync(
+            await foreach (var chunk in _genAIService.ChatStreamAsync(
                 request.Request.Prompt,
                 request.Request.Files,
-                cancellationToken);
-
-            var chatResponse = new ChatResponseDto
+                cancellationToken))
             {
-                Response = response,
-                FilesProcessed = request.Request.Files?.Count ?? 0,
-                Timestamp = DateTime.UtcNow
-            };
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
 
-            return new ApiResponse<ChatResponseDto>
-            {
-                Data = chatResponse,
-                Succeeded = true,
-                Message = "Chat response generated successfully"
-            };
+                // Write chunk in SSE format
+                await request.HttpResponse.WriteAsync($"data: {chunk}\n\n", cancellationToken);
+                await request.HttpResponse.Body.FlushAsync(cancellationToken);
+            }
+
+            _logger.LogInformation("Chat streaming completed successfully");
+            return Unit.Value;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing chat request");
-            return new ApiResponse<ChatResponseDto>
-            {
-                Succeeded = false,
-                Message = $"Failed to process chat request: {ex.Message}"
-            };
+            _logger.LogError(ex, "Error processing streaming chat request");
+            await request.HttpResponse.WriteAsync($"data: {{\"error\": \"{ex.Message}\"}}\n\n", cancellationToken);
+            throw;
         }
     }
 }
