@@ -56,8 +56,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
-
+        optionsBuilder.UseNpgsql(
+            _configuration.GetConnectionString("PostgreSqlConnection"), 
+            x => 
+            {
+                x.UseNetTopologySuite();
+                // Increase command timeout for long-running spatial queries
+                x.CommandTimeout(300); // 5 minutes
+            });
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
