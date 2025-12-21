@@ -90,7 +90,7 @@ public class ReportsController : ControllerBase
     /// Use this for large reports (region-level) that may take several minutes to generate.
     /// </summary>
     [HttpPost("wireless-broadband-scored/start")]
-    public async Task<ActionResult<ApiResponse<string>>> StartWirelessBroadbandScoredReportJob(
+    public async Task<ActionResult<ApiResponse<int>>> StartWirelessBroadbandScoredReportJob(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
@@ -108,7 +108,7 @@ public class ReportsController : ControllerBase
 
         var jobId = await _mediator.Send(command);
 
-        return Ok(new ApiResponse<string>(
+        return Ok(new ApiResponse<int>(
             jobId,
             true,
             "Wireless broadband report job started successfully. Use the job ID to check status."));
