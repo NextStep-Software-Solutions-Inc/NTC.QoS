@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Http;
-
 namespace NTC.QoS.Domain.Models.DTOs.GenAI;
 
 /// <summary>
@@ -15,5 +13,5 @@ public class ChatRequestDto
     /// <summary>
     /// Optional file attachments (images, PDFs, Excel, text files)
     /// </summary>
-    public IFormFileCollection? Files { get; set; }
+    public FileUpload[]? Files { get; set; }
 }

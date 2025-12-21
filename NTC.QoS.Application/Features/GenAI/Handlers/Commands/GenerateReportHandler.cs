@@ -25,7 +25,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, ApiR
     {
         try
         {
-            _logger.LogInformation("Processing report generation request with {FileCount} files", request.Request.Files?.Count ?? 0);
+            _logger.LogInformation("Processing report generation request with {FileCount} files", request.Request.Files?.Length ?? 0);
 
             var reportContent = await _genAIService.GenerateReportAsync(
                 request.Request.Prompt,
@@ -35,7 +35,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, ApiR
             var reportResponse = new GenerateReportResponseDto
             {
                 ReportContent = reportContent,
-                FilesAnalyzed = request.Request.Files?.Count ?? 0,
+                FilesAnalyzed = request.Request.Files?.Length ?? 0,
                 GeneratedAt = DateTime.UtcNow
             };
 

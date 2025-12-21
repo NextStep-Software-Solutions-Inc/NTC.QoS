@@ -1,8 +1,8 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Google.GenAI;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models;
 
 namespace NTC.QoS.Infrastructure.Services;
 
@@ -26,12 +26,12 @@ public class GenAIService : IGenAIService
     /// <summary>
     /// Sends a chat prompt to the AI model with optional file attachments
     /// </summary>
-    public async Task<string> ChatAsync(string prompt, IFormFileCollection? files = null, CancellationToken cancellationToken = default)
+    public async Task<string> ChatAsync(string prompt, FileUpload[]? files = null, CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInformation("Processing chat request with prompt length: {PromptLength}, files: {FileCount}", 
-                prompt.Length, files?.Count ?? 0);
+                prompt.Length, files?.Length ?? 0);
 
             var enhancedPrompt = BuildPromptWithFileNote(prompt, files);
 
@@ -61,12 +61,12 @@ public class GenAIService : IGenAIService
     /// <summary>
     /// Generates a report using the AI model based on provided resources
     /// </summary>
-    public async Task<string> GenerateReportAsync(string prompt, IFormFileCollection? files = null, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateReportAsync(string prompt, FileUpload[]? files = null, CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInformation("Processing report generation request with prompt length: {PromptLength}, files: {FileCount}", 
-                prompt.Length, files?.Count ?? 0);
+                prompt.Length, files?.Length ?? 0);
             
             var enhancedPrompt = $@"You are a professional report generator. Generate a comprehensive, well-structured report based on the following instructions and any attached files.
 
@@ -109,12 +109,12 @@ Format the report in a clear, professional manner with proper headings and secti
     /// <summary>
     /// Helper method to add file note to prompt when files are present
     /// </summary>
-    private string BuildPromptWithFileNote(string prompt, IFormFileCollection? files)
+    private string BuildPromptWithFileNote(string prompt, FileUpload[]? files)
     {
-        if (files != null && files.Count > 0)
+        if (files != null && files.Length > 0)
         {
             _logger.LogInformation("File attachments present but multimodal processing not yet implemented");
-            return prompt + $"\n\n[Note: {files.Count} file(s) were uploaded but cannot be processed in text-only mode. For full file analysis, multimodal API integration is required.]";
+            return prompt + $"\n\n[Note: {files.Length} file(s) were uploaded but cannot be processed in text-only mode. For full file analysis, multimodal API integration is required.]";
         }
         return prompt;
     }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+using NTC.QoS.Domain.Models;
 
 namespace NTC.QoS.Domain.Interfaces;
 
@@ -14,7 +14,7 @@ public interface IGenAIService
     /// <param name="files">Optional file attachments (images, PDFs, Excel, text files)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The AI-generated response</returns>
-    Task<string> ChatAsync(string prompt, IFormFileCollection? files = null, CancellationToken cancellationToken = default);
+    Task<string> ChatAsync(string prompt, FileUpload[]? files = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Generates a report using the AI model based on provided resources
@@ -23,5 +23,5 @@ public interface IGenAIService
     /// <param name="files">Resource files to analyze for the report</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The generated report content</returns>
-    Task<string> GenerateReportAsync(string prompt, IFormFileCollection? files = null, CancellationToken cancellationToken = default);
+    Task<string> GenerateReportAsync(string prompt, FileUpload[]? files = null, CancellationToken cancellationToken = default);
 }

@@ -2,8 +2,10 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
+using NTC.QoS.API.Models;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Models;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.GenAI;
 
@@ -62,11 +64,18 @@ public class GenAIController : ControllerBase
     [RequirePermission(Permissions.ChatWithAI)]
     [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 400)]
-    public async Task<ActionResult<ApiResponse<ChatResponseDto>>> Chat([FromForm] ChatRequestDto chatRequest)
+    public async Task<ActionResult<ApiResponse<ChatResponseDto>>> Chat([FromForm] ChatApiRequest apiRequest)
     {
         try
         {
-            _logger.LogInformation("Received chat request with {FileCount} files", chatRequest.Files?.Count ?? 0);
+            _logger.LogInformation("Received chat request with {FileCount} files", apiRequest.Files?.Length ?? 0);
+
+            // Map from API request to domain DTO
+            var chatRequest = new ChatRequestDto
+            {
+                Prompt = apiRequest.Prompt,
+                Files = await MapFilesToDomainAsync(apiRequest.Files)
+            };
 
             var request = new ChatRequest(chatRequest);
             var response = await _mediator.Send(request);
@@ -133,11 +142,18 @@ public class GenAIController : ControllerBase
     [RequirePermission(Permissions.GenerateReports)]
     [ProducesResponseType(typeof(ApiResponse<GenerateReportResponseDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<GenerateReportResponseDto>), 400)]
-    public async Task<ActionResult<ApiResponse<GenerateReportResponseDto>>> GenerateReport([FromForm] GenerateReportRequestDto reportRequest)
+    public async Task<ActionResult<ApiResponse<GenerateReportResponseDto>>> GenerateReport([FromForm] GenerateReportApiRequest apiRequest)
     {
         try
         {
-            _logger.LogInformation("Received report generation request with {FileCount} files", reportRequest.Files?.Count ?? 0);
+            _logger.LogInformation("Received report generation request with {FileCount} files", apiRequest.Files?.Length ?? 0);
+
+            // Map from API request to domain DTO
+            var reportRequest = new GenerateReportRequestDto
+            {
+                Prompt = apiRequest.Prompt,
+                Files = await MapFilesToDomainAsync(apiRequest.Files)
+            };
 
             var request = new GenerateReportRequest(reportRequest);
             var response = await _mediator.Send(request);
@@ -153,5 +169,33 @@ public class GenAIController : ControllerBase
                 Message = "An error occurred while generating the report"
             });
         }
+    }
+
+    /// <summary>
+    /// Maps IFormFile[] to domain FileUpload[] model
+    /// </summary>
+    private static async Task<FileUpload[]?> MapFilesToDomainAsync(IFormFile[]? files)
+    {
+        if (files == null || files.Length == 0)
+            return null;
+
+        var fileUploads = new FileUpload[files.Length];
+        for (int i = 0; i < files.Length; i++)
+        {
+            var file = files[i];
+            var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            fileUploads[i] = new FileUpload
+            {
+                FileName = file.FileName,
+                ContentType = file.ContentType,
+                Length = file.Length,
+                Content = memoryStream
+            };
+        }
+
+        return fileUploads;
     }
 }

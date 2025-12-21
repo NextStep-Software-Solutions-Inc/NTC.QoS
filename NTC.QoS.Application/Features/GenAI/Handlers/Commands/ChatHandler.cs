@@ -25,7 +25,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, ApiResponse<ChatResponse
     {
         try
         {
-            _logger.LogInformation("Processing chat request with {FileCount} files", request.Request.Files?.Count ?? 0);
+            _logger.LogInformation("Processing chat request with {FileCount} files", request.Request.Files?.Length ?? 0);
 
             var response = await _genAIService.ChatAsync(
                 request.Request.Prompt,
@@ -35,7 +35,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, ApiResponse<ChatResponse
             var chatResponse = new ChatResponseDto
             {
                 Response = response,
-                FilesProcessed = request.Request.Files?.Count ?? 0,
+                FilesProcessed = request.Request.Files?.Length ?? 0,
                 Timestamp = DateTime.UtcNow
             };
 
