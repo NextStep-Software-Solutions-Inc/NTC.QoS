@@ -213,6 +213,10 @@ public class ProviderTechnologyService : IProviderTechnologyService
     /// Calculate technology breakdown for multiple barangays in a single batch operation.
     /// Optimized to reduce database queries from N+1 to 3 queries total.
     /// </summary>
+    /// <summary>
+    /// Optimized batch calculation that processes barangays in chunks to handle millions of records.
+    /// Uses database-side spatial filtering instead of loading all data into memory.
+    /// </summary>
     public async Task<Dictionary<Guid, Dictionary<string, TechnologyBandBreakdownDto>>> CalculateBatchProviderTechnologyBreakdownAsync(
         List<Guid> barangayIds,
         Geometry? overallBoundary,
@@ -230,34 +234,7 @@ public class ProviderTechnologyService : IProviderTechnologyService
 
         var result = new Dictionary<Guid, Dictionary<string, TechnologyBandBreakdownDto>>();
 
-        // 1. Batch query: Get all cellular data within overall boundary
-        var allCellularData = new List<(string ProviderName, string GenerationName, string TechnologyStandard, List<string> Bands, Point? Location)>();
-        if (overallBoundary != null)
-        {
-            allCellularData = await _context.Cellulars
-                .AsNoTracking()
-                .Where(c => c.CellSector != null
-                         && c.CellSector.Cell != null
-                         && c.CellSector.Cell.Location != null
-                         && overallBoundary.Contains(c.CellSector.Cell.Location)
-                         && c.ServiceProvider != null
-                         && c.ServiceProvider.Provider != null
-                         && c.Technology != null
-                         && c.Technology.Generation != null)
-                .Include(c => c.Technology)
-                    .ThenInclude(t => t!.TechnologyBands)
-                    .ThenInclude(tb => tb.Band)
-                .Select(c => new ValueTuple<string, string, string, List<string>, Point?>(
-                    c.ServiceProvider!.Provider!.Name,
-                    c.Technology!.Generation!.Name,
-                    c.Technology.Standard,
-                    c.Technology.TechnologyBands.Select(tb => tb.Band.Name).ToList(),
-                    c.CellSector!.Cell!.Location
-                ))
-                .ToListAsync(cancellationToken);
-        }
-
-        // 2. Batch query: Get all wireless validations for all barangays
+        // Batch query: Get all wireless validations for all barangays (this is always reasonable in size)
         var allValidationData = await _context.WirelessValidations
             .AsNoTracking()
             .Where(wv => barangayIds.Contains(wv.BarangayId)
@@ -278,36 +255,58 @@ public class ProviderTechnologyService : IProviderTechnologyService
             })
             .ToListAsync(cancellationToken);
 
-        // 3. Batch query: Get all speedtests within overall boundary
-        var allSpeedtestData = new List<(string ProviderName, string GenerationName, Point? Location)>();
-        if (overallBoundary != null)
-        {
-            allSpeedtestData = await _context.Speedtests
-                .AsNoTracking()
-                .Where(s => s.Location != null
-                         && overallBoundary.Contains(s.Location)
-                         && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
-                         && s.Generation != null)
-                .Select(s => new ValueTuple<string, string, Point?>(
-                    s.ServiceProvider.Provider.Name,
-                    s.Generation!.Name,
-                    s.Location
-                ))
-                .ToListAsync(cancellationToken);
-        }
+        // Process each barangay individually with database-side spatial filtering
+        // This avoids loading millions of records into memory
+        const int batchSize = 50; // Process barangays in batches for progress tracking
+        var barangayBatches = barangays.Chunk(batchSize);
 
-        // Process each barangay using the batched data
-        foreach (var barangay in barangays)
+        foreach (var batch in barangayBatches)
         {
-            var providerTechMap = new Dictionary<string, Dictionary<string, HashSet<string>>>();
-
-            // Filter cellular data for this barangay
-            if (barangay.Boundaries != null)
+            foreach (var barangay in batch)
             {
-                var barangayCellularData = allCellularData
-                    .Where(c => c.Location != null && barangay.Boundaries.Contains(c.Location));
+                var providerTechMap = new Dictionary<string, Dictionary<string, HashSet<string>>>();
 
-                foreach (var item in barangayCellularData)
+                // Database-side spatial query for cellulars (leverages spatial indexes)
+                if (barangay.Boundaries != null)
+                {
+                    var barangayCellularData = await _context.Cellulars
+                        .AsNoTracking()
+                        .Where(c => c.CellSector != null
+                                 && c.CellSector.Cell != null
+                                 && c.CellSector.Cell.Location != null
+                                 && barangay.Boundaries.Contains(c.CellSector.Cell.Location)
+                                 && c.ServiceProvider != null
+                                 && c.ServiceProvider.Provider != null
+                                 && c.Technology != null
+                                 && c.Technology.Generation != null)
+                        .Include(c => c.Technology)
+                            .ThenInclude(t => t!.TechnologyBands)
+                            .ThenInclude(tb => tb.Band)
+                        .Select(c => new
+                        {
+                            ProviderName = c.ServiceProvider!.Provider!.Name,
+                            GenerationName = c.Technology!.Generation!.Name,
+                            TechnologyStandard = c.Technology.Standard,
+                            Bands = c.Technology.TechnologyBands.Select(tb => tb.Band.Name).ToList()
+                        })
+                        .ToListAsync(cancellationToken);
+
+                    foreach (var item in barangayCellularData)
+                    {
+                        foreach (var band in item.Bands)
+                        {
+                            AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, band);
+                        }
+                        if (!item.Bands.Any())
+                        {
+                            AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, "");
+                        }
+                    }
+                }
+
+                // Filter validation data for this barangay (already in memory)
+                var barangayValidationData = allValidationData.Where(v => v.BarangayId == barangay.Id);
+                foreach (var item in barangayValidationData)
                 {
                     foreach (var band in item.Bands)
                     {
@@ -318,36 +317,32 @@ public class ProviderTechnologyService : IProviderTechnologyService
                         AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, "");
                     }
                 }
-            }
 
-            // Filter validation data for this barangay
-            var barangayValidationData = allValidationData.Where(v => v.BarangayId == barangay.Id);
-            foreach (var item in barangayValidationData)
-            {
-                foreach (var band in item.Bands)
+                // Database-side spatial query for speedtests (leverages spatial indexes)
+                if (barangay.Boundaries != null)
                 {
-                    AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, band);
+                    var barangaySpeedtestData = await _context.Speedtests
+                        .AsNoTracking()
+                        .Where(s => s.Location != null
+                                 && barangay.Boundaries.Contains(s.Location)
+                                 && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
+                                 && s.Generation != null)
+                        .Select(s => new
+                        {
+                            ProviderName = s.ServiceProvider.Provider.Name,
+                            GenerationName = s.Generation!.Name
+                        })
+                        .ToListAsync(cancellationToken);
+
+                    foreach (var item in barangaySpeedtestData)
+                    {
+                        AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, "", "");
+                    }
                 }
-                if (!item.Bands.Any())
-                {
-                    AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, item.TechnologyStandard, "");
-                }
+
+                // Convert to TechnologyBandBreakdownDto
+                result[barangay.Id] = ConvertToBreakdownDtos(providerTechMap);
             }
-
-            // Filter speedtest data for this barangay
-            if (barangay.Boundaries != null)
-            {
-                var barangaySpeedtestData = allSpeedtestData
-                    .Where(s => s.Location != null && barangay.Boundaries.Contains(s.Location));
-
-                foreach (var item in barangaySpeedtestData)
-                {
-                    AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, "", "");
-                }
-            }
-
-            // Convert to TechnologyBandBreakdownDto
-            result[barangay.Id] = ConvertToBreakdownDtos(providerTechMap);
         }
 
         return result;

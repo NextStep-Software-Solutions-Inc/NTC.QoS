@@ -835,8 +835,8 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
     /// <summary>
     /// Load speedtests grouped by barangay using database-side spatial filtering.
-    /// Each barangay gets its own simple spatial query to maximize spatial index usage.
-    /// Processes in batches for progress tracking and to avoid overwhelming the database.
+    /// Optimized to use individual spatial queries per barangay to leverage spatial indexes.
+    /// This is faster than loading all data into memory for millions of records.
     /// </summary>
     private async Task<Dictionary<Guid, List<SpeedtestInfo>>> LoadSpeedtestsByBarangayAsync(
         List<Domain.Entities.Barangay> barangays,
@@ -848,14 +848,14 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
         var result = new Dictionary<Guid, List<SpeedtestInfo>>();
         
-        // Process barangays in batches for progress tracking
-        const int batchSize = 100;
+        // Process barangays individually with database-side spatial queries
+        // This leverages spatial indexes optimally and avoids loading millions into memory
+        const int batchSize = 50; // Smaller batches for better progress tracking
         var barangayBatches = barangays.Chunk(batchSize);
+        int processedCount = 0;
 
         foreach (var batch in barangayBatches)
         {
-            // Query speedtests for each barangay in this batch
-            // Each query is simple and leverages spatial indexes optimally
             foreach (var barangay in batch)
             {
                 if (barangay.Boundaries != null)
@@ -881,6 +881,13 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 {
                     result[barangay.Id] = new List<SpeedtestInfo>();
                 }
+            }
+
+            processedCount += batch.Length;
+            if (processedCount % 500 == 0)
+            {
+                _logger.LogInformation("Loaded speedtests for {Processed}/{Total} barangays", 
+                    processedCount, barangays.Count);
             }
         }
 
