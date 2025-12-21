@@ -73,7 +73,7 @@ public class GetAllCellularCoveragesViewportHandler : IRequestHandler<GetAllCell
             ISPColor = c.Network.ServiceProvider.Provider.Color,
             Lat = c.Location.Coordinate.Y,
             Lng = c.Location.Coordinate.X,
-            Strength = c.Strength
+            SignalStrength = c.SignalStrength
         });
 
         return await _coverageRepository.PaginateAsync(coverageViewportDtoQuery, request.PageNumber, effectivePageSize, cancellationToken);

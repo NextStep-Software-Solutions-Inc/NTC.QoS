@@ -42,12 +42,12 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
 
         if (request.ServiceProviderId.HasValue)
         {
-            query = query.Where(cc => cc.CellSector.Cell.ServiceProviderId == request.ServiceProviderId.Value);
+            query = query.Where(cc => cc.CellSector != null && cc.CellSector.Cell.ServiceProviderId == request.ServiceProviderId.Value);
         }
 
         if (request.CellId.HasValue)
         {
-            query = query.Where(cc => cc.CellSector.CellId == request.CellId.Value);
+            query = query.Where(cc => cc.CellSector != null && cc.CellSector.CellId == request.CellId.Value);
         }
 
         // Get total count
@@ -63,14 +63,14 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
                 Id = cc.Id,
                 NetworkId = cc.NetworkId,
                 NetworkName = cc.Network.Name,
-                BandId = cc.BandId,
-                BandName = cc.Band.Name,
-                TechnologyId = cc.TechnologyId,
-                TechnologyName = cc.Technology.Standard,
-                CellSectorId = cc.CellSectorId,
-                CellSectorName = cc.CellSector.Cell.Name,
-                MunicipalityId = cc.MunicipalityId,
-                MunicipalityName = cc.Municipality.Name,
+                BandId = cc.BandId!.Value,
+                BandName = cc.Band!.Name,
+                TechnologyId = cc.TechnologyId!.Value,
+                TechnologyName = cc.Technology!.Standard,
+                CellSectorId = cc.CellSectorId!.Value,
+                CellSectorName = cc.CellSector!.Cell.Name,
+                MunicipalityId = cc.MunicipalityId!.Value,
+                MunicipalityName = cc.Municipality!.Name,
                 Lat = cc.Location.Y,
                 Lng = cc.Location.X,
                 SignalStrength = cc.SignalStrength,
