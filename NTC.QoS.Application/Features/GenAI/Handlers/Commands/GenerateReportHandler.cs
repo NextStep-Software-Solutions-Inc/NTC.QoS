@@ -24,7 +24,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
     {
         try
         {
-            _logger.LogInformation("Processing streaming report generation request with {FileCount} files", request.Request.Files?.Count ?? 0);
+            _logger.LogInformation("Processing streaming report generation request with {FileCount} files", request.Request.Files?.Length ?? 0);
 
             await foreach (var chunk in _genAIService.GenerateReportStreamAsync(
                 request.Request.Prompt,

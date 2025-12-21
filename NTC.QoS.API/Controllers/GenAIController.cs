@@ -78,7 +78,7 @@ public class GenAIController : ControllerBase
     [RequirePermission(Permissions.ChatWithAI)]
     [ProducesResponseType(200)]
     [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 400)]
-    public async Task<ActionResult<ApiResponse<ChatResponseDto>>> Chat([FromForm] ChatApiRequest apiRequest)
+    public async Task Chat([FromForm] ChatApiRequest apiRequest)
     {
         try
         {
@@ -166,7 +166,7 @@ public class GenAIController : ControllerBase
     [RequirePermission(Permissions.GenerateReports)]
     [ProducesResponseType(200)]
     [ProducesResponseType(typeof(ApiResponse<GenerateReportResponseDto>), 400)]
-    public async Task<ActionResult<ApiResponse<GenerateReportResponseDto>>> GenerateReport([FromForm] GenerateReportApiRequest apiRequest)
+    public async Task GenerateReport([FromForm] GenerateReportApiRequest apiRequest)
     {
         try
         {
@@ -190,14 +190,9 @@ public class GenAIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating report");
-            return BadRequest(new ApiResponse<GenerateReportResponseDto>
-            {
-                Succeeded = false,
-                Message = "An error occurred while generating the report"
-            });
+            Response.StatusCode = 400;
+            await Response.WriteAsync($"data: {{\"error\": \"An error occurred while generating the report: {ex.Message}\"}}\n\n");
         }
-
-        return fileUploads;
     }
 
     /// <summary>

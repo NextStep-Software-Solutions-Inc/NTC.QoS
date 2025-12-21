@@ -43,7 +43,7 @@ public class GenAIService : IGenAIService
         parts.Add(new Part { Text = prompt });
         
         // Process file attachments
-        if (files != null && files.Count > 0)
+        if (files != null && files.Length > 0)
         {
             await foreach (var part in ProcessFilesAsync(files, cancellationToken))
             {
@@ -87,7 +87,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
         parts.Add(new Part { Text = enhancedPrompt });
         
         // Process file attachments
-        if (files != null && files.Count > 0)
+        if (files != null && files.Length > 0)
         {
             await foreach (var part in ProcessFilesAsync(files, cancellationToken))
             {
@@ -106,7 +106,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
     /// Process uploaded files and convert them to appropriate parts for the AI model
     /// </summary>
     private async IAsyncEnumerable<Part> ProcessFilesAsync(
-        IFormFileCollection files, 
+        FileUpload[] files, 
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         foreach (var file in files)
@@ -208,17 +208,17 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
     /// <summary>
     /// Read file content as byte array
     /// </summary>
-    private async Task<byte[]> ReadFileAsync(IFormFile file, CancellationToken cancellationToken)
+    private async Task<byte[]> ReadFileAsync(FileUpload file, CancellationToken cancellationToken)
     {
         using var memoryStream = new MemoryStream();
-        await file.CopyToAsync(memoryStream, cancellationToken);
+        await file.Content.CopyToAsync(memoryStream, cancellationToken);
         return memoryStream.ToArray();
     }
 
     /// <summary>
     /// Determine MIME type for the file
     /// </summary>
-    private string DetermineMimeType(IFormFile file)
+    private string DetermineMimeType(FileUpload file)
     {
         // Use provided content type if available
         if (!string.IsNullOrWhiteSpace(file.ContentType))
