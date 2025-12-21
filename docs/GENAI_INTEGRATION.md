@@ -1,14 +1,15 @@
 # Google Gen AI Integration - Implementation Summary
 
 ## Overview
-This document describes the implementation of Google Generative AI integration for the NTC QoS platform, providing AI-powered chat assistant and report generation features.
+This document describes the implementation of Google Generative AI integration for the NTC QoS platform, providing AI-powered chat assistant and report generation features using the **official Google.GenAI SDK**.
 
 ## Implementation Details
 
 ### 1. SDK and Model
-- **Package**: `Mscc.GenerativeAI` v1.8.1 (Official Google Generative AI SDK for .NET)
-- **Model**: Gemini 1.5 Flash (Free tier, optimized for speed and efficiency)
+- **Package**: `Google.GenAI` v0.9.0 (**Official Google Generative AI SDK for .NET**)
+- **Model**: Gemini 2.0 Flash (Latest experimental free tier model, optimized for speed and efficiency)
 - **No vulnerabilities** found in dependency check
+- **Repository**: https://github.com/googleapis/dotnet-genai
 
 ### 2. Architecture
 

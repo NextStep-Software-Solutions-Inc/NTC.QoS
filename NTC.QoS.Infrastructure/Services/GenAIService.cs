@@ -1,18 +1,18 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Mscc.GenerativeAI;
+using Google.GenAI;
 using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Infrastructure.Services;
 
 /// <summary>
-/// Service for Google Generative AI operations using Gemini models
+/// Service for Google Generative AI operations using official Google.GenAI SDK with Gemini models
 /// </summary>
 public class GenAIService : IGenAIService
 {
     private readonly ILogger<GenAIService> _logger;
-    private readonly GoogleAI _googleAI;
+    private readonly Client _genAIClient;
 
     public GenAIService(IConfiguration configuration, ILogger<GenAIService> logger)
     {
@@ -20,7 +20,7 @@ public class GenAIService : IGenAIService
         var apiKey = configuration["GoogleAI:ApiKey"] 
             ?? throw new InvalidOperationException("GoogleAI:ApiKey is not configured. Please set it in user secrets or environment variables.");
         
-        _googleAI = new GoogleAI(apiKey);
+        _genAIClient = new Client(apiKey: apiKey);
     }
 
     /// <summary>
@@ -33,23 +33,23 @@ public class GenAIService : IGenAIService
             _logger.LogInformation("Processing chat request with prompt length: {PromptLength}, files: {FileCount}", 
                 prompt.Length, files?.Count ?? 0);
 
-            // Use Gemini 1.5 Flash (free tier, fast and efficient)
-            var model = _googleAI.GenerativeModel(model: Model.Gemini15Flash);
-            
             var enhancedPrompt = BuildPromptWithFileNote(prompt, files);
 
-            // Note: GenerateContent in Mscc.GenerativeAI doesn't support cancellation tokens directly
-            // The operation is typically fast (< 10 seconds) so this is acceptable
-            var response = await model.GenerateContent(enhancedPrompt);
+            // Use Gemini 2.0 Flash (latest free tier model, fast and efficient)
+            var response = await _genAIClient.Models.GenerateContentAsync(
+                model: "gemini-2.0-flash-exp",
+                contents: enhancedPrompt
+            );
             
-            if (response?.Text == null)
+            var responseText = response?.Candidates?[0]?.Content?.Parts?[0]?.Text;
+            if (string.IsNullOrWhiteSpace(responseText))
             {
                 _logger.LogWarning("Empty response received from AI model");
                 return "I apologize, but I couldn't generate a response. Please try again.";
             }
 
             _logger.LogInformation("Chat response generated successfully");
-            return response.Text;
+            return responseText;
         }
         catch (Exception ex)
         {
@@ -67,9 +67,6 @@ public class GenAIService : IGenAIService
         {
             _logger.LogInformation("Processing report generation request with prompt length: {PromptLength}, files: {FileCount}", 
                 prompt.Length, files?.Count ?? 0);
-
-            // Use Gemini 1.5 Flash for report generation
-            var model = _googleAI.GenerativeModel(model: Model.Gemini15Flash);
             
             var enhancedPrompt = $@"You are a professional report generator. Generate a comprehensive, well-structured report based on the following instructions and any attached files.
 
@@ -86,18 +83,21 @@ Format the report in a clear, professional manner with proper headings and secti
 
             enhancedPrompt = BuildPromptWithFileNote(enhancedPrompt, files);
 
-            // Note: GenerateContent in Mscc.GenerativeAI doesn't support cancellation tokens directly
-            // The operation is typically fast (< 10 seconds) so this is acceptable
-            var response = await model.GenerateContent(enhancedPrompt);
+            // Use Gemini 2.0 Flash for report generation (latest free tier model)
+            var response = await _genAIClient.Models.GenerateContentAsync(
+                model: "gemini-2.0-flash-exp",
+                contents: enhancedPrompt
+            );
             
-            if (response?.Text == null)
+            var responseText = response?.Candidates?[0]?.Content?.Parts?[0]?.Text;
+            if (string.IsNullOrWhiteSpace(responseText))
             {
                 _logger.LogWarning("Empty response received from AI model for report generation");
                 return "Failed to generate report. Please try again with different parameters.";
             }
 
             _logger.LogInformation("Report generated successfully");
-            return response.Text;
+            return responseText;
         }
         catch (Exception ex)
         {
