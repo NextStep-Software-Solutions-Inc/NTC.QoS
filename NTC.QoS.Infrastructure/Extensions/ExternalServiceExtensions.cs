@@ -32,6 +32,9 @@ internal static class ExternalServiceExtensions
         // CellularCoverage V2 mapping service
         services.AddScoped<ICellularCoverageV2MappingService, CellularCoverageV2MappingService>();
 
+        // Google Generative AI service
+        services.AddScoped<IGenAIService, GenAIService>();
+
         return services;
     }
 }

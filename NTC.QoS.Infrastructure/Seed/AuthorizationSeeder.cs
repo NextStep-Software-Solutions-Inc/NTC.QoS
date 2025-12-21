@@ -224,7 +224,11 @@ public static class AuthorizationSeeder
             // System permissions
             new { Key = Permissions.SystemAdministration, Name = "System Administration", Description = "Full system administration access" },
             new { Key = Permissions.ViewLogs, Name = "View Logs", Description = "Can view system logs" },
-            new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" }
+            new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" },
+
+            // GenAI permissions
+            new { Key = Permissions.ChatWithAI, Name = "Chat with AI", Description = "Can access AI chat assistant" },
+            new { Key = Permissions.GenerateReports, Name = "Generate AI Reports", Description = "Can generate reports using AI" }
         };
 
 
