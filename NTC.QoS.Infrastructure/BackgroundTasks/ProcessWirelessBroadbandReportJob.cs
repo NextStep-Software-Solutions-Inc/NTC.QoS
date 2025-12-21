@@ -400,65 +400,89 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         if (overallBoundary == null || !barangays.Any())
             return new Dictionary<Guid, List<SpeedtestInfo>>();
 
-        var result = new Dictionary<Guid, List<SpeedtestInfo>>();
-        var loadStopwatch = Stopwatch.StartNew();
+        var totalStopwatch = Stopwatch.StartNew();
         
-        // Process barangays in batches for progress tracking
-        const int batchSize = 100;
-        var barangayBatches = barangays.Chunk(batchSize);
-        var batchNumber = 0;
-        var totalBatches = (int)Math.Ceiling(barangays.Count / (double)batchSize);
-        var totalSpeedtestsLoaded = 0;
-
-        foreach (var batch in barangayBatches)
+        // OPTIMIZATION: Load ALL speedtests in the region with a single bulk spatial query
+        // PostgreSQL's GIST spatial index makes this very efficient
+        _logger.LogInformation(
+            "Loading speedtests for {BarangayCount} barangays using bulk spatial query...", 
+            barangays.Count);
+        
+        var bulkLoadStopwatch = Stopwatch.StartNew();
+        var allSpeedtests = await _context.Speedtests
+            .AsNoTracking()
+            .Where(s => s.Location != null 
+                     && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
+                     && overallBoundary.Contains(s.Location))  // Single spatial filter on region/province/municipality
+            .Select(s => new 
+            { 
+                s.Id,
+                s.Location,
+                Info = new SpeedtestInfo
+                {
+                    ProviderName = s.ServiceProvider.Provider.Name,
+                    UploadSpeed = s.UploadSpeed,
+                    DownloadSpeed = s.DownloadSpeed,
+                    Location = s.Location!,
+                    GenerationName = s.Generation != null ? s.Generation.Name : ""
+                }
+            })
+            .ToListAsync(cancellationToken);
+        bulkLoadStopwatch.Stop();
+        
+        _logger.LogInformation(
+            "Bulk load: Retrieved {SpeedtestCount} speedtests from database in {ElapsedMs}ms",
+            allSpeedtests.Count, bulkLoadStopwatch.ElapsedMilliseconds);
+        
+        // Group speedtests by barangay using in-memory spatial operations
+        // NetTopologySuite geometry operations are highly optimized
+        var groupingStopwatch = Stopwatch.StartNew();
+        var result = new Dictionary<Guid, List<SpeedtestInfo>>();
+        
+        // Initialize all barangays with empty lists
+        foreach (var barangay in barangays)
         {
-            batchNumber++;
-            var batchStopwatch = Stopwatch.StartNew();
-            var batchSpeedtestCount = 0;
-            
-            // Query speedtests for each barangay in this batch
-            // Each query is simple and leverages spatial indexes optimally
-            foreach (var barangay in batch)
-            {
-                if (barangay.Boundaries != null)
-                {
-                    var barangaySpeedtests = await _context.Speedtests
-                        .AsNoTracking()
-                        .Where(s => s.Location != null 
-                                 && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
-                                 && barangay.Boundaries.Contains(s.Location))
-                        .Select(s => new SpeedtestInfo
-                        {
-                            ProviderName = s.ServiceProvider.Provider.Name,
-                            UploadSpeed = s.UploadSpeed,
-                            DownloadSpeed = s.DownloadSpeed,
-                            Location = s.Location!,
-                            GenerationName = s.Generation != null ? s.Generation.Name : ""
-                        })
-                        .ToListAsync(cancellationToken);
-
-                    result[barangay.Id] = barangaySpeedtests;
-                    batchSpeedtestCount += barangaySpeedtests.Count;
-                }
-                else
-                {
-                    result[barangay.Id] = new List<SpeedtestInfo>();
-                }
-            }
-            
-            batchStopwatch.Stop();
-            totalSpeedtestsLoaded += batchSpeedtestCount;
-            
-            _logger.LogInformation(
-                "Speedtest batch {BatchNumber}/{TotalBatches}: Loaded {SpeedtestCount} speedtests for {BarangayCount} barangays in {ElapsedMs}ms",
-                batchNumber, totalBatches, batchSpeedtestCount, batch.Count(), batchStopwatch.ElapsedMilliseconds);
+            result[barangay.Id] = new List<SpeedtestInfo>();
         }
         
-        loadStopwatch.Stop();
+        // Assign each speedtest to its containing barangay
+        // This is much faster than N database queries because:
+        // 1. No network roundtrips
+        // 2. No query parsing/planning overhead
+        // 3. NetTopologySuite's in-memory Contains() is highly optimized
+        var assignedCount = 0;
+        foreach (var speedtest in allSpeedtests)
+        {
+            // Find which barangay contains this speedtest
+            // Most speedtests will match the first or second barangay checked
+            // due to spatial locality (speedtests cluster in populated areas)
+            foreach (var barangay in barangays)
+            {
+                if (barangay.Boundaries != null && 
+                    barangay.Boundaries.Contains(speedtest.Location))
+                {
+                    result[barangay.Id].Add(speedtest.Info);
+                    assignedCount++;
+                    break; // Speedtest can only belong to one barangay
+                }
+            }
+        }
+        groupingStopwatch.Stop();
+        totalStopwatch.Stop();
+        
+        var barangaysWithSpeedtests = result.Count(kvp => kvp.Value.Any());
         _logger.LogInformation(
-            "Total speedtest loading: {TotalSpeedtests} speedtests for {TotalBarangays} barangays in {TotalMs}ms (avg {AvgMs}ms/barangay)",
-            totalSpeedtestsLoaded, barangays.Count, loadStopwatch.ElapsedMilliseconds,
-            barangays.Count > 0 ? loadStopwatch.ElapsedMilliseconds / barangays.Count : 0);
+            "Grouping: Assigned {AssignedCount}/{TotalCount} speedtests to {BarangayWithData}/{TotalBarangays} barangays in {GroupMs}ms",
+            assignedCount, allSpeedtests.Count, barangaysWithSpeedtests, barangays.Count, 
+            groupingStopwatch.ElapsedMilliseconds);
+        
+        _logger.LogInformation(
+            "Total speedtest loading: {AssignedCount} speedtests for {TotalBarangays} barangays in {TotalMs}ms " +
+            "(Bulk load: {BulkMs}ms, Grouping: {GroupMs}ms) - " +
+            "Average: {AvgMs}ms/barangay",
+            assignedCount, barangays.Count, totalStopwatch.ElapsedMilliseconds,
+            bulkLoadStopwatch.ElapsedMilliseconds, groupingStopwatch.ElapsedMilliseconds,
+            barangays.Count > 0 ? totalStopwatch.ElapsedMilliseconds / barangays.Count : 0);
 
         return result;
     }
