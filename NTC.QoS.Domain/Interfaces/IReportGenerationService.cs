@@ -12,11 +12,13 @@ public interface IReportGenerationService
     /// </summary>
     /// <param name="reportData">The wired broadband report data</param>
     /// <param name="reportTitle">Title for the report</param>
+    /// <param name="includeRemarks">When true, includes the remarks column in the report</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>PDF file as byte array</returns>
     Task<byte[]> GenerateWiredBroadbandPdfAsync(
         WiredBroadbandReportDto reportData, 
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -24,11 +26,13 @@ public interface IReportGenerationService
     /// </summary>
     /// <param name="reportData">The wired broadband report data</param>
     /// <param name="reportTitle">Title for the report</param>
+    /// <param name="includeRemarks">When true, includes the remarks column in the report</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Excel file as byte array</returns>
     Task<byte[]> GenerateWiredBroadbandExcelAsync(
         WiredBroadbandReportDto reportData,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>

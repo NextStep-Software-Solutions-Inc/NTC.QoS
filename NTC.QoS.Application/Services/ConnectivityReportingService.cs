@@ -40,6 +40,7 @@ public interface IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -51,6 +52,7 @@ public interface IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -208,6 +210,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating wired broadband PDF report with filterByStatus: {FilterByStatus}", filterByStatus);
@@ -230,7 +233,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
         }
 
-        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, cancellationToken);
+        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, includeRemarks, cancellationToken);
     }
 
     public async Task<byte[]> GenerateWiredBroadbandExcelAsync(
@@ -239,6 +242,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating wired broadband Excel report");
@@ -261,7 +265,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
         }
 
-        return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(response.Data, reportTitle, cancellationToken);
+        return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(response.Data, reportTitle, includeRemarks, cancellationToken);
     }
 
     public async Task<byte[]> GenerateConnectivityGapPdfAsync(

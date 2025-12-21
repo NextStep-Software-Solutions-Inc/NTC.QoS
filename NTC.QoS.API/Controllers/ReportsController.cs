@@ -8,6 +8,10 @@ using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
+using NTC.QoS.Domain.Enums;
+using Hangfire;
+using Microsoft.Extensions.Caching.Memory;
+using System.Security.Claims;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -21,19 +25,28 @@ public class ReportsController : ControllerBase
     private readonly IRegionRepository _regionRepository;
     private readonly IProvinceRepository _provinceRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IBackgroundJobClient _backgroundJobClient;
+    private readonly IMemoryCache _memoryCache;
+    private readonly IBlobStorageService _blobStorageService;
 
     public ReportsController(
         IMediator mediator, 
         IConnectivityReportingService connectivityReportingService,
         IRegionRepository regionRepository,
         IProvinceRepository provinceRepository,
-        IMunicipalityRepository municipalityRepository)
+        IMunicipalityRepository municipalityRepository,
+        IBackgroundJobClient backgroundJobClient,
+        IMemoryCache memoryCache,
+        IBlobStorageService blobStorageService)
     {
         _mediator = mediator;
         _connectivityReportingService = connectivityReportingService;
         _regionRepository = regionRepository;
         _provinceRepository = provinceRepository;
         _municipalityRepository = municipalityRepository;
+        _backgroundJobClient = backgroundJobClient;
+        _memoryCache = memoryCache;
+        _blobStorageService = blobStorageService;
     }
 
     [HttpGet("wireless-broadband")]
@@ -130,6 +143,7 @@ public class ReportsController : ControllerBase
     /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
     /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0). Default includes all statuses.</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
+    /// <param name="includeRemarks">When false (default), excludes the Remarks column in the report. Set to true to include remarks.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("wired-broadband/download")]
     public async Task<ActionResult> DownloadWiredBroadbandReport(
@@ -138,7 +152,8 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
         [FromQuery] ServiceStatusEnum? filterByStatus = null,
-        [FromQuery] string? reportTitle = null)
+        [FromQuery] string? reportTitle = null,
+        [FromQuery] bool includeRemarks = false)
     {
 
         // Generate location-based default title if not provided
@@ -158,13 +173,13 @@ public class ReportsController : ControllerBase
         if (format == ReportFormat.Pdf)
         {
             var pdfBytes = await _connectivityReportingService.GenerateWiredBroadbandPdfAsync(
-                regionId, provinceId, municipalityId, filterByStatus, title);
+                regionId, provinceId, municipalityId, filterByStatus, title, includeRemarks);
             return File(pdfBytes, "application/pdf", fileName);
         }
         else
         {
             var excelBytes = await _connectivityReportingService.GenerateWiredBroadbandExcelAsync(
-                regionId, provinceId, municipalityId, filterByStatus, title);
+                regionId, provinceId, municipalityId, filterByStatus, title, includeRemarks);
             return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
     }
@@ -434,4 +449,187 @@ public class ReportsController : ControllerBase
         
         return string.IsNullOrEmpty(sanitized) ? "Unknown" : sanitized;
     }
+
+    /// <summary>
+    /// Generate wired broadband report as a background job (recommended for large reports)
+    /// </summary>
+    /// <param name="format">Report format: Excel (0) or Pdf (1)</param>
+    /// <param name="regionId">Optional filter by Region ID</param>
+    /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=2, Underserved=1, Unserved=0)</param>
+    /// <param name="reportTitle">Optional custom title for the report</param>
+    /// <param name="includeRemarks">When false (default), excludes the Remarks column in the report</param>
+    /// <param name="forceGenerateConnectivityAssessment">When true, forces generation of new connectivity assessments</param>
+    /// <returns>Job information with status URL</returns>
+    [HttpPost("wired-broadband/generate-async")]
+    public async Task<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>> GenerateWiredBroadbandReportAsync(
+        [FromQuery] ReportFormat format = ReportFormat.Excel,
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
+        [FromQuery] string? reportTitle = null,
+        [FromQuery] bool includeRemarks = false,
+        [FromQuery] bool forceGenerateConnectivityAssessment = false)
+    {
+        try
+        {
+            // Get user ID from claims
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "Unknown";
+
+            // Create job request
+            var jobRequest = new WiredBroadbandReportJobRequestDto
+            {
+                JobId = string.Empty, // Will be set by Hangfire
+                UserId = userId,
+                RegionId = regionId,
+                ProvinceId = provinceId,
+                MunicipalityId = municipalityId,
+                FilterByStatus = filterByStatus,
+                Format = format,
+                ReportTitle = reportTitle,
+                IncludeRemarks = includeRemarks,
+                ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment
+            };
+
+            // Enqueue background job
+            var jobId = _backgroundJobClient.Enqueue<IProcessWiredBroadbandReportJob>(
+                job => job.ExecuteAsync(jobRequest, CancellationToken.None));
+
+            // Update job ID in request
+            jobRequest.JobId = jobId;
+
+            // Initialize job status in cache
+            var statusDto = new WiredBroadbandReportJobStatusDto
+            {
+                JobId = jobId,
+                Status = WiredBroadbandReportJobStatusEnum.Pending,
+                Message = "Job queued for processing",
+                LastUpdated = DateTime.UtcNow,
+                Format = format
+            };
+
+            var cacheKey = $"wired_broadband_report_job_{jobId}";
+            _memoryCache.Set(cacheKey, statusDto, TimeSpan.FromHours(1));
+
+            // Create response
+            var response = new WiredBroadbandReportJobResponseDto
+            {
+                JobId = jobId,
+                Status = WiredBroadbandReportJobStatusEnum.Pending,
+                Message = "Report generation job has been queued successfully",
+                EstimatedDurationMinutes = 2, // Estimate based on typical report size
+                DownloadUrl = null // Will be available after job completes
+            };
+
+            return Ok(new ApiResponse<WiredBroadbandReportJobResponseDto>
+            {
+                Data = response,
+                Message = "Report generation job queued successfully",
+                Succeeded = true
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new ApiResponse<WiredBroadbandReportJobResponseDto>
+            {
+                Message = $"Failed to queue report generation job: {ex.Message}",
+                Succeeded = false
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get the status of a wired broadband report generation job
+    /// </summary>
+    /// <param name="jobId">Job ID returned from generate-async endpoint</param>
+    /// <returns>Job status with progress information</returns>
+    [HttpGet("wired-broadband/job/{jobId}/status")]
+    public ActionResult<ApiResponse<WiredBroadbandReportJobStatusDto>> GetWiredBroadbandReportJobStatus(string jobId)
+    {
+        try
+        {
+            var cacheKey = $"wired_broadband_report_job_{jobId}";
+            
+            if (!_memoryCache.TryGetValue(cacheKey, out WiredBroadbandReportJobStatusDto? statusDto) || statusDto == null)
+            {
+                return NotFound(new ApiResponse<WiredBroadbandReportJobStatusDto>
+                {
+                    Message = "Job not found or has expired",
+                    Succeeded = false
+                });
+            }
+
+            return Ok(new ApiResponse<WiredBroadbandReportJobStatusDto>
+            {
+                Data = statusDto,
+                Message = statusDto.StatusDescription,
+                Succeeded = true
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new ApiResponse<WiredBroadbandReportJobStatusDto>
+            {
+                Message = $"Failed to retrieve job status: {ex.Message}",
+                Succeeded = false
+            });
+        }
+    }
+
+    /// <summary>
+    /// Download a generated wired broadband report
+    /// </summary>
+    /// <param name="jobId">Job ID returned from generate-async endpoint</param>
+    /// <returns>Report file download</returns>
+    [HttpGet("wired-broadband/job/{jobId}/download")]
+    public async Task<ActionResult> DownloadWiredBroadbandReportFromJob(string jobId)
+    {
+        try
+        {
+            var cacheKey = $"wired_broadband_report_job_{jobId}";
+            
+            if (!_memoryCache.TryGetValue(cacheKey, out WiredBroadbandReportJobStatusDto? statusDto) || statusDto == null)
+            {
+                return NotFound(new { message = "Job not found or has expired" });
+            }
+
+            if (statusDto.Status != WiredBroadbandReportJobStatusEnum.Completed)
+            {
+                return BadRequest(new { 
+                    message = "Report is not ready for download", 
+                    status = statusDto.Status.ToString(),
+                    currentStep = statusDto.CurrentStep
+                });
+            }
+
+            if (string.IsNullOrEmpty(statusDto.FilePath))
+            {
+                return NotFound(new { message = "Report file path not found" });
+            }
+
+            // Download file from blob storage
+            var containerName = "wired-broadband-reports";
+            var blobFileName = Path.GetFileName(statusDto.FilePath);
+            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+
+            if (fileStream == null)
+            {
+                return NotFound(new { message = "Report file not found in storage" });
+            }
+
+            // Determine content type and file name from format
+            var contentType = statusDto.Format == ReportFormat.Pdf
+                ? "application/pdf"
+                : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+            return File(fileStream, contentType, blobFileName);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = $"Failed to download report: {ex.Message}" });
+        }
+    }
 }
+

@@ -24,8 +24,9 @@ public class ReportGenerationService : IReportGenerationService
     }
 
     public async Task<byte[]> GenerateWiredBroadbandPdfAsync(
-        WiredBroadbandReportDto reportData, 
+        WiredBroadbandReportDto reportData,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = false,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating PDF report: {ReportTitle}", reportTitle);
@@ -63,6 +64,7 @@ public class ReportGenerationService : IReportGenerationService
     public async Task<byte[]> GenerateWiredBroadbandExcelAsync(
         WiredBroadbandReportDto reportData,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = false,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating Excel report: {ReportTitle}", reportTitle);
@@ -73,7 +75,7 @@ public class ReportGenerationService : IReportGenerationService
         CreateSummaryWorksheet(workbook, reportData.Summary, reportTitle);
         
         // Create detailed data worksheet
-        await CreateDetailedDataWorksheetAsync(workbook, reportData);
+        await CreateDetailedDataWorksheetAsync(workbook, reportData, includeRemarks);
 
         // Create provider coverage worksheet  
         CreateProviderCoverageWorksheet(workbook, reportData);
@@ -420,8 +422,9 @@ public class ReportGenerationService : IReportGenerationService
     /// </summary>  
     /// <param name="workbook">The Excel workbook to add the worksheet to.</param>  
     /// <param name="reportData">The report data to populate the worksheet.</param>  
-    /// <param name="cancellationToken">Cancellation token</param>  
-    private async Task CreateDetailedDataWorksheetAsync(XLWorkbook workbook, WiredBroadbandReportDto reportData, CancellationToken cancellationToken = default)
+    /// <param name=\"includeRemarks\">When true, includes the Remarks column in the worksheet.</param>  
+    /// <param name=\"cancellationToken\">Cancellation token</param>  
+    private async Task CreateDetailedDataWorksheetAsync(XLWorkbook workbook, WiredBroadbandReportDto reportData, bool includeRemarks = true, CancellationToken cancellationToken = default)
     {
         var worksheet = workbook.Worksheets.Add("Detailed Data");
  
@@ -447,7 +450,8 @@ public class ReportGenerationService : IReportGenerationService
         var wiredBroadbandStartCol = 3;
         var wiredBroadbandEndCol = 2 + providerHeaders.Length;
         var connectivityStatusCol = wiredBroadbandEndCol + 1;
-        var remarksCol = connectivityStatusCol + 1;
+        var remarksCol = includeRemarks ? connectivityStatusCol + 1 : 0;
+        var lastCol = includeRemarks ? remarksCol : connectivityStatusCol;
      
         // ROW 1: Setup headers
         // Municipality header (spans rows 1-3) - NO rotation for header
@@ -481,12 +485,15 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, connectivityStatusCol).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         worksheet.Cell(1, connectivityStatusCol).Style.Alignment.WrapText = true;
 
-        // REMARKS header (spans rows 1-3)
-        worksheet.Cell(1, remarksCol).Value = "REMARKS";
-        worksheet.Range(1, remarksCol, 3, remarksCol).Merge();
-        worksheet.Cell(1, remarksCol).Style.Font.Bold = true;
-        worksheet.Cell(1, remarksCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Cell(1, remarksCol).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        // REMARKS header (spans rows 1-3) - conditionally included
+        if (includeRemarks)
+        {
+            worksheet.Cell(1, remarksCol).Value = "REMARKS";
+            worksheet.Range(1, remarksCol, 3, remarksCol).Merge();
+            worksheet.Cell(1, remarksCol).Style.Font.Bold = true;
+            worksheet.Cell(1, remarksCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            worksheet.Cell(1, remarksCol).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        }
 
         // ROW 2: Provider names with colors
         for (int i = 0; i < providerHeaders.Length; i++)
@@ -575,11 +582,14 @@ public class ReportGenerationService : IReportGenerationService
                         break;
                 }
 
-                // Remarks column with actual remarks text
-                var remarksCell = worksheet.Cell(currentRow, remarksCol);
-                remarksCell.Value = barangay.Remarks ?? "";
-                remarksCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
-                remarksCell.Style.Alignment.WrapText = true;
+                // Remarks column with actual remarks text - conditionally included
+                if (includeRemarks)
+                {
+                    var remarksCell = worksheet.Cell(currentRow, remarksCol);
+                    remarksCell.Value = barangay.Remarks ?? "";
+                    remarksCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+                    remarksCell.Style.Alignment.WrapText = true;
+                }
     
                 currentRow++;
             }
@@ -601,13 +611,13 @@ public class ReportGenerationService : IReportGenerationService
             // Width is set once globally, not per-municipality
 
             // Add thick border around each municipality's data section
-            var municipalityRange = worksheet.Range(municipalityStartRow, 1, currentRow - 1, remarksCol);
+            var municipalityRange = worksheet.Range(municipalityStartRow, 1, currentRow - 1, lastCol);
             municipalityRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
             municipalityRange.Style.Border.OutsideBorderColor = XLColor.Black;
         }
     
         // Apply borders to all cells
-        var dataRange = worksheet.Range(1, 1, currentRow - 1, remarksCol);
+        var dataRange = worksheet.Range(1, 1, currentRow - 1, lastCol);
         dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
         dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
   
@@ -621,7 +631,11 @@ public class ReportGenerationService : IReportGenerationService
         }
       
         worksheet.Column(connectivityStatusCol).Width = 20; // Connectivity Status
-        worksheet.Column(remarksCol).Width = 40; // Remarks - wider for text content
+        
+        if (includeRemarks)
+        {
+            worksheet.Column(remarksCol).Width = 40; // Remarks - wider for text content
+        }
   
     // Freeze first 3 rows (headers) and first 2 columns
     worksheet.SheetView.FreezeRows(3);
