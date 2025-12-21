@@ -196,6 +196,96 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
+    /// Get all generated reports for the current user
+    /// </summary>
+    /// <param name="skip">Number of reports to skip for pagination</param>
+    /// <param name="take">Number of reports to take for pagination</param>
+    /// <returns>List of generated report summaries</returns>
+    /// <response code="200">Successfully retrieved reports</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpGet("reports")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(ApiResponse<List<GeneratedReportSummaryDto>>), 200)]
+    public async Task<ActionResult<ApiResponse<List<GeneratedReportSummaryDto>>>> GetReports(
+        [FromQuery] int? skip = null,
+        [FromQuery] int? take = null)
+    {
+        var query = new GetUserReportsQuery { Skip = skip, Take = take };
+        var response = await _mediator.Send(query);
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    /// <summary>
+    /// Get a specific generated report by ID
+    /// </summary>
+    /// <param name="id">Report ID</param>
+    /// <returns>Complete report details including content</returns>
+    /// <response code="200">Successfully retrieved report</response>
+    /// <response code="404">Report not found</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpGet("reports/{id}")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(ApiResponse<GeneratedReportDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<GeneratedReportDto>), 404)]
+    public async Task<ActionResult<ApiResponse<GeneratedReportDto>>> GetReportById(Guid id)
+    {
+        var query = new GetReportByIdQuery(id);
+        var response = await _mediator.Send(query);
+        return response.Succeeded ? Ok(response) : NotFound(response);
+    }
+
+    /// <summary>
+    /// Download a generated report as a markdown file
+    /// </summary>
+    /// <param name="id">Report ID</param>
+    /// <returns>Markdown file download</returns>
+    /// <response code="200">Successfully downloaded report</response>
+    /// <response code="404">Report not found</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpGet("reports/{id}/download")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(FileContentResult), 200)]
+    public async Task<IActionResult> DownloadReport(Guid id)
+    {
+        var query = new GetReportByIdQuery(id);
+        var response = await _mediator.Send(query);
+
+        if (!response.Succeeded || response.Data == null)
+        {
+            return NotFound(response);
+        }
+
+        var fileName = !string.IsNullOrWhiteSpace(response.Data.Title)
+            ? $"{response.Data.Title}.md"
+            : $"Report_{response.Data.GeneratedAt:yyyyMMdd_HHmmss}.md";
+
+        // Sanitize filename
+        fileName = string.Join("_", fileName.Split(Path.GetInvalidFileNameChars()));
+
+        var fileBytes = System.Text.Encoding.UTF8.GetBytes(response.Data.Content);
+        return File(fileBytes, "text/markdown", fileName);
+    }
+
+    /// <summary>
+    /// Delete a generated report
+    /// </summary>
+    /// <param name="id">Report ID</param>
+    /// <returns>Deletion result</returns>
+    /// <response code="200">Successfully deleted report</response>
+    /// <response code="404">Report not found</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpDelete("reports/{id}")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 404)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteReport(Guid id)
+    {
+        var command = new DeleteReportCommand(id);
+        var response = await _mediator.Send(command);
+        return response.Succeeded ? Ok(response) : NotFound(response);
+    }
+
+    /// <summary>
     /// Maps IFormFile[] to domain FileUpload[] model
     /// </summary>
     private static async Task<FileUpload[]?> MapFilesToDomainAsync(IFormFile[]? files)
