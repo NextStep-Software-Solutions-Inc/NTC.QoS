@@ -35,9 +35,9 @@ public class GenAIService : IGenAIService
 
             var enhancedPrompt = BuildPromptWithFileNote(prompt, files);
 
-            // Use Gemini 2.0 Flash (latest free tier model, fast and efficient)
+            // Use Gemini 3.0 Flash Preview (latest free tier model, fast and efficient)
             var response = await _genAIClient.Models.GenerateContentAsync(
-                model: "gemini-2.0-flash-exp",
+                model: "gemini-3.0-flash-preview",
                 contents: enhancedPrompt
             );
             
@@ -83,9 +83,9 @@ Format the report in a clear, professional manner with proper headings and secti
 
             enhancedPrompt = BuildPromptWithFileNote(enhancedPrompt, files);
 
-            // Use Gemini 2.0 Flash for report generation (latest free tier model)
+            // Use Gemini 3.0 Flash Preview for report generation (latest free tier model)
             var response = await _genAIClient.Models.GenerateContentAsync(
-                model: "gemini-2.0-flash-exp",
+                model: "gemini-3.0-flash-preview",
                 contents: enhancedPrompt
             );
             

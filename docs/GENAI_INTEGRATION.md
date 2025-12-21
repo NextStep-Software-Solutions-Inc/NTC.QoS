@@ -7,7 +7,7 @@ This document describes the implementation of Google Generative AI integration f
 
 ### 1. SDK and Model
 - **Package**: `Google.GenAI` v0.9.0 (**Official Google Generative AI SDK for .NET**)
-- **Model**: Gemini 2.0 Flash (Latest experimental free tier model, optimized for speed and efficiency)
+- **Model**: Gemini 3.0 Flash Preview (Latest experimental free tier model, optimized for speed and efficiency)
 - **No vulnerabilities** found in dependency check
 - **Repository**: https://github.com/googleapis/dotnet-genai
 
