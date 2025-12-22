@@ -54,6 +54,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
     public DbSet<ConnectivityAssessmentScheduler> ConnectivityAssessmentSchedulers { get; set; }
     public DbSet<GeneratedReport> GeneratedReports { get; set; }
+    public DbSet<ReportTemplate> ReportTemplates { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
