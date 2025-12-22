@@ -100,9 +100,9 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 /// =============================================================================
 /// Dynamic batch sizes optimize transaction size vs processing speed:
 /// - Regional: 1 per batch (very large spatial queries)
-/// - Provincial: 5 per batch (large spatial queries)
-/// - Municipal: 25 per batch (moderate complexity)
-/// - Barangay: 50 per batch (leaf nodes, fastest)
+/// - Provincial: 3 per batch (reduced for stability, timeout prevention)
+/// - Municipal: 10 per batch (reduced for faster commits, timeout prevention)
+/// - Barangay: 20 per batch (reduced to prevent timeout, improve reliability)
 /// 
 /// =============================================================================
 /// JOB CONFIGURATION
@@ -137,13 +137,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     // Dynamic batch sizing based on location type and hierarchy level
     // Regional: 1 per batch (each region has 1K-4K child assessments, save per region)
-    // Provincial: 5 per batch (each province has 100-300 child assessments)
-    // Municipality: 25 per batch (each municipality has 10-50 barangays)
-    // Barangay: 50 per batch (leaf level, no children)
+    // Provincial: 3 per batch (reduced from 5 for stability)
+    // Municipality: 10 per batch (reduced from 25 for faster commits)
+    // Barangay: 20 per batch (reduced from 50 to prevent timeout)
     private const int REGIONAL_BATCH_SIZE = 1;
-    private const int PROVINCIAL_BATCH_SIZE = 5;
-    private const int MUNICIPALITY_BATCH_SIZE = 25;
-    private const int BARANGAY_BATCH_SIZE = 50;
+    private const int PROVINCIAL_BATCH_SIZE = 3;
+    private const int MUNICIPALITY_BATCH_SIZE = 10;
+    private const int BARANGAY_BATCH_SIZE = 20;
     
     private const int PROGRESS_REPORT_INTERVAL = 5; // Report progress every 5 items for smoother updates
     private const int MEMORY_CHECK_INTERVAL = 5; // Check memory every 5 batches
@@ -427,6 +427,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         var totalBatches = (int)Math.Ceiling((double)locations.Count / batchSize);
         for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
+            // Check for cancellation before starting new batch
+            if (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Job {JobId}: Cancellation requested. Stopping batch processing at batch {BatchNumber}/{TotalBatches}. " +
+                    "Processed {ProcessedCount}/{TotalCount} locations.",
+                    jobId, batchIndex + 1, totalBatches, savedCount, locations.Count);
+                break;
+            }
+
             var batch = locations
                 .Skip(batchIndex * batchSize)
                 .Take(batchSize)
@@ -473,6 +482,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                                 processingContext, startTime, cancellationToken);
                         }
                     }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.LogWarning("Job {JobId}: Processing canceled for location {LocationId} ({LocationName}). Job may be timing out or shutting down.",
+                            jobId, location.Id, location.Name);
+                        failedLocations.Add((location.Id, location.Name, "Operation canceled - job timeout or shutdown"));
+                        processingCount++;
+                        // Don't continue processing if canceled
+                        break;
+                    }
                     catch (Exception ex)
                     {
                         failedLocations.Add((location.Id, location.Name, ex.Message));
@@ -518,6 +536,23 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         await ReportProgressWithCumulativeCount(jobId, processingCount, savedCount, 
                             processingContext, startTime, cancellationToken);
                     }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.LogWarning("Job {JobId}: Batch save operation canceled for {Count} assessments. Job may be timing out or shutting down.",
+                            jobId, batchAssessments.Count);
+                        
+                        // Mark all locations in this batch as failed due to cancellation
+                        foreach (var (assessment, providers, locationName, locationId) in batchAssessments)
+                        {
+                            if (!failedLocations.Any(f => f.Id == locationId))
+                            {
+                                failedLocations.Add((locationId, locationName, "Batch save canceled - job timeout or shutdown"));
+                            }
+                        }
+                        
+                        // Stop processing further batches if save is canceled
+                        break;
+                    }
                     catch (Exception saveEx)
                     {
                         _logger.LogError(saveEx, "Job {JobId}: CRITICAL - Failed to save batch of {Count} assessments. Error: {ErrorMessage}",
@@ -549,6 +584,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 {
                     await Task.Delay(50, cancellationToken); // 50ms delay between batches
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Job {JobId}: Batch {BatchNumber}/{TotalBatches} processing canceled. Job may be timing out or shutting down.",
+                    jobId, batchIndex + 1, totalBatches);
+                break; // Stop processing if canceled
             }
             catch (Exception ex)
             {
@@ -806,6 +847,16 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
                 return (newAssessmentData, providers, locationName);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Handle cancellation gracefully without full error stack
+            _logger.LogWarning("Processing canceled for {LocationType} {LocationId} ({LocationName}). " +
+                "Job may be timing out or shutting down. This is expected during cancellation.",
+                locationType, locationId, locationName);
+            
+            // Re-throw to propagate cancellation up the call stack
+            throw;
         }
         catch (Exception ex)
         {

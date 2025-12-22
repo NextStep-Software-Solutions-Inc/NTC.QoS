@@ -59,6 +59,9 @@ internal static class DatabaseServiceExtensions
                         maxRetryCount: databaseOptions.MaxRetryCount,
                         maxRetryDelay: TimeSpan.FromSeconds(databaseOptions.MaxRetryDelaySeconds),
                         errorCodesToAdd: null);
+                    // Increase command timeout for long-running spatial queries
+                    // Default is 30 seconds, which can be too short for complex geometry operations
+                    npgsql.CommandTimeout(300); // 5 minutes
                 })
                 .AddInterceptors(audit, softDelete);
         });

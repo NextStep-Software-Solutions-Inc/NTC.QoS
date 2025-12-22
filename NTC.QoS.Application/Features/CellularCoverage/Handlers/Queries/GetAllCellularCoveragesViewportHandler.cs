@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -48,7 +47,7 @@ public class GetAllCellularCoveragesViewportHandler : IRequestHandler<GetAllCell
         var maxAllowedPageSize = request.Viewport.GetRecommendedMaxResults();
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
 
-        var coverageQuery = _coverageRepository.Query().AsNoTracking();
+        var coverageQuery = _coverageRepository.QueryAsNoTracking();
         coverageQuery = coverageQuery.ApplyViewportFilter(request.Viewport);
 
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)

@@ -13,5 +13,9 @@ public class ChatRequestValidator : AbstractValidator<ChatRequest>
         RuleFor(x => x.Request.Prompt)
             .NotEmpty().WithMessage("Prompt is required")
             .MaximumLength(10000).WithMessage("Prompt cannot exceed 10,000 characters");
+
+        RuleFor(x => x.Request.Files)
+            .Must(files => files == null || files.Length <= 10)
+            .WithMessage("Cannot upload more than 10 files");
     }
 }

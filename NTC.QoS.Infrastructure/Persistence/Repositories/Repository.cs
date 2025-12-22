@@ -74,6 +74,12 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
     public async Task<List<TResult>> ToListAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default)
         => await queryable.ToListAsync(cancellationToken);
 
+    public async Task<int> CountAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(queryable);
+        return await queryable.CountAsync(cancellationToken);
+    }
+
     public void Add(TEntity entity) => _context.Add(entity);
     public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default) => await _context.AddAsync(entity, cancellationToken);
     public void Update(TEntity entity) => _context.Update(entity);

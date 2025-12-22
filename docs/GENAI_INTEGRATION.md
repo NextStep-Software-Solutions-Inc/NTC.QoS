@@ -1,15 +1,17 @@
 # Google Gen AI Integration - Implementation Summary
 
 ## Overview
-This document describes the implementation of Google Generative AI integration for the NTC QoS platform, providing AI-powered chat assistant and report generation features using the **official Google.GenAI SDK**.
+This document describes the implementation of Google Generative AI integration for the NTC QoS platform, providing AI-powered chat assistant and report generation features using the **official Google.GenAI SDK** with **real-time streaming responses** and **multimodal file processing**.
 
 ## Implementation Details
 
 ### 1. SDK and Model
 - **Package**: `Google.GenAI` v0.9.0 (**Official Google Generative AI SDK for .NET**)
-- **Model**: Gemini 3.0 Flash Preview (Latest experimental free tier model, optimized for speed and efficiency)
+- **Model**: Gemini 2.0 Flash Experimental (Latest experimental model with multimodal support)
 - **No vulnerabilities** found in dependency check
 - **Repository**: https://github.com/googleapis/dotnet-genai
+- **Streaming Support**: Real-time response streaming via Server-Sent Events (SSE)
+- **Multimodal Support**: Images, PDFs, and text files are processed by the AI model
 
 ### 2. Architecture
 
@@ -26,30 +28,35 @@ This document describes the implementation of Google Generative AI integration f
 
 #### Infrastructure Layer (`NTC.QoS.Infrastructure`)
 - **Service**: `GenAIService.cs` - Implementation of IGenAIService
-  - Uses Gemini 1.5 Flash model
-  - Supports text-based prompts
-  - Prepared for future multimodal file processing
+  - Uses Gemini 2.0 Flash Experimental model
+  - **Streaming responses**: Real-time AI response chunks via `IAsyncEnumerable<string>`
+  - **Multimodal file processing**: 
+    - Images (JPEG, PNG, WebP, HEIC, GIF) processed via InlineData/Blob
+    - PDF files processed via InlineData/Blob
+    - Text files (.txt, .csv, .json, .xml) content extracted and included
+  - **File validation**: Maximum 10 files per request
   - Comprehensive error handling and logging
 - **Registration**: Registered in `ExternalServiceExtensions.cs`
 
 #### Application Layer (`NTC.QoS.Application`)
 - **Commands**:
-  - `ChatRequest.cs` - MediatR command for chat
-  - `GenerateReportRequest.cs` - MediatR command for report generation
+  - `ChatRequest.cs` - MediatR command for chat (streaming)
+  - `GenerateReportRequest.cs` - MediatR command for report generation (streaming)
 - **Handlers**:
-  - `ChatHandler.cs` - Processes chat requests
-  - `GenerateReportHandler.cs` - Processes report generation requests
+  - `ChatHandler.cs` - Processes chat requests and streams responses
+  - `GenerateReportHandler.cs` - Processes report generation requests and streams responses
 - **Validators**:
-  - `ChatRequestValidator.cs` - Validates chat requests (max 10,000 chars)
-  - `GenerateReportRequestValidator.cs` - Validates report requests (max 10,000 chars)
+  - `ChatRequestValidator.cs` - Validates chat requests (max 10,000 chars, max 10 files)
+  - `GenerateReportRequestValidator.cs` - Validates report requests (max 10,000 chars, max 10 files)
 
 #### API Layer (`NTC.QoS.API`)
 - **Controller**: `GenAIController.cs`
-  - `POST /genai/chat` - Chat with AI assistant
-  - `POST /genai/generate-report` - Generate AI-powered reports
-  - Comprehensive XML documentation
+  - `POST /genai/chat` - Chat with AI assistant (streaming via SSE)
+  - `POST /genai/generate-report` - Generate AI-powered reports (streaming via SSE)
+  - Comprehensive XML documentation with Swagger annotations
   - Permission-based authorization
-  - Multipart/form-data support for file uploads
+  - Multipart/form-data support with `[Consumes]` attribute
+  - Real-time streaming responses via Server-Sent Events
 
 ### 3. Configuration
 
@@ -107,21 +114,24 @@ Content-Type: multipart/form-data
 Authorization: Bearer {token}
 
 prompt: What are the coverage statistics for Region 10?
-files: [optional file attachments]
+files: [optional, max 10 file attachments]
 ```
 
-**Response**:
-```json
-{
-  "data": {
-    "response": "Based on the available data...",
-    "filesProcessed": 0,
-    "timestamp": "2025-12-21T03:47:00Z"
-  },
-  "succeeded": true,
-  "message": "Chat response generated successfully"
-}
+**Supported File Types**:
+- Images: JPEG, PNG, WebP, HEIC, GIF (processed by AI vision)
+- Documents: PDF files (content analyzed by AI)
+- Text files: .txt, .csv, .json, .xml (content extracted and included)
+
+**Response** (Server-Sent Events):
 ```
+Content-Type: text/event-stream
+
+data: Based on the available data
+data: , the coverage statistics show...
+data:  excellent performance in Region 10.
+```
+
+**Key for attachments**: `files` (not `attachments`)
 
 #### Generate Report
 **Endpoint**: `POST /genai/generate-report`
@@ -133,21 +143,26 @@ Content-Type: multipart/form-data
 Authorization: Bearer {token}
 
 prompt: Generate a network performance analysis report
-files: [optional resource files]
+files: [optional, max 10 resource files]
 ```
 
-**Response**:
-```json
-{
-  "data": {
-    "reportContent": "# Executive Summary\n\n...",
-    "filesAnalyzed": 0,
-    "generatedAt": "2025-12-21T03:47:00Z"
-  },
-  "succeeded": true,
-  "message": "Report generated successfully"
-}
+**Supported File Types**:
+- Images: JPEG, PNG, WebP, HEIC, GIF (for visual data analysis)
+- Documents: PDF files (content analyzed)
+- Text files: .txt, .csv, .json, .xml (content included in analysis)
+- Spreadsheets: Excel files (.xlsx, .xls) - Note: extracted as text
+
+**Response** (Server-Sent Events):
 ```
+Content-Type: text/event-stream
+
+data: # Executive Summary
+data: 
+
+data: Based on the provided network data...
+```
+
+**Key for attachments**: `files` (not `attachments`)
 
 ### 6. Security Considerations
 
@@ -164,38 +179,49 @@ files: [optional resource files]
 3. **Input Validation**:
    - FluentValidation validators enforce constraints
    - Maximum prompt length: 10,000 characters
-   - File attachment support prepared for future implementation
+   - **Maximum file attachments: 10 files per request**
+   - File types validated and processed appropriately
 
 4. **Error Handling**:
    - Comprehensive try-catch blocks
    - Detailed logging for troubleshooting
    - User-friendly error messages
 
-### 7. Current Limitations and Future Enhancements
+### 7. Current Features and Capabilities
 
-#### Current State:
+#### Implemented:
 - ✅ Text-based prompts fully supported
-- ✅ Chat assistant functionality
-- ✅ Report generation with structured output
-- ⚠️ File attachments accepted but not yet processed (multimodal support pending)
+- ✅ **Streaming responses via Server-Sent Events (SSE)**
+- ✅ Chat assistant functionality with real-time streaming
+- ✅ Report generation with structured output and streaming
+- ✅ **Multimodal file processing**:
+  - ✅ Images (JPEG, PNG, WebP, HEIC, GIF) - analyzed by AI vision
+  - ✅ PDF files - content analyzed by AI
+  - ✅ Text files (.txt, .csv, .json, .xml) - content extracted and included
+- ✅ **File attachment validation**: Max 10 files per request
+- ✅ Comprehensive Swagger/OpenAPI documentation
 
-#### Future Enhancements:
-1. **Multimodal File Processing**:
-   - Full support for images, PDFs, Excel files, and text files
-   - Vision API integration for image analysis
-   - Document parsing for PDFs and spreadsheets
+#### Current Limitations:
+- ⚠️ Excel files (.xlsx, .xls) are accepted but text extraction is not yet implemented
+- ℹ️ Large files may take longer to process
+
+### 8. Future Enhancements
+
+1. **Excel File Processing**:
+   - Implement text extraction from Excel files (.xlsx, .xls)
+   - Parse spreadsheet data for better analysis
 
 2. **Conversation History**:
    - Maintain chat context across multiple requests
    - Session management for continuity
 
 3. **Advanced Features**:
-   - Streaming responses for real-time feedback
    - Custom prompt templates
    - Fine-tuned models for domain-specific tasks
    - Rate limiting and quota management
+   - Response caching for common queries
 
-### 8. Testing
+### 9. Testing
 
 To test the endpoints:
 
@@ -209,24 +235,38 @@ To test the endpoints:
    dotnet run --project NTC.QoS.API
    ```
 
-3. **Test chat endpoint**:
+3. **Test chat endpoint** (streaming response):
    ```bash
    curl -X POST "https://localhost:7000/genai/chat" \
      -H "Authorization: Bearer YOUR_TOKEN" \
-     -F "prompt=What is the NTC QoS platform?"
+     -F "prompt=What is the NTC QoS platform?" \
+     -N  # Enable streaming
    ```
 
-4. **Test report generation**:
+4. **Test with file attachment**:
+   ```bash
+   curl -X POST "https://localhost:7000/genai/chat" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -F "prompt=Analyze this image" \
+     -F "files=@/path/to/image.jpg" \
+     -N  # Enable streaming
+   ```
+
+5. **Test report generation** (streaming response):
    ```bash
    curl -X POST "https://localhost:7000/genai/generate-report" \
      -H "Authorization: Bearer YOUR_TOKEN" \
-     -F "prompt=Generate a summary report of network coverage"
+     -F "prompt=Generate a summary report of network coverage" \
+     -F "files=@/path/to/data.csv" \
+     -N  # Enable streaming
    ```
 
-### 9. Best Practices
+**Note**: The `-N` flag is important for streaming responses. Without it, curl will buffer the entire response.
+
+### 10. Best Practices
 
 1. **Cost Management**:
-   - Gemini 1.5 Flash is free tier but has rate limits
+   - Gemini 2.0 Flash Experimental is currently free tier but has rate limits
    - Monitor usage and implement caching if needed
    - Consider upgrading to paid tier for production use
 
@@ -234,22 +274,38 @@ To test the endpoints:
    - Provide clear, specific instructions
    - Include context about the data being analyzed
    - Structure prompts for better output quality
+   - Reference attached files in your prompt
 
-3. **Error Handling**:
+3. **File Attachments**:
+   - Use supported file types for best results
+   - Keep file sizes reasonable (large files take longer to process)
+   - Maximum 10 files per request
+   - Describe what you want analyzed in the prompt
+
+4. **Streaming Responses**:
+   - Use appropriate HTTP clients that support streaming
+   - Handle connection interruptions gracefully
+   - Display chunks incrementally for better UX
+
+5. **Error Handling**:
    - Always check for null responses
    - Handle rate limit errors gracefully
    - Provide meaningful feedback to users
+   - Log errors for troubleshooting
 
 ## Compliance with Requirements
 
 ✅ **SDK**: Uses latest official Google Generative AI SDK for .NET  
-✅ **Model**: Uses Gemini 1.5 Flash (free tier)  
+✅ **Model**: Uses Gemini 2.0 Flash Experimental (latest model)  
 ✅ **Capabilities**: AI assistant and report generation  
 ✅ **Endpoints**: Chat and report generation endpoints implemented  
-✅ **File Support**: Multipart/form-data support for images, PDFs, Excel, text  
+✅ **File Support**: Multipart/form-data support with actual file processing  
+✅ **Supported Files**: Images (JPEG, PNG, WebP, HEIC, GIF), PDFs, text files (.txt, .csv, .json, .xml)  
+✅ **File Validation**: Maximum 10 files per request  
+✅ **Streaming**: Real-time response streaming via Server-Sent Events (SSE)  
 ✅ **Permissions**: New permissions defined and seeded  
 ✅ **Security**: Follows existing permission patterns  
-✅ **Documentation**: Comprehensive XML comments on endpoints  
+✅ **Documentation**: Comprehensive XML comments and Swagger annotations  
 ✅ **Best Practices**: SOLID and DRY principles followed  
 
 ## Support and Troubleshooting
@@ -264,10 +320,20 @@ To test the endpoints:
    - User lacks required permissions (`genai.chat` or `genai.generate_reports`)
    - Check role assignments in the database
 
-3. **Slow responses**:
-   - Normal for complex prompts (5-30 seconds)
-   - Consider implementing progress indicators in the frontend
+3. **"Cannot upload more than 10 files"**:
+   - Reduce the number of file attachments to 10 or fewer
+   - This limit is enforced via FluentValidation
+
+4. **Streaming not working**:
+   - Ensure client supports Server-Sent Events (SSE)
+   - Use the `-N` flag with curl for streaming
+   - Check that proper Content-Type header is set (text/event-stream)
+
+5. **File not processed**:
+   - Verify file type is supported
+   - Check file size (very large files may timeout)
+   - Review logs for processing errors
 
 ## Conclusion
 
-The Google Gen AI integration has been successfully implemented following best practices and the existing codebase patterns. The implementation is production-ready for text-based interactions, with the foundation laid for future multimodal enhancements.
+The Google Gen AI integration has been successfully implemented with full streaming support and multimodal file processing capabilities. The implementation follows best practices and the existing codebase patterns. The system is production-ready for text-based interactions with real-time streaming and supports image, PDF, and text file analysis.

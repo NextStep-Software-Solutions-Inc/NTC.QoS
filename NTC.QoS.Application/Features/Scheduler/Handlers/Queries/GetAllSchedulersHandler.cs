@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using NTC.QoS.Application.Features.Scheduler.Requests.Queries;
 using NTC.QoS.Domain.Entities;
