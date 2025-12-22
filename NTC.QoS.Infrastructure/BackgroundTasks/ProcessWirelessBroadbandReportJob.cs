@@ -1077,10 +1077,10 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         {
             container.Page(page =>
             {
-                page.Size(PageSizes.A4.Landscape());
-                page.Margin(1, QuestPDF.Infrastructure.Unit.Centimetre);
+                page.Size(PageSizes.A3.Landscape());
+                page.Margin(0.5f, QuestPDF.Infrastructure.Unit.Centimetre);
                 page.PageColor(Colors.White);
-                page.DefaultTextStyle(x => x.FontSize(8));
+                page.DefaultTextStyle(x => x.FontSize(9));
 
                 page.Header().Column(column =>
                 {
@@ -1105,68 +1105,163 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                     .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Centimetre)
                     .Table(table =>
                     {
+                        // Collect all present generations for dynamic columns (same as Excel)
+                        var providerGenerationsMap = new Dictionary<string, List<string>>();
+                        foreach (var entry in reportData)
+                        {
+                            foreach (var (providerName, stats) in entry.ProviderStats)
+                            {
+                                if (!providerGenerationsMap.ContainsKey(providerName))
+                                {
+                                    providerGenerationsMap[providerName] = new List<string>();
+                                }
+
+                                var gens = providerGenerationsMap[providerName];
+                                if (stats.Has2G && !gens.Contains("2G")) gens.Add("2G");
+                                if (stats.Has3G && !gens.Contains("3G")) gens.Add("3G");
+                                if (stats.Has4G && !gens.Contains("4G")) gens.Add("4G");
+                                if (stats.Has5G && !gens.Contains("5G")) gens.Add("5G");
+                            }
+                        }
+
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.ConstantColumn(80); // Municipality
-                            columns.ConstantColumn(100); // Barangay
+                            columns.ConstantColumn(65); // Municipality
+                            columns.ConstantColumn(85); // Barangay
 
-                            // Provider columns (simplified for PDF)
-                            foreach (var _ in providers)
+                            // Provider columns with generation breakdown (same as Excel)
+                            foreach (var provider in providers)
                             {
-                                columns.RelativeColumn(); // Has service indicator
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    // Columns: 2G, 3G, 4G, 5G, Tech Used, Upload, Download
+                                    foreach (var _ in generations)
+                                        columns.ConstantColumn(22); // Generation columns
+                                    
+                                    columns.ConstantColumn(35); // Tech used
+                                    columns.ConstantColumn(40); // Upload
+                                    columns.ConstantColumn(40); // Download
+                                }
                             }
 
                             // Score columns (only if includeScores is true)
                             if (includeScores)
                             {
-                                columns.RelativeColumn(); // Tech Score
-                                columns.RelativeColumn(); // Internet Score
-                                columns.RelativeColumn(); // Total Score
-                                columns.ConstantColumn(80); // Status
+                                columns.ConstantColumn(35); // Tech Score
+                                columns.ConstantColumn(35); // Internet Score
+                                columns.ConstantColumn(35); // Total Score
+                                columns.ConstantColumn(65); // Status
                             }
                         });
 
                         table.Header(header =>
                         {
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Municipality");
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Barangay");
+                            // Row 1: Municipality and Barangay span all 4 rows
+                            header.Cell().RowSpan(4).Element(CellStyle).Text("Municipality").FontSize(8);
+                            header.Cell().RowSpan(4).Element(CellStyle).Text("Barangay").FontSize(8);
 
+                            // Row 1: Provider names
                             foreach (var provider in providers)
                             {
-                                header.Cell().RowSpan(2).Element(CellStyle).Text(provider.Name);
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    uint providerCols = (uint)(generations.Count + 3); // Gens + Tech + Upload + Download
+                                    header.Cell().ColumnSpan(providerCols).Element(CellStyle)
+                                        .Background(GetProviderColor(provider.Name))
+                                        .Text(provider.Name.ToUpper()).FontSize(8).Bold();
+                                }
                             }
 
+                            // Row 1: Connectivity Score section
                             if (includeScores)
                             {
                                 header.Cell().ColumnSpan(3).Element(CellStyle)
-                                    .Background(Colors.LightBlue.Lighten1).Text("Connectivity Score");
-                                header.Cell().RowSpan(2).Element(CellStyle).Text("Status");
-
-                                // Score sub-headers
-                                header.Cell().Element(CellStyle).Text("Tech (1-3)");
-                                header.Cell().Element(CellStyle).Text("Internet (1-3)");
-                                header.Cell().Element(CellStyle).Text("Total (1-6)");
+                                    .Background(Colors.LightBlue.Lighten1).Text("SCORE").FontSize(8).Bold();
+                                header.Cell().RowSpan(4).Element(CellStyle).Text("Status").FontSize(8);
                             }
-                        });
 
-                        foreach (var item in reportData)
-                        {
-                            table.Cell().Element(CellStyle).Text(item.MunicipalityName);
-                            table.Cell().Element(CellStyle).Text(item.BarangayName);
-
+                            // Row 2: Generation headers + Speedtest header + Score sub-headers
                             foreach (var provider in providers)
                             {
-                                var hasService = item.ProviderStats.TryGetValue(provider.Name, out var stats)
-                                    && (stats.Has4G || stats.Has5G || stats.Has3G);
-
-                                table.Cell().Element(CellStyle).Text(hasService ? "✓" : "-");
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    foreach (var gen in generations)
+                                    {
+                                        header.Cell().RowSpan(3).Element(CellStyle).Text(gen).FontSize(7);
+                                    }
+                                    header.Cell().RowSpan(3).Element(CellStyle).Text("Tech").FontSize(7);
+                                    header.Cell().ColumnSpan(2).Element(CellStyle).Text("Speed (Mbps)").FontSize(7);
+                                }
                             }
 
                             if (includeScores)
                             {
-                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TechnologyTypeScore.ToString());
-                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.InternetAccessScore.ToString());
-                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TotalScore.ToString());
+                                header.Cell().RowSpan(3).Element(CellStyle).Text("Tech\n(1-3)").FontSize(7);
+                                header.Cell().RowSpan(3).Element(CellStyle).Text("Net\n(1-3)").FontSize(7);
+                                header.Cell().RowSpan(3).Element(CellStyle).Text("Total\n(1-6)").FontSize(7);
+                            }
+
+                            // Row 3 & 4: Upload/Download for each provider
+                            foreach (var provider in providers)
+                            {
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    header.Cell().Element(CellStyle).Text("Up").FontSize(7);
+                                    header.Cell().Element(CellStyle).Text("Down").FontSize(7);
+                                }
+                            }
+                        });
+
+                        // Data Rows
+                        foreach (var item in reportData)
+                        {
+                            table.Cell().Element(CellStyle).Text(item.MunicipalityName).FontSize(7);
+                            table.Cell().Element(CellStyle).Text(item.BarangayName).FontSize(7);
+
+                            // Provider data with generation breakdown
+                            foreach (var provider in providers)
+                            {
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    var stats = item.ProviderStats.GetValueOrDefault(provider.Name) ?? new ProviderWirelessStatsDto();
+
+                                    // Generation checkmarks
+                                    foreach (var gen in generations)
+                                    {
+                                        bool hasGen = gen switch
+                                        {
+                                            "2G" => stats.Has2G,
+                                            "3G" => stats.Has3G,
+                                            "4G" => stats.Has4G,
+                                            "5G" => stats.Has5G,
+                                            _ => false
+                                        };
+                                        table.Cell().Element(CellStyle).Text(hasGen ? "✓" : "-").FontSize(7);
+                                    }
+
+                                    // Tech used
+                                    table.Cell().Element(CellStyle).Text(stats.TechUsed ?? "-").FontSize(7);
+
+                                    // Upload speed
+                                    table.Cell().Element(CellStyle).Text(
+                                        stats.UploadSpeedMbps.HasValue 
+                                            ? Math.Round(stats.UploadSpeedMbps.Value, 1).ToString() 
+                                            : "-").FontSize(7);
+
+                                    // Download speed
+                                    table.Cell().Element(CellStyle).Text(
+                                        stats.DownloadSpeedMbps.HasValue 
+                                            ? Math.Round(stats.DownloadSpeedMbps.Value, 1).ToString() 
+                                            : "-").FontSize(7);
+                                }
+                            }
+
+                            // Score columns
+                            if (includeScores)
+                            {
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TechnologyTypeScore.ToString()).FontSize(7);
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.InternetAccessScore.ToString()).FontSize(7);
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TotalScore.ToString()).FontSize(7);
 
                                 var statusColor = item.ServiceStatus switch
                                 {
@@ -1176,7 +1271,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                                 };
 
                                 table.Cell().Element(CellStyle).Background(statusColor)
-                                    .Text(item.ServiceStatus.ToString().ToUpper());
+                                    .Text(item.ServiceStatus.ToString().ToUpper()).FontSize(7).Bold();
                             }
                         }
                     });
@@ -1196,6 +1291,19 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         {
             return container.Border(1).BorderColor(Colors.Grey.Lighten2)
                 .Padding(2).AlignMiddle().AlignCenter();
+        }
+
+        static string GetProviderColor(string providerName)
+        {
+            // Match Excel provider colors
+            return providerName.ToUpper() switch
+            {
+                var name when name.Contains("DITO") => Colors.Red.Medium,
+                var name when name.Contains("GLOBE") => Colors.Blue.Lighten2,
+                var name when name.Contains("SMART") => Colors.Green.Lighten2,
+                var name when name.Contains("USTFAST") => Colors.Orange.Lighten2,
+                _ => Colors.Grey.Lighten2
+            };
         }
     }
 
