@@ -8,9 +8,9 @@ using NTC.QoS.Domain.Models.DTOs.GenAI;
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Queries;
 
 /// <summary>
-/// Handler for retrieving user's generated reports
+/// Handler for retrieving user's generated reports with pagination
 /// </summary>
-public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, ApiResponse<List<GeneratedReportSummaryDto>>>
+public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, PaginatedResponse<GeneratedReportSummaryDto>>
 {
     private readonly IGeneratedReportRepository _reportRepository;
     private readonly IUserContextService _userContextService;
@@ -29,7 +29,7 @@ public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, A
         _logger = logger;
     }
 
-    public async Task<ApiResponse<List<GeneratedReportSummaryDto>>> Handle(
+    public async Task<PaginatedResponse<GeneratedReportSummaryDto>> Handle(
         GetUserReportsQuery request,
         CancellationToken cancellationToken)
     {
@@ -38,7 +38,7 @@ public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, A
             var authUserId = _userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(authUserId))
             {
-                return new ApiResponse<List<GeneratedReportSummaryDto>>
+                return new PaginatedResponse<GeneratedReportSummaryDto>([], 0, 0, 0)
                 {
                     Succeeded = false,
                     Message = "User not authenticated"
@@ -53,42 +53,32 @@ public class GetUserReportsQueryHandler : IRequestHandler<GetUserReportsQuery, A
             if (user == null)
             {
                 _logger.LogWarning("User not found for AuthUserId: {AuthUserId}", authUserId);
-                return new ApiResponse<List<GeneratedReportSummaryDto>>
+                return new PaginatedResponse<GeneratedReportSummaryDto>([], 0, 0, 0)
                 {
                     Succeeded = false,
                     Message = "User not found"
                 };
             }
 
-            var reports = await _reportRepository.GetUserReportsAsync(
-                user.Id,
-                request.Skip,
-                request.Take,
-                cancellationToken);
+            // Build query for user's reports with DTO projection
+            var reportDtosQuery = _reportRepository.Query(r => r.UserId == user.Id)
+                .OrderByDescending(r => r.GeneratedAt)
+                .Select(r => new GeneratedReportSummaryDto
+                {
+                    Id = r.Id,
+                    Title = r.Title,
+                    PromptPreview = r.Prompt.Length > 150 ? r.Prompt.Substring(0, 150) + "..." : r.Prompt,
+                    FilesAnalyzed = r.FilesAnalyzed,
+                    GeneratedAt = r.GeneratedAt,
+                    ContentPreview = r.Content.Length > 200 ? r.Content.Substring(0, 200) + "..." : r.Content
+                });
 
-            var reportDtos = reports.Select(r => new GeneratedReportSummaryDto
-            {
-                Id = r.Id,
-                Title = r.Title,
-                PromptPreview = r.Prompt.Length > 150 ? r.Prompt.Substring(0, 150) + "..." : r.Prompt,
-                FilesAnalyzed = r.FilesAnalyzed,
-                GeneratedAt = r.GeneratedAt,
-                ContentPreview = r.Content.Length > 200 ? r.Content.Substring(0, 200) + "..." : r.Content
-            }).ToList();
-
-            _logger.LogInformation("Retrieved {Count} reports for user {UserId}", reportDtos.Count, user.Id);
-
-            return new ApiResponse<List<GeneratedReportSummaryDto>>
-            {
-                Data = reportDtos,
-                Succeeded = true,
-                Message = $"Retrieved {reportDtos.Count} report(s)"
-            };
+            return await _reportRepository.PaginateAsync(reportDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving user reports");
-            return new ApiResponse<List<GeneratedReportSummaryDto>>
+            return new PaginatedResponse<GeneratedReportSummaryDto>([], 0, 0, 0)
             {
                 Succeeded = false,
                 Message = "Failed to retrieve reports"

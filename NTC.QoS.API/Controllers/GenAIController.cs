@@ -8,6 +8,9 @@ using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.GenAI;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -29,12 +32,16 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
-    /// Chat with AI assistant (Streaming Response)
+    /// Chat with AI assistant (Streaming Response with RAG)
     /// </summary>
     /// <remarks>
     /// This endpoint allows users to interact with an AI assistant powered by Google's Gemini model with real-time streaming responses.
+    /// Uses RAG (Retrieval Augmented Generation) to provide context-aware responses based on previously generated reports.
     /// 
     /// **Features:**
+    /// - **RAG-based responses**: Automatically retrieves relevant context from previously generated reports
+    /// - **Session management**: Maintains chat history per user (expires after 30 minutes of inactivity)
+    /// - **Semantic search**: Uses vector embeddings to find the most relevant reports for context
     /// - Natural language Q&A about project data and outputs
     /// - **Streaming responses**: Real-time AI response chunks via Server-Sent Events (SSE)
     /// - **Multi-modal support**: Accepts text prompts with optional file attachments
@@ -44,6 +51,12 @@ public class GenAIController : ControllerBase
     ///   - Text files: .txt, .csv, .json, .xml
     ///   - Spreadsheets: Excel (.xlsx, .xls) - extracted as text
     /// - File content is analyzed by the AI model for comprehensive responses
+    /// 
+    /// **How RAG works:**
+    /// 1. Your message is converted to a vector embedding
+    /// 2. The system searches for the 3 most semantically similar generated reports
+    /// 3. These reports are used as context for generating a response
+    /// 4. Chat history is maintained across messages in the same session
     /// 
     /// **Usage Examples:**
     /// - Ask questions: "What are the coverage statistics for Region 10?"
@@ -108,17 +121,21 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
-    /// Generate a report using AI (Streaming Response)
+    /// Generate a report using AI (Streaming Response with RAG)
     /// </summary>
     /// <remarks>
     /// This endpoint uses AI to generate comprehensive reports based on provided instructions and attached resources with real-time streaming.
+    /// Uses RAG (Retrieval Augmented Generation) to leverage context from previously generated reports.
     /// 
     /// **Features:**
+    /// - **RAG-based generation**: Automatically retrieves relevant context from previously generated reports
     /// - **Streaming responses**: Real-time report generation via Server-Sent Events (SSE)
+    /// - **Semantic search**: Uses vector embeddings to find related reports for enhanced context
     /// - Automatic report generation from data files
     /// - Intelligent analysis and insight extraction
     /// - Professional formatting with executive summaries, key findings, and recommendations
     /// - **Multi-file analysis**: Combine data from multiple sources
+    /// - Generated reports are saved with embeddings for future RAG retrieval
     /// 
     /// **Supported File Types (with actual processing):**
     /// - Images: JPEG, PNG, WebP, HEIC, GIF (for visual data analysis)
@@ -196,21 +213,21 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
-    /// Get all generated reports for the current user
+    /// Get all generated reports for the current user with pagination
     /// </summary>
-    /// <param name="skip">Number of reports to skip for pagination</param>
-    /// <param name="take">Number of reports to take for pagination</param>
-    /// <returns>List of generated report summaries</returns>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10, max: 100)</param>
+    /// <returns>Paginated list of generated report summaries</returns>
     /// <response code="200">Successfully retrieved reports</response>
     /// <response code="401">Unauthorized - authentication required</response>
     [HttpGet("reports")]
     [RequirePermission(Permissions.GenerateReports)]
-    [ProducesResponseType(typeof(ApiResponse<List<GeneratedReportSummaryDto>>), 200)]
-    public async Task<ActionResult<ApiResponse<List<GeneratedReportSummaryDto>>>> GetReports(
-        [FromQuery] int? skip = null,
-        [FromQuery] int? take = null)
+    [ProducesResponseType(typeof(PaginatedResponse<GeneratedReportSummaryDto>), 200)]
+    public async Task<ActionResult<PaginatedResponse<GeneratedReportSummaryDto>>> GetReports(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
     {
-        var query = new GetUserReportsQuery { Skip = skip, Take = take };
+        var query = new GetUserReportsQuery { PageNumber = pageNumber, PageSize = pageSize };
         var response = await _mediator.Send(query);
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
@@ -235,17 +252,18 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
-    /// Download a generated report as a markdown file
+    /// Download a generated report as a markdown or PDF file
     /// </summary>
     /// <param name="id">Report ID</param>
-    /// <returns>Markdown file download</returns>
+    /// <param name="format">Report format: markdown (default) or pdf</param>
+    /// <returns>Markdown or PDF file download</returns>
     /// <response code="200">Successfully downloaded report</response>
     /// <response code="404">Report not found</response>
     /// <response code="401">Unauthorized - authentication required</response>
     [HttpGet("reports/{id}/download")]
     [RequirePermission(Permissions.GenerateReports)]
     [ProducesResponseType(typeof(FileContentResult), 200)]
-    public async Task<IActionResult> DownloadReport(Guid id)
+    public async Task<IActionResult> DownloadReport(Guid id, [FromQuery] string format = "markdown")
     {
         var query = new GetReportByIdQuery(id);
         var response = await _mediator.Send(query);
@@ -255,15 +273,38 @@ public class GenAIController : ControllerBase
             return NotFound(response);
         }
 
+        var isPdf = format.Equals("pdf", StringComparison.OrdinalIgnoreCase);
+        var extension = isPdf ? "pdf" : "md";
+        var contentType = isPdf ? "application/pdf" : "text/markdown";
+
         var fileName = !string.IsNullOrWhiteSpace(response.Data.Title)
-            ? $"{response.Data.Title}.md"
-            : $"Report_{response.Data.GeneratedAt:yyyyMMdd_HHmmss}.md";
+            ? $"{response.Data.Title}.{extension}"
+            : $"Report_{response.Data.GeneratedAt:yyyyMMdd_HHmmss}.{extension}";
 
         // Sanitize filename
         fileName = string.Join("_", fileName.Split(Path.GetInvalidFileNameChars()));
 
-        var fileBytes = System.Text.Encoding.UTF8.GetBytes(response.Data.Content);
-        return File(fileBytes, "text/markdown", fileName);
+        byte[] fileBytes;
+        
+        if (isPdf)
+        {
+            // Convert markdown content to PDF
+            try
+            {
+                fileBytes = ConvertMarkdownToPdf(response.Data.Content, response.Data.Title ?? "AI Generated Report");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to convert markdown to PDF for report {ReportId}", id);
+                return BadRequest(new { message = "Failed to generate PDF. Please try downloading as markdown instead." });
+            }
+        }
+        else
+        {
+            fileBytes = System.Text.Encoding.UTF8.GetBytes(response.Data.Content);
+        }
+
+        return File(fileBytes, contentType, fileName);
     }
 
     /// <summary>
@@ -283,6 +324,116 @@ public class GenAIController : ControllerBase
         var command = new DeleteReportCommand(id);
         var response = await _mediator.Send(command);
         return response.Succeeded ? Ok(response) : NotFound(response);
+    }
+
+    /// <summary>
+    /// Converts markdown content to PDF using QuestPDF
+    /// </summary>
+    private byte[] ConvertMarkdownToPdf(string markdownContent, string title)
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, QuestPDF.Infrastructure.Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(11).FontFamily("Arial"));
+
+                page.Header()
+                    .Text(title)
+                    .SemiBold().FontSize(16).FontColor(Colors.Blue.Medium);
+
+                page.Content()
+                    .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Centimetre)
+                    .Column(column =>
+                    {
+                        column.Spacing(10);
+
+                        // Parse markdown and render content
+                        var lines = markdownContent.Split('\n');
+                        foreach (var line in lines)
+                        {
+                            if (string.IsNullOrWhiteSpace(line))
+                            {
+                                column.Item().Height(5);
+                                continue;
+                            }
+
+                            var trimmedLine = line.Trim();
+                            
+                            // Handle headers
+                            if (trimmedLine.StartsWith("# "))
+                            {
+                                column.Item().Text(trimmedLine.Substring(2))
+                                    .FontSize(18).SemiBold().FontColor(Colors.Blue.Darken2);
+                            }
+                            else if (trimmedLine.StartsWith("## "))
+                            {
+                                column.Item().Text(trimmedLine.Substring(3))
+                                    .FontSize(16).SemiBold().FontColor(Colors.Blue.Darken1);
+                            }
+                            else if (trimmedLine.StartsWith("### "))
+                            {
+                                column.Item().Text(trimmedLine.Substring(4))
+                                    .FontSize(14).SemiBold();
+                            }
+                            else if (trimmedLine.StartsWith("#### "))
+                            {
+                                column.Item().Text(trimmedLine.Substring(5))
+                                    .FontSize(13).SemiBold();
+                            }
+                            // Handle bullet points
+                            else if (trimmedLine.StartsWith("- ") || trimmedLine.StartsWith("* "))
+                            {
+                                column.Item().Row(row =>
+                                {
+                                    row.ConstantItem(20).Text("•");
+                                    row.RelativeItem().Text(trimmedLine.Substring(2));
+                                });
+                            }
+                            // Handle numbered lists
+                            else if (System.Text.RegularExpressions.Regex.IsMatch(trimmedLine, @"^\d+\.\s"))
+                            {
+                                var match = System.Text.RegularExpressions.Regex.Match(trimmedLine, @"^(\d+)\.\s(.*)");
+                                if (match.Success)
+                                {
+                                    column.Item().Row(row =>
+                                    {
+                                        row.ConstantItem(25).Text($"{match.Groups[1].Value}.");
+                                        row.RelativeItem().Text(match.Groups[2].Value);
+                                    });
+                                }
+                            }
+                            // Handle bold text (simple approach)
+                            else if (trimmedLine.Contains("**"))
+                            {
+                                var cleanText = trimmedLine.Replace("**", "");
+                                column.Item().Text(cleanText).SemiBold();
+                            }
+                            // Regular text
+                            else
+                            {
+                                column.Item().Text(trimmedLine);
+                            }
+                        }
+                    });
+
+                page.Footer()
+                    .AlignCenter()
+                    .Text(x =>
+                    {
+                        x.Span("Page ");
+                        x.CurrentPageNumber();
+                        x.Span(" of ");
+                        x.TotalPages();
+                    });
+            });
+        });
+
+        return document.GeneratePdf();
     }
 
     /// <summary>

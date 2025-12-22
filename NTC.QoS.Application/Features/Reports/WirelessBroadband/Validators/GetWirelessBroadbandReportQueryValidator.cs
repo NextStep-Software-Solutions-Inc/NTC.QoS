@@ -9,7 +9,22 @@ public class GetWirelessBroadbandReportQueryValidator : AbstractValidator<GetWir
     {
         // MANDATORY: Require at least one geographic filter to prevent unscoped queries
         RuleFor(x => x)
-            .Must(x => x.RegionId.HasValue || x.ProvinceId.HasValue || x.MunicipalityId.HasValue)
-            .WithMessage("At least one geographic filter (RegionId, ProvinceId, or MunicipalityId) is required to generate the report. This prevents performance issues from processing all municipalities.");
+            .Must(HaveAtLeastOneGeographicFilter)
+            .WithMessage("At least one geographic filter (RegionId, ProvinceId, or MunicipalityId) is required to generate the report. This prevents performance issues from processing all municipalities.")
+            .WithName("GeographicFilters");
+
+        // Note: Geographic filter precedence is handled in the query handler.
+        // Lower admin levels take precedence: Municipality > Province > Region
+        // Multiple filters can be provided, but the most specific will be used.
+    }
+
+    /// <summary>
+    /// Validates that at least one geographic filter is provided to prevent unscoped queries
+    /// </summary>
+    private static bool HaveAtLeastOneGeographicFilter(GetWirelessBroadbandReportQuery query)
+    {
+        return query.RegionId.HasValue ||
+               query.ProvinceId.HasValue ||
+               query.MunicipalityId.HasValue;
     }
 }

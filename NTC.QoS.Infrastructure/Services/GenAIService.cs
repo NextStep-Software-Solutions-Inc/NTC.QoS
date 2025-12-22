@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Google.GenAI;
 using Google.GenAI.Types;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Infrastructure.Configuration;
 using System.Runtime.CompilerServices;
 using NTC.QoS.Domain.Models;
 
@@ -15,15 +17,96 @@ public class GenAIService : IGenAIService
 {
     private readonly ILogger<GenAIService> _logger;
     private readonly Client _genAIClient;
-    private readonly string _modelName = "gemini-2.0-flash-exp";
+    private readonly GeminiSettings _settings;
+    private readonly string _apiKey;
 
-    public GenAIService(IConfiguration configuration, ILogger<GenAIService> logger)
+    public GenAIService(IOptions<GeminiSettings> settings, IConfiguration configuration, ILogger<GenAIService> logger)
     {
         _logger = logger;
-        var apiKey = configuration["GoogleAI:ApiKey"] 
-            ?? throw new InvalidOperationException("GoogleAI:ApiKey is not configured. Please set it in user secrets or environment variables.");
+        _settings = settings.Value;
         
-        _genAIClient = new Client(apiKey: apiKey);
+        // Read API key from configuration (supports environment variable injection via GoogleAI__ApiKey)
+        _apiKey = configuration["GoogleAI:ApiKey"] 
+            ?? throw new InvalidOperationException("GoogleAI:ApiKey is not configured. Please set it in configuration or as GoogleAI__ApiKey environment variable.");
+        
+        _genAIClient = new Client(apiKey: _apiKey);
+    }
+
+    /// <summary>
+    /// Generates an embedding vector for the given text using the embedding model
+    /// </summary>
+    public async Task<float[]> GetEmbeddingAsync(string text)
+    {
+        _logger.LogInformation("Generating embedding for text of length: {TextLength}", text.Length);
+        
+        try
+        {
+            var response = await _genAIClient.Models.EmbedContentAsync(
+                model: _settings.EmbeddingModel,
+                contents: text);
+
+            var embeddings = response.Embeddings;
+            if (embeddings == null || embeddings.Count == 0 || embeddings[0].Values == null)
+            {
+                throw new InvalidOperationException("Embedding response did not contain valid values");
+            }
+
+            var values = embeddings[0].Values!;
+            _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", values.Count);
+            // Convert double[] to float[] since Pgvector uses float
+            return values.Select(v => (float)v).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating embedding");
+            throw new InvalidOperationException("Failed to generate embedding. Please try again later.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Generates content using the chat model (non-streaming)
+    /// </summary>
+    public async Task<string> GenerateContentAsync(string prompt)
+    {
+        _logger.LogInformation("Generating content for prompt of length: {PromptLength}", prompt.Length);
+        
+        try
+        {
+            var response = await _genAIClient.Models.GenerateContentAsync(
+                model: _settings.ChatModel,
+                contents: prompt);
+
+            var text = response.Candidates?[0]?.Content?.Parts?[0]?.Text;
+            if (string.IsNullOrEmpty(text))
+            {
+                throw new InvalidOperationException("Content generation did not return valid text");
+            }
+
+            _logger.LogInformation("Successfully generated content of length: {ContentLength}", text.Length);
+            return text;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating content");
+            throw new InvalidOperationException("Failed to generate content. Please try again later.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Generates content using the chat model with streaming response
+    /// </summary>
+    public async IAsyncEnumerable<string> GenerateContentStreamAsync(
+        string prompt,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Processing streaming content generation for prompt of length: {PromptLength}", prompt.Length);
+
+        var parts = new List<Part> { new Part { Text = prompt } };
+
+        await foreach (var chunk in StreamGenerateContentAsync(parts, cancellationToken))
+        {
+            yield return chunk;
+        }
     }
 
     /// <summary>
@@ -178,7 +261,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
         try
         {
             stream = _genAIClient.Models.GenerateContentStreamAsync(
-                model: _modelName,
+                model: _settings.ChatModel,
                 contents: content);
         }
         catch (Exception ex)
@@ -218,7 +301,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
     /// <summary>
     /// Determine MIME type for the file
     /// </summary>
-    private string DetermineMimeType(FileUpload file)
+    private static string DetermineMimeType(FileUpload file)
     {
         // Use provided content type if available
         if (!string.IsNullOrWhiteSpace(file.ContentType))
@@ -250,7 +333,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
     /// <summary>
     /// Check if file is an image
     /// </summary>
-    private bool IsImageFile(string? contentType)
+    private static bool IsImageFile(string? contentType)
     {
         if (string.IsNullOrWhiteSpace(contentType)) return false;
         return contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
@@ -259,7 +342,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
     /// <summary>
     /// Check if file is a PDF
     /// </summary>
-    private bool IsPdfFile(string? contentType)
+    private static bool IsPdfFile(string? contentType)
     {
         if (string.IsNullOrWhiteSpace(contentType)) return false;
         return contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase);
@@ -268,7 +351,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
     /// <summary>
     /// Check if file is text-based (including CSV, JSON, XML, TXT)
     /// </summary>
-    private bool IsTextBasedFile(string? contentType, string fileName)
+    private static bool IsTextBasedFile(string? contentType, string fileName)
     {
         if (string.IsNullOrWhiteSpace(contentType))
         {

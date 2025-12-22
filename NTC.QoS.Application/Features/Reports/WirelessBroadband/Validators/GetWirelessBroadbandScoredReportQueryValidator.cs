@@ -16,6 +16,10 @@ public class GetWirelessBroadbandScoredReportQueryValidator : AbstractValidator<
             .WithMessage("At least one geographic filter (RegionId, ProvinceId, or MunicipalityId) is required to generate the report. This prevents performance issues from processing all municipalities.")
             .WithName("GeographicFilters");
 
+        // Note: Geographic filter precedence is handled in the query handler.
+        // Lower admin levels take precedence: Municipality > Province > Region
+        // Multiple filters can be provided, but the most specific will be used.
+
         // Validate Format
         RuleFor(x => x.Format)
             .IsInEnum()
