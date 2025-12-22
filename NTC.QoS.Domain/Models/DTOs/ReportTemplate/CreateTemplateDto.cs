@@ -9,7 +9,7 @@ public class CreateTemplateDto
     public string Title { get; set; } = string.Empty;
 
     [MaxLength(500)]
-    public string Description { get; set; } = string.Empty;
+    public string? Description { get; set; }
 
     [Required]
     public string Instruction { get; set; } = string.Empty;

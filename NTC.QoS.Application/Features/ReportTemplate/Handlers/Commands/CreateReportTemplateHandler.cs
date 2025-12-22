@@ -15,7 +15,7 @@ public class CreateReportTemplateHandler(IRepository<Domain.Entities.ReportTempl
         var newTemplate = new Domain.Entities.ReportTemplate
         {
             Title = request.CreateTemplate.Title,
-            Description = request.CreateTemplate.Description,
+            Description = request.CreateTemplate.Description ?? string.Empty,
             Instruction = request.CreateTemplate.Instruction,
             IsActive = true
         };
