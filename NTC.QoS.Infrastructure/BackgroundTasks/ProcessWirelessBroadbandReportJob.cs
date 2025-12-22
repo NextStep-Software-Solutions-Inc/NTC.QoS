@@ -135,6 +135,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 jobRequest.MunicipalityId,
                 jobRequest.Format,
                 jobRequest.FilterByStatus,
+                jobRequest.IncludeScores,
                 jobId,
                 cancellationToken);
             reportGenStopwatch.Stop();
@@ -277,6 +278,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         Guid? municipalityId,
         ReportFormatEnum format,
         ServiceStatusEnum? filterByStatus,
+        bool includeScores,
         string jobId,
         CancellationToken cancellationToken)
     {
@@ -431,17 +433,20 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 entry.ProviderStats[provider.Name] = MapProviderStats(techBreakdown, providerSpeedtests);
             }
 
-            // Calculate overall barangay connectivity score
-            var overallTechBreakdown = AggregateProviderTechnologyBreakdowns(providerTechBreakdown.Values);
-            
-            // Build overall speed stats for the barangay
-            var overallSpeedStats = barangaySpeedtests.Any() 
-                ? BuildSpeedStats(barangaySpeedtests) 
-                : null;
+            // Calculate overall barangay connectivity score (only if requested)
+            if (includeScores)
+            {
+                var overallTechBreakdown = AggregateProviderTechnologyBreakdowns(providerTechBreakdown.Values);
+                
+                // Build overall speed stats for the barangay
+                var overallSpeedStats = barangaySpeedtests.Any() 
+                    ? BuildSpeedStats(barangaySpeedtests) 
+                    : null;
 
-            entry.ConnectivityScore = CalculateConnectivityScore(overallTechBreakdown, overallSpeedStats);
-            entry.ServiceStatus = DetermineServiceStatus(entry.ConnectivityScore.TotalScore);
-            entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
+                entry.ConnectivityScore = CalculateConnectivityScore(overallTechBreakdown, overallSpeedStats);
+                entry.ServiceStatus = DetermineServiceStatus(entry.ConnectivityScore.TotalScore);
+                entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
+            }
 
             reportData.Add(entry);
             processedCount++;
@@ -480,12 +485,12 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
 
         if (format == ReportFormatEnum.Excel)
         {
-            fileContent = GenerateExcel(reportTitleName, providers, reportData);
+            fileContent = GenerateExcel(reportTitleName, providers, reportData, includeScores);
             fileName = $"WirelessBroadband_{reportTitleName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
         }
         else
         {
-            fileContent = GeneratePdf(reportTitleName, providers, reportData);
+            fileContent = GeneratePdf(reportTitleName, providers, reportData, includeScores);
             fileName = $"WirelessBroadband_{reportTitleName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
         }
         reportGenStopwatch.Stop();
@@ -812,7 +817,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     private byte[] GenerateExcel(
         string reportTitle,
         List<Domain.Entities.Provider> providers,
-        List<BarangayWirelessScoredEntryDto> reportData)
+        List<BarangayWirelessScoredEntryDto> reportData,
+        bool includeScores)
     {
         ExcelPackage.License.SetNonCommercialPersonal("NTC QoS");
         using var package = new ExcelPackage();
@@ -898,32 +904,42 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 color);
         }
 
-        // Add Score Columns after all providers
+        // Add Score Columns after all providers (only if includeScores is true)
         int scoreStartCol = col;
+        int totalCols;
 
-        // Connectivity Score section
-        worksheet.Cells[2, scoreStartCol, 2, scoreStartCol + 3].Merge = true;
-        worksheet.Cells[2, scoreStartCol].Value = "CONNECTIVITY SCORE";
-        worksheet.Cells[2, scoreStartCol].Style.Fill.PatternType = ExcelFillStyle.Solid;
-        worksheet.Cells[2, scoreStartCol].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
+        if (includeScores)
+        {
+            // Connectivity Score section
+            worksheet.Cells[2, scoreStartCol, 2, scoreStartCol + 3].Merge = true;
+            worksheet.Cells[2, scoreStartCol].Value = "CONNECTIVITY SCORE";
+            worksheet.Cells[2, scoreStartCol].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            worksheet.Cells[2, scoreStartCol].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
 
-        worksheet.Cells[3, scoreStartCol].Value = "Technology";
-        worksheet.Cells[3, scoreStartCol, 4, scoreStartCol].Merge = true;
+            worksheet.Cells[3, scoreStartCol].Value = "Technology";
+            worksheet.Cells[3, scoreStartCol, 4, scoreStartCol].Merge = true;
 
-        worksheet.Cells[3, scoreStartCol + 1].Value = "Internet";
-        worksheet.Cells[3, scoreStartCol + 1, 4, scoreStartCol + 1].Merge = true;
+            worksheet.Cells[3, scoreStartCol + 1].Value = "Internet";
+            worksheet.Cells[3, scoreStartCol + 1, 4, scoreStartCol + 1].Merge = true;
 
-        worksheet.Cells[3, scoreStartCol + 2].Value = "Total";
-        worksheet.Cells[3, scoreStartCol + 2, 4, scoreStartCol + 2].Merge = true;
+            worksheet.Cells[3, scoreStartCol + 2].Value = "Total";
+            worksheet.Cells[3, scoreStartCol + 2, 4, scoreStartCol + 2].Merge = true;
 
-        worksheet.Cells[3, scoreStartCol + 3].Value = "Status";
-        worksheet.Cells[3, scoreStartCol + 3, 4, scoreStartCol + 3].Merge = true;
+            worksheet.Cells[3, scoreStartCol + 3].Value = "Status";
+            worksheet.Cells[3, scoreStartCol + 3, 4, scoreStartCol + 3].Merge = true;
 
-        int totalCols = scoreStartCol + 3;
+            totalCols = scoreStartCol + 3;
+        }
+        else
+        {
+            totalCols = col - 1;
+        }
 
         // Row 1: Main Title
         worksheet.Cells[1, 1, 1, totalCols].Merge = true;
-        worksheet.Cells["A1"].Value = "WIRELESS BROADBAND WITH CONNECTIVITY SCORES";
+        worksheet.Cells["A1"].Value = includeScores 
+            ? "WIRELESS BROADBAND WITH CONNECTIVITY SCORES" 
+            : "WIRELESS BROADBAND REPORT";
         worksheet.Cells["A1"].Style.Font.Bold = true;
         worksheet.Cells["A1"].Style.Font.Size = 14;
         worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
@@ -985,29 +1001,32 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                     currentCol += 2;
                 }
 
-                // Score columns
-                worksheet.Cells[row, scoreStartCol].Value = $"{item.ConnectivityScore.TechnologyTypeScore}/3";
-                worksheet.Cells[row, scoreStartCol + 1].Value = $"{item.ConnectivityScore.InternetAccessScore}/3";
-                worksheet.Cells[row, scoreStartCol + 2].Value = $"{item.ConnectivityScore.TotalScore}/6";
-                worksheet.Cells[row, scoreStartCol + 3].Value = item.ServiceStatus.ToString().ToUpper();
-
-                // Color code status
-                var statusCell = worksheet.Cells[row, scoreStartCol + 3];
-                statusCell.Style.Font.Bold = true;
-                switch (item.ServiceStatus)
+                // Score columns (only if includeScores is true)
+                if (includeScores)
                 {
-                    case ServiceStatusEnum.Served:
-                        statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
-                        break;
-                    case ServiceStatusEnum.Underserved:
-                        statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        statusCell.Style.Fill.BackgroundColor.SetColor(Color.Yellow);
-                        break;
-                    case ServiceStatusEnum.Unserved:
-                        statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightCoral);
-                        break;
+                    worksheet.Cells[row, scoreStartCol].Value = $"{item.ConnectivityScore.TechnologyTypeScore}/3";
+                    worksheet.Cells[row, scoreStartCol + 1].Value = $"{item.ConnectivityScore.InternetAccessScore}/3";
+                    worksheet.Cells[row, scoreStartCol + 2].Value = $"{item.ConnectivityScore.TotalScore}/6";
+                    worksheet.Cells[row, scoreStartCol + 3].Value = item.ServiceStatus.ToString().ToUpper();
+
+                    // Color code status
+                    var statusCell = worksheet.Cells[row, scoreStartCol + 3];
+                    statusCell.Style.Font.Bold = true;
+                    switch (item.ServiceStatus)
+                    {
+                        case ServiceStatusEnum.Served:
+                            statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
+                            break;
+                        case ServiceStatusEnum.Underserved:
+                            statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            statusCell.Style.Fill.BackgroundColor.SetColor(Color.Yellow);
+                            break;
+                        case ServiceStatusEnum.Unserved:
+                            statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightCoral);
+                            break;
+                    }
                 }
 
                 row++;
@@ -1049,7 +1068,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     private byte[] GeneratePdf(
         string reportTitle,
         List<Domain.Entities.Provider> providers,
-        List<BarangayWirelessScoredEntryDto> reportData)
+        List<BarangayWirelessScoredEntryDto> reportData,
+        bool includeScores)
     {
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -1072,7 +1092,9 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
 
                     column.Item().PaddingVertical(5).LineHorizontal(1.5f).LineColor(Colors.Black);
 
-                    column.Item().AlignCenter().Text($"Wireless Broadband Report with Scores - {reportTitle}")
+                    column.Item().AlignCenter().Text(includeScores 
+                        ? $"Wireless Broadband Report with Scores - {reportTitle}"
+                        : $"Wireless Broadband Report - {reportTitle}")
                         .FontSize(12).Bold();
 
                     column.Item().AlignCenter().Text($"Generated: {DateTime.Now:MMMM dd, yyyy 'at' h:mm tt}")
@@ -1094,11 +1116,14 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                                 columns.RelativeColumn(); // Has service indicator
                             }
 
-                            // Score columns
-                            columns.RelativeColumn(); // Tech Score
-                            columns.RelativeColumn(); // Internet Score
-                            columns.RelativeColumn(); // Total Score
-                            columns.ConstantColumn(80); // Status
+                            // Score columns (only if includeScores is true)
+                            if (includeScores)
+                            {
+                                columns.RelativeColumn(); // Tech Score
+                                columns.RelativeColumn(); // Internet Score
+                                columns.RelativeColumn(); // Total Score
+                                columns.ConstantColumn(80); // Status
+                            }
                         });
 
                         table.Header(header =>
@@ -1111,14 +1136,17 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                                 header.Cell().RowSpan(2).Element(CellStyle).Text(provider.Name);
                             }
 
-                            header.Cell().ColumnSpan(3).Element(CellStyle)
-                                .Background(Colors.LightBlue.Lighten1).Text("Connectivity Score");
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Status");
+                            if (includeScores)
+                            {
+                                header.Cell().ColumnSpan(3).Element(CellStyle)
+                                    .Background(Colors.LightBlue.Lighten1).Text("Connectivity Score");
+                                header.Cell().RowSpan(2).Element(CellStyle).Text("Status");
 
-                            // Score sub-headers
-                            header.Cell().Element(CellStyle).Text("Tech (1-3)");
-                            header.Cell().Element(CellStyle).Text("Internet (1-3)");
-                            header.Cell().Element(CellStyle).Text("Total (1-6)");
+                                // Score sub-headers
+                                header.Cell().Element(CellStyle).Text("Tech (1-3)");
+                                header.Cell().Element(CellStyle).Text("Internet (1-3)");
+                                header.Cell().Element(CellStyle).Text("Total (1-6)");
+                            }
                         });
 
                         foreach (var item in reportData)
@@ -1134,19 +1162,22 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                                 table.Cell().Element(CellStyle).Text(hasService ? "✓" : "-");
                             }
 
-                            table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TechnologyTypeScore.ToString());
-                            table.Cell().Element(CellStyle).Text(item.ConnectivityScore.InternetAccessScore.ToString());
-                            table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TotalScore.ToString());
-
-                            var statusColor = item.ServiceStatus switch
+                            if (includeScores)
                             {
-                                ServiceStatusEnum.Served => Colors.Green.Lighten3,
-                                ServiceStatusEnum.Underserved => Colors.Yellow.Lighten3,
-                                _ => Colors.Red.Lighten3
-                            };
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TechnologyTypeScore.ToString());
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.InternetAccessScore.ToString());
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TotalScore.ToString());
 
-                            table.Cell().Element(CellStyle).Background(statusColor)
-                                .Text(item.ServiceStatus.ToString().ToUpper());
+                                var statusColor = item.ServiceStatus switch
+                                {
+                                    ServiceStatusEnum.Served => Colors.Green.Lighten3,
+                                    ServiceStatusEnum.Underserved => Colors.Yellow.Lighten3,
+                                    _ => Colors.Red.Lighten3
+                                };
+
+                                table.Cell().Element(CellStyle).Background(statusColor)
+                                    .Text(item.ServiceStatus.ToString().ToUpper());
+                            }
                         }
                     });
 

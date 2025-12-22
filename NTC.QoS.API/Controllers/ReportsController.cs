@@ -106,7 +106,8 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
         [FromQuery] ServiceStatusEnum? filterByStatus = null,
-        [FromQuery] ReportFormatEnum format = ReportFormatEnum.Excel)
+        [FromQuery] ReportFormatEnum format = ReportFormatEnum.Excel,
+        [FromQuery] bool includeScores = true)
     {
         var command = new StartWirelessBroadbandReportJobCommand
         {
@@ -114,7 +115,8 @@ public class ReportsController : ControllerBase
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
             FilterByStatus = filterByStatus,
-            Format = format
+            Format = format,
+            IncludeScores = includeScores
         };
 
         var jobId = await _mediator.Send(command);
