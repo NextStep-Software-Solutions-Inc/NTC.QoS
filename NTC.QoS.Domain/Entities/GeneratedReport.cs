@@ -1,3 +1,6 @@
+using Pgvector;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace NTC.QoS.Domain.Entities;
 
 /// <summary>
@@ -44,4 +47,10 @@ public class GeneratedReport : BaseEntity
     /// Optional title for the report (can be extracted from first heading or user-provided)
     /// </summary>
     public string? Title { get; set; }
+
+    /// <summary>
+    /// Vector embedding of the report content for semantic search (768 dimensions for text-embedding-004)
+    /// </summary>
+    [Column(TypeName = "vector(768)")]
+    public Vector? Embedding { get; set; }
 }

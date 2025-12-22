@@ -21,6 +21,7 @@
     <PackageReference Include="NetTopologySuite" Version="2.6.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 	<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	<PackageReference Include="Pgvector" Version="0.3.2" />
   </ItemGroup>
 
 </Project>

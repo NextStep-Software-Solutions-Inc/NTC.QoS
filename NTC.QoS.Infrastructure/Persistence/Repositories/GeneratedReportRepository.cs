@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
+using Pgvector;
+using Pgvector.EntityFrameworkCore;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -42,5 +44,34 @@ internal sealed class GeneratedReportRepository(ApplicationDbContext context)
     public async Task<int> CountUserReportsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await Query(r => r.UserId == userId).CountAsync(cancellationToken);
+    }
+
+    public async Task<List<string>> FindSimilarReportsAsync(
+        float[] queryEmbedding, 
+        int maxResults, 
+        CancellationToken cancellationToken = default)
+    {
+        var queryVector = new Vector(queryEmbedding);
+        
+        return await Query(r => r.Embedding != null)
+            .OrderBy(r => r.Embedding!.L2Distance(queryVector))
+            .Take(maxResults)
+            .Select(r => r.Content)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task AddReportWithEmbeddingAsync(
+        GeneratedReport report, 
+        float[]? embedding, 
+        CancellationToken cancellationToken = default)
+    {
+        // Set the embedding if provided
+        if (embedding != null)
+        {
+            report.Embedding = new Vector(embedding);
+        }
+
+        await AddAsync(report, cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 }
