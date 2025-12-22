@@ -665,6 +665,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<GeneratedReport>()
             .HasIndex(gr => gr.Embedding)
             .HasMethod("hnsw")
+            .HasOperators("vector_cosine_ops")
             .HasDatabaseName("IX_GeneratedReport_Embedding");
 
         base.OnModelCreating(modelBuilder);
