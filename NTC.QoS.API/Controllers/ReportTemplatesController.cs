@@ -9,7 +9,7 @@ using NTC.QoS.Infrastructure.Persistence;
 namespace NTC.QoS.API.Controllers;
 
 [ApiController]
-[Route("api/report-templates")]
+[Route("report-templates", Name = "report-templates")]
 [Authorize]
 public class ReportTemplatesController : ControllerBase
 {
