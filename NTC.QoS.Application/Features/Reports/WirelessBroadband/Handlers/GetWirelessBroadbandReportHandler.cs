@@ -39,6 +39,8 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         try
         {
             // 1. Determine Scope and Fetch Target Area
+            // Apply geographic filter precedence: Municipality > Province > Region
+            // Lower admin levels take priority - only the most specific filter is applied
             string reportTitleName = "";
             NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
             List<Domain.Entities.Barangay> barangays;
