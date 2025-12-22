@@ -7,15 +7,9 @@ public class GetWirelessBroadbandReportQueryValidator : AbstractValidator<GetWir
 {
     public GetWirelessBroadbandReportQueryValidator()
     {
+        // MANDATORY: Require at least one geographic filter to prevent unscoped queries
         RuleFor(x => x)
-            .Must(x => 
-            {
-                int count = 0;
-                if (x.MunicipalityId.HasValue) count++;
-                if (x.ProvinceId.HasValue) count++;
-                if (x.RegionId.HasValue) count++;
-                return count == 1;
-            })
-            .WithMessage("Please provide exactly one of MunicipalityId, ProvinceId, or RegionId.");
+            .Must(x => x.RegionId.HasValue || x.ProvinceId.HasValue || x.MunicipalityId.HasValue)
+            .WithMessage("At least one geographic filter (RegionId, ProvinceId, or MunicipalityId) is required to generate the report. This prevents performance issues from processing all municipalities.");
     }
 }

@@ -1,15 +1,14 @@
 ﻿using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Report;
 using NTC.QoS.Domain.Models.DTOs.Reports;
-using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Services;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
@@ -28,19 +27,34 @@ namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Handlers;
 /// </summary>
 public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirelessBroadbandScoredReportQuery, ApiResponse<WirelessBroadbandReportResult>>
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IRegionRepository _regionRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IBarangayRepository _barangayRepository;
+    private readonly ISpeedtestRepository _speedtestRepository;
+    private readonly IProviderRepository _providerRepository;
     private readonly ILogger<GetWirelessBroadbandScoredReportHandler> _logger;
     private readonly IWirelessScoringService _scoringService;
     private readonly IProviderTechnologyService _providerTechService;
     private const int StartColumn = 3;
 
     public GetWirelessBroadbandScoredReportHandler(
-        ApplicationDbContext context,
+        IRegionRepository regionRepository,
+        IProvinceRepository provinceRepository,
+        IMunicipalityRepository municipalityRepository,
+        IBarangayRepository barangayRepository,
+        ISpeedtestRepository speedtestRepository,
+        IProviderRepository providerRepository,
         ILogger<GetWirelessBroadbandScoredReportHandler> logger,
         IWirelessScoringService scoringService,
         IProviderTechnologyService providerTechService)
     {
-        _context = context;
+        _regionRepository = regionRepository;
+        _provinceRepository = provinceRepository;
+        _municipalityRepository = municipalityRepository;
+        _barangayRepository = barangayRepository;
+        _speedtestRepository = speedtestRepository;
+        _providerRepository = providerRepository;
         _logger = logger;
         _scoringService = scoringService;
         _providerTechService = providerTechService;
@@ -59,42 +73,39 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
             if (request.MunicipalityId.HasValue)
             {
-                var mun = await _context.Municipalities.AsNoTracking()
-                    .FirstOrDefaultAsync(m => m.Id == request.MunicipalityId, cancellationToken);
+                var munQuery = _municipalityRepository.Query(m => m.Id == request.MunicipalityId);
+                var mun = await _municipalityRepository.FirstOrDefaultAsync(munQuery, cancellationToken);
                 if (mun == null) return new ApiResponse<WirelessBroadbandReportResult>("Municipality not found.");
                 reportTitleName = mun.Name;
                 targetBoundaries = mun.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.MunicipalityId == request.MunicipalityId)
-                    .Include(b => b.Municipality)
-                    .OrderBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                
+                var barangayQuery = _barangayRepository.Query(b => b.MunicipalityId == request.MunicipalityId)
+                    .OrderBy(b => b.Name);
+                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
             }
             else if (request.ProvinceId.HasValue)
             {
-                var prov = await _context.Provinces.AsNoTracking()
-                    .FirstOrDefaultAsync(p => p.Id == request.ProvinceId, cancellationToken);
+                var provQuery = _provinceRepository.Query(p => p.Id == request.ProvinceId);
+                var prov = await _provinceRepository.FirstOrDefaultAsync(provQuery, cancellationToken);
                 if (prov == null) return new ApiResponse<WirelessBroadbandReportResult>("Province not found.");
                 reportTitleName = prov.Name;
                 targetBoundaries = prov.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.Municipality.ProvinceId == request.ProvinceId)
-                    .Include(b => b.Municipality)
-                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                
+                var barangayQuery = _barangayRepository.Query(b => b.Municipality.ProvinceId == request.ProvinceId)
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name);
+                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
             }
             else if (request.RegionId.HasValue)
             {
-                var reg = await _context.Regions.AsNoTracking()
-                    .FirstOrDefaultAsync(r => r.Id == request.RegionId, cancellationToken);
+                var regQuery = _regionRepository.Query(r => r.Id == request.RegionId);
+                var reg = await _regionRepository.FirstOrDefaultAsync(regQuery, cancellationToken);
                 if (reg == null) return new ApiResponse<WirelessBroadbandReportResult>("Region not found.");
                 reportTitleName = reg.Name;
                 targetBoundaries = reg.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.Municipality.Province.RegionId == request.RegionId)
-                    .Include(b => b.Municipality)
-                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                
+                var barangayQuery = _barangayRepository.Query(b => b.Municipality.Province.RegionId == request.RegionId)
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name);
+                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
             }
             else
             {
@@ -103,11 +114,10 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             }
 
             // 2. Fetch Providers
-            var providers = await _context.Providers
-                .AsNoTracking()
-                .Where(p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
-                .OrderBy(p => p.Name)
-                .ToListAsync(cancellationToken);
+            var providersQuery = _providerRepository.Query(
+                p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
+                .OrderBy(p => p.Name);
+            var providers = await _providerRepository.ToListAsync(providersQuery, cancellationToken);
 
             // 3. Safeguard against excessive scope
             if (barangays.Count > 5000)
@@ -701,14 +711,32 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
     {
         QuestPDF.Settings.License = LicenseType.Community;
 
+        // Build provider generations map to match Excel structure
+        var providerGenerationsMap = new Dictionary<string, List<string>>();
+        foreach (var provider in providers)
+        {
+            var generations = new HashSet<string>();
+            foreach (var entry in data)
+            {
+                if (entry.ProviderStats.TryGetValue(provider.Name, out var stats))
+                {
+                    if (stats.Has2G) generations.Add("2G");
+                    if (stats.Has3G) generations.Add("3G");
+                    if (stats.Has4G) generations.Add("4G");
+                    if (stats.Has5G) generations.Add("5G");
+                }
+            }
+            providerGenerationsMap[provider.Name] = generations.OrderBy(g => g).ToList();
+        }
+
         return Document.Create(container =>
         {
             container.Page(page =>
             {
-                page.Size(PageSizes.A4.Landscape());
+                page.Size(PageSizes.A3.Landscape());
                 page.Margin(1, QuestPDF.Infrastructure.Unit.Centimetre);
                 page.PageColor(Colors.White);
-                page.DefaultTextStyle(x => x.FontSize(8));
+                page.DefaultTextStyle(x => x.FontSize(7));
 
                 page.Header().Column(column =>
                 {
@@ -733,37 +761,60 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     {
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.ConstantColumn(80); // Municipality
-                            columns.ConstantColumn(100); // Barangay
+                            columns.ConstantColumn(65); // Municipality
+                            columns.ConstantColumn(75); // Barangay
 
-                            // Provider columns (simplified for PDF)
-                            foreach (var _ in providers)
+                            // Provider columns with generation checkmarks
+                            foreach (var provider in providers)
                             {
-                                columns.RelativeColumn(); // Has service indicator
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    // Columns for each generation checkmark
+                                    foreach (var _ in generations)
+                                    {
+                                        columns.RelativeColumn(0.5f);
+                                    }
+                                }
                             }
 
                             // Score columns
                             columns.RelativeColumn(); // Tech Score
                             columns.RelativeColumn(); // Internet Score
                             columns.RelativeColumn(); // Total Score
-                            columns.ConstantColumn(80); // Status
+                            columns.ConstantColumn(70); // Status
                         });
 
                         table.Header(header =>
                         {
+                            // Row 1: Municipality, Barangay, Provider Names, Scores, Status
                             header.Cell().RowSpan(2).Element(CellStyle).Text("Municipality");
                             header.Cell().RowSpan(2).Element(CellStyle).Text("Barangay");
 
                             foreach (var provider in providers)
                             {
-                                header.Cell().RowSpan(2).Element(CellStyle).Text(provider.Name);
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    header.Cell().ColumnSpan((uint)generations.Count).Element(CellStyle)
+                                        .Background(Colors.Grey.Lighten3).Text(provider.Name);
+                                }
                             }
 
                             header.Cell().ColumnSpan(3).Element(CellStyle)
                                 .Background(Colors.LightBlue.Lighten1).Text("Connectivity Score");
                             header.Cell().RowSpan(2).Element(CellStyle).Text("Status");
 
-                            // Score sub-headers
+                            // Row 2: Generation columns and score sub-headers
+                            foreach (var provider in providers)
+                            {
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    foreach (var gen in generations)
+                                    {
+                                        header.Cell().Element(CellStyle).Text(gen);
+                                    }
+                                }
+                            }
+
                             header.Cell().Element(CellStyle).Text("Tech (1-3)");
                             header.Cell().Element(CellStyle).Text("Internet (1-3)");
                             header.Cell().Element(CellStyle).Text("Total (1-6)");
@@ -776,10 +827,16 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
                             foreach (var provider in providers)
                             {
-                                var hasService = item.ProviderStats.TryGetValue(provider.Name, out var stats)
-                                    && (stats.Has4G || stats.Has5G || stats.Has3G);
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    var stats = item.ProviderStats.TryGetValue(provider.Name, out var s) 
+                                        ? s : new ProviderWirelessStatsDto();
 
-                                table.Cell().Element(CellStyle).Text(hasService ? "✓" : "-");
+                                    foreach (var gen in generations)
+                                    {
+                                        table.Cell().Element(CellStyle).Text(HasGeneration(stats, gen) ? "✓" : "");
+                                    }
+                                }
                             }
 
                             table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TechnologyTypeScore.ToString());
@@ -860,11 +917,10 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             {
                 if (barangay.Boundaries != null)
                 {
-                    var barangaySpeedtests = await _context.Speedtests
-                        .AsNoTracking()
-                        .Where(s => s.Location != null 
-                                 && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
-                                 && barangay.Boundaries.Contains(s.Location))
+                    var speedtestQuery = _speedtestRepository.QueryAsNoTracking(
+                        s => s.Location != null 
+                         && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
+                         && barangay.Boundaries.Contains(s.Location))
                         .Select(s => new SpeedtestInfo
                         {
                             ProviderName = s.ServiceProvider.Provider.Name,
@@ -872,8 +928,9 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                             DownloadSpeed = s.DownloadSpeed,
                             Location = s.Location!,
                             GenerationName = s.Generation != null ? s.Generation.Name : ""
-                        })
-                        .ToListAsync(cancellationToken);
+                        });
+                    
+                    var barangaySpeedtests = await _speedtestRepository.ToListAsync(speedtestQuery, cancellationToken);
 
                     result[barangay.Id] = barangaySpeedtests;
                 }

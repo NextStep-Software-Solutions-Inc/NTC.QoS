@@ -1,15 +1,14 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Report;
-using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Services;
-using NTC.QoS.Domain.Enums;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System.Drawing;
@@ -23,17 +22,32 @@ namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Handlers;
 
 public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroadbandReportQuery, ApiResponse<WirelessBroadbandReportResult>>
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IRegionRepository _regionRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IBarangayRepository _barangayRepository;
+    private readonly ISpeedtestRepository _speedtestRepository;
+    private readonly IProviderRepository _providerRepository;
     private readonly ILogger<GetWirelessBroadbandReportHandler> _logger;
     private readonly IProviderTechnologyService _providerTechService;
     private const int StartColumn = 3;
 
     public GetWirelessBroadbandReportHandler(
-        ApplicationDbContext context,
+        IRegionRepository regionRepository,
+        IProvinceRepository provinceRepository,
+        IMunicipalityRepository municipalityRepository,
+        IBarangayRepository barangayRepository,
+        ISpeedtestRepository speedtestRepository,
+        IProviderRepository providerRepository,
         ILogger<GetWirelessBroadbandReportHandler> logger,
         IProviderTechnologyService providerTechService)
     {
-        _context = context;
+        _regionRepository = regionRepository;
+        _provinceRepository = provinceRepository;
+        _municipalityRepository = municipalityRepository;
+        _barangayRepository = barangayRepository;
+        _speedtestRepository = speedtestRepository;
+        _providerRepository = providerRepository;
         _logger = logger;
         _providerTechService = providerTechService;
     }
@@ -51,39 +65,39 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
 
             if (request.MunicipalityId.HasValue)
             {
-                var mun = await _context.Municipalities.AsNoTracking().FirstOrDefaultAsync(m => m.Id == request.MunicipalityId, cancellationToken);
+                var munQuery = _municipalityRepository.Query(m => m.Id == request.MunicipalityId);
+                var mun = await _municipalityRepository.FirstOrDefaultAsync(munQuery, cancellationToken);
                 if (mun == null) return new ApiResponse<WirelessBroadbandReportResult>("Municipality not found.");
                 reportTitleName = mun.Name;
                 targetBoundaries = mun.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.MunicipalityId == request.MunicipalityId)
-                    .Include(b => b.Municipality)
-                    .OrderBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                
+                var barangayQuery = _barangayRepository.Query(b => b.MunicipalityId == request.MunicipalityId)
+                    .OrderBy(b => b.Name);
+                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
             }
             else if (request.ProvinceId.HasValue)
             {
-                var prov = await _context.Provinces.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.ProvinceId, cancellationToken);
+                var provQuery = _provinceRepository.Query(p => p.Id == request.ProvinceId);
+                var prov = await _provinceRepository.FirstOrDefaultAsync(provQuery, cancellationToken);
                 if (prov == null) return new ApiResponse<WirelessBroadbandReportResult>("Province not found.");
                 reportTitleName = prov.Name;
                 targetBoundaries = prov.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.Municipality.ProvinceId == request.ProvinceId)
-                    .Include(b => b.Municipality)
-                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                
+                var barangayQuery = _barangayRepository.Query(b => b.Municipality.ProvinceId == request.ProvinceId)
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name);
+                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
             }
             else if (request.RegionId.HasValue)
             {
-                var reg = await _context.Regions.AsNoTracking().FirstOrDefaultAsync(r => r.Id == request.RegionId, cancellationToken);
+                var regQuery = _regionRepository.Query(r => r.Id == request.RegionId);
+                var reg = await _regionRepository.FirstOrDefaultAsync(regQuery, cancellationToken);
                 if (reg == null) return new ApiResponse<WirelessBroadbandReportResult>("Region not found.");
                 reportTitleName = reg.Name;
                 targetBoundaries = reg.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.Municipality.Province.RegionId == request.RegionId)
-                    .Include(b => b.Municipality)
-                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                
+                var barangayQuery = _barangayRepository.Query(b => b.Municipality.Province.RegionId == request.RegionId)
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name);
+                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
             }
             else
             {
@@ -102,11 +116,10 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 barangays.Count, reportTitleName);
 
             // 3. Fetch Providers for dynamic headers
-            var providers = await _context.Providers
-                .AsNoTracking()
-                .Where(p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
-                .OrderBy(p => p.Name)
-                .ToListAsync(cancellationToken);
+            var providersQuery = _providerRepository.Query(
+                p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
+                .OrderBy(p => p.Name);
+            var providers = await _providerRepository.ToListAsync(providersQuery, cancellationToken);
 
             // 4. Optimize data fetching using batch operations
             var barangayIds = barangays.Select(b => b.Id).ToList();
@@ -640,11 +653,10 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             {
                 if (barangay.Boundaries != null)
                 {
-                    var speedtests = await _context.Speedtests
-                        .AsNoTracking()
-                        .Where(s => s.Location != null 
-                                 && barangay.Boundaries.Contains(s.Location)
-                                 && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless)
+                    var speedtestQuery = _speedtestRepository.QueryAsNoTracking(
+                        s => s.Location != null 
+                         && barangay.Boundaries.Contains(s.Location)
+                         && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless)
                         .Select(s => new SpeedtestInfo
                         {
                             ProviderName = s.ServiceProvider.Provider.Name,
@@ -652,8 +664,9 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                             DownloadSpeed = s.DownloadSpeed,
                             Location = s.Location,
                             GenerationName = s.Generation != null ? s.Generation.Name : ""
-                        })
-                        .ToListAsync(cancellationToken);
+                        });
+                    
+                    var speedtests = await _speedtestRepository.ToListAsync(speedtestQuery, cancellationToken);
 
                     result[barangay.Id] = speedtests;
                 }
