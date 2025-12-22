@@ -53,6 +53,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ConnectivityAssessment> ConnectivityAssessments { get; set; }
     public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
     public DbSet<ConnectivityAssessmentScheduler> ConnectivityAssessmentSchedulers { get; set; }
+    public DbSet<GeneratedReport> GeneratedReports { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -646,6 +647,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<WiFiHotspot>()
             .HasIndex(w => new { w.IsActive, w.IsPublic })
             .HasDatabaseName("IX_WiFiHotspot_Active_Public");
+
+        // GeneratedReport indexes
+        modelBuilder.Entity<GeneratedReport>()
+            .HasIndex(gr => new { gr.UserId, gr.GeneratedAt })
+            .HasDatabaseName("IX_GeneratedReport_UserId_GeneratedAt")
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<GeneratedReport>()
+            .HasIndex(gr => gr.Title)
+            .HasDatabaseName("IX_GeneratedReport_Title")
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         base.OnModelCreating(modelBuilder);
     }

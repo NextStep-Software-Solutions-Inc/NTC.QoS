@@ -33,6 +33,9 @@ internal static class BackgroundJobServiceExtensions
         services.AddTransient<IProcessConnectivityAssessmentJob, ProcessConnectivityAssessmentJob>();
         services.AddTransient<IProcessWirelessValidationJob, ProcessWirelessValidationJob>();
         services.AddTransient<IProcessWirelessBroadbandReportJob, ProcessWirelessBroadbandReportJob>();
+        services.AddTransient<IProcessWiredBroadbandReportJob, ProcessWiredBroadbandReportJob>();
+        services.AddTransient<IProcessConnectivityGapReportJob, ProcessConnectivityGapReportJob>();
+        services.AddTransient<IProcessConnectivityReportJob, ProcessConnectivityReportJob>();
         
         // Scheduled job wrapper with date validation
         services.AddTransient<IScheduledConnectivityAssessmentJob, ScheduledConnectivityAssessmentJob>();

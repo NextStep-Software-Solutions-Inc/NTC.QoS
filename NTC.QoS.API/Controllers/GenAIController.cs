@@ -2,8 +2,10 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
+using NTC.QoS.API.Models;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Models;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.GenAI;
 
@@ -76,12 +78,18 @@ public class GenAIController : ControllerBase
     [RequirePermission(Permissions.ChatWithAI)]
     [ProducesResponseType(200)]
     [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 400)]
-    [Consumes("multipart/form-data")]
-    public async Task Chat([FromForm] ChatRequestDto chatRequest)
+    public async Task Chat([FromForm] ChatApiRequest apiRequest)
     {
         try
         {
-            _logger.LogInformation("Received streaming chat request with {FileCount} files", chatRequest.Files?.Count ?? 0);
+            _logger.LogInformation("Received chat request with {FileCount} files", apiRequest.Files?.Length ?? 0);
+
+            // Map from API request to domain DTO
+            var chatRequest = new ChatRequestDto
+            {
+                Prompt = apiRequest.Prompt,
+                Files = await MapFilesToDomainAsync(apiRequest.Files)
+            };
 
             // Set headers for Server-Sent Events (SSE)
             Response.Headers.Append("Content-Type", "text/event-stream");
@@ -158,12 +166,18 @@ public class GenAIController : ControllerBase
     [RequirePermission(Permissions.GenerateReports)]
     [ProducesResponseType(200)]
     [ProducesResponseType(typeof(ApiResponse<GenerateReportResponseDto>), 400)]
-    [Consumes("multipart/form-data")]
-    public async Task GenerateReport([FromForm] GenerateReportRequestDto reportRequest)
+    public async Task GenerateReport([FromForm] GenerateReportApiRequest apiRequest)
     {
         try
         {
-            _logger.LogInformation("Received streaming report generation request with {FileCount} files", reportRequest.Files?.Count ?? 0);
+            _logger.LogInformation("Received report generation request with {FileCount} files", apiRequest.Files?.Length ?? 0);
+
+            // Map from API request to domain DTO
+            var reportRequest = new GenerateReportRequestDto
+            {
+                Prompt = apiRequest.Prompt,
+                Files = await MapFilesToDomainAsync(apiRequest.Files)
+            };
 
             // Set headers for Server-Sent Events (SSE)
             Response.Headers.Append("Content-Type", "text/event-stream");
@@ -175,9 +189,127 @@ public class GenAIController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error streaming report generation");
+            _logger.LogError(ex, "Error generating report");
             Response.StatusCode = 400;
             await Response.WriteAsync($"data: {{\"error\": \"An error occurred while generating the report: {ex.Message}\"}}\n\n");
         }
+    }
+
+    /// <summary>
+    /// Get all generated reports for the current user
+    /// </summary>
+    /// <param name="skip">Number of reports to skip for pagination</param>
+    /// <param name="take">Number of reports to take for pagination</param>
+    /// <returns>List of generated report summaries</returns>
+    /// <response code="200">Successfully retrieved reports</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpGet("reports")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(ApiResponse<List<GeneratedReportSummaryDto>>), 200)]
+    public async Task<ActionResult<ApiResponse<List<GeneratedReportSummaryDto>>>> GetReports(
+        [FromQuery] int? skip = null,
+        [FromQuery] int? take = null)
+    {
+        var query = new GetUserReportsQuery { Skip = skip, Take = take };
+        var response = await _mediator.Send(query);
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    /// <summary>
+    /// Get a specific generated report by ID
+    /// </summary>
+    /// <param name="id">Report ID</param>
+    /// <returns>Complete report details including content</returns>
+    /// <response code="200">Successfully retrieved report</response>
+    /// <response code="404">Report not found</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpGet("reports/{id}")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(ApiResponse<GeneratedReportDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<GeneratedReportDto>), 404)]
+    public async Task<ActionResult<ApiResponse<GeneratedReportDto>>> GetReportById(Guid id)
+    {
+        var query = new GetReportByIdQuery(id);
+        var response = await _mediator.Send(query);
+        return response.Succeeded ? Ok(response) : NotFound(response);
+    }
+
+    /// <summary>
+    /// Download a generated report as a markdown file
+    /// </summary>
+    /// <param name="id">Report ID</param>
+    /// <returns>Markdown file download</returns>
+    /// <response code="200">Successfully downloaded report</response>
+    /// <response code="404">Report not found</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpGet("reports/{id}/download")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(FileContentResult), 200)]
+    public async Task<IActionResult> DownloadReport(Guid id)
+    {
+        var query = new GetReportByIdQuery(id);
+        var response = await _mediator.Send(query);
+
+        if (!response.Succeeded || response.Data == null)
+        {
+            return NotFound(response);
+        }
+
+        var fileName = !string.IsNullOrWhiteSpace(response.Data.Title)
+            ? $"{response.Data.Title}.md"
+            : $"Report_{response.Data.GeneratedAt:yyyyMMdd_HHmmss}.md";
+
+        // Sanitize filename
+        fileName = string.Join("_", fileName.Split(Path.GetInvalidFileNameChars()));
+
+        var fileBytes = System.Text.Encoding.UTF8.GetBytes(response.Data.Content);
+        return File(fileBytes, "text/markdown", fileName);
+    }
+
+    /// <summary>
+    /// Delete a generated report
+    /// </summary>
+    /// <param name="id">Report ID</param>
+    /// <returns>Deletion result</returns>
+    /// <response code="200">Successfully deleted report</response>
+    /// <response code="404">Report not found</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    [HttpDelete("reports/{id}")]
+    [RequirePermission(Permissions.GenerateReports)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 404)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteReport(Guid id)
+    {
+        var command = new DeleteReportCommand(id);
+        var response = await _mediator.Send(command);
+        return response.Succeeded ? Ok(response) : NotFound(response);
+    }
+
+    /// <summary>
+    /// Maps IFormFile[] to domain FileUpload[] model
+    /// </summary>
+    private static async Task<FileUpload[]?> MapFilesToDomainAsync(IFormFile[]? files)
+    {
+        if (files == null || files.Length == 0)
+            return null;
+
+        var fileUploads = new FileUpload[files.Length];
+        for (int i = 0; i < files.Length; i++)
+        {
+            var file = files[i];
+            var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            fileUploads[i] = new FileUpload
+            {
+                FileName = file.FileName,
+                ContentType = file.ContentType,
+                Length = file.Length,
+                Content = memoryStream
+            };
+        }
+
+        return fileUploads;
     }
 }

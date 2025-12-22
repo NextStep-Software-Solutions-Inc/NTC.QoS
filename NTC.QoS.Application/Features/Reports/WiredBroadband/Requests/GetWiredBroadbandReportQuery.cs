@@ -39,4 +39,10 @@ public class GetWiredBroadbandReportQuery : IRequest<ApiResponse<WiredBroadbandR
     /// Ignored when DisablePagination = true
     /// </summary>
     public int PageSize { get; set; } = 10;
+    
+    /// <summary>
+    /// When true, includes the Remarks column in Excel/PDF reports.
+    /// When false (default), excludes the Remarks column to save space.
+    /// </summary>
+    public bool IncludeRemarks { get; set; } = true;
 }

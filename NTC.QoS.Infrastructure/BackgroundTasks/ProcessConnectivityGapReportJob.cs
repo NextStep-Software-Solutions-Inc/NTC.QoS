@@ -1,0 +1,600 @@
+using Hangfire;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Reports;
+
+namespace NTC.QoS.Infrastructure.BackgroundTasks;
+
+/// <summary>
+/// Background job for generating connectivity gap reports with progress tracking.
+/// 
+/// =============================================================================
+/// MAIN RESPONSIBILITIES
+/// =============================================================================
+/// 1. Generate connectivity gap reports (Excel/PDF) as background jobs
+/// 2. Track progress through report generation steps
+/// 3. Store generated reports in blob storage
+/// 4. Provide real-time status updates via in-memory cache
+/// 5. Handle errors and job failures gracefully
+/// 
+/// =============================================================================
+/// PROCESS FLOW
+/// =============================================================================
+/// 1. Update job status to Processing with start time
+/// 2. Fetch report data using optimized queries
+/// 3. Track progress: Fetching data -> Generating report -> Saving file
+/// 4. Generate report file (Excel or PDF)
+/// 5. Upload file to blob storage
+/// 6. Update job status to Completed with download URL
+/// 7. Clean up cached status after retention period
+/// 
+/// =============================================================================
+/// PROGRESS TRACKING
+/// =============================================================================
+/// Uses in-memory cache to store job status for real-time updates:
+/// - Step 1: Fetching report data (0-40%)
+/// - Step 2: Generating report file (40-80%)
+/// - Step 3: Uploading to storage (80-100%)
+/// 
+/// Status cache key: connectivity_gap_report_job_{jobId}
+/// Cache retention: 1 hour after completion
+/// 
+/// =============================================================================
+/// JOB CONFIGURATION
+/// =============================================================================
+/// Queue: "report-generation" (dedicated queue for report jobs)
+/// Retry: 2 attempts with exponential backoff
+/// Timeout: 30 minutes
+/// </summary>
+[Queue("report-generation")]
+[AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
+{
+    private readonly ILogger<ProcessConnectivityGapReportJob> _logger;
+    private readonly IReportGenerationService _reportGenerationService;
+    private readonly IBlobStorageService _blobStorageService;
+    private readonly IMemoryCache _memoryCache;
+    private readonly IConnectivityAssessmentRepository _connectivityAssessmentRepository;
+    private readonly IBarangayRepository _barangayRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IRepository<Province> _provinceRepository;
+    private readonly IRepository<Region> _regionRepository;
+
+    private const string CACHE_KEY_PREFIX = "connectivity_gap_report_job_";
+    private const int CACHE_RETENTION_HOURS = 1;
+
+    public ProcessConnectivityGapReportJob(
+        ILogger<ProcessConnectivityGapReportJob> logger,
+        IReportGenerationService reportGenerationService,
+        IBlobStorageService blobStorageService,
+        IMemoryCache memoryCache,
+        IConnectivityAssessmentRepository connectivityAssessmentRepository,
+        IBarangayRepository barangayRepository,
+        IMunicipalityRepository municipalityRepository,
+        IRepository<Province> provinceRepository,
+        IRepository<Region> regionRepository)
+    {
+        _logger = logger;
+        _reportGenerationService = reportGenerationService;
+        _blobStorageService = blobStorageService;
+        _memoryCache = memoryCache;
+        _connectivityAssessmentRepository = connectivityAssessmentRepository;
+        _barangayRepository = barangayRepository;
+        _municipalityRepository = municipalityRepository;
+        _provinceRepository = provinceRepository;
+        _regionRepository = regionRepository;
+    }
+
+    /// <summary>
+    /// Executes the connectivity gap report generation job
+    /// </summary>
+    [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    public async Task ExecuteAsync(ConnectivityGapReportJobRequestDto jobRequest, CancellationToken cancellationToken)
+    {
+        var jobId = jobRequest.JobId;
+        var startTime = DateTime.UtcNow;
+
+        try
+        {
+            _logger.LogInformation(
+                "Starting connectivity gap report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, User: {UserId}",
+                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.UserId);
+
+            // Step 1: Update status to Processing
+            await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
+                "Initializing report generation...",
+                startTime: startTime,
+                currentStep: "Initializing",
+                progressPercentage: 0,
+                format: jobRequest.Format,
+                cancellationToken: cancellationToken);
+
+            // Step 2: Fetch report data using optimized queries
+            await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
+                "Fetching connectivity gap data...",
+                currentStep: "Fetching Data",
+                progressPercentage: 10,
+                cancellationToken: cancellationToken);
+
+            _logger.LogInformation("Job {JobId}: Fetching connectivity assessments with filters", jobId);
+
+            // Build assessment query with geographic filters using optimized projection pattern
+            var assessmentQuery = _connectivityAssessmentRepository.QueryAsNoTracking();
+
+            // Filter by location type: only barangays
+            assessmentQuery = assessmentQuery.Where(a => a.LocationType == LocationTypeEnum.Barangay);
+
+            // Filter by overall connectivity status (based on TotalScore)
+            // Only include Underserved and Unserved areas
+            assessmentQuery = assessmentQuery.Where(a => 
+                a.ConnectivityStatus == ConnectivityStatusEnum.Unserved || 
+                a.ConnectivityStatus == ConnectivityStatusEnum.Underserved);
+
+            // Apply geographic filters using subquery pattern
+            if (jobRequest.RegionId.HasValue)
+            {
+                // Get provinces in the region
+                var provinceIds = await _provinceRepository.QueryAsNoTracking()
+                    .Where(p => p.RegionId == jobRequest.RegionId.Value)
+                    .Select(p => p.Id)
+                    .ToListAsync(cancellationToken);
+
+                if (provinceIds.Any())
+                {
+                    // Get municipalities in those provinces
+                    var municipalityIds = await _municipalityRepository.QueryAsNoTracking()
+                        .Where(m => provinceIds.Contains(m.ProvinceId))
+                        .Select(m => m.Id)
+                        .ToListAsync(cancellationToken);
+
+                    if (municipalityIds.Any())
+                    {
+                        // Get barangays in those municipalities
+                        var barangayIds = await _barangayRepository.QueryAsNoTracking()
+                            .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                            .Select(b => b.Id)
+                            .ToListAsync(cancellationToken);
+
+                        assessmentQuery = assessmentQuery.Where(a => barangayIds.Contains(a.LocationId));
+                    }
+                    else
+                    {
+                        // No municipalities in region, return empty results
+                        assessmentQuery = assessmentQuery.Where(a => false);
+                    }
+                }
+                else
+                {
+                    // No provinces in region, return empty results
+                    assessmentQuery = assessmentQuery.Where(a => false);
+                }
+            }
+
+            if (jobRequest.ProvinceId.HasValue)
+            {
+                // Get municipalities in the province
+                var municipalityIds = await _municipalityRepository.QueryAsNoTracking()
+                    .Where(m => m.ProvinceId == jobRequest.ProvinceId.Value)
+                    .Select(m => m.Id)
+                    .ToListAsync(cancellationToken);
+
+                if (municipalityIds.Any())
+                {
+                    // Get barangays in those municipalities
+                    var barangayIds = await _barangayRepository.QueryAsNoTracking()
+                        .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                        .Select(b => b.Id)
+                        .ToListAsync(cancellationToken);
+
+                    assessmentQuery = assessmentQuery.Where(a => barangayIds.Contains(a.LocationId));
+                }
+                else
+                {
+                    // No municipalities in province, return empty results
+                    assessmentQuery = assessmentQuery.Where(a => false);
+                }
+            }
+
+            if (jobRequest.MunicipalityId.HasValue)
+            {
+                // Get barangays in the municipality
+                var barangayIds = await _barangayRepository.QueryAsNoTracking()
+                    .Where(b => b.MunicipalityId == jobRequest.MunicipalityId.Value)
+                    .Select(b => b.Id)
+                    .ToListAsync(cancellationToken);
+
+                if (barangayIds.Any())
+                {
+                    assessmentQuery = assessmentQuery.Where(a => barangayIds.Contains(a.LocationId));
+                }
+                else
+                {
+                    // No barangays in municipality, return empty results
+                    assessmentQuery = assessmentQuery.Where(a => false);
+                }
+            }
+
+            // Fetch assessments with optimized projection (only needed fields)
+            var assessments = await _connectivityAssessmentRepository.ToListAsync(
+                assessmentQuery
+                    .OrderByDescending(a => a.Population ?? 0)
+                    .ThenBy(a => a.LocationId),
+                cancellationToken);
+
+            _logger.LogInformation("Job {JobId}: Found {Count} connectivity gap areas", jobId, assessments.Count);
+
+            await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
+                $"Processing {assessments.Count} connectivity gap areas",
+                currentStep: "Processing Data",
+                progressPercentage: 30,
+                areasProcessed: 0,
+                totalAreas: assessments.Count,
+                cancellationToken: cancellationToken);
+
+            // Build priority areas with location names
+            var priorityAreas = new List<PriorityAreaDto>();
+            var locationIds = assessments.Select(a => a.LocationId).ToList();
+
+            // Batch fetch location names using optimized queries
+            var locationNames = await GetLocationNamesBatchAsync(locationIds, cancellationToken);
+
+            for (int i = 0; i < assessments.Count; i++)
+            {
+                var assessment = assessments[i];
+                var locationName = locationNames.GetValueOrDefault(assessment.LocationId, $"Location-{assessment.LocationId}");
+
+                priorityAreas.Add(new PriorityAreaDto
+                {
+                    LocationId = assessment.LocationId,
+                    LocationName = locationName,
+                    ConnectivityStatus = assessment.ConnectivityStatus,
+                    Population = assessment.Population,
+                    TotalScore = assessment.TotalScore,
+                    LastAssessed = assessment.AssessmentDate
+                });
+
+                // Update progress every 10 areas
+                if ((i + 1) % 10 == 0 || i == assessments.Count - 1)
+                {
+                    var progress = 30 + (10 * (i + 1) / assessments.Count);
+                    await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
+                        $"Processed {i + 1} of {assessments.Count} areas",
+                        currentStep: "Processing Data",
+                        progressPercentage: progress,
+                        areasProcessed: i + 1,
+                        totalAreas: assessments.Count,
+                        cancellationToken: cancellationToken);
+                }
+            }
+
+            // Create report DTO using overall ConnectivityStatus
+            var reportData = new ConnectivityGapReportDto
+            {
+                TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                UnservedPopulation = assessments
+                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
+                    .Sum(a => a.Population ?? 0),
+                UnderservedPopulation = assessments
+                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
+                    .Sum(a => a.Population ?? 0),
+                PriorityAreas = priorityAreas,
+                GeneratedAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation(
+                "Job {JobId}: Report data generated. Unserved: {Unserved}, Underserved: {Underserved}, Priority Areas: {PriorityCount}",
+                jobId, reportData.TotalUnservedAreas, reportData.TotalUnderservedAreas, priorityAreas.Count);
+
+            await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
+                $"Data generated: {reportData.TotalUnservedAreas} unserved, {reportData.TotalUnderservedAreas} underserved areas",
+                currentStep: "Generating Report",
+                progressPercentage: 40,
+                areasProcessed: assessments.Count,
+                totalAreas: assessments.Count,
+                cancellationToken: cancellationToken);
+
+            // Step 3: Generate report file
+            _logger.LogInformation("Job {JobId}: Generating {Format} report file", jobId, jobRequest.Format);
+
+            // Generate report title if not provided
+            var reportTitle = jobRequest.ReportTitle;
+            if (string.IsNullOrWhiteSpace(reportTitle))
+            {
+                reportTitle = await GenerateReportTitleAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, cancellationToken);
+            }
+
+            byte[] reportBytes;
+            string contentType;
+            string fileExtension;
+
+            if (jobRequest.Format == ReportFormat.Pdf)
+            {
+                reportBytes = await _reportGenerationService.GenerateConnectivityGapPdfAsync(
+                    reportData,
+                    reportTitle,
+                    cancellationToken);
+                contentType = "application/pdf";
+                fileExtension = "pdf";
+            }
+            else
+            {
+                reportBytes = await _reportGenerationService.GenerateConnectivityGapExcelAsync(
+                    reportData,
+                    reportTitle,
+                    cancellationToken);
+                contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                fileExtension = "xlsx";
+            }
+
+            var fileSizeBytes = reportBytes.Length;
+            _logger.LogInformation("Job {JobId}: Report file generated. Size: {FileSize} bytes", jobId, fileSizeBytes);
+
+            await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
+                $"Report file generated ({FormatFileSize(fileSizeBytes)})",
+                currentStep: "Uploading File",
+                progressPercentage: 80,
+                cancellationToken: cancellationToken);
+
+            // Step 4: Upload to blob storage
+            _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
+
+            var fileName = await GenerateFileNameAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
+            var containerName = "connectivity-gap-reports";
+            
+            using var stream = new MemoryStream(reportBytes);
+            var blobUri = await _blobStorageService.UploadAsync(containerName, fileName, stream, contentType, cancellationToken);
+            
+            var blobPath = $"{containerName}/{fileName}";
+
+            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, blobPath);
+
+            // Step 5: Update status to Completed
+            var endTime = DateTime.UtcNow;
+            var totalTime = endTime - startTime;
+            var downloadUrl = $"/api/reports/connectivity-gap/job/{jobId}/download";
+
+            await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Completed,
+                $"Report generated successfully in {totalTime:mm\\:ss}",
+                startTime: startTime,
+                endTime: endTime,
+                currentStep: "Completed",
+                progressPercentage: 100,
+                filePath: blobPath,
+                downloadUrl: downloadUrl,
+                fileSizeBytes: fileSizeBytes,
+                cancellationToken: cancellationToken);
+
+            _logger.LogInformation(
+                "Job {JobId}: Report generation completed successfully in {Duration}. File: {FilePath}, Size: {FileSize}",
+                jobId, totalTime, blobPath, FormatFileSize(fileSizeBytes));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Job {JobId}: Error occurred during report generation", jobId);
+
+            await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Failed,
+                $"Report generation failed: {ex.Message}",
+                startTime: startTime,
+                endTime: DateTime.UtcNow,
+                currentStep: "Failed",
+                cancellationToken: cancellationToken);
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Updates job status in memory cache for real-time status tracking
+    /// </summary>
+    private async Task UpdateJobStatusAsync(
+        string jobId,
+        ConnectivityGapReportJobStatusEnum status,
+        string message,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        string? currentStep = null,
+        double? progressPercentage = null,
+        int? areasProcessed = null,
+        int? totalAreas = null,
+        ReportFormat? format = null,
+        string? filePath = null,
+        string? downloadUrl = null,
+        long? fileSizeBytes = null,
+        CancellationToken cancellationToken = default)
+    {
+        var cacheKey = $"{CACHE_KEY_PREFIX}{jobId}";
+
+        // Get existing status or create new one
+        var statusDto = _memoryCache.GetOrCreate(cacheKey, entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(CACHE_RETENTION_HOURS);
+            return new ConnectivityGapReportJobStatusDto
+            {
+                JobId = jobId,
+                Status = status,
+                Message = message,
+                LastUpdated = DateTime.UtcNow
+            };
+        });
+
+        if (statusDto != null)
+        {
+            // Update fields
+            statusDto.Status = status;
+            statusDto.Message = message;
+            statusDto.LastUpdated = DateTime.UtcNow;
+
+            if (startTime.HasValue) statusDto.StartTime = startTime.Value;
+            if (endTime.HasValue) statusDto.EndTime = endTime.Value;
+            if (!string.IsNullOrEmpty(currentStep)) statusDto.CurrentStep = currentStep;
+            if (progressPercentage.HasValue) statusDto.ProgressPercentage = progressPercentage.Value;
+            if (areasProcessed.HasValue) statusDto.AreasProcessed = areasProcessed.Value;
+            if (totalAreas.HasValue) statusDto.TotalAreas = totalAreas.Value;
+            if (format.HasValue) statusDto.Format = format.Value;
+            if (!string.IsNullOrEmpty(filePath)) statusDto.FilePath = filePath;
+            if (!string.IsNullOrEmpty(downloadUrl)) statusDto.DownloadUrl = downloadUrl;
+            if (fileSizeBytes.HasValue) statusDto.FileSizeBytes = fileSizeBytes.Value;
+
+            // Update cache
+            _memoryCache.Set(cacheKey, statusDto, TimeSpan.FromHours(CACHE_RETENTION_HOURS));
+        }
+
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Batch fetch location names for barangays using optimized queries
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> GetLocationNamesBatchAsync(
+        List<Guid> locationIds,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<Guid, string>();
+
+        if (!locationIds.Any())
+        {
+            return result;
+        }
+
+        // Fetch barangays with their municipality and province information using optimized projection
+        // OPTIMIZATION: Project only needed fields to avoid geometry materialization
+        var barangayData = await _barangayRepository.ToListAsync(
+            _barangayRepository.QueryAsNoTracking()
+                .Where(b => locationIds.Contains(b.Id))
+                .Select(b => new
+                {
+                    b.Id,
+                    b.Name,
+                    MunicipalityName = b.Municipality.Name,
+                    ProvinceName = b.Municipality.Province.Name
+                }),
+            cancellationToken);
+
+        foreach (var barangay in barangayData)
+        {
+            var locationName = $"{barangay.Name}, {barangay.MunicipalityName}, {barangay.ProvinceName}";
+            result[barangay.Id] = locationName;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Generates a report title based on geographic filters
+    /// </summary>
+    private async Task<string> GenerateReportTitleAsync(
+        Guid? regionId,
+        Guid? provinceId,
+        Guid? municipalityId,
+        CancellationToken cancellationToken)
+    {
+        var titleParts = new List<string> { "Connectivity Gap Report" };
+
+        if (municipalityId.HasValue)
+        {
+            var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (municipality != null)
+            {
+                titleParts.Add(municipality.Name);
+            }
+        }
+        else if (provinceId.HasValue)
+        {
+            var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (province != null)
+            {
+                titleParts.Add(province.Name);
+            }
+        }
+        else if (regionId.HasValue)
+        {
+            var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (region != null)
+            {
+                titleParts.Add(region.Name);
+            }
+        }
+
+        return string.Join(" - ", titleParts);
+    }
+
+    /// <summary>
+    /// Generates a file name for the report
+    /// </summary>
+    private async Task<string> GenerateFileNameAsync(
+        Guid? regionId,
+        Guid? provinceId,
+        Guid? municipalityId,
+        string extension,
+        CancellationToken cancellationToken)
+    {
+        var nameParts = new List<string> { "ConnectivityGap" };
+
+        if (municipalityId.HasValue)
+        {
+            var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (municipality != null)
+            {
+                nameParts.Add(SanitizeFileName(municipality.Name));
+            }
+        }
+        else if (provinceId.HasValue)
+        {
+            var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (province != null)
+            {
+                nameParts.Add(SanitizeFileName(province.Name));
+            }
+        }
+        else if (regionId.HasValue)
+        {
+            var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (region != null)
+            {
+                nameParts.Add(SanitizeFileName(region.Name));
+            }
+        }
+
+        nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+
+        return $"{string.Join("_", nameParts)}.{extension}";
+    }
+
+    /// <summary>
+    /// Sanitizes a string for use in file names
+    /// </summary>
+    private string SanitizeFileName(string fileName)
+    {
+        var invalids = System.IO.Path.GetInvalidFileNameChars();
+        return string.Join("_", fileName.Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
+    }
+
+    /// <summary>
+    /// Formats file size in human-readable format
+    /// </summary>
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double len = bytes;
+
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+
+        return $"{len:0.##} {sizes[order]}";
+    }
+}

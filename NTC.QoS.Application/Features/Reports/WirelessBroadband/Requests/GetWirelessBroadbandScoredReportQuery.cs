@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 

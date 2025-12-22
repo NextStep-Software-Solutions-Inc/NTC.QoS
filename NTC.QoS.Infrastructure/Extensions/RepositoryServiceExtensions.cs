@@ -42,6 +42,7 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<IGenerationBandRepository, GenerationBandRepository>();
         services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
+        services.AddScoped<IGeneratedReportRepository, GeneratedReportRepository>();
     }
 
     private static void RegisterLocationRepositories(IServiceCollection services)
