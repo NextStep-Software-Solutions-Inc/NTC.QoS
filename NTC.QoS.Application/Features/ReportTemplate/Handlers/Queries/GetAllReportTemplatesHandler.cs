@@ -20,7 +20,7 @@ public class GetAllReportTemplatesHandler(IRepository<Domain.Entities.ReportTemp
             var searchTerm = request.SearchTerm.ToLower();
             query = query.Where(t => 
                 t.Title.ToLower().Contains(searchTerm) || 
-                t.Description.ToLower().Contains(searchTerm));
+                (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
         }
 
         // Order by creation date descending
