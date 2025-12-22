@@ -222,11 +222,9 @@ More content.";
     [Fact]
     public void ConvertToPdf_WithNullContent_ReturnsValidPdf()
     {
-        // Arrange
-        string? markdown = null;
-
-        // Act
-        var result = _service.ConvertToPdf(markdown!, "Null Report");
+        // Arrange & Act - Test that the service handles null content gracefully
+        // The service converts null to empty string internally
+        var result = _service.ConvertToPdf(null!, "Null Report");
 
         // Assert
         result.Should().NotBeNull();

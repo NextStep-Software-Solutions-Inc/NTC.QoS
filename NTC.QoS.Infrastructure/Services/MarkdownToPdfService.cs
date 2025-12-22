@@ -34,7 +34,9 @@ public class MarkdownToPdfService : IMarkdownToPdfService
     private static readonly Regex FencedCodeBlockStartPattern = new(@"^```(\w*)$", RegexOptions.Compiled);
     private static readonly Regex FencedCodeBlockEndPattern = new(@"^```$", RegexOptions.Compiled);
     private static readonly Regex BoldPattern = new(@"\*\*(.+?)\*\*|__(.+?)__", RegexOptions.Compiled);
-    private static readonly Regex ItalicPattern = new(@"\*(.+?)\*|_(.+?)_", RegexOptions.Compiled);
+    // Note: Italic pattern may conflict with bold in edge cases. Bold is processed first in ParseInlineFormatting
+    // to mitigate most conflicts. Complex nested formatting (e.g., ***bold and italic***) may not render perfectly.
+    private static readonly Regex ItalicPattern = new(@"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", RegexOptions.Compiled);
     private static readonly Regex InlineCodePattern = new(@"`([^`]+)`", RegexOptions.Compiled);
     private static readonly Regex StrikethroughPattern = new(@"~~(.+?)~~", RegexOptions.Compiled);
     private static readonly Regex LinkPattern = new(@"\[([^\]]+)\]\(([^\)]+)\)", RegexOptions.Compiled);
@@ -220,7 +222,11 @@ public class MarkdownToPdfService : IMarkdownToPdfService
                     Metadata = language
                 });
 
-                i++; // Skip closing ```
+                // Skip closing ``` if present
+                if (i < lines.Length)
+                {
+                    i++;
+                }
                 continue;
             }
 
@@ -683,7 +689,7 @@ public class MarkdownToPdfService : IMarkdownToPdfService
         if (element.TableRows == null || element.TableRows.Count == 0) return;
 
         var hasHeader = element.Metadata == "header";
-        var columnCount = element.TableRows.Max(r => r.Length);
+        var columnCount = element.TableRows.Where(r => r.Length > 0).Select(r => r.Length).DefaultIfEmpty(0).Max();
         
         if (columnCount == 0) return;
 
