@@ -278,22 +278,26 @@ public class ProviderTechnologyService : IProviderTechnologyService
             })
             .ToListAsync(cancellationToken);
 
-        // 3. Batch query: Get all speedtests within overall boundary
-        var allSpeedtestData = new List<(string ProviderName, string GenerationName, Point? Location)>();
-        if (overallBoundary != null)
+        // 3. Load speedtests per-barangay to avoid PostgreSQL shared memory limits
+        var allSpeedtestData = new List<(Guid BarangayId, string ProviderName, string GenerationName)>();
+        foreach (var barangay in barangays)
         {
-            allSpeedtestData = await _context.Speedtests
-                .AsNoTracking()
-                .Where(s => s.Location != null
-                         && overallBoundary.Contains(s.Location)
-                         && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
-                         && s.Generation != null)
-                .Select(s => new ValueTuple<string, string, Point?>(
-                    s.ServiceProvider.Provider.Name,
-                    s.Generation!.Name,
-                    s.Location
-                ))
-                .ToListAsync(cancellationToken);
+            if (barangay.Boundaries != null)
+            {
+                var barangaySpeedtests = await _context.Speedtests
+                    .AsNoTracking()
+                    .Where(s => s.Location != null
+                             && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless
+                             && barangay.Boundaries.Contains(s.Location))
+                    .Select(s => new ValueTuple<Guid, string, string>(
+                        barangay.Id,
+                        s.ServiceProvider.Provider.Name,
+                        s.Generation != null ? s.Generation.Name : ""
+                    ))
+                    .ToListAsync(cancellationToken);
+                
+                allSpeedtestData.AddRange(barangaySpeedtests);
+            }
         }
 
         // Process each barangay using the batched data
@@ -335,15 +339,10 @@ public class ProviderTechnologyService : IProviderTechnologyService
             }
 
             // Filter speedtest data for this barangay
-            if (barangay.Boundaries != null)
+            var barangaySpeedtestData = allSpeedtestData.Where(s => s.BarangayId == barangay.Id);
+            foreach (var item in barangaySpeedtestData)
             {
-                var barangaySpeedtestData = allSpeedtestData
-                    .Where(s => s.Location != null && barangay.Boundaries.Contains(s.Location));
-
-                foreach (var item in barangaySpeedtestData)
-                {
-                    AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, "", "");
-                }
+                AddToProviderTechMap(providerTechMap, item.ProviderName, item.GenerationName, "", "");
             }
 
             // Convert to TechnologyBandBreakdownDto

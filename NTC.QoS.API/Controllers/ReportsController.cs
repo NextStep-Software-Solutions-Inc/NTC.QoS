@@ -10,9 +10,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
-using NTC.QoS.Domain.Enums;
 using Hangfire;
-using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 
 namespace NTC.QoS.API.Controllers;
@@ -103,7 +101,7 @@ public class ReportsController : ControllerBase
     /// Use this for large reports (region-level) that may take several minutes to generate.
     /// </summary>
     [HttpPost("wireless-broadband-scored/start")]
-    public async Task<ActionResult<ApiResponse<int>>> StartWirelessBroadbandScoredReportJob(
+    public async Task<ActionResult<ApiResponse<WirelessBroadbandReportJobResponseDto>>> StartWirelessBroadbandScoredReportJob(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
@@ -121,61 +119,91 @@ public class ReportsController : ControllerBase
 
         var jobId = await _mediator.Send(command);
 
-        return Ok(new ApiResponse<int>(
-            jobId,
-            true,
-            "Wireless broadband report job started successfully. Use the job ID to check status."));
+        var response = new WirelessBroadbandReportJobResponseDto
+        {
+            JobId = jobId,
+            Status = WirelessBroadbandReportJobStatusEnum.Pending,
+            Message = "Report generation job has been queued successfully",
+            EstimatedDurationMinutes = 2
+        };
+
+        return Ok(new ApiResponse<WirelessBroadbandReportJobResponseDto>
+        {
+            Data = response,
+            Succeeded = true,
+            Message = "Wireless broadband report job started successfully. Use the job ID to check status."
+        });
     }
 
     /// <summary>
     /// Get status of wireless broadband report background job
     /// </summary>
     [HttpGet("wireless-broadband-scored/status/{jobId}")]
-    public ActionResult<ApiResponse<object>> GetWirelessBroadbandReportJobStatus(string jobId)
+    public ActionResult<ApiResponse<WirelessBroadbandReportJobStatusDto>> GetWirelessBroadbandReportJobStatus(string jobId)
     {
-        var cache = HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
-        var cacheKey = $"wireless_report_job_{jobId}";
+        var cacheKey = $"wireless_broadband_report_job_{jobId}";
 
-        if (!cache.TryGetValue<WirelessBroadbandReportJobStatus>(cacheKey, out var job) || job == null)
-            return NotFound(new ApiResponse<object>("Report job not found"));
-
-        return Ok(new ApiResponse<object>(new
+        if (!_memoryCache.TryGetValue<WirelessBroadbandReportJobStatusDto>(cacheKey, out var statusDto) || statusDto == null)
         {
-            jobId = job.JobId,
-            status = job.Status.ToString(),
-            createdAt = job.CreatedAt,
-            completedAt = job.CompletedAt,
-            processingTimeMs = job.ProcessingTimeMs,
-            errorMessage = job.ErrorMessage,
-            filePath = job.FilePath,
-            fileName = job.FileName
-        }));
+            return NotFound(new ApiResponse<WirelessBroadbandReportJobStatusDto>
+            {
+                Message = "Report job not found or has expired",
+                Succeeded = false
+            });
+        }
+
+        return Ok(new ApiResponse<WirelessBroadbandReportJobStatusDto>
+        {
+            Data = statusDto,
+            Message = statusDto.StatusDescription,
+            Succeeded = true
+        });
     }
 
     /// <summary>
     /// Download completed wireless broadband report
     /// </summary>
     [HttpGet("wireless-broadband-scored/download/{jobId}")]
-    public ActionResult DownloadWirelessBroadbandReport(string jobId)
+    public async Task<ActionResult> DownloadWirelessBroadbandReport(string jobId)
     {
-        var cache = HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
-        var cacheKey = $"wireless_report_job_{jobId}";
+        var cacheKey = $"wireless_broadband_report_job_{jobId}";
 
-        if (!cache.TryGetValue<WirelessBroadbandReportJobStatus>(cacheKey, out var job) || job == null)
-            return NotFound(new ApiResponse<object>("Report job not found"));
+        if (!_memoryCache.TryGetValue<WirelessBroadbandReportJobStatusDto>(cacheKey, out var statusDto) || statusDto == null)
+        {
+            return NotFound(new { message = "Report job not found or has expired" });
+        }
 
-        if (job.Status != Domain.Enums.ReportJobStatusEnum.Completed)
-            return BadRequest(new ApiResponse<object>($"Report is not ready. Current status: {job.Status}"));
+        if (statusDto.Status != WirelessBroadbandReportJobStatusEnum.Completed)
+        {
+            return BadRequest(new
+            {
+                message = "Report is not ready for download",
+                status = statusDto.Status.ToString(),
+                currentStep = statusDto.CurrentStep
+            });
+        }
 
-        if (string.IsNullOrEmpty(job.FilePath) || !System.IO.File.Exists(job.FilePath))
-            return NotFound(new ApiResponse<object>("Report file not found"));
+        if (string.IsNullOrEmpty(statusDto.FilePath))
+        {
+            return NotFound(new { message = "Report file path not found" });
+        }
 
-        var fileBytes = System.IO.File.ReadAllBytes(job.FilePath);
-        var contentType = job.Format == ReportFormatEnum.Pdf
+        // Download file from blob storage
+        var containerName = "wireless-broadband-reports";
+        var blobFileName = Path.GetFileName(statusDto.FilePath);
+        var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+
+        if (fileStream == null)
+        {
+            return NotFound(new { message = "Report file not found in storage" });
+        }
+
+        // Determine content type from format
+        var contentType = statusDto.Format == ReportFormatEnum.Pdf
             ? "application/pdf"
             : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-        return File(fileBytes, contentType, job.FileName);
+        return File(fileStream, contentType, blobFileName);
     }
 
     /// <summary>
@@ -545,7 +573,7 @@ public class ReportsController : ControllerBase
     /// <param name="forceGenerateConnectivityAssessment">When true, forces generation of new connectivity assessments</param>
     /// <returns>Job information with status URL</returns>
     [HttpPost("wired-broadband/generate-async")]
-    public async Task<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>> GenerateWiredBroadbandReportAsync(
+    public Task<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>> GenerateWiredBroadbandReportAsync(
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
@@ -605,20 +633,20 @@ public class ReportsController : ControllerBase
                 DownloadUrl = null // Will be available after job completes
             };
 
-            return Ok(new ApiResponse<WiredBroadbandReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>>(Ok(new ApiResponse<WiredBroadbandReportJobResponseDto>
             {
                 Data = response,
                 Message = "Report generation job queued successfully",
                 Succeeded = true
-            });
+            }));
         }
         catch (Exception ex)
         {
-            return BadRequest(new ApiResponse<WiredBroadbandReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>>(BadRequest(new ApiResponse<WiredBroadbandReportJobResponseDto>
             {
                 Message = $"Failed to queue report generation job: {ex.Message}",
                 Succeeded = false
-            });
+            }));
         }
     }
 
@@ -728,7 +756,7 @@ public class ReportsController : ControllerBase
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
     [HttpPost("connectivity-gap/generate-async")]
-    public async Task<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>> GenerateConnectivityGapReportAsync(
+    public Task<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>> GenerateConnectivityGapReportAsync(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
@@ -778,20 +806,20 @@ public class ReportsController : ControllerBase
                 EstimatedDurationMinutes = 2
             };
 
-            return Ok(new ApiResponse<ConnectivityGapReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>>(Ok(new ApiResponse<ConnectivityGapReportJobResponseDto>
             {
                 Succeeded = true,
                 Data = response,
                 Message = "Report generation job started successfully"
-            });
+            }));
         }
         catch (Exception ex)
         {
-            return BadRequest(new ApiResponse<ConnectivityGapReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>>(BadRequest(new ApiResponse<ConnectivityGapReportJobResponseDto>
             {
                 Succeeded = false,
                 Message = $"Failed to start report generation: {ex.Message}"
-            });
+            }));
         }
     }
 
@@ -901,7 +929,7 @@ public class ReportsController : ControllerBase
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
     [HttpPost("connectivity/generate-async")]
-    public async Task<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>> GenerateConnectivityReportAsync(
+    public Task<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>> GenerateConnectivityReportAsync(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
@@ -951,20 +979,20 @@ public class ReportsController : ControllerBase
                 EstimatedDurationMinutes = 2
             };
 
-            return Ok(new ApiResponse<ConnectivityReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>>(Ok(new ApiResponse<ConnectivityReportJobResponseDto>
             {
                 Succeeded = true,
                 Data = response,
                 Message = "Report generation job started successfully"
-            });
+            }));
         }
         catch (Exception ex)
         {
-            return BadRequest(new ApiResponse<ConnectivityReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>>(BadRequest(new ApiResponse<ConnectivityReportJobResponseDto>
             {
                 Succeeded = false,
                 Message = $"Failed to start report generation: {ex.Message}"
-            });
+            }));
         }
     }
 
