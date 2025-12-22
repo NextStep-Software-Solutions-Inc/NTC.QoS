@@ -1,10 +1,9 @@
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using NTC.QoS.Domain.Entities;
+using NTC.QoS.Application.Features.ReportTemplate.Requests;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.ReportTemplate;
-using NTC.QoS.Infrastructure.Persistence;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -13,11 +12,11 @@ namespace NTC.QoS.API.Controllers;
 [Authorize]
 public class ReportTemplatesController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IMediator _mediator;
 
-    public ReportTemplatesController(ApplicationDbContext context)
+    public ReportTemplatesController(IMediator mediator)
     {
-        _context = context;
+        _mediator = mediator;
     }
 
     /// <summary>
@@ -26,17 +25,8 @@ public class ReportTemplatesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<ReportTemplateListDto>>>> GetAll()
     {
-        var templates = await _context.ReportTemplates
-            .Where(t => t.IsActive)
-            .Select(t => new ReportTemplateListDto
-            {
-                Id = t.Id,
-                Title = t.Title,
-                Description = t.Description
-            })
-            .ToListAsync();
-
-        return Ok(new ApiResponse<List<ReportTemplateListDto>>(templates));
+        var result = await _mediator.Send(new GetAllReportTemplatesRequest());
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
     /// <summary>
@@ -45,26 +35,8 @@ public class ReportTemplatesController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ReportTemplateDto>>> GetById(Guid id)
     {
-        var template = await _context.ReportTemplates
-            .Where(t => t.Id == id)
-            .Select(t => new ReportTemplateDto
-            {
-                Id = t.Id,
-                Title = t.Title,
-                Description = t.Description,
-                Instruction = t.Instruction,
-                IsActive = t.IsActive,
-                CreatedAt = t.CreatedAt,
-                UpdatedAt = t.UpdatedAt
-            })
-            .FirstOrDefaultAsync();
-
-        if (template == null)
-        {
-            return NotFound(new ApiResponse<ReportTemplateDto>("Report template not found."));
-        }
-
-        return Ok(new ApiResponse<ReportTemplateDto>(template));
+        var result = await _mediator.Send(new GetReportTemplateByIdRequest(id));
+        return result.Succeeded ? Ok(result) : NotFound(result);
     }
 
     /// <summary>
@@ -73,29 +45,10 @@ public class ReportTemplatesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<ReportTemplateDto>>> Create([FromBody] CreateTemplateDto dto)
     {
-        var template = new ReportTemplate
-        {
-            Title = dto.Title,
-            Description = dto.Description,
-            Instruction = dto.Instruction,
-            IsActive = true
-        };
-
-        _context.ReportTemplates.Add(template);
-        await _context.SaveChangesAsync();
-
-        var result = new ReportTemplateDto
-        {
-            Id = template.Id,
-            Title = template.Title,
-            Description = template.Description,
-            Instruction = template.Instruction,
-            IsActive = template.IsActive,
-            CreatedAt = template.CreatedAt,
-            UpdatedAt = template.UpdatedAt
-        };
-
-        return CreatedAtAction(nameof(GetById), new { id = template.Id }, new ApiResponse<ReportTemplateDto>(result));
+        var result = await _mediator.Send(new CreateReportTemplateRequest(dto));
+        return result.Succeeded 
+            ? CreatedAtAction(nameof(GetById), new { id = result.Data?.Id }, result) 
+            : BadRequest(result);
     }
 
     /// <summary>
@@ -104,48 +57,8 @@ public class ReportTemplatesController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<ReportTemplateDto>>> Update(Guid id, [FromBody] UpdateTemplateDto dto)
     {
-        var template = await _context.ReportTemplates
-            .FirstOrDefaultAsync(t => t.Id == id);
-
-        if (template == null)
-        {
-            return NotFound(new ApiResponse<ReportTemplateDto>("Report template not found."));
-        }
-
-        if (dto.Title != null)
-        {
-            template.Title = dto.Title;
-        }
-
-        if (dto.Description != null)
-        {
-            template.Description = dto.Description;
-        }
-
-        if (dto.Instruction != null)
-        {
-            template.Instruction = dto.Instruction;
-        }
-
-        if (dto.IsActive.HasValue)
-        {
-            template.IsActive = dto.IsActive.Value;
-        }
-
-        await _context.SaveChangesAsync();
-
-        var result = new ReportTemplateDto
-        {
-            Id = template.Id,
-            Title = template.Title,
-            Description = template.Description,
-            Instruction = template.Instruction,
-            IsActive = template.IsActive,
-            CreatedAt = template.CreatedAt,
-            UpdatedAt = template.UpdatedAt
-        };
-
-        return Ok(new ApiResponse<ReportTemplateDto>(result));
+        var result = await _mediator.Send(new UpdateReportTemplateRequest(id, dto));
+        return result.Succeeded ? Ok(result) : NotFound(result);
     }
 
     /// <summary>
@@ -154,17 +67,7 @@ public class ReportTemplatesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
-        var template = await _context.ReportTemplates
-            .FirstOrDefaultAsync(t => t.Id == id);
-
-        if (template == null)
-        {
-            return NotFound(new ApiResponse<bool>("Report template not found."));
-        }
-
-        _context.ReportTemplates.Remove(template);
-        await _context.SaveChangesAsync();
-
-        return Ok(new ApiResponse<bool>(true, true, "Report template deleted successfully."));
+        var result = await _mediator.Send(new DeleteReportTemplateByIdRequest(id));
+        return result.Succeeded ? Ok(result) : NotFound(result);
     }
 }
