@@ -20,13 +20,28 @@ public class ReportTemplatesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all active report templates (Id, Title, Description only).
+    /// Get all active report templates (Id, Title, Description only) with pagination.
     /// </summary>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10)</param>
+    /// <param name="searchTerm">Optional search term to filter by title or description</param>
+    /// <returns>Paginated list of report templates</returns>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<ReportTemplateListDto>>>> GetAll()
+    [ProducesResponseType(typeof(PaginatedResponse<ReportTemplateListDto>), 200)]
+    public async Task<ActionResult<PaginatedResponse<ReportTemplateListDto>>> GetAll(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? searchTerm = null)
     {
-        var result = await _mediator.Send(new GetAllReportTemplatesRequest());
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        var request = new GetAllReportTemplatesRequest
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            SearchTerm = searchTerm
+        };
+
+        var result = await _mediator.Send(request);
+        return Ok(result);
     }
 
     /// <summary>
