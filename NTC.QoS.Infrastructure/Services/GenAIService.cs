@@ -28,7 +28,7 @@ public class GenAIService : IGenAIService
         // Try environment variable first, then fall back to configuration
         _apiKey = System.Environment.GetEnvironmentVariable("GEMINI_API_KEY") 
             ?? configuration["GEMINI_API_KEY"]
-            ?? throw new InvalidOperationException("GEMINI_API_KEY is not configured. Please set it as an environment variable.");
+            ?? throw new InvalidOperationException("GEMINI_API_KEY is not configured. Please set it as an environment variable or in application configuration.");
         
         _genAIClient = new Client(apiKey: _apiKey);
     }

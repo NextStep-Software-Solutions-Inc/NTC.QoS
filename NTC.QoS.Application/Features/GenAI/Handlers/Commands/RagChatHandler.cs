@@ -75,7 +75,7 @@ public class RagChatHandler : IRequestHandler<RagChatRequest, Unit>
             {
                 entry.SlidingExpiration = SessionExpiration;
                 return new List<ChatMessage>();
-            }) ?? [];
+            })!;
 
             // RAG: Embed the user's question and search for relevant reports
             var userMessage = request.Request.Message;
@@ -86,9 +86,12 @@ public class RagChatHandler : IRequestHandler<RagChatRequest, Unit>
                 _logger.LogInformation("Generating embedding for user query");
                 var queryVector = await _genAIService.GetEmbeddingAsync(userMessage);
                 
+                // Create vector object once for efficiency
+                var queryVectorObj = new Vector(queryVector);
+                
                 // Search for relevant reports using L2 distance (Euclidean)
                 var relevantReports = await _reportRepository.Query(r => r.Embedding != null)
-                    .OrderBy(r => r.Embedding!.L2Distance(new Vector(queryVector)))
+                    .OrderBy(r => r.Embedding!.L2Distance(queryVectorObj))
                     .Take(MaxRelevantReports)
                     .Select(r => r.Content)
                     .ToListAsync(cancellationToken);
