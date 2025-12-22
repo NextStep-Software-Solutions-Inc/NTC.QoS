@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTC.QoS.Infrastructure.Persistence;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using Pgvector;
 
 #nullable disable
 
@@ -22,6 +23,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
@@ -1546,6 +1548,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
+                    b.Property<Vector>("Embedding")
+                        .HasColumnType("vector(768)");
+
                     b.Property<string>("FileMetadata")
                         .HasColumnType("text");
 
@@ -1576,6 +1581,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Embedding")
+                        .HasDatabaseName("IX_GeneratedReport_Embedding");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Embedding"), "hnsw");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Embedding"), new[] { "vector_cosine_ops" });
 
                     b.HasIndex("Title")
                         .HasDatabaseName("IX_GeneratedReport_Title")

@@ -63,6 +63,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             x => 
             {
                 x.UseNetTopologySuite();
+                x.UseVector(); // Enable pgvector support
                 // Increase command timeout for long-running spatial queries
                 x.CommandTimeout(300); // 5 minutes
             });
@@ -70,6 +71,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("postgis");
+        modelBuilder.HasPostgresExtension("vector"); // Enable pgvector extension
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -659,6 +661,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(gr => gr.Title)
             .HasDatabaseName("IX_GeneratedReport_Title")
             .HasFilter("\"IsDeleted\" = FALSE");
+
+        // Vector embedding HNSW index for semantic search
+        modelBuilder.Entity<GeneratedReport>()
+            .HasIndex(gr => gr.Embedding)
+            .HasMethod("hnsw")
+            .HasOperators("vector_cosine_ops")
+            .HasDatabaseName("IX_GeneratedReport_Embedding");
 
         base.OnModelCreating(modelBuilder);
     }
