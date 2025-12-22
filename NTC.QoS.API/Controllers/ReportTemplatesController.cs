@@ -104,7 +104,8 @@ public class ReportTemplatesController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<ReportTemplateDto>>> Update(Guid id, [FromBody] UpdateTemplateDto dto)
     {
-        var template = await _context.ReportTemplates.FindAsync(id);
+        var template = await _context.ReportTemplates
+            .FirstOrDefaultAsync(t => t.Id == id);
 
         if (template == null)
         {
@@ -153,16 +154,15 @@ public class ReportTemplatesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
-        var template = await _context.ReportTemplates.FindAsync(id);
+        var template = await _context.ReportTemplates
+            .FirstOrDefaultAsync(t => t.Id == id);
 
         if (template == null)
         {
             return NotFound(new ApiResponse<bool>("Report template not found."));
         }
 
-        template.IsDeleted = true;
-        template.DeletedAt = DateTime.UtcNow;
-
+        _context.ReportTemplates.Remove(template);
         await _context.SaveChangesAsync();
 
         return Ok(new ApiResponse<bool>(true, true, "Report template deleted successfully."));
