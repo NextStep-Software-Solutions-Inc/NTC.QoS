@@ -766,7 +766,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                             columns.ConstantColumn(65); // Municipality
                             columns.ConstantColumn(75); // Barangay
 
-                            // Provider columns with generation checkmarks
+                            // Provider columns with generation checkmarks + tech used + speedtest
                             foreach (var provider in providers)
                             {
                                 if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
@@ -776,6 +776,11 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                                     {
                                         columns.RelativeColumn(0.5f);
                                     }
+                                    // Tech used column
+                                    columns.RelativeColumn(0.8f);
+                                    // Speedtest columns (Upload, Download)
+                                    columns.RelativeColumn(0.6f);
+                                    columns.RelativeColumn(0.6f);
                                 }
                             }
 
@@ -789,37 +794,51 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                         table.Header(header =>
                         {
                             // Row 1: Municipality, Barangay, Provider Names, Scores, Status
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Municipality");
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Barangay");
+                            header.Cell().RowSpan(3).Element(CellStyle).Text("Municipality");
+                            header.Cell().RowSpan(3).Element(CellStyle).Text("Barangay");
 
                             foreach (var provider in providers)
                             {
                                 if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
                                 {
-                                    header.Cell().ColumnSpan((uint)generations.Count).Element(CellStyle)
+                                    // Provider name spans all its columns (generations + tech used + 2 speedtest)
+                                    var providerColSpan = (uint)(generations.Count + 3);
+                                    header.Cell().ColumnSpan(providerColSpan).Element(CellStyle)
                                         .Background(Colors.Grey.Lighten3).Text(provider.Name);
                                 }
                             }
 
                             header.Cell().ColumnSpan(3).Element(CellStyle)
                                 .Background(Colors.LightBlue.Lighten1).Text("Connectivity Score");
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Status");
+                            header.Cell().RowSpan(3).Element(CellStyle).Text("Status");
 
-                            // Row 2: Generation columns and score sub-headers
+                            // Row 2: Generation columns, Tech Used, Speedtest header, score sub-headers
                             foreach (var provider in providers)
                             {
                                 if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
                                 {
                                     foreach (var gen in generations)
                                     {
-                                        header.Cell().Element(CellStyle).Text(gen);
+                                        header.Cell().RowSpan(2).Element(CellStyle).Text(gen);
                                     }
+                                    header.Cell().RowSpan(2).Element(CellStyle).Text("Tech Used");
+                                    header.Cell().ColumnSpan(2).Element(CellStyle).Text("Speedtest (Mbps)");
                                 }
                             }
 
-                            header.Cell().Element(CellStyle).Text("Tech (1-3)");
-                            header.Cell().Element(CellStyle).Text("Internet (1-3)");
-                            header.Cell().Element(CellStyle).Text("Total (1-6)");
+                            header.Cell().RowSpan(2).Element(CellStyle).Text("Tech (1-3)");
+                            header.Cell().RowSpan(2).Element(CellStyle).Text("Internet (1-3)");
+                            header.Cell().RowSpan(2).Element(CellStyle).Text("Total (1-6)");
+
+                            // Row 3: Upload/Download speedtest sub-headers
+                            foreach (var provider in providers)
+                            {
+                                if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
+                                {
+                                    header.Cell().Element(CellStyle).Text("Upload");
+                                    header.Cell().Element(CellStyle).Text("Download");
+                                }
+                            }
                         });
 
                         foreach (var item in data)
@@ -834,10 +853,22 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                                     var stats = item.ProviderStats.TryGetValue(provider.Name, out var s) 
                                         ? s : new ProviderWirelessStatsDto();
 
+                                    // Generation checkmarks
                                     foreach (var gen in generations)
                                     {
                                         table.Cell().Element(CellStyle).Text(HasGeneration(stats, gen) ? "✓" : "");
                                     }
+
+                                    // Tech used
+                                    table.Cell().Element(CellStyle).Text(stats.TechUsed ?? "");
+
+                                    // Speedtest data
+                                    table.Cell().Element(CellStyle).Text(stats.UploadSpeedMbps.HasValue 
+                                        ? Math.Round(stats.UploadSpeedMbps.Value, 2).ToString("F2") 
+                                        : "");
+                                    table.Cell().Element(CellStyle).Text(stats.DownloadSpeedMbps.HasValue 
+                                        ? Math.Round(stats.DownloadSpeedMbps.Value, 2).ToString("F2") 
+                                        : "");
                                 }
                             }
 
