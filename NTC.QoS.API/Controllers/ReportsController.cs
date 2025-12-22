@@ -463,7 +463,7 @@ public class ReportsController : ControllerBase
     /// <param name="forceGenerateConnectivityAssessment">When true, forces generation of new connectivity assessments</param>
     /// <returns>Job information with status URL</returns>
     [HttpPost("wired-broadband/generate-async")]
-    public async Task<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>> GenerateWiredBroadbandReportAsync(
+    public Task<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>> GenerateWiredBroadbandReportAsync(
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
@@ -523,20 +523,20 @@ public class ReportsController : ControllerBase
                 DownloadUrl = null // Will be available after job completes
             };
 
-            return Ok(new ApiResponse<WiredBroadbandReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>>(Ok(new ApiResponse<WiredBroadbandReportJobResponseDto>
             {
                 Data = response,
                 Message = "Report generation job queued successfully",
                 Succeeded = true
-            });
+            }));
         }
         catch (Exception ex)
         {
-            return BadRequest(new ApiResponse<WiredBroadbandReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>>(BadRequest(new ApiResponse<WiredBroadbandReportJobResponseDto>
             {
                 Message = $"Failed to queue report generation job: {ex.Message}",
                 Succeeded = false
-            });
+            }));
         }
     }
 
@@ -646,7 +646,7 @@ public class ReportsController : ControllerBase
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
     [HttpPost("connectivity-gap/generate-async")]
-    public async Task<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>> GenerateConnectivityGapReportAsync(
+    public Task<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>> GenerateConnectivityGapReportAsync(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
@@ -696,20 +696,20 @@ public class ReportsController : ControllerBase
                 EstimatedDurationMinutes = 2
             };
 
-            return Ok(new ApiResponse<ConnectivityGapReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>>(Ok(new ApiResponse<ConnectivityGapReportJobResponseDto>
             {
                 Succeeded = true,
                 Data = response,
                 Message = "Report generation job started successfully"
-            });
+            }));
         }
         catch (Exception ex)
         {
-            return BadRequest(new ApiResponse<ConnectivityGapReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>>(BadRequest(new ApiResponse<ConnectivityGapReportJobResponseDto>
             {
                 Succeeded = false,
                 Message = $"Failed to start report generation: {ex.Message}"
-            });
+            }));
         }
     }
 
@@ -819,7 +819,7 @@ public class ReportsController : ControllerBase
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
     [HttpPost("connectivity/generate-async")]
-    public async Task<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>> GenerateConnectivityReportAsync(
+    public Task<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>> GenerateConnectivityReportAsync(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
@@ -869,20 +869,20 @@ public class ReportsController : ControllerBase
                 EstimatedDurationMinutes = 2
             };
 
-            return Ok(new ApiResponse<ConnectivityReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>>(Ok(new ApiResponse<ConnectivityReportJobResponseDto>
             {
                 Succeeded = true,
                 Data = response,
                 Message = "Report generation job started successfully"
-            });
+            }));
         }
         catch (Exception ex)
         {
-            return BadRequest(new ApiResponse<ConnectivityReportJobResponseDto>
+            return Task.FromResult<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>>(BadRequest(new ApiResponse<ConnectivityReportJobResponseDto>
             {
                 Succeeded = false,
                 Message = $"Failed to start report generation: {ex.Message}"
-            });
+            }));
         }
     }
 
