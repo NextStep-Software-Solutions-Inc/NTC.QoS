@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Scheduler.Requests.Commands;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
@@ -25,8 +24,8 @@ public class ResumeSchedulerHandler : IRequestHandler<ResumeSchedulerRequest, bo
     public async Task<bool> Handle(ResumeSchedulerRequest request, CancellationToken cancellationToken)
     {
         // Get existing scheduler
-        var scheduler = await _repository.Query(s => s.Id == request.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        var query = _repository.Query(s => s.Id == request.Id);
+        var scheduler = await _repository.FirstOrDefaultAsync(query, cancellationToken);
 
         if (scheduler == null)
         {

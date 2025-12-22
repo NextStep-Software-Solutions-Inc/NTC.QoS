@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
@@ -73,24 +72,29 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             // OPTIMIZATION: Use AsNoTracking + projection to avoid geometry materialization
             var municipalityQuery = _municipalityRepository.QueryAsNoTracking();
 
-            // Apply filters using subquery pattern (filters work via navigation properties)
-            if (request.RegionId.HasValue)
-            {
-                municipalityQuery = municipalityQuery.Where(m => m.Province.RegionId == request.RegionId.Value);
-            }
-
-            if (request.ProvinceId.HasValue)
-            {
-                municipalityQuery = municipalityQuery.Where(m => m.ProvinceId == request.ProvinceId.Value);
-            }
-
+            // Apply filters using precedence model: Municipality > Province > Region
+            // Lower admin levels take priority - only the most specific filter is applied
             if (request.MunicipalityId.HasValue)
             {
+                // Highest priority: filter by specific municipality
                 municipalityQuery = municipalityQuery.Where(m => m.Id == request.MunicipalityId.Value);
+                _logger.LogDebug("Applying Municipality filter (ID: {MunicipalityId}) - ignoring Province and Region filters if provided", request.MunicipalityId.Value);
+            }
+            else if (request.ProvinceId.HasValue)
+            {
+                // Second priority: filter by province
+                municipalityQuery = municipalityQuery.Where(m => m.ProvinceId == request.ProvinceId.Value);
+                _logger.LogDebug("Applying Province filter (ID: {ProvinceId}) - ignoring Region filter if provided", request.ProvinceId.Value);
+            }
+            else if (request.RegionId.HasValue)
+            {
+                // Lowest priority: filter by region
+                municipalityQuery = municipalityQuery.Where(m => m.Province.RegionId == request.RegionId.Value);
+                _logger.LogDebug("Applying Region filter (ID: {RegionId})", request.RegionId.Value);
             }
 
             // Get total count before pagination
-            var totalMunicipalities = await municipalityQuery.CountAsync(cancellationToken);
+            var totalMunicipalities = await _municipalityRepository.CountAsync(municipalityQuery, cancellationToken);
 
             _logger.LogInformation("Found {Count} municipalities matching filters", totalMunicipalities);
 

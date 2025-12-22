@@ -19,6 +19,7 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
 
     IQueryable<TEntity> Query(Expression<Func<TEntity, bool>>? expression = null);
     Task<List<TResult>> ToListAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
+    Task<int> CountAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default);
     void Add(TEntity entity);
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
     void AddRange(IEnumerable<TEntity> entities);

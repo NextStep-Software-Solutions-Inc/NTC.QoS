@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using NTC.QoS.Application.Features.Scheduler.Requests.Queries;
 using NTC.QoS.Domain.Entities;
@@ -26,8 +25,8 @@ public class GetSchedulerByIdHandler : IRequestHandler<GetSchedulerByIdRequest, 
 
     public async Task<SchedulerResponseDto?> Handle(GetSchedulerByIdRequest request, CancellationToken cancellationToken)
     {
-        var scheduler = await _repository.Query(s => s.Id == request.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        var query = _repository.Query(s => s.Id == request.Id);
+        var scheduler = await _repository.FirstOrDefaultAsync(query, cancellationToken);
 
         if (scheduler == null)
         {

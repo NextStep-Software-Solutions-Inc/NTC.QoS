@@ -4,7 +4,6 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
-using Microsoft.EntityFrameworkCore;
 
 namespace NTC.QoS.Application.Features.Network.Handlers.Commands;
 
