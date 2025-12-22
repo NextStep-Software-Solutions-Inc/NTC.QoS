@@ -10,7 +10,50 @@ using System.Text.Json;
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Commands;
 
 /// <summary>
-/// Handler for AI report generation requests with RAG context and streaming response
+/// Handler for AI report generation requests with RAG context and streaming response.
+/// 
+/// <para><b>COMPLETE FLOW:</b></para>
+/// <list type="number">
+///   <item>
+///     <description><b>Load Global AI Instruction:</b> Retrieves the base system instruction from 
+///     "Global AI Instruction.md" via <see cref="IAIInstructionService"/>. This defines the AI's 
+///     scope, limitations, and project context for the CMTS &amp; Broadband Mapping Project.</description>
+///   </item>
+///   <item>
+///     <description><b>RAG Context Retrieval:</b> Generates an embedding vector for the user's 
+///     prompt using <see cref="IGenAIService.GetEmbeddingAsync"/>, then searches for the top 3 
+///     most semantically similar previously generated reports using 
+///     <see cref="IGeneratedReportRepository.FindSimilarReportsAsync"/>.</description>
+///   </item>
+///   <item>
+///     <description><b>Build Enhanced Prompt:</b> Constructs the final prompt with:
+///     <list type="bullet">
+///       <item>SYSTEM INSTRUCTION: Global AI instruction (scope, limitations, project context)</item>
+///       <item>CONTEXT FROM PREVIOUS REPORTS: RAG-retrieved report contents</item>
+///       <item>USER REQUEST: Current user prompt</item>
+///     </list>
+///     </description>
+///   </item>
+///   <item>
+///     <description><b>Stream AI Response:</b> Calls <see cref="IGenAIService.GenerateReportStreamAsync"/> 
+///     which pipes the Google GenAI response directly to the client via Server-Sent Events (SSE). 
+///     Each chunk is JSON-serialized and flushed immediately for real-time streaming.</description>
+///   </item>
+///   <item>
+///     <description><b>Save Generated Report:</b> After streaming completes:
+///     <list type="bullet">
+///       <item>Extracts title from first markdown heading (# Title) or uses truncated prompt</item>
+///       <item>Generates embedding for the report content for future RAG retrieval</item>
+///       <item>Saves report with embedding to database via <see cref="IGeneratedReportRepository.AddReportWithEmbeddingAsync"/></item>
+///     </list>
+///     </description>
+///   </item>
+/// </list>
+/// 
+/// <para><b>EMBEDDING STORAGE:</b></para>
+/// <para>Reports are stored with 768-dimensional embeddings (from text-embedding-004 model) in 
+/// PostgreSQL using the pgvector extension. An HNSW index enables fast similarity search for 
+/// RAG context retrieval.</para>
 /// </summary>
 public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit>
 {
@@ -18,6 +61,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
     private readonly IGeneratedReportRepository _reportRepository;
     private readonly IUserContextService _userContextService;
     private readonly IUserRepository _userRepository;
+    private readonly IAIInstructionService _aiInstructionService;
     private readonly ILogger<GenerateReportHandler> _logger;
     
     private const int MaxRelevantReports = 3;
@@ -27,12 +71,14 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
         IGeneratedReportRepository reportRepository,
         IUserContextService userContextService,
         IUserRepository userRepository,
+        IAIInstructionService aiInstructionService,
         ILogger<GenerateReportHandler> logger)
     {
         _genAIService = genAIService;
         _reportRepository = reportRepository;
         _userContextService = userContextService;
         _userRepository = userRepository;
+        _aiInstructionService = aiInstructionService;
         _logger = logger;
     }
 
@@ -67,8 +113,11 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
                 _logger.LogWarning(ex, "Failed to retrieve RAG context. Proceeding without context augmentation.");
             }
 
-            // Build enhanced prompt with RAG context
-            var enhancedPrompt = BuildEnhancedPrompt(request.Request.Prompt, contextData);
+            // Get global AI instruction
+            var globalInstruction = _aiInstructionService.GetGlobalInstruction();
+
+            // Build enhanced prompt with global instruction and RAG context
+            var enhancedPrompt = BuildEnhancedPrompt(globalInstruction, request.Request.Prompt, contextData);
 
             await foreach (var chunk in _genAIService.GenerateReportStreamAsync(
                 enhancedPrompt,
@@ -100,17 +149,27 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
         }
     }
 
-    private static string BuildEnhancedPrompt(string userPrompt, string contextData)
+    private static string BuildEnhancedPrompt(string globalInstruction, string userPrompt, string contextData)
     {
-        if (string.IsNullOrEmpty(contextData))
-        {
-            return userPrompt;
-        }
-
         var promptBuilder = new StringBuilder();
-        promptBuilder.AppendLine("CONTEXT FROM PREVIOUS REPORTS:");
-        promptBuilder.AppendLine(contextData);
-        promptBuilder.AppendLine();
+        
+        // Add global AI instruction as system context (first priority)
+        if (!string.IsNullOrEmpty(globalInstruction))
+        {
+            promptBuilder.AppendLine("SYSTEM INSTRUCTION:");
+            promptBuilder.AppendLine(globalInstruction);
+            promptBuilder.AppendLine();
+        }
+        
+        // Add RAG context if available
+        if (!string.IsNullOrEmpty(contextData))
+        {
+            promptBuilder.AppendLine("CONTEXT FROM PREVIOUS REPORTS:");
+            promptBuilder.AppendLine(contextData);
+            promptBuilder.AppendLine();
+        }
+        
+        // Add user's request
         promptBuilder.AppendLine("USER REQUEST:");
         promptBuilder.AppendLine(userPrompt);
 

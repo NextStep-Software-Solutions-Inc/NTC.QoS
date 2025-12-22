@@ -21,6 +21,7 @@ public class ChatHandlerTests
     private readonly Mock<IGeneratedReportRepository> _reportRepositoryMock;
     private readonly Mock<IUserContextService> _userContextServiceMock;
     private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly Mock<IAIInstructionService> _aiInstructionServiceMock;
     private readonly Mock<ILogger<ChatHandler>> _loggerMock;
     private readonly IMemoryCache _memoryCache;
     private readonly ChatHandler _handler;
@@ -31,14 +32,20 @@ public class ChatHandlerTests
         _reportRepositoryMock = new Mock<IGeneratedReportRepository>();
         _userContextServiceMock = new Mock<IUserContextService>();
         _userRepositoryMock = new Mock<IUserRepository>();
+        _aiInstructionServiceMock = new Mock<IAIInstructionService>();
         _loggerMock = new Mock<ILogger<ChatHandler>>();
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
+
+        // Setup default global instruction
+        _aiInstructionServiceMock.Setup(x => x.GetGlobalInstruction())
+            .Returns("You are an AI assistant for CMTS and Broadband Mapping.");
 
         _handler = new ChatHandler(
             _genAIServiceMock.Object,
             _reportRepositoryMock.Object,
             _userContextServiceMock.Object,
             _userRepositoryMock.Object,
+            _aiInstructionServiceMock.Object,
             _memoryCache,
             _loggerMock.Object);
     }

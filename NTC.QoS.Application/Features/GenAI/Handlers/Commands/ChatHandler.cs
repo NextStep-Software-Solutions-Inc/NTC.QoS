@@ -11,7 +11,46 @@ using System.Text.Json;
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Commands;
 
 /// <summary>
-/// Handler for AI chat requests with RAG (Retrieval Augmented Generation) and streaming response
+/// Handler for AI chat requests with RAG (Retrieval Augmented Generation) and streaming response.
+/// 
+/// <para><b>COMPLETE FLOW:</b></para>
+/// <list type="number">
+///   <item>
+///     <description><b>Load Global AI Instruction:</b> Retrieves the base system instruction from 
+///     "Global AI Instruction.md" via <see cref="IAIInstructionService"/>. This defines the AI's 
+///     scope, limitations, and project context for the CMTS &amp; Broadband Mapping Project.</description>
+///   </item>
+///   <item>
+///     <description><b>Session Management:</b> For authenticated users, retrieves or creates a 
+///     chat history from <see cref="IMemoryCache"/> keyed by user ID. Sessions expire after 30 
+///     minutes of inactivity.</description>
+///   </item>
+///   <item>
+///     <description><b>RAG Context Retrieval:</b> Generates an embedding vector for the user's 
+///     prompt using <see cref="IGenAIService.GetEmbeddingAsync"/>, then searches for the top 3 
+///     most semantically similar previously generated reports using 
+///     <see cref="IGeneratedReportRepository.FindSimilarReportsAsync"/>.</description>
+///   </item>
+///   <item>
+///     <description><b>Build Enhanced Prompt:</b> Constructs the final prompt with:
+///     <list type="bullet">
+///       <item>SYSTEM INSTRUCTION: Global AI instruction (scope, limitations, project context)</item>
+///       <item>CONTEXT FROM PREVIOUS REPORTS: RAG-retrieved report contents</item>
+///       <item>CHAT HISTORY: Previous conversation messages (last 10)</item>
+///       <item>USER: Current user prompt</item>
+///     </list>
+///     </description>
+///   </item>
+///   <item>
+///     <description><b>Stream AI Response:</b> Calls <see cref="IGenAIService.ChatStreamAsync"/> 
+///     which pipes the Google GenAI response directly to the client via Server-Sent Events (SSE). 
+///     Each chunk is JSON-serialized and flushed immediately for real-time streaming.</description>
+///   </item>
+///   <item>
+///     <description><b>Update Session History:</b> Adds the user message and AI response to the 
+///     session cache for context in future requests.</description>
+///   </item>
+/// </list>
 /// </summary>
 public class ChatHandler : IRequestHandler<ChatRequest, Unit>
 {
@@ -19,6 +58,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
     private readonly IGeneratedReportRepository _reportRepository;
     private readonly IUserContextService _userContextService;
     private readonly IUserRepository _userRepository;
+    private readonly IAIInstructionService _aiInstructionService;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<ChatHandler> _logger;
     
@@ -30,6 +70,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
         IGeneratedReportRepository reportRepository,
         IUserContextService userContextService,
         IUserRepository userRepository,
+        IAIInstructionService aiInstructionService,
         IMemoryCache memoryCache,
         ILogger<ChatHandler> logger)
     {
@@ -37,6 +78,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
         _reportRepository = reportRepository;
         _userContextService = userContextService;
         _userRepository = userRepository;
+        _aiInstructionService = aiInstructionService;
         _memoryCache = memoryCache;
         _logger = logger;
     }
@@ -92,8 +134,11 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
                 _logger.LogWarning(ex, "Failed to retrieve RAG context. Proceeding without context augmentation.");
             }
 
-            // Build enhanced prompt with RAG context and chat history
-            var enhancedPrompt = BuildEnhancedPrompt(request.Request.Prompt, contextData, chatHistory);
+            // Get global AI instruction
+            var globalInstruction = _aiInstructionService.GetGlobalInstruction();
+
+            // Build enhanced prompt with global instruction, RAG context and chat history
+            var enhancedPrompt = BuildEnhancedPrompt(globalInstruction, request.Request.Prompt, contextData, chatHistory);
 
             // Stream response with file attachments support
             var responseContent = new StringBuilder();
@@ -136,9 +181,17 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
         }
     }
 
-    private static string BuildEnhancedPrompt(string userPrompt, string contextData, List<ChatMessage>? chatHistory)
+    private static string BuildEnhancedPrompt(string globalInstruction, string userPrompt, string contextData, List<ChatMessage>? chatHistory)
     {
         var promptBuilder = new StringBuilder();
+        
+        // Add global AI instruction as system context (first priority)
+        if (!string.IsNullOrEmpty(globalInstruction))
+        {
+            promptBuilder.AppendLine("SYSTEM INSTRUCTION:");
+            promptBuilder.AppendLine(globalInstruction);
+            promptBuilder.AppendLine();
+        }
         
         // Add RAG context if available
         if (!string.IsNullOrEmpty(contextData))

@@ -37,6 +37,9 @@ internal static class ExternalServiceExtensions
         // Google Generative AI configuration and service
         services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
         services.AddScoped<IGenAIService, GenAIService>();
+        
+        // AI Instruction service (loads global AI context/instruction)
+        services.AddSingleton<IAIInstructionService, AIInstructionService>();
 
         return services;
     }
