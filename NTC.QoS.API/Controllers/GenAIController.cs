@@ -286,6 +286,75 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
+    /// Chat with AI assistant using RAG (Retrieval Augmented Generation)
+    /// </summary>
+    /// <remarks>
+    /// This endpoint provides context-aware chat using semantic search over previously generated reports.
+    /// 
+    /// **Features:**
+    /// - **RAG-based responses**: Automatically retrieves relevant context from previously generated reports
+    /// - **Session management**: Maintains chat history per user (expires after 30 minutes of inactivity)
+    /// - **Semantic search**: Uses vector embeddings to find the most relevant reports for context
+    /// 
+    /// **How it works:**
+    /// 1. Your message is converted to a vector embedding
+    /// 2. The system searches for the 3 most semantically similar generated reports
+    /// 3. These reports are used as context for generating a response
+    /// 4. Chat history is maintained across messages in the same session
+    /// 
+    /// **Request Format:**
+    /// - Content-Type: `application/json`
+    /// - Body: `{ "message": "Your question here" }`
+    /// 
+    /// **Response Format:**
+    /// - Content-Type: `text/event-stream` (Server-Sent Events)
+    /// - The AI response is streamed as it's generated
+    /// 
+    /// **Permissions Required:**
+    /// - `genai.chat` - Allows access to the AI chat assistant
+    /// 
+    /// **Rate Limiting:**
+    /// Subject to standard API rate limits and Google AI API quotas.
+    /// </remarks>
+    /// <param name="apiRequest">The chat request containing the user's message</param>
+    /// <returns>Streaming AI-generated response with context from relevant reports</returns>
+    /// <response code="200">Successfully streaming chat response</response>
+    /// <response code="400">Invalid request or AI service error</response>
+    /// <response code="401">Unauthorized - authentication required</response>
+    /// <response code="403">Forbidden - insufficient permissions</response>
+    [HttpPost("rag-chat")]
+    [RequirePermission(Permissions.ChatWithAI)]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 400)]
+    public async Task RagChat([FromBody] RagChatApiRequest apiRequest)
+    {
+        try
+        {
+            _logger.LogInformation("Received RAG chat request");
+
+            // Map from API request to domain DTO
+            var ragChatRequest = new RagChatRequestDto
+            {
+                Message = apiRequest.Message
+            };
+
+            // Set headers for Server-Sent Events (SSE)
+            Response.Headers.Append("Content-Type", "text/event-stream");
+            Response.Headers.Append("Cache-Control", "no-cache");
+            Response.Headers.Append("Connection", "keep-alive");
+
+            var request = new RagChatRequest(ragChatRequest, Response);
+            await _mediator.Send(request);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing RAG chat request");
+            Response.StatusCode = 400;
+            await Response.WriteAsync($"data: {{\"error\": \"An error occurred while processing your request: {ex.Message}\"}}\n\n");
+        }
+    }
+
+    /// <summary>
     /// Maps IFormFile[] to domain FileUpload[] model
     /// </summary>
     private static async Task<FileUpload[]?> MapFilesToDomainAsync(IFormFile[]? files)

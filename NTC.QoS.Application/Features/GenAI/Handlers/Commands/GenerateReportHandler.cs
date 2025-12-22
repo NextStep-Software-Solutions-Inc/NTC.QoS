@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
+using Pgvector;
 using System.Text;
 using System.Text.Json;
 
@@ -113,6 +114,20 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
                 fileMetadata = JsonSerializer.Serialize(metadata);
             }
 
+            // Generate embedding for the report content (for RAG semantic search)
+            Vector? embedding = null;
+            try
+            {
+                _logger.LogInformation("Generating embedding for report content");
+                var embeddingArray = await _genAIService.GetEmbeddingAsync(content);
+                embedding = new Vector(embeddingArray);
+                _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", embeddingArray.Length);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to generate embedding for report. Report will be saved without embedding.");
+            }
+
             var report = new GeneratedReport
             {
                 Prompt = request.Request.Prompt,
@@ -121,7 +136,8 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
                 FileMetadata = fileMetadata,
                 UserId = user.Id,
                 GeneratedAt = DateTime.UtcNow,
-                Title = title
+                Title = title,
+                Embedding = embedding
             };
 
             await _reportRepository.AddAsync(report, cancellationToken);
