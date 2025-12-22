@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Enums;
@@ -50,7 +49,7 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
         var maxAllowedPageSize = request.Viewport.GetRecommendedMaxResults();
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
 
-        var cellQuery = _cellRepository.Query().AsNoTracking();
+        var cellQuery = _cellRepository.QueryAsNoTracking();
         cellQuery = cellQuery.ApplyViewportFilter(request.Viewport);
 
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)

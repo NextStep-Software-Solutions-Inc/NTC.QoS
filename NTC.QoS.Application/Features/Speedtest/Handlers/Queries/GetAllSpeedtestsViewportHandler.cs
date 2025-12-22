@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Interfaces;
@@ -65,7 +64,7 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
 
         // Start with base query using AsNoTracking for read-only optimization
-        var speedtestQuery = _speedtestRepository.Query().AsNoTracking();
+        var speedtestQuery = _speedtestRepository.QueryAsNoTracking();
 
         // Apply viewport spatial filter (leverages PostGIS spatial index)
         speedtestQuery = speedtestQuery.ApplyViewportFilter(request.Viewport);

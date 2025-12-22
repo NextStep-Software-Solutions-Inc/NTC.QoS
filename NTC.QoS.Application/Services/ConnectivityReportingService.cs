@@ -299,6 +299,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
     {
         var query = _assessmentRepository.Query(a => a.LocationType == locationType);
 
+        // Apply geographic filter precedence: Municipality > Province > Region
+        // Lower admin levels take priority - only the most specific filter is applied
         if (municipalityId.HasValue)
         {
             // Get barangay IDs first, then filter assessments

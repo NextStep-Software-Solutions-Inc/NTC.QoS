@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
@@ -51,10 +50,10 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
         }
 
         // Get total count
-        var totalCount = await query.CountAsync(cancellationToken);
+        var totalCount = await _repository.CountAsync(query, cancellationToken);
 
-        // Apply pagination
-        var items = await query
+        // Apply pagination and projection
+        var paginatedQuery = query
             .OrderByDescending(cc => cc.CreatedAt)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
@@ -77,8 +76,9 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
                 Address = cc.Address,
                 IsFileUploaded = cc.IsFileUploaded,
                 CreatedAt = cc.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
+            });
+
+        var items = await _repository.ToListAsync(paginatedQuery, cancellationToken);
 
         return new PaginatedResponse<CellularCoverageV2Dto>(
             items,
