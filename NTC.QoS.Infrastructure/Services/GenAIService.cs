@@ -25,10 +25,9 @@ public class GenAIService : IGenAIService
         _logger = logger;
         _settings = settings.Value;
         
-        // Try environment variable first, then fall back to configuration
-        _apiKey = System.Environment.GetEnvironmentVariable("GEMINI_API_KEY") 
-            ?? configuration["GEMINI_API_KEY"]
-            ?? throw new InvalidOperationException("GEMINI_API_KEY is not configured. Please set it as an environment variable or in application configuration.");
+        // Read API key from configuration (supports environment variable injection via GoogleAI__ApiKey)
+        _apiKey = configuration["GoogleAI:ApiKey"] 
+            ?? throw new InvalidOperationException("GoogleAI:ApiKey is not configured. Please set it in configuration or as GoogleAI__ApiKey environment variable.");
         
         _genAIClient = new Client(apiKey: _apiKey);
     }
@@ -90,6 +89,23 @@ public class GenAIService : IGenAIService
         {
             _logger.LogError(ex, "Error generating content");
             throw new InvalidOperationException("Failed to generate content. Please try again later.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Generates content using the chat model with streaming response
+    /// </summary>
+    public async IAsyncEnumerable<string> GenerateContentStreamAsync(
+        string prompt,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Processing streaming content generation for prompt of length: {PromptLength}", prompt.Length);
+
+        var parts = new List<Part> { new Part { Text = prompt } };
+
+        await foreach (var chunk in StreamGenerateContentAsync(parts, cancellationToken))
+        {
+            yield return chunk;
         }
     }
 

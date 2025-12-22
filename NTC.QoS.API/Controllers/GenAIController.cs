@@ -29,12 +29,16 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
-    /// Chat with AI assistant (Streaming Response)
+    /// Chat with AI assistant (Streaming Response with RAG)
     /// </summary>
     /// <remarks>
     /// This endpoint allows users to interact with an AI assistant powered by Google's Gemini model with real-time streaming responses.
+    /// Uses RAG (Retrieval Augmented Generation) to provide context-aware responses based on previously generated reports.
     /// 
     /// **Features:**
+    /// - **RAG-based responses**: Automatically retrieves relevant context from previously generated reports
+    /// - **Session management**: Maintains chat history per user (expires after 30 minutes of inactivity)
+    /// - **Semantic search**: Uses vector embeddings to find the most relevant reports for context
     /// - Natural language Q&A about project data and outputs
     /// - **Streaming responses**: Real-time AI response chunks via Server-Sent Events (SSE)
     /// - **Multi-modal support**: Accepts text prompts with optional file attachments
@@ -44,6 +48,12 @@ public class GenAIController : ControllerBase
     ///   - Text files: .txt, .csv, .json, .xml
     ///   - Spreadsheets: Excel (.xlsx, .xls) - extracted as text
     /// - File content is analyzed by the AI model for comprehensive responses
+    /// 
+    /// **How RAG works:**
+    /// 1. Your message is converted to a vector embedding
+    /// 2. The system searches for the 3 most semantically similar generated reports
+    /// 3. These reports are used as context for generating a response
+    /// 4. Chat history is maintained across messages in the same session
     /// 
     /// **Usage Examples:**
     /// - Ask questions: "What are the coverage statistics for Region 10?"
@@ -108,17 +118,21 @@ public class GenAIController : ControllerBase
     }
 
     /// <summary>
-    /// Generate a report using AI (Streaming Response)
+    /// Generate a report using AI (Streaming Response with RAG)
     /// </summary>
     /// <remarks>
     /// This endpoint uses AI to generate comprehensive reports based on provided instructions and attached resources with real-time streaming.
+    /// Uses RAG (Retrieval Augmented Generation) to leverage context from previously generated reports.
     /// 
     /// **Features:**
+    /// - **RAG-based generation**: Automatically retrieves relevant context from previously generated reports
     /// - **Streaming responses**: Real-time report generation via Server-Sent Events (SSE)
+    /// - **Semantic search**: Uses vector embeddings to find related reports for enhanced context
     /// - Automatic report generation from data files
     /// - Intelligent analysis and insight extraction
     /// - Professional formatting with executive summaries, key findings, and recommendations
     /// - **Multi-file analysis**: Combine data from multiple sources
+    /// - Generated reports are saved with embeddings for future RAG retrieval
     /// 
     /// **Supported File Types (with actual processing):**
     /// - Images: JPEG, PNG, WebP, HEIC, GIF (for visual data analysis)
@@ -283,75 +297,6 @@ public class GenAIController : ControllerBase
         var command = new DeleteReportCommand(id);
         var response = await _mediator.Send(command);
         return response.Succeeded ? Ok(response) : NotFound(response);
-    }
-
-    /// <summary>
-    /// Chat with AI assistant using RAG (Retrieval Augmented Generation)
-    /// </summary>
-    /// <remarks>
-    /// This endpoint provides context-aware chat using semantic search over previously generated reports.
-    /// 
-    /// **Features:**
-    /// - **RAG-based responses**: Automatically retrieves relevant context from previously generated reports
-    /// - **Session management**: Maintains chat history per user (expires after 30 minutes of inactivity)
-    /// - **Semantic search**: Uses vector embeddings to find the most relevant reports for context
-    /// 
-    /// **How it works:**
-    /// 1. Your message is converted to a vector embedding
-    /// 2. The system searches for the 3 most semantically similar generated reports
-    /// 3. These reports are used as context for generating a response
-    /// 4. Chat history is maintained across messages in the same session
-    /// 
-    /// **Request Format:**
-    /// - Content-Type: `application/json`
-    /// - Body: `{ "message": "Your question here" }`
-    /// 
-    /// **Response Format:**
-    /// - Content-Type: `text/event-stream` (Server-Sent Events)
-    /// - The AI response is streamed as it's generated
-    /// 
-    /// **Permissions Required:**
-    /// - `genai.chat` - Allows access to the AI chat assistant
-    /// 
-    /// **Rate Limiting:**
-    /// Subject to standard API rate limits and Google AI API quotas.
-    /// </remarks>
-    /// <param name="apiRequest">The chat request containing the user's message</param>
-    /// <returns>Streaming AI-generated response with context from relevant reports</returns>
-    /// <response code="200">Successfully streaming chat response</response>
-    /// <response code="400">Invalid request or AI service error</response>
-    /// <response code="401">Unauthorized - authentication required</response>
-    /// <response code="403">Forbidden - insufficient permissions</response>
-    [HttpPost("rag-chat")]
-    [RequirePermission(Permissions.ChatWithAI)]
-    [ProducesResponseType(200)]
-    [ProducesResponseType(typeof(ApiResponse<ChatResponseDto>), 400)]
-    public async Task RagChat([FromBody] RagChatApiRequest apiRequest)
-    {
-        try
-        {
-            _logger.LogInformation("Received RAG chat request");
-
-            // Map from API request to domain DTO
-            var ragChatRequest = new RagChatRequestDto
-            {
-                Message = apiRequest.Message
-            };
-
-            // Set headers for Server-Sent Events (SSE)
-            Response.Headers.Append("Content-Type", "text/event-stream");
-            Response.Headers.Append("Cache-Control", "no-cache");
-            Response.Headers.Append("Connection", "keep-alive");
-
-            var request = new RagChatRequest(ragChatRequest, Response);
-            await _mediator.Send(request);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing RAG chat request");
-            Response.StatusCode = 400;
-            await Response.WriteAsync($"data: {{\"error\": \"An error occurred while processing your request: {ex.Message}\"}}\n\n");
-        }
     }
 
     /// <summary>

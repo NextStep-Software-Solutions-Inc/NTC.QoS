@@ -4,14 +4,13 @@ using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
-using Pgvector;
 using System.Text;
 using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Commands;
 
 /// <summary>
-/// Handler for AI report generation requests with streaming response and persistence
+/// Handler for AI report generation requests with RAG context and streaming response
 /// </summary>
 public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit>
 {
@@ -20,6 +19,8 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
     private readonly IUserContextService _userContextService;
     private readonly IUserRepository _userRepository;
     private readonly ILogger<GenerateReportHandler> _logger;
+    
+    private const int MaxRelevantReports = 3;
 
     public GenerateReportHandler(
         IGenAIService genAIService,
@@ -43,8 +44,34 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
         {
             _logger.LogInformation("Processing streaming report generation request with {FileCount} files", request.Request.Files?.Length ?? 0);
 
+            // RAG: Retrieve relevant context from previously generated reports
+            string contextData = string.Empty;
+            try
+            {
+                _logger.LogInformation("Generating embedding for RAG context retrieval");
+                var queryVector = await _genAIService.GetEmbeddingAsync(request.Request.Prompt);
+                
+                var relevantReports = await _reportRepository.FindSimilarReportsAsync(
+                    queryVector, 
+                    MaxRelevantReports, 
+                    cancellationToken);
+
+                if (relevantReports.Count > 0)
+                {
+                    contextData = string.Join("\n\n---\n\n", relevantReports);
+                    _logger.LogInformation("Found {Count} relevant reports for context", relevantReports.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to retrieve RAG context. Proceeding without context augmentation.");
+            }
+
+            // Build enhanced prompt with RAG context
+            var enhancedPrompt = BuildEnhancedPrompt(request.Request.Prompt, contextData);
+
             await foreach (var chunk in _genAIService.GenerateReportStreamAsync(
-                request.Request.Prompt,
+                enhancedPrompt,
                 request.Request.Files,
                 cancellationToken))
             {
@@ -71,6 +98,23 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
             await request.HttpResponse.WriteAsync($"data: {{\"error\": \"{ex.Message}\"}}\n\n", cancellationToken);
             throw;
         }
+    }
+
+    private static string BuildEnhancedPrompt(string userPrompt, string contextData)
+    {
+        if (string.IsNullOrEmpty(contextData))
+        {
+            return userPrompt;
+        }
+
+        var promptBuilder = new StringBuilder();
+        promptBuilder.AppendLine("CONTEXT FROM PREVIOUS REPORTS:");
+        promptBuilder.AppendLine(contextData);
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine("USER REQUEST:");
+        promptBuilder.AppendLine(userPrompt);
+
+        return promptBuilder.ToString();
     }
 
     private async Task SaveGeneratedReportAsync(GenerateReportRequest request, string content, CancellationToken cancellationToken)
@@ -115,13 +159,12 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
             }
 
             // Generate embedding for the report content (for RAG semantic search)
-            Vector? embedding = null;
+            float[]? embedding = null;
             try
             {
                 _logger.LogInformation("Generating embedding for report content");
-                var embeddingArray = await _genAIService.GetEmbeddingAsync(content);
-                embedding = new Vector(embeddingArray);
-                _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", embeddingArray.Length);
+                embedding = await _genAIService.GetEmbeddingAsync(content);
+                _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", embedding.Length);
             }
             catch (Exception ex)
             {
@@ -136,12 +179,11 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
                 FileMetadata = fileMetadata,
                 UserId = user.Id,
                 GeneratedAt = DateTime.UtcNow,
-                Title = title,
-                Embedding = embedding
+                Title = title
             };
 
-            await _reportRepository.AddAsync(report, cancellationToken);
-            await _reportRepository.SaveChangesAsync(cancellationToken);
+            // Use repository method to save with embedding (handles Pgvector in Infrastructure layer)
+            await _reportRepository.AddReportWithEmbeddingAsync(report, embedding, cancellationToken);
 
             _logger.LogInformation("Generated report saved with ID: {ReportId}", report.Id);
         }

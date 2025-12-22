@@ -38,4 +38,12 @@ public interface IGenAIService
     /// <param name="prompt">The prompt to generate content from</param>
     /// <returns>The generated content as a string</returns>
     Task<string> GenerateContentAsync(string prompt);
+
+    /// <summary>
+    /// Generates content using the chat model with streaming response
+    /// </summary>
+    /// <param name="prompt">The prompt to generate content from</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>An async enumerable stream of response chunks</returns>
+    IAsyncEnumerable<string> GenerateContentStreamAsync(string prompt, CancellationToken cancellationToken = default);
 }
