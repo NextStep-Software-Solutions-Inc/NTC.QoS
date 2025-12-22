@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+using NTC.QoS.Domain.Models;
 
 namespace NTC.QoS.Domain.Interfaces;
 
@@ -14,7 +14,7 @@ public interface IGenAIService
     /// <param name="files">Optional file attachments (images, PDFs, Excel, text files)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>An async enumerable stream of response chunks</returns>
-    IAsyncEnumerable<string> ChatStreamAsync(string prompt, IFormFileCollection? files = null, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<string> ChatStreamAsync(string prompt, FileUpload[]? files = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Generates a report using the AI model based on provided resources and streams the response
@@ -23,5 +23,5 @@ public interface IGenAIService
     /// <param name="files">Resource files to analyze for the report</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>An async enumerable stream of response chunks</returns>
-    IAsyncEnumerable<string> GenerateReportStreamAsync(string prompt, IFormFileCollection? files = null, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<string> GenerateReportStreamAsync(string prompt, FileUpload[]? files = null, CancellationToken cancellationToken = default);
 }

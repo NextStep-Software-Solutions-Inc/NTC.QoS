@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Interfaces;
+using System.Text.Json;
 
 namespace NTC.QoS.Application.Features.GenAI.Handlers.Commands;
 
@@ -24,7 +25,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
     {
         try
         {
-            _logger.LogInformation("Processing streaming chat request with {FileCount} files", request.Request.Files?.Count ?? 0);
+            _logger.LogInformation("Processing streaming chat request with {FileCount} files", request.Request.Files?.Length ?? 0);
 
             await foreach (var chunk in _genAIService.ChatStreamAsync(
                 request.Request.Prompt,
@@ -36,8 +37,8 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
                     break;
                 }
 
-                // Write chunk in SSE format
-                await request.HttpResponse.WriteAsync($"data: {chunk}\n\n", cancellationToken);
+                var jsonChunk = JsonSerializer.Serialize(chunk);
+                await request.HttpResponse.WriteAsync($"data: {jsonChunk}\n\n", cancellationToken);
                 await request.HttpResponse.Body.FlushAsync(cancellationToken);
             }
 
