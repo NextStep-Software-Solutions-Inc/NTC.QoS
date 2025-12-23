@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
-using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;

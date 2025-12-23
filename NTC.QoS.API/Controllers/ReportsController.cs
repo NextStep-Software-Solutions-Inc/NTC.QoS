@@ -2,17 +2,17 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
+using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
-using NTC.QoS.Domain.Enums;
 using Hangfire;
-using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 
 namespace NTC.QoS.API.Controllers;
@@ -98,6 +98,121 @@ public class ReportsController : ControllerBase
             result.Data.FileContent,
             contentType,
             result.Data.FileName);
+    }
+
+    /// <summary>
+    /// Start background job for wireless broadband scored report generation.
+    /// Use this for large reports (region-level) that may take several minutes to generate.
+    /// </summary>
+    [HttpPost("wireless-broadband-scored/start")]
+    [RequirePermission(Permissions.CreateReports)]
+    public async Task<ActionResult<ApiResponse<WirelessBroadbandReportJobResponseDto>>> StartWirelessBroadbandScoredReportJob(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
+        [FromQuery] ReportFormatEnum format = ReportFormatEnum.Excel,
+        [FromQuery] bool includeScores = true)
+    {
+        var command = new StartWirelessBroadbandReportJobCommand
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            Format = format,
+            IncludeScores = includeScores
+        };
+
+        var jobId = await _mediator.Send(command);
+
+        var response = new WirelessBroadbandReportJobResponseDto
+        {
+            JobId = jobId,
+            Status = ReportJobStatusEnum.Queued,
+            Message = "Report generation job has been queued successfully",
+            EstimatedDurationMinutes = 2
+        };
+
+        return Ok(new ApiResponse<WirelessBroadbandReportJobResponseDto>
+        {
+            Data = response,
+            Succeeded = true,
+            Message = "Wireless broadband report job started successfully. Use the job ID to check status."
+        });
+    }
+
+    /// <summary>
+    /// Get status of wireless broadband report background job
+    /// </summary>
+    [HttpGet("wireless-broadband-scored/status/{jobId}")]
+    [RequirePermission(Permissions.ViewReports)]
+    public ActionResult<ApiResponse<WirelessBroadbandReportJobStatusDto>> GetWirelessBroadbandReportJobStatus(string jobId)
+    {
+        var cacheKey = $"wireless_broadband_report_job_{jobId}";
+
+        if (!_memoryCache.TryGetValue<WirelessBroadbandReportJobStatusDto>(cacheKey, out var statusDto) || statusDto == null)
+        {
+            return NotFound(new ApiResponse<WirelessBroadbandReportJobStatusDto>
+            {
+                Message = "Report job not found or has expired",
+                Succeeded = false
+            });
+        }
+
+        return Ok(new ApiResponse<WirelessBroadbandReportJobStatusDto>
+        {
+            Data = statusDto,
+            Message = statusDto.StatusDescription,
+            Succeeded = true
+        });
+    }
+
+    /// <summary>
+    /// Download completed wireless broadband report
+    /// </summary>
+    [HttpGet("wireless-broadband-scored/download/{jobId}")]
+    [RequirePermission(Permissions.ExportReports)]
+    public async Task<ActionResult> DownloadWirelessBroadbandReport(string jobId)
+    {
+        var cacheKey = $"wireless_broadband_report_job_{jobId}";
+
+        if (!_memoryCache.TryGetValue<WirelessBroadbandReportJobStatusDto>(cacheKey, out var statusDto) || statusDto == null)
+        {
+            return NotFound(new { message = "Report job not found or has expired" });
+        }
+
+        if (statusDto.Status != ReportJobStatusEnum.Completed)
+        {
+            return BadRequest(new
+            {
+                message = "Report is not ready for download",
+                status = statusDto.Status.ToString(),
+                currentStep = statusDto.CurrentStep
+            });
+        }
+
+        if (string.IsNullOrEmpty(statusDto.FilePath))
+        {
+            return NotFound(new { message = "Report file path not found" });
+        }
+
+        // Download file from blob storage
+        var containerName = "wireless-broadband-reports";
+        var blobFileName = Path.GetFileName(statusDto.FilePath);
+        var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+
+        if (fileStream == null)
+        {
+            return NotFound(new { message = "Report file not found in storage" });
+        }
+
+        // Determine content type from format
+        var contentType = statusDto.Format == ReportFormatEnum.Pdf
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+        return File(fileStream, contentType, blobFileName);
     }
 
     /// <summary>
