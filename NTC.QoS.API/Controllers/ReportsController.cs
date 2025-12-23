@@ -105,6 +105,7 @@ public class ReportsController : ControllerBase
     /// Use this for large reports (region-level) that may take several minutes to generate.
     /// </summary>
     [HttpPost("wireless-broadband-scored/start")]
+    [RequirePermission(Permissions.CreateReports)]
     public async Task<ActionResult<ApiResponse<WirelessBroadbandReportJobResponseDto>>> StartWirelessBroadbandScoredReportJob(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
@@ -145,6 +146,7 @@ public class ReportsController : ControllerBase
     /// Get status of wireless broadband report background job
     /// </summary>
     [HttpGet("wireless-broadband-scored/status/{jobId}")]
+    [RequirePermission(Permissions.ViewReports)]
     public ActionResult<ApiResponse<WirelessBroadbandReportJobStatusDto>> GetWirelessBroadbandReportJobStatus(string jobId)
     {
         var cacheKey = $"wireless_broadband_report_job_{jobId}";
@@ -170,6 +172,7 @@ public class ReportsController : ControllerBase
     /// Download completed wireless broadband report
     /// </summary>
     [HttpGet("wireless-broadband-scored/download/{jobId}")]
+    [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadWirelessBroadbandReport(string jobId)
     {
         var cacheKey = $"wireless_broadband_report_job_{jobId}";
