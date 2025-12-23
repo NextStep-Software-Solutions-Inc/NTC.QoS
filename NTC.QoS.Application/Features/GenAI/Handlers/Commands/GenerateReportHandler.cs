@@ -62,6 +62,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
     private readonly IUserContextService _userContextService;
     private readonly IUserRepository _userRepository;
     private readonly IAIInstructionService _aiInstructionService;
+    private readonly IMCPServerService _mcpServerService;
     private readonly ILogger<GenerateReportHandler> _logger;
     
     private const int MaxRelevantReports = 3;
@@ -72,6 +73,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
         IUserContextService userContextService,
         IUserRepository userRepository,
         IAIInstructionService aiInstructionService,
+        IMCPServerService mcpServerService,
         ILogger<GenerateReportHandler> logger)
     {
         _genAIService = genAIService;
@@ -79,6 +81,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
         _userContextService = userContextService;
         _userRepository = userRepository;
         _aiInstructionService = aiInstructionService;
+        _mcpServerService = mcpServerService;
         _logger = logger;
     }
 
@@ -116,8 +119,11 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
             // Get global AI instruction
             var globalInstruction = _aiInstructionService.GetGlobalInstruction();
 
-            // Build enhanced prompt with global instruction and RAG context
-            var enhancedPrompt = BuildEnhancedPrompt(globalInstruction, request.Request.Prompt, contextData);
+            // Get MCP tools information
+            var mcpTools = await _mcpServerService.GetToolsAsync();
+
+            // Build enhanced prompt with global instruction, MCP tools, and RAG context
+            var enhancedPrompt = BuildEnhancedPrompt(globalInstruction, request.Request.Prompt, contextData, mcpTools);
 
             await foreach (var chunk in _genAIService.GenerateReportStreamAsync(
                 enhancedPrompt,
@@ -149,7 +155,7 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
         }
     }
 
-    private static string BuildEnhancedPrompt(string globalInstruction, string userPrompt, string contextData)
+    private static string BuildEnhancedPrompt(string globalInstruction, string userPrompt, string contextData, string mcpTools)
     {
         var promptBuilder = new StringBuilder();
         
@@ -158,6 +164,27 @@ public class GenerateReportHandler : IRequestHandler<GenerateReportRequest, Unit
         {
             promptBuilder.AppendLine("SYSTEM INSTRUCTION:");
             promptBuilder.AppendLine(globalInstruction);
+            promptBuilder.AppendLine();
+        }
+        
+        // Add MCP tools information
+        if (!string.IsNullOrEmpty(mcpTools))
+        {
+            promptBuilder.AppendLine("AVAILABLE DATABASE QUERY TOOLS:");
+            promptBuilder.AppendLine("You have access to the following tools that allow you to directly query the NTC QoS database for real-time data.");
+            promptBuilder.AppendLine("Instead of relying solely on attached files, you can use these tools to retrieve current data from the database.");
+            promptBuilder.AppendLine("To use a tool, include a JSON code block in your analysis with the format:");
+            promptBuilder.AppendLine("```mcp-tool-call");
+            promptBuilder.AppendLine("{");
+            promptBuilder.AppendLine("  \"tool\": \"tool_name\",");
+            promptBuilder.AppendLine("  \"parameters\": { ... }");
+            promptBuilder.AppendLine("}");
+            promptBuilder.AppendLine("```");
+            promptBuilder.AppendLine();
+            promptBuilder.AppendLine("Available tools:");
+            promptBuilder.AppendLine(mcpTools);
+            promptBuilder.AppendLine();
+            promptBuilder.AppendLine("IMPORTANT: When you need database information, use these tools to get accurate, up-to-date data.");
             promptBuilder.AppendLine();
         }
         

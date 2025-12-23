@@ -59,6 +59,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
     private readonly IUserContextService _userContextService;
     private readonly IUserRepository _userRepository;
     private readonly IAIInstructionService _aiInstructionService;
+    private readonly IMCPServerService _mcpServerService;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<ChatHandler> _logger;
     
@@ -71,6 +72,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
         IUserContextService userContextService,
         IUserRepository userRepository,
         IAIInstructionService aiInstructionService,
+        IMCPServerService mcpServerService,
         IMemoryCache memoryCache,
         ILogger<ChatHandler> logger)
     {
@@ -79,6 +81,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
         _userContextService = userContextService;
         _userRepository = userRepository;
         _aiInstructionService = aiInstructionService;
+        _mcpServerService = mcpServerService;
         _memoryCache = memoryCache;
         _logger = logger;
     }
@@ -137,8 +140,11 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
             // Get global AI instruction
             var globalInstruction = _aiInstructionService.GetGlobalInstruction();
 
-            // Build enhanced prompt with global instruction, RAG context and chat history
-            var enhancedPrompt = BuildEnhancedPrompt(globalInstruction, request.Request.Prompt, contextData, chatHistory);
+            // Get MCP tools information
+            var mcpTools = await _mcpServerService.GetToolsAsync();
+
+            // Build enhanced prompt with global instruction, MCP tools, RAG context and chat history
+            var enhancedPrompt = BuildEnhancedPrompt(globalInstruction, request.Request.Prompt, contextData, chatHistory, mcpTools);
 
             // Stream response with file attachments support
             var responseContent = new StringBuilder();
@@ -181,7 +187,7 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
         }
     }
 
-    private static string BuildEnhancedPrompt(string globalInstruction, string userPrompt, string contextData, List<ChatMessage>? chatHistory)
+    private static string BuildEnhancedPrompt(string globalInstruction, string userPrompt, string contextData, List<ChatMessage>? chatHistory, string mcpTools)
     {
         var promptBuilder = new StringBuilder();
         
@@ -190,6 +196,26 @@ public class ChatHandler : IRequestHandler<ChatRequest, Unit>
         {
             promptBuilder.AppendLine("SYSTEM INSTRUCTION:");
             promptBuilder.AppendLine(globalInstruction);
+            promptBuilder.AppendLine();
+        }
+        
+        // Add MCP tools information
+        if (!string.IsNullOrEmpty(mcpTools))
+        {
+            promptBuilder.AppendLine("AVAILABLE DATABASE QUERY TOOLS:");
+            promptBuilder.AppendLine("You have access to the following tools that allow you to directly query the NTC QoS database for real-time data.");
+            promptBuilder.AppendLine("To use a tool, include a JSON code block in your response with the format:");
+            promptBuilder.AppendLine("```mcp-tool-call");
+            promptBuilder.AppendLine("{");
+            promptBuilder.AppendLine("  \"tool\": \"tool_name\",");
+            promptBuilder.AppendLine("  \"parameters\": { ... }");
+            promptBuilder.AppendLine("}");
+            promptBuilder.AppendLine("```");
+            promptBuilder.AppendLine();
+            promptBuilder.AppendLine("Available tools:");
+            promptBuilder.AppendLine(mcpTools);
+            promptBuilder.AppendLine();
+            promptBuilder.AppendLine("IMPORTANT: When you need database information, use these tools to get accurate, up-to-date data.");
             promptBuilder.AppendLine();
         }
         
