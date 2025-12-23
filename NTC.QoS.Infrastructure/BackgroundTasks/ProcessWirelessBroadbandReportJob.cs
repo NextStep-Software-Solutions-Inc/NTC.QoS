@@ -293,45 +293,72 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         var scopeFetchStopwatch = Stopwatch.StartNew();
         string reportTitleName = "";
         NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
-        List<Domain.Entities.Barangay> barangays;
+        List<BarangayProjection> barangays;
 
         if (municipalityId.HasValue)
         {
             var mun = await _context.Municipalities.AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Id == municipalityId, cancellationToken);
+                .Where(m => m.Id == municipalityId)
+                .Select(m => new { m.Name, m.Boundaries })
+                .FirstOrDefaultAsync(cancellationToken);
             if (mun == null) throw new InvalidOperationException("Municipality not found.");
             reportTitleName = mun.Name;
             targetBoundaries = mun.Boundaries;
+            
             barangays = await _context.Barangays.AsNoTracking()
                 .Where(b => b.MunicipalityId == municipalityId)
-                .Include(b => b.Municipality)
                 .OrderBy(b => b.Name)
+                .Select(b => new BarangayProjection
+                {
+                    Id = b.Id,
+                    Name = b.Name,
+                    MunicipalityName = b.Municipality.Name,
+                    Boundaries = b.Boundaries
+                })
                 .ToListAsync(cancellationToken);
         }
         else if (provinceId.HasValue)
         {
             var prov = await _context.Provinces.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == provinceId, cancellationToken);
+                .Where(p => p.Id == provinceId)
+                .Select(p => new { p.Name, p.Boundaries })
+                .FirstOrDefaultAsync(cancellationToken);
             if (prov == null) throw new InvalidOperationException("Province not found.");
             reportTitleName = prov.Name;
             targetBoundaries = prov.Boundaries;
+            
             barangays = await _context.Barangays.AsNoTracking()
                 .Where(b => b.Municipality.ProvinceId == provinceId)
-                .Include(b => b.Municipality)
                 .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
+                .Select(b => new BarangayProjection
+                {
+                    Id = b.Id,
+                    Name = b.Name,
+                    MunicipalityName = b.Municipality.Name,
+                    Boundaries = b.Boundaries
+                })
                 .ToListAsync(cancellationToken);
         }
         else if (regionId.HasValue)
         {
             var reg = await _context.Regions.AsNoTracking()
-                .FirstOrDefaultAsync(r => r.Id == regionId, cancellationToken);
+                .Where(r => r.Id == regionId)
+                .Select(r => new { r.Name, r.Boundaries })
+                .FirstOrDefaultAsync(cancellationToken);
             if (reg == null) throw new InvalidOperationException("Region not found.");
             reportTitleName = reg.Name;
             targetBoundaries = reg.Boundaries;
+            
             barangays = await _context.Barangays.AsNoTracking()
                 .Where(b => b.Municipality.Province.RegionId == regionId)
-                .Include(b => b.Municipality)
                 .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
+                .Select(b => new BarangayProjection
+                {
+                    Id = b.Id,
+                    Name = b.Name,
+                    MunicipalityName = b.Municipality.Name,
+                    Boundaries = b.Boundaries
+                })
                 .ToListAsync(cancellationToken);
         }
         else
@@ -412,7 +439,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         {
             var entry = new BarangayWirelessScoredEntryDto
             {
-                MunicipalityName = barangay.Municipality.Name,
+                MunicipalityName = barangay.MunicipalityName,
                 BarangayName = barangay.Name
             };
 
@@ -518,7 +545,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     // NOTE: This is code duplication - consider refactoring into a shared service
 
     private async Task<Dictionary<Guid, List<SpeedtestInfo>>> LoadSpeedtestsByBarangayAsync(
-        List<Domain.Entities.Barangay> barangays,
+        List<BarangayProjection> barangays,
         NetTopologySuite.Geometries.MultiPolygon? overallBoundary,
         CancellationToken cancellationToken)
     {
@@ -1265,6 +1292,14 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     }
 
     // ===== Private DTOs =====
+
+    private class BarangayProjection
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string MunicipalityName { get; set; } = string.Empty;
+        public NetTopologySuite.Geometries.MultiPolygon? Boundaries { get; set; }
+    }
 
     private class SpeedtestInfo
     {
