@@ -1,27 +1,34 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
-using NTC.QoS.Infrastructure.Persistence;
 using NetTopologySuite.Geometries;
 
 namespace NTC.QoS.Application.Features.Band.Queries.GetTechnologyBandsByLocation;
 
 public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnologyBandsByLocationQuery, DetailedTechnologyBandBreakdownDto>
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IBarangayRepository _barangayRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IRegionRepository _regionRepository;
     private readonly ICellularRepository _cellularRepository;
     private readonly IWirelessValidationRepository _wirelessValidationRepository;
     private readonly ILogger<GetTechnologyBandsByLocationHandler> _logger;
 
     public GetTechnologyBandsByLocationHandler(
-        ApplicationDbContext context,
+        IBarangayRepository barangayRepository,
+        IMunicipalityRepository municipalityRepository,
+        IProvinceRepository provinceRepository,
+        IRegionRepository regionRepository,
         ICellularRepository cellularRepository,
         IWirelessValidationRepository wirelessValidationRepository,
         ILogger<GetTechnologyBandsByLocationHandler> logger)
     {
-        _context = context;
+        _barangayRepository = barangayRepository;
+        _municipalityRepository = municipalityRepository;
+        _provinceRepository = provinceRepository;
+        _regionRepository = regionRepository;
         _cellularRepository = cellularRepository;
         _wirelessValidationRepository = wirelessValidationRepository;
         _logger = logger;
@@ -39,35 +46,27 @@ public class GetTechnologyBandsByLocationHandler : IRequestHandler<GetTechnology
         {
             if (locationTypeLower == "barangay")
             {
-                var brgy = await _context.Barangays
-                    .Where(b => b.Id == Guid.Parse(request.LocationId))
-                    .Select(b => b.Boundaries)
-                    .FirstOrDefaultAsync(cancellationToken);
-                boundary = brgy;
+                var brgyQuery = _barangayRepository.Query(b => b.Id == Guid.Parse(request.LocationId));
+                var brgy = await _barangayRepository.FirstOrDefaultAsync(brgyQuery, cancellationToken);
+                boundary = brgy?.Boundaries;
             }
             else if (locationTypeLower == "municipality")
             {
-                var mun = await _context.Municipalities
-                    .Where(m => m.Id == Guid.Parse(request.LocationId))
-                    .Select(m => m.Boundaries)
-                    .FirstOrDefaultAsync(cancellationToken);
-                boundary = mun;
+                var munQuery = _municipalityRepository.Query(m => m.Id == Guid.Parse(request.LocationId));
+                var mun = await _municipalityRepository.FirstOrDefaultAsync(munQuery, cancellationToken);
+                boundary = mun?.Boundaries;
             }
             else if (locationTypeLower == "province")
             {
-                var prov = await _context.Provinces
-                    .Where(p => p.Id == Guid.Parse(request.LocationId))
-                    .Select(p => p.Boundaries)
-                    .FirstOrDefaultAsync(cancellationToken);
-                boundary = prov;
+                var provQuery = _provinceRepository.Query(p => p.Id == Guid.Parse(request.LocationId));
+                var prov = await _provinceRepository.FirstOrDefaultAsync(provQuery, cancellationToken);
+                boundary = prov?.Boundaries;
             }
             else if (locationTypeLower == "region")
             {
-                var reg = await _context.Regions
-                    .Where(r => r.Id == Guid.Parse(request.LocationId))
-                    .Select(r => r.Boundaries)
-                    .FirstOrDefaultAsync(cancellationToken);
-                boundary = reg;
+                var regQuery = _regionRepository.Query(r => r.Id == Guid.Parse(request.LocationId));
+                var reg = await _regionRepository.FirstOrDefaultAsync(regQuery, cancellationToken);
+                boundary = reg?.Boundaries;
             }
 
             if (boundary == null)

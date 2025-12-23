@@ -2,6 +2,7 @@
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
+using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 

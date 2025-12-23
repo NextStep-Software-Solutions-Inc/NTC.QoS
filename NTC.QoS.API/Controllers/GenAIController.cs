@@ -5,12 +5,10 @@ using NTC.QoS.API.Authorization;
 using NTC.QoS.API.Models;
 using NTC.QoS.Application.Features.GenAI.Requests;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.GenAI;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -24,11 +22,13 @@ public class GenAIController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly ILogger<GenAIController> _logger;
+    private readonly IMarkdownToPdfService _markdownToPdfService;
 
-    public GenAIController(IMediator mediator, ILogger<GenAIController> logger)
+    public GenAIController(IMediator mediator, ILogger<GenAIController> logger, IMarkdownToPdfService markdownToPdfService)
     {
         _mediator = mediator;
         _logger = logger;
+        _markdownToPdfService = markdownToPdfService;
     }
 
     /// <summary>
@@ -288,11 +288,17 @@ public class GenAIController : ControllerBase
         
         if (isPdf)
         {
-            // Convert markdown content to PDF
+            // Convert markdown content to PDF using the dedicated service
             try
             {
                 var cleanedContent = StripOuterMarkdownFence(response.Data.Content);
-                fileBytes = ConvertMarkdownToPdf(cleanedContent, response.Data.Title ?? "AI Generated Report");
+                var pdfOptions = new PdfGenerationOptions
+                {
+                    OrganizationName = "National Telecommunications Commission",
+                    IncludePageNumbers = true,
+                    IncludeTimestamp = true
+                };
+                fileBytes = _markdownToPdfService.ConvertToPdf(cleanedContent, response.Data.Title ?? "AI Generated Report", pdfOptions);
             }
             catch (Exception ex)
             {
@@ -358,116 +364,6 @@ public class GenAIController : ControllerBase
         }
 
         return content;
-    }
-
-    /// <summary>
-    /// Converts markdown content to PDF using QuestPDF
-    /// </summary>
-    private byte[] ConvertMarkdownToPdf(string markdownContent, string title)
-    {
-        QuestPDF.Settings.License = LicenseType.Community;
-
-        var document = Document.Create(container =>
-        {
-            container.Page(page =>
-            {
-                page.Size(PageSizes.A4);
-                page.Margin(2, QuestPDF.Infrastructure.Unit.Centimetre);
-                page.PageColor(Colors.White);
-                page.DefaultTextStyle(x => x.FontSize(11).FontFamily("Arial"));
-
-                page.Header()
-                    .Text(title)
-                    .SemiBold().FontSize(16).FontColor(Colors.Blue.Medium);
-
-                page.Content()
-                    .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Centimetre)
-                    .Column(column =>
-                    {
-                        column.Spacing(10);
-
-                        // Parse markdown and render content
-                        var lines = markdownContent.Split('\n');
-                        foreach (var line in lines)
-                        {
-                            if (string.IsNullOrWhiteSpace(line))
-                            {
-                                column.Item().Height(5);
-                                continue;
-                            }
-
-                            var trimmedLine = line.Trim();
-                            
-                            // Handle headers
-                            if (trimmedLine.StartsWith("# "))
-                            {
-                                column.Item().Text(trimmedLine.Substring(2))
-                                    .FontSize(18).SemiBold().FontColor(Colors.Blue.Darken2);
-                            }
-                            else if (trimmedLine.StartsWith("## "))
-                            {
-                                column.Item().Text(trimmedLine.Substring(3))
-                                    .FontSize(16).SemiBold().FontColor(Colors.Blue.Darken1);
-                            }
-                            else if (trimmedLine.StartsWith("### "))
-                            {
-                                column.Item().Text(trimmedLine.Substring(4))
-                                    .FontSize(14).SemiBold();
-                            }
-                            else if (trimmedLine.StartsWith("#### "))
-                            {
-                                column.Item().Text(trimmedLine.Substring(5))
-                                    .FontSize(13).SemiBold();
-                            }
-                            // Handle bullet points
-                            else if (trimmedLine.StartsWith("- ") || trimmedLine.StartsWith("* "))
-                            {
-                                column.Item().Row(row =>
-                                {
-                                    row.ConstantItem(20).Text("•");
-                                    row.RelativeItem().Text(trimmedLine.Substring(2));
-                                });
-                            }
-                            // Handle numbered lists
-                            else if (System.Text.RegularExpressions.Regex.IsMatch(trimmedLine, @"^\d+\.\s"))
-                            {
-                                var match = System.Text.RegularExpressions.Regex.Match(trimmedLine, @"^(\d+)\.\s(.*)");
-                                if (match.Success)
-                                {
-                                    column.Item().Row(row =>
-                                    {
-                                        row.ConstantItem(25).Text($"{match.Groups[1].Value}.");
-                                        row.RelativeItem().Text(match.Groups[2].Value);
-                                    });
-                                }
-                            }
-                            // Handle bold text (simple approach)
-                            else if (trimmedLine.Contains("**"))
-                            {
-                                var cleanText = trimmedLine.Replace("**", "");
-                                column.Item().Text(cleanText).SemiBold();
-                            }
-                            // Regular text
-                            else
-                            {
-                                column.Item().Text(trimmedLine);
-                            }
-                        }
-                    });
-
-                page.Footer()
-                    .AlignCenter()
-                    .Text(x =>
-                    {
-                        x.Span("Page ");
-                        x.CurrentPageNumber();
-                        x.Span(" of ");
-                        x.TotalPages();
-                    });
-            });
-        });
-
-        return document.GeneratePdf();
     }
 
     /// <summary>

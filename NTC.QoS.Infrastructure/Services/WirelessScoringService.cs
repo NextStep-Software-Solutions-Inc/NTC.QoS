@@ -2,7 +2,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 
-namespace NTC.QoS.Application.Services;
+namespace NTC.QoS.Infrastructure.Services;
 
 /// <summary>
 /// Shared service for wireless connectivity scoring based on CMTS criteria.
@@ -24,7 +24,7 @@ public interface IWirelessScoringService
 
     /// <summary>
     /// Determine service status from wireless connectivity scores
-    /// 6 points = Served, 4-5 = Underserved, 2-3 = Unserved
+    /// Scaled from ConnectivityAssessment: ≥5 = Served (83%), ≥3 = Underserved (50%)
     /// </summary>
     ServiceStatusEnum DetermineServiceStatus(int totalScore);
 
@@ -134,14 +134,16 @@ public class WirelessScoringService : IWirelessScoringService
     /// <summary>
     /// Determine service status from wireless connectivity scores
     /// Based on 2 criteria only: Internet Access + Technology Type (max 6 points)
+    /// Aligned with ConnectivityAssessment thresholds (11/15 = 73% for Served, 6/15 = 40% for Underserved)
+    /// Scaled to 6 points: 73% of 6 = 4.4 → ≥5 for Served, 40% of 6 = 2.4 → ≥3 for Underserved
     /// </summary>
     public ServiceStatusEnum DetermineServiceStatus(int totalScore)
     {
         return totalScore switch
         {
-            6 => ServiceStatusEnum.Served,        // Both criteria at max
-            >= 4 => ServiceStatusEnum.Underserved, // At least one criterion good
-            _ => ServiceStatusEnum.Unserved        // Both criteria poor
+            >= 5 => ServiceStatusEnum.Served,        // 5-6 points (83-100%) - aligned with assessment 73% threshold
+            >= 3 => ServiceStatusEnum.Underserved,   // 3-4 points (50-67%) - aligned with assessment 40% threshold
+            _ => ServiceStatusEnum.Unserved           // 1-2 points (<50%) - below minimum standards
         };
     }
 
