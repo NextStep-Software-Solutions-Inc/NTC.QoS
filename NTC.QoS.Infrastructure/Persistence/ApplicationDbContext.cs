@@ -54,6 +54,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
     public DbSet<ConnectivityAssessmentScheduler> ConnectivityAssessmentSchedulers { get; set; }
     public DbSet<GeneratedReport> GeneratedReports { get; set; }
+    public DbSet<ReportTemplate> ReportTemplates { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -665,6 +666,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<GeneratedReport>()
             .HasIndex(gr => gr.Embedding)
             .HasMethod("hnsw")
+            .HasOperators("vector_cosine_ops")
             .HasDatabaseName("IX_GeneratedReport_Embedding");
 
         base.OnModelCreating(modelBuilder);
