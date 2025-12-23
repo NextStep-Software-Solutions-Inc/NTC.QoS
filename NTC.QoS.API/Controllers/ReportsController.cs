@@ -128,7 +128,7 @@ public class ReportsController : ControllerBase
         var response = new WirelessBroadbandReportJobResponseDto
         {
             JobId = jobId,
-            Status = WirelessBroadbandReportJobStatusEnum.Pending,
+            Status = ReportJobStatusEnum.Queued,
             Message = "Report generation job has been queued successfully",
             EstimatedDurationMinutes = 2
         };
@@ -179,7 +179,7 @@ public class ReportsController : ControllerBase
             return NotFound(new { message = "Report job not found or has expired" });
         }
 
-        if (statusDto.Status != WirelessBroadbandReportJobStatusEnum.Completed)
+        if (statusDto.Status != ReportJobStatusEnum.Completed)
         {
             return BadRequest(new
             {

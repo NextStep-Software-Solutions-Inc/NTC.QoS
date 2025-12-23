@@ -78,24 +78,26 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     private readonly IMemoryCache _memoryCache;
     private readonly IBlobStorageService _blobStorageService;
     private readonly ILogger<ProcessWirelessBroadbandReportJob> _logger;
+    private readonly IWirelessScoringService _scoringService;
     
     private const string CACHE_KEY_PREFIX = "wireless_broadband_report_job_";
     private const int CACHE_RETENTION_HOURS = 1;
     private const int StartColumn = 3;
-    private const double MinimumSpeedThreshold = 25.0; // Mbps for CMTS "Served" criteria
 
     public ProcessWirelessBroadbandReportJob(
         ApplicationDbContext context,
         IProviderTechnologyService providerTechService,
         IMemoryCache memoryCache,
         IBlobStorageService blobStorageService,
-        ILogger<ProcessWirelessBroadbandReportJob> logger)
+        ILogger<ProcessWirelessBroadbandReportJob> logger,
+        IWirelessScoringService scoringService)
     {
         _context = context;
         _providerTechService = providerTechService;
         _memoryCache = memoryCache;
         _blobStorageService = blobStorageService;
         _logger = logger;
+        _scoringService = scoringService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -111,7 +113,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.FilterByStatus, jobRequest.UserId);
 
             // Step 1: Update status to Processing
-            await UpdateJobStatusAsync(jobId, WirelessBroadbandReportJobStatusEnum.Processing,
+            await UpdateJobStatusAsync(jobId, ReportJobStatusEnum.Processing,
                 "Initializing report generation...",
                 startTime: startTime,
                 currentStep: "Initializing",
@@ -120,7 +122,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 cancellationToken: cancellationToken);
 
             // Step 2: Generate the report data
-            await UpdateJobStatusAsync(jobId, WirelessBroadbandReportJobStatusEnum.Processing,
+            await UpdateJobStatusAsync(jobId, ReportJobStatusEnum.Processing,
                 "Generating report data...",
                 currentStep: "Fetching Data",
                 progressPercentage: 10,
@@ -144,7 +146,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 "Job {JobId}: Report data generated. Barangays: {BarangayCount}, Size: {FileSize}",
                 jobId, barangayCount, FormatFileSize(fileContent.Length));
 
-            await UpdateJobStatusAsync(jobId, WirelessBroadbandReportJobStatusEnum.Processing,
+            await UpdateJobStatusAsync(jobId, ReportJobStatusEnum.Processing,
                 $"Report generated ({FormatFileSize(fileContent.Length)})",
                 currentStep: "Uploading File",
                 progressPercentage: 80,
@@ -173,7 +175,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             var totalTime = endTime - startTime;
             var downloadUrl = $"/api/reports/wireless-broadband-scored/job/{jobId}/download";
 
-            await UpdateJobStatusAsync(jobId, WirelessBroadbandReportJobStatusEnum.Completed,
+            await UpdateJobStatusAsync(jobId, ReportJobStatusEnum.Completed,
                 $"Report generated successfully in {totalTime:mm\\:ss}",
                 startTime: startTime,
                 endTime: endTime,
@@ -192,7 +194,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         {
             _logger.LogError(ex, "Job {JobId}: Error occurred during report generation", jobId);
 
-            await UpdateJobStatusAsync(jobId, WirelessBroadbandReportJobStatusEnum.Failed,
+            await UpdateJobStatusAsync(jobId, ReportJobStatusEnum.Failed,
                 $"Report generation failed: {ex.Message}",
                 startTime: startTime,
                 endTime: DateTime.UtcNow,
@@ -206,7 +208,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
 
     private async Task UpdateJobStatusAsync(
         string jobId,
-        WirelessBroadbandReportJobStatusEnum status,
+        ReportJobStatusEnum status,
         string message,
         DateTime? startTime = null,
         DateTime? endTime = null,
@@ -231,7 +233,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 Status = status,
                 Message = message,
                 LastUpdated = DateTime.UtcNow,
-                StartTime = startTime,
+                StartTime = startTime ?? DateTime.UtcNow,
                 Format = format ?? ReportFormatEnum.Excel
             };
         }
@@ -673,8 +675,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         TechnologyBandBreakdownDto techBreakdown,
         SpeedStatsDto? speedStats)
     {
-        int internetScore = CalculateInternetAccessScore(speedStats);
-        int technologyScore = CalculateTechnologyTypeScore(techBreakdown);
+        int internetScore = _scoringService.CalculateInternetAccessScore(speedStats);
+        int technologyScore = _scoringService.CalculateTechnologyTypeScore(techBreakdown);
         int totalScore = internetScore + technologyScore;
 
         return new WirelessConnectivityScoreDto
@@ -682,79 +684,19 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             InternetAccessScore = internetScore,
             TechnologyTypeScore = technologyScore,
             TotalScore = totalScore,
-            HighestTechnology = GetHighestTechnology(techBreakdown)
+            HighestTechnology = _scoringService.GetHighestTechnology(techBreakdown)
         };
     }
 
-    private int CalculateInternetAccessScore(SpeedStatsDto? speedStats)
+    // Scoring methods removed - now using shared IWirelessScoringService for consistency
+
+
+
+
+
+    private ServiceStatusEnum DetermineServiceStatus(int totalScore)
     {
-        if (speedStats == null || speedStats.SpeedTestCount == 0)
-            return 1;
-
-        if (speedStats.SpeedTestCount < 3)
-            return 1;
-
-        var avgDownloadSpeed = (double)(speedStats.AverageDownloadSpeedMbps ?? 0);
-        var medianDownloadSpeed = (double)(speedStats.MedianDownloadSpeedMbps ?? 0);
-
-        var speedVariability = avgDownloadSpeed > 0
-            ? Math.Abs((avgDownloadSpeed - medianDownloadSpeed) / avgDownloadSpeed)
-            : 0;
-        var isUnreliable = speedVariability > 0.3;
-
-        if (avgDownloadSpeed >= MinimumSpeedThreshold && !isUnreliable)
-            return 3;
-
-        if (avgDownloadSpeed >= MinimumSpeedThreshold && isUnreliable)
-            return 2;
-
-        if (avgDownloadSpeed >= 10 && avgDownloadSpeed < MinimumSpeedThreshold)
-            return 2;
-
-        return 1;
-    }
-
-    private static int CalculateTechnologyTypeScore(TechnologyBandBreakdownDto? techBreakdown)
-    {
-        if (techBreakdown == null || techBreakdown.TotalTechnologyCount == 0)
-            return 1;
-
-        if (techBreakdown.Count5G > 0)
-            return 3;
-
-        if (techBreakdown.Count4G > 0 && !techBreakdown.IsLegacyDominated)
-            return 3;
-
-        if (techBreakdown.HasModernTechnology && techBreakdown.IsLegacyDominated)
-            return 2;
-
-        if (techBreakdown.Count3G > 0 || techBreakdown.Count2G > 0)
-            return 2;
-
-        return 1;
-    }
-
-    private static string GetHighestTechnology(TechnologyBandBreakdownDto? techBreakdown)
-    {
-        if (techBreakdown == null || techBreakdown.TotalTechnologyCount == 0)
-            return "None";
-
-        if (techBreakdown.Count5G > 0) return "5G";
-        if (techBreakdown.Count4G > 0) return "4G/LTE";
-        if (techBreakdown.Count3G > 0) return "3G";
-        if (techBreakdown.Count2G > 0) return "2G";
-
-        return "None";
-    }
-
-    private static ServiceStatusEnum DetermineServiceStatus(int totalScore)
-    {
-        return totalScore switch
-        {
-            >= 5 => ServiceStatusEnum.Served,
-            >= 3 => ServiceStatusEnum.Underserved,
-            _ => ServiceStatusEnum.Unserved
-        };
+        return _scoringService.DetermineServiceStatus(totalScore);
     }
 
     private static string GenerateRemarks(WirelessConnectivityScoreDto score)
