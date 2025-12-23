@@ -63,43 +63,70 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             // Lower admin levels take priority - only the most specific filter is applied
             string reportTitleName = "";
             NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
-            List<Domain.Entities.Barangay> barangays;
+            List<BarangayProjection> barangays;
 
             if (request.MunicipalityId.HasValue)
             {
-                var munQuery = _municipalityRepository.Query(m => m.Id == request.MunicipalityId);
+                var munQuery = _municipalityRepository.Query(m => m.Id == request.MunicipalityId)
+                    .Select(m => new { m.Name, m.Boundaries });
                 var mun = await _municipalityRepository.FirstOrDefaultAsync(munQuery, cancellationToken);
                 if (mun == null) return new ApiResponse<WirelessBroadbandReportResult>("Municipality not found.");
                 reportTitleName = mun.Name;
                 targetBoundaries = mun.Boundaries;
                 
                 var barangayQuery = _barangayRepository.Query(b => b.MunicipalityId == request.MunicipalityId)
-                    .OrderBy(b => b.Name);
-                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                    .OrderBy(b => b.Name)
+                    .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
+                var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                barangays = barangayProjections.Select(b => new BarangayProjection 
+                { 
+                    Id = b.Id, 
+                    Name = b.Name, 
+                    MunicipalityName = b.MunicipalityName, 
+                    Boundaries = b.Boundaries 
+                }).ToList();
             }
             else if (request.ProvinceId.HasValue)
             {
-                var provQuery = _provinceRepository.Query(p => p.Id == request.ProvinceId);
+                var provQuery = _provinceRepository.Query(p => p.Id == request.ProvinceId)
+                    .Select(p => new { p.Name, p.Boundaries });
                 var prov = await _provinceRepository.FirstOrDefaultAsync(provQuery, cancellationToken);
                 if (prov == null) return new ApiResponse<WirelessBroadbandReportResult>("Province not found.");
                 reportTitleName = prov.Name;
                 targetBoundaries = prov.Boundaries;
                 
                 var barangayQuery = _barangayRepository.Query(b => b.Municipality.ProvinceId == request.ProvinceId)
-                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name);
-                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
+                    .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
+                var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                barangays = barangayProjections.Select(b => new BarangayProjection 
+                { 
+                    Id = b.Id, 
+                    Name = b.Name, 
+                    MunicipalityName = b.MunicipalityName, 
+                    Boundaries = b.Boundaries 
+                }).ToList();
             }
             else if (request.RegionId.HasValue)
             {
-                var regQuery = _regionRepository.Query(r => r.Id == request.RegionId);
+                var regQuery = _regionRepository.Query(r => r.Id == request.RegionId)
+                    .Select(r => new { r.Name, r.Boundaries });
                 var reg = await _regionRepository.FirstOrDefaultAsync(regQuery, cancellationToken);
                 if (reg == null) return new ApiResponse<WirelessBroadbandReportResult>("Region not found.");
                 reportTitleName = reg.Name;
                 targetBoundaries = reg.Boundaries;
                 
                 var barangayQuery = _barangayRepository.Query(b => b.Municipality.Province.RegionId == request.RegionId)
-                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name);
-                barangays = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                    .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
+                    .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
+                var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                barangays = barangayProjections.Select(b => new BarangayProjection 
+                { 
+                    Id = b.Id, 
+                    Name = b.Name, 
+                    MunicipalityName = b.MunicipalityName, 
+                    Boundaries = b.Boundaries 
+                }).ToList();
             }
             else
             {
@@ -151,7 +178,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             {
                 var entry = new BarangayWirelessEntryDto
                 {
-                    MunicipalityName = barangay.Municipality.Name,
+                    MunicipalityName = barangay.MunicipalityName,
                     BarangayName = barangay.Name
                 };
 
@@ -634,7 +661,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
     /// This is faster than loading all data into memory for millions of records.
     /// </summary>
     private async Task<Dictionary<Guid, List<SpeedtestInfo>>> LoadSpeedtestsByBarangayAsync(
-        List<Domain.Entities.Barangay> barangays,
+        List<BarangayProjection> barangays,
         NetTopologySuite.Geometries.MultiPolygon? overallBoundary,
         CancellationToken cancellationToken)
     {
@@ -713,5 +740,16 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         public decimal DownloadSpeed { get; set; }
         public NetTopologySuite.Geometries.Point? Location { get; set; }
         public string GenerationName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Projection DTO for barangay data to avoid navigational property loading and boundary materialization
+    /// </summary>
+    private class BarangayProjection
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string MunicipalityName { get; set; } = string.Empty;
+        public NetTopologySuite.Geometries.MultiPolygon? Boundaries { get; set; }
     }
 }
