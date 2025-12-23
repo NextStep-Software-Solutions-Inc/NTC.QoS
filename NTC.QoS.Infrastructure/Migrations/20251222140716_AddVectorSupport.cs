@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Pgvector;
 
 #nullable disable
@@ -11,22 +11,23 @@ namespace NTC.QoS.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Enable the pgvector extension
-            migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS vector;");
+            migrationBuilder.AlterDatabase()
+                .Annotation("Npgsql:PostgresExtension:postgis", ",,")
+                .Annotation("Npgsql:PostgresExtension:vector", ",,")
+                .OldAnnotation("Npgsql:PostgresExtension:postgis", ",,");
 
-            // Add the Embedding column to GeneratedReports
             migrationBuilder.AddColumn<Vector>(
                 name: "Embedding",
                 table: "GeneratedReports",
                 type: "vector(768)",
                 nullable: true);
 
-            // Create HNSW index for semantic search
             migrationBuilder.CreateIndex(
                 name: "IX_GeneratedReport_Embedding",
                 table: "GeneratedReports",
                 column: "Embedding")
-                .Annotation("Npgsql:IndexMethod", "hnsw");
+                .Annotation("Npgsql:IndexMethod", "hnsw")
+                .Annotation("Npgsql:IndexOperators", new[] { "vector_cosine_ops" });
         }
 
         /// <inheritdoc />
@@ -40,7 +41,10 @@ namespace NTC.QoS.Infrastructure.Migrations
                 name: "Embedding",
                 table: "GeneratedReports");
 
-            // Note: We don't drop the extension as other tables might use it
+            migrationBuilder.AlterDatabase()
+                .Annotation("Npgsql:PostgresExtension:postgis", ",,")
+                .OldAnnotation("Npgsql:PostgresExtension:postgis", ",,")
+                .OldAnnotation("Npgsql:PostgresExtension:vector", ",,");
         }
     }
 }

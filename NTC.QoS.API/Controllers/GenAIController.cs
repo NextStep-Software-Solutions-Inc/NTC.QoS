@@ -291,7 +291,8 @@ public class GenAIController : ControllerBase
             // Convert markdown content to PDF
             try
             {
-                fileBytes = ConvertMarkdownToPdf(response.Data.Content, response.Data.Title ?? "AI Generated Report");
+                var cleanedContent = StripOuterMarkdownFence(response.Data.Content);
+                fileBytes = ConvertMarkdownToPdf(cleanedContent, response.Data.Title ?? "AI Generated Report");
             }
             catch (Exception ex)
             {
@@ -324,6 +325,39 @@ public class GenAIController : ControllerBase
         var command = new DeleteReportCommand(id);
         var response = await _mediator.Send(command);
         return response.Succeeded ? Ok(response) : NotFound(response);
+    }
+
+    /// <summary>
+    /// Strips outer markdown code fence wrapper (```markdown ... ```)
+    /// </summary>
+    /// <remarks>
+    /// This only removes the OUTERMOST wrapper fence. Any code blocks
+    /// (e.g., ```python, ```json) nested inside the content will be preserved
+    /// and rendered correctly as code blocks by the Markdown component.
+    /// </remarks>
+    private static string StripOuterMarkdownFence(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return content;
+
+        var trimmed = content.Trim();
+        
+        // Check if content starts with ```markdown or ``` and ends with ```
+        if (trimmed.StartsWith("```"))
+        {
+            var firstNewline = trimmed.IndexOf('\n');
+            if (firstNewline > 0)
+            {
+                var lastFence = trimmed.LastIndexOf("```");
+                if (lastFence > firstNewline)
+                {
+                    // Extract content between first line and last ```
+                    return trimmed.Substring(firstNewline + 1, lastFence - firstNewline - 1).Trim();
+                }
+            }
+        }
+
+        return content;
     }
 
     /// <summary>

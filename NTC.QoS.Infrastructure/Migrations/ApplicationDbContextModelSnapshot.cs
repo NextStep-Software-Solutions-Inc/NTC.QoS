@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTC.QoS.Infrastructure.Persistence;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using Pgvector;
 
 #nullable disable
 
@@ -1547,7 +1548,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
-                    b.Property<Pgvector.Vector>("Embedding")
+                    b.Property<Vector>("Embedding")
                         .HasColumnType("vector(768)");
 
                     b.Property<string>("FileMetadata")
@@ -1585,6 +1586,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasDatabaseName("IX_GeneratedReport_Embedding");
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Embedding"), "hnsw");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Embedding"), new[] { "vector_cosine_ops" });
 
                     b.HasIndex("Title")
                         .HasDatabaseName("IX_GeneratedReport_Title")
@@ -2100,6 +2102,57 @@ namespace NTC.QoS.Infrastructure.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
                     b.ToTable("Regions");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ReportTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Instruction")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ReportTemplates");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Role", b =>
