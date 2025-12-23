@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
 
 namespace NTC.QoS.Infrastructure.Seed;
@@ -341,7 +342,8 @@ public static class AuthorizationSeeder
                 Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars,
                 Permissions.ViewSpeedtests, Permissions.CreateSpeedtests, Permissions.UpdateSpeedtests,
                 Permissions.ViewNAPs, Permissions.CreateNAPs, Permissions.UpdateNAPs,
-                Permissions.ViewAnalytics
+                Permissions.ViewAnalytics,
+                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports
             };
             await AssignPermissionsToRole(context, logger, fieldOfficerRole, fieldOfficerPermissions);
         }
