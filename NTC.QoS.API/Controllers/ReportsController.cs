@@ -1,11 +1,13 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -50,6 +52,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("wireless-broadband")]
+    [RequirePermission(Permissions.ExportReports)]
     [ProducesResponseType(typeof(FileResult), 200)]
     [ProducesResponseType(typeof(ApiResponse<WirelessBroadbandReportResult>), 400)]
     public async Task<IActionResult> GetWirelessBroadbandReport([FromQuery] GetWirelessBroadbandReportQuery query)
@@ -65,6 +68,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("wireless-broadband-scored")]
+    [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> GetWirelessBroadbandScoredReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
@@ -222,6 +226,7 @@ public class ReportsController : ControllerBase
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
     /// <returns>Paginated wired broadband coverage report with municipality/barangay breakdown</returns>
     [HttpGet("wired-broadband")]
+    [RequirePermission(Permissions.ViewReports)]
     public async Task<ActionResult<ApiResponse<WiredBroadbandReportDto>>> GetWiredBroadbandReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
@@ -258,6 +263,7 @@ public class ReportsController : ControllerBase
     /// <param name="includeRemarks">When false (default), excludes the Remarks column in the report. Set to true to include remarks.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("wired-broadband/download")]
+    [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadWiredBroadbandReport(
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
@@ -303,6 +309,7 @@ public class ReportsController : ControllerBase
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <returns>Connectivity gap analysis report</returns>
     [HttpGet("connectivity-gap")]
+    [RequirePermission(Permissions.ViewReports)]
     public async Task<ActionResult<ApiResponse<ConnectivityGapReportDto>>> GetConnectivityGapReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null)
@@ -338,6 +345,7 @@ public class ReportsController : ControllerBase
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity-gap/download")]
+    [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadConnectivityGapReport(
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
@@ -575,6 +583,7 @@ public class ReportsController : ControllerBase
     /// <param name="forceGenerateConnectivityAssessment">When true, forces generation of new connectivity assessments</param>
     /// <returns>Job information with status URL</returns>
     [HttpPost("wired-broadband/generate-async")]
+    [RequirePermission(Permissions.CreateReports)]
     public Task<ActionResult<ApiResponse<WiredBroadbandReportJobResponseDto>>> GenerateWiredBroadbandReportAsync(
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
@@ -658,6 +667,7 @@ public class ReportsController : ControllerBase
     /// <param name="jobId">Job ID returned from generate-async endpoint</param>
     /// <returns>Job status with progress information</returns>
     [HttpGet("wired-broadband/job/{jobId}/status")]
+    [RequirePermission(Permissions.ViewReports)]
     public ActionResult<ApiResponse<WiredBroadbandReportJobStatusDto>> GetWiredBroadbandReportJobStatus(string jobId)
     {
         try
@@ -696,6 +706,7 @@ public class ReportsController : ControllerBase
     /// <param name="jobId">Job ID returned from generate-async endpoint</param>
     /// <returns>Report file download</returns>
     [HttpGet("wired-broadband/job/{jobId}/download")]
+    [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadWiredBroadbandReportFromJob(string jobId)
     {
         try
@@ -758,6 +769,7 @@ public class ReportsController : ControllerBase
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
     [HttpPost("connectivity-gap/generate-async")]
+    [RequirePermission(Permissions.CreateReports)]
     public Task<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>> GenerateConnectivityGapReportAsync(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
@@ -831,6 +843,7 @@ public class ReportsController : ControllerBase
     /// <param name="jobId">Job ID returned from generate-async endpoint</param>
     /// <returns>Current job status with progress information</returns>
     [HttpGet("connectivity-gap/job/{jobId}/status")]
+    [RequirePermission(Permissions.ViewReports)]
     public ActionResult<ApiResponse<ConnectivityGapReportJobStatusDto>> GetConnectivityGapReportJobStatus(string jobId)
     {
         try
@@ -869,6 +882,7 @@ public class ReportsController : ControllerBase
     /// <param name="jobId">Job ID returned from generate-async endpoint</param>
     /// <returns>Report file download</returns>
     [HttpGet("connectivity-gap/job/{jobId}/download")]
+    [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadConnectivityGapReportFromJob(string jobId)
     {
         try
@@ -931,6 +945,7 @@ public class ReportsController : ControllerBase
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
     [HttpPost("connectivity/generate-async")]
+    [RequirePermission(Permissions.CreateReports)]
     public Task<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>> GenerateConnectivityReportAsync(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
@@ -1004,6 +1019,7 @@ public class ReportsController : ControllerBase
     /// <param name="jobId">Job ID returned from generate-async endpoint</param>
     /// <returns>Current job status with progress information</returns>
     [HttpGet("connectivity/job/{jobId}/status")]
+    [RequirePermission(Permissions.ViewReports)]
     public ActionResult<ApiResponse<ConnectivityReportJobStatusDto>> GetConnectivityReportJobStatus(string jobId)
     {
         try
@@ -1042,6 +1058,7 @@ public class ReportsController : ControllerBase
     /// <param name="jobId">Job ID returned from generate-async endpoint</param>
     /// <returns>Report file download</returns>
     [HttpGet("connectivity/job/{jobId}/download")]
+    [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadConnectivityReportFromJob(string jobId)
     {
         try

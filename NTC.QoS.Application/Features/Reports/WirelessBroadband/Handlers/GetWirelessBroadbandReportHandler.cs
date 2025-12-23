@@ -1,12 +1,14 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
-using NTC.QoS.Domain.Models.DTOs;
-using NTC.QoS.Domain.Models.DTOs.Report;
-using NTC.QoS.Infrastructure.Persistence;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
+using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Domain.Models.DTOs.Report;
+using NTC.QoS.Infrastructure.Services;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System.Drawing;
@@ -20,16 +22,34 @@ namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Handlers;
 
 public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroadbandReportQuery, ApiResponse<WirelessBroadbandReportResult>>
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IRegionRepository _regionRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IBarangayRepository _barangayRepository;
+    private readonly ISpeedtestRepository _speedtestRepository;
+    private readonly IProviderRepository _providerRepository;
     private readonly ILogger<GetWirelessBroadbandReportHandler> _logger;
+    private readonly IProviderTechnologyService _providerTechService;
     private const int StartColumn = 3;
 
     public GetWirelessBroadbandReportHandler(
-        ApplicationDbContext context,
-        ILogger<GetWirelessBroadbandReportHandler> logger)
+        IRegionRepository regionRepository,
+        IProvinceRepository provinceRepository,
+        IMunicipalityRepository municipalityRepository,
+        IBarangayRepository barangayRepository,
+        ISpeedtestRepository speedtestRepository,
+        IProviderRepository providerRepository,
+        ILogger<GetWirelessBroadbandReportHandler> logger,
+        IProviderTechnologyService providerTechService)
     {
-        _context = context;
+        _regionRepository = regionRepository;
+        _provinceRepository = provinceRepository;
+        _municipalityRepository = municipalityRepository;
+        _barangayRepository = barangayRepository;
+        _speedtestRepository = speedtestRepository;
+        _providerRepository = providerRepository;
         _logger = logger;
+        _providerTechService = providerTechService;
     }
 
     public async Task<ApiResponse<WirelessBroadbandReportResult>> Handle(
@@ -43,168 +63,156 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             // Lower admin levels take priority - only the most specific filter is applied
             string reportTitleName = "";
             NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
-            List<Domain.Entities.Barangay> barangays;
+            List<BarangayProjection> barangays;
 
             if (request.MunicipalityId.HasValue)
             {
-                var mun = await _context.Municipalities.AsNoTracking().FirstOrDefaultAsync(m => m.Id == request.MunicipalityId, cancellationToken);
+                var munQuery = _municipalityRepository.Query(m => m.Id == request.MunicipalityId)
+                    .Select(m => new { m.Name, m.Boundaries });
+                var mun = await _municipalityRepository.FirstOrDefaultAsync(munQuery, cancellationToken);
                 if (mun == null) return new ApiResponse<WirelessBroadbandReportResult>("Municipality not found.");
                 reportTitleName = mun.Name;
                 targetBoundaries = mun.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.MunicipalityId == request.MunicipalityId)
-                    .Include(b => b.Municipality)
+                
+                var barangayQuery = _barangayRepository.Query(b => b.MunicipalityId == request.MunicipalityId)
                     .OrderBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                    .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
+                var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                barangays = barangayProjections.Select(b => new BarangayProjection 
+                { 
+                    Id = b.Id, 
+                    Name = b.Name, 
+                    MunicipalityName = b.MunicipalityName, 
+                    Boundaries = b.Boundaries 
+                }).ToList();
             }
             else if (request.ProvinceId.HasValue)
             {
-                var prov = await _context.Provinces.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.ProvinceId, cancellationToken);
+                var provQuery = _provinceRepository.Query(p => p.Id == request.ProvinceId)
+                    .Select(p => new { p.Name, p.Boundaries });
+                var prov = await _provinceRepository.FirstOrDefaultAsync(provQuery, cancellationToken);
                 if (prov == null) return new ApiResponse<WirelessBroadbandReportResult>("Province not found.");
                 reportTitleName = prov.Name;
                 targetBoundaries = prov.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.Municipality.ProvinceId == request.ProvinceId)
-                    .Include(b => b.Municipality)
+                
+                var barangayQuery = _barangayRepository.Query(b => b.Municipality.ProvinceId == request.ProvinceId)
                     .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                    .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
+                var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                barangays = barangayProjections.Select(b => new BarangayProjection 
+                { 
+                    Id = b.Id, 
+                    Name = b.Name, 
+                    MunicipalityName = b.MunicipalityName, 
+                    Boundaries = b.Boundaries 
+                }).ToList();
             }
             else if (request.RegionId.HasValue)
             {
-                var reg = await _context.Regions.AsNoTracking().FirstOrDefaultAsync(r => r.Id == request.RegionId, cancellationToken);
+                var regQuery = _regionRepository.Query(r => r.Id == request.RegionId)
+                    .Select(r => new { r.Name, r.Boundaries });
+                var reg = await _regionRepository.FirstOrDefaultAsync(regQuery, cancellationToken);
                 if (reg == null) return new ApiResponse<WirelessBroadbandReportResult>("Region not found.");
                 reportTitleName = reg.Name;
                 targetBoundaries = reg.Boundaries;
-                barangays = await _context.Barangays.AsNoTracking()
-                    .Where(b => b.Municipality.Province.RegionId == request.RegionId)
-                    .Include(b => b.Municipality)
+                
+                var barangayQuery = _barangayRepository.Query(b => b.Municipality.Province.RegionId == request.RegionId)
                     .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
-                    .ToListAsync(cancellationToken);
+                    .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
+                var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
+                barangays = barangayProjections.Select(b => new BarangayProjection 
+                { 
+                    Id = b.Id, 
+                    Name = b.Name, 
+                    MunicipalityName = b.MunicipalityName, 
+                    Boundaries = b.Boundaries 
+                }).ToList();
             }
             else
             {
                 return new ApiResponse<WirelessBroadbandReportResult>("Please provide a Municipality, Province, or Region ID.");
             }
 
-            // 2. Prepare Data
-            // Fetch Providers for dynamic headers
-            var providers = await _context.Providers
-                .AsNoTracking()
-                .Where(p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
-                .OrderBy(p => p.Name)
-                .ToListAsync(cancellationToken);
+            // 2. Safeguard against excessive scope
+            if (barangays.Count > 5000)
+            {
+                return new ApiResponse<WirelessBroadbandReportResult>(
+                    $"Report scope too large. Selected area contains {barangays.Count} barangays (maximum: 5,000). " +
+                    "Please select a smaller geographic area (province or municipality).");
+            }
 
-            // Optimization: Fetch all data for the target area in bulk
-            
-            // Fetch all WirelessValidations for these barangays
+            _logger.LogInformation("Generating wireless broadband report for {Count} barangays in {Area}", 
+                barangays.Count, reportTitleName);
+
+            // 3. Fetch Providers for dynamic headers
+            var providersQuery = _providerRepository.Query(
+                p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
+                .OrderBy(p => p.Name);
+            var providers = await _providerRepository.ToListAsync(providersQuery, cancellationToken);
+
+            // 4. Optimize data fetching using batch operations
             var barangayIds = barangays.Select(b => b.Id).ToList();
-            var allValidations = await _context.WirelessValidations
-                .AsNoTracking()
-                .Include(wv => wv.ServiceProvider)
-                    .ThenInclude(sp => sp.Provider)
-                .Include(wv => wv.Technology)
-                    .ThenInclude(t => t!.Generation)
-                .Where(wv => barangayIds.Contains(wv.BarangayId))
-                .Select(wv => new 
-                {
-                    wv.BarangayId,
-                    ProviderName = wv.ServiceProvider != null && wv.ServiceProvider.Provider != null ? wv.ServiceProvider.Provider.Name : "",
-                    GenerationName = wv.Technology != null && wv.Technology.Generation != null ? wv.Technology.Generation.Name : ""
-                })
-                .ToListAsync(cancellationToken);
 
-            // Fetch all Cellulars within Target Boundaries
-            var allCellulars = new List<CellularLocationInfo>();
+            // Batch calculate provider technology breakdowns for all barangays (optimized - 3 queries total)
+            var batchTechBreakdowns = await _providerTechService.CalculateBatchProviderTechnologyBreakdownAsync(
+                barangayIds,
+                targetBoundaries,
+                cancellationToken);
+
+            // Query speedtests using spatial filter (database-side, leveraging spatial indexes)
+            _logger.LogInformation("Loading speedtests for {Area}...", reportTitleName);
             
-            if (targetBoundaries != null)
-            {
-                allCellulars = await _context.Cellulars
-                    .AsNoTracking()
-                    .Where(c => c.CellSector != null
-                             && c.CellSector.Cell != null
-                             && c.CellSector.Cell.Location != null
-                             && targetBoundaries.Contains(c.CellSector.Cell.Location))
-                    .Select(c => new CellularLocationInfo
-                    {
-                        ProviderName = c.ServiceProvider != null && c.ServiceProvider.Provider != null ? c.ServiceProvider.Provider.Name : "",
-                        GenerationName = c.Technology != null && c.Technology.Generation != null ? c.Technology.Generation.Name : "",
-                        Location = c.CellSector!.Cell!.Location
-                    })
-                    .ToListAsync(cancellationToken);
-            }
+            var speedtestsByBarangay = await LoadSpeedtestsByBarangayAsync(
+                barangays, 
+                targetBoundaries, 
+                cancellationToken);
+            
+            _logger.LogInformation("Loaded speedtests for {Count} barangays", speedtestsByBarangay.Count);
 
-            // Fetch Speedtests within Target Boundaries
-            var allSpeedtests = new List<SpeedtestInfo>();
-            if (targetBoundaries != null)
-            {
-                allSpeedtests = await _context.Speedtests
-                    .AsNoTracking()
-                    .Where(s => s.Location != null && targetBoundaries.Contains(s.Location)
-                             && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless)
-                    .Select(s => new SpeedtestInfo
-                    {
-                        ProviderName = s.ServiceProvider.Provider.Name,
-                        UploadSpeed = s.UploadSpeed,
-                        DownloadSpeed = s.DownloadSpeed,
-                        Location = s.Location,
-                        GenerationName = s.Generation != null ? s.Generation.Name : ""
-                    })
-                    .ToListAsync(cancellationToken);
-            }
-
+            // 5. Process barangays with progress tracking
             var reportData = new List<BarangayWirelessEntryDto>();
+            const int progressBatchSize = 500;
+            var processedCount = 0;
 
             foreach (var barangay in barangays)
             {
                 var entry = new BarangayWirelessEntryDto
                 {
-                    MunicipalityName = barangay.Municipality.Name,
+                    MunicipalityName = barangay.MunicipalityName,
                     BarangayName = barangay.Name
                 };
 
-                var cellulars = new List<CellularInfo>();
+                // Get pre-calculated provider technology breakdown for this barangay
+                var providerTechBreakdown = batchTechBreakdowns.GetValueOrDefault(barangay.Id) 
+                    ?? new Dictionary<string, TechnologyBandBreakdownDto>();
 
-                // 1. From Spatial Cellulars
-                if (barangay.Boundaries != null)
-                {
-                    var inBarangay = allCellulars
-                        .Where(c => c.Location != null && barangay.Boundaries.Contains(c.Location))
-                        .Select(c => new CellularInfo { ProviderName = c.ProviderName, GenerationName = c.GenerationName });
-                    
-                    cellulars.AddRange(inBarangay);
-                }
+                // Get speedtests for this barangay
+                var barangaySpeedtests = speedtestsByBarangay.GetValueOrDefault(barangay.Id) 
+                    ?? new List<SpeedtestInfo>();
 
-                // 2. From WirelessValidation
-                var validations = allValidations
-                    .Where(v => v.BarangayId == barangay.Id)
-                    .Select(v => new CellularInfo { ProviderName = v.ProviderName, GenerationName = v.GenerationName });
-                
-                cellulars.AddRange(validations);
-
-                // Distinct
-                cellulars = cellulars.DistinctBy(c => new { c.ProviderName, c.GenerationName }).ToList();
-
-                // 3. Speedtests
-                var barangaySpeedtests = new List<SpeedtestInfo>();
-                if (barangay.Boundaries != null)
-                {
-                    barangaySpeedtests = allSpeedtests
-                        .Where(s => s.Location != null && barangay.Boundaries.Contains(s.Location))
-                        .ToList();
-                }
-
+                // Map provider stats using technology breakdown and speedtests
                 foreach (var provider in providers)
                 {
-                    var providerCellulars = cellulars.Where(c => c.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase));
-                    var providerSpeedtests = barangaySpeedtests.Where(s => s.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+                    var providerTechData = providerTechBreakdown.GetValueOrDefault(provider.Name);
+                    var providerSpeedtests = barangaySpeedtests
+                        .Where(s => s.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
                     
-                    entry.ProviderStats[provider.Name] = MapProviderStats(providerCellulars, providerSpeedtests);
+                    entry.ProviderStats[provider.Name] = MapProviderStats(providerTechData, providerSpeedtests);
                 }
 
                 reportData.Add(entry);
+                processedCount++;
+
+                // Log progress for large reports
+                if (processedCount % progressBatchSize == 0)
+                {
+                    _logger.LogInformation("Processed {Processed}/{Total} barangays ({Percentage:F1}%)", 
+                        processedCount, barangays.Count, (processedCount * 100.0 / barangays.Count));
+                }
             }
 
-            // 3. Generate Report based on Format
+            // 6. Generate Report based on Format
             byte[] fileContent;
             string extension;
 
@@ -214,14 +222,50 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 using var package = new ExcelPackage();
                 var worksheet = package.Workbook.Worksheets.Add("Wireless Broadband");
 
-                // Collect all unique provider/generation pairs for the whole target area to determine columns
-                var allAreaData = new List<CellularInfo>();
-                if (targetBoundaries != null)
+                // Collect all unique provider/generation pairs from technology breakdowns
+                var providerGenerationsMap = new Dictionary<string, List<string>>();
+                
+                foreach (var provider in providers)
                 {
-                    allAreaData.AddRange(allCellulars.Select(c => new CellularInfo { ProviderName = c.ProviderName, GenerationName = c.GenerationName }));
-                    allAreaData.AddRange(allSpeedtests.Select(s => new CellularInfo { ProviderName = s.ProviderName, GenerationName = s.GenerationName }));
+                    var generations = new HashSet<string>();
+                    
+                    // Scan all barangay tech breakdowns for this provider
+                    foreach (var techBreakdown in batchTechBreakdowns.Values)
+                    {
+                        if (techBreakdown.TryGetValue(provider.Name, out var breakdown))
+                        {
+                            if (breakdown.Has2G) generations.Add("2G");
+                            if (breakdown.Has3G) generations.Add("3G");
+                            if (breakdown.Has4G) generations.Add("4G");
+                            if (breakdown.Has5G) generations.Add("5G");
+                        }
+                    }
+                    
+                    // Add generations from speedtests
+                    foreach (var speedtests in speedtestsByBarangay.Values)
+                    {
+                        foreach (var st in speedtests.Where(s => s.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            if (!string.IsNullOrEmpty(st.GenerationName))
+                            {
+                                if (st.GenerationName.Equals("2G", StringComparison.OrdinalIgnoreCase)) generations.Add("2G");
+                                if (st.GenerationName.Equals("3G", StringComparison.OrdinalIgnoreCase)) generations.Add("3G");
+                                if (st.GenerationName.Equals("4G", StringComparison.OrdinalIgnoreCase) || 
+                                    st.GenerationName.Equals("LTE", StringComparison.OrdinalIgnoreCase)) generations.Add("4G");
+                                if (st.GenerationName.Equals("5G", StringComparison.OrdinalIgnoreCase)) generations.Add("5G");
+                            }
+                        }
+                    }
+                    
+                    // Convert to sorted list
+                    var genList = new List<string>();
+                    if (generations.Contains("2G")) genList.Add("2G");
+                    if (generations.Contains("3G")) genList.Add("3G");
+                    if (generations.Contains("4G")) genList.Add("4G");
+                    if (generations.Contains("5G")) genList.Add("5G");
+                    
+                    providerGenerationsMap[provider.Name] = genList;
                 }
-                allAreaData.AddRange(allValidations.Select(v => new CellularInfo { ProviderName = v.ProviderName, GenerationName = v.GenerationName }));
 
                 // --- Headers ---
                 int col = StartColumn;
@@ -260,12 +304,9 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 }
 
                 // Dynamic Provider Sections
-                var providerGenerationsMap = new Dictionary<string, List<string>>();
-
                 foreach (var provider in providers)
                 {
-                    var generations = GetPresentGenerations(allAreaData, provider.Name);
-                    providerGenerationsMap[provider.Name] = generations;
+                    if (!providerGenerationsMap.TryGetValue(provider.Name, out var generations)) continue;
 
                     Color color;
                     try
@@ -384,20 +425,49 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
             }
             else
             {
-                // Collect all unique provider/generation pairs for the whole target area to determine columns
-                var allAreaData = new List<CellularInfo>();
-                if (targetBoundaries != null)
-                {
-                    allAreaData.AddRange(allCellulars.Select(c => new CellularInfo { ProviderName = c.ProviderName, GenerationName = c.GenerationName }));
-                    allAreaData.AddRange(allSpeedtests.Select(s => new CellularInfo { ProviderName = s.ProviderName, GenerationName = s.GenerationName }));
-                }
-                allAreaData.AddRange(allValidations.Select(v => new CellularInfo { ProviderName = v.ProviderName, GenerationName = v.GenerationName }));
-
+                // Collect all unique provider/generation pairs from technology breakdowns
                 var providerGenerationsMap = new Dictionary<string, List<string>>();
+                
                 foreach (var provider in providers)
                 {
-                    var generations = GetPresentGenerations(allAreaData, provider.Name);
-                    providerGenerationsMap[provider.Name] = generations;
+                    var generations = new HashSet<string>();
+                    
+                    // Scan all barangay tech breakdowns for this provider
+                    foreach (var techBreakdown in batchTechBreakdowns.Values)
+                    {
+                        if (techBreakdown.TryGetValue(provider.Name, out var breakdown))
+                        {
+                            if (breakdown.Has2G) generations.Add("2G");
+                            if (breakdown.Has3G) generations.Add("3G");
+                            if (breakdown.Has4G) generations.Add("4G");
+                            if (breakdown.Has5G) generations.Add("5G");
+                        }
+                    }
+                    
+                    // Add generations from speedtests
+                    foreach (var speedtests in speedtestsByBarangay.Values)
+                    {
+                        foreach (var st in speedtests.Where(s => s.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            if (!string.IsNullOrEmpty(st.GenerationName))
+                            {
+                                if (st.GenerationName.Equals("2G", StringComparison.OrdinalIgnoreCase)) generations.Add("2G");
+                                if (st.GenerationName.Equals("3G", StringComparison.OrdinalIgnoreCase)) generations.Add("3G");
+                                if (st.GenerationName.Equals("4G", StringComparison.OrdinalIgnoreCase) || 
+                                    st.GenerationName.Equals("LTE", StringComparison.OrdinalIgnoreCase)) generations.Add("4G");
+                                if (st.GenerationName.Equals("5G", StringComparison.OrdinalIgnoreCase)) generations.Add("5G");
+                            }
+                        }
+                    }
+                    
+                    // Convert to sorted list
+                    var genList = new List<string>();
+                    if (generations.Contains("2G")) genList.Add("2G");
+                    if (generations.Contains("3G")) genList.Add("3G");
+                    if (generations.Contains("4G")) genList.Add("4G");
+                    if (generations.Contains("5G")) genList.Add("5G");
+                    
+                    providerGenerationsMap[provider.Name] = genList;
                 }
 
                 fileContent = GeneratePdf(reportTitleName, providers, reportData, providerGenerationsMap);
@@ -550,64 +620,100 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         }
     }
 
-    private ProviderWirelessStatsDto MapProviderStats(IEnumerable<CellularInfo> data, List<SpeedtestInfo> speedtests)
+    private ProviderWirelessStatsDto MapProviderStats(TechnologyBandBreakdownDto? techBreakdown, List<SpeedtestInfo> speedtests)
     {
         var stats = new ProviderWirelessStatsDto();
-        var generations = data.Select(d => d.GenerationName).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Add generations found in speedtests
-        foreach (var st in speedtests)
+        // Map generation availability from technology breakdown
+        if (techBreakdown != null)
         {
-            if (!string.IsNullOrEmpty(st.GenerationName))
-            {
-                generations.Add(st.GenerationName);
-            }
+            stats.Has2G = techBreakdown.Has2G;
+            stats.Has3G = techBreakdown.Has3G;
+            stats.Has4G = techBreakdown.Has4G;
+            stats.Has5G = techBreakdown.Has5G;
         }
 
-        stats.Has2G = generations.Contains("2G");
-        stats.Has3G = generations.Contains("3G");
-        stats.Has4G = generations.Contains("4G") || generations.Contains("LTE");
-        stats.Has5G = generations.Contains("5G");
-
-        // Populate TechUsed from Speedtests
-        var speedtestGenerations = speedtests
-            .Where(s => !string.IsNullOrEmpty(s.GenerationName))
-            .Select(s => s.GenerationName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g)
-            .ToList();
-
-        if (speedtestGenerations.Any())
+        // Populate TechUsed from the median speedtest (the one representing typical experience)
+        if (speedtests.Any())
         {
-            stats.TechUsed = string.Join(", ", speedtestGenerations);
+            // Sort by download speed to find the median speedtest
+            var sortedSpeedtests = speedtests.OrderBy(s => s.DownloadSpeed).ToList();
+            int medianIndex = sortedSpeedtests.Count / 2;
+            var medianSpeedtest = sortedSpeedtests.Count % 2 == 0
+                ? sortedSpeedtests[medianIndex - 1]  // For even count, use lower middle
+                : sortedSpeedtests[medianIndex];
+
+            stats.TechUsed = medianSpeedtest.GenerationName ?? "";
+            stats.UploadSpeedMbps = (double)speedtests.Average(s => s.UploadSpeed);
+            stats.DownloadSpeedMbps = (double)speedtests.Average(s => s.DownloadSpeed);
         }
         else
         {
             stats.TechUsed = "";
         }
 
-        // Calculate Average Speed
-        if (speedtests.Any())
-        {
-            stats.UploadSpeedMbps = (double)speedtests.Average(s => s.UploadSpeed);
-            stats.DownloadSpeedMbps = (double)speedtests.Average(s => s.DownloadSpeed);
-        }
-
         return stats;
     }
 
-    private List<string> GetPresentGenerations(IEnumerable<CellularInfo> data, string providerName)
+    /// <summary>
+    /// Load speedtests grouped by barangay using database-side spatial filtering.
+    /// Optimized to use individual spatial queries per barangay to leverage spatial indexes.
+    /// This is faster than loading all data into memory for millions of records.
+    /// </summary>
+    private async Task<Dictionary<Guid, List<SpeedtestInfo>>> LoadSpeedtestsByBarangayAsync(
+        List<BarangayProjection> barangays,
+        NetTopologySuite.Geometries.MultiPolygon? overallBoundary,
+        CancellationToken cancellationToken)
     {
-        var providerData = data.Where(d => d.ProviderName.Contains(providerName, StringComparison.OrdinalIgnoreCase));
-        var rawGens = providerData.Select(d => d.GenerationName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (overallBoundary == null || !barangays.Any())
+            return new Dictionary<Guid, List<SpeedtestInfo>>();
+
+        var result = new Dictionary<Guid, List<SpeedtestInfo>>();
         
-        var present = new List<string>();
-        if (rawGens.Contains("2G")) present.Add("2G");
-        if (rawGens.Contains("3G")) present.Add("3G");
-        if (rawGens.Contains("4G") || rawGens.Contains("LTE")) present.Add("4G");
-        if (rawGens.Contains("5G")) present.Add("5G");
-        
-        return present;
+        // Process barangays individually with database-side spatial queries
+        // This leverages spatial indexes optimally and avoids loading millions into memory
+        const int batchSize = 50; // Smaller batches for better progress tracking
+        var barangayBatches = barangays.Chunk(batchSize);
+        int processedCount = 0;
+
+        foreach (var batch in barangayBatches)
+        {
+            foreach (var barangay in batch)
+            {
+                if (barangay.Boundaries != null)
+                {
+                    var speedtestQuery = _speedtestRepository.QueryAsNoTracking(
+                        s => s.Location != null 
+                         && barangay.Boundaries.Contains(s.Location)
+                         && s.ServiceProvider.Service.Type == ServiceTypeEnum.Wireless)
+                        .Select(s => new SpeedtestInfo
+                        {
+                            ProviderName = s.ServiceProvider.Provider.Name,
+                            UploadSpeed = s.UploadSpeed,
+                            DownloadSpeed = s.DownloadSpeed,
+                            Location = s.Location,
+                            GenerationName = s.Generation != null ? s.Generation.Name : ""
+                        });
+                    
+                    var speedtests = await _speedtestRepository.ToListAsync(speedtestQuery, cancellationToken);
+
+                    result[barangay.Id] = speedtests;
+                }
+                else
+                {
+                    result[barangay.Id] = new List<SpeedtestInfo>();
+                }
+            }
+
+            processedCount += batch.Length;
+            if (processedCount % 500 == 0)
+            {
+                _logger.LogInformation("Loaded speedtests for {Processed}/{Total} barangays", 
+                    processedCount, barangays.Count);
+            }
+        }
+
+        return result;
     }
 
     private bool HasGeneration(ProviderWirelessStatsDto stats, string generation)
@@ -622,19 +728,11 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         };
     }
 
-    private class CellularInfo
-    {
-        public string ProviderName { get; set; } = string.Empty;
-        public string GenerationName { get; set; } = string.Empty;
-    }
+    // ===== Private DTOs for data aggregation =====
 
-    private class CellularLocationInfo
-    {
-        public string ProviderName { get; set; } = string.Empty;
-        public string GenerationName { get; set; } = string.Empty;
-        public NetTopologySuite.Geometries.Point? Location { get; set; }
-    }
-
+    /// <summary>
+    /// Speedtest information with location for spatial filtering
+    /// </summary>
     private class SpeedtestInfo
     {
         public string ProviderName { get; set; } = string.Empty;
@@ -642,5 +740,16 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         public decimal DownloadSpeed { get; set; }
         public NetTopologySuite.Geometries.Point? Location { get; set; }
         public string GenerationName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Projection DTO for barangay data to avoid navigational property loading and boundary materialization
+    /// </summary>
+    private class BarangayProjection
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string MunicipalityName { get; set; } = string.Empty;
+        public NetTopologySuite.Geometries.MultiPolygon? Boundaries { get; set; }
     }
 }
