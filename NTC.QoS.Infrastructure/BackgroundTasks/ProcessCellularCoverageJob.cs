@@ -21,6 +21,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
     private readonly IBlobStorageService _blobStorageService;
     private readonly ICellularCoverageMappingService _mappingService;
     private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IBackgroundJobService _backgroundJobService;
 
     public ProcessCellularCoverageJob(
         ILogger<ProcessCellularCoverageJob> logger,
@@ -30,7 +31,8 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         IRepository<Domain.Entities.CellularCoverage> cellularCoverageRepository,
         IBlobStorageService blobStorageService,
         ICellularCoverageMappingService mappingService,
-        IMunicipalityRepository municipalityRepository
+        IMunicipalityRepository municipalityRepository,
+        IBackgroundJobService backgroundJobService
         )
     {
         _logger = logger;
@@ -41,6 +43,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         _blobStorageService = blobStorageService;
         _mappingService = mappingService;
         _municipalityRepository = municipalityRepository;
+        _backgroundJobService = backgroundJobService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -420,6 +423,9 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.CellularCoverage, token);
+
+                // Trigger connectivity assessment generation upon successful processing
+                _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, token));
 
                 _logger.LogInformation("File processing completed successfully.");
             }

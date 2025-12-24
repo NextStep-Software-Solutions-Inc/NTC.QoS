@@ -31,6 +31,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IUserContextService _userContextService;
+    private readonly IBackgroundJobService _backgroundJobService;
 
     // Batch processing configuration
     private const int BATCH_SIZE = 500; // Process 500 cell records per batch
@@ -55,7 +56,8 @@ public class ProcessCellJob : IProcessCellJob
         IMunicipalityRepository municipalityRepository,
         IRepository<Domain.Entities.SystemType> systemTypeRepository,
         IBlobStorageService blobStorageService,
-        IUserContextService userContextService
+        IUserContextService userContextService,
+        IBackgroundJobService backgroundJobService
         )
     {
         _logger = logger;
@@ -72,6 +74,7 @@ public class ProcessCellJob : IProcessCellJob
         _systemTypeRepository = systemTypeRepository;
         _blobStorageService = blobStorageService;
         _userContextService = userContextService;
+        _backgroundJobService = backgroundJobService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -792,6 +795,12 @@ public class ProcessCellJob : IProcessCellJob
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Trigger connectivity assessment generation upon successful processing
+        if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
+        {
+            _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, token));
+        }
 
         _logger.LogInformation("Processing completed successfully.");
     }

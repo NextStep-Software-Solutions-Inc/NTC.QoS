@@ -37,6 +37,9 @@ internal static class BackgroundJobServiceExtensions
         services.AddTransient<IProcessConnectivityGapReportJob, ProcessConnectivityGapReportJob>();
         services.AddTransient<IProcessConnectivityReportJob, ProcessConnectivityReportJob>();
         
+        // New job for triggering assessment generation
+        services.AddTransient<IGenerateConnectivityAssessmentJob, GenerateConnectivityAssessmentJob>();
+        
         // Scheduled job wrapper with date validation
         services.AddTransient<IScheduledConnectivityAssessmentJob, ScheduledConnectivityAssessmentJob>();
 
