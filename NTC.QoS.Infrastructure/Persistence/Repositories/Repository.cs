@@ -8,6 +8,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Infrastructure.Exceptions;
 using System.Linq.Expressions;
+using Microsoft.Extensions.Logging;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -91,8 +92,27 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        try { await _context.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateException ex) { throw DatabaseExceptionHandler.HandleForeignKeyConstraintViolation(ex); }
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            // Attempt to resolve a logger from the DbContext's service provider for better diagnostics
+            try
+            {
+                var logger = _context.GetService<ILogger<Repository<TEntity>>>();
+                var baseEx = ex.GetBaseException();
+                logger?.LogError(ex, "Error saving changes for {EntityType}: {Message}", typeof(TEntity).Name, baseEx.Message);
+            }
+            catch
+            {
+                // Swallow logging resolution errors to avoid masking the original DB exception
+            }
+
+            // Preserve the original exception as inner exception when mapping FK violations
+            throw DatabaseExceptionHandler.HandleForeignKeyConstraintViolation(ex);
+        }
     }
 
     public async Task<TResult?> FirstOrDefaultAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default)

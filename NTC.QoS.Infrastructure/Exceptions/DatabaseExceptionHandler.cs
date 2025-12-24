@@ -12,7 +12,8 @@ public static class DatabaseExceptionHandler
                 ? $"{char.ToUpper(postgresException.MessageText[0])}{postgresException.MessageText.Substring(1)}"
                 : "One or more related entities do not exist.";
 
-            return new Exception(errorMessage);
+            // Preserve the original exception as the inner exception so callers/logs can inspect full details
+            return new Exception(errorMessage, ex);
         }
 
         return ex; // Return the original exception for other cases

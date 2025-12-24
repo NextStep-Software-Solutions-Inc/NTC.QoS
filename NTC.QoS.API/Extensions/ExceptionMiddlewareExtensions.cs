@@ -17,19 +17,30 @@ public static class ExceptionMiddlewareExtensions
                 var contextFeature = context.Features.Get<IExceptionHandlerFeature>();
                 if (contextFeature != null)
                 {
-                    logger.LogError("Something went wrong: {Error}", contextFeature.Error);
+                    // Generate a correlation id to help trace logs for this error
+                    var correlationId = Guid.NewGuid().ToString();
+                    // Log full exception including stack trace and correlation id
+                    logger.LogError(contextFeature.Error, "Unhandled exception (CorrelationId={CorrelationId})", correlationId);
+
+                    // Determine environment to decide whether to expose exception details
+                    var env = context.RequestServices.GetService<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
+
+                    var errors = new Dictionary<string, string[]>();
+                    // Always return correlation id to client so support can match logs
+                    errors.Add("correlationId", new[] { correlationId });
+
+                    // In development only, include the exception message for easier debugging
+                    if (env != null && env.IsDevelopment())
+                    {
+                        errors.Add("exception", new[] { contextFeature.Error.Message });
+                    }
 
                     var errorResponse = new ApiResponse<string>()
                     {
                         Data = null,
                         Message = "Internal Server Error. Please contact support.",
                         Succeeded = false,
-                        Errors = new Dictionary<string, string[]>
-                        {
-                            {
-                                "exception", [ contextFeature.Error.Message ]
-                            }
-                        }
+                        Errors = errors
                     };
 
                     var jsonOptions = new JsonSerializerOptions
