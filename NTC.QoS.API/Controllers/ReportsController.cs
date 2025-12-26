@@ -145,7 +145,7 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Get status of wireless broadband report background job
     /// </summary>
-    [HttpGet("wireless-broadband-scored/status/{jobId}")]
+    [HttpGet("wireless-broadband-scored/{jobId}/status")]
     [RequirePermission(Permissions.ViewReports)]
     public ActionResult<ApiResponse<WirelessBroadbandReportJobStatusDto>> GetWirelessBroadbandReportJobStatus(string jobId)
     {
@@ -171,7 +171,7 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Download completed wireless broadband report
     /// </summary>
-    [HttpGet("wireless-broadband-scored/download/{jobId}")]
+    [HttpGet("wireless-broadband-scored/{jobId}/download")]
     [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadWirelessBroadbandReport(string jobId)
     {

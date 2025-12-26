@@ -560,8 +560,8 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                                     }
                                     table.Cell().Element(CellStyle).Text(stats.TechUsed);
                                     
-                                    table.Cell().Element(CellStyle).Text(stats.UploadSpeedMbps.HasValue ? Math.Round(stats.UploadSpeedMbps.Value, 1).ToString() : "-");
-                                    table.Cell().Element(CellStyle).Text(stats.DownloadSpeedMbps.HasValue ? Math.Round(stats.DownloadSpeedMbps.Value, 1).ToString() : "-");
+                                    table.Cell().Element(CellStyle).Text(stats.UploadSpeedMbps.HasValue ? Math.Round(stats.UploadSpeedMbps.Value, 1).ToString() : "");
+                                    table.Cell().Element(CellStyle).Text(stats.DownloadSpeedMbps.HasValue ? Math.Round(stats.DownloadSpeedMbps.Value, 1).ToString() : "");
                                 }
                             }
                         }
