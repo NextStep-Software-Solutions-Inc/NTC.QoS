@@ -6,11 +6,23 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace NTC.QoS.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class AddReportTemplates : Migration
+    public partial class AddWirelessCoverageToConnectivityAssessment : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "WirelessCoverageJson",
+                table: "ConnectivityAssessments",
+                type: "text",
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTime>(
+                name: "WirelessCoverageLastUpdated",
+                table: "ConnectivityAssessments",
+                type: "timestamp with time zone",
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "ReportTemplates",
                 columns: table => new
@@ -39,6 +51,14 @@ namespace NTC.QoS.Infrastructure.Migrations
         {
             migrationBuilder.DropTable(
                 name: "ReportTemplates");
+
+            migrationBuilder.DropColumn(
+                name: "WirelessCoverageJson",
+                table: "ConnectivityAssessments");
+
+            migrationBuilder.DropColumn(
+                name: "WirelessCoverageLastUpdated",
+                table: "ConnectivityAssessments");
         }
     }
 }

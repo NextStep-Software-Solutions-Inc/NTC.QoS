@@ -136,6 +136,20 @@ public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
     /// </summary>
     public double? ProvidersPerThousandPeople { get; set; }
 
+    // Wireless Coverage Cache (Pre-computed for Report Performance)
+    /// <summary>
+    /// Pre-computed wireless coverage data stored as JSON.
+    /// Contains BarangayWirelessSummaryDto with provider-level technology breakdown.
+    /// Used to optimize wireless broadband report generation.
+    /// </summary>
+    public string? WirelessCoverageJson { get; set; }
+
+    /// <summary>
+    /// Timestamp when wireless coverage data was last computed and cached.
+    /// Null if wireless coverage has never been computed for this location.
+    /// </summary>
+    public DateTime? WirelessCoverageLastUpdated { get; set; }
+
     // Additional Metrics
     public string? Notes { get; set; }
     public bool HasReliableConnectivity { get; set; }

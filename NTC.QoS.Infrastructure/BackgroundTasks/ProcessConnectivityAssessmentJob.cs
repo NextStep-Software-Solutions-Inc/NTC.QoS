@@ -42,6 +42,7 @@
 // =============================================================================
 
 using Hangfire;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
@@ -52,6 +53,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using NTC.QoS.Infrastructure.Helper;
+using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -131,6 +133,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private readonly IWiFiHotspotRepository _wifiRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IWirelessValidationRepository _wirelessValidationRepository;
+    private readonly IWirelessCoverageComputationService _wirelessCoverageService;
 
     // Store the current user ID for the job execution
     private string _currentUserId = "System";
@@ -163,7 +166,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         INAPRepository napRepository,
         IWiFiHotspotRepository wifiRepository,
         ISpeedtestRepository speedtestRepository,
-        IWirelessValidationRepository wirelessValidationRepository)
+        IWirelessValidationRepository wirelessValidationRepository,
+        IWirelessCoverageComputationService wirelessCoverageService)
     {
         _logger = logger;
         _connectivityRepository = connectivityRepository;
@@ -179,6 +183,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _wifiRepository = wifiRepository;
         _speedtestRepository = speedtestRepository;
         _wirelessValidationRepository = wirelessValidationRepository;
+        _wirelessCoverageService = wirelessCoverageService;
     }
 
     /// <summary>
@@ -446,6 +451,74 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 // Accumulate batch data before saving
                 var batchAssessments = new List<(ConnectivityAssessment Assessment, List<ConnectivityAssessmentProvider> Providers, string LocationName, Guid LocationId)>();
                 
+                // OPTIMIZED: Pre-compute wireless coverage for all barangays in this batch using bulk queries
+                Dictionary<Guid, string>? wirelessCoverageData = null;
+                if (locationType == LocationTypeEnum.Barangay)
+                {
+                    try
+                    {
+                        _logger.LogInformation("Job {JobId}: Pre-computing wireless coverage for batch of {Count} barangays...", 
+                            jobId, batch.Count);
+                        
+                        var wirelessStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                        
+                        // Get barangay boundaries for batch processing
+                        var barangayProjections = new List<Services.BarangayProjection>();
+                        foreach (var loc in batch)
+                        {
+                            var barangay = await _barangayRepository.Query()
+                                .Where(b => b.Id == loc.Id)
+                                .FirstOrDefaultAsync(cancellationToken);
+                            if (barangay != null && barangay.Boundaries != null)
+                            {
+                                barangayProjections.Add(new Services.BarangayProjection
+                                {
+                                    Id = barangay.Id,
+                                    PSGCCode = barangay.Code,
+                                    Boundaries = barangay.Boundaries
+                                });
+                            }
+                        }
+                        
+                        // Get region boundary for bulk query (use envelope of all barangay boundaries)
+                        Geometry? regionBoundary = null;
+                        if (barangayProjections.Any())
+                        {
+                            var allBoundaries = barangayProjections
+                                .Where(b => b.Boundaries != null)
+                                .Select(b => b.Boundaries!)
+                                .ToList();
+                            
+                            if (allBoundaries.Any())
+                            {
+                                // Create envelope from all barangay boundaries
+                                var factory = allBoundaries.First().Factory;
+                                var envelopes = allBoundaries.Select(b => b.EnvelopeInternal).ToArray();
+                                var combinedEnvelope = new NetTopologySuite.Geometries.Envelope();
+                                foreach (var env in envelopes)
+                                {
+                                    combinedEnvelope.ExpandToInclude(env);
+                                }
+                                regionBoundary = factory.ToGeometry(combinedEnvelope);
+                            }
+                        }
+                        
+                        // Compute wireless coverage for all barangays in batch
+                        wirelessCoverageData = await _wirelessCoverageService.ComputeBatchWirelessCoverageAsync(
+                            barangayProjections, regionBoundary, cancellationToken);
+                        
+                        wirelessStopwatch.Stop();
+                        _logger.LogInformation(
+                            "Job {JobId}: Pre-computed wireless coverage for {Count} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
+                            jobId, wirelessCoverageData.Count, wirelessStopwatch.ElapsedMilliseconds,
+                            wirelessCoverageData.Count > 0 ? wirelessStopwatch.ElapsedMilliseconds / wirelessCoverageData.Count : 0);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Job {JobId}: Failed to pre-compute batch wireless coverage, will skip wireless data for this batch", jobId);
+                    }
+                }
+                
                 // Process batch and accumulate changes
                 foreach (var location in batch)
                 {
@@ -459,6 +532,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                             existingAssessments,
                             startDate,
                             endDate,
+                            wirelessCoverageData, // Pass pre-computed wireless coverage data
                             cancellationToken);
                         
                         if (result != null)
@@ -716,6 +790,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         Dictionary<(Guid, LocationTypeEnum), ConnectivityAssessment> existingAssessments,
         DateTime? startDate,
         DateTime? endDate,
+        Dictionary<Guid, string>? wirelessCoverageData,
         CancellationToken cancellationToken)
     {
         try
@@ -751,7 +826,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             _logger.LogDebug("Generating new assessment for {LocationType} {LocationId} (existing: {HasExisting}, force: {ForceRecalculate})",
                locationType, locationId, existing != null, forceRecalculate);
 
-            var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, startDate, endDate, cancellationToken);
+            var newAssessmentData = await GenerateNewAssessment(locationId, locationType, forceRecalculate, startDate, endDate, wirelessCoverageData, cancellationToken);
 
             // Get location details to retrieve boundary for infrastructure calculation
             var (_, boundary, center, areaKm2, _, _) = await GetLocationDetailsAsync(locationId, locationType, cancellationToken);
@@ -912,6 +987,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         bool forceRecalculate,
         DateTime? startDate,
         DateTime? endDate,
+        Dictionary<Guid, string>? wirelessCoverageData,
         CancellationToken cancellationToken)
     {
         try
@@ -975,6 +1051,18 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Calculate coverage statistics to be saved
             var coverage = CalculatePopulationAwareCoverage(infrastructureStats, areaKm2, population, householdCount, hasReliableConnectivity);
 
+            // OPTIMIZED: Use pre-computed wireless coverage data for barangays (from batch computation)
+            string? wirelessCoverageJson = null;
+            DateTime? wirelessCoverageLastUpdated = null;
+            
+            if (locationType == LocationTypeEnum.Barangay && wirelessCoverageData != null && wirelessCoverageData.TryGetValue(locationId, out var preComputedJson))
+            {
+                // Use pre-computed wireless coverage from batch operation
+                wirelessCoverageJson = preComputedJson;
+                wirelessCoverageLastUpdated = DateTime.UtcNow;
+                _logger.LogDebug("Using pre-computed wireless coverage for barangay {BarangayId}", locationId);
+            }
+
             return new()
             {
                 LocationId = locationId,
@@ -1013,7 +1101,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 EstimatedPopulationCoveragePercent = coverage.EstimatedPopulationCoveragePercent,
                 EstimatedHouseholdCoveragePercent = coverage.EstimatedHouseholdCoveragePercent,
                 AssetsPerThousandPeople = coverage.AssetsPerThousandPeople,
-                ProvidersPerThousandPeople = coverage.ProvidersPerThousandPeople
+                ProvidersPerThousandPeople = coverage.ProvidersPerThousandPeople,
+                WirelessCoverageJson = wirelessCoverageJson,
+                WirelessCoverageLastUpdated = wirelessCoverageLastUpdated
             };
         }
         catch (Exception ex)
@@ -2435,6 +2525,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// <summary>
     /// Calculate Internet Access Score (0-3 points) - CMTS Criterion 2
     /// Evaluates internet availability, speed, and reliability per CMTS rubric
+    /// Uses MEDIAN download speed (more resistant to outliers)
     /// </summary>
     private static int CalculateInternetAccessScore(SpeedStatsDto? speedStats)
     {
@@ -2461,21 +2552,22 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         var isUnreliable = speedVariability > 0.3m; // >30% variance = unreliable
 
         // SERVED (3 points): Stable internet meeting/exceeding national broadband standards
-        // Criteria: ?25 Mbps AND reliable (low variability)
-        if (avgDownloadSpeed >= 25 && !isUnreliable)
+        // Criteria: ≥25 Mbps AND reliable (low variability)
+        // Use MEDIAN speed as it's more resistant to outliers
+        if (medianDownloadSpeed >= 25 && !isUnreliable)
         {
             return 3; // Served - Stable internet meeting or exceeding standards (25+ Mbps)
         }
 
         // UNDERSERVED (2 points): Internet available but slow, unreliable, or below standards
-        // Case 1: Speed ?25 Mbps but unreliable
-        if (avgDownloadSpeed >= 25 && isUnreliable)
+        // Case 1: Speed ≥25 Mbps but unreliable
+        if (medianDownloadSpeed >= 25 && isUnreliable)
         {
             return 2; // Underserved - Available but unreliable
         }
 
         // Case 2: Speed between 10-25 Mbps (below standards but functional)
-        if (avgDownloadSpeed >= 10 && avgDownloadSpeed < 25)
+        if (medianDownloadSpeed >= 10 && medianDownloadSpeed < 25)
         {
             return 2; // Underserved - Available but below national broadband standards
         }
