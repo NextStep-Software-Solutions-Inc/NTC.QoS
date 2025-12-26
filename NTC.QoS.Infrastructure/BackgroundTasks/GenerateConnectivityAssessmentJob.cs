@@ -58,7 +58,7 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
         // Create request for assessment generation
         var request = new ConnectivityAssessmentJobRequestDto
         {
-            // Regenerate assessments for the file's region and its children, or all if no region
+            // Regenerate assessments for the file's region only for dashboard display purposes
             RegionIds = file.RegionId.HasValue ? [file.RegionId.Value] : null,
             GenerateHierarchicalAssessments = false,
             HierarchicalDepth = 0,
