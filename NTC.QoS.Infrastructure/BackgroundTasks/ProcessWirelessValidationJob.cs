@@ -23,7 +23,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           IWirelessValidationRepository wirelessValidationRepository,
                                           IBlobStorageService blobStorageService,
                                           IUserContextService userContextService,
-                                          IBackgroundJobService backgroundJobService
+                                          IBackgroundJobService backgroundJobService,
+                                          IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
                                           ) : IProcessWirelessValidationJob
 {
     private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
@@ -45,6 +46,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private readonly IWirelessValidationRepository _wirelessValidationRepository = wirelessValidationRepository;
     private readonly IBlobStorageService _blobStorageService = blobStorageService;
     private readonly IUserContextService _userContextService = userContextService;
+    private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -737,7 +739,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
         {
-            _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, token));
+            _logger.LogInformation("Wireless validation processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
+            await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
         }
 
         _logger.LogInformation("Processing completed successfully.");

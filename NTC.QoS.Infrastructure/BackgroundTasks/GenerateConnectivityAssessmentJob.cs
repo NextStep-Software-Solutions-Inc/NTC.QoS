@@ -40,8 +40,12 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
             return;
         }
 
-        // Check if assessment already generated for this file (idempotency)
-        // For now, assume we can regenerate or check a flag
+        // Check if assessment already triggered for this file (idempotency)
+        if (!string.IsNullOrEmpty(file.AssessmentJobId))
+        {
+            _logger.LogInformation("Assessment generation already triggered for file {FileId} with job ID {JobId}, skipping duplicate trigger", fileId, file.AssessmentJobId);
+            return;
+        }
 
         // Determine if this file type should trigger assessment generation
         var relevantTypes = new[] { NTC.QoS.Domain.Enums.FileTypeEnum.NAP, NTC.QoS.Domain.Enums.FileTypeEnum.Cell, NTC.QoS.Domain.Enums.FileTypeEnum.Speedtest, NTC.QoS.Domain.Enums.FileTypeEnum.WirelessValidation, NTC.QoS.Domain.Enums.FileTypeEnum.CellularCoverage };
@@ -56,15 +60,20 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
         {
             // Regenerate assessments for the file's region and its children, or all if no region
             RegionIds = file.RegionId.HasValue ? [file.RegionId.Value] : null,
-            GenerateHierarchicalAssessments = true,
-            HierarchicalDepth = 3,
+            GenerateHierarchicalAssessments = false,
+            HierarchicalDepth = 0,
             ForceRecalculate = true, // Since new data may change existing assessments
             JobId = Guid.NewGuid().ToString()
         };
 
+        // Store the assessment job ID in the file record for status tracking
+        file.AssessmentJobId = request.JobId;
+        _fileRepository.Update(file);
+        await _fileRepository.SaveChangesAsync(cancellationToken);
+
         // Enqueue the existing assessment job
         _backgroundJobService.Enqueue<IProcessConnectivityAssessmentJob>(job => job.ExecuteAsync(request, cancellationToken));
 
-        _logger.LogInformation("Enqueued connectivity assessment generation for file {FileId}", fileId);
+        _logger.LogInformation("Enqueued connectivity assessment generation for file {FileId} with job ID {JobId}", fileId, request.JobId);
     }
 }

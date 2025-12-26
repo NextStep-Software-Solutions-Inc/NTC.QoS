@@ -32,6 +32,7 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IBlobStorageService _blobStorageService;
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
+    private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
 
     // Batch processing configuration
     private const int BATCH_SIZE = 500; // Process 500 cell records per batch
@@ -57,7 +58,8 @@ public class ProcessCellJob : IProcessCellJob
         IRepository<Domain.Entities.SystemType> systemTypeRepository,
         IBlobStorageService blobStorageService,
         IUserContextService userContextService,
-        IBackgroundJobService backgroundJobService
+        IBackgroundJobService backgroundJobService,
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
         )
     {
         _logger = logger;
@@ -75,6 +77,7 @@ public class ProcessCellJob : IProcessCellJob
         _blobStorageService = blobStorageService;
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
+        _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -795,6 +798,13 @@ public class ProcessCellJob : IProcessCellJob
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Trigger connectivity assessment generation for the processed file
+        if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
+        {
+            _logger.LogInformation("File processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
+            await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
+        }
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
