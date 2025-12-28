@@ -670,6 +670,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOperators("vector_cosine_ops")
             .HasDatabaseName("IX_GeneratedReport_Embedding");
 
+        // BarangayCoverage unique constraint - one coverage record per barangay
+        modelBuilder.Entity<BarangayCoverage>()
+            .HasIndex(bc => bc.BarangayId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<BarangayCoverage>()
+            .HasOne(bc => bc.Barangay)
+            .WithMany()
+            .HasForeignKey(bc => bc.BarangayId);
+
         base.OnModelCreating(modelBuilder);
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -17,8 +17,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     BarangayId = table.Column<Guid>(type: "uuid", nullable: false),
-                    WiredFtthPercentage = table.Column<decimal>(type: "numeric(5,2)", nullable: false),
-                    WirelessPercentage = table.Column<decimal>(type: "numeric(5,2)", nullable: false),
+                    WiredFtthPercentage = table.Column<decimal>(type: "numeric", nullable: false),
+                    WirelessPercentage = table.Column<decimal>(type: "numeric", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     CreatedBy = table.Column<string>(type: "text", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -42,7 +42,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                 name: "IX_BarangayCoverages_BarangayId",
                 table: "BarangayCoverages",
                 column: "BarangayId",
-                unique: true);
+                unique: true,
+                filter: "\"IsDeleted\" = FALSE");
         }
 
         /// <inheritdoc />
