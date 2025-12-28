@@ -39,6 +39,42 @@ public class BarangayWirelessCoverageDto
     public int Count5G { get; set; }
 
     /// <summary>
+    /// Total count of unique technologies (Count2G + Count3G + Count4G + Count5G)
+    /// Matches TechnologyBandBreakdownDto.TotalTechnologyCount for scoring compatibility
+    /// </summary>
+    public int TotalTechnologyCount { get; set; }
+
+    /// <summary>
+    /// Ratio of modern tech (4G+5G) to total technologies (0.0 to 1.0)
+    /// Matches TechnologyBandBreakdownDto.ModernCoverageRatio
+    /// </summary>
+    public double ModernCoverageRatio { get; set; }
+
+    /// <summary>
+    /// Whether provider has modern coverage (4G or 5G)
+    /// Matches TechnologyBandBreakdownDto.HasModernCoverage
+    /// </summary>
+    public bool HasModernCoverage { get; set; }
+
+    /// <summary>
+    /// Whether legacy technologies (2G/3G) dominate over modern (4G/5G)
+    /// Matches TechnologyBandBreakdownDto.IsLegacyDominated
+    /// </summary>
+    public bool IsLegacyDominated { get; set; }
+
+    /// <summary>
+    /// Dominant generation based on technology count
+    /// Matches TechnologyBandBreakdownDto.DominantGeneration
+    /// </summary>
+    public string? DominantGeneration { get; set; }
+
+    /// <summary>
+    /// List of available generation names (e.g., ["4G", "5G"])
+    /// Matches TechnologyBandBreakdownDto.AvailableGenerations
+    /// </summary>
+    public List<string> AvailableGenerations { get; set; } = new();
+
+    /// <summary>
     /// Total cellular count for this provider in this barangay
     /// </summary>
     public int TotalCellularCount { get; set; }
