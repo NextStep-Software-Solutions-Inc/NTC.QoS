@@ -37,14 +37,21 @@ public class ProvincesController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewProvinces)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "regionId" })]
-    public async Task<ActionResult<PaginatedResponse<ProvinceDto>>> GetAllProvinces(int pageSize = 10, int pageNumber = 1, Guid? regionId = null)
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "regionId", "isWiredCovered", "isWirelessCovered" })]
+    public async Task<ActionResult<PaginatedResponse<ProvinceDto>>> GetAllProvinces(
+        int pageSize = 10, 
+        int pageNumber = 1, 
+        Guid? regionId = null,
+        bool? isWiredCovered = null,
+        bool? isWirelessCovered = null)
     {
         var request = new GetAllProvincesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
             RegionId = regionId,
+            IsWiredCovered = isWiredCovered,
+            IsWirelessCovered = isWirelessCovered
         };
         var provinces = await _mediator.Send(request);
         return Ok(provinces);

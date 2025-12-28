@@ -37,13 +37,15 @@ public class BarangaysController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewBarangays)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "name", "municipality", "province" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "name", "municipality", "province", "isWiredCovered", "isWirelessCovered" })]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1,
                                                                                     [FromQuery] Guid[]? municipalityIds = default,
                                                                                     string? name = default,
                                                                                     string? municipality = default,
-                                                                                    string? province = default)
+                                                                                    string? province = default,
+                                                                                    bool? isWiredCovered = default,
+                                                                                    bool? isWirelessCovered = default)
     {
         var request = new GetAllBarangaysRequest()
         {
@@ -52,7 +54,9 @@ public class BarangaysController : ControllerBase
             MunicipalityIds = municipalityIds,
             Name = name,
             Municipality = municipality,
-            Province = province
+            Province = province,
+            IsWiredCovered = isWiredCovered,
+            IsWirelessCovered = isWirelessCovered
         };
         var barangays = await _mediator.Send(request);
         return Ok(barangays);

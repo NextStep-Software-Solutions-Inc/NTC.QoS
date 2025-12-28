@@ -18,4 +18,6 @@ public class GetAllBarangaysRequest : IRequest<PaginatedResponse<BarangayDto>>
     public string? Name { get; set; }
     public string? Municipality { get; set; }
     public string? Province { get; set; }
+    public bool? IsWiredCovered { get; set; }
+    public bool? IsWirelessCovered { get; set; }
 }
