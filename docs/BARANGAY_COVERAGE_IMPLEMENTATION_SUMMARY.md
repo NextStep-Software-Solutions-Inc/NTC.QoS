@@ -128,24 +128,24 @@ This document summarizes the implementation of the Barangay Coverage Management 
 
 #### Controller
 - **File:** `Controllers/BarangayCoverageController.cs`
-- **Route:** `/api/barangay-coverage`
+- **Route:** `/barangay-coverage`
 - **Endpoints:**
 
-1. **POST /api/barangay-coverage**
+1. **POST /barangay-coverage**
    - Create new coverage
    - Permission: `barangay_coverage.create`
    - Request body: `CreateBarangayCoverageDto`
 
-2. **PATCH /api/barangay-coverage/barangay/{barangayId}**
+2. **PATCH /barangay-coverage/barangay/{barangayId}**
    - Update coverage by barangay ID
    - Permission: `barangay_coverage.update`
    - Request body: `UpdateBarangayCoverageDto`
 
-3. **GET /api/barangay-coverage/barangay/{barangayId}**
+3. **GET /barangay-coverage/barangay/{barangayId}**
    - Get coverage by barangay ID
    - Permission: `barangay_coverage.view`
 
-4. **GET /api/barangay-coverage/region/{regionId}**
+4. **GET /barangay-coverage/region/{regionId}**
    - Get all coverage for a region
    - Permission: `barangay_coverage.view`
 
@@ -304,7 +304,7 @@ dotnet ef database update --project NTC.QoS.Infrastructure --startup-project NTC
 
 ### 2. Create Coverage (API Call)
 ```bash
-POST /api/barangay-coverage
+POST /barangay-coverage
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -317,7 +317,7 @@ Content-Type: application/json
 
 ### 3. Update Coverage (API Call)
 ```bash
-PATCH /api/barangay-coverage/barangay/550e8400-e29b-41d4-a716-446655440000
+PATCH /barangay-coverage/barangay/550e8400-e29b-41d4-a716-446655440000
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -329,7 +329,7 @@ Content-Type: application/json
 
 ### 4. Get Coverage (API Call)
 ```bash
-GET /api/barangay-coverage/barangay/550e8400-e29b-41d4-a716-446655440000
+GET /barangay-coverage/barangay/550e8400-e29b-41d4-a716-446655440000
 Authorization: Bearer <token>
 ```
 
