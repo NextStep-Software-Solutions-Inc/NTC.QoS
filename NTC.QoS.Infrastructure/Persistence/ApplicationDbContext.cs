@@ -27,6 +27,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AreaStudy> AreaStudies { get; set; }
     public DbSet<Band> Bands { get; set; }
     public DbSet<Barangay> Barangays { get; set; }
+    public DbSet<BarangayCoverage> BarangayCoverages { get; set; }
     public DbSet<Cellular> Cellulars { get; set; }
     public DbSet<Domain.Entities.File> Files { get; set; }
     public DbSet<MIMO> MIMOs { get; set; }

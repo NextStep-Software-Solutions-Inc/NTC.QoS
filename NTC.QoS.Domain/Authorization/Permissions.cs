@@ -78,6 +78,11 @@ public static class Permissions
     public const string UpdateBarangays = "barangays.update";
     public const string DeleteBarangays = "barangays.delete";
 
+    // Barangay Coverage management permissions
+    public const string ViewBarangayCoverage = "barangay_coverage.view";
+    public const string CreateBarangayCoverage = "barangay_coverage.create";
+    public const string UpdateBarangayCoverage = "barangay_coverage.update";
+
     // Zone management permissions
     public const string ViewZones = "zones.view";
     public const string CreateZones = "zones.create";
