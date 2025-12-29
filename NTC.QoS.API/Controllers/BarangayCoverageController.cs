@@ -13,7 +13,7 @@ namespace NTC.QoS.API.Controllers;
 /// API endpoints for managing Barangay broadband coverage data
 /// </summary>
 [ApiController]
-[Route("barangay-coverage", Name = "barangay-coverage")]
+[Route("barangay-coverages", Name = "barangay-coverages")]
 [Authorize]
 public class BarangayCoverageController : ControllerBase
 {
@@ -49,7 +49,7 @@ public class BarangayCoverageController : ControllerBase
     /// <param name="barangayId">The ID of the barangay</param>
     /// <param name="coverageDto">Updated coverage data</param>
     /// <returns>Updated coverage data with computed fields</returns>
-    [HttpPatch("barangay/{barangayId}")]
+    [HttpPatch("barangays/{barangayId}")]
     [RequirePermission(Permissions.UpdateBarangayCoverage)]
     [ProducesResponseType(typeof(ApiResponse<BarangayCoverageDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<BarangayCoverageDto>), StatusCodes.Status400BadRequest)]
@@ -69,7 +69,7 @@ public class BarangayCoverageController : ControllerBase
     /// </summary>
     /// <param name="barangayId">The ID of the barangay</param>
     /// <returns>Coverage data with computed fields</returns>
-    [HttpGet("barangay/{barangayId}")]
+    [HttpGet("barangays/{barangayId}")]
     [RequirePermission(Permissions.ViewBarangayCoverage)]
     [ProducesResponseType(typeof(ApiResponse<BarangayCoverageDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<BarangayCoverageDto>), StatusCodes.Status400BadRequest)]
@@ -88,7 +88,7 @@ public class BarangayCoverageController : ControllerBase
     /// </summary>
     /// <param name="regionId">The ID of the region</param>
     /// <returns>List of coverage data for all barangays in the region</returns>
-    [HttpGet("region/{regionId}")]
+    [HttpGet("regions/{regionId}")]
     [RequirePermission(Permissions.ViewBarangayCoverage)]
     [ProducesResponseType(typeof(ApiResponse<List<BarangayCoverageDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<List<BarangayCoverageDto>>), StatusCodes.Status400BadRequest)]
