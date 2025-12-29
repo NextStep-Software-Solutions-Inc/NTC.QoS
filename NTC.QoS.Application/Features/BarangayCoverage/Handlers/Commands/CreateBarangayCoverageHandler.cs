@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.BarangayCoverage.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -16,11 +15,11 @@ public class CreateBarangayCoverageHandler(
 
     public async Task<ApiResponse<Guid>> Handle(CreateBarangayCoverageRequest request, CancellationToken cancellationToken)
     {
-        // Validate that the barangay exists using Any
+        // Validate that the barangay exists
         var barangayQuery = _barangayRepository.Query(b => b.Id == request.Coverage.BarangayId);
-        var barangayExists = await barangayQuery.AnyAsync(cancellationToken);
+        var barangay = await _barangayRepository.FirstOrDefaultAsync(barangayQuery, cancellationToken);
         
-        if (!barangayExists)
+        if (barangay is null)
         {
             return new ApiResponse<Guid>
             {
@@ -29,11 +28,11 @@ public class CreateBarangayCoverageHandler(
             };
         }
 
-        // Check if coverage already exists for this barangay using Any
+        // Check if coverage already exists for this barangay
         var existingCoverageQuery = _barangayCoverageRepository.Query(bc => bc.BarangayId == request.Coverage.BarangayId);
-        var coverageExists = await existingCoverageQuery.AnyAsync(cancellationToken);
+        var existingCoverage = await _barangayCoverageRepository.FirstOrDefaultAsync(existingCoverageQuery, cancellationToken);
         
-        if (coverageExists)
+        if (existingCoverage is not null)
         {
             return new ApiResponse<Guid>
             {
