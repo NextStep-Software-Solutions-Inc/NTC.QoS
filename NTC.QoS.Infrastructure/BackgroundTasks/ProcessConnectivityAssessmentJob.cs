@@ -452,13 +452,15 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 var batchAssessments = new List<(ConnectivityAssessment Assessment, List<ConnectivityAssessmentProvider> Providers, string LocationName, Guid LocationId)>();
                 
                 // OPTIMIZED: Pre-compute wireless coverage for all barangays in this batch using bulk queries
+                // ALWAYS recompute when forceRecalculate is true to ensure fresh wireless data
                 Dictionary<Guid, string>? wirelessCoverageData = null;
                 if (locationType == LocationTypeEnum.Barangay)
                 {
                     try
                     {
-                        _logger.LogInformation("Job {JobId}: Pre-computing wireless coverage for batch of {Count} barangays...", 
-                            jobId, batch.Count);
+                        _logger.LogInformation(
+                            "Job {JobId}: Pre-computing wireless coverage for batch of {Count} barangays (ForceRecalculate: {Force})...", 
+                            jobId, batch.Count, forceRecalculate);
                         
                         var wirelessStopwatch = System.Diagnostics.Stopwatch.StartNew();
                         
@@ -509,13 +511,17 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         
                         wirelessStopwatch.Stop();
                         _logger.LogInformation(
-                            "Job {JobId}: Pre-computed wireless coverage for {Count} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
+                            "Job {JobId}: Pre-computed wireless coverage for {Count} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay). " +
+                            "ForceRecalculate: {Force}. Individual fallback will be used if batch data is incomplete.",
                             jobId, wirelessCoverageData.Count, wirelessStopwatch.ElapsedMilliseconds,
-                            wirelessCoverageData.Count > 0 ? wirelessStopwatch.ElapsedMilliseconds / wirelessCoverageData.Count : 0);
+                            wirelessCoverageData.Count > 0 ? wirelessStopwatch.ElapsedMilliseconds / wirelessCoverageData.Count : 0,
+                            forceRecalculate);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Job {JobId}: Failed to pre-compute batch wireless coverage, will skip wireless data for this batch", jobId);
+                        _logger.LogWarning(ex, 
+                            "Job {JobId}: Failed to pre-compute batch wireless coverage. Will fall back to individual computation for each barangay.", 
+                            jobId);
                     }
                 }
                 
@@ -1055,12 +1061,52 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             string? wirelessCoverageJson = null;
             DateTime? wirelessCoverageLastUpdated = null;
             
-            if (locationType == LocationTypeEnum.Barangay && wirelessCoverageData != null && wirelessCoverageData.TryGetValue(locationId, out var preComputedJson))
+            if (locationType == LocationTypeEnum.Barangay)
             {
-                // Use pre-computed wireless coverage from batch operation
-                wirelessCoverageJson = preComputedJson;
-                wirelessCoverageLastUpdated = DateTime.UtcNow;
-                _logger.LogDebug("Using pre-computed wireless coverage for barangay {BarangayId}", locationId);
+                // Try to use pre-computed batch data first
+                if (wirelessCoverageData != null && wirelessCoverageData.TryGetValue(locationId, out var preComputedJson))
+                {
+                    // Use pre-computed wireless coverage from batch operation
+                    wirelessCoverageJson = preComputedJson;
+                    wirelessCoverageLastUpdated = DateTime.UtcNow;
+                    _logger.LogDebug("Using pre-computed wireless coverage for barangay {BarangayId}", locationId);
+                }
+                else
+                {
+                    // FALLBACK: Compute individually if batch data is not available
+                    // This ensures wireless data is always computed, especially during forced recalculation
+                    _logger.LogInformation(
+                        "Batch wireless data not available for barangay {BarangayId}. Computing individually... (ForceRecalc: {Force})",
+                        locationId, forceRecalculate);
+                    
+                    try
+                    {
+                        wirelessCoverageJson = await _wirelessCoverageService.ComputeBarangayWirelessCoverageAsync(
+                            locationId, boundary, center, cancellationToken);
+                        wirelessCoverageLastUpdated = wirelessCoverageJson != null ? DateTime.UtcNow : (DateTime?)null;
+                        
+                        if (wirelessCoverageJson != null)
+                        {
+                            _logger.LogInformation(
+                                "Successfully computed individual wireless coverage for barangay {BarangayId} (size: {Size} bytes)",
+                                locationId, wirelessCoverageJson.Length);
+                        }
+                        else
+                        {
+                            _logger.LogWarning(
+                                "Wireless coverage computation returned null for barangay {BarangayId}. Check if boundary is valid.",
+                                locationId);
+                        }
+                    }
+                    catch (Exception wirelessEx)
+                    {
+                        _logger.LogError(wirelessEx,
+                            "Failed to compute individual wireless coverage for barangay {BarangayId}. Wireless data will be null.",
+                            locationId);
+                        wirelessCoverageJson = null;
+                        wirelessCoverageLastUpdated = null;
+                    }
+                }
             }
 
             return new()
@@ -3182,9 +3228,13 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             existing.HasReliableConnectivity = newData.HasReliableConnectivity;
             existing.AssessedBy = newData.AssessedBy;
             existing.Notes = newData.Notes;
+            
+            // CRITICAL: Update wireless coverage fields to persist new wireless data
+            existing.WirelessCoverageJson = newData.WirelessCoverageJson;
+            existing.WirelessCoverageLastUpdated = newData.WirelessCoverageLastUpdated;
 
-            _logger.LogDebug("Updated existing assessment for {LocationType} {LocationId}",
-                existing.LocationType, existing.LocationId);
+            _logger.LogDebug("Updated existing assessment for {LocationType} {LocationId}. WirelessCoverage updated: {HasWireless}",
+                existing.LocationType, existing.LocationId, newData.WirelessCoverageJson != null);
         }
         catch (Exception ex)
         {
