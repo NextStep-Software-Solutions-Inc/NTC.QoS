@@ -120,10 +120,11 @@ public class GenAIService : IGenAIService
         _logger.LogInformation("Processing streaming chat request with prompt length: {PromptLength}, files: {FileCount}", 
             prompt.Length, files?.Length ?? 0);
 
-        var parts = new List<Part>();
-        
-        // Add text prompt
-        parts.Add(new Part { Text = prompt });
+        var parts = new List<Part>
+        {
+            // Add text prompt
+            new() { Text = prompt }
+        };
         
         // Process file attachments
         if (files != null && files.Length > 0)
@@ -152,22 +153,15 @@ public class GenAIService : IGenAIService
         _logger.LogInformation("Processing streaming report generation request with prompt length: {PromptLength}, files: {FileCount}", 
             prompt.Length, files?.Length ?? 0);
 
-        var enhancedPrompt = $@"Generate a comprehensive, well-structured report in clean markdown format based on the following instructions and any attached files. Output ONLY the report content with proper markdown headings and sections. Do not include any conversational text, meta-commentary, or explanations about the report - just the clean report itself.
-
-{prompt}
-
-Structure the report with:
-1. An executive summary
-2. Detailed analysis based on the data provided
-3. Key findings and insights
-4. Recommendations (if applicable)
-
-Use proper markdown formatting with # for headings, ## for subheadings, - for bullet points, etc. The output should be ready for download or printing as a markdown document.";
-
-        var parts = new List<Part>();
-        
-        // Add enhanced prompt
-        parts.Add(new Part { Text = enhancedPrompt });
+        var parts = new List<Part>
+        {
+            // System instruction for report generation
+            new() { Text = "Generate a comprehensive, well-structured report in clean markdown format based on the following instructions and any attached files. Output ONLY the report content with proper markdown headings and sections. Do not include any conversational text, meta-commentary, or explanations about the report - just the clean report itself." },
+            // User prompt
+            new() { Text = prompt },
+            // Formatting instructions
+            new() { Text = "Use proper markdown formatting with # for headings, ## for subheadings, - for bullet points, etc. The output should be ready for download or printing as a markdown document." }
+        };
         
         // Process file attachments
         if (files != null && files.Length > 0)
@@ -291,7 +285,7 @@ Use proper markdown formatting with # for headings, ## for subheadings, - for bu
     /// <summary>
     /// Read file content as byte array
     /// </summary>
-    private async Task<byte[]> ReadFileAsync(FileUpload file, CancellationToken cancellationToken)
+    private static async Task<byte[]> ReadFileAsync(FileUpload file, CancellationToken cancellationToken)
     {
         using var memoryStream = new MemoryStream();
         await file.Content.CopyToAsync(memoryStream, cancellationToken);

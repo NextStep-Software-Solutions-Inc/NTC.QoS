@@ -16,12 +16,12 @@ public class GetAllBarangaysHandler(
 
     public async Task<PaginatedResponse<BarangayDto>> Handle(GetAllBarangaysRequest request, CancellationToken cancellationToken)
     {
-        var allBarangaysQuery = _barangayRepository.Query();
+        var allBarangaysQuery = _barangayRepository.QueryAsNoTracking();
 
         // Filter by coverage status if requested
         if (request.IsWiredCovered.HasValue || request.IsWirelessCovered.HasValue)
         {
-            var coverageQuery = _barangayCoverageRepository.Query();
+            var coverageQuery = _barangayCoverageRepository.QueryAsNoTracking();
             
             if (request.IsWiredCovered.HasValue)
             {
