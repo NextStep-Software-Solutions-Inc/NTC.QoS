@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.BarangayCoverage.Requests;
 using NTC.QoS.Domain.Interfaces;
 

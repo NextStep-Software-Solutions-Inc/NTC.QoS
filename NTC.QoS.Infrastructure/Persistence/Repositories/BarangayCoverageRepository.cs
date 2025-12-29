@@ -165,7 +165,11 @@ internal sealed class BarangayCoverageRepository(ApplicationDbContext context)
         List<Guid>? barangayIds = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.Set<BarangayCoverage>().AsQueryable();
+        var query = _context.Set<BarangayCoverage>()
+            .Include(bc => bc.Barangay)
+                .ThenInclude(b => b.Municipality)
+                .ThenInclude(m => m.Province)
+            .AsQueryable();
 
         // Apply filters
         if (barangayIds != null && barangayIds.Count > 0)
