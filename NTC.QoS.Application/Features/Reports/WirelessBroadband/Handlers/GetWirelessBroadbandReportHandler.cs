@@ -26,6 +26,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
     private readonly IProvinceRepository _provinceRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IBarangayRepository _barangayRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IProviderRepository _providerRepository;
     private readonly ILogger<GetWirelessBroadbandReportHandler> _logger;
@@ -37,6 +38,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         IProvinceRepository provinceRepository,
         IMunicipalityRepository municipalityRepository,
         IBarangayRepository barangayRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         ISpeedtestRepository speedtestRepository,
         IProviderRepository providerRepository,
         ILogger<GetWirelessBroadbandReportHandler> logger,
@@ -46,6 +48,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         _provinceRepository = provinceRepository;
         _municipalityRepository = municipalityRepository;
         _barangayRepository = barangayRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _speedtestRepository = speedtestRepository;
         _providerRepository = providerRepository;
         _logger = logger;
@@ -74,7 +77,13 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 reportTitleName = mun.Name;
                 targetBoundaries = mun.Boundaries;
                 
-                var barangayQuery = _barangayRepository.Query(b => b.MunicipalityId == request.MunicipalityId)
+                // Only include barangays with BarangayCoverage records
+                var coveredBarangayIds = _barangayCoverageRepository.Query()
+                    .Select(bc => bc.BarangayId);
+                
+                var barangayQuery = _barangayRepository.Query(b => 
+                        b.MunicipalityId == request.MunicipalityId && 
+                        coveredBarangayIds.Contains(b.Id))
                     .OrderBy(b => b.Name)
                     .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
                 var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
@@ -95,7 +104,13 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 reportTitleName = prov.Name;
                 targetBoundaries = prov.Boundaries;
                 
-                var barangayQuery = _barangayRepository.Query(b => b.Municipality.ProvinceId == request.ProvinceId)
+                // Only include barangays with BarangayCoverage records
+                var coveredBarangayIds = _barangayCoverageRepository.Query()
+                    .Select(bc => bc.BarangayId);
+                
+                var barangayQuery = _barangayRepository.Query(b => 
+                        b.Municipality.ProvinceId == request.ProvinceId && 
+                        coveredBarangayIds.Contains(b.Id))
                     .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
                     .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
                 var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
@@ -116,7 +131,13 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                 reportTitleName = reg.Name;
                 targetBoundaries = reg.Boundaries;
                 
-                var barangayQuery = _barangayRepository.Query(b => b.Municipality.Province.RegionId == request.RegionId)
+                // Only include barangays with BarangayCoverage records
+                var coveredBarangayIds = _barangayCoverageRepository.Query()
+                    .Select(bc => bc.BarangayId);
+                
+                var barangayQuery = _barangayRepository.Query(b => 
+                        b.Municipality.Province.RegionId == request.RegionId && 
+                        coveredBarangayIds.Contains(b.Id))
                     .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
                     .Select(b => new { b.Id, b.Name, MunicipalityName = b.Municipality.Name, b.Boundaries });
                 var barangayProjections = await _barangayRepository.ToListAsync(barangayQuery, cancellationToken);
