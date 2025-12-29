@@ -84,6 +84,25 @@ public class BarangayCoverageController : ControllerBase
     }
 
     /// <summary>
+    /// Delete coverage data for a specific barangay
+    /// </summary>
+    /// <param name="barangayId">The ID of the barangay</param>
+    /// <returns>Deletion result</returns>
+    [HttpDelete("barangays/{barangayId}")]
+    [RequirePermission(Permissions.DeleteBarangayCoverage)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCoverageByBarangayId(Guid barangayId)
+    {
+        var result = await _mediator.Send(new DeleteBarangayCoverageByBarangayIdRequest
+        {
+            BarangayId = barangayId
+        });
+
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
     /// Get all coverage data for barangays in a specific region
     /// </summary>
     /// <param name="regionId">The ID of the region</param>
