@@ -19,6 +19,7 @@ public class CreatePermissionHandler(IRepository<Domain.Entities.Permission> rep
         {
             var restoreQuery = _repository.QueryWithIgnoreQueryFilters(p => p.Id == existing.Id && p.IsDeleted);
             await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
             return new ApiResponse<PermissionDto>
             {
                 Data = new PermissionDto

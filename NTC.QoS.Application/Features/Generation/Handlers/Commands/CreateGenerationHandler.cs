@@ -20,6 +20,7 @@ public class CreateGenerationHandler(IRepository<Domain.Aggregates.Generation> r
         {
             var restoreQuery = _repository.QueryWithIgnoreQueryFilters(g => g.Id == existing.Id && g.IsDeleted);
             await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
             return new ApiResponse<GenerationDto>
             {
                 Data = new GenerationDto

@@ -19,6 +19,7 @@ public class CreateOrganizationHandler(IRepository<Domain.Entities.Organization>
         {
             var restoreQuery = _repository.QueryWithIgnoreQueryFilters(o => o.Id == existing.Id && o.IsDeleted);
             await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
             return new ApiResponse<OrganizationDto>
             {
                 Data = new OrganizationDto
