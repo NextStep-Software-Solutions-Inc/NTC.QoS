@@ -4,7 +4,7 @@
 
 This document describes the new Barangay Coverage Management API endpoints that manage broadband coverage data for individual Barangays. These endpoints allow regional admins to track wired FTTH and wireless broadband coverage percentages.
 
-**Base URL:** `/api/barangay-coverage`
+**Base URL:** `/barangay-coverage`
 
 ---
 
@@ -88,7 +88,7 @@ interface ApiResponse<T> {
 
 Creates coverage data for a barangay that doesn't have coverage tracking yet.
 
-**Endpoint:** `POST /api/barangay-coverage`
+**Endpoint:** `POST /barangay-coverage`
 
 **Permission:** `barangay_coverage.create`
 
@@ -151,7 +151,7 @@ Creates coverage data for a barangay that doesn't have coverage tracking yet.
 **TypeScript Example:**
 ```typescript
 const createCoverage = async (barangayId: string, wired: number, wireless: number) => {
-  const response = await fetch('/api/barangay-coverage', {
+  const response = await fetch('/barangay-coverage', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -175,7 +175,7 @@ const createCoverage = async (barangayId: string, wired: number, wireless: numbe
 
 Updates existing coverage data for a barangay.
 
-**Endpoint:** `PATCH /api/barangay-coverage/barangay/{barangayId}`
+**Endpoint:** `PATCH /barangay-coverage/barangay/{barangayId}`
 
 **Permission:** `barangay_coverage.update`
 
@@ -224,7 +224,7 @@ Updates existing coverage data for a barangay.
 **TypeScript Example:**
 ```typescript
 const updateCoverage = async (barangayId: string, wired: number, wireless: number) => {
-  const response = await fetch(`/api/barangay-coverage/barangay/${barangayId}`, {
+  const response = await fetch(`/barangay-coverage/barangay/${barangayId}`, {
     method: 'PATCH',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -247,7 +247,7 @@ const updateCoverage = async (barangayId: string, wired: number, wireless: numbe
 
 Retrieves coverage data for a specific barangay.
 
-**Endpoint:** `GET /api/barangay-coverage/barangay/{barangayId}`
+**Endpoint:** `GET /barangay-coverage/barangay/{barangayId}`
 
 **Permission:** `barangay_coverage.view`
 
@@ -288,7 +288,7 @@ Retrieves coverage data for a specific barangay.
 **TypeScript Example:**
 ```typescript
 const getCoverageByBarangay = async (barangayId: string) => {
-  const response = await fetch(`/api/barangay-coverage/barangay/${barangayId}`, {
+  const response = await fetch(`/barangay-coverage/barangay/${barangayId}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -305,7 +305,7 @@ const getCoverageByBarangay = async (barangayId: string) => {
 
 Retrieves all coverage data for barangays in a specific region.
 
-**Endpoint:** `GET /api/barangay-coverage/region/{regionId}`
+**Endpoint:** `GET /barangay-coverage/region/{regionId}`
 
 **Permission:** `barangay_coverage.view`
 
@@ -361,7 +361,7 @@ Retrieves all coverage data for barangays in a specific region.
 **TypeScript Example:**
 ```typescript
 const getCoverageByRegion = async (regionId: string) => {
-  const response = await fetch(`/api/barangay-coverage/region/${regionId}`, {
+  const response = await fetch(`/barangay-coverage/region/${regionId}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -473,7 +473,7 @@ interface ApiResponse<T> {
   data?: T;
 }
 
-const API_BASE_URL = '/api/barangay-coverage';
+const API_BASE_URL = '/barangay-coverage';
 
 class BarangayCoverageService {
   constructor(private token: string) {}
@@ -669,7 +669,7 @@ Import this collection to test the endpoints:
           }
         },
         "url": {
-          "raw": "{{baseUrl}}/api/barangay-coverage",
+          "raw": "{{baseUrl}}/barangay-coverage",
           "host": ["{{baseUrl}}"],
           "path": ["api", "barangay-coverage"]
         }
@@ -695,7 +695,7 @@ Import this collection to test the endpoints:
           }
         },
         "url": {
-          "raw": "{{baseUrl}}/api/barangay-coverage/barangay/{{barangayId}}",
+          "raw": "{{baseUrl}}/barangay-coverage/barangay/{{barangayId}}",
           "host": ["{{baseUrl}}"],
           "path": ["api", "barangay-coverage", "barangay", "{{barangayId}}"]
         }
@@ -712,7 +712,7 @@ Import this collection to test the endpoints:
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/api/barangay-coverage/barangay/{{barangayId}}",
+          "raw": "{{baseUrl}}/barangay-coverage/barangay/{{barangayId}}",
           "host": ["{{baseUrl}}"],
           "path": ["api", "barangay-coverage", "barangay", "{{barangayId}}"]
         }
@@ -729,7 +729,7 @@ Import this collection to test the endpoints:
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/api/barangay-coverage/region/{{regionId}}",
+          "raw": "{{baseUrl}}/barangay-coverage/region/{{regionId}}",
           "host": ["{{baseUrl}}"],
           "path": ["api", "barangay-coverage", "region", "{{regionId}}"]
         }
