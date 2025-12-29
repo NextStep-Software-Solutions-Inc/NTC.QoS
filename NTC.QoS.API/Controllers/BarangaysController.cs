@@ -37,10 +37,11 @@ public class BarangaysController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewBarangays)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "name", "municipality", "province", "isWiredCovered", "isWirelessCovered" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "regionIds", "name", "municipality", "province", "isWiredCovered", "isWirelessCovered" })]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1,
                                                                                     [FromQuery] Guid[]? municipalityIds = default,
+                                                                                    [FromQuery] Guid[]? regionIds = default,
                                                                                     string? name = default,
                                                                                     string? municipality = default,
                                                                                     string? province = default,
@@ -52,6 +53,7 @@ public class BarangaysController : ControllerBase
             PageNumber = pageNumber,
             PageSize = pageSize,
             MunicipalityIds = municipalityIds,
+            RegionIds = regionIds,
             Name = name,
             Municipality = municipality,
             Province = province,

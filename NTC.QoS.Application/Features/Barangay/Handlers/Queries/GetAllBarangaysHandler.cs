@@ -56,6 +56,11 @@ public class GetAllBarangaysHandler(
             allBarangaysQuery = allBarangaysQuery.Where(b => request.MunicipalityIds.Contains(b.MunicipalityId));
         }
 
+        if (request.RegionIds is not null && request.RegionIds.Length > 0)
+        {
+            allBarangaysQuery = allBarangaysQuery.Where(b => request.RegionIds.Contains(b.Municipality.Province.RegionId));
+        }
+
         if (!string.IsNullOrEmpty(request.Name))
         {
             allBarangaysQuery = _barangayRepository.SearchByName(allBarangaysQuery, request.Name);

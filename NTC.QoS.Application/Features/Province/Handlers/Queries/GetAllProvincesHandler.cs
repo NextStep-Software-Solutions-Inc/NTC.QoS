@@ -54,9 +54,9 @@ public class GetAllProvincesHandler(
             provincesQuery = provincesQuery.Where(p => coveredProvinceIds.Contains(p.Id));
         }
         
-        if (request.RegionId.HasValue)
+        if (request.RegionIds is not null && request.RegionIds.Length > 0)
         {
-            provincesQuery = provincesQuery.Where(p => p.RegionId == request.RegionId.Value);
+            provincesQuery = provincesQuery.Where(p => request.RegionIds.Contains(p.RegionId));
         }
 
         var provinceProjection = provincesQuery

@@ -56,6 +56,11 @@ public class GetAllMunicipalitiesHandler(
         allMunicipalities = allMunicipalities
             .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));
 
+        if (request.RegionIds is not null && request.RegionIds.Length > 0)
+        {
+            allMunicipalities = allMunicipalities.Where(m => m.Province != null && request.RegionIds.Contains(m.Province.RegionId));
+        }
+
         var municipalityDtos = allMunicipalities.OrderBy(m => m.Name).Select(m => new MunicipalityDto
         {
             Id = m.Id,

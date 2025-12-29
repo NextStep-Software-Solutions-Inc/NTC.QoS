@@ -15,6 +15,7 @@ public class GetAllMunicipalitiesRequest : IRequest<PaginatedResponse<Municipali
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
     public Guid? ProvinceId { get; set; }
+    public Guid[]? RegionIds { get; set; }
     public bool? IsWiredCovered { get; set; }
     public bool? IsWirelessCovered { get; set; }
 }

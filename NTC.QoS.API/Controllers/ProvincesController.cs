@@ -37,11 +37,11 @@ public class ProvincesController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewProvinces)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "regionId", "isWiredCovered", "isWirelessCovered" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "regionIds", "isWiredCovered", "isWirelessCovered" })]
     public async Task<ActionResult<PaginatedResponse<ProvinceDto>>> GetAllProvinces(
         int pageSize = 10, 
         int pageNumber = 1, 
-        Guid? regionId = null,
+        [FromQuery] Guid[]? regionIds = null,
         bool? isWiredCovered = null,
         bool? isWirelessCovered = null)
     {
@@ -49,7 +49,7 @@ public class ProvincesController : ControllerBase
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
-            RegionId = regionId,
+            RegionIds = regionIds,
             IsWiredCovered = isWiredCovered,
             IsWirelessCovered = isWirelessCovered
         };
