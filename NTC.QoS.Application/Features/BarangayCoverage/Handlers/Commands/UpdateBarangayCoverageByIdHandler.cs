@@ -13,16 +13,8 @@ public class UpdateBarangayCoverageByIdHandler(
 
     public async Task<Unit> Handle(UpdateBarangayCoverageByIdRequest request, CancellationToken cancellationToken)
     {
-        // Check if coverage exists using Any
-        var coverageQuery = _barangayCoverageRepository.Query(bc => bc.Id == request.Id);
-        var exists = await coverageQuery.AnyAsync(cancellationToken);
-        
-        if (!exists)
-        {
-            throw new KeyNotFoundException($"Coverage data with ID {request.Id} not found.");
-        }
-
         // Get the existing coverage to update
+        var coverageQuery = _barangayCoverageRepository.Query(bc => bc.Id == request.Id);
         var existingCoverage = await _barangayCoverageRepository.FirstOrDefaultAsync(coverageQuery, cancellationToken);
         
         if (existingCoverage is null)
