@@ -10,20 +10,99 @@ internal sealed class BarangayCoverageRepository(ApplicationDbContext context)
     public async Task<BarangayCoverage?> GetByBarangayIdAsync(Guid barangayId, CancellationToken cancellationToken = default)
     {
         return await _context.Set<BarangayCoverage>()
-            .Include(bc => bc.Barangay)
-                .ThenInclude(b => b.Municipality)
-                    .ThenInclude(m => m.Province)
-                        .ThenInclude(p => p.Region)
+            .Include(bc => bc.Barangay.Municipality.Province.Region)
+            .AsSplitQuery()
+            .Select(bc => new BarangayCoverage
+            {
+                Id = bc.Id,
+                BarangayId = bc.BarangayId,
+                WiredFtthPercentage = bc.WiredFtthPercentage,
+                WirelessPercentage = bc.WirelessPercentage,
+                CreatedAt = bc.CreatedAt,
+                CreatedBy = bc.CreatedBy,
+                UpdatedAt = bc.UpdatedAt,
+                UpdatedBy = bc.UpdatedBy,
+                Barangay = new Barangay
+                {
+                    Id = bc.Barangay.Id,
+                    Name = bc.Barangay.Name,
+                    Code = bc.Barangay.Code,
+                    MunicipalityId = bc.Barangay.MunicipalityId,
+                    Center = bc.Barangay.Center,
+                    Area = bc.Barangay.Area,
+                    TotalPopulation = bc.Barangay.TotalPopulation,
+                    HouseholdPopulation = bc.Barangay.HouseholdPopulation,
+                    HouseholdCount = bc.Barangay.HouseholdCount,
+                    Municipality = new Municipality
+                    {
+                        Id = bc.Barangay.Municipality.Id,
+                        Name = bc.Barangay.Municipality.Name,
+                        Code = bc.Barangay.Municipality.Code,
+                        IsCity = bc.Barangay.Municipality.IsCity,
+                        ProvinceId = bc.Barangay.Municipality.ProvinceId,
+                        Province = new Province
+                        {
+                            Id = bc.Barangay.Municipality.Province.Id,
+                            Name = bc.Barangay.Municipality.Province.Name,
+                            Code = bc.Barangay.Municipality.Province.Code,
+                            RegionId = bc.Barangay.Municipality.Province.RegionId,
+                            Region = new Region
+                            {
+                                Id = bc.Barangay.Municipality.Province.Region.Id,
+                                Name = bc.Barangay.Municipality.Province.Region.Name,
+                                Code = bc.Barangay.Municipality.Province.Region.Code
+                            }
+                        }
+                    }
+                }
+            })
             .FirstOrDefaultAsync(bc => bc.BarangayId == barangayId, cancellationToken);
     }
 
     public async Task<List<BarangayCoverage>> GetByRegionIdAsync(Guid regionId, CancellationToken cancellationToken = default)
     {
         return await _context.Set<BarangayCoverage>()
-            .Include(bc => bc.Barangay)
-                .ThenInclude(b => b.Municipality)
-                    .ThenInclude(m => m.Province)
+            .Include(bc => bc.Barangay.Municipality.Province)
+            .AsSplitQuery()
             .Where(bc => bc.Barangay.Municipality.Province.RegionId == regionId)
+            .Select(bc => new BarangayCoverage
+            {
+                Id = bc.Id,
+                BarangayId = bc.BarangayId,
+                WiredFtthPercentage = bc.WiredFtthPercentage,
+                WirelessPercentage = bc.WirelessPercentage,
+                CreatedAt = bc.CreatedAt,
+                CreatedBy = bc.CreatedBy,
+                UpdatedAt = bc.UpdatedAt,
+                UpdatedBy = bc.UpdatedBy,
+                Barangay = new Barangay
+                {
+                    Id = bc.Barangay.Id,
+                    Name = bc.Barangay.Name,
+                    Code = bc.Barangay.Code,
+                    MunicipalityId = bc.Barangay.MunicipalityId,
+                    Center = bc.Barangay.Center,
+                    Area = bc.Barangay.Area,
+                    TotalPopulation = bc.Barangay.TotalPopulation,
+                    HouseholdPopulation = bc.Barangay.HouseholdPopulation,
+                    HouseholdCount = bc.Barangay.HouseholdCount,
+                    Municipality = new Municipality
+                    {
+                        Id = bc.Barangay.Municipality.Id,
+                        Name = bc.Barangay.Municipality.Name,
+                        Code = bc.Barangay.Municipality.Code,
+                        IsCity = bc.Barangay.Municipality.IsCity,
+                        ProvinceId = bc.Barangay.Municipality.ProvinceId,
+                        Province = new Province
+                        {
+                            Id = bc.Barangay.Municipality.Province.Id,
+                            Name = bc.Barangay.Municipality.Province.Name,
+                            Code = bc.Barangay.Municipality.Province.Code,
+                            RegionId = bc.Barangay.Municipality.Province.RegionId
+                        }
+                    }
+                }
+            })
             .ToListAsync(cancellationToken);
     }
 }

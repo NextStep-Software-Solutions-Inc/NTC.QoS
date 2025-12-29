@@ -22,6 +22,13 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy}}
           ports:
             - containerPort: 8080
+          resources:
+            requests:
+              cpu: 300m
+              memory: 1Gi
+            limits:
+              cpu: 900m
+              memory: 1536Mi
           env:
             - name: ConnectionStrings__PostgreSqlConnection
               valueFrom:
@@ -45,6 +52,12 @@ spec:
                   key: BLOB_STORAGE_CONNECTION_STRING
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.env.ASPNETCORE_ENVIRONMENT | default "Production" }}
+            - name: DOTNET_EnableDiagnostics
+              value: "1"
+            - name: COMPlus_DbgEnableMiniDump
+              value: "1"
+            - name: COMPlus_DbgMiniDumpType
+              value: "2"
             - name: GoogleAI__ApiKey
               valueFrom:
                 secretKeyRef:
