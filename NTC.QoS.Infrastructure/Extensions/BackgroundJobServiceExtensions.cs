@@ -23,6 +23,9 @@ internal static class BackgroundJobServiceExtensions
         // Scheduler service
         services.AddScoped<ISchedulerService, SchedulerService>();
 
+        // Assessment consolidation service (singleton for in-memory consolidation across requests)
+        services.AddSingleton<IAssessmentConsolidationService, AssessmentConsolidationService>();
+
         // Job implementations
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
         services.AddTransient<IProcessCellJob, ProcessCellJob>();

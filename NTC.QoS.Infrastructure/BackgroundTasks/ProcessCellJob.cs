@@ -799,16 +799,10 @@ public class ProcessCellJob : IProcessCellJob
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
-        // Trigger connectivity assessment generation for the processed file
-        if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
-        {
-            _logger.LogInformation("File processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
-            await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
-        }
-
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
         {
+            _logger.LogInformation("File processing completed successfully. Enqueuing connectivity assessment generation for file {FileId}", file.Id);
             _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, token));
         }
 
