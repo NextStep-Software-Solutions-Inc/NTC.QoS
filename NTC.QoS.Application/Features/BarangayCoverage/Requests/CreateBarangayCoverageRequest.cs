@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.DTOs.BarangayCoverage;
 
 namespace NTC.QoS.Application.Features.BarangayCoverage.Requests;
 
-public class CreateBarangayCoverageRequest : IRequest<ApiResponse<BarangayCoverageDto>>
+public class CreateBarangayCoverageRequest : IRequest<ApiResponse<Guid>>
 {
     public required CreateBarangayCoverageDto Coverage { get; set; }
 }
