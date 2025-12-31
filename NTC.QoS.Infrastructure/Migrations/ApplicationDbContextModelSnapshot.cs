@@ -909,6 +909,53 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("Barangays", (string)null);
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.BarangayCoverage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BarangayId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("WiredFtthPercentage")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("WirelessPercentage")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BarangayId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
+                    b.ToTable("BarangayCoverages");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.CellSector", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3187,6 +3234,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Municipality");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.BarangayCoverage", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Barangay", "Barangay")
+                        .WithMany()
+                        .HasForeignKey("BarangayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Barangay");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.CellSector", b =>

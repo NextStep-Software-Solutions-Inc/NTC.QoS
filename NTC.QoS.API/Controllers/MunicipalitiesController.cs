@@ -37,14 +37,23 @@ public class MunicipalitiesController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewMunicipalities)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "provinceId" })]
-    public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(int pageSize = 10, int pageNumber = 1, Guid? provinceId = null)
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "provinceId", "regionIds", "isWiredCovered", "isWirelessCovered" })]
+    public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(
+        int pageSize = 10, 
+        int pageNumber = 1, 
+        Guid? provinceId = null,
+        [FromQuery] Guid[]? regionIds = null,
+        bool? isWiredCovered = null,
+        bool? isWirelessCovered = null)
     {
         var request = new GetAllMunicipalitiesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
             ProvinceId = provinceId,
+            RegionIds = regionIds,
+            IsWiredCovered = isWiredCovered,
+            IsWirelessCovered = isWirelessCovered
         };
         var municipalities = await _mediator.Send(request);
         return municipalities.Succeeded ? Ok(municipalities) : BadRequest(municipalities);
