@@ -119,36 +119,37 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 };
             }
 
-            // Apply pagination conditionally with subquery projection
-            var municipalities = request.DisablePagination
-                ? await _municipalityRepository.ToListAsync(
-                    municipalityQuery
-                        .Select(m => new { m.Id, m.Name, m.Code })
-                        .OrderBy(m => m.Name),
-                    cancellationToken)
-                : await _municipalityRepository.ToListAsync(
-                    municipalityQuery
-                        .Select(m => new { m.Id, m.Name, m.Code })
-                        .OrderBy(m => m.Name)
-                        .Skip((request.PageNumber - 1) * request.PageSize)
-                        .Take(request.PageSize),
-                    cancellationToken);
+            // Fetch ALL municipalities for summary calculation (without pagination)
+            var allMunicipalities = await _municipalityRepository.ToListAsync(
+                municipalityQuery
+                    .Select(m => new { m.Id, m.Name, m.Code })
+                    .OrderBy(m => m.Name),
+                cancellationToken);
+
+            // Apply pagination to determine which municipalities to include in the response
+            var municipalitiesToReturn = request.DisablePagination
+                ? allMunicipalities
+                : allMunicipalities
+                    .Skip((request.PageNumber - 1) * request.PageSize)
+                    .Take(request.PageSize)
+                    .ToList();
 
             if (request.DisablePagination)
             {
-                _logger.LogInformation("Pagination disabled - fetching all {Count} municipalities", totalMunicipalities);
+                _logger.LogInformation("Pagination disabled - processing all {Count} municipalities", totalMunicipalities);
             }
             else
             {
-                _logger.LogInformation("Pagination enabled - fetching page {PageNumber} (size: {PageSize})", request.PageNumber, request.PageSize);
+                _logger.LogInformation("Pagination enabled - processing all {TotalCount} municipalities for summary, returning page {PageNumber} (size: {PageSize})", 
+                    totalMunicipalities, request.PageNumber, request.PageSize);
             }
 
             // If force recalculation is requested, trigger background job for assessment generation
             if (request.ForceGenerateConnectivityAssessment)
             {
-                _logger.LogInformation("Force recalculation requested. Triggering connectivity assessment background job for {Count} municipalities", municipalities.Count);
+                _logger.LogInformation("Force recalculation requested. Triggering connectivity assessment background job for {Count} municipalities", allMunicipalities.Count);
                 
-                var municipalityIds = municipalities.Select(m => m.Id).ToList();
+                var municipalityIds = allMunicipalities.Select(m => m.Id).ToList();
                 
                 // Trigger background job for municipality assessments with hierarchical barangay generation
                 var jobRequest = new StartConnectivityAssessmentJobRequest
@@ -191,13 +192,15 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 };
             }
 
-            var municipalityBroadbandData = new List<MunicipalityBroadbandDto>();
+            // Process ALL municipalities for accurate summary calculation
+            var allMunicipalityBroadbandData = new List<MunicipalityBroadbandDto>();
             var allProvidersFound = new HashSet<string>();
             var municipalitiesWithoutAssessments = new List<string>();
             var barangaysWithoutAssessments = new List<string>();
 
-            // Process each municipality using connectivity assessment approach
-            foreach (var municipality in municipalities)
+            _logger.LogInformation("Processing all {Count} municipalities for summary calculation", allMunicipalities.Count);
+
+            foreach (var municipality in allMunicipalities)
             {
                 var municipalityDto = await ProcessMunicipalityFromAssessmentAsync(
                     municipality.Id, municipality.Name, municipality.Code, 
@@ -228,12 +231,19 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 // Only include municipality if it has barangays (after filtering)
                 if (municipalityDto.Barangays.Any())
                 {
-                    municipalityBroadbandData.Add(municipalityDto);
+                    allMunicipalityBroadbandData.Add(municipalityDto);
                 }
             }
 
-            // Generate summary for the current page or all data
-            var summary = GenerateSummary(municipalityBroadbandData, allProvidersFound.ToList());
+            // Generate summary from ALL processed data (not just paginated subset)
+            var summary = GenerateSummary(allMunicipalityBroadbandData, allProvidersFound.ToList());
+
+            // Apply pagination to the municipalities list for the response
+            var paginatedMunicipalityBroadbandData = request.DisablePagination
+                ? allMunicipalityBroadbandData
+                : allMunicipalityBroadbandData
+                    .Where(m => municipalitiesToReturn.Any(mtr => mtr.Id == m.Id))
+                    .ToList();
 
             // Calculate pagination metadata
             int totalPages;
@@ -255,7 +265,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
             var result = new WiredBroadbandReportDto
             {
-                Municipalities = municipalityBroadbandData,
+                Municipalities = paginatedMunicipalityBroadbandData,
                 Summary = summary,
                 PageNumber = pageNumber,
                 PageSize = pageSize,
@@ -269,13 +279,13 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             if (request.DisablePagination)
             {
                 messageBuilder.Append($"Wired broadband report generated successfully with all data. ");
-                messageBuilder.Append($"Showing {municipalityBroadbandData.Count} municipalities with {summary.TotalBarangays} barangays using connectivity assessments. ");
+                messageBuilder.Append($"Showing {paginatedMunicipalityBroadbandData.Count} municipalities with {summary.TotalBarangays} barangays using connectivity assessments. ");
             }
             else
             {
                 messageBuilder.Append($"Wired broadband report generated successfully for page {pageNumber} of {totalPages}. ");
-                messageBuilder.Append($"Showing {municipalityBroadbandData.Count} municipalities with {summary.TotalBarangays} barangays using connectivity assessments. ");
-                messageBuilder.Append($"Total municipalities matching filters: {totalMunicipalities}.");
+                messageBuilder.Append($"Showing {paginatedMunicipalityBroadbandData.Count} municipalities on this page. ");
+                messageBuilder.Append($"Summary statistics reflect all {summary.TotalMunicipalities} municipalities ({summary.TotalBarangays} barangays) matching filters.");
             }
 
             if (municipalitiesWithoutAssessments.Count > 0 || barangaysWithoutAssessments.Count > 0)
