@@ -20,6 +20,7 @@ public class File : BaseEntity
     public int? LastProcessedRowNumber { get; set; }
     public DateTime? LastCheckpointTime { get; set; }
     public string? ProcessingJobId { get; set; } // Hangfire job ID to prevent duplicate runs
+    public string? AssessmentJobId { get; set; } // Connectivity assessment job ID for status tracking
 
     public virtual List<Speedtest> Speedtests { get; set; } = [];
     public virtual List<Cellular> Cellulars { get; set; } = [];

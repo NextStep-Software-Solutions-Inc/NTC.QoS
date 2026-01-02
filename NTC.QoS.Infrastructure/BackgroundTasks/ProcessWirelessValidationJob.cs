@@ -22,9 +22,12 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                                           IBandRepository bandRepository,
                                           IWirelessValidationRepository wirelessValidationRepository,
                                           IBlobStorageService blobStorageService,
-                                          IUserContextService userContextService
+                                          IUserContextService userContextService,
+                                          IBackgroundJobService backgroundJobService,
+                                          IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
                                           ) : IProcessWirelessValidationJob
 {
+    private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
     private const double MinimumMunicipalityMatchThreshold = 0.8;
     private const double MinimumProvinceMatchThreshold = 0.6;
     private const double MinimumRegionMatchThreshold = 0.5;
@@ -43,6 +46,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
     private readonly IWirelessValidationRepository _wirelessValidationRepository = wirelessValidationRepository;
     private readonly IBlobStorageService _blobStorageService = blobStorageService;
     private readonly IUserContextService _userContextService = userContextService;
+    private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
@@ -731,6 +735,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Trigger connectivity assessment generation upon successful processing
+        if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
+        {
+            _logger.LogInformation("Wireless validation processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
+            await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
+        }
 
         _logger.LogInformation("Processing completed successfully.");
     }

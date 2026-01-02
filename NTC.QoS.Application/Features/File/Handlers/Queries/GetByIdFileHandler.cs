@@ -42,7 +42,8 @@ public class GetByIdFileHandler(IFileRepository repository) : IRequestHandler<Ge
                 UploadDate = file.UploadDate,
                 Type = file.Type.ToString() ?? string.Empty,
                 Status = file.Status.ToString() ?? string.Empty,
-                RegionId = file.RegionId
+                RegionId = file.RegionId,
+                AssessmentJobId = file.AssessmentJobId
             }
         };
     }

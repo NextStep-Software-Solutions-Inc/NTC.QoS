@@ -25,6 +25,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly IRepository<Domain.Entities.File> _fileRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IUserContextService _userContextService;
+    private readonly IBackgroundJobService _backgroundJobService;
+    private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
 
     private const int BatchSize = 1000; // Process records in batches
     private const int DuplicateLoadBatchSize = 10000; // Load existing records in batches for memory efficiency
@@ -36,7 +38,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         IRepository<Generation> generationRepository,
         IRepository<Domain.Entities.File> fileRepository,
         IBlobStorageService blobStorageService,
-        IUserContextService userContextService
+        IUserContextService userContextService,
+        IBackgroundJobService backgroundJobService,
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
         )
     {
         _logger = logger;
@@ -46,6 +50,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _fileRepository = fileRepository;
         _blobStorageService = blobStorageService;
         _userContextService = userContextService;
+        _backgroundJobService = backgroundJobService;
+        _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
     }
 
     /// <summary>
@@ -529,6 +535,10 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
+
+                // Trigger connectivity assessment generation upon successful processing
+                _logger.LogInformation("Speedtest processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
+                await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
 
                 stopwatch.Stop();
                 _logger.LogInformation("Processing completed successfully in {ElapsedTime} ({ElapsedMilliseconds}ms).",
