@@ -23,6 +23,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
     private readonly ICellularCoverageV2MappingService _mappingService;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IRepository<Network> _networkRepository;
+    private readonly IBackgroundJobService _backgroundJobService;
 
     public ProcessCellularCoverageV2Job(
         ILogger<ProcessCellularCoverageV2Job> logger,
@@ -30,7 +31,8 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         ICellularCoverageV2Repository coverageV2Repository,
         ICellularCoverageV2MappingService mappingService,
         IBlobStorageService blobStorageService,
-        IRepository<Network> networkRepository)
+        IRepository<Network> networkRepository,
+        IBackgroundJobService backgroundJobService)
     {
         _logger = logger;
         _fileRepository = fileRepository;
@@ -38,6 +40,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         _mappingService = mappingService;
         _blobStorageService = blobStorageService;
         _networkRepository = networkRepository;
+        _backgroundJobService = backgroundJobService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -261,6 +264,10 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                         _logger,
                         FileTypeEnum.CellularCoverageV2,
                         cancellationToken);
+
+                    // Trigger connectivity assessment generation for the file's region
+                    _logger.LogInformation("File processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
+                    _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, cancellationToken));
                 }
                 catch (Exception ex)
                 {

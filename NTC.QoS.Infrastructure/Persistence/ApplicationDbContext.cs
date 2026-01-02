@@ -330,6 +330,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(f => f.RegionId)
             .HasDatabaseName("IX_Files_RegionId");
 
+        modelBuilder.Entity<Domain.Entities.File>()
+            .Property(f => f.AssessmentJobId)
+            .HasMaxLength(450)
+            .IsRequired(false);
+
         modelBuilder.Entity<Municipality>()
             .HasMany(m => m.Barangays)
             .WithOne(b => b.Municipality)
