@@ -37,13 +37,19 @@ public class RegionsController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewRegions)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber" })]
-    public async Task<ActionResult<PaginatedResponse<RegionDto>>> GetAllRegions(int pageSize = 10, int pageNumber = 1)
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "isWiredCovered", "isWirelessCovered" })]
+    public async Task<ActionResult<PaginatedResponse<RegionDto>>> GetAllRegions(
+        int pageSize = 10, 
+        int pageNumber = 1,
+        bool? isWiredCovered = null,
+        bool? isWirelessCovered = null)
     {
         var request = new GetAllRegionsRequest()
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize,
+            IsWiredCovered = isWiredCovered,
+            IsWirelessCovered = isWirelessCovered
         };
         var regions = await _mediator.Send(request);
 

@@ -331,4 +331,57 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
         var response = await mediator.Send(request);
         return response.Succeeded ? Ok(response) : NotFound(response);
     }
+
+    /// <summary>
+    /// Gets NAP analytics for dashboard visualization.
+    /// Provides market share distribution, provider comparison, geographic coverage, and market analysis.
+    /// 
+    /// Includes:
+    /// - Total NAPs count and active providers
+    /// - Average NAPs per provider
+    /// - NAP density per square kilometer
+    /// - Market share distribution by provider
+    /// - Provider comparison data
+    /// - Leading provider information
+    /// - Geographic coverage bounds
+    /// - Market analysis (concentration, competition score, coverage quality)
+    /// 
+    /// Filters:
+    /// - Geographic: Barangay, Municipality, Province, or Region IDs
+    /// - Service Provider IDs
+    /// </summary>
+    /// <param name="barangayIds">Optional filter by barangay IDs</param>
+    /// <param name="municipalityIds">Optional filter by municipality IDs</param>
+    /// <param name="provinceIds">Optional filter by province IDs</param>
+    /// <param name="regionIds">Optional filter by region IDs</param>
+    /// <param name="serviceProviderIds">Optional filter by service provider IDs</param>
+    /// <param name="includeGeographicCoverage">Include geographic coverage calculation (default: true)</param>
+    /// <returns>NAP analytics data for dashboard</returns>
+    /// <response code="200">Returns NAP analytics data</response>
+    /// <response code="400">Invalid request parameters</response>
+    [HttpGet("nap-analytics")]
+    [RequirePermission(Permissions.ViewAnalytics)]
+    [ProducesResponseType(typeof(ApiResponse<NAPAnalyticsResponseDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<NAPAnalyticsResponseDto>), 400)]
+    public async Task<ActionResult<ApiResponse<NAPAnalyticsResponseDto>>> GetNAPAnalytics(
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] List<Guid>? serviceProviderIds = null,
+        [FromQuery] bool includeGeographicCoverage = true)
+    {
+        var request = new GetNAPAnalyticsRequest
+        {
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
+            ServiceProviderIds = serviceProviderIds,
+            IncludeGeographicCoverage = includeGeographicCoverage
+        };
+
+        var result = await mediator.Send(request);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
 }

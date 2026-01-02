@@ -27,6 +27,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AreaStudy> AreaStudies { get; set; }
     public DbSet<Band> Bands { get; set; }
     public DbSet<Barangay> Barangays { get; set; }
+    public DbSet<BarangayCoverage> BarangayCoverages { get; set; }
     public DbSet<Cellular> Cellulars { get; set; }
     public DbSet<Domain.Entities.File> Files { get; set; }
     public DbSet<MIMO> MIMOs { get; set; }
@@ -328,6 +329,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Domain.Entities.File>()
             .HasIndex(f => f.RegionId)
             .HasDatabaseName("IX_Files_RegionId");
+
+        modelBuilder.Entity<Domain.Entities.File>()
+            .Property(f => f.AssessmentJobId)
+            .HasMaxLength(450)
+            .IsRequired(false);
 
         modelBuilder.Entity<Municipality>()
             .HasMany(m => m.Barangays)
@@ -668,6 +674,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMethod("hnsw")
             .HasOperators("vector_cosine_ops")
             .HasDatabaseName("IX_GeneratedReport_Embedding");
+
+        // BarangayCoverage unique constraint - one coverage record per barangay
+        modelBuilder.Entity<BarangayCoverage>()
+            .HasIndex(bc => bc.BarangayId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<BarangayCoverage>()
+            .HasOne(bc => bc.Barangay)
+            .WithMany()
+            .HasForeignKey(bc => bc.BarangayId);
 
         base.OnModelCreating(modelBuilder);
     }

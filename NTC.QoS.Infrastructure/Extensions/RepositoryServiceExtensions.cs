@@ -51,6 +51,7 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<IProvinceRepository, ProvinceRepository>();
         services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
         services.AddScoped<IBarangayRepository, BarangayRepository>();
+        services.AddScoped<IBarangayCoverageRepository, BarangayCoverageRepository>();
         services.AddScoped<IZoneRepository, ZoneRepository>();
         services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
     }

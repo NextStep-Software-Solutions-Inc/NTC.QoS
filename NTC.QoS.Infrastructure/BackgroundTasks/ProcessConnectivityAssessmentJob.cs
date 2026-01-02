@@ -133,6 +133,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private readonly IWiFiHotspotRepository _wifiRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IWirelessValidationRepository _wirelessValidationRepository;
+    private readonly IAssessmentConsolidationService _consolidationService;
     private readonly IWirelessCoverageComputationService _wirelessCoverageService;
 
     // Store the current user ID for the job execution
@@ -151,6 +152,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     private const int PROGRESS_REPORT_INTERVAL = 5; // Report progress every 5 items for smoother updates
     private const int MEMORY_CHECK_INTERVAL = 5; // Check memory every 5 batches
     private const int RECENT_ASSESSMENT_DAYS = 30; // Consider assessments within 30 days as recent
+    private const string BOUNDARY_CACHE_KEY_PREFIX = "boundary_materialization_"; // Cache key prefix for materialized boundaries
+
     
     // Database verification configuration
     private const int VERIFICATION_BATCH_SIZE = 50; // Process location IDs in batches to prevent timeout
@@ -173,6 +176,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         IWiFiHotspotRepository wifiRepository,
         ISpeedtestRepository speedtestRepository,
         IWirelessValidationRepository wirelessValidationRepository,
+        IAssessmentConsolidationService consolidationService)
+        IWirelessValidationRepository wirelessValidationRepository,
         IWirelessCoverageComputationService wirelessCoverageService)
     {
         _logger = logger;
@@ -188,6 +193,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _napRepository = napRepository;
         _wifiRepository = wifiRepository;
         _speedtestRepository = speedtestRepository;
+        _wirelessValidationRepository = wirelessValidationRepository;
+        _consolidationService = consolidationService;
         _wirelessValidationRepository = wirelessValidationRepository;
         _wirelessCoverageService = wirelessCoverageService;
     }
@@ -393,6 +400,9 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Clean up cached job request
             _memoryCache.Remove(jobRequestCacheKey);
 
+            // Clean up boundary materialization cache to free memory after job completion
+            ClearBoundaryMaterializationCache(locationIds, locationType);
+
             var endTime = DateTime.UtcNow;
             var totalTime = endTime - startTime;
             var totalSuccessful = results.Count; // Only count newly saved assessments
@@ -484,6 +494,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 successMessage = $"Generated {totalSuccessful}/{actualTotalLocations} connectivity assessments ({completionRate:F1}%) in {totalTime:mm':'ss}. " +
                     $"WARNING: Database verification failed - actual persist count unknown.";
             }
+            // Update job status to Completed - keep actualTotalLocations to show expected vs actual
 
             // Update job status to Completed
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Completed, successMessage,
@@ -491,6 +502,16 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 cancellationToken: cancellationToken);
 
             _logger.LogInformation("Job {JobId} completed successfully. {Message}", jobId, successMessage);
+
+            // Clear scheduled assessment time for the region(s)
+            // This allows new file completions to trigger new assessments without sliding window delays
+            if (jobRequest.RegionIds != null && jobRequest.RegionIds.Count > 0)
+            {
+                foreach (var regionId in jobRequest.RegionIds)
+                {
+                    _consolidationService.ClearScheduledAssessmentTime(regionId);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -502,9 +523,21 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             var jobRequestCacheKey = $"job_request_" + jobId;
             _memoryCache.Remove(jobRequestCacheKey);
 
+            // Clean up boundary materialization cache on error
+            ClearBoundaryMaterializationCache(jobRequest.GetLocationIds(), jobRequest.GetLocationType());
+
             // Update job status to Failed with endTime
             await UpdateJobStatus(jobId, ConnectivityAssessmentJobStatusEnum.Failed, errorMessage,
                 endTime: endTime, processingCount: 0, processedCount: 0, cancellationToken: cancellationToken);
+
+            // Clear scheduled assessment time even on error to allow retries
+            if (jobRequest.RegionIds != null && jobRequest.RegionIds.Count > 0)
+            {
+                foreach (var regionId in jobRequest.RegionIds)
+                {
+                    _consolidationService.ClearScheduledAssessmentTime(regionId);
+                }
+            }
             throw; // Re-throw for Hangfire retry logic
         }
     }
@@ -1281,6 +1314,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Optimized barangay details retrieval - always loads boundaries for government-grade accuracy
+    /// Uses materialization cache to avoid frequent database roundtrips for envelope filtering.
     /// </summary>
     private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetBarangayDetailsOptimizedAsync(
         Guid barangayId, CancellationToken cancellationToken)
@@ -1293,11 +1327,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         if (barangayInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        // Always load boundaries for barangays - they're typically small and accuracy is important
-        Geometry? boundary = null;
-        var boundaryQuery = _barangayRepository.QueryAsNoTracking(b => b.Id == barangayId)
-            .Select(b => b.Boundaries);
-        boundary = await _barangayRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+        // Load boundaries from cache or database - envelope filtering requires materialized geometry
+        var cacheKey = $"{BOUNDARY_CACHE_KEY_PREFIX}Barangay_{barangayId}";
+        Geometry? boundary = _memoryCache.Get<Geometry>(cacheKey);
+
+        if (boundary == null)
+        {
+            // Boundary not in cache - load from database and cache it
+            var boundaryQuery = _barangayRepository.QueryAsNoTracking(b => b.Id == barangayId)
+                .Select(b => b.Boundaries);
+            boundary = await _barangayRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+            if (boundary != null)
+            {
+                // Cache the materialized boundary for 1 hour (reduces envelope filtering roundtrips)
+                _memoryCache.Set(cacheKey, boundary, TimeSpan.FromHours(1));
+                _logger.LogDebug("Cached materialized boundary for Barangay {BarangayId}", barangayId);
+            }
+        }
+        else
+        {
+            _logger.LogDebug("Using cached boundary for Barangay {BarangayId}", barangayId);
+        }
 
         return (barangayInfo.Name, boundary, barangayInfo.Center, barangayInfo.Area,
                barangayInfo.TotalPopulation, barangayInfo.HouseholdCount);
@@ -1305,6 +1356,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Optimized municipality details - always loads boundaries for government-grade accuracy
+    /// Uses materialization cache to avoid frequent database roundtrips for envelope filtering.
     /// </summary>
     private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetMunicipalityDetailsOptimizedAsync(
         Guid municipalityId, CancellationToken cancellationToken)
@@ -1317,11 +1369,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         if (municipalityInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        // Always load boundaries for accurate government mapping - performance optimized with caching
-        Geometry? boundary = null;
-        var boundaryQuery = _municipalityRepository.QueryAsNoTracking(m => m.Id == municipalityId)
-            .Select(m => m.Boundaries);
-        boundary = await _municipalityRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+        // Load boundaries from cache or database - envelope filtering requires materialized geometry
+        var cacheKey = $"{BOUNDARY_CACHE_KEY_PREFIX}Municipality_{municipalityId}";
+        Geometry? boundary = _memoryCache.Get<Geometry>(cacheKey);
+
+        if (boundary == null)
+        {
+            // Boundary not in cache - load from database and cache it
+            var boundaryQuery = _municipalityRepository.QueryAsNoTracking(m => m.Id == municipalityId)
+                .Select(m => m.Boundaries);
+            boundary = await _municipalityRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+            if (boundary != null)
+            {
+                // Cache the materialized boundary for 1 hour (reduces envelope filtering roundtrips)
+                _memoryCache.Set(cacheKey, boundary, TimeSpan.FromHours(1));
+                _logger.LogDebug("Cached materialized boundary for Municipality {MunicipalityId}", municipalityId);
+            }
+        }
+        else
+        {
+            _logger.LogDebug("Using cached boundary for Municipality {MunicipalityId}", municipalityId);
+        }
 
         return (municipalityInfo.Name, boundary, municipalityInfo.Center, municipalityInfo.Area,
                municipalityInfo.TotalPopulation, municipalityInfo.HouseholdCount);
@@ -1329,6 +1398,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
 
     /// <summary>
     /// Province details - always loads boundaries for government-grade accuracy
+    /// Uses materialization cache to avoid frequent database roundtrips for subquery filtering.
     /// </summary>
     private async Task<(string Name, Geometry? Boundary, Point? Center, double AreaKm2, int? Population, int? HouseholdCount)> GetProvinceDetailsOptimizedAsync(
         Guid provinceId, CancellationToken cancellationToken)
@@ -1341,11 +1411,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         if (provinceInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        // Always load boundaries for accurate government mapping - performance optimized with caching
-        Geometry? boundary = null;
-        var boundaryQuery = _provinceRepository.QueryAsNoTracking(p => p.Id == provinceId)
-            .Select(p => p.Boundaries);
-        boundary = await _provinceRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+        // Load boundaries from cache or database - subquery filtering still benefits from cached geometry
+        var cacheKey = $"{BOUNDARY_CACHE_KEY_PREFIX}Province_{provinceId}";
+        Geometry? boundary = _memoryCache.Get<Geometry>(cacheKey);
+
+        if (boundary == null)
+        {
+            // Boundary not in cache - load from database and cache it
+            var boundaryQuery = _provinceRepository.QueryAsNoTracking(p => p.Id == provinceId)
+                .Select(p => p.Boundaries);
+            boundary = await _provinceRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+            if (boundary != null)
+            {
+                // Cache the materialized boundary for 1 hour (reduces roundtrips for large hierarchies)
+                _memoryCache.Set(cacheKey, boundary, TimeSpan.FromHours(1));
+                _logger.LogDebug("Cached materialized boundary for Province {ProvinceId}", provinceId);
+            }
+        }
+        else
+        {
+            _logger.LogDebug("Using cached boundary for Province {ProvinceId}", provinceId);
+        }
 
         return (provinceInfo.Name, boundary, provinceInfo.Center, provinceInfo.Area,
                provinceInfo.TotalPopulation, provinceInfo.HouseholdCount);
@@ -1365,11 +1452,28 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         if (regionInfo == null)
             return ("Unknown", null, null, 0, null, null);
 
-        // Load boundaries for accurate government mapping - large regions benefit most from caching
-        Geometry? boundary = null;
-        var boundaryQuery = _regionRepository.QueryAsNoTracking(r => r.Id == regionId)
-            .Select(r => r.Boundaries);
-        boundary = await _regionRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+        // Load boundaries from cache or database - large regions benefit most from materialization cache
+        var cacheKey = $"{BOUNDARY_CACHE_KEY_PREFIX}Region_{regionId}";
+        Geometry? boundary = _memoryCache.Get<Geometry>(cacheKey);
+
+        if (boundary == null)
+        {
+            // Boundary not in cache - load from database and cache it
+            var boundaryQuery = _regionRepository.QueryAsNoTracking(r => r.Id == regionId)
+                .Select(r => r.Boundaries);
+            boundary = await _regionRepository.FirstOrDefaultAsync(boundaryQuery, cancellationToken);
+
+            if (boundary != null)
+            {
+                // Cache the materialized boundary for 1 hour (critical for large hierarchical jobs)
+                _memoryCache.Set(cacheKey, boundary, TimeSpan.FromHours(1));
+                _logger.LogDebug("Cached materialized boundary for Region {RegionId}", regionId);
+            }
+        }
+        else
+        {
+            _logger.LogDebug("Using cached boundary for Region {RegionId}", regionId);
+        }
 
         return (regionInfo.Name, boundary, regionInfo.Center, regionInfo.Area,
                regionInfo.TotalPopulation, regionInfo.HouseholdCount);
@@ -4192,5 +4296,42 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
        .ToList();
 
         return breakdown;
+    }
+
+    /// <summary>
+    /// Clears materialized boundary cache for specified locations.
+    /// 
+    /// PURPOSE:
+    /// Frees memory after job completion by removing cached geometries.
+    /// Boundaries are cached for 1 hour during job processing to avoid database roundtrips,
+    /// but should be cleared when the job completes to prevent memory leaks.
+    /// 
+    /// PARAMETERS:
+    /// - locationIds: IDs of locations whose boundaries should be removed from cache
+    /// - locationType: Type of locations (Region, Province, Municipality, Barangay)
+    /// </summary>
+    private void ClearBoundaryMaterializationCache(List<Guid> locationIds, LocationTypeEnum locationType)
+    {
+        if (locationIds == null || locationIds.Count == 0)
+            return;
+
+        var typeString = locationType switch
+        {
+            LocationTypeEnum.Regional => "Region",
+            LocationTypeEnum.Provincial => "Province",
+            LocationTypeEnum.Municipality => "Municipality",
+            LocationTypeEnum.Barangay => "Barangay",
+            _ => "Unknown"
+        };
+
+        var clearedCount = 0;
+        foreach (var locationId in locationIds)
+        {
+            var cacheKey = $"{BOUNDARY_CACHE_KEY_PREFIX}{typeString}_{locationId}";
+            _memoryCache.Remove(cacheKey);
+            clearedCount++;
+        }
+
+        _logger.LogDebug("Cleared boundary materialization cache for {ClearedCount} {LocationType} locations", clearedCount, typeString);
     }
 }

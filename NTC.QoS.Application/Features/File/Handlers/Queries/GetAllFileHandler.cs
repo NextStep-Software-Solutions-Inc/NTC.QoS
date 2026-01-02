@@ -34,7 +34,8 @@ public class GetAllFileHandler(IFileRepository repository) : IRequestHandler<Get
                 UploadDate = file.UploadDate,
                 Type = file.Type.ToString() ?? string.Empty,
                 Status = file.Status.ToString() ?? string.Empty,
-                RegionId = file.RegionId
+                RegionId = file.RegionId,
+                AssessmentJobId = file.AssessmentJobId
             });
 
         return await _repository.PaginateAsync(filesDtoQuery, request.PageNumber, request.PageSize, cancellationToken);

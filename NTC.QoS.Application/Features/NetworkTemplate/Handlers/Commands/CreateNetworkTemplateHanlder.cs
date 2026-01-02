@@ -19,6 +19,7 @@ public class CreateNetworkTemplateHanlder(IRepository<Domain.Entities.NetworkTem
         {
             var restoreQuery = _repository.QueryWithIgnoreQueryFilters(nt => nt.Id == existing.Id && nt.IsDeleted);
             await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
             return new ApiResponse<NetworkTemplateDto>
             {
                 Succeeded = true,
