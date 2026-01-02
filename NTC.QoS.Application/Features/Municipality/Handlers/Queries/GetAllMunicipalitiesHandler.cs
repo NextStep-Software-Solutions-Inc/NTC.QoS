@@ -53,8 +53,7 @@ public class GetAllMunicipalitiesHandler(
             allMunicipalities = allMunicipalities.Where(m => coveredMunicipalityIds.Contains(m.Id));
         }
 
-        allMunicipalities = allMunicipalities
-            .Where(m => !request.ProvinceId.HasValue || (m.Province != null && m.Province.Id == request.ProvinceId));
+        allMunicipalities = allMunicipalities.Where(m => !request.ProvinceId.HasValue || m.Province.Id == request.ProvinceId);
 
         if (request.RegionIds is not null && request.RegionIds.Length > 0)
         {
