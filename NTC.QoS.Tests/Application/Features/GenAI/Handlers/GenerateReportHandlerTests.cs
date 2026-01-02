@@ -21,6 +21,7 @@ public class GenerateReportHandlerTests
     private readonly Mock<IUserContextService> _userContextServiceMock;
     private readonly Mock<IUserRepository> _userRepositoryMock;
     private readonly Mock<IAIInstructionService> _aiInstructionServiceMock;
+    private readonly Mock<IMCPServerService> _mcpServerServiceMock;
     private readonly Mock<ILogger<GenerateReportHandler>> _loggerMock;
     private readonly GenerateReportHandler _handler;
 
@@ -31,11 +32,16 @@ public class GenerateReportHandlerTests
         _userContextServiceMock = new Mock<IUserContextService>();
         _userRepositoryMock = new Mock<IUserRepository>();
         _aiInstructionServiceMock = new Mock<IAIInstructionService>();
+        _mcpServerServiceMock = new Mock<IMCPServerService>();
         _loggerMock = new Mock<ILogger<GenerateReportHandler>>();
 
         // Setup default global instruction
         _aiInstructionServiceMock.Setup(x => x.GetGlobalInstruction())
             .Returns("You are an AI assistant for CMTS and Broadband Mapping.");
+
+        // Setup default MCP tools response
+        _mcpServerServiceMock.Setup(x => x.GetToolsAsync())
+            .ReturnsAsync("[]");
 
         _handler = new GenerateReportHandler(
             _genAIServiceMock.Object,
@@ -43,6 +49,7 @@ public class GenerateReportHandlerTests
             _userContextServiceMock.Object,
             _userRepositoryMock.Object,
             _aiInstructionServiceMock.Object,
+            _mcpServerServiceMock.Object,
             _loggerMock.Object);
     }
 
