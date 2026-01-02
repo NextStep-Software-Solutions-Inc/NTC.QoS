@@ -929,7 +929,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             barangayIds.Count);
 
         // Query assessments for all barangays at once
-        var assessments = await _connectivityAssessmentRepository.Query()
+        var assessmentsQuery = _connectivityAssessmentRepository.Query()
             .Where(a => barangayIds.Contains(a.LocationId) && a.LocationType == LocationTypeEnum.Barangay)
             .Where(a => !string.IsNullOrEmpty(a.WirelessCoverageJson))
             .Select(a => new
@@ -937,8 +937,8 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 a.LocationId,
                 a.WirelessCoverageJson,
                 a.WirelessCoverageLastUpdated
-            })
-            .ToListAsync(cancellationToken);
+            });
+        var assessments = await _connectivityAssessmentRepository.ToListAsync(assessmentsQuery, cancellationToken);
 
         _logger.LogInformation(
             "Found {AssessmentCount} assessments with wireless coverage data out of {TotalCount} barangays",

@@ -176,8 +176,7 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         IWiFiHotspotRepository wifiRepository,
         ISpeedtestRepository speedtestRepository,
         IWirelessValidationRepository wirelessValidationRepository,
-        IAssessmentConsolidationService consolidationService)
-        IWirelessValidationRepository wirelessValidationRepository,
+        IAssessmentConsolidationService consolidationService,
         IWirelessCoverageComputationService wirelessCoverageService)
     {
         _logger = logger;
@@ -195,7 +194,6 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
         _speedtestRepository = speedtestRepository;
         _wirelessValidationRepository = wirelessValidationRepository;
         _consolidationService = consolidationService;
-        _wirelessValidationRepository = wirelessValidationRepository;
         _wirelessCoverageService = wirelessCoverageService;
     }
 
@@ -705,8 +703,8 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                             "{Found} in database. Missing: {Missing}. RETRYING...",
                             jobId, batchAssessments.Count, verifiedCount, missing);
 
-                        // ONE RETRY with longer timeout
-                        await Task.Delay(2000, cancellationToken);
+                        // ONE RETRY with longer timeout and wait for database commit
+                        await Task.Delay(3000, cancellationToken); // Wait longer for DB commit
                             
                         using var retryCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         retryCts.CancelAfter(TimeSpan.FromSeconds(BATCH_SAVE_TIMEOUT_SECONDS * 2));
@@ -943,11 +941,27 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             if (existingAssessments.TryGetValue((locationId, locationType), out existing))
             {
                 // If not forcing recalculation and assessment is recent, skip regeneration
+                // EXCEPTION: For barangays with wireless data, always regenerate if force recalculate
+                // to ensure wireless coverage is updated even for recent assessments
+                var isBarangayWithWirelessData = locationType == LocationTypeEnum.Barangay && 
+                    (wirelessCoverageData != null && wirelessCoverageData.ContainsKey(locationId));
+                
                 if (!forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
                 {
-                    _logger.LogDebug("Skipping {LocationType} {LocationId} - recent assessment exists", locationType, locationId);
-                    // Return null to indicate no processing needed (assessment is recent)
-                    return null;
+                    // Always update wireless coverage for barangays even if assessment is recent
+                    if (isBarangayWithWirelessData && existing.WirelessCoverageJson == null)
+                    {
+                        _logger.LogInformation(
+                            "Updating wireless coverage for recent assessment {LocationType} {LocationId} " +
+                            "(existing has no wireless data)", locationType, locationId);
+                        // Continue to processing to update wireless data
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Skipping {LocationType} {LocationId} - recent assessment exists", locationType, locationId);
+                        // Return null to indicate no processing needed (assessment is recent)
+                        return null;
+                    }
                 }
             }
             else
@@ -956,11 +970,26 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 existing = await _connectivityRepository.GetByLocationIdAsync(locationId, locationType, cancellationToken);
 
                 // If found and not forcing recalculation and is recent, skip regeneration
+                // EXCEPTION: For barangays with wireless data, always regenerate if force recalculate
+                var isBarangayWithWirelessData = locationType == LocationTypeEnum.Barangay && 
+                    (wirelessCoverageData != null && wirelessCoverageData.ContainsKey(locationId));
+                
                 if (existing != null && !forceRecalculate && existing.LastUpdated > DateTime.UtcNow.AddDays(-RECENT_ASSESSMENT_DAYS))
                 {
-                    _logger.LogDebug("Skipping {LocationType} {LocationId} - recent assessment exists (from DB)", locationType, locationId);
-                    // Return null to indicate no processing needed (assessment is recent)
-                    return null;
+                    // Always update wireless coverage for barangays even if assessment is recent
+                    if (isBarangayWithWirelessData && existing.WirelessCoverageJson == null)
+                    {
+                        _logger.LogInformation(
+                            "Updating wireless coverage for recent assessment {LocationType} {LocationId} " +
+                            "(existing has no wireless data, from DB)", locationType, locationId);
+                        // Continue to processing to update wireless data
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Skipping {LocationType} {LocationId} - recent assessment exists (from DB)", locationType, locationId);
+                        // Return null to indicate no processing needed (assessment is recent)
+                        return null;
+                    }
                 }
             }
 

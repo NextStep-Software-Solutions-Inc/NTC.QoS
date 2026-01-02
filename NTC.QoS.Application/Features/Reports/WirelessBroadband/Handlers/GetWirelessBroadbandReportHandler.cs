@@ -406,15 +406,18 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
                     }
                 }
 
-                // Borders for data
-                var dataRange = worksheet.Cells[5, 1, row - 1, totalCols];
-                dataRange.Style.Border.Top.Style = ExcelBorderStyle.Thin;
-                dataRange.Style.Border.Left.Style = ExcelBorderStyle.Thin;
-                dataRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
-                dataRange.Style.Border.Bottom.Style = ExcelBorderStyle.Thin;
-                dataRange.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                // Align barangay names to the left
-                worksheet.Cells[5, 2, row - 1, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+                // Borders for data (only if there's data)
+                if (row > 5)
+                {
+                    var dataRange = worksheet.Cells[5, 1, row - 1, totalCols];
+                    dataRange.Style.Border.Top.Style = ExcelBorderStyle.Thin;
+                    dataRange.Style.Border.Left.Style = ExcelBorderStyle.Thin;
+                    dataRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
+                    dataRange.Style.Border.Bottom.Style = ExcelBorderStyle.Thin;
+                    dataRange.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    // Align barangay names to the left
+                    worksheet.Cells[5, 2, row - 1, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+                }
 
                 worksheet.Cells.AutoFitColumns();
                 
