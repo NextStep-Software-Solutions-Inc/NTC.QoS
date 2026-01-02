@@ -110,6 +110,12 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UpdateBarangays, Name = "Update Barangays", Description = "Can update barangay information" },
             new { Key = Permissions.DeleteBarangays, Name = "Delete Barangays", Description = "Can delete barangays" },
 
+            // Barangay Coverage permissions
+            new { Key = Permissions.ViewBarangayCoverage, Name = "View Barangay Coverage", Description = "Can view barangay coverage records" },
+            new { Key = Permissions.CreateBarangayCoverage, Name = "Create Barangay Coverage", Description = "Can create barangay coverage records" },
+            new { Key = Permissions.UpdateBarangayCoverage, Name = "Update Barangay Coverage", Description = "Can update barangay coverage records" },
+            new { Key = Permissions.DeleteBarangayCoverage, Name = "Delete Barangay Coverage", Description = "Can delete barangay coverage records" },
+
             // Zone permissions
             new { Key = Permissions.ViewZones, Name = "View Zones", Description = "Can view zone listings" },
             new { Key = Permissions.CreateZones, Name = "Create Zones", Description = "Can create new zones" },

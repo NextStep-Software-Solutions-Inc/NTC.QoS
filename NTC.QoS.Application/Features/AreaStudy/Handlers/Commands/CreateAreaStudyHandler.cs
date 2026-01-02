@@ -20,6 +20,7 @@ public class CreateAreaStudyHandler(IRepository<Domain.Entities.AreaStudy> repos
             // Restore using repository helper (ensures audit fields updated consistently)
             var restoreQuery = _repository.QueryWithIgnoreQueryFilters(a => a.Id == areaStudy.Id && a.IsDeleted);
             await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
 
             return new ApiResponse<AreaStudyDto>
             {
