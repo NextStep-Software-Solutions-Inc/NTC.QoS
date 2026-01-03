@@ -658,7 +658,12 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             if (batchAssessments.Count > 0)
             {
                 var batchLocationIds = batchAssessments.Select(b => b.LocationId).ToList();
-                var batchLocationType = batchAssessments.First().Assessment.LocationType;
+                
+                // Group assessments by LocationType for proper verification
+                // Batches can contain mixed types (e.g., Municipality + Provincial in hierarchical processing)
+                var assessmentsByType = batchAssessments
+                    .GroupBy(b => b.Assessment.LocationType)
+                    .ToDictionary(g => g.Key, g => g.Select(b => b.LocationId).ToList());
                     
                 try
                 {
@@ -684,52 +689,104 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                         "Job {JobId}: Batch save completed in {Elapsed}ms",
                         jobId, saveStopwatch.ElapsedMilliseconds);
 
-                    // MANDATORY: Verify immediately after save
+                    // Allow PostgreSQL transaction to fully commit and become visible
+                    // This prevents false verification failures due to MVCC snapshot timing
+                    await Task.Delay(100, cancellationToken);
+
+                    // Verify after save - query each LocationType separately to handle mixed batches
                     var verifyStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                    var verifiedCount = await VerifyBatchPersistence(
-                        batchLocationIds, batchLocationType, cancellationToken);
+                    var verifiedCount = 0;
+                    var allVerifiedIds = new HashSet<Guid>();
+                    
+                    foreach (var (batchLocType, batchLocIds) in assessmentsByType)
+                    {
+                        var typeVerifiedIds = await GetVerifiedLocationIds(batchLocIds, batchLocType, cancellationToken);
+                        verifiedCount += typeVerifiedIds.Count;
+                        allVerifiedIds.UnionWith(typeVerifiedIds);
+                    }
                     verifyStopwatch.Stop();
 
                     _logger.LogInformation(
-                        "Job {JobId}: Verification completed in {Elapsed}ms - {Found}/{Expected} confirmed",
-                        jobId, verifyStopwatch.ElapsedMilliseconds, verifiedCount, batchAssessments.Count);
+                        "Job {JobId}: Verification completed in {Elapsed}ms - {Found}/{Expected} confirmed ({TypeCount} location types)",
+                        jobId, verifyStopwatch.ElapsedMilliseconds, verifiedCount, batchAssessments.Count, assessmentsByType.Count);
 
                     // Check if verification matches expected count
                     if (verifiedCount != batchAssessments.Count)
                     {
-                        var missing = batchAssessments.Count - verifiedCount;
-                        _logger.LogError(
-                            "Job {JobId}: BATCH VERIFICATION FAILED - Expected {Expected} but only " +
-                            "{Found} in database. Missing: {Missing}. RETRYING...",
-                            jobId, batchAssessments.Count, verifiedCount, missing);
+                        var missingIds = batchLocationIds.Except(allVerifiedIds).ToList();
+                        
+                        _logger.LogWarning(
+                            "Job {JobId}: Verification mismatch - Expected {Expected} but found {Found}. " +
+                            "Missing LocationIds: [{MissingIds}]. Retrying verification after delay...",
+                            jobId, batchAssessments.Count, verifiedCount, 
+                            string.Join(", ", missingIds.Take(5)));
 
-                        // ONE RETRY with longer timeout and wait for database commit
-                        await Task.Delay(3000, cancellationToken); // Wait longer for DB commit
+                        // Progressive delay retries - data is likely already saved, just not visible yet
+                        for (int retryAttempt = 1; retryAttempt <= 3; retryAttempt++)
+                        {
+                            var delayMs = retryAttempt * 500; // 500ms, 1000ms, 1500ms
+                            await Task.Delay(delayMs, cancellationToken);
                             
-                        using var retryCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        retryCts.CancelAfter(TimeSpan.FromSeconds(BATCH_SAVE_TIMEOUT_SECONDS * 2));
+                            // Re-verify all types
+                            verifiedCount = 0;
+                            allVerifiedIds.Clear();
+                            foreach (var (batchLocType, batchLocIds) in assessmentsByType)
+                            {
+                                var typeVerifiedIds = await GetVerifiedLocationIds(batchLocIds, batchLocType, cancellationToken);
+                                verifiedCount += typeVerifiedIds.Count;
+                                allVerifiedIds.UnionWith(typeVerifiedIds);
+                            }
+                                
+                            if (verifiedCount == batchAssessments.Count)
+                            {
+                                _logger.LogInformation(
+                                    "Job {JobId}: Verification succeeded on retry {Attempt} after {Delay}ms delay",
+                                    jobId, retryAttempt, delayMs);
+                                break;
+                            }
                             
-                        await _connectivityRepository.SaveChangesAsync(retryCts.Token);
-                        _logger.LogInformation("Job {JobId}: Retry save completed", jobId);
-                            
-                        verifiedCount = await VerifyBatchPersistence(
-                            batchLocationIds, batchLocationType, cancellationToken);
+                            _logger.LogDebug(
+                                "Job {JobId}: Verification retry {Attempt}/3 - still {Found}/{Expected}",
+                                jobId, retryAttempt, verifiedCount, batchAssessments.Count);
+                        }
                             
                         if (verifiedCount != batchAssessments.Count)
                         {
+                            var finalMissingIds = batchLocationIds.Except(allVerifiedIds).ToHashSet();
+                            
                             _logger.LogError(
-                                "Job {JobId}: RETRY FAILED - Still only {Found}/{Expected} in database",
-                                jobId, verifiedCount, batchAssessments.Count);
-                                
-                            foreach (var (_, _, locationName, locationId) in batchAssessments)
+                                "Job {JobId}: VERIFICATION INCOMPLETE after 3 retries - {Found}/{Expected}. " +
+                                "Proceeding with verified assessments. Missing: [{MissingIds}]",
+                                jobId, verifiedCount, batchAssessments.Count,
+                                string.Join(", ", finalMissingIds.Take(10)));
+                            
+                            // Only mark truly missing ones as failed, count verified ones as success
+                            foreach (var (assessment, providers, locationName, locationId) in batchAssessments)
                             {
-                                if (!failedLocations.Any(f => f.Id == locationId))
+                                if (finalMissingIds.Contains(locationId))
                                 {
-                                    failedLocations.Add((locationId, locationName, 
-                                        $"Database write failed verification: {verifiedCount}/{batchAssessments.Count}"));
+                                    if (!failedLocations.Any(f => f.Id == locationId))
+                                    {
+                                        failedLocations.Add((locationId, locationName, 
+                                            $"Not found in database after verification retries"));
+                                    }
+                                }
+                                else
+                                {
+                                    // This one WAS verified - count as success
+                                    var dto = CreateLocationConnectivityDto(assessment, locationName);
+                                    results.Add(dto);
+                                    savedCount++;
                                 }
                             }
-                            continue;
+                            
+                            _logger.LogInformation(
+                                "Job {JobId}: Batch {BatchNum}/{TotalBatches} PARTIAL - {Verified} verified, {Missing} missing",
+                                jobId, batchIndex + 1, totalBatches, verifiedCount, finalMissingIds.Count);
+                            
+                            await ReportProgressWithCumulativeCount(jobId, processingCount, savedCount,
+                                processingContext, startTime, cancellationToken);
+                            continue; // Skip the normal success path below
                         }
                     }
 
@@ -830,34 +887,61 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     private async Task<int> VerifyBatchPersistence(
-    List<Guid> locationIds,
-    LocationTypeEnum locationType,
-    CancellationToken cancellationToken)
-{
-    try
+        List<Guid> locationIds,
+        LocationTypeEnum locationType,
+        CancellationToken cancellationToken)
     {
-        using var verifyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        verifyCts.CancelAfter(TimeSpan.FromMinutes(VERIFICATION_TIMEOUT_MINUTES));
+        try
+        {
+            using var verifyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            verifyCts.CancelAfter(TimeSpan.FromMinutes(VERIFICATION_TIMEOUT_MINUTES));
 
-        var dbAssessments = await _connectivityRepository.GetByLocationIdsAsync(
-            locationIds, locationType, verifyCts.Token);
+            var dbAssessments = await _connectivityRepository.GetByLocationIdsAsync(
+                locationIds, locationType, verifyCts.Token);
 
-        var count = dbAssessments?.Count ?? 0;
-        _logger.LogDebug("Batch verification: {Found}/{Expected} confirmed", count, locationIds.Count);
-        return count;
+            var count = dbAssessments?.Count ?? 0;
+            _logger.LogDebug("Batch verification: {Found}/{Expected} confirmed", count, locationIds.Count);
+            return count;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogError("CRITICAL: Batch verification TIMED OUT after {Timeout}min for {Count} locations",
+                VERIFICATION_TIMEOUT_MINUTES, locationIds.Count);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CRITICAL: Batch verification FAILED for {Count} locations: {Error}", 
+                locationIds.Count, ex.Message);
+            return 0;
+        }
     }
-    catch (OperationCanceledException)
+
+    /// <summary>
+    /// Gets the list of LocationIds that are verified to exist in the database.
+    /// Used to identify which specific assessments are missing during verification failures.
+    /// </summary>
+    private async Task<HashSet<Guid>> GetVerifiedLocationIds(
+        List<Guid> locationIds,
+        LocationTypeEnum locationType,
+        CancellationToken cancellationToken)
     {
-        _logger.LogError("CRITICAL: Batch verification TIMED OUT after {Timeout}s for {Count} locations",
-            VERIFICATION_TIMEOUT_MINUTES, locationIds.Count);
-        return 0;
+        try
+        {
+            using var verifyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            verifyCts.CancelAfter(TimeSpan.FromMinutes(VERIFICATION_TIMEOUT_MINUTES));
+
+            var dbAssessments = await _connectivityRepository.GetByLocationIdsAsync(
+                locationIds, locationType, verifyCts.Token);
+
+            return dbAssessments?.Select(a => a.LocationId).ToHashSet() ?? new HashSet<Guid>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get verified LocationIds for {Count} locations", locationIds.Count);
+            return new HashSet<Guid>();
+        }
     }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "CRITICAL: Batch verification FAILED for {Count} locations", locationIds.Count);
-        return 0;
-    }
-}
 
     /// <summary>
     /// Pre-loads existing assessments to optimize database access and reduce query overhead.
