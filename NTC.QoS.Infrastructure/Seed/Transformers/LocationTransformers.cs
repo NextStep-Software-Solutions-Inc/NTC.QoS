@@ -128,9 +128,9 @@ public class BarangayTransformer : ILocationDataTransformer<ParsedLocationFeatur
             Name = feature.Name,
             Description = null,
             Area = feature.Area,
-            TotalPopulation = null, // Barangays don't have population data in the GeoJSON
-            HouseholdPopulation = null,
-            HouseholdCount = null,
+            TotalPopulation = feature.TotalPopulation,
+            HouseholdPopulation = feature.HouseholdPopulation,
+            HouseholdCount = feature.HouseholdCount,
             Boundaries = feature.Boundaries,
             Center = feature.Boundaries.Centroid,
             MunicipalityId = municipalityId,
