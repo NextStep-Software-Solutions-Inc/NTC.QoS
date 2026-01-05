@@ -775,6 +775,9 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         }
 
         score.TotalScore = score.TechnologyTypeScore + score.InternetAccessScore;
+        
+        // Add score breakdown for debugging and transparency
+        score.ScoreBreakdown = $"Tech: {score.TechnologyTypeScore}/3, Internet: {score.InternetAccessScore}/3";
 
         return score;
     }
@@ -788,11 +791,11 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         return _scoringService.DetermineServiceStatus(totalScore);
     }
 
-    private static string GenerateRemarks(WirelessConnectivityScoreDto score)
+    private string GenerateRemarks(WirelessConnectivityScoreDto score)
     {
-        var status = score.TotalScore >= 5 ? "SERVED" 
-            : score.TotalScore >= 3 ? "UNDERSERVED" 
-            : "UNSERVED";
+        // Use DetermineServiceStatus for consistency with scoring service
+        var serviceStatus = DetermineServiceStatus(score.TotalScore);
+        var status = serviceStatus.ToString().ToUpper();
 
         var remarks = status;
         remarks += $" (Score: {score.TotalScore}/6)";

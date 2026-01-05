@@ -74,6 +74,17 @@ public class ReportsController : ControllerBase
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] bool includeScores = true)
     {
+        // Validate that FilterByStatus is only used when IncludeScores is true
+        if (!includeScores && filterByStatus.HasValue)
+        {
+            return BadRequest(new ApiResponse<WirelessBroadbandReportResult>
+            {
+                Succeeded = false,
+                Message = "FilterByStatus parameter can only be used when includeScores is true. " +
+                         "Service status filtering requires connectivity scores to be calculated."
+            });
+        }
+
         var request = new GetWirelessBroadbandReportQuery
         {
             RegionId = regionId,
