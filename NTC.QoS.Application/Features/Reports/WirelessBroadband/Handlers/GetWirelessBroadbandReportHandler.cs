@@ -572,6 +572,8 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         {
             container.Page(page =>
             {
+                // Intentionally using A3 landscape with 0.5 cm margins (previously A4 with 1 cm)
+                // to provide more horizontal space for wide wireless broadband report tables.
                 page.Size(PageSizes.A3.Landscape());
                 page.Margin(0.5f, QuestPDF.Infrastructure.Unit.Centimetre);
                 page.PageColor(Colors.White);
