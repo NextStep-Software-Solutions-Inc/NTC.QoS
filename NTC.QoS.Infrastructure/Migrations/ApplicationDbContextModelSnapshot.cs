@@ -1317,6 +1317,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int>("WifiHotspotCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("WirelessCoverageJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("WirelessCoverageLastUpdated")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConnectivityStatus")

@@ -1614,6 +1614,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Calculate Internet Access Score (0-3 points) - CMTS Criterion 2
     /// Evaluates internet availability, speed, and reliability per CMTS rubric
+    /// Uses MEDIAN download speed (more resistant to outliers)
     /// </summary>
     private static int CalculateInternetAccessScore(SpeedStatsDto? speedStats)
     {
@@ -1640,21 +1641,22 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var isUnreliable = speedVariability > 0.3m; // >30% variance = unreliable
 
         // SERVED (3 points): Stable internet meeting/exceeding national broadband standards
-        // Criteria: ?25 Mbps AND reliable (low variability)
-        if (avgDownloadSpeed >= 25 && !isUnreliable)
+        // Criteria: ≥25 Mbps AND reliable (low variability)
+        // Use MEDIAN speed as it's more resistant to outliers
+        if (medianDownloadSpeed >= 25 && !isUnreliable)
         {
             return 3; // Served - Stable internet meeting or exceeding standards (25+ Mbps)
         }
 
         // UNDERSERVED (2 points): Internet available but slow, unreliable, or below standards
-        // Case 1: Speed ?25 Mbps but unreliable
-        if (avgDownloadSpeed >= 25 && isUnreliable)
+        // Case 1: Speed ≥25 Mbps but unreliable
+        if (medianDownloadSpeed >= 25 && isUnreliable)
         {
             return 2; // Underserved - Available but unreliable
         }
 
         // Case 2: Speed between 10-25 Mbps (below standards but functional)
-        if (avgDownloadSpeed >= 10 && avgDownloadSpeed < 25)
+        if (medianDownloadSpeed >= 10 && medianDownloadSpeed < 25)
         {
             return 2; // Underserved - Available but below national broadband standards
         }
