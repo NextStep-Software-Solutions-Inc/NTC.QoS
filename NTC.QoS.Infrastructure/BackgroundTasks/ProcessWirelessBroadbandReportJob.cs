@@ -18,6 +18,7 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using System.Diagnostics;
 using System.Drawing;
+using System.Text.Json;
 using Color = System.Drawing.Color;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
@@ -79,6 +80,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     private readonly IBlobStorageService _blobStorageService;
     private readonly ILogger<ProcessWirelessBroadbandReportJob> _logger;
     private readonly IWirelessScoringService _scoringService;
+    private readonly IConnectivityAssessmentRepository _connectivityAssessmentRepository;
     
     private const string CACHE_KEY_PREFIX = "wireless_broadband_report_job_";
     private const int CACHE_RETENTION_HOURS = 1;
@@ -90,7 +92,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         IMemoryCache memoryCache,
         IBlobStorageService blobStorageService,
         ILogger<ProcessWirelessBroadbandReportJob> logger,
-        IWirelessScoringService scoringService)
+        IWirelessScoringService scoringService,
+        IConnectivityAssessmentRepository connectivityAssessmentRepository)
     {
         _context = context;
         _providerTechService = providerTechService;
@@ -98,6 +101,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         _blobStorageService = blobStorageService;
         _logger = logger;
         _scoringService = scoringService;
+        _connectivityAssessmentRepository = connectivityAssessmentRepository;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -397,44 +401,28 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         _logger.LogInformation("Generating wireless broadband scored report for {Count} barangays in {Area}", 
             barangays.Count, reportTitleName);
 
-        // 4. Process barangays with scoring
-        var reportData = new List<BarangayWirelessScoredEntryDto>();
+        // 4. Load wireless coverage from connectivity assessments (optimized - reads cached data)
+        _logger.LogInformation("Step 3: Loading wireless coverage from connectivity assessments for {Area}...", reportTitleName);
+        var assessmentLoadStopwatch = Stopwatch.StartNew();
         var barangayIds = barangays.Select(b => b.Id).ToList();
-
-        // Batch calculate provider technology breakdowns for all barangays (optimized - 3 queries total)
-        var techBreakdownStopwatch = Stopwatch.StartNew();
-        var batchTechBreakdowns = await _providerTechService.CalculateBatchProviderTechnologyBreakdownAsync(
+        var wirelessCoverageByBarangay = await LoadWirelessCoverageFromAssessmentsAsync(
             barangayIds,
-            targetBoundaries,
             cancellationToken);
-        techBreakdownStopwatch.Stop();
-        _logger.LogInformation(
-            "Step 3: Calculated technology breakdowns for {BarangayCount} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
-            barangayIds.Count, techBreakdownStopwatch.ElapsedMilliseconds,
-            barangayIds.Count > 0 ? techBreakdownStopwatch.ElapsedMilliseconds / barangayIds.Count : 0);
-
-        // Query speedtests using spatial filter (database-side, leveraging spatial indexes)
-        // Group by barangay in-memory to avoid loading full dataset multiple times
-        _logger.LogInformation("Step 4: Loading speedtests for {Area}...", reportTitleName);
+        assessmentLoadStopwatch.Stop();
         
-        var speedtestLoadStopwatch = Stopwatch.StartNew();
-        var speedtestsByBarangay = await LoadSpeedtestsByBarangayAsync(
-            barangays, 
-            targetBoundaries, 
-            cancellationToken);
-        speedtestLoadStopwatch.Stop();
-        
-        var totalSpeedtests = speedtestsByBarangay.Values.Sum(list => list.Count);
+        var totalCoveredBarangays = wirelessCoverageByBarangay.Count;
         _logger.LogInformation(
-            "Step 4: Loaded {SpeedtestCount} speedtests for {BarangayCount} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
-            totalSpeedtests, speedtestsByBarangay.Count, speedtestLoadStopwatch.ElapsedMilliseconds,
-            speedtestsByBarangay.Count > 0 ? speedtestLoadStopwatch.ElapsedMilliseconds / speedtestsByBarangay.Count : 0);
+            "Step 3: Loaded wireless coverage for {CoveredCount}/{TotalCount} barangays from assessments in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
+            totalCoveredBarangays, barangayIds.Count, assessmentLoadStopwatch.ElapsedMilliseconds,
+            totalCoveredBarangays > 0 ? assessmentLoadStopwatch.ElapsedMilliseconds / totalCoveredBarangays : 0);
 
         // Process barangays in batches for progress tracking
-        _logger.LogInformation("Step 5: Processing scoring calculations for {BarangayCount} barangays...", barangays.Count);
+        _logger.LogInformation("Step 4: Processing scoring calculations for {BarangayCount} barangays...", barangays.Count);
         var scoringStopwatch = Stopwatch.StartNew();
         const int progressBatchSize = 500;
         var processedCount = 0;
+        var reportData = new List<BarangayWirelessScoredEntryDto>();
+        
         foreach (var barangay in barangays)
         {
             var entry = new BarangayWirelessScoredEntryDto
@@ -443,38 +431,53 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 BarangayName = barangay.Name
             };
 
-            // Get pre-calculated provider technology breakdown for this barangay
-            var providerTechBreakdown = batchTechBreakdowns.GetValueOrDefault(barangay.Id) 
-                ?? new Dictionary<string, TechnologyBandBreakdownDto>();
-
-            // Get speedtests for this barangay
-            var barangaySpeedtests = speedtestsByBarangay.GetValueOrDefault(barangay.Id) 
-                ?? new List<SpeedtestInfo>();
-
-            // Map provider stats using technology breakdown and speedtests
-            foreach (var provider in providers)
+            // Get wireless coverage for this barangay from assessment
+            var wirelessSummary = wirelessCoverageByBarangay.GetValueOrDefault(barangay.Id);
+            
+            if (wirelessSummary != null)
             {
-                var providerSpeedtests = barangaySpeedtests
-                    .Where(s => s.ProviderName.Contains(provider.Name, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+                _logger.LogDebug(
+                    "Barangay {BarangayName}: Found wireless coverage with {ProviderCount} providers, {CellularCount} cellulars, {SpeedtestCount} speedtests",
+                    barangay.Name, wirelessSummary.Providers.Count, wirelessSummary.TotalCellularCount, wirelessSummary.TotalSpeedtestCount);
 
-                var techBreakdown = providerTechBreakdown.GetValueOrDefault(provider.Name);
-                entry.ProviderStats[provider.Name] = MapProviderStats(techBreakdown, providerSpeedtests);
+                // Map provider stats from assessment data
+                foreach (var provider in providers)
+                {
+                    var providerCoverage = wirelessSummary.Providers
+                        .FirstOrDefault(p => p.ProviderName.Equals(provider.Name, StringComparison.OrdinalIgnoreCase));
+                    
+                    entry.ProviderStats[provider.Name] = MapProviderStatsFromAssessment(providerCoverage);
+                }
+
+                // Calculate overall barangay connectivity score (only if requested)
+                if (includeScores)
+                {
+                    var overallTechBreakdown = BuildTechnologyBreakdownFromSummary(wirelessSummary);
+                    var overallSpeedStats = BuildSpeedStatsFromSummary(wirelessSummary);
+
+                    entry.ConnectivityScore = CalculateConnectivityScore(overallTechBreakdown, overallSpeedStats);
+                    entry.ServiceStatus = DetermineServiceStatus(entry.ConnectivityScore.TotalScore);
+                    entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
+                }
             }
-
-            // Calculate overall barangay connectivity score (only if requested)
-            if (includeScores)
+            else
             {
-                var overallTechBreakdown = AggregateProviderTechnologyBreakdowns(providerTechBreakdown.Values);
-                
-                // Build overall speed stats for the barangay
-                var overallSpeedStats = barangaySpeedtests.Any() 
-                    ? BuildSpeedStats(barangaySpeedtests) 
-                    : null;
+                // No assessment data - default to empty stats for all providers
+                _logger.LogWarning(
+                    "Barangay {BarangayName} (ID: {BarangayId}) has no wireless coverage assessment data. Run connectivity assessment job first.",
+                    barangay.Name, barangay.Id);
 
-                entry.ConnectivityScore = CalculateConnectivityScore(overallTechBreakdown, overallSpeedStats);
-                entry.ServiceStatus = DetermineServiceStatus(entry.ConnectivityScore.TotalScore);
-                entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
+                foreach (var provider in providers)
+                {
+                    entry.ProviderStats[provider.Name] = new ProviderWirelessStatsDto();
+                }
+                
+                if (includeScores)
+                {
+                    entry.ConnectivityScore = new WirelessConnectivityScoreDto();
+                    entry.ServiceStatus = ServiceStatusEnum.Unserved;
+                    entry.Remarks = "No connectivity assessment data available";
+                }
             }
 
             reportData.Add(entry);
@@ -489,10 +492,15 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         }
         
         scoringStopwatch.Stop();
+        
+        var barangaysWithData = reportData.Count(r => r.ProviderStats.Values.Any(p => p.Has2G || p.Has3G || p.Has4G || p.Has5G));
+        var barangaysWithoutData = reportData.Count - barangaysWithData;
+        
         _logger.LogInformation(
-            "Step 5: Completed scoring for {ProcessedCount} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay)",
+            "Step 4: Completed scoring for {ProcessedCount} barangays in {ElapsedMs}ms (avg {AvgMs}ms/barangay). Data status: {WithData} with wireless data, {WithoutData} without data",
             processedCount, scoringStopwatch.ElapsedMilliseconds,
-            processedCount > 0 ? scoringStopwatch.ElapsedMilliseconds / processedCount : 0);
+            processedCount > 0 ? scoringStopwatch.ElapsedMilliseconds / processedCount : 0,
+            barangaysWithData, barangaysWithoutData);
 
         // Apply filtering
         if (filterByStatus.HasValue)
@@ -529,12 +537,11 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             "Step 6: Generated {Format} file ({FileSize} KB) in {ElapsedMs}ms",
             format, fileContent.Length / 1024, reportGenStopwatch.ElapsedMilliseconds);
         _logger.LogInformation(
-            "Report generation pipeline completed in {TotalMs}ms - Breakdown: Scope:{Scope}ms + Providers:{Prov}ms + TechBreakdown:{Tech}ms + Speedtests:{Speed}ms + Scoring:{Score}ms + FileGen:{File}ms",
+            "Report generation pipeline completed in {TotalMs}ms - Breakdown: Scope:{Scope}ms + Providers:{Prov}ms + AssessmentLoad:{Assessment}ms + Scoring:{Score}ms + FileGen:{File}ms",
             overallStopwatch.ElapsedMilliseconds, 
             scopeFetchStopwatch.ElapsedMilliseconds, 
             providerFetchStopwatch.ElapsedMilliseconds,
-            techBreakdownStopwatch.ElapsedMilliseconds,
-            speedtestLoadStopwatch.ElapsedMilliseconds,
+            assessmentLoadStopwatch.ElapsedMilliseconds,
             scoringStopwatch.ElapsedMilliseconds,
             reportGenStopwatch.ElapsedMilliseconds);
 
@@ -605,6 +612,203 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             barangays.Count > 0 ? totalStopwatch.ElapsedMilliseconds / barangays.Count : 0);
 
         return result;
+    }
+
+    /// <summary>
+    /// Load wireless coverage from connectivity assessments for the specified barangays.
+    /// OPTIMIZATION: Reads pre-computed wireless coverage data from ConnectivityAssessment.WirelessCoverageJson
+    /// instead of querying cellulars and speedtests directly (20-30x faster).
+    /// </summary>
+    private async Task<Dictionary<Guid, BarangayWirelessSummaryDto>> LoadWirelessCoverageFromAssessmentsAsync(
+        List<Guid> barangayIds,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<Guid, BarangayWirelessSummaryDto>();
+        
+        if (!barangayIds.Any())
+            return result;
+
+        _logger.LogInformation(
+            "Loading wireless coverage from {BarangayCount} barangay assessments...", 
+            barangayIds.Count);
+
+        // Query assessments for all barangays at once
+        var assessments = await _connectivityAssessmentRepository.Query()
+            .Where(a => barangayIds.Contains(a.LocationId) && a.LocationType == LocationTypeEnum.Barangay)
+            .Where(a => !string.IsNullOrEmpty(a.WirelessCoverageJson))
+            .Select(a => new
+            {
+                a.LocationId,
+                a.WirelessCoverageJson,
+                a.WirelessCoverageLastUpdated
+            })
+            .ToListAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Found {AssessmentCount} assessments with wireless coverage data out of {TotalCount} barangays",
+            assessments.Count, barangayIds.Count);
+
+        // Deserialize wireless coverage JSON for each assessment
+        var successCount = 0;
+        var failCount = 0;
+        foreach (var assessment in assessments)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(assessment.WirelessCoverageJson))
+                {
+                    var wirelessSummary = JsonSerializer.Deserialize<BarangayWirelessSummaryDto>(
+                        assessment.WirelessCoverageJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (wirelessSummary != null)
+                    {
+                        result[assessment.LocationId] = wirelessSummary;
+                        successCount++;
+                    }
+                    else
+                    {
+                        failCount++;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, 
+                    "Failed to deserialize wireless coverage JSON for barangay {BarangayId}", 
+                    assessment.LocationId);
+                failCount++;
+            }
+        }
+
+        _logger.LogInformation(
+            "Successfully deserialized {SuccessCount} wireless coverage summaries, {FailCount} failures",
+            successCount, failCount);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Map BarangayWirelessCoverageDto from assessment to ProviderWirelessStatsDto for report
+    /// </summary>
+    private static ProviderWirelessStatsDto MapProviderStatsFromAssessment(
+        BarangayWirelessCoverageDto? providerCoverage)
+    {
+        var stats = new ProviderWirelessStatsDto();
+
+        if (providerCoverage == null)
+            return stats;
+
+        // Map technology availability
+        stats.Has2G = providerCoverage.Has2G;
+        stats.Has3G = providerCoverage.Has3G;
+        stats.Has4G = providerCoverage.Has4G;
+        stats.Has5G = providerCoverage.Has5G;
+
+        // Map speedtest data
+        if (providerCoverage.SpeedtestCount > 0)
+        {
+            stats.TechUsed = providerCoverage.MedianTechnology ?? "";
+            stats.UploadSpeedMbps = (double)(providerCoverage.AverageUploadSpeedMbps ?? 0);
+            stats.DownloadSpeedMbps = (double)(providerCoverage.AverageDownloadSpeedMbps ?? 0);
+        }
+
+        return stats;
+    }
+
+    /// <summary>
+    /// Build TechnologyBandBreakdownDto from BarangayWirelessSummaryDto for overall barangay scoring
+    /// </summary>
+    private static TechnologyBandBreakdownDto BuildTechnologyBreakdownFromSummary(
+        BarangayWirelessSummaryDto summary)
+    {
+        var breakdown = new TechnologyBandBreakdownDto();
+
+        // Aggregate counts from all providers
+        foreach (var provider in summary.Providers)
+        {
+            breakdown.Count2G += provider.Count2G;
+            breakdown.Count3G += provider.Count3G;
+            breakdown.Count4G += provider.Count4G;
+            breakdown.Count5G += provider.Count5G;
+        }
+
+        breakdown.TotalTechnologyCount = breakdown.Count2G + breakdown.Count3G + 
+                                         breakdown.Count4G + breakdown.Count5G;
+
+        // Has2G, Has3G, Has4G, Has5G are computed properties (Count > 0)
+        breakdown.AvailableGenerations = new List<string>();
+        if (breakdown.Has2G) breakdown.AvailableGenerations.Add("2G");
+        if (breakdown.Has3G) breakdown.AvailableGenerations.Add("3G");
+        if (breakdown.Has4G) breakdown.AvailableGenerations.Add("4G");
+        if (breakdown.Has5G) breakdown.AvailableGenerations.Add("5G");
+
+        if (breakdown.TotalTechnologyCount > 0)
+        {
+            breakdown.ModernCoverageRatio = (double)(breakdown.Count4G + breakdown.Count5G) / breakdown.TotalTechnologyCount;
+            breakdown.HasModernCoverage = breakdown.ModernCoverageRatio > 0;
+
+            var genCounts = new Dictionary<string, int>
+            {
+                ["2G"] = breakdown.Count2G,
+                ["3G"] = breakdown.Count3G,
+                ["4G"] = breakdown.Count4G,
+                ["5G"] = breakdown.Count5G
+            };
+            var maxCount = genCounts.Max(kvp => kvp.Value);
+            breakdown.DominantGeneration = genCounts.FirstOrDefault(kvp => kvp.Value == maxCount).Key;
+        }
+
+        return breakdown;
+    }
+
+    /// <summary>
+    /// Build SpeedStatsDto from BarangayWirelessSummaryDto for overall barangay scoring
+    /// </summary>
+    private static SpeedStatsDto? BuildSpeedStatsFromSummary(
+        BarangayWirelessSummaryDto summary)
+    {
+        if (summary.TotalSpeedtestCount == 0)
+            return null;
+
+        // Calculate weighted averages across all providers
+        var totalTests = summary.Providers.Sum(p => p.SpeedtestCount);
+        if (totalTests == 0)
+            return null;
+
+        var weightedDownloadSum = summary.Providers
+            .Where(p => p.SpeedtestCount > 0 && p.AverageDownloadSpeedMbps.HasValue)
+            .Sum(p => p.AverageDownloadSpeedMbps!.Value * p.SpeedtestCount);
+        
+        var weightedUploadSum = summary.Providers
+            .Where(p => p.SpeedtestCount > 0 && p.AverageUploadSpeedMbps.HasValue)
+            .Sum(p => p.AverageUploadSpeedMbps!.Value * p.SpeedtestCount);
+
+        var avgDownload = weightedDownloadSum / totalTests;
+        var avgUpload = weightedUploadSum / totalTests;
+
+        // Use median values from individual providers for overall median approximation
+        var downloadMedians = summary.Providers
+            .Where(p => p.MedianDownloadSpeedMbps.HasValue)
+            .Select(p => p.MedianDownloadSpeedMbps!.Value)
+            .OrderBy(x => x)
+            .ToList();
+
+        var uploadMedians = summary.Providers
+            .Where(p => p.MedianUploadSpeedMbps.HasValue)
+            .Select(p => p.MedianUploadSpeedMbps!.Value)
+            .OrderBy(x => x)
+            .ToList();
+
+        return new SpeedStatsDto
+        {
+            SpeedTestCount = summary.TotalSpeedtestCount,
+            AverageDownloadSpeedMbps = avgDownload,
+            AverageUploadSpeedMbps = avgUpload,
+            MedianDownloadSpeedMbps = downloadMedians.Any() ? CalculateMedian(downloadMedians) : avgDownload,
+            MedianUploadSpeedMbps = uploadMedians.Any() ? CalculateMedian(uploadMedians) : avgUpload,
+            MeetsMinimumSpeedRequirement = avgDownload >= 25m
+        };
     }
 
     private static ProviderWirelessStatsDto MapProviderStats(

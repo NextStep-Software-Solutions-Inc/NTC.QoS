@@ -13,7 +13,10 @@ internal sealed class ConnectivityAssessmentRepository(ApplicationDbContext cont
         LocationTypeEnum locationType,
         CancellationToken cancellationToken = default)
     {
+        // Use AsNoTracking to bypass EF Core's identity cache and get fresh data from database
+        // This is critical for verification queries immediately after SaveChangesAsync
         return await _context.Set<ConnectivityAssessment>()
+            .AsNoTracking()
             .Where(ca => locationIds.Contains(ca.LocationId) && ca.LocationType == locationType && !ca.IsDeleted)
             .OrderBy(ca => ca.LocationId)
             .ToListAsync(cancellationToken);
