@@ -23,34 +23,31 @@ namespace NTC.QoS.Infrastructure.Migrations
                 type: "timestamp with time zone",
                 nullable: true);
 
-            migrationBuilder.CreateTable(
-                name: "ReportTemplates",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
-                    Instruction = table.Column<string>(type: "text", nullable: false),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    CreatedBy = table.Column<string>(type: "text", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    UpdatedBy = table.Column<string>(type: "text", nullable: false),
-                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
-                    DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    DeletedBy = table.Column<string>(type: "text", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ReportTemplates", x => x.Id);
-                });
+            // Create ReportTemplates table only if it doesn't exist
+            // This handles dev environment where the table may already exist
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS ""ReportTemplates"" (
+                    ""Id"" uuid NOT NULL,
+                    ""Title"" character varying(200) NOT NULL,
+                    ""Description"" character varying(500) NOT NULL,
+                    ""Instruction"" text NOT NULL,
+                    ""IsActive"" boolean NOT NULL,
+                    ""CreatedAt"" timestamp with time zone NOT NULL,
+                    ""CreatedBy"" text NOT NULL,
+                    ""UpdatedAt"" timestamp with time zone NOT NULL,
+                    ""UpdatedBy"" text NOT NULL,
+                    ""IsDeleted"" boolean NOT NULL,
+                    ""DeletedAt"" timestamp with time zone,
+                    ""DeletedBy"" text,
+                    CONSTRAINT ""PK_ReportTemplates"" PRIMARY KEY (""Id"")
+                );
+            ");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "ReportTemplates");
+            migrationBuilder.Sql(@"DROP TABLE IF EXISTS ""ReportTemplates"";");
 
             migrationBuilder.DropColumn(
                 name: "WirelessCoverageJson",
