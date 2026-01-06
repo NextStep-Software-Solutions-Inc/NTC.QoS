@@ -10,9 +10,9 @@ namespace NTC.QoS.Application.Features.CellularCoverage.Handlers.Queries;
 /// </summary>
 public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV2Query, PaginatedResponse<CellularCoverageV2Dto>>
 {
-    private readonly ICellularCoverageV2Repository _repository;
+    private readonly ICellularCoverageRepository _repository;
 
-    public GetCellularCoverageV2Handler(ICellularCoverageV2Repository repository)
+    public GetCellularCoverageV2Handler(ICellularCoverageRepository repository)
     {
         _repository = repository;
     }
@@ -21,7 +21,7 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
         GetCellularCoverageV2Query request,
         CancellationToken cancellationToken)
     {
-        var query = _repository.Query(cc => !cc.IsDeleted);
+        var query = _repository.QueryAsNoTracking(cc => !cc.IsDeleted);
 
         // Apply filters
         if (request.MunicipalityId.HasValue)
