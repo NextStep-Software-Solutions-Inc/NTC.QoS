@@ -1,10 +1,8 @@
 using Hangfire;
 using Hangfire.Common;
-using Hangfire.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.API.Models;
 using NTC.QoS.Domain.Authorization;

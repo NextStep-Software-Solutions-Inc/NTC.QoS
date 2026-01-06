@@ -6,7 +6,6 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
 using NTC.QoS.Infrastructure.Seed.Models;
 using System.Diagnostics;
-using System.IO;
 
 namespace NTC.QoS.Infrastructure.Seed.Parsers;
 
