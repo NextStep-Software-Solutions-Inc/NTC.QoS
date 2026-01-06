@@ -1,3 +1,5 @@
+using Hangfire;
+using Hangfire.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -5,13 +7,8 @@ using NTC.QoS.API.Authorization;
 using NTC.QoS.API.Models;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Infrastructure.Configuration;
-using NTC.QoS.Infrastructure.Persistence;
-using NTC.QoS.Infrastructure.Seed;
-using NTC.QoS.Infrastructure.Seed.Parsers;
-using NTC.QoS.Infrastructure.Seed.Strategies;
-using NTC.QoS.Infrastructure.Seed.Transformers;
-using NTC.QoS.Infrastructure.Seed.Writers;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -23,45 +20,30 @@ namespace NTC.QoS.API.Controllers;
 [Authorize]
 public class SeedController : ControllerBase
 {
-    private readonly ApplicationDbContext _dbContext;
-    private readonly IBlobStorageService _blobStorageService;
+    private readonly IBackgroundJobService _backgroundJobService;
     private readonly ILogger<SeedController> _logger;
-    private readonly ILoggerFactory _loggerFactory;
     private readonly DatabaseOptions _databaseOptions;
-    private readonly IRegionRepository _regionRepository;
-    private readonly IProvinceRepository _provinceRepository;
-    private readonly IMunicipalityRepository _municipalityRepository;
 
     public SeedController(
-        ApplicationDbContext dbContext,
-        IBlobStorageService blobStorageService,
+        IBackgroundJobService backgroundJobService,
         ILogger<SeedController> logger,
-        ILoggerFactory loggerFactory,
-        IOptions<DatabaseOptions> databaseOptions,
-        IRegionRepository regionRepository,
-        IProvinceRepository provinceRepository,
-        IMunicipalityRepository municipalityRepository)
+        IOptions<DatabaseOptions> databaseOptions)
     {
-        _dbContext = dbContext;
-        _blobStorageService = blobStorageService;
+        _backgroundJobService = backgroundJobService;
         _logger = logger;
-        _loggerFactory = loggerFactory;
         _databaseOptions = databaseOptions.Value;
-        _regionRepository = regionRepository;
-        _provinceRepository = provinceRepository;
-        _municipalityRepository = municipalityRepository;
     }
 
     /// <summary>
     /// Reseed specific location entities based on the request payload.
-    /// This endpoint allows selective reseeding without redeploying the system.
+    /// This endpoint queues a background job for seeding operations.
     /// </summary>
     /// <param name="request">The seed request containing which entities to reseed</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Result of the seeding operation</returns>
+    /// <returns>Job ID for tracking the seeding operation</returns>
     [HttpPost]
     [RequirePermission(Permissions.SystemAdministration)]
-    public async Task<IActionResult> ReseedEntities([FromBody] SeedRequest request, CancellationToken cancellationToken = default)
+    public IActionResult ReseedEntities([FromBody] SeedRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
             "Reseed request received - Region: {Region}, Province: {Province}, Municipality: {Municipality}, Barangay: {Barangay}, ForceReseed: {ForceReseed}",
@@ -79,185 +61,137 @@ public class SeedController : ControllerBase
 
         try
         {
-            var results = new List<object>();
-            var useOptimizedSeeder = _databaseOptions.UseOptimizedLocationSeeder ?? true;
-
-            // Seed in hierarchical order
-            if (request.RegionEntity)
+            var parameters = new LocationSeedParametersDto
             {
-                var result = await SeedRegionsAsync(useOptimizedSeeder, request.ForceReseed, cancellationToken);
-                results.Add(new { entity = "Region", result });
-            }
+                RegionEntity = request.RegionEntity,
+                ProvinceEntity = request.ProvinceEntity,
+                MunicipalityEntity = request.MunicipalityEntity,
+                BarangayEntity = request.BarangayEntity,
+                ForceReseed = request.ForceReseed,
+                UseOptimizedSeeder = _databaseOptions.UseOptimizedLocationSeeder ?? true
+            };
 
-            if (request.ProvinceEntity)
-            {
-                var result = await SeedProvincesAsync(useOptimizedSeeder, request.ForceReseed, cancellationToken);
-                results.Add(new { entity = "Province", result });
-            }
+            // Queue the background job
+            var jobId = _backgroundJobService.Enqueue<IProcessLocationSeedJob>(job => job.ExecuteAsync(parameters, cancellationToken));
 
-            if (request.MunicipalityEntity)
-            {
-                var result = await SeedMunicipalitiesAsync(useOptimizedSeeder, request.ForceReseed, cancellationToken);
-                results.Add(new { entity = "Municipality", result });
-            }
-
-            if (request.BarangayEntity)
-            {
-                var result = await SeedBarangaysAsync(useOptimizedSeeder, request.ForceReseed, cancellationToken);
-                results.Add(new { entity = "Barangay", result });
-            }
+            _logger.LogInformation("Location seeding job queued with ID: {JobId}", jobId);
 
             return Ok(new
             {
                 success = true,
-                message = "Reseeding completed successfully",
-                results,
+                message = "Reseeding job has been queued successfully",
+                jobId,
                 timestamp = DateTime.UtcNow
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Reseeding failed");
+            _logger.LogError(ex, "Failed to queue reseeding job");
             return StatusCode(500, new
             {
                 success = false,
-                message = "Reseeding failed",
+                message = "Failed to queue reseeding job",
                 error = ex.Message,
                 timestamp = DateTime.UtcNow
             });
         }
     }
 
-    private async Task<object> SeedRegionsAsync(bool useOptimizedSeeder, bool forceReseed, CancellationToken cancellationToken)
+    /// <summary>
+    /// Get the status of a specific seeding job
+    /// </summary>
+    /// <param name="jobId">The Hangfire job ID</param>
+    /// <returns>Job status information</returns>
+    [HttpGet("status/{jobId}")]
+    [RequirePermission(Permissions.SystemAdministration)]
+    public IActionResult GetJobStatus(string jobId)
     {
-        if (useOptimizedSeeder)
+        try
         {
-            _logger.LogInformation("Using optimized LocationSeederV2 for regions");
-            var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM1", null);
-            var transformer = new RegionTransformer();
-            var writer = new BatchedLocationWriter<Domain.Entities.Region>(_dbContext, _loggerFactory.CreateLogger<BatchedLocationWriter<Domain.Entities.Region>>());
-            var strategy = new RegionSeedingStrategy(_dbContext, _blobStorageService, _loggerFactory.CreateLogger<RegionSeedingStrategy>(), parser, transformer, writer);
+            using var connection = JobStorage.Current.GetConnection();
+            var jobData = connection.GetJobData(jobId);
 
-            var result = await strategy.SeedAsync(null, forceReseed, cancellationToken);
-            return new
+            if (jobData == null)
             {
-                success = result.Success,
-                alreadySeeded = result.AlreadySeeded,
-                inserted = result.InsertedCount,
-                existing = result.ExistingCount,
-                errorMessage = result.ErrorMessage
-            };
-        }
-        else
-        {
-            _logger.LogInformation("Using legacy LocationSeeder for regions");
-            await LocationSeeder.SeedRegionsAsync(_dbContext, _blobStorageService, _logger, forceReseed);
-            return new { success = true, message = "Legacy seeder completed" };
-        }
-    }
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"Job with ID '{jobId}' not found",
+                    timestamp = DateTime.UtcNow
+                });
+            }
 
-    private async Task<object> SeedProvincesAsync(bool useOptimizedSeeder, bool forceReseed, CancellationToken cancellationToken)
-    {
-        if (useOptimizedSeeder)
-        {
-            _logger.LogInformation("Using optimized LocationSeederV2 for provinces");
-            
-            // Load region ID map
-            var regionsQuery = _regionRepository.QueryAsNoTracking(r => !r.IsDeleted);
-            var regions = await _regionRepository.ToListAsync(
-                regionsQuery.Select(r => new { r.Code, r.Id }), 
-                cancellationToken);
-            var regionMap = regions.GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.First().Id);
-
-            var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM2", "ADM1");
-            var transformer = new ProvinceTransformer();
-            var writer = new BatchedLocationWriter<Domain.Entities.Province>(_dbContext, _loggerFactory.CreateLogger<BatchedLocationWriter<Domain.Entities.Province>>());
-            var strategy = new ProvinceSeedingStrategy(_dbContext, _blobStorageService, _loggerFactory.CreateLogger<ProvinceSeedingStrategy>(), parser, transformer, writer);
-
-            var result = await strategy.SeedAsync(regionMap, forceReseed, cancellationToken);
-            return new
+            // Extract parameters from job arguments
+            SeedJobParameters? parameters = null;
+            if (jobData.Job?.Args?.Count > 0 && jobData.Job.Args[0] is LocationSeedParametersDto seedParams)
             {
-                success = result.Success,
-                alreadySeeded = result.AlreadySeeded,
-                inserted = result.InsertedCount,
-                existing = result.ExistingCount,
-                errorMessage = result.ErrorMessage
-            };
-        }
-        else
-        {
-            _logger.LogWarning("Legacy LocationSeeder does not support individual Province seeding. Use optimized seeder instead.");
-            return new { success = false, message = "Legacy seeder does not support individual province seeding. Set UseOptimizedLocationSeeder=true in configuration." };
-        }
-    }
+                parameters = new SeedJobParameters
+                {
+                    RegionEntity = seedParams.RegionEntity,
+                    ProvinceEntity = seedParams.ProvinceEntity,
+                    MunicipalityEntity = seedParams.MunicipalityEntity,
+                    BarangayEntity = seedParams.BarangayEntity,
+                    ForceReseed = seedParams.ForceReseed
+                };
+            }
 
-    private async Task<object> SeedMunicipalitiesAsync(bool useOptimizedSeeder, bool forceReseed, CancellationToken cancellationToken)
-    {
-        if (useOptimizedSeeder)
-        {
-            _logger.LogInformation("Using optimized LocationSeederV2 for municipalities");
-            
-            // Load province ID map
-            var provincesQuery = _provinceRepository.QueryAsNoTracking(p => !p.IsDeleted);
-            var provinces = await _provinceRepository.ToListAsync(
-                provincesQuery.Select(p => new { p.Code, p.Id }), 
-                cancellationToken);
-            var provinceMap = provinces.GroupBy(p => p.Code).ToDictionary(g => g.Key, g => g.First().Id);
-
-            var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM3", "ADM2");
-            var transformer = new MunicipalityTransformer();
-            var writer = new BatchedLocationWriter<Domain.Entities.Municipality>(_dbContext, _loggerFactory.CreateLogger<BatchedLocationWriter<Domain.Entities.Municipality>>());
-            var strategy = new MunicipalitySeedingStrategy(_dbContext, _blobStorageService, _loggerFactory.CreateLogger<MunicipalitySeedingStrategy>(), parser, transformer, writer);
-
-            var result = await strategy.SeedAsync(provinceMap, forceReseed, cancellationToken);
-            return new
+            var response = new SeedJobStatusResponse
             {
-                success = result.Success,
-                alreadySeeded = result.AlreadySeeded,
-                inserted = result.InsertedCount,
-                existing = result.ExistingCount,
-                errorMessage = result.ErrorMessage
+                JobId = jobId,
+                State = jobData.State ?? "Unknown",
+                CreatedAt = jobData.CreatedAt,
+                Parameters = parameters
             };
-        }
-        else
-        {
-            _logger.LogWarning("Legacy LocationSeeder does not support individual Municipality seeding. Use optimized seeder instead.");
-            return new { success = false, message = "Legacy seeder does not support individual municipality seeding. Set UseOptimizedLocationSeeder=true in configuration." };
-        }
-    }
 
-    private async Task<object> SeedBarangaysAsync(bool useOptimizedSeeder, bool forceReseed, CancellationToken cancellationToken)
-    {
-        if (useOptimizedSeeder)
-        {
-            _logger.LogInformation("Using optimized LocationSeederV2 for barangays");
-            
-            // Load municipality ID map
-            var municipalitiesQuery = _municipalityRepository.QueryAsNoTracking(m => !m.IsDeleted);
-            var municipalities = await _municipalityRepository.ToListAsync(
-                municipalitiesQuery.Select(m => new { m.Code, m.Id }), 
-                cancellationToken);
-            var municipalityMap = municipalities.GroupBy(m => m.Code).ToDictionary(g => g.Key, g => g.First().Id);
-
-            var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM4", "ADM3");
-            var transformer = new BarangayTransformer();
-            var writer = new BatchedLocationWriter<Domain.Entities.Barangay>(_dbContext, _loggerFactory.CreateLogger<BatchedLocationWriter<Domain.Entities.Barangay>>());
-            var strategy = new BarangaySeedingStrategy(_dbContext, _blobStorageService, _loggerFactory.CreateLogger<BarangaySeedingStrategy>(), parser, transformer, writer);
-
-            var result = await strategy.SeedAsync(municipalityMap, forceReseed, cancellationToken);
-            return new
+            // Get state-specific details
+            var stateData = connection.GetStateData(jobId);
+            if (stateData != null)
             {
-                success = result.Success,
-                alreadySeeded = result.AlreadySeeded,
-                inserted = result.InsertedCount,
-                existing = result.ExistingCount,
-                errorMessage = result.ErrorMessage
-            };
+                if (stateData.Name == "Processing" && stateData.Data.ContainsKey("StartedAt"))
+                {
+                    response.StartedAt = JobHelper.DeserializeDateTime(stateData.Data["StartedAt"]);
+                }
+                else if (stateData.Name == "Succeeded")
+                {
+                    if (stateData.Data.ContainsKey("SucceededAt"))
+                    {
+                        response.FinishedAt = JobHelper.DeserializeDateTime(stateData.Data["SucceededAt"]);
+                    }
+                    if (stateData.Data.ContainsKey("Result"))
+                    {
+                        response.Reason = stateData.Data["Result"];
+                    }
+                }
+                else if (stateData.Name == "Failed")
+                {
+                    if (stateData.Data.ContainsKey("FailedAt"))
+                    {
+                        response.FinishedAt = JobHelper.DeserializeDateTime(stateData.Data["FailedAt"]);
+                    }
+                    if (stateData.Data.ContainsKey("ExceptionMessage"))
+                    {
+                        response.ExceptionMessage = stateData.Data["ExceptionMessage"];
+                    }
+                }
+            }
+
+            return Ok(new
+            {
+                success = true,
+                data = response,
+                timestamp = DateTime.UtcNow
+            });
         }
-        else
+        catch (Exception ex)
         {
-            _logger.LogWarning("Legacy LocationSeeder does not support individual Barangay seeding. Use optimized seeder instead.");
-            return new { success = false, message = "Legacy seeder does not support individual barangay seeding. Set UseOptimizedLocationSeeder=true in configuration." };
+            _logger.LogError(ex, "Failed to get job status for job ID: {JobId}", jobId);
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Failed to retrieve job status",
+                error = ex.Message,
+                timestamp = DateTime.UtcNow
+            });
         }
     }
 }
