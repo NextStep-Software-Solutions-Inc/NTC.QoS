@@ -27,5 +27,6 @@ public record WriteOptions
     public int BatchSize { get; init; } = 100;
     public int TimeoutSeconds { get; init; } = 300;
     public bool EnableStreaming { get; init; } = true;
+    public bool ForceReseed { get; init; } = false;
     public Action<int>? ProgressCallback { get; init; }
 }
