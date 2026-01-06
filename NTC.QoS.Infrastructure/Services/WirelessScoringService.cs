@@ -42,6 +42,7 @@ public class WirelessScoringService : IWirelessScoringService
     /// <summary>
     /// Calculate Internet Access Score (1-3 points) - CMTS Criterion 2
     /// Aligned with GenerateConnectivityAssessmentHandler.CalculateInternetAccessScore
+    /// Uses MEDIAN download speed (more resistant to outliers)
     /// </summary>
     public int CalculateInternetAccessScore(SpeedStatsDto? speedStats)
     {
@@ -69,19 +70,20 @@ public class WirelessScoringService : IWirelessScoringService
         var isUnreliable = speedVariability > 0.3; // >30% variance = unreliable
 
         // SERVED (3 points): Speeds ≥25 Mbps and reliable
-        if (avgDownloadSpeed >= MinimumSpeedThreshold && !isUnreliable)
+        // Use MEDIAN speed as it's more resistant to outliers
+        if (medianDownloadSpeed >= MinimumSpeedThreshold && !isUnreliable)
         {
             return 3; // Served - Meets national broadband standards
         }
 
         // UNDERSERVED (2 points): Internet available but slow, unreliable, or <25 Mbps
-        if (avgDownloadSpeed >= MinimumSpeedThreshold && isUnreliable)
+        if (medianDownloadSpeed >= MinimumSpeedThreshold && isUnreliable)
         {
             return 2; // Underserved - Meets speed but unreliable
         }
 
         // Internet is available but below 25 Mbps threshold
-        if (avgDownloadSpeed >= 10 && avgDownloadSpeed < MinimumSpeedThreshold)
+        if (medianDownloadSpeed >= 10 && medianDownloadSpeed < MinimumSpeedThreshold)
         {
             return 2; // Underserved - Available but slow
         }

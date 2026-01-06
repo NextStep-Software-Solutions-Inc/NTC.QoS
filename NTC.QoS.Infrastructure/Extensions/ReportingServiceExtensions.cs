@@ -20,6 +20,7 @@ internal static class ReportingServiceExtensions
         services.AddScoped<IProviderTechnologyService, ProviderTechnologyService>();
         services.AddScoped<IMarkdownToPdfService, MarkdownToPdfService>();
         services.AddScoped<IWirelessScoringService, WirelessScoringService>();
+        services.AddScoped<IWirelessCoverageComputationService, WirelessCoverageComputationService>();
         return services;
     }
 }

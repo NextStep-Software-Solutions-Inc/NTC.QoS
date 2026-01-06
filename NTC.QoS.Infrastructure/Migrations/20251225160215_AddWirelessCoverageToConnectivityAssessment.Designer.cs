@@ -14,8 +14,8 @@ using Pgvector;
 namespace NTC.QoS.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251222162030_AddReportTemplates")]
-    partial class AddReportTemplates
+    [Migration("20251225160215_AddWirelessCoverageToConnectivityAssessment")]
+    partial class AddWirelessCoverageToConnectivityAssessment
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1272,6 +1272,12 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Property<int>("WifiHotspotCount")
                         .HasColumnType("integer");
+
+                    b.Property<string>("WirelessCoverageJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("WirelessCoverageLastUpdated")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
