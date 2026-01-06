@@ -82,13 +82,54 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
                 _logger.LogDebug("Starting to save {Count} {EntityType} entities", batch.Count, typeof(TEntity).Name);
                 var stopwatch = Stopwatch.StartNew();
 
-                // Use raw SQL insert to avoid EF geometry copying and OOM
-                foreach (var entity in batch)
+                // Use raw SQL insert or upsert to avoid EF geometry copying and OOM
+                var entityType = typeof(TEntity).Name;
+                
+                if (options.ForceReseed)
                 {
-                    var wkb = GetGeometryWkb(entity);
-                    var sql = GetInsertSql(typeof(TEntity).Name);
-                    var parameters = GetParameters(entity, typeof(TEntity).Name);
-                    await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters);
+                    // For force reseed, check which entities exist and update them, insert new ones
+                    var tableName = GetTableName(entityType);
+                    var codes = batch.Select(e => GetEntityCodeFromObject(e)).ToList();
+                    
+                    // Query existing codes in one go
+                    var codesParam = string.Join(",", codes.Select((_, i) => $"@code{i}"));
+                    var checkSql = $"SELECT \"Code\" FROM \"{tableName}\" WHERE \"Code\" IN ({codesParam}) AND NOT \"IsDeleted\"";
+                    var checkParams = codes.Select((code, i) => new NpgsqlParameter($"@code{i}", code)).ToArray();
+                    
+                    var existingCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    await using (var command = _dbContext.Database.GetDbConnection().CreateCommand())
+                    {
+                        command.CommandText = checkSql;
+                        command.Parameters.AddRange(checkParams);
+                        
+                        if (command.Connection?.State != System.Data.ConnectionState.Open)
+                            await command.Connection!.OpenAsync(cancellationToken);
+                            
+                        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                        while (await reader.ReadAsync(cancellationToken))
+                        {
+                            existingCodes.Add(reader.GetString(0));
+                        }
+                    }
+                    
+                    // Now insert or update each entity
+                    foreach (var entity in batch)
+                    {
+                        var code = GetEntityCodeFromObject(entity);
+                        var sql = existingCodes.Contains(code) ? GetUpdateSql(entityType) : GetInsertSql(entityType);
+                        var parameters = GetParameters(entity, entityType);
+                        await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
+                    }
+                }
+                else
+                {
+                    // Normal insert for new entities only
+                    foreach (var entity in batch)
+                    {
+                        var sql = GetInsertSql(entityType);
+                        var parameters = GetParameters(entity, entityType);
+                        await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
+                    }
                 }
 
                 stopwatch.Stop();
@@ -133,6 +174,29 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
         "Province" => "INSERT INTO \"Provinces\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"RegionId\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @regionId, @isDeleted, @createdAt, @createdBy, @updatedAt, @updatedBy)",
         "Municipality" => "INSERT INTO \"Municipalities\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"ProvinceId\", \"IsCity\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @provinceId, @isCity, @isDeleted, @createdAt, @createdBy, @updatedAt, @updatedBy)",
         "Barangay" => "INSERT INTO \"Barangays\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"MunicipalityId\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @municipalityId, @isDeleted, @createdAt, @createdBy, @updatedAt, @updatedBy)",
+        _ => throw new NotSupportedException($"Entity type {entityType} not supported")
+    };
+
+    private static string GetUpdateSql(string entityType) => entityType switch
+    {
+        "Region" => "UPDATE \"Regions\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        "Province" => "UPDATE \"Provinces\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"RegionId\" = @regionId, \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        "Municipality" => "UPDATE \"Municipalities\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"ProvinceId\" = @provinceId, \"IsCity\" = @isCity, \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        "Barangay" => "UPDATE \"Barangays\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"MunicipalityId\" = @municipalityId, \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        _ => throw new NotSupportedException($"Entity type {entityType} not supported")
+    };
+
+    private static string GetEntityCodeFromObject(object entity)
+    {
+        return entity.GetType().GetProperty("Code")?.GetValue(entity)?.ToString() ?? string.Empty;
+    }
+
+    private static string GetTableName(string entityType) => entityType switch
+    {
+        "Region" => "Regions",
+        "Province" => "Provinces",
+        "Municipality" => "Municipalities",
+        "Barangay" => "Barangays",
         _ => throw new NotSupportedException($"Entity type {entityType} not supported")
     };
 

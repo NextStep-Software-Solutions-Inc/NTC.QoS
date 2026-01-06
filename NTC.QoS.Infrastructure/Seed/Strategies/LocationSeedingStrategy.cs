@@ -85,18 +85,28 @@ public abstract class LocationSeedingStrategy<TEntity> where TEntity : class
 
             var transformedEntities = TransformFeaturesAsync(parsedFeatures, context, cancellationToken);
 
-            // Filter out existing entities by code
-            var existingCodes = await GetExistingCodesAsync(cancellationToken);
-            var newEntities = FilterNewEntitiesAsync(transformedEntities, existingCodes, cancellationToken);
+            // Filter out existing entities only if not force reseeding
+            IAsyncEnumerable<TEntity> entitiesToWrite;
+            if (forceReseed)
+            {
+                Logger.LogInformation("Force reseed enabled - all entities will be updated/inserted");
+                entitiesToWrite = transformedEntities;
+            }
+            else
+            {
+                var existingCodes = await GetExistingCodesAsync(cancellationToken);
+                entitiesToWrite = FilterNewEntitiesAsync(transformedEntities, existingCodes, cancellationToken);
+            }
 
             // Write to database
             var options = GetWriteOptions();
             options = options with
             {
+                ForceReseed = forceReseed,
                 ProgressCallback = count => Logger.LogInformation("Seeded {Count} {EntityName}...", count, EntityName)
             };
 
-            var written = await Writer.WriteBatchAsync(newEntities, options, cancellationToken);
+            var written = await Writer.WriteBatchAsync(entitiesToWrite, options, cancellationToken);
 
             Logger.LogInformation("Completed {EntityName} seeding. Inserted: {Count}", EntityName, written);
 

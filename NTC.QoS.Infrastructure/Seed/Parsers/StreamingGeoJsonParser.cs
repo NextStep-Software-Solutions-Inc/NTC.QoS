@@ -185,8 +185,8 @@ public class StreamingGeoJsonParser(
                 parentCode = attributes.Exists(parentKey) ? attributes[parentKey]?.ToString() : null;
             }
 
-            // Optional population data
-            var totalPop = TryParsePopulation(attributes, "TOTAL_POP");
+            // Optional population data - try both old and new attribute names
+            var totalPop = TryParsePopulation(attributes, "TOTAL_POPN") ?? TryParsePopulation(attributes, "TOTAL_POP");
             var householdPop = TryParsePopulation(attributes, "HHOLD_POPN");
             var householdCount = TryParsePopulation(attributes, "HHOLD_CNT");
 
