@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.API.Models;
@@ -29,19 +28,28 @@ public class SeedController : ControllerBase
     private readonly ILogger<SeedController> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly DatabaseOptions _databaseOptions;
+    private readonly IRegionRepository _regionRepository;
+    private readonly IProvinceRepository _provinceRepository;
+    private readonly IMunicipalityRepository _municipalityRepository;
 
     public SeedController(
         ApplicationDbContext dbContext,
         IBlobStorageService blobStorageService,
         ILogger<SeedController> logger,
         ILoggerFactory loggerFactory,
-        IOptions<DatabaseOptions> databaseOptions)
+        IOptions<DatabaseOptions> databaseOptions,
+        IRegionRepository regionRepository,
+        IProvinceRepository provinceRepository,
+        IMunicipalityRepository municipalityRepository)
     {
         _dbContext = dbContext;
         _blobStorageService = blobStorageService;
         _logger = logger;
         _loggerFactory = loggerFactory;
         _databaseOptions = databaseOptions.Value;
+        _regionRepository = regionRepository;
+        _provinceRepository = provinceRepository;
+        _municipalityRepository = municipalityRepository;
     }
 
     /// <summary>
@@ -155,11 +163,10 @@ public class SeedController : ControllerBase
             _logger.LogInformation("Using optimized LocationSeederV2 for provinces");
             
             // Load region ID map
-            var regions = await _dbContext.Regions
-                .AsNoTracking()
-                .Where(r => !r.IsDeleted)
-                .Select(r => new { r.Code, r.Id })
-                .ToListAsync(cancellationToken);
+            var regionsQuery = _regionRepository.QueryAsNoTracking(r => !r.IsDeleted);
+            var regions = await _regionRepository.ToListAsync(
+                regionsQuery.Select(r => new { r.Code, r.Id }), 
+                cancellationToken);
             var regionMap = regions.GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.First().Id);
 
             var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM2", "ADM1");
@@ -191,11 +198,10 @@ public class SeedController : ControllerBase
             _logger.LogInformation("Using optimized LocationSeederV2 for municipalities");
             
             // Load province ID map
-            var provinces = await _dbContext.Provinces
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted)
-                .Select(p => new { p.Code, p.Id })
-                .ToListAsync(cancellationToken);
+            var provincesQuery = _provinceRepository.QueryAsNoTracking(p => !p.IsDeleted);
+            var provinces = await _provinceRepository.ToListAsync(
+                provincesQuery.Select(p => new { p.Code, p.Id }), 
+                cancellationToken);
             var provinceMap = provinces.GroupBy(p => p.Code).ToDictionary(g => g.Key, g => g.First().Id);
 
             var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM3", "ADM2");
@@ -227,11 +233,10 @@ public class SeedController : ControllerBase
             _logger.LogInformation("Using optimized LocationSeederV2 for barangays");
             
             // Load municipality ID map
-            var municipalities = await _dbContext.Municipalities
-                .AsNoTracking()
-                .Where(m => !m.IsDeleted)
-                .Select(m => new { m.Code, m.Id })
-                .ToListAsync(cancellationToken);
+            var municipalitiesQuery = _municipalityRepository.QueryAsNoTracking(m => !m.IsDeleted);
+            var municipalities = await _municipalityRepository.ToListAsync(
+                municipalitiesQuery.Select(m => new { m.Code, m.Id }), 
+                cancellationToken);
             var municipalityMap = municipalities.GroupBy(m => m.Code).ToDictionary(g => g.Key, g => g.First().Id);
 
             var parser = new StreamingGeoJsonParser(_loggerFactory.CreateLogger<StreamingGeoJsonParser>(), "ADM4", "ADM3");
