@@ -19,7 +19,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
 {
     private readonly ILogger<ProcessCellularCoverageV2Job> _logger;
     private readonly IRepository<Domain.Entities.File> _fileRepository;
-    private readonly ICellularCoverageV2Repository _coverageV2Repository;
+    private readonly ICellularCoverageRepository _coverageV2Repository;
     private readonly ICellularCoverageV2MappingService _mappingService;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IRepository<Network> _networkRepository;
@@ -28,7 +28,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
     public ProcessCellularCoverageV2Job(
         ILogger<ProcessCellularCoverageV2Job> logger,
         IRepository<Domain.Entities.File> fileRepository,
-        ICellularCoverageV2Repository coverageV2Repository,
+        ICellularCoverageRepository coverageV2Repository,
         ICellularCoverageV2MappingService mappingService,
         IBlobStorageService blobStorageService,
         IRepository<Network> networkRepository,
