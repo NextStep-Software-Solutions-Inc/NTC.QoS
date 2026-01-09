@@ -304,33 +304,45 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                 technologyDistribution,
                 totalBarangaysForScoring > 0 ? totalConnectivityScore / totalBarangaysForScoring : 0);
 
-            // FIXED: Apply pagination to PROCESSED municipalities (not original DB query)
-            // This ensures we show municipalities that have data, not empty pages
+            // PAGINATION STRATEGY: Page 1 = Summary only, Page 2+ = Municipality data
+            // This allows users to see overall statistics first, then drill down
             var processedMunicipalityCount = allMunicipalityBroadbandData.Count;
-            
-            var paginatedMunicipalityBroadbandData = request.DisablePagination
-                ? allMunicipalityBroadbandData
-                : allMunicipalityBroadbandData
-                    .Skip((request.PageNumber - 1) * request.PageSize)
-                    .Take(request.PageSize)
-                    .ToList();
-
-            // Calculate pagination metadata based on PROCESSED municipalities
+            List<MunicipalityWirelessBroadbandSummaryDto> paginatedMunicipalityBroadbandData;
             int totalPages;
             int pageNumber;
             int pageSize;
             
             if (request.DisablePagination)
             {
+                // Show all data when pagination is disabled
+                paginatedMunicipalityBroadbandData = allMunicipalityBroadbandData;
                 totalPages = 1;
                 pageNumber = 1;
                 pageSize = processedMunicipalityCount;
             }
             else
             {
-                totalPages = processedMunicipalityCount > 0 
+                // Page 1: Summary only (no municipalities)
+                // Page 2+: Municipality data (offset by 1 page)
+                if (request.PageNumber == 1)
+                {
+                    paginatedMunicipalityBroadbandData = new List<MunicipalityWirelessBroadbandSummaryDto>();
+                }
+                else
+                {
+                    // Offset pagination: page 2 shows first batch, page 3 shows second batch, etc.
+                    var dataPageNumber = request.PageNumber - 1;
+                    paginatedMunicipalityBroadbandData = allMunicipalityBroadbandData
+                        .Skip((dataPageNumber - 1) * request.PageSize)
+                        .Take(request.PageSize)
+                        .ToList();
+                }
+                
+                // Total pages = 1 (summary page) + data pages
+                var dataPages = processedMunicipalityCount > 0 
                     ? (int)Math.Ceiling((double)processedMunicipalityCount / request.PageSize)
                     : 0;
+                totalPages = 1 + dataPages;
                 pageNumber = request.PageNumber;
                 pageSize = request.PageSize;
             }
@@ -355,9 +367,18 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
             }
             else
             {
-                messageBuilder.Append($"Wireless broadband report generated successfully for page {pageNumber} of {totalPages}. ");
-                messageBuilder.Append($"Showing {paginatedMunicipalityBroadbandData.Count} municipalities on this page. ");
-                messageBuilder.Append($"Summary statistics reflect all {summary.TotalMunicipalities} municipalities ({summary.TotalBarangays} barangays) matching filters.");
+                if (request.PageNumber == 1)
+                {
+                    messageBuilder.Append($"Wireless broadband executive summary generated successfully (page 1 of {totalPages}). ");
+                    messageBuilder.Append($"Summary statistics reflect all {summary.TotalMunicipalities} municipalities ({summary.TotalBarangays} barangays) matching filters. ");
+                    messageBuilder.Append($"Use page 2 onwards to view detailed municipality data.");
+                }
+                else
+                {
+                    messageBuilder.Append($"Wireless broadband report generated successfully for page {pageNumber} of {totalPages}. ");
+                    messageBuilder.Append($"Showing {paginatedMunicipalityBroadbandData.Count} municipalities on this page. ");
+                    messageBuilder.Append($"Summary statistics reflect all {summary.TotalMunicipalities} municipalities ({summary.TotalBarangays} barangays) matching filters.");
+                }
             }
 
             if (barangaysWithoutAssessments.Count > 0)
