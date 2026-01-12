@@ -138,14 +138,6 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                     .OrderBy(m => m.Name),
                 cancellationToken);
 
-            // Apply pagination to determine which municipalities to include in response
-            var municipalitiesToReturn = request.DisablePagination
-                ? allMunicipalities
-                : allMunicipalities
-                    .Skip((request.PageNumber - 1) * request.PageSize)
-                    .Take(request.PageSize)
-                    .ToList();
-
             if (request.DisablePagination)
             {
                 _logger.LogInformation("Pagination disabled - processing all {Count} municipalities", totalMunicipalities);
@@ -209,17 +201,12 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
 
             // OPTIMIZATION: Load ALL barangay wireless coverage data ONCE (same pattern as GetWirelessBroadbandReportHandler)
             _logger.LogInformation("Loading wireless coverage from assessments for all municipalities...");
-            var allBarangayIds = new List<Guid>();
-            foreach (var municipality in allMunicipalities)
-            {
-                var coveredBarangayIds = await _barangayCoverageRepository
-                    .ToListAsync(
-                        _barangayCoverageRepository.Query()
-                            .Where(bc => bc.Barangay.MunicipalityId == municipality.Id)
-                            .Select(bc => bc.BarangayId),
-                        cancellationToken);
-                allBarangayIds.AddRange(coveredBarangayIds);
-            }
+            var allBarangayIds = await _barangayCoverageRepository
+                .ToListAsync(
+                    _barangayCoverageRepository.Query()
+                        .Where(bc => allMunicipalities.Select(m => m.Id).Contains(bc.Barangay.MunicipalityId))
+                        .Select(bc => bc.BarangayId),
+                    cancellationToken);
             
             var wirelessCoverageByBarangay = await LoadWirelessCoverageFromAssessmentsAsync(
                 allBarangayIds,
@@ -271,10 +258,12 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                     }
                     
                     // Track technology distribution
-                    if (!string.IsNullOrEmpty(barangay.HighestTechnology) && 
-                        technologyDistribution.ContainsKey(barangay.HighestTechnology))
+                    if (!string.IsNullOrEmpty(barangay.HighestTechnology))
                     {
-                        technologyDistribution[barangay.HighestTechnology]++;
+                        if (technologyDistribution.TryGetValue(barangay.HighestTechnology, out var currentCount))
+                        {
+                            technologyDistribution[barangay.HighestTechnology] = currentCount + 1;
+                        }
                     }
                     
                     // Aggregate connectivity scores
@@ -1086,14 +1075,9 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
     {
         int count = sortedValues.Count;
         
-        if (count % 2 == 0)
-        {
-            return (sortedValues[count / 2 - 1] + sortedValues[count / 2]) / 2;
-        }
-        else
-        {
-            return sortedValues[count / 2];
-        }
+        return (count % 2 == 0)
+            ? (sortedValues[count / 2 - 1] + sortedValues[count / 2]) / 2
+            : sortedValues[count / 2];
     }
 
     /// <summary>
