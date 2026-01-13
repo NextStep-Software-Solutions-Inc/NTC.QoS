@@ -41,6 +41,7 @@ public static class ApplicationDependencyInjection
 
         // Register Application Services
         services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
+        services.AddScoped<IRubricCacheService, RubricCacheService>();
         services.AddScoped<IConnectivityReportingService, ConnectivityReportingService>();
         services.AddScoped<BroadbandAnalyticsService>();
         
