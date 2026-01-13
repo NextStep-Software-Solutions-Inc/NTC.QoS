@@ -1,6 +1,7 @@
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace NTC.QoS.Domain.Entities;
 
@@ -9,6 +10,22 @@ namespace NTC.QoS.Domain.Entities;
 /// </summary>
 public class ConnectivityAssessment : BaseEntity, IGeoLocatedEntity
 {
+    /// <summary>
+    /// Foreign key to the rubric configuration used for this assessment (nullable for backward compatibility)
+    /// </summary>
+    [ForeignKey(nameof(RubricConfiguration))]
+    public Guid? RubricConfigurationId { get; set; }
+
+    /// <summary>
+    /// Version string of the rubric used for this assessment (for quick reference without join)
+    /// </summary>
+    public string? RubricVersion { get; set; }
+
+    /// <summary>
+    /// Navigation property to the rubric configuration used for this assessment
+    /// </summary>
+    public virtual RubricConfiguration? RubricConfiguration { get; set; }
+
     /// <summary>
     /// Location identifier (Barangay, Municipality, Province, or Region ID)
     /// </summary>
