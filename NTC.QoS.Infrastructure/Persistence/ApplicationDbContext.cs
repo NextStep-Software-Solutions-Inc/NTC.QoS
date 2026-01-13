@@ -56,6 +56,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ConnectivityAssessmentScheduler> ConnectivityAssessmentSchedulers { get; set; }
     public DbSet<GeneratedReport> GeneratedReports { get; set; }
     public DbSet<ReportTemplate> ReportTemplates { get; set; }
+    public DbSet<RubricConfiguration> RubricConfigurations { get; set; }
+    public DbSet<RubricCriterion> RubricCriteria { get; set; }
+    public DbSet<RubricThreshold> RubricThresholds { get; set; }
+    public DbSet<RubricStatusRange> RubricStatusRanges { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -685,6 +689,71 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(bc => bc.Barangay)
             .WithMany()
             .HasForeignKey(bc => bc.BarangayId);
+
+        // RubricConfiguration relationships
+        modelBuilder.Entity<RubricConfiguration>()
+            .HasMany(r => r.Criteria)
+            .WithOne(c => c.RubricConfiguration)
+            .HasForeignKey(c => c.RubricConfigurationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RubricConfiguration>()
+            .HasMany(r => r.StatusRanges)
+            .WithOne(s => s.RubricConfiguration)
+            .HasForeignKey(s => s.RubricConfigurationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RubricConfiguration>()
+            .HasMany(r => r.ConnectivityAssessments)
+            .WithOne(a => a.RubricConfiguration)
+            .HasForeignKey(a => a.RubricConfigurationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // RubricCriterion relationships
+        modelBuilder.Entity<RubricCriterion>()
+            .HasMany(c => c.Thresholds)
+            .WithOne(t => t.RubricCriterion)
+            .HasForeignKey(t => t.RubricCriterionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // RubricConfiguration indexes
+        modelBuilder.Entity<RubricConfiguration>()
+            .HasIndex(r => new { r.Version, r.IsDeleted })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<RubricConfiguration>()
+            .HasIndex(r => r.IsActive)
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<RubricConfiguration>()
+            .HasIndex(r => r.IsDefault)
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<RubricConfiguration>()
+            .HasIndex(r => r.EffectiveFrom);
+
+        // RubricCriterion indexes
+        modelBuilder.Entity<RubricCriterion>()
+            .HasIndex(c => c.RubricConfigurationId);
+
+        modelBuilder.Entity<RubricCriterion>()
+            .HasIndex(c => c.CriterionType);
+
+        // RubricThreshold indexes
+        modelBuilder.Entity<RubricThreshold>()
+            .HasIndex(t => t.RubricCriterionId);
+
+        modelBuilder.Entity<RubricThreshold>()
+            .HasIndex(t => t.ScoreValue);
+
+        // RubricStatusRange indexes
+        modelBuilder.Entity<RubricStatusRange>()
+            .HasIndex(s => s.RubricConfigurationId);
+
+        // ConnectivityAssessment rubric relationship index
+        modelBuilder.Entity<ConnectivityAssessment>()
+            .HasIndex(a => a.RubricConfigurationId);
 
         base.OnModelCreating(modelBuilder);
     }

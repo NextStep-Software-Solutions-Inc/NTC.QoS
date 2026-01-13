@@ -127,7 +127,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("Cells", (string)null);
+                    b.ToTable("Cells");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Generation", b =>
@@ -168,7 +168,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Generations", (string)null);
+                    b.ToTable("Generations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.GenerationBand", b =>
@@ -212,7 +212,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("GenerationId");
 
-                    b.ToTable("GenerationBands", (string)null);
+                    b.ToTable("GenerationBands");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Link", b =>
@@ -274,7 +274,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("Links", (string)null);
+                    b.ToTable("Links");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.NAP", b =>
@@ -336,7 +336,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
-                    b.ToTable("NAPs", (string)null);
+                    b.ToTable("NAPs");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Network", b =>
@@ -408,7 +408,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("SystemTypeId");
 
-                    b.ToTable("Networks", (string)null);
+                    b.ToTable("Networks");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.RolePermission", b =>
@@ -455,7 +455,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasDatabaseName("IX_RolePermissions_PermissionId_RoleId_Active")
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("RolePermissions", (string)null);
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.ServiceProvider", b =>
@@ -509,7 +509,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("ServiceProviders", (string)null);
+                    b.ToTable("ServiceProviders");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyMunicipality", b =>
@@ -553,7 +553,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyMunicipalities", (string)null);
+                    b.ToTable("StudyMunicipalities");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.StudyNetwork", b =>
@@ -597,7 +597,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyNetworks", (string)null);
+                    b.ToTable("StudyNetworks");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.TechnologyBand", b =>
@@ -643,7 +643,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("TechnologyBands", (string)null);
+                    b.ToTable("TechnologyBands");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.UserRegion", b =>
@@ -691,7 +691,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("UserRegions", (string)null);
+                    b.ToTable("UserRegions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AntennaPattern", b =>
@@ -733,7 +733,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AntennaPatterns", (string)null);
+                    b.ToTable("AntennaPatterns");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AreaStudy", b =>
@@ -778,7 +778,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("AreaStudies", (string)null);
+                    b.ToTable("AreaStudies");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Band", b =>
@@ -823,7 +823,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("Bands", (string)null);
+                    b.ToTable("Bands");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Barangay", b =>
@@ -906,7 +906,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("MunicipalityId");
 
-                    b.ToTable("Barangays", (string)null);
+                    b.ToTable("Barangays");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.BarangayCoverage", b =>
@@ -1004,7 +1004,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("CellId");
 
-                    b.ToTable("CellSectors", (string)null);
+                    b.ToTable("CellSectors");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Cellular", b =>
@@ -1083,7 +1083,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("TechnologyId");
 
-                    b.ToTable("Cellulars", (string)null);
+                    b.ToTable("Cellulars");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverage", b =>
@@ -1167,7 +1167,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("TechnologyId");
 
-                    b.ToTable("CellularCoverages", (string)null);
+                    b.ToTable("CellularCoverages");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
@@ -1295,6 +1295,12 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<int>("QualityOfServiceScore")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("RubricConfigurationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RubricVersion")
+                        .HasColumnType("text");
+
                     b.Property<int>("ServiceProviderCount")
                         .HasColumnType("integer");
 
@@ -1340,7 +1346,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("LocationType")
                         .HasDatabaseName("IX_ConnectivityAssessment_LocationType");
 
-                    b.ToTable("ConnectivityAssessments", (string)null);
+                    b.HasIndex("RubricConfigurationId");
+
+                    b.ToTable("ConnectivityAssessments");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>
@@ -1398,7 +1406,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ConnectivityAssessmentId");
 
-                    b.ToTable("ConnectivityAssessmentProvider", (string)null);
+                    b.ToTable("ConnectivityAssessmentProvider");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentScheduler", b =>
@@ -1502,7 +1510,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ConnectivityAssessmentSchedulers", (string)null);
+                    b.ToTable("ConnectivityAssessmentSchedulers");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.File", b =>
@@ -1579,7 +1587,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("RegionId")
                         .HasDatabaseName("IX_Files_RegionId");
 
-                    b.ToTable("Files", (string)null);
+                    b.ToTable("Files");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.GeneratedReport", b =>
@@ -1653,7 +1661,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasDatabaseName("IX_GeneratedReport_UserId_GeneratedAt")
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("GeneratedReports", (string)null);
+                    b.ToTable("GeneratedReports");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.MIMO", b =>
@@ -1709,7 +1717,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MIMOs", (string)null);
+                    b.ToTable("MIMOs");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Municipality", b =>
@@ -1795,7 +1803,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("ProvinceId");
 
-                    b.ToTable("Municipalities", (string)null);
+                    b.ToTable("Municipalities");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.NetworkTemplate", b =>
@@ -1840,7 +1848,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("NetworkTemplates", (string)null);
+                    b.ToTable("NetworkTemplates");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Organization", b =>
@@ -1885,7 +1893,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("Organizations", (string)null);
+                    b.ToTable("Organizations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Permission", b =>
@@ -1933,7 +1941,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("Permissions", (string)null);
+                    b.ToTable("Permissions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Provider", b =>
@@ -1997,7 +2005,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("Providers", (string)null);
+                    b.ToTable("Providers");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Province", b =>
@@ -2080,7 +2088,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("RegionId");
 
-                    b.ToTable("Provinces", (string)null);
+                    b.ToTable("Provinces");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Region", b =>
@@ -2158,7 +2166,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Center"), "GIST");
 
-                    b.ToTable("Regions", (string)null);
+                    b.ToTable("Regions");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ReportTemplate", b =>
@@ -2209,7 +2217,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ReportTemplates", (string)null);
+                    b.ToTable("ReportTemplates");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Role", b =>
@@ -2257,7 +2265,278 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("Roles", (string)null);
+                    b.ToTable("Roles");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ApplicableLocationType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ConfigurationJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EffectiveFrom");
+
+                    b.HasIndex("IsActive")
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
+                    b.HasIndex("IsDefault")
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
+                    b.HasIndex("Version", "IsDeleted")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
+                    b.ToTable("RubricConfigurations");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricCriterion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("CriterionType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("RubricConfigurationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Weight")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CriterionType");
+
+                    b.HasIndex("RubricConfigurationId");
+
+                    b.ToTable("RubricCriteria");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricStatusRange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DisplayColor")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinScore")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RubricConfigurationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StatusName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("StatusValue")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RubricConfigurationId");
+
+                    b.ToTable("RubricStatusRanges");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricThreshold", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConditionLogic")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MetricType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Operator")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PrimaryValue")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("RubricCriterionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ScoreValue")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("SecondaryValue")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RubricCriterionId");
+
+                    b.HasIndex("ScoreValue");
+
+                    b.ToTable("RubricThresholds");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Sector", b =>
@@ -2390,7 +2669,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("TxAntennaPatternId");
 
-                    b.ToTable("Sectors", (string)null);
+                    b.ToTable("Sectors");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Service", b =>
@@ -2435,7 +2714,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("Services", (string)null);
+                    b.ToTable("Services");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Speedtest", b =>
@@ -2556,7 +2835,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("TechnologyId");
 
-                    b.ToTable("Speedtests", (string)null);
+                    b.ToTable("Speedtests");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Study", b =>
@@ -2605,7 +2884,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("AreaStudyId");
 
-                    b.ToTable("Studies", (string)null);
+                    b.ToTable("Studies");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.SystemType", b =>
@@ -2653,7 +2932,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("TechnologyId");
 
-                    b.ToTable("SystemTypes", (string)null);
+                    b.ToTable("SystemTypes");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Technology", b =>
@@ -2703,7 +2982,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("Technologies", (string)null);
+                    b.ToTable("Technologies");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.User", b =>
@@ -2766,7 +3045,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("UserTypeId");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.UserType", b =>
@@ -2807,7 +3086,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("UserTypes", (string)null);
+                    b.ToTable("UserTypes");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WiFiHotspot", b =>
@@ -2895,7 +3174,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("IsActive", "IsPublic")
                         .HasDatabaseName("IX_WiFiHotspot_Active_Public");
 
-                    b.ToTable("WiFiHotspots", (string)null);
+                    b.ToTable("WiFiHotspots");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.WirelessValidation", b =>
@@ -2964,7 +3243,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("TechnologyId", "BandId")
                         .HasDatabaseName("IX_WirelessValidation_TechnologyId_BandId");
 
-                    b.ToTable("WirelessValidations", (string)null);
+                    b.ToTable("WirelessValidations");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Zone", b =>
@@ -3007,7 +3286,7 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BarangayId");
 
-                    b.ToTable("Zone", (string)null);
+                    b.ToTable("Zone");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Aggregates.Cell", b =>
@@ -3352,6 +3631,16 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Technology");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.RubricConfiguration", "RubricConfiguration")
+                        .WithMany("ConnectivityAssessments")
+                        .HasForeignKey("RubricConfigurationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("RubricConfiguration");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessmentProvider", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.ConnectivityAssessment", "ConnectivityAssessment")
@@ -3404,6 +3693,39 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Region");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricCriterion", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.RubricConfiguration", "RubricConfiguration")
+                        .WithMany("Criteria")
+                        .HasForeignKey("RubricConfigurationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RubricConfiguration");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricStatusRange", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.RubricConfiguration", "RubricConfiguration")
+                        .WithMany("StatusRanges")
+                        .HasForeignKey("RubricConfigurationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RubricConfiguration");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricThreshold", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.RubricCriterion", "RubricCriterion")
+                        .WithMany("Thresholds")
+                        .HasForeignKey("RubricCriterionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RubricCriterion");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Sector", b =>
@@ -3747,6 +4069,20 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("RolePermissions");
 
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricConfiguration", b =>
+                {
+                    b.Navigation("ConnectivityAssessments");
+
+                    b.Navigation("Criteria");
+
+                    b.Navigation("StatusRanges");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricCriterion", b =>
+                {
+                    b.Navigation("Thresholds");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Service", b =>
