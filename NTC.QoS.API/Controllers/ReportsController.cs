@@ -52,6 +52,45 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
+    /// Generate a comprehensive wireless broadband executive summary report for municipalities and barangays.
+    /// Shows wireless provider coverage with technology generations (2G, 3G, 4G, 5G) and connectivity scores.
+    /// Supports pagination to handle large datasets efficiently.
+    /// </summary>
+    /// <param name="regionId">Optional filter by Region ID</param>
+    /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by service status (Served=2, Underserved=1, Unserved=0)</param>
+    /// <param name="forceGenerateConnectivityAssessment">If true, forces generation of new connectivity assessments even if recent ones exist</param>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10, max: 100)</param>
+    /// <returns>Paginated wireless broadband executive summary with municipality/barangay breakdown</returns>
+    [HttpGet("wireless-broadband")]
+    [RequirePermission(Permissions.ViewReports)]
+    public async Task<ActionResult<ApiResponse<WirelessBroadbandExecutiveSummaryDto>>> GetWirelessBroadbandReport(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
+        [FromQuery] bool forceGenerateConnectivityAssessment = false,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var request = new GetWirelessBroadbandExecutiveSummaryQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var report = await _mediator.Send(request);
+        return report.Succeeded ? Ok(report) : BadRequest(report);
+    }
+
+    /// <summary>
     /// Generate and download wireless broadband coverage report in PDF or Excel format.
     /// When includeScores is true, includes connectivity scores and service status.
     /// </summary>
@@ -162,7 +201,7 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Get status of wireless broadband report background job
     /// </summary>
-    [HttpGet("wireless-broadband-scored/{jobId}/status")]
+    [HttpGet("wireless-broadband/job/{jobId}/status")]
     [RequirePermission(Permissions.ViewReports)]
     public ActionResult<ApiResponse<WirelessBroadbandReportJobStatusDto>> GetWirelessBroadbandReportJobStatus(string jobId)
     {
@@ -188,7 +227,7 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Download completed wireless broadband report
     /// </summary>
-    [HttpGet("wireless-broadband-scored/{jobId}/download")]
+    [HttpGet("wireless-broadband/job/{jobId}/download")]
     [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadWirelessBroadbandReport(string jobId)
     {
