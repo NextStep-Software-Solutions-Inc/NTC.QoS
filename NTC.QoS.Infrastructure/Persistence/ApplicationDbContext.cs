@@ -4,6 +4,7 @@ using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Helper;
+using NTC.QoS.Infrastructure.Seed;
 using System.Linq.Expressions;
 
 namespace NTC.QoS.Infrastructure.Persistence;
@@ -754,6 +755,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         // ConnectivityAssessment rubric relationship index
         modelBuilder.Entity<ConnectivityAssessment>()
             .HasIndex(a => a.RubricConfigurationId);
+
+        // Seed default CMTS v1.0.0 rubric configuration
+        RubricConfigurationSeeder.SeedDefaultRubric(modelBuilder);
 
         base.OnModelCreating(modelBuilder);
     }

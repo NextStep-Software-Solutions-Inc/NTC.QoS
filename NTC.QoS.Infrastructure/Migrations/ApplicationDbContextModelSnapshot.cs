@@ -2343,6 +2343,23 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("RubricConfigurations");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Official CMTS Broadband Mapping Rubric - matches original hardcoded logic from ProcessConnectivityAssessmentJob",
+                            EffectiveFrom = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            IsDefault = true,
+                            IsDeleted = false,
+                            Name = "CMTS Standard Rubric",
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System",
+                            Version = "1.0.0"
+                        });
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricCriterion", b =>
@@ -2407,6 +2424,93 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("RubricConfigurationId");
 
                     b.ToTable("RubricCriteria");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000002"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            CriterionType = 1,
+                            Description = "Presence of fiber optic infrastructure and major telecommunications providers",
+                            IsDeleted = false,
+                            IsEnabled = true,
+                            MaxScore = 3,
+                            Name = "Fiber Coverage",
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System",
+                            Weight = 1.0m
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000003"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            CriterionType = 2,
+                            Description = "Internet availability, speed, and reliability based on median download speeds",
+                            IsDeleted = false,
+                            IsEnabled = true,
+                            MaxScore = 3,
+                            Name = "Internet Access",
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System",
+                            Weight = 1.0m
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000004"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            CriterionType = 3,
+                            Description = "Broadband technology infrastructure presence and quality (5G, 4G/LTE, Fiber)",
+                            IsDeleted = false,
+                            IsEnabled = true,
+                            MaxScore = 3,
+                            Name = "Technology Type",
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System",
+                            Weight = 1.0m
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000005"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            CriterionType = 4,
+                            Description = "Latency, signal strength, and service reliability metrics",
+                            IsDeleted = false,
+                            IsEnabled = true,
+                            MaxScore = 3,
+                            Name = "Quality of Service",
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System",
+                            Weight = 1.0m
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000006"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            CriterionType = 5,
+                            Description = "Percentage of households/population with access to fixed or mobile broadband",
+                            IsDeleted = false,
+                            IsEnabled = true,
+                            MaxScore = 3,
+                            Name = "Coverage Availability",
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System",
+                            Weight = 1.0m
+                        });
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricStatusRange", b =>
@@ -2470,6 +2574,59 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("RubricConfigurationId");
 
                     b.ToTable("RubricStatusRanges");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000060"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Fully developed, meets most technical and social benchmarks",
+                            DisplayColor = "#28A745",
+                            IsDeleted = false,
+                            MaxScore = 15,
+                            MinScore = 11,
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 1,
+                            StatusName = "Served",
+                            StatusValue = 3,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000061"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Has basic infrastructure or partial access, but lacks quality, affordability, or consistency",
+                            DisplayColor = "#FFC107",
+                            IsDeleted = false,
+                            MaxScore = 10,
+                            MinScore = 6,
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 2,
+                            StatusName = "Underserved",
+                            StatusValue = 2,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000062"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Virtually no broadband access or supporting infrastructure",
+                            DisplayColor = "#DC3545",
+                            IsDeleted = false,
+                            MaxScore = 5,
+                            MinScore = 0,
+                            RubricConfigurationId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            SortOrder = 3,
+                            StatusName = "Unserved",
+                            StatusValue = 1,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        });
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.RubricThreshold", b =>
@@ -2537,6 +2694,435 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("ScoreValue");
 
                     b.ToTable("RubricThresholds");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000010"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: ≥2 major telcos (Globe, Smart, DITO) with fiber infrastructure",
+                            IsDeleted = false,
+                            MetricType = "MajorTelcoCount",
+                            Operator = 1,
+                            PrimaryValue = 2.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000002"),
+                            ScoreValue = 3,
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000011"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: Only 1 major telco with fiber",
+                            IsDeleted = false,
+                            MetricType = "MajorTelcoCount",
+                            Operator = 4,
+                            PrimaryValue = 1.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000002"),
+                            ScoreValue = 2,
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000012"),
+                            ConditionLogic = "{\"conditions\":[{\"field\":\"MajorTelcoCount\",\"operator\":\"Equals\",\"value\":0}]}",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: No major telcos but local/VAS providers have fiber",
+                            IsDeleted = false,
+                            MetricType = "LocalVasProviderCount",
+                            Operator = 6,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000002"),
+                            ScoreValue = 2,
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000013"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: No fiber infrastructure at all",
+                            IsDeleted = false,
+                            MetricType = "FiberNAPCount",
+                            Operator = 4,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000002"),
+                            ScoreValue = 1,
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000020"),
+                            ConditionLogic = "{\"conditions\":[{\"field\":\"SpeedVariability\",\"operator\":\"LessThanOrEqual\",\"value\":0.3}]}",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: ≥25 Mbps median download speed AND reliable (≤30% variability)",
+                            IsDeleted = false,
+                            MetricType = "MedianDownloadSpeedMbps",
+                            Operator = 1,
+                            PrimaryValue = 25.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000003"),
+                            ScoreValue = 3,
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000021"),
+                            ConditionLogic = "{\"conditions\":[{\"field\":\"SpeedVariability\",\"operator\":\"GreaterThan\",\"value\":0.3}]}",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: ≥25 Mbps but unreliable (>30% variability)",
+                            IsDeleted = false,
+                            MetricType = "MedianDownloadSpeedMbps",
+                            Operator = 1,
+                            PrimaryValue = 25.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000003"),
+                            ScoreValue = 2,
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000022"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: 10-25 Mbps (below national broadband standards)",
+                            IsDeleted = false,
+                            MetricType = "MedianDownloadSpeedMbps",
+                            Operator = 3,
+                            PrimaryValue = 10.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000003"),
+                            ScoreValue = 2,
+                            SecondaryValue = 24.99m,
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000023"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: <10 Mbps (minimal/no practical broadband access)",
+                            IsDeleted = false,
+                            MetricType = "MedianDownloadSpeedMbps",
+                            Operator = 2,
+                            PrimaryValue = 10.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000003"),
+                            ScoreValue = 1,
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000024"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: Insufficient data (<3 speed tests)",
+                            IsDeleted = false,
+                            MetricType = "SpeedTestCount",
+                            Operator = 2,
+                            PrimaryValue = 3.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000003"),
+                            ScoreValue = 1,
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000030"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: Fiber optic infrastructure present",
+                            IsDeleted = false,
+                            MetricType = "FiberNAPCount",
+                            Operator = 6,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000004"),
+                            ScoreValue = 3,
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000031"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: 5G infrastructure in place and active",
+                            IsDeleted = false,
+                            MetricType = "Count5G",
+                            Operator = 6,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000004"),
+                            ScoreValue = 3,
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000032"),
+                            ConditionLogic = "{\"conditions\":[{\"field\":\"IsLegacyDominated\",\"operator\":\"Equals\",\"value\":false}]}",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: 4G/LTE infrastructure present and not legacy-dominated",
+                            IsDeleted = false,
+                            MetricType = "Count4G",
+                            Operator = 6,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000004"),
+                            ScoreValue = 3,
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000033"),
+                            ConditionLogic = "{\"conditions\":[{\"field\":\"HasModernTechnology\",\"operator\":\"Equals\",\"value\":true}]}",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: Has modern tech but legacy (2G/3G) dominates",
+                            IsDeleted = false,
+                            MetricType = "IsLegacyDominated",
+                            Operator = 4,
+                            PrimaryValue = 1.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000004"),
+                            ScoreValue = 2,
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000034"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: Only legacy 3G technology available",
+                            IsDeleted = false,
+                            MetricType = "Count3G",
+                            Operator = 6,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000004"),
+                            ScoreValue = 2,
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000035"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: No identifiable broadband technology",
+                            IsDeleted = false,
+                            MetricType = "TotalTechnologyCount",
+                            Operator = 4,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000004"),
+                            ScoreValue = 1,
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000040"),
+                            ConditionLogic = "{\"conditions\":[{\"field\":\"AverageSignalStrength\",\"operator\":\"GreaterThanOrEqual\",\"value\":4.0},{\"field\":\"MeetsMinimumSpeedRequirement\",\"operator\":\"Equals\",\"value\":true}]}",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: Latency <50ms AND good signal (≥4.0) AND consistent speeds",
+                            IsDeleted = false,
+                            MetricType = "AverageLatencyMs",
+                            Operator = 2,
+                            PrimaryValue = 50.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000005"),
+                            ScoreValue = 3,
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000041"),
+                            ConditionLogic = "{\"conditions\":[{\"field\":\"Count5G\",\"operator\":\"GreaterThan\",\"value\":0},{\"field\":\"AverageDownloadSpeedMbps\",\"operator\":\"GreaterThanOrEqual\",\"value\":100},{\"field\":\"AverageSignalStrength\",\"operator\":\"GreaterThanOrEqual\",\"value\":4.5}]}",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: Exceptional 5G quality (≤20ms, ≥100 Mbps, signal ≥4.5)",
+                            IsDeleted = false,
+                            MetricType = "AverageLatencyMs",
+                            Operator = 7,
+                            PrimaryValue = 20.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000005"),
+                            ScoreValue = 3,
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000042"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: Moderate latency (50-100ms)",
+                            IsDeleted = false,
+                            MetricType = "AverageLatencyMs",
+                            Operator = 3,
+                            PrimaryValue = 50.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000005"),
+                            ScoreValue = 2,
+                            SecondaryValue = 100.0m,
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000043"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: Moderate signal strength (2.0-3.99)",
+                            IsDeleted = false,
+                            MetricType = "AverageSignalStrength",
+                            Operator = 3,
+                            PrimaryValue = 2.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000005"),
+                            ScoreValue = 2,
+                            SecondaryValue = 3.99m,
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000044"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: High latency (>100ms) - unusable for essential tasks",
+                            IsDeleted = false,
+                            MetricType = "AverageLatencyMs",
+                            Operator = 6,
+                            PrimaryValue = 100.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000005"),
+                            ScoreValue = 1,
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000045"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: Poor signal strength (≤2.0)",
+                            IsDeleted = false,
+                            MetricType = "AverageSignalStrength",
+                            Operator = 7,
+                            PrimaryValue = 2.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000005"),
+                            ScoreValue = 1,
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000046"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: Insufficient data (<3 speed tests)",
+                            IsDeleted = false,
+                            MetricType = "SpeedTestCount",
+                            Operator = 2,
+                            PrimaryValue = 3.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000005"),
+                            ScoreValue = 1,
+                            SortOrder = 7,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000050"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Served: 100% of households/population have access",
+                            IsDeleted = false,
+                            MetricType = "EstimatedCoveragePercent",
+                            Operator = 1,
+                            PrimaryValue = 100.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000006"),
+                            ScoreValue = 3,
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000051"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Underserved: 40-99% of population has access",
+                            IsDeleted = false,
+                            MetricType = "EstimatedCoveragePercent",
+                            Operator = 3,
+                            PrimaryValue = 40.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000006"),
+                            ScoreValue = 2,
+                            SecondaryValue = 99.99m,
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000052"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: <40% have access; infrastructure is sparse",
+                            IsDeleted = false,
+                            MetricType = "EstimatedCoveragePercent",
+                            Operator = 2,
+                            PrimaryValue = 40.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000006"),
+                            ScoreValue = 1,
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000053"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "System",
+                            Description = "Unserved: No infrastructure (no coverage)",
+                            IsDeleted = false,
+                            MetricType = "TotalAssets",
+                            Operator = 4,
+                            PrimaryValue = 0.0m,
+                            RubricCriterionId = new Guid("00000000-0000-0000-0000-000000000006"),
+                            ScoreValue = 1,
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = "System"
+                        });
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Sector", b =>

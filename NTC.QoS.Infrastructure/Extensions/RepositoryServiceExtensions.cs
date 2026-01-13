@@ -25,6 +25,7 @@ internal static class RepositoryServiceExtensions
         RegisterNetworkRepositories(services);
         RegisterUserManagementRepositories(services);
         RegisterTelecommunicationRepositories(services);
+        RegisterRubricRepositories(services);
 
         return services;
     }
@@ -84,5 +85,13 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<IConnectivityAssessmentSchedulerRepository, ConnectivityAssessmentSchedulerRepository>();
         services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
         services.AddScoped<IWirelessValidationRepository, WirelessValidationRepository>();
+    }
+
+    private static void RegisterRubricRepositories(IServiceCollection services)
+    {
+        services.AddScoped<IRubricConfigurationRepository, RubricConfigurationRepository>();
+        services.AddScoped<IRubricCriterionRepository, RubricCriterionRepository>();
+        services.AddScoped<IRubricThresholdRepository, RubricThresholdRepository>();
+        services.AddScoped<IRubricStatusRangeRepository, RubricStatusRangeRepository>();
     }
 }
