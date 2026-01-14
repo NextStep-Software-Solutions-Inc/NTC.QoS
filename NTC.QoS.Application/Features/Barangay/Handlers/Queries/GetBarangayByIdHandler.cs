@@ -60,6 +60,7 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
                 },
                 Code = barangay.Code ?? string.Empty,
                 Area = barangay.Area,
+                Boundaries = barangay.Boundaries,
             }
         };
     }

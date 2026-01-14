@@ -11,4 +11,5 @@ public class BarangayDto
     public MunicipalityDto? Municipality { get; set; }
     public string? Code { get; set; } = string.Empty;
     public float? Area { get; set; }
+    public MultiPolygon? Boundaries { get; set; }
 }
