@@ -11,6 +11,10 @@ public class ConnectivityReportDto
     public int ServedPopulation { get; set; }
     public List<ConnectivityAreaDetailDto> Areas { get; set; } = [];
     public ConnectivityScoreSummaryDto ScoreSummary { get; set; } = new();
+    public int TotalAreas { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages { get; set; }
     public DateTime GeneratedAt { get; set; }
 }
 

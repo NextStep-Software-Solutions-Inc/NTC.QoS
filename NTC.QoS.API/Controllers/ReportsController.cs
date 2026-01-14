@@ -432,6 +432,76 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
+    /// Generate connectivity report (served areas) showing areas with connectivity scores
+    /// </summary>
+    /// <param name="regionId">Optional filter by Region ID</param>
+    /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10, max: 100)</param>
+    /// <returns>Connectivity report with served areas</returns>
+    [HttpGet("connectivity")]
+    [RequirePermission(Permissions.ViewReports)]
+    public async Task<ActionResult<ApiResponse<ConnectivityReportDto>>> GetConnectivityReport(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var query = new Application.Features.Reports.Connectivity.Requests.GetConnectivityReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var result = await _mediator.Send(query);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Generate and download connectivity report (served areas) in PDF or Excel format.
+    /// Includes all served areas with complete rubric score breakdown.
+    /// </summary>
+    /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
+    /// <param name="regionId">Optional filter by Region ID</param>
+    /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
+    /// <returns>PDF or Excel file download</returns>
+    [HttpGet("connectivity/download")]
+    [RequirePermission(Permissions.ExportReports)]
+    public async Task<ActionResult> DownloadConnectivityReport(
+        [FromQuery] ReportFormat format = ReportFormat.Excel,
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] string? reportTitle = null)
+    {
+        var query = new Application.Features.Reports.Connectivity.Requests.DownloadConnectivityReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            Format = format,
+            ReportTitle = reportTitle
+        };
+
+        var result = await _mediator.Send(query);
+
+        if (!result.Succeeded || result.Data == null)
+            return BadRequest(result);
+
+        return File(
+            result.Data.FileContent,
+            result.Data.ContentType,
+            result.Data.FileName);
+    }
+
+    /// <summary>
     /// Generate a location-based default title for reports
     /// </summary>
     private async Task<string> GenerateLocationBasedTitleAsync(
