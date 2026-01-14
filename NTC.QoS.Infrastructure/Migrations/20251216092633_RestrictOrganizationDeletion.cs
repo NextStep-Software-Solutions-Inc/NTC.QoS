@@ -31,6 +31,17 @@ namespace NTC.QoS.Infrastructure.Migrations
                 column: "Key",
                 unique: true);
 
+            // Remove duplicate organizations before creating unique index
+            migrationBuilder.Sql(@"
+                DELETE FROM ""Organizations"" a USING (
+                    SELECT MIN(ctid) as ctid, ""Name""
+                    FROM ""Organizations"" 
+                    WHERE ""IsDeleted"" = FALSE
+                    GROUP BY ""Name"" HAVING COUNT(*) > 1
+                ) b
+                WHERE a.""Name"" = b.""Name"" AND a.ctid <> b.ctid;
+            ");
+
             migrationBuilder.CreateIndex(
                 name: "IX_Organizations_Name",
                 table: "Organizations",

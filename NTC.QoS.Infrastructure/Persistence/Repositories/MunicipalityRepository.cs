@@ -14,6 +14,36 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
         var query = _context.Set<Municipality>()
             .Include(m => m.Province)
             .ThenInclude(p => p.Region)
+            .Select(m => new Municipality
+            {
+                Id = m.Id,
+                Name = m.Name,
+                Code = m.Code,
+                IsCity = m.IsCity,
+                ProvinceId = m.ProvinceId,
+                Center = m.Center,
+                Area = m.Area,
+                TotalPopulation = m.TotalPopulation,
+                HouseholdPopulation = m.HouseholdPopulation,
+                HouseholdCount = m.HouseholdCount,
+                CreatedAt = m.CreatedAt,
+                CreatedBy = m.CreatedBy,
+                UpdatedAt = m.UpdatedAt,
+                UpdatedBy = m.UpdatedBy,
+                Province = new Province
+                {
+                    Id = m.Province.Id,
+                    Name = m.Province.Name,
+                    Code = m.Province.Code,
+                    RegionId = m.Province.RegionId,
+                    Region = new Region
+                    {
+                        Id = m.Province.Region.Id,
+                        Name = m.Province.Region.Name,
+                        Code = m.Province.Region.Code
+                    }
+                }
+            })
             .AsQueryable();
 
         if (expression != null)

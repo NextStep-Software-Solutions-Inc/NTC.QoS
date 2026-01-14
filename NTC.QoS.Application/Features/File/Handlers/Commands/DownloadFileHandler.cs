@@ -281,18 +281,58 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private async Task GenerateCellularCoverageTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
     {
-        AddCommonHeaders(worksheet, "Network", "Lat", "Lng", "Strength", "Address");
+        AddCommonHeaders(worksheet, "ServiceProvider", "Network", "Lat", "Lng", "Strength", "Address");
 
-        var networks = await GetNetworks(cancellationToken);
+        // Fetch data sequentially to avoid DbContext threading issues
+        var serviceProviders = await GetWirelessServiceProviders(cancellationToken);
+        var networks = await GetUniqueNetworksForDropdown(cancellationToken);
+
+        // Add ServiceProvider dropdown using helper method
+        AddDropdownWithHiddenSheetIfNeeded(
+            package, worksheet, serviceProviders, 
+            "ServiceProviders", "A2:A1048576");
+
+        // Add Network dropdown using helper method
+        AddDropdownWithHiddenSheetIfNeeded(
+            package, worksheet, networks, 
+            "Networks", "B2:B1048576");
 
         if (networks.Count == 0)
         {
             throw new InvalidOperationException("No networks available. Please add networks before generating the template.");
         }
 
-        AddDropdownValidation(worksheet, "A2:A12", networks);
-
         worksheet.Cells.AutoFitColumns();
+    }
+
+    /// <summary>
+    /// Helper method to add dropdown validation with hidden sheet for large lists
+    /// </summary>
+    private void AddDropdownWithHiddenSheetIfNeeded(
+        ExcelPackage package, 
+        ExcelWorksheet worksheet, 
+        List<string> values, 
+        string hiddenSheetName, 
+        string targetRange)
+    {
+        // Calculate if we need hidden sheet (200 char threshold or 50+ items)
+        var totalLength = values.Sum(v => v.Length + 1);
+        
+        if (totalLength > 200 || values.Count > 50)
+        {
+            // Use hidden sheet for large lists
+            var hiddenSheet = package.Workbook.Worksheets.Add(hiddenSheetName);
+            hiddenSheet.Cells[1, 1].LoadFromCollection(values);
+            hiddenSheet.Hidden = eWorkSheetHidden.VeryHidden;
+            
+            var range = hiddenSheet.Cells[1, 1, values.Count, 1];
+            AddDropdownValidation(worksheet, targetRange, range);
+        }
+        else
+        {
+            // Use direct values for small lists
+            AddDropdownValidation(worksheet, targetRange, values);
+        }
     }
 
     private static void AddCommonHeaders(ExcelWorksheet worksheet, params string[] headers)
@@ -495,6 +535,19 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     private async Task<List<string>> GetNetworks(CancellationToken cancellationToken)
     {
         return await GetEntityNames(_networkRepository, n => !n.IsDeleted, n => n.Name, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets unique network names ordered alphabetically for dropdown list
+    /// </summary>
+    private async Task<List<string>> GetUniqueNetworksForDropdown(CancellationToken cancellationToken)
+    {
+        var query = _networkRepository
+            .Query(n => !n.IsDeleted)
+            .Select(n => n.Name)
+            .Distinct()
+            .OrderBy(n => n);
+        return await _networkRepository.ToListAsync(query, cancellationToken);
     }
 
     private static async Task<List<string>> GetEntityNames<TEntity>(

@@ -165,7 +165,7 @@ public class BarangaySeedingStrategy : LocationSeedingStrategy<Barangay>
 
     protected override WriteOptions GetWriteOptions() => new()
     {
-        BatchSize = 5,  // Very small batches for 42k+ records with complex geometries
+        BatchSize = 100,  // Larger batches now that we use true batch insertion
         TimeoutSeconds = 900,
         EnableStreaming = true
     };

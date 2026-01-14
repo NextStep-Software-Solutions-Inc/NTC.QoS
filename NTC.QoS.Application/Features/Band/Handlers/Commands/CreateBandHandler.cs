@@ -19,6 +19,7 @@ public class CreateBandHandler(IRepository<Domain.Entities.Band> repository) : I
         {
             var restoreQuery = _repository.QueryWithIgnoreQueryFilters(b => b.Id == existing.Id && b.IsDeleted);
             await _repository.RestoreAsync(restoreQuery, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
             return new ApiResponse<BandDto>
             {
                 Data = new BandDto

@@ -267,6 +267,22 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             _logger.LogWarning(ex, "Unexpected error retrieving provider breakdown for assessment {AssessmentId}", assessment.Id);
         }
 
+        // Deserialize wireless coverage for barangays
+        BarangayWirelessSummaryDto? wirelessCoverage = null;
+        if (assessment.LocationType == LocationTypeEnum.Barangay && !string.IsNullOrEmpty(assessment.WirelessCoverageJson))
+        {
+            try
+            {
+                wirelessCoverage = JsonSerializer.Deserialize<BarangayWirelessSummaryDto>(
+                    assessment.WirelessCoverageJson,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to deserialize wireless coverage JSON for assessment {AssessmentId}", assessment.Id);
+            }
+        }
+
         return new LocationConnectivityDto
         {
             LocationId = assessment.LocationId,
@@ -324,7 +340,9 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             HouseholdCount = assessment.HouseholdCount,
             AssessmentDate = assessment.AssessmentDate,
             LastUpdated = assessment.LastUpdated,
-            Notes = assessment.Notes
+            Notes = assessment.Notes,
+            WirelessCoverage = wirelessCoverage,
+            WirelessCoverageLastUpdated = assessment.WirelessCoverageLastUpdated
         };
     }
 

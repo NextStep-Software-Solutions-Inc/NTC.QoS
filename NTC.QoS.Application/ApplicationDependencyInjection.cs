@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Application.Behaviors;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Application.Services.MCP;
 using NTC.QoS.Domain.Interfaces;
 using System.Reflection;
 
@@ -42,7 +43,9 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
         services.AddScoped<IConnectivityReportingService, ConnectivityReportingService>();
         services.AddScoped<BroadbandAnalyticsService>();
-        services.AddScoped<IWirelessScoringService, WirelessScoringService>();
+        
+        // MCP (Model Context Protocol) Server service for AI database access
+        services.AddScoped<IMCPServerService, MCPServerService>();
 
         // Configure ConnectivityCache options
         services.Configure<ConnectivityCacheOptions>(

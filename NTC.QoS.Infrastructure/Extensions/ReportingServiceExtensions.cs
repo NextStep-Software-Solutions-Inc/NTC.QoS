@@ -18,6 +18,9 @@ internal static class ReportingServiceExtensions
     {
         services.AddScoped<IReportGenerationService, ReportGenerationService>();
         services.AddScoped<IProviderTechnologyService, ProviderTechnologyService>();
+        services.AddScoped<IMarkdownToPdfService, MarkdownToPdfService>();
+        services.AddScoped<IWirelessScoringService, WirelessScoringService>();
+        services.AddScoped<IWirelessCoverageComputationService, WirelessCoverageComputationService>();
         return services;
     }
 }

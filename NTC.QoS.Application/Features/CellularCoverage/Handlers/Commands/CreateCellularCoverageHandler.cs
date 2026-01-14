@@ -40,7 +40,7 @@ public class CreateCellularCoverageHandler(
         {
             NetworkId = network.Id,
             Location = location,
-            Strength = request.CellularCoverage.Strength,
+            SignalStrength = request.CellularCoverage.SignalStrength,
             Address = request.CellularCoverage.Address,
             IsFileUploaded = false
         };
@@ -56,7 +56,7 @@ public class CreateCellularCoverageHandler(
                 NetworkId = newCellularCoverage.NetworkId,
                 Lat = newCellularCoverage.Location.Coordinate.Y,
                 Lng = newCellularCoverage.Location.Coordinate.X,
-                Strength = newCellularCoverage.Strength,
+                SignalStrength = newCellularCoverage.SignalStrength,
                 Gen = newCellularCoverage.Network?.SystemType?.Technology?.Generation?.Name ?? string.Empty,
                 Std = newCellularCoverage.Network?.SystemType?.Technology?.Standard ?? string.Empty,
             },

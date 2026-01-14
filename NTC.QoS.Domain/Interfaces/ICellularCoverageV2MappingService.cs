@@ -4,7 +4,7 @@ using NTC.QoS.Domain.Models.CsvBindings;
 namespace NTC.QoS.Domain.Interfaces;
 
 /// <summary>
-/// Service for mapping CSV coverage points to CellularCoverageVersion2 entities
+/// Service for mapping CSV coverage points to CellularCoverage entities
 /// </summary>
 public interface ICellularCoverageV2MappingService
 {
@@ -26,7 +26,7 @@ public interface ICellularCoverageV2MappingService
     /// <param name="municipalityId">User-provided municipality ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of successfully mapped entities</returns>
-    Task<List<CellularCoverageVersion2>> MapCoveragePointsBatchAsync(
+    Task<List<CellularCoverage>> MapCoveragePointsBatchAsync(
         List<CellularCoverageV2CsvRecord> csvRecords,
         Guid networkId,
         Guid bandId,
@@ -42,7 +42,7 @@ public interface ICellularCoverageV2MappingService
     /// <param name="municipalityId">User-provided municipality ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Mapped entity or null if mapping failed/should be skipped</returns>
-    Task<CellularCoverageVersion2?> MapCoveragePointAsync(
+    Task<CellularCoverage?> MapCoveragePointAsync(
         CellularCoverageV2CsvRecord csvRecord,
         Guid networkId,
         Guid bandId,

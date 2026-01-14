@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using NTC.QoS.Application.Features.Scheduler.Requests.Commands;
@@ -34,8 +33,8 @@ public class UpdateSchedulerHandler : IRequestHandler<UpdateSchedulerRequest, Sc
         var dto = request.Data;
 
         // Get existing scheduler
-        var scheduler = await _repository.Query(s => s.Id == request.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        var query = _repository.Query(s => s.Id == request.Id);
+        var scheduler = await _repository.FirstOrDefaultAsync(query, cancellationToken);
 
         if (scheduler == null)
         {

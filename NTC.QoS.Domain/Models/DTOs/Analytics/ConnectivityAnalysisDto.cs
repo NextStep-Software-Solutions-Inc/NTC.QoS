@@ -75,6 +75,10 @@ public class LocationConnectivityDto
     public DateTime AssessmentDate { get; set; }
     public DateTime LastUpdated { get; set; }
     public string? Notes { get; set; }
+
+    // Wireless Coverage (for barangays)
+    public BarangayWirelessSummaryDto? WirelessCoverage { get; set; }
+    public DateTime? WirelessCoverageLastUpdated { get; set; }
 }
 
 /// <summary>

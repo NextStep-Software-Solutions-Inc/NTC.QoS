@@ -27,6 +27,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AreaStudy> AreaStudies { get; set; }
     public DbSet<Band> Bands { get; set; }
     public DbSet<Barangay> Barangays { get; set; }
+    public DbSet<BarangayCoverage> BarangayCoverages { get; set; }
     public DbSet<Cellular> Cellulars { get; set; }
     public DbSet<Domain.Entities.File> Files { get; set; }
     public DbSet<MIMO> MIMOs { get; set; }
@@ -47,22 +48,31 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
-    public DbSet<CellularCoverageVersion2> CellularCoveragesV2 { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
     public DbSet<UserRegion> UserRegions { get; set; }
     public DbSet<WirelessValidation> WirelessValidations { get; set; }
     public DbSet<ConnectivityAssessment> ConnectivityAssessments { get; set; }
     public DbSet<WiFiHotspot> WiFiHotspots { get; set; }
     public DbSet<ConnectivityAssessmentScheduler> ConnectivityAssessmentSchedulers { get; set; }
+    public DbSet<GeneratedReport> GeneratedReports { get; set; }
+    public DbSet<ReportTemplate> ReportTemplates { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseNpgsql(_configuration.GetConnectionString("PostgreSqlConnection"), x => x.UseNetTopologySuite());
-
+        optionsBuilder.UseNpgsql(
+            _configuration.GetConnectionString("PostgreSqlConnection"), 
+            x => 
+            {
+                x.UseNetTopologySuite();
+                x.UseVector(); // Enable pgvector support
+                // Increase command timeout for long-running spatial queries
+                x.CommandTimeout(300); // 5 minutes
+            });
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("postgis");
+        modelBuilder.HasPostgresExtension("vector"); // Enable pgvector extension
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -320,6 +330,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(f => f.RegionId)
             .HasDatabaseName("IX_Files_RegionId");
 
+        modelBuilder.Entity<Domain.Entities.File>()
+            .Property(f => f.AssessmentJobId)
+            .HasMaxLength(450)
+            .IsRequired(false);
+
         modelBuilder.Entity<Municipality>()
             .HasMany(m => m.Barangays)
             .WithOne(b => b.Municipality)
@@ -426,59 +441,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(cc => cc.Location)
             .HasDatabaseName("IX_CellularCoverage_Location")
             .HasMethod("GIST");
-
-        // CellularCoverageVersion2 configuration
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Network)
-            .WithMany()
-            .HasForeignKey(cc => cc.NetworkId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Band)
-            .WithMany()
-            .HasForeignKey(cc => cc.BandId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Technology)
-            .WithMany()
-            .HasForeignKey(cc => cc.TechnologyId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.CellSector)
-            .WithMany()
-            .HasForeignKey(cc => cc.CellSectorId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasOne(cc => cc.Municipality)
-            .WithMany()
-            .HasForeignKey(cc => cc.MunicipalityId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .Property(cc => cc.Location)
-            .HasColumnType("geometry (Point,4326)")
-            .HasDefaultValue(GeometryHelper.CreatePoint(new Coordinate(0, 0)));
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => cc.Location)
-            .HasDatabaseName("IX_CellularCoverageV2_Location")
-            .HasMethod("GIST");
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => new { cc.NetworkId, cc.BandId, cc.MunicipalityId })
-            .HasDatabaseName("IX_CellularCoverageV2_Network_Band_Municipality");
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => cc.CellSectorId)
-            .HasDatabaseName("IX_CellularCoverageV2_CellSectorId");
-
-        modelBuilder.Entity<CellularCoverageVersion2>()
-            .HasIndex(cc => cc.MunicipalityId)
-            .HasDatabaseName("IX_CellularCoverageV2_MunicipalityId");
 
         modelBuilder.Entity<SystemType>()
             .HasMany(st => st.Networks)
@@ -694,6 +656,35 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<WiFiHotspot>()
             .HasIndex(w => new { w.IsActive, w.IsPublic })
             .HasDatabaseName("IX_WiFiHotspot_Active_Public");
+
+        // GeneratedReport indexes
+        modelBuilder.Entity<GeneratedReport>()
+            .HasIndex(gr => new { gr.UserId, gr.GeneratedAt })
+            .HasDatabaseName("IX_GeneratedReport_UserId_GeneratedAt")
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<GeneratedReport>()
+            .HasIndex(gr => gr.Title)
+            .HasDatabaseName("IX_GeneratedReport_Title")
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        // Vector embedding HNSW index for semantic search
+        modelBuilder.Entity<GeneratedReport>()
+            .HasIndex(gr => gr.Embedding)
+            .HasMethod("hnsw")
+            .HasOperators("vector_cosine_ops")
+            .HasDatabaseName("IX_GeneratedReport_Embedding");
+
+        // BarangayCoverage unique constraint - one coverage record per barangay
+        modelBuilder.Entity<BarangayCoverage>()
+            .HasIndex(bc => bc.BarangayId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<BarangayCoverage>()
+            .HasOne(bc => bc.Barangay)
+            .WithMany()
+            .HasForeignKey(bc => bc.BarangayId);
 
         base.OnModelCreating(modelBuilder);
     }

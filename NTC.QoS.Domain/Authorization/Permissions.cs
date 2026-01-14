@@ -78,6 +78,12 @@ public static class Permissions
     public const string UpdateBarangays = "barangays.update";
     public const string DeleteBarangays = "barangays.delete";
 
+    // Barangay Coverage management permissions
+    public const string ViewBarangayCoverage = "barangay_coverage.view";
+    public const string CreateBarangayCoverage = "barangay_coverage.create";
+    public const string UpdateBarangayCoverage = "barangay_coverage.update";
+    public const string DeleteBarangayCoverage = "barangay_coverage.delete";
+
     // Zone management permissions
     public const string ViewZones = "zones.view";
     public const string CreateZones = "zones.create";
@@ -182,4 +188,8 @@ public static class Permissions
     public const string SystemAdministration = "system.admin";
     public const string ViewLogs = "logs.view";
     public const string ManageSettings = "settings.manage";
+
+    // GenAI permissions
+    public const string ChatWithAI = "genai.chat";
+    public const string GenerateReports = "genai.generate_reports";
 }

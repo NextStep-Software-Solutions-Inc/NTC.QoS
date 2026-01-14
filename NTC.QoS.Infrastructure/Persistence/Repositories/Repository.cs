@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Query;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -73,6 +74,12 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
 
     public async Task<List<TResult>> ToListAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default)
         => await queryable.ToListAsync(cancellationToken);
+
+    public async Task<int> CountAsync<TResult>(IQueryable<TResult> queryable, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(queryable);
+        return await queryable.CountAsync(cancellationToken);
+    }
 
     public void Add(TEntity entity) => _context.Add(entity);
     public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default) => await _context.AddAsync(entity, cancellationToken);
@@ -255,7 +262,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
 
     /// <summary>
     /// Applies case-insensitive search filter across multiple properties.
-    /// Uses EF.Functions.Like for database-optimized pattern matching.
+    /// Uses EF.Functions.ILike for PostgreSQL case-insensitive pattern matching.
     /// </summary>
     /// <typeparam name="T">The entity type to search</typeparam>
     /// <param name="query">The queryable to filter</param>
@@ -287,12 +294,12 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
                 Expression.Constant(null, typeof(string))
             );
 
-            // EF.Functions.Like(property, pattern)
-            var likeMethod = typeof(DbFunctionsExtensions).GetMethod(
-                nameof(DbFunctionsExtensions.Like),
+            // EF.Functions.ILike(property, pattern) for case-insensitive search in PostgreSQL
+            var iLikeMethod = typeof(NpgsqlDbFunctionsExtensions).GetMethod(
+                nameof(NpgsqlDbFunctionsExtensions.ILike),
                 new[] { typeof(DbFunctions), typeof(string), typeof(string) })!;
 
-            var likeCall = Expression.Call(likeMethod,
+            var likeCall = Expression.Call(iLikeMethod,
                 Expression.Property(null, typeof(EF), nameof(EF.Functions)),
                 propertyExpression,
                 Expression.Constant(searchPattern)

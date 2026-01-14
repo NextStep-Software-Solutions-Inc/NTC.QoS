@@ -42,6 +42,7 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<IGenerationBandRepository, GenerationBandRepository>();
         services.AddScoped<ITechnologyBandRepository, TechnologyBandRepository>();
         services.AddScoped<ISystemTypeRepository, SystemTypeRepository>();
+        services.AddScoped<IGeneratedReportRepository, GeneratedReportRepository>();
     }
 
     private static void RegisterLocationRepositories(IServiceCollection services)
@@ -50,6 +51,7 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<IProvinceRepository, ProvinceRepository>();
         services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
         services.AddScoped<IBarangayRepository, BarangayRepository>();
+        services.AddScoped<IBarangayCoverageRepository, BarangayCoverageRepository>();
         services.AddScoped<IZoneRepository, ZoneRepository>();
         services.AddScoped<IStudyMunicipalityRepository, StudyMunicipalityRepository>();
     }
@@ -78,7 +80,6 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<INAPRepository, NAPRepository>();
         services.AddScoped<ICellularRepository, CellularRepository>();
         services.AddScoped<ICellularCoverageRepository, CellularCoverageRepository>();
-        services.AddScoped<ICellularCoverageV2Repository, CellularCoverageV2Repository>();
         services.AddScoped<IConnectivityAssessmentRepository, ConnectivityAssessmentRepository>();
         services.AddScoped<IConnectivityAssessmentSchedulerRepository, ConnectivityAssessmentSchedulerRepository>();
         services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();

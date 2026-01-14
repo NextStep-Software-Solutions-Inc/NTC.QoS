@@ -97,6 +97,7 @@ jobs:
             --from-literal=BLOB_STORAGE_CONNECTION_STRING="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
             --from-literal=Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
             --from-literal=Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
+            --from-literal=GoogleAI__ApiKey="${{ secrets.GOOGLE_AI_API_KEY }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
           # Force upgrade the Helm release, wait for resources and use an atomic upgrade

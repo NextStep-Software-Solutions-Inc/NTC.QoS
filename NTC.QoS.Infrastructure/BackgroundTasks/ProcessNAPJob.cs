@@ -20,6 +20,8 @@ public class ProcessNAPJob : IProcessNAPJob
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IUserContextService _userContextService;
+    private readonly IBackgroundJobService _backgroundJobService;
+    private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
 
     // Batch processing configuration (following ProcessCellJobBatched pattern)
     private const int BATCH_SIZE = 5000; // Large batch size for simple entity
@@ -31,7 +33,9 @@ public class ProcessNAPJob : IProcessNAPJob
         IRepository<Domain.Aggregates.NAP> NAPRepository,
     IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IBlobStorageService blobStorageService,
-     IUserContextService userContextService
+     IUserContextService userContextService,
+        IBackgroundJobService backgroundJobService,
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
         )
     {
         _logger = logger;
@@ -40,6 +44,8 @@ public class ProcessNAPJob : IProcessNAPJob
         _NAPRepository = NAPRepository;
         _blobStorageService = blobStorageService;
         _userContextService = userContextService;
+        _backgroundJobService = backgroundJobService;
+        _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -393,6 +399,13 @@ public class ProcessNAPJob : IProcessNAPJob
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Trigger connectivity assessment generation upon successful processing
+        if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
+        {
+            _logger.LogInformation("NAP processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
+            await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
+        }
 
         _logger.LogInformation("NAP processing completed successfully.");
     }

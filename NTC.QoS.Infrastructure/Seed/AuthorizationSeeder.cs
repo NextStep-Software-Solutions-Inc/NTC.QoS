@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
 
 namespace NTC.QoS.Infrastructure.Seed;
@@ -108,6 +109,12 @@ public static class AuthorizationSeeder
             new { Key = Permissions.CreateBarangays, Name = "Create Barangays", Description = "Can create new barangays" },
             new { Key = Permissions.UpdateBarangays, Name = "Update Barangays", Description = "Can update barangay information" },
             new { Key = Permissions.DeleteBarangays, Name = "Delete Barangays", Description = "Can delete barangays" },
+
+            // Barangay Coverage permissions
+            new { Key = Permissions.ViewBarangayCoverage, Name = "View Barangay Coverage", Description = "Can view barangay coverage records" },
+            new { Key = Permissions.CreateBarangayCoverage, Name = "Create Barangay Coverage", Description = "Can create barangay coverage records" },
+            new { Key = Permissions.UpdateBarangayCoverage, Name = "Update Barangay Coverage", Description = "Can update barangay coverage records" },
+            new { Key = Permissions.DeleteBarangayCoverage, Name = "Delete Barangay Coverage", Description = "Can delete barangay coverage records" },
 
             // Zone permissions
             new { Key = Permissions.ViewZones, Name = "View Zones", Description = "Can view zone listings" },
@@ -224,7 +231,11 @@ public static class AuthorizationSeeder
             // System permissions
             new { Key = Permissions.SystemAdministration, Name = "System Administration", Description = "Full system administration access" },
             new { Key = Permissions.ViewLogs, Name = "View Logs", Description = "Can view system logs" },
-            new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" }
+            new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" },
+
+            // GenAI permissions
+            new { Key = Permissions.ChatWithAI, Name = "Chat with AI", Description = "Can access AI chat assistant" },
+            new { Key = Permissions.GenerateReports, Name = "Generate AI Reports", Description = "Can generate reports using AI" }
         };
 
 
@@ -337,7 +348,8 @@ public static class AuthorizationSeeder
                 Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars,
                 Permissions.ViewSpeedtests, Permissions.CreateSpeedtests, Permissions.UpdateSpeedtests,
                 Permissions.ViewNAPs, Permissions.CreateNAPs, Permissions.UpdateNAPs,
-                Permissions.ViewAnalytics
+                Permissions.ViewAnalytics,
+                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports
             };
             await AssignPermissionsToRole(context, logger, fieldOfficerRole, fieldOfficerPermissions);
         }

@@ -23,6 +23,9 @@ internal static class BackgroundJobServiceExtensions
         // Scheduler service
         services.AddScoped<ISchedulerService, SchedulerService>();
 
+        // Assessment consolidation service (singleton for in-memory consolidation across requests)
+        services.AddSingleton<IAssessmentConsolidationService, AssessmentConsolidationService>();
+
         // Job implementations
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
         services.AddTransient<IProcessCellJob, ProcessCellJob>();
@@ -32,6 +35,14 @@ internal static class BackgroundJobServiceExtensions
         services.AddTransient<IProcessCellularCoverageV2Job, ProcessCellularCoverageV2Job>();
         services.AddTransient<IProcessConnectivityAssessmentJob, ProcessConnectivityAssessmentJob>();
         services.AddTransient<IProcessWirelessValidationJob, ProcessWirelessValidationJob>();
+        services.AddTransient<IProcessWirelessBroadbandReportJob, ProcessWirelessBroadbandReportJob>();
+        services.AddTransient<IProcessWiredBroadbandReportJob, ProcessWiredBroadbandReportJob>();
+        services.AddTransient<IProcessConnectivityGapReportJob, ProcessConnectivityGapReportJob>();
+        services.AddTransient<IProcessConnectivityReportJob, ProcessConnectivityReportJob>();
+        services.AddTransient<IProcessLocationSeedJob, ProcessLocationSeedJob>();
+        
+        // New job for triggering assessment generation
+        services.AddTransient<IGenerateConnectivityAssessmentJob, GenerateConnectivityAssessmentJob>();
         
         // Scheduled job wrapper with date validation
         services.AddTransient<IScheduledConnectivityAssessmentJob, ScheduledConnectivityAssessmentJob>();
