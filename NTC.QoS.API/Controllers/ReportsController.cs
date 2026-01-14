@@ -366,32 +366,30 @@ public class ReportsController : ControllerBase
     /// </summary>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10, max: 100)</param>
     /// <returns>Connectivity gap analysis report</returns>
     [HttpGet("connectivity-gap")]
     [RequirePermission(Permissions.ViewReports)]
     public async Task<ActionResult<ApiResponse<ConnectivityGapReportDto>>> GetConnectivityGapReport(
         [FromQuery] Guid? regionId = null,
-        [FromQuery] Guid? provinceId = null)
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
     {
-        try
+        var query = new Application.Features.Reports.ConnectivityGap.Requests.GetConnectivityGapReportQuery
         {
-            var report = await _connectivityReportingService.GenerateConnectivityGapReportAsync(regionId, provinceId);
-            
-            return Ok(new ApiResponse<ConnectivityGapReportDto>
-            {
-                Data = report,
-                Message = "Connectivity gap report generated successfully.",
-                Succeeded = true
-            });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new ApiResponse<ConnectivityGapReportDto>
-            {
-                Message = $"Failed to generate connectivity gap report: {ex.Message}",
-                Succeeded = false
-            });
-        }
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var result = await _mediator.Send(query);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
     /// <summary>
@@ -401,6 +399,7 @@ public class ReportsController : ControllerBase
     /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by Municipality ID</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity-gap/download")]
@@ -409,35 +408,27 @@ public class ReportsController : ControllerBase
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
         [FromQuery] string? reportTitle = null)
     {
-
-        // Generate location-based default title if not provided
-        var defaultTitle = await GenerateLocationBasedTitleAsync(
-            "Connectivity Gap Analysis Report",
-            regionId, 
-            provinceId, 
-            null);
-        
-        var title = SanitizeReportTitle(reportTitle, defaultTitle);
-        var fileName = await GenerateFileNameAsync("ConnectivityGap", 
-            format == ReportFormat.Pdf ? "pdf" : "xlsx", 
-            regionId, 
-            provinceId, 
-            null);
-
-        if (format == ReportFormat.Pdf)
+        var query = new Application.Features.Reports.ConnectivityGap.Requests.DownloadConnectivityGapReportQuery
         {
-            var pdfBytes = await _connectivityReportingService.GenerateConnectivityGapPdfAsync(
-                regionId, provinceId, title);
-            return File(pdfBytes, "application/pdf", fileName);
-        }
-        else
-        {
-            var excelBytes = await _connectivityReportingService.GenerateConnectivityGapExcelAsync(
-                regionId, provinceId, title);
-            return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
-        }
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            Format = format,
+            ReportTitle = reportTitle
+        };
+
+        var result = await _mediator.Send(query);
+
+        if (!result.Succeeded || result.Data == null)
+            return BadRequest(result);
+
+        return File(
+            result.Data.FileContent,
+            result.Data.ContentType,
+            result.Data.FileName);
     }
 
     /// <summary>

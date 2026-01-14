@@ -310,22 +310,22 @@ public class ReportGenerationService : IReportGenerationService
             {
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Red.Lighten2).Background(Colors.Red.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.TotalUnservedAreas.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.TotalUnservedAreas.ToString()).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Unserved Areas").FontSize(8);
                 });
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Orange.Lighten2).Background(Colors.Orange.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.TotalUnderservedAreas.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.TotalUnderservedAreas.ToString()).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Underserved Areas").FontSize(8);
                 });
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Blue.Lighten2).Background(Colors.Blue.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.UnservedPopulation.ToString("N0")).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.UnservedPopulation.ToString("N0")).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Unserved Population").FontSize(8);
                 });
                 row.AutoItem().Border(1).BorderColor(Colors.Blue.Lighten2).Background(Colors.Blue.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.UnderservedPopulation.ToString("N0")).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.UnderservedPopulation.ToString("N0")).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Underserved Population").FontSize(8);
                 });
             });
@@ -705,9 +705,9 @@ public class ReportGenerationService : IReportGenerationService
         
         // Gap Summary data rows
         worksheet.Cell(4, 1).Value = "Gap Category"; worksheet.Cell(4, 2).Value = "Count"; worksheet.Cell(4, 3).Value = "Population Affected";
-        worksheet.Cell(5, 1).Value = "Unserved Areas"; worksheet.Cell(5, 2).Value = reportData.TotalUnservedAreas; worksheet.Cell(5, 3).Value = reportData.UnservedPopulation;
-        worksheet.Cell(6, 1).Value = "Underserved Areas"; worksheet.Cell(6, 2).Value = reportData.TotalUnderservedAreas; worksheet.Cell(6, 3).Value = reportData.UnderservedPopulation;
-        worksheet.Cell(7, 1).Value = "Total Gap Areas"; worksheet.Cell(7, 2).Value = reportData.TotalUnservedAreas + reportData.TotalUnderservedAreas; worksheet.Cell(7, 3).Value = reportData.UnservedPopulation + reportData.UnderservedPopulation;
+        worksheet.Cell(5, 1).Value = "Unserved Areas"; worksheet.Cell(5, 2).Value = reportData.Summary.TotalUnservedAreas; worksheet.Cell(5, 3).Value = reportData.Summary.UnservedPopulation;
+        worksheet.Cell(6, 1).Value = "Underserved Areas"; worksheet.Cell(6, 2).Value = reportData.Summary.TotalUnderservedAreas; worksheet.Cell(6, 3).Value = reportData.Summary.UnderservedPopulation;
+        worksheet.Cell(7, 1).Value = "Total Gap Areas"; worksheet.Cell(7, 2).Value = reportData.Summary.TotalUnservedAreas + reportData.Summary.TotalUnderservedAreas; worksheet.Cell(7, 3).Value = reportData.Summary.UnservedPopulation + reportData.Summary.UnderservedPopulation;
         
         // Format headers
         worksheet.Range(4, 1, 4, 3).Style.Font.Bold = true;

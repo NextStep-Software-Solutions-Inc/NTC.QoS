@@ -193,13 +193,20 @@ public class ConnectivityReportingService : IConnectivityReportingService
 
         return new ConnectivityGapReportDto
         {
-            TotalUnservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
-            TotalUnderservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
-            UnservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
-                                   .Sum(a => a.Population ?? 0),
-            UnderservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
-                                      .Sum(a => a.Population ?? 0),
+            Summary = new ConnectivityGapSummaryDto
+            {
+                TotalUnservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                TotalUnderservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                UnservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
+                                       .Sum(a => a.Population ?? 0),
+                UnderservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
+                                          .Sum(a => a.Population ?? 0)
+            },
             PriorityAreas = priorityAreas,
+            TotalPriorityAreas = priorityAreas.Count,
+            PageNumber = 1,
+            PageSize = priorityAreas.Count,
+            TotalPages = 1,
             GeneratedAt = DateTime.UtcNow
         };
     }
