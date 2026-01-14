@@ -113,13 +113,40 @@ public class MunicipalityTransformer : ILocationDataTransformer<ParsedLocationFe
 /// </summary>
 public class BarangayTransformer : ILocationDataTransformer<ParsedLocationFeature, Barangay>
 {
+    private static int _missingParentCodeCount = 0;
+    private static int _parentNotFoundCount = 0;
+    private static bool _logged = false;
+
     public Barangay? Transform(ParsedLocationFeature feature, TransformContext context)
     {
         if (string.IsNullOrEmpty(feature.ParentCode))
+        {
+            _missingParentCodeCount++;
+            if (!_logged && _missingParentCodeCount == 1)
+            {
+                Console.WriteLine($"[BarangayTransformer] First missing ParentCode - Code: {feature.Code}, Name: {feature.Name}");
+            }
             return null;
+        }
 
         if (!context.ParentIdMap.TryGetValue(feature.ParentCode, out var municipalityId))
+        {
+            _parentNotFoundCount++;
+            if (!_logged && _parentNotFoundCount == 1)
+            {
+                Console.WriteLine($"[BarangayTransformer] First parent not found - ParentCode: {feature.ParentCode}, Barangay: {feature.Name}, Available municipality count: {context.ParentIdMap.Count}");
+                if (context.ParentIdMap.Count > 0)
+                {
+                    Console.WriteLine($"[BarangayTransformer] Sample municipality codes: {string.Join(", ", context.ParentIdMap.Keys.Take(5))}");
+                }
+            }
+            if (_parentNotFoundCount + _missingParentCodeCount >= 42000 && !_logged)
+            {
+                Console.WriteLine($"[BarangayTransformer] Summary - Missing ParentCode: {_missingParentCodeCount}, Parent Not Found: {_parentNotFoundCount}");
+                _logged = true;
+            }
             return null;
+        }
 
         return new Barangay
         {
@@ -128,9 +155,9 @@ public class BarangayTransformer : ILocationDataTransformer<ParsedLocationFeatur
             Name = feature.Name,
             Description = null,
             Area = feature.Area,
-            TotalPopulation = null, // Barangays don't have population data in the GeoJSON
-            HouseholdPopulation = null,
-            HouseholdCount = null,
+            TotalPopulation = feature.TotalPopulation,
+            HouseholdPopulation = feature.HouseholdPopulation,
+            HouseholdCount = feature.HouseholdCount,
             Boundaries = feature.Boundaries,
             Center = feature.Boundaries.Centroid,
             MunicipalityId = municipalityId,

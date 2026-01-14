@@ -51,38 +51,87 @@ public class ReportsController : ControllerBase
         _blobStorageService = blobStorageService;
     }
 
+    /// <summary>
+    /// Generate a comprehensive wireless broadband executive summary report for municipalities and barangays.
+    /// Shows wireless provider coverage with technology generations (2G, 3G, 4G, 5G) and connectivity scores.
+    /// Supports pagination to handle large datasets efficiently.
+    /// </summary>
+    /// <param name="regionId">Optional filter by Region ID</param>
+    /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by service status (Served=2, Underserved=1, Unserved=0)</param>
+    /// <param name="forceGenerateConnectivityAssessment">If true, forces generation of new connectivity assessments even if recent ones exist</param>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10, max: 100)</param>
+    /// <returns>Paginated wireless broadband executive summary with municipality/barangay breakdown</returns>
     [HttpGet("wireless-broadband")]
-    [RequirePermission(Permissions.ExportReports)]
-    [ProducesResponseType(typeof(FileResult), 200)]
-    [ProducesResponseType(typeof(ApiResponse<WirelessBroadbandReportResult>), 400)]
-    public async Task<IActionResult> GetWirelessBroadbandReport([FromQuery] GetWirelessBroadbandReportQuery query)
-    {
-        var result = await _mediator.Send(query);
-        
-        if (result.Succeeded && result.Data != null)
-        {
-            return File(result.Data.FileContent, result.Data.ContentType, result.Data.FileName);
-        }
-        
-        return BadRequest(result);
-    }
-
-    [HttpGet("wireless-broadband-scored")]
-    [RequirePermission(Permissions.ExportReports)]
-    public async Task<ActionResult> GetWirelessBroadbandScoredReport(
+    [RequirePermission(Permissions.ViewReports)]
+    public async Task<ActionResult<ApiResponse<WirelessBroadbandExecutiveSummaryDto>>> GetWirelessBroadbandReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
         [FromQuery] ServiceStatusEnum? filterByStatus = null,
-        [FromQuery] ReportFormat format = ReportFormat.Excel)
+        [FromQuery] bool forceGenerateConnectivityAssessment = false,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
     {
-        var request = new GetWirelessBroadbandScoredReportQuery
+        var request = new GetWirelessBroadbandExecutiveSummaryQuery
         {
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
             FilterByStatus = filterByStatus,
-            Format = format
+            ForceGenerateConnectivityAssessment = forceGenerateConnectivityAssessment,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var report = await _mediator.Send(request);
+        return report.Succeeded ? Ok(report) : BadRequest(report);
+    }
+
+    /// <summary>
+    /// Generate and download wireless broadband coverage report in PDF or Excel format.
+    /// When includeScores is true, includes connectivity scores and service status.
+    /// </summary>
+    /// <param name="regionId">Optional filter by Region ID</param>
+    /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by service status (Served=2, Underserved=1, Unserved=0). Only applicable when includeScores is true.</param>
+    /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
+    /// <param name="includeScores">When true (default), includes connectivity scores and service status in the report.</param>
+    /// <returns>PDF or Excel file download</returns>
+    [HttpGet("wireless-broadband/download")]
+    [RequirePermission(Permissions.ExportReports)]
+    [ProducesResponseType(typeof(FileResult), 200)]
+    [ProducesResponseType(typeof(ApiResponse<WirelessBroadbandReportResult>), 400)]
+    public async Task<IActionResult> DownloadWirelessBroadbandReport(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? provinceId = null,
+        [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ServiceStatusEnum? filterByStatus = null,
+        [FromQuery] ReportFormat format = ReportFormat.Excel,
+        [FromQuery] bool includeScores = true)
+    {
+        // Validate that FilterByStatus is only used when IncludeScores is true
+        if (!includeScores && filterByStatus.HasValue)
+        {
+            return BadRequest(new ApiResponse<WirelessBroadbandReportResult>
+            {
+                Succeeded = false,
+                Message = "FilterByStatus parameter can only be used when includeScores is true. " +
+                         "Service status filtering requires connectivity scores to be calculated."
+            });
+        }
+
+        var request = new GetWirelessBroadbandReportQuery
+        {
+            RegionId = regionId,
+            ProvinceId = provinceId,
+            MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            Format = format,
+            IncludeScores = includeScores
         };
 
         var result = await _mediator.Send(request);
@@ -101,12 +150,19 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Start background job for wireless broadband scored report generation.
+    /// Start background job for wireless broadband report generation.
     /// Use this for large reports (region-level) that may take several minutes to generate.
     /// </summary>
-    [HttpPost("wireless-broadband-scored/start")]
+    /// <param name="regionId">Optional filter by Region ID</param>
+    /// <param name="provinceId">Optional filter by Province ID</param>
+    /// <param name="municipalityId">Optional filter by specific Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by service status (Served=2, Underserved=1, Unserved=0). Only applicable when includeScores is true.</param>
+    /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
+    /// <param name="includeScores">When true (default), includes connectivity scores and service status in the report.</param>
+    /// <returns>Job information with status URL</returns>
+    [HttpPost("wireless-broadband/generate-async")]
     [RequirePermission(Permissions.CreateReports)]
-    public async Task<ActionResult<ApiResponse<WirelessBroadbandReportJobResponseDto>>> StartWirelessBroadbandScoredReportJob(
+    public async Task<ActionResult<ApiResponse<WirelessBroadbandReportJobResponseDto>>> GenerateWirelessBroadbandReportAsync(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
@@ -145,7 +201,7 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Get status of wireless broadband report background job
     /// </summary>
-    [HttpGet("wireless-broadband-scored/{jobId}/status")]
+    [HttpGet("wireless-broadband/job/{jobId}/status")]
     [RequirePermission(Permissions.ViewReports)]
     public ActionResult<ApiResponse<WirelessBroadbandReportJobStatusDto>> GetWirelessBroadbandReportJobStatus(string jobId)
     {
@@ -171,7 +227,7 @@ public class ReportsController : ControllerBase
     /// <summary>
     /// Download completed wireless broadband report
     /// </summary>
-    [HttpGet("wireless-broadband-scored/{jobId}/download")]
+    [HttpGet("wireless-broadband/job/{jobId}/download")]
     [RequirePermission(Permissions.ExportReports)]
     public async Task<ActionResult> DownloadWirelessBroadbandReport(string jobId)
     {

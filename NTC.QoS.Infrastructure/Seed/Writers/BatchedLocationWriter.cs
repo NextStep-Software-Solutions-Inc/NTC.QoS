@@ -82,13 +82,56 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
                 _logger.LogDebug("Starting to save {Count} {EntityType} entities", batch.Count, typeof(TEntity).Name);
                 var stopwatch = Stopwatch.StartNew();
 
-                // Use raw SQL insert to avoid EF geometry copying and OOM
-                foreach (var entity in batch)
+                // Use raw SQL insert or upsert to avoid EF geometry copying and OOM
+                var entityType = typeof(TEntity).Name;
+                
+                if (options.ForceReseed)
                 {
-                    var wkb = GetGeometryWkb(entity);
-                    var sql = GetInsertSql(typeof(TEntity).Name);
-                    var parameters = GetParameters(entity, typeof(TEntity).Name);
-                    await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters);
+                    // For force reseed, check which entities exist and update them, insert new ones
+                    var tableName = GetTableName(entityType);
+                    var codes = batch.Select(e => GetEntityCodeFromObject(e)).ToList();
+                    
+                    // Query existing codes in one go
+                    var codesParam = string.Join(",", codes.Select((_, i) => $"@code{i}"));
+                    var checkSql = $"SELECT \"Code\" FROM \"{tableName}\" WHERE \"Code\" IN ({codesParam}) AND NOT \"IsDeleted\"";
+                    var checkParams = codes.Select((code, i) => new NpgsqlParameter($"@code{i}", code)).ToArray();
+                    
+                    var existingCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    await using (var command = _dbContext.Database.GetDbConnection().CreateCommand())
+                    {
+                        command.CommandText = checkSql;
+                        command.Parameters.AddRange(checkParams);
+                        
+                        if (command.Connection?.State != System.Data.ConnectionState.Open)
+                            await command.Connection!.OpenAsync(cancellationToken);
+                            
+                        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                        while (await reader.ReadAsync(cancellationToken))
+                        {
+                            existingCodes.Add(reader.GetString(0));
+                        }
+                    }
+                    
+                    // Split into updates and inserts
+                    var toUpdate = batch.Where(e => existingCodes.Contains(GetEntityCodeFromObject(e))).ToList();
+                    var toInsert = batch.Where(e => !existingCodes.Contains(GetEntityCodeFromObject(e))).ToList();
+                    
+                    // Batch update existing entities
+                    if (toUpdate.Count > 0)
+                    {
+                        await ExecuteBatchUpdateAsync(toUpdate, entityType, cancellationToken);
+                    }
+                    
+                    // Batch insert new entities
+                    if (toInsert.Count > 0)
+                    {
+                        await ExecuteBatchInsertAsync(toInsert, entityType, cancellationToken);
+                    }
+                }
+                else
+                {
+                    // Batch insert for new entities only
+                    await ExecuteBatchInsertAsync(batch, entityType, cancellationToken);
                 }
 
                 stopwatch.Stop();
@@ -135,6 +178,127 @@ public class BatchedLocationWriter<TEntity> : ILocationDataWriter<TEntity> where
         "Barangay" => "INSERT INTO \"Barangays\" (\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"MunicipalityId\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\") VALUES (@id, @code, @name, @description, @area, @totalPopulation, @householdPopulation, @householdCount, ST_GeomFromWKB(@boundaries, 4326), ST_GeomFromWKB(@center, 4326), @municipalityId, @isDeleted, @createdAt, @createdBy, @updatedAt, @updatedBy)",
         _ => throw new NotSupportedException($"Entity type {entityType} not supported")
     };
+
+    private static string GetUpdateSql(string entityType) => entityType switch
+    {
+        "Region" => "UPDATE \"Regions\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        "Province" => "UPDATE \"Provinces\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"RegionId\" = @regionId, \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        "Municipality" => "UPDATE \"Municipalities\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"ProvinceId\" = @provinceId, \"IsCity\" = @isCity, \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        "Barangay" => "UPDATE \"Barangays\" SET \"Name\" = @name, \"Description\" = @description, \"Area\" = @area, \"TotalPopulation\" = @totalPopulation, \"HouseholdPopulation\" = @householdPopulation, \"HouseholdCount\" = @householdCount, \"Boundaries\" = ST_GeomFromWKB(@boundaries, 4326), \"Center\" = ST_GeomFromWKB(@center, 4326), \"MunicipalityId\" = @municipalityId, \"UpdatedAt\" = @updatedAt, \"UpdatedBy\" = @updatedBy WHERE \"Code\" = @code AND NOT \"IsDeleted\"",
+        _ => throw new NotSupportedException($"Entity type {entityType} not supported")
+    };
+
+    private async Task ExecuteBatchInsertAsync(List<TEntity> entities, string entityType, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0) return;
+
+        var tableName = GetTableName(entityType);
+        var columns = GetColumnNames(entityType);
+        
+        // Build multi-row INSERT statement
+        var valuesClauses = new List<string>();
+        var parameters = new List<NpgsqlParameter>();
+        
+        for (int i = 0; i < entities.Count; i++)
+        {
+            var entity = entities[i];
+            var prefix = $"p{i}_";
+            
+            var entityParams = GetParametersWithPrefix(entity, entityType, prefix);
+            parameters.AddRange(entityParams);
+            
+            var valuePlaceholders = GetValuePlaceholders(entityType, prefix);
+            valuesClauses.Add($"({valuePlaceholders})");
+        }
+        
+        var sql = $"INSERT INTO \"{tableName}\" ({columns}) VALUES {string.Join(", ", valuesClauses)}";
+        
+        await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters.ToArray(), cancellationToken);
+    }
+
+    private async Task ExecuteBatchUpdateAsync(List<TEntity> entities, string entityType, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0) return;
+
+        // For updates, we still need to execute individually due to WHERE clause complexity
+        // But we can use a transaction to improve performance
+        foreach (var entity in entities)
+        {
+            var sql = GetUpdateSql(entityType);
+            var parameters = GetParameters(entity, entityType);
+            await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
+        }
+    }
+
+    private static string GetEntityCodeFromObject(object entity)
+    {
+        return entity.GetType().GetProperty("Code")?.GetValue(entity)?.ToString() ?? string.Empty;
+    }
+
+    private static string GetTableName(string entityType) => entityType switch
+    {
+        "Region" => "Regions",
+        "Province" => "Provinces",
+        "Municipality" => "Municipalities",
+        "Barangay" => "Barangays",
+        _ => throw new NotSupportedException($"Entity type {entityType} not supported")
+    };
+
+    private static string GetColumnNames(string entityType) => entityType switch
+    {
+        "Region" => "\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\"",
+        "Province" => "\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"RegionId\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\"",
+        "Municipality" => "\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"ProvinceId\", \"IsCity\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\"",
+        "Barangay" => "\"Id\", \"Code\", \"Name\", \"Description\", \"Area\", \"TotalPopulation\", \"HouseholdPopulation\", \"HouseholdCount\", \"Boundaries\", \"Center\", \"MunicipalityId\", \"IsDeleted\", \"CreatedAt\", \"CreatedBy\", \"UpdatedAt\", \"UpdatedBy\"",
+        _ => throw new NotSupportedException($"Entity type {entityType} not supported")
+    };
+
+    private static string GetValuePlaceholders(string entityType, string prefix) => entityType switch
+    {
+        "Region" => $"@{prefix}id, @{prefix}code, @{prefix}name, @{prefix}description, @{prefix}area, @{prefix}totalPopulation, @{prefix}householdPopulation, @{prefix}householdCount, ST_GeomFromWKB(@{prefix}boundaries, 4326), ST_GeomFromWKB(@{prefix}center, 4326), @{prefix}isDeleted, @{prefix}createdAt, @{prefix}createdBy, @{prefix}updatedAt, @{prefix}updatedBy",
+        "Province" => $"@{prefix}id, @{prefix}code, @{prefix}name, @{prefix}description, @{prefix}area, @{prefix}totalPopulation, @{prefix}householdPopulation, @{prefix}householdCount, ST_GeomFromWKB(@{prefix}boundaries, 4326), ST_GeomFromWKB(@{prefix}center, 4326), @{prefix}regionId, @{prefix}isDeleted, @{prefix}createdAt, @{prefix}createdBy, @{prefix}updatedAt, @{prefix}updatedBy",
+        "Municipality" => $"@{prefix}id, @{prefix}code, @{prefix}name, @{prefix}description, @{prefix}area, @{prefix}totalPopulation, @{prefix}householdPopulation, @{prefix}householdCount, ST_GeomFromWKB(@{prefix}boundaries, 4326), ST_GeomFromWKB(@{prefix}center, 4326), @{prefix}provinceId, @{prefix}isCity, @{prefix}isDeleted, @{prefix}createdAt, @{prefix}createdBy, @{prefix}updatedAt, @{prefix}updatedBy",
+        "Barangay" => $"@{prefix}id, @{prefix}code, @{prefix}name, @{prefix}description, @{prefix}area, @{prefix}totalPopulation, @{prefix}householdPopulation, @{prefix}householdCount, ST_GeomFromWKB(@{prefix}boundaries, 4326), ST_GeomFromWKB(@{prefix}center, 4326), @{prefix}municipalityId, @{prefix}isDeleted, @{prefix}createdAt, @{prefix}createdBy, @{prefix}updatedAt, @{prefix}updatedBy",
+        _ => throw new NotSupportedException($"Entity type {entityType} not supported")
+    };
+
+    private static NpgsqlParameter[] GetParametersWithPrefix(object entity, string entityType, string prefix)
+    {
+        var parameters = new List<NpgsqlParameter>
+        {
+            new NpgsqlParameter($"@{prefix}id", entity.GetType().GetProperty("Id")?.GetValue(entity)),
+            new NpgsqlParameter($"@{prefix}code", entity.GetType().GetProperty("Code")?.GetValue(entity)),
+            new NpgsqlParameter($"@{prefix}name", entity.GetType().GetProperty("Name")?.GetValue(entity)),
+            new NpgsqlParameter($"@{prefix}description", entity.GetType().GetProperty("Description")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter($"@{prefix}area", entity.GetType().GetProperty("Area")?.GetValue(entity) ?? 0f),
+            new NpgsqlParameter($"@{prefix}totalPopulation", entity.GetType().GetProperty("TotalPopulation")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter($"@{prefix}householdPopulation", entity.GetType().GetProperty("HouseholdPopulation")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter($"@{prefix}householdCount", entity.GetType().GetProperty("HouseholdCount")?.GetValue(entity) ?? DBNull.Value),
+            new NpgsqlParameter($"@{prefix}boundaries", GetGeometryWkb(entity)),
+            new NpgsqlParameter($"@{prefix}center", GetCenterWkb(entity)),
+            new NpgsqlParameter($"@{prefix}isDeleted", entity.GetType().GetProperty("IsDeleted")?.GetValue(entity)),
+            new NpgsqlParameter($"@{prefix}createdAt", entity.GetType().GetProperty("CreatedAt")?.GetValue(entity)),
+            new NpgsqlParameter($"@{prefix}createdBy", entity.GetType().GetProperty("CreatedBy")?.GetValue(entity)),
+            new NpgsqlParameter($"@{prefix}updatedAt", entity.GetType().GetProperty("UpdatedAt")?.GetValue(entity)),
+            new NpgsqlParameter($"@{prefix}updatedBy", entity.GetType().GetProperty("UpdatedBy")?.GetValue(entity))
+        };
+
+        switch (entityType)
+        {
+            case "Province":
+                parameters.Add(new NpgsqlParameter($"@{prefix}regionId", GetRegionId(entity)));
+                break;
+            case "Municipality":
+                parameters.Add(new NpgsqlParameter($"@{prefix}provinceId", GetProvinceId(entity)));
+                parameters.Add(new NpgsqlParameter($"@{prefix}isCity", GetIsCity(entity)));
+                break;
+            case "Barangay":
+                parameters.Add(new NpgsqlParameter($"@{prefix}municipalityId", GetMunicipalityId(entity)));
+                break;
+        }
+
+        return parameters.ToArray();
+    }
 
     private static NpgsqlParameter[] GetParameters(object entity, string entityType)
     {

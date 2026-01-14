@@ -1,7 +1,9 @@
-﻿using MediatR;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -11,21 +13,22 @@ using NTC.QoS.Domain.Models.DTOs.Reports;
 using NTC.QoS.Infrastructure.Services;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
+using System.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using System.Drawing;
+using System.IO.Compression;
 using System.Text.Json;
 using Color = System.Drawing.Color;
 
 namespace NTC.QoS.Application.Features.Reports.WirelessBroadband.Handlers;
 
 /// <summary>
-/// Handler for generating wireless broadband reports with connectivity scores.
-/// Reuses assessment scoring logic for consistency across the system.
+/// Handler for generating wireless broadband reports with optional connectivity scores.
+/// When IncludeScores is true, reuses assessment scoring logic for consistency across the system.
 /// Scores are based on 2 CMTS criteria: Internet Access (speedtest) and Technology Type (wireless infrastructure).
 /// </summary>
-public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirelessBroadbandScoredReportQuery, ApiResponse<WirelessBroadbandReportResult>>
+public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroadbandReportQuery, ApiResponse<WirelessBroadbandReportResult>>
 {
     private readonly IRegionRepository _regionRepository;
     private readonly IProvinceRepository _provinceRepository;
@@ -34,12 +37,12 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
     private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly ISpeedtestRepository _speedtestRepository;
     private readonly IProviderRepository _providerRepository;
-    private readonly ILogger<GetWirelessBroadbandScoredReportHandler> _logger;
-    private readonly IWirelessScoringService _scoringService;
+    private readonly ILogger<GetWirelessBroadbandReportHandler> _logger;
     private readonly IConnectivityAssessmentRepository _connectivityAssessmentRepository;
+    private readonly IWirelessScoringService _scoringService;
     private const int StartColumn = 3;
 
-    public GetWirelessBroadbandScoredReportHandler(
+    public GetWirelessBroadbandReportHandler(
         IRegionRepository regionRepository,
         IProvinceRepository provinceRepository,
         IMunicipalityRepository municipalityRepository,
@@ -47,9 +50,9 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         IBarangayCoverageRepository barangayCoverageRepository,
         ISpeedtestRepository speedtestRepository,
         IProviderRepository providerRepository,
-        ILogger<GetWirelessBroadbandScoredReportHandler> logger,
-        IWirelessScoringService scoringService,
-        IConnectivityAssessmentRepository connectivityAssessmentRepository)
+        ILogger<GetWirelessBroadbandReportHandler> logger,
+        IConnectivityAssessmentRepository connectivityAssessmentRepository,
+        IWirelessScoringService scoringService)
     {
         _regionRepository = regionRepository;
         _provinceRepository = provinceRepository;
@@ -59,12 +62,12 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         _speedtestRepository = speedtestRepository;
         _providerRepository = providerRepository;
         _logger = logger;
-        _scoringService = scoringService;
         _connectivityAssessmentRepository = connectivityAssessmentRepository;
+        _scoringService = scoringService;
     }
 
     public async Task<ApiResponse<WirelessBroadbandReportResult>> Handle(
-        GetWirelessBroadbandScoredReportQuery request,
+        GetWirelessBroadbandReportQuery request,
         CancellationToken cancellationToken)
     {
         try
@@ -159,17 +162,10 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             }
             else
             {
-                return new ApiResponse<WirelessBroadbandReportResult>(
-                    "Please provide a Municipality, Province, or Region ID.");
+                return new ApiResponse<WirelessBroadbandReportResult>("Please provide a Municipality, Province, or Region ID.");
             }
 
-            // 2. Fetch Providers
-            var providersQuery = _providerRepository.Query(
-                p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
-                .OrderBy(p => p.Name);
-            var providers = await _providerRepository.ToListAsync(providersQuery, cancellationToken);
-
-            // 3. Safeguard against excessive scope
+            // 2. Safeguard against excessive scope
             if (barangays.Count > 5000)
             {
                 return new ApiResponse<WirelessBroadbandReportResult>(
@@ -177,14 +173,18 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     "Please select a smaller geographic area (province or municipality).");
             }
 
-            _logger.LogInformation("Generating wireless broadband scored report for {Count} barangays in {Area}", 
-                barangays.Count, reportTitleName);
+            _logger.LogInformation("Generating wireless broadband report (IncludeScores={IncludeScores}) for {Count} barangays in {Area}", 
+                request.IncludeScores, barangays.Count, reportTitleName);
 
-            // 4. Process barangays with scoring (using assessment data)
-            var reportData = new List<BarangayWirelessScoredEntryDto>();
+            // 3. Fetch Providers for dynamic headers
+            var providersQuery = _providerRepository.Query(
+                p => p.ServiceProviders.Any(sp => sp.Service.Type == ServiceTypeEnum.Wireless))
+                .OrderBy(p => p.Name);
+            var providers = await _providerRepository.ToListAsync(providersQuery, cancellationToken);
+
+            // 4. Load wireless coverage from pre-computed assessments (OPTIMIZED)
             var barangayIds = barangays.Select(b => b.Id).ToList();
-
-            // Load wireless coverage from pre-computed assessments (OPTIMIZED)
+            
             _logger.LogInformation("Loading wireless coverage from assessments for {Area}...", reportTitleName);
             var wirelessCoverageByBarangay = await LoadWirelessCoverageFromAssessmentsAsync(
                 barangayIds,
@@ -192,9 +192,11 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             _logger.LogInformation("Loaded wireless coverage for {Count}/{Total} barangays", 
                 wirelessCoverageByBarangay.Count, barangays.Count);
 
-            // Process barangays in batches for progress tracking
+            // 5. Process barangays with progress tracking (using scored DTO for unified approach)
+            var reportData = new List<BarangayWirelessScoredEntryDto>();
             const int progressBatchSize = 500;
             var processedCount = 0;
+
             foreach (var barangay in barangays)
             {
                 var entry = new BarangayWirelessScoredEntryDto
@@ -222,22 +224,26 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     }
                 }
 
-                // Calculate overall barangay connectivity score using assessment data
-                if (wirelessSummary != null)
+                // Calculate scores only if requested
+                if (request.IncludeScores)
                 {
-                    var overallTechBreakdown = BuildTechnologyBreakdownFromSummary(wirelessSummary);
-                    var overallSpeedStats = BuildSpeedStatsFromSummary(wirelessSummary);
-                    
-                    entry.ConnectivityScore = CalculateConnectivityScore(overallTechBreakdown, overallSpeedStats);
+                    if (wirelessSummary != null)
+                    {
+                        var overallTechBreakdown = BuildTechnologyBreakdownFromSummary(wirelessSummary);
+                        var overallSpeedStats = BuildSpeedStatsFromSummary(wirelessSummary);
+                        
+                        entry.ConnectivityScore = CalculateConnectivityScore(overallTechBreakdown, overallSpeedStats);
+                        entry.ServiceStatus = DetermineServiceStatus(entry.ConnectivityScore.TotalScore);
+                        entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
+                    }
+                    else
+                    {
+                        // No assessment data - default empty score
+                        entry.ConnectivityScore = new WirelessConnectivityScoreDto();
+                        entry.ServiceStatus = ServiceStatusEnum.Unserved;
+                        entry.Remarks = "No connectivity assessment data available";
+                    }
                 }
-                else
-                {
-                    // No assessment data - default empty score
-                    entry.ConnectivityScore = new WirelessConnectivityScoreDto();
-                }
-                
-                entry.ServiceStatus = DetermineServiceStatus(entry.ConnectivityScore.TotalScore);
-                entry.Remarks = GenerateRemarks(entry.ConnectivityScore);
 
                 reportData.Add(entry);
                 processedCount++;
@@ -250,246 +256,93 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 }
             }
 
-            // Apply filtering
-            if (request.FilterByStatus.HasValue)
+            // Apply filtering (only applicable when scores are included)
+            if (request.IncludeScores && request.FilterByStatus.HasValue)
             {
                 reportData = reportData
                     .Where(r => r.ServiceStatus == request.FilterByStatus.Value)
                     .ToList();
             }
 
-            // 5. Generate Report
+            // 6. Generate Report based on Format
             byte[] fileContent;
             string extension;
 
+            // Collect all unique provider/generation pairs from assessment wireless coverage data
+            var providerGenerationsMap = new Dictionary<string, List<string>>();
+            
+            foreach (var provider in providers)
+            {
+                var generations = new HashSet<string>();
+                
+                // Scan all barangay wireless summaries for this provider
+                foreach (var wirelessSummary in wirelessCoverageByBarangay.Values)
+                {
+                    var providerCoverage = wirelessSummary.Providers
+                        .FirstOrDefault(p => p.ProviderName.Equals(provider.Name, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (providerCoverage != null)
+                    {
+                        if (providerCoverage.Has2G) generations.Add("2G");
+                        if (providerCoverage.Has3G) generations.Add("3G");
+                        if (providerCoverage.Has4G) generations.Add("4G");
+                        if (providerCoverage.Has5G) generations.Add("5G");
+                    }
+                }
+                
+                // Convert to sorted list
+                var genList = new List<string>();
+                if (generations.Contains("2G")) genList.Add("2G");
+                if (generations.Contains("3G")) genList.Add("3G");
+                if (generations.Contains("4G")) genList.Add("4G");
+                if (generations.Contains("5G")) genList.Add("5G");
+                
+                providerGenerationsMap[provider.Name] = genList;
+            }
+
             if (request.Format == ReportFormat.Excel)
             {
-                fileContent = GenerateExcel(reportTitleName, providers, reportData);
+                fileContent = GenerateExcel(reportTitleName, providers, reportData, providerGenerationsMap, request.IncludeScores);
                 extension = "xlsx";
             }
             else
             {
-                fileContent = GeneratePdf(reportTitleName, providers, reportData);
+                fileContent = GeneratePdf(reportTitleName, providers, reportData, providerGenerationsMap, request.IncludeScores);
                 extension = "pdf";
             }
 
+            var fileNameSuffix = request.IncludeScores ? "WirelessBroadbandScored" : "WirelessBroadband";
             var result = new WirelessBroadbandReportResult
             {
                 FileContent = fileContent,
-                FileName = $"{reportTitleName}_WirelessBroadbandScored_{DateTime.UtcNow:yyyyMMdd}.{extension}"
+                FileName = $"{reportTitleName}_{fileNameSuffix}_{DateTime.UtcNow:yyyyMMdd}.{extension}"
             };
 
             return new ApiResponse<WirelessBroadbandReportResult>(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating wireless broadband scored report.");
-            return new ApiResponse<WirelessBroadbandReportResult>(
-                "An error occurred while generating the report.");
+            _logger.LogError(ex, "Error generating wireless broadband report.");
+            return new ApiResponse<WirelessBroadbandReportResult>("An error occurred while generating the report.");
         }
-    }
-
-    /// <summary>
-    /// Calculate connectivity score based on CMTS criteria.
-    /// Uses shared scoring service for consistency with connectivity assessment.
-    /// Scores are based on 2 criteria: Internet Access (speedtest) + Technology Type (wireless infrastructure).
-    /// </summary>
-    private WirelessConnectivityScoreDto CalculateConnectivityScore(
-        TechnologyBandBreakdownDto? techBreakdown,
-        SpeedStatsDto? speedStats)
-    {
-        var score = new WirelessConnectivityScoreDto();
-
-        // Calculate scores using shared service (aligned with assessment logic)
-        score.TechnologyTypeScore = _scoringService.CalculateTechnologyTypeScore(techBreakdown);
-        score.InternetAccessScore = _scoringService.CalculateInternetAccessScore(speedStats);
-        score.HighestTechnology = _scoringService.GetHighestTechnology(techBreakdown);
-
-        // Populate speed data if available
-        if (speedStats != null && speedStats.SpeedTestCount > 0)
-        {
-            score.AverageDownloadSpeed = (double)(speedStats.AverageDownloadSpeedMbps ?? 0);
-            score.AverageUploadSpeed = (double)(speedStats.AverageUploadSpeedMbps ?? 0);
-        }
-
-        score.TotalScore = score.TechnologyTypeScore + score.InternetAccessScore;
-        score.ScoreBreakdown = $"Tech: {score.TechnologyTypeScore}/3, Internet: {score.InternetAccessScore}/3";
-
-        return score;
-    }
-
-    /// <summary>
-    /// Determine service status from total score.
-    /// Uses shared scoring service for consistency with connectivity assessment.
-    /// </summary>
-    private ServiceStatusEnum DetermineServiceStatus(int totalScore)
-    {
-        return _scoringService.DetermineServiceStatus(totalScore);
-    }
-
-    private string GenerateRemarks(WirelessConnectivityScoreDto score)
-    {
-        var status = DetermineServiceStatus(score.TotalScore);
-        var remarks = status.ToString().ToUpper();
-
-        remarks += $" (Score: {score.TotalScore}/6)";
-
-        if (!string.IsNullOrEmpty(score.HighestTechnology) && score.HighestTechnology != "None")
-        {
-            remarks += $" - {score.HighestTechnology}";
-        }
-
-        if (score.AverageDownloadSpeed.HasValue)
-        {
-            remarks += $" - Avg: {Math.Round(score.AverageDownloadSpeed.Value, 1)} Mbps";
-        }
-
-        return remarks;
-    }
-
-    private static WirelessBroadbandScoredSummaryDto GenerateSummary(
-        List<BarangayWirelessScoredEntryDto> data)
-    {
-        var summary = new WirelessBroadbandScoredSummaryDto
-        {
-            TotalBarangays = data.Count,
-            TotalMunicipalities = data.Select(d => d.MunicipalityName).Distinct().Count(),
-            ServedBarangays = data.Count(d => d.ServiceStatus == ServiceStatusEnum.Served),
-            UnderservedBarangays = data.Count(d => d.ServiceStatus == ServiceStatusEnum.Underserved),
-            UnservedBarangays = data.Count(d => d.ServiceStatus == ServiceStatusEnum.Unserved),
-            GeneratedAt = DateTime.UtcNow
-        };
-
-        if (data.Any())
-        {
-            summary.AverageTechnologyScore = data.Average(d => d.ConnectivityScore.TechnologyTypeScore);
-            summary.AverageInternetAccessScore = data.Average(d => d.ConnectivityScore.InternetAccessScore);
-            summary.AverageTotalScore = data.Average(d => d.ConnectivityScore.TotalScore);
-
-            summary.ServedPercentage = (double)summary.ServedBarangays / summary.TotalBarangays * 100;
-            summary.UnderservedPercentage = (double)summary.UnderservedBarangays / summary.TotalBarangays * 100;
-            summary.UnservedPercentage = (double)summary.UnservedBarangays / summary.TotalBarangays * 100;
-
-            // Technology distribution
-            var techGroups = data
-                .GroupBy(d => d.ConnectivityScore.HighestTechnology)
-                .OrderByDescending(g => g.Count());
-
-            foreach (var group in techGroups)
-            {
-                summary.TechnologyDistribution[group.Key] = group.Count();
-            }
-        }
-
-        return summary;
-    }
-
-    // ===== Helper methods =====
-
-    /// <summary>
-    /// Aggregate multiple provider technology breakdowns into a single overall breakdown
-    /// </summary>
-    private static TechnologyBandBreakdownDto AggregateProviderTechnologyBreakdowns(
-        IEnumerable<TechnologyBandBreakdownDto> breakdowns)
-    {
-        var aggregated = new TechnologyBandBreakdownDto();
-        var allTechnologies = new Dictionary<string, HashSet<string>>();
-
-        foreach (var breakdown in breakdowns)
-        {
-            foreach (var (tech, bands) in breakdown)
-            {
-                if (!allTechnologies.ContainsKey(tech))
-                {
-                    allTechnologies[tech] = new HashSet<string>();
-                }
-                foreach (var band in bands)
-                {
-                    allTechnologies[tech].Add(band);
-                }
-            }
-
-            // Aggregate counts
-            aggregated.Count2G += breakdown.Count2G;
-            aggregated.Count3G += breakdown.Count3G;
-            aggregated.Count4G += breakdown.Count4G;
-            aggregated.Count5G += breakdown.Count5G;
-        }
-
-        // Build the dictionary
-        foreach (var (tech, bands) in allTechnologies)
-        {
-            aggregated[tech] = bands.OrderBy(b => b).ToList();
-        }
-
-        // Calculate summary properties
-        aggregated.TotalTechnologyCount = aggregated.Count2G + aggregated.Count3G + 
-                                         aggregated.Count4G + aggregated.Count5G;
-        
-        if (aggregated.TotalTechnologyCount > 0)
-        {
-            aggregated.ModernCoverageRatio = (double)(aggregated.Count4G + aggregated.Count5G) / 
-                                            aggregated.TotalTechnologyCount;
-            aggregated.HasModernCoverage = aggregated.ModernCoverageRatio > 0;
-        }
-
-        var generations = new List<string>();
-        if (aggregated.Has2G) generations.Add("2G");
-        if (aggregated.Has3G) generations.Add("3G");
-        if (aggregated.Has4G) generations.Add("4G");
-        if (aggregated.Has5G) generations.Add("5G");
-        aggregated.AvailableGenerations = generations;
-
-        return aggregated;
-    }
-
-    /// <summary>
-    /// Calculate median from a sorted list of values
-    /// </summary>
-    private static decimal CalculateMedian(List<decimal> sortedValues)
-    {
-        if (sortedValues.Count == 0) return 0;
-        
-        int mid = sortedValues.Count / 2;
-        return sortedValues.Count % 2 == 0
-            ? (sortedValues[mid - 1] + sortedValues[mid]) / 2
-            : sortedValues[mid];
     }
 
     private byte[] GenerateExcel(
         string reportTitle,
         List<Domain.Entities.Provider> providers,
-        List<BarangayWirelessScoredEntryDto> reportData)
+        List<BarangayWirelessScoredEntryDto> reportData,
+        Dictionary<string, List<string>> providerGenerationsMap,
+        bool includeScores)
     {
         ExcelPackage.License.SetNonCommercialPersonal("NTC QoS");
         using var package = new ExcelPackage();
-        var worksheet = package.Workbook.Worksheets.Add("Wireless Broadband Scored");
+        var worksheet = package.Workbook.Worksheets.Add(includeScores ? "Wireless Broadband Scored" : "Wireless Broadband");
 
         int col = StartColumn;
 
-        // Collect all present generations for dynamic headers
-        var providerGenerationsMap = new Dictionary<string, List<string>>();
-
-        foreach (var entry in reportData)
-        {
-            foreach (var (providerName, stats) in entry.ProviderStats)
-            {
-                if (!providerGenerationsMap.ContainsKey(providerName))
-                {
-                    providerGenerationsMap[providerName] = new List<string>();
-                }
-
-                var gens = providerGenerationsMap[providerName];
-                if (stats.Has2G && !gens.Contains("2G")) gens.Add("2G");
-                if (stats.Has3G && !gens.Contains("3G")) gens.Add("3G");
-                if (stats.Has4G && !gens.Contains("4G")) gens.Add("4G");
-                if (stats.Has5G && !gens.Contains("5G")) gens.Add("5G");
-            }
-        }
-
         // --- HEADERS ---
 
-        // Helper to draw provider section with additional score columns
+        // Helper to draw provider section
         void DrawProviderSection(string providerName, string displayName, List<string> generations, Color color)
         {
             int startCol = col;
@@ -545,32 +398,42 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 color);
         }
 
-        // Add Score Columns after all providers
+        // Add Score Columns after all providers (only if includeScores is true)
         int scoreStartCol = col;
+        int totalCols;
 
-        // Connectivity Score section
-        worksheet.Cells[2, scoreStartCol, 2, scoreStartCol + 3].Merge = true;
-        worksheet.Cells[2, scoreStartCol].Value = "CONNECTIVITY SCORE";
-        worksheet.Cells[2, scoreStartCol].Style.Fill.PatternType = ExcelFillStyle.Solid;
-        worksheet.Cells[2, scoreStartCol].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
+        if (includeScores)
+        {
+            // Connectivity Score section
+            worksheet.Cells[2, scoreStartCol, 2, scoreStartCol + 3].Merge = true;
+            worksheet.Cells[2, scoreStartCol].Value = "CONNECTIVITY SCORE";
+            worksheet.Cells[2, scoreStartCol].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            worksheet.Cells[2, scoreStartCol].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
 
-        worksheet.Cells[3, scoreStartCol].Value = "Technology";
-        worksheet.Cells[3, scoreStartCol, 4, scoreStartCol].Merge = true;
+            worksheet.Cells[3, scoreStartCol].Value = "Technology";
+            worksheet.Cells[3, scoreStartCol, 4, scoreStartCol].Merge = true;
 
-        worksheet.Cells[3, scoreStartCol + 1].Value = "Internet";
-        worksheet.Cells[3, scoreStartCol + 1, 4, scoreStartCol + 1].Merge = true;
+            worksheet.Cells[3, scoreStartCol + 1].Value = "Internet";
+            worksheet.Cells[3, scoreStartCol + 1, 4, scoreStartCol + 1].Merge = true;
 
-        worksheet.Cells[3, scoreStartCol + 2].Value = "Total";
-        worksheet.Cells[3, scoreStartCol + 2, 4, scoreStartCol + 2].Merge = true;
+            worksheet.Cells[3, scoreStartCol + 2].Value = "Total";
+            worksheet.Cells[3, scoreStartCol + 2, 4, scoreStartCol + 2].Merge = true;
 
-        worksheet.Cells[3, scoreStartCol + 3].Value = "Status";
-        worksheet.Cells[3, scoreStartCol + 3, 4, scoreStartCol + 3].Merge = true;
+            worksheet.Cells[3, scoreStartCol + 3].Value = "Status";
+            worksheet.Cells[3, scoreStartCol + 3, 4, scoreStartCol + 3].Merge = true;
 
-        int totalCols = scoreStartCol + 3;
+            totalCols = scoreStartCol + 3;
+        }
+        else
+        {
+            totalCols = col - 1;
+        }
 
         // Row 1: Main Title
         worksheet.Cells[1, 1, 1, totalCols].Merge = true;
-        worksheet.Cells["A1"].Value = "WIRELESS BROADBAND WITH CONNECTIVITY SCORES";
+        worksheet.Cells["A1"].Value = includeScores 
+            ? "WIRELESS BROADBAND WITH CONNECTIVITY SCORES" 
+            : "WIRELESS BROADBAND REPORT";
         worksheet.Cells["A1"].Style.Font.Bold = true;
         worksheet.Cells["A1"].Style.Font.Size = 14;
         worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
@@ -632,29 +495,32 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     currentCol += 2;
                 }
 
-                // Score columns
-                worksheet.Cells[row, scoreStartCol].Value = $"{item.ConnectivityScore.TechnologyTypeScore}/3";
-                worksheet.Cells[row, scoreStartCol + 1].Value = $"{item.ConnectivityScore.InternetAccessScore}/3";
-                worksheet.Cells[row, scoreStartCol + 2].Value = $"{item.ConnectivityScore.TotalScore}/6";
-                worksheet.Cells[row, scoreStartCol + 3].Value = item.ServiceStatus.ToString().ToUpper();
-
-                // Color code status
-                var statusCell = worksheet.Cells[row, scoreStartCol + 3];
-                statusCell.Style.Font.Bold = true;
-                switch (item.ServiceStatus)
+                // Score columns (only if includeScores is true)
+                if (includeScores)
                 {
-                    case ServiceStatusEnum.Served:
-                        statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
-                        break;
-                    case ServiceStatusEnum.Underserved:
-                        statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        statusCell.Style.Fill.BackgroundColor.SetColor(Color.Yellow);
-                        break;
-                    case ServiceStatusEnum.Unserved:
-                        statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightCoral);
-                        break;
+                    worksheet.Cells[row, scoreStartCol].Value = $"{item.ConnectivityScore.TechnologyTypeScore}/3";
+                    worksheet.Cells[row, scoreStartCol + 1].Value = $"{item.ConnectivityScore.InternetAccessScore}/3";
+                    worksheet.Cells[row, scoreStartCol + 2].Value = $"{item.ConnectivityScore.TotalScore}/6";
+                    worksheet.Cells[row, scoreStartCol + 3].Value = item.ServiceStatus.ToString().ToUpper();
+
+                    // Color code status
+                    var statusCell = worksheet.Cells[row, scoreStartCol + 3];
+                    statusCell.Style.Font.Bold = true;
+                    switch (item.ServiceStatus)
+                    {
+                        case ServiceStatusEnum.Served:
+                            statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
+                            break;
+                        case ServiceStatusEnum.Underserved:
+                            statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            statusCell.Style.Fill.BackgroundColor.SetColor(Color.Yellow);
+                            break;
+                        case ServiceStatusEnum.Unserved:
+                            statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            statusCell.Style.Fill.BackgroundColor.SetColor(Color.LightCoral);
+                            break;
+                    }
                 }
 
                 row++;
@@ -694,50 +560,39 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
     }
 
     private byte[] GeneratePdf(
-        string title,
-        List<Domain.Entities.Provider> providers,
-        List<BarangayWirelessScoredEntryDto> data)
+        string title, 
+        List<Domain.Entities.Provider> providers, 
+        List<BarangayWirelessScoredEntryDto> data,
+        Dictionary<string, List<string>> providerGenerationsMap,
+        bool includeScores)
     {
         QuestPDF.Settings.License = LicenseType.Community;
-
-        // Build provider generations map to match Excel structure
-        var providerGenerationsMap = new Dictionary<string, List<string>>();
-        foreach (var provider in providers)
-        {
-            var generations = new HashSet<string>();
-            foreach (var entry in data)
-            {
-                if (entry.ProviderStats.TryGetValue(provider.Name, out var stats))
-                {
-                    if (stats.Has2G) generations.Add("2G");
-                    if (stats.Has3G) generations.Add("3G");
-                    if (stats.Has4G) generations.Add("4G");
-                    if (stats.Has5G) generations.Add("5G");
-                }
-            }
-            providerGenerationsMap[provider.Name] = generations.OrderBy(g => g).ToList();
-        }
 
         return Document.Create(container =>
         {
             container.Page(page =>
             {
+                // Intentionally using A3 landscape with 0.5 cm margins (previously A4 with 1 cm)
+                // to provide more horizontal space for wide wireless broadband report tables.
                 page.Size(PageSizes.A3.Landscape());
-                page.Margin(1, QuestPDF.Infrastructure.Unit.Centimetre);
+                page.Margin(0.5f, QuestPDF.Infrastructure.Unit.Centimetre);
                 page.PageColor(Colors.White);
-                page.DefaultTextStyle(x => x.FontSize(7));
+                page.DefaultTextStyle(x => x.FontSize(9));
 
+                // Header
                 page.Header().Column(column =>
                 {
                     column.Item().AlignCenter().Text("NATIONAL TELECOMMUNICATIONS COMMISSION")
                         .FontSize(15).SemiBold();
-
+                    
                     column.Item().AlignCenter().Text("Quality of Service Management System")
                         .FontSize(10).FontColor(Colors.Grey.Darken1);
 
                     column.Item().PaddingVertical(5).LineHorizontal(1.5f).LineColor(Colors.Black);
 
-                    column.Item().AlignCenter().Text($"Wireless Broadband Report with Scores - {title}")
+                    column.Item().AlignCenter().Text(includeScores 
+                        ? $"Wireless Broadband Report with Scores - {title}"
+                        : $"Wireless Broadband Report - {title}")
                         .FontSize(12).Bold();
 
                     column.Item().AlignCenter().Text($"Generated: {DateTime.Now:MMMM dd, yyyy 'at' h:mm tt}")
@@ -748,90 +603,98 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                     .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Centimetre)
                     .Table(table =>
                     {
+                        // Define Columns
                         table.ColumnsDefinition(columns =>
                         {
                             columns.ConstantColumn(65); // Municipality
-                            columns.ConstantColumn(75); // Barangay
-
-                            // Provider columns with generation checkmarks + tech used + speedtest
+                            columns.ConstantColumn(85); // Barangay
+                            
+                            // Dynamic columns for providers
                             foreach (var provider in providers)
                             {
                                 if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
                                 {
-                                    // Columns for each generation checkmark
                                     foreach (var _ in generations)
-                                    {
-                                        columns.RelativeColumn(0.5f);
-                                    }
-                                    // Tech used column
-                                    columns.RelativeColumn(0.8f);
-                                    // Speedtest columns (Upload, Download)
-                                    columns.RelativeColumn(0.6f);
-                                    columns.RelativeColumn(0.6f);
+                                        columns.ConstantColumn(22);
+                                    columns.ConstantColumn(35); // Tech used
+                                    columns.ConstantColumn(40); // Upload
+                                    columns.ConstantColumn(40); // Download
                                 }
                             }
 
-                            // Score columns
-                            columns.RelativeColumn(); // Tech Score
-                            columns.RelativeColumn(); // Internet Score
-                            columns.RelativeColumn(); // Total Score
-                            columns.ConstantColumn(70); // Status
+                            // Score columns (only if includeScores)
+                            if (includeScores)
+                            {
+                                columns.ConstantColumn(35); // Tech Score
+                                columns.ConstantColumn(35); // Internet Score
+                                columns.ConstantColumn(35); // Total Score
+                                columns.ConstantColumn(65); // Status
+                            }
                         });
 
+                        // Header
                         table.Header(header =>
                         {
-                            // Row 1: Municipality, Barangay, Provider Names, Scores, Status
-                            header.Cell().RowSpan(3).Element(CellStyle).Text("Municipality");
-                            header.Cell().RowSpan(3).Element(CellStyle).Text("Barangay");
+                            // Row 1: Municipality and Barangay span all 4 rows
+                            header.Cell().RowSpan(4).Element(CellStyle).Text("Municipality").FontSize(8);
+                            header.Cell().RowSpan(4).Element(CellStyle).Text("Barangay").FontSize(8);
 
+                            // Row 1: Provider names
                             foreach (var provider in providers)
                             {
                                 if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
                                 {
-                                    // Provider name spans all its columns (generations + tech used + 2 speedtest)
-                                    var providerColSpan = (uint)(generations.Count + 3);
-                                    header.Cell().ColumnSpan(providerColSpan).Element(CellStyle)
-                                        .Background(Colors.Grey.Lighten3).Text(provider.Name);
+                                    uint providerCols = (uint)(generations.Count + 3); // Gens + Tech + Upload + Download
+                                    header.Cell().ColumnSpan(providerCols).Element(CellStyle)
+                                        .Background(Colors.Grey.Lighten3).Text(provider.Name.ToUpper()).FontSize(8).Bold();
                                 }
                             }
 
-                            header.Cell().ColumnSpan(3).Element(CellStyle)
-                                .Background(Colors.LightBlue.Lighten1).Text("Connectivity Score");
-                            header.Cell().RowSpan(3).Element(CellStyle).Text("Status");
+                            // Row 1: Connectivity Score section
+                            if (includeScores)
+                            {
+                                header.Cell().ColumnSpan(3).Element(CellStyle)
+                                    .Background(Colors.LightBlue.Lighten1).Text("SCORE").FontSize(8).Bold();
+                                header.Cell().RowSpan(4).Element(CellStyle).Text("Status").FontSize(8);
+                            }
 
-                            // Row 2: Generation columns, Tech Used, Speedtest header, score sub-headers
+                            // Row 2: Generation headers + Speedtest header + Score sub-headers
                             foreach (var provider in providers)
                             {
                                 if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
                                 {
                                     foreach (var gen in generations)
                                     {
-                                        header.Cell().RowSpan(2).Element(CellStyle).Text(gen);
+                                        header.Cell().RowSpan(3).Element(CellStyle).Text(gen).FontSize(7);
                                     }
-                                    header.Cell().RowSpan(2).Element(CellStyle).Text("Tech Used");
-                                    header.Cell().ColumnSpan(2).Element(CellStyle).Text("Speedtest (Mbps)");
+                                    header.Cell().RowSpan(3).Element(CellStyle).Text("Tech").FontSize(7);
+                                    header.Cell().ColumnSpan(2).Element(CellStyle).Text("Speed (Mbps)").FontSize(7);
                                 }
                             }
 
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Tech (1-3)");
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Internet (1-3)");
-                            header.Cell().RowSpan(2).Element(CellStyle).Text("Total (1-6)");
+                            if (includeScores)
+                            {
+                                header.Cell().RowSpan(3).Element(CellStyle).Text("Tech\n(1-3)").FontSize(7);
+                                header.Cell().RowSpan(3).Element(CellStyle).Text("Net\n(1-3)").FontSize(7);
+                                header.Cell().RowSpan(3).Element(CellStyle).Text("Total\n(1-6)").FontSize(7);
+                            }
 
-                            // Row 3: Upload/Download speedtest sub-headers
+                            // Row 3 & 4: Upload/Download for each provider
                             foreach (var provider in providers)
                             {
                                 if (providerGenerationsMap.TryGetValue(provider.Name, out var generations))
                                 {
-                                    header.Cell().Element(CellStyle).Text("Upload");
-                                    header.Cell().Element(CellStyle).Text("Download");
+                                    header.Cell().Element(CellStyle).Text("Up").FontSize(7);
+                                    header.Cell().Element(CellStyle).Text("Down").FontSize(7);
                                 }
                             }
                         });
 
+                        // Data
                         foreach (var item in data)
                         {
-                            table.Cell().Element(CellStyle).Text(item.MunicipalityName);
-                            table.Cell().Element(CellStyle).Text(item.BarangayName);
+                            table.Cell().Element(CellStyle).Text(item.MunicipalityName).FontSize(7);
+                            table.Cell().Element(CellStyle).Text(item.BarangayName).FontSize(7);
 
                             foreach (var provider in providers)
                             {
@@ -840,38 +703,37 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                                     var stats = item.ProviderStats.TryGetValue(provider.Name, out var s) 
                                         ? s : new ProviderWirelessStatsDto();
 
-                                    // Generation checkmarks
                                     foreach (var gen in generations)
                                     {
-                                        table.Cell().Element(CellStyle).Text(HasGeneration(stats, gen) ? "✓" : "");
+                                        table.Cell().Element(CellStyle).Text(HasGeneration(stats, gen) ? "✓" : "-").FontSize(7);
                                     }
-
-                                    // Tech used
-                                    table.Cell().Element(CellStyle).Text(stats.TechUsed ?? "");
-
-                                    // Speedtest data
+                                    table.Cell().Element(CellStyle).Text(stats.TechUsed ?? "-").FontSize(7);
+                                    
                                     table.Cell().Element(CellStyle).Text(stats.UploadSpeedMbps.HasValue 
-                                        ? Math.Round(stats.UploadSpeedMbps.Value, 2).ToString("F2") 
-                                        : "");
+                                        ? Math.Round(stats.UploadSpeedMbps.Value, 1).ToString() 
+                                        : "-").FontSize(7);
                                     table.Cell().Element(CellStyle).Text(stats.DownloadSpeedMbps.HasValue 
-                                        ? Math.Round(stats.DownloadSpeedMbps.Value, 2).ToString("F2") 
-                                        : "");
+                                        ? Math.Round(stats.DownloadSpeedMbps.Value, 1).ToString() 
+                                        : "-").FontSize(7);
                                 }
                             }
 
-                            table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TechnologyTypeScore.ToString());
-                            table.Cell().Element(CellStyle).Text(item.ConnectivityScore.InternetAccessScore.ToString());
-                            table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TotalScore.ToString());
-
-                            var statusColor = item.ServiceStatus switch
+                            if (includeScores)
                             {
-                                ServiceStatusEnum.Served => Colors.Green.Lighten3,
-                                ServiceStatusEnum.Underserved => Colors.Yellow.Lighten3,
-                                _ => Colors.Red.Lighten3
-                            };
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TechnologyTypeScore.ToString()).FontSize(7);
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.InternetAccessScore.ToString()).FontSize(7);
+                                table.Cell().Element(CellStyle).Text(item.ConnectivityScore.TotalScore.ToString()).FontSize(7);
 
-                            table.Cell().Element(CellStyle).Background(statusColor)
-                                .Text(item.ServiceStatus.ToString().ToUpper());
+                                var statusColor = item.ServiceStatus switch
+                                {
+                                    ServiceStatusEnum.Served => Colors.Green.Lighten3,
+                                    ServiceStatusEnum.Underserved => Colors.Yellow.Lighten3,
+                                    _ => Colors.Red.Lighten3
+                                };
+
+                                table.Cell().Element(CellStyle).Background(statusColor)
+                                    .Text(item.ServiceStatus.ToString().ToUpper()).FontSize(7).Bold();
+                            }
                         }
                     });
 
@@ -888,27 +750,148 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
 
         static IContainer CellStyle(IContainer container)
         {
-            return container.Border(1).BorderColor(Colors.Grey.Lighten2)
-                .Padding(2).AlignMiddle().AlignCenter();
+            return container.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(2).AlignMiddle().AlignCenter();
         }
     }
 
     /// <summary>
-    /// Helper to check if provider stats has a specific generation
+    /// Calculate connectivity score based on CMTS criteria.
+    /// Uses shared scoring service for consistency with connectivity assessment.
     /// </summary>
-    private static bool HasGeneration(ProviderWirelessStatsDto stats, string generation)
+    private WirelessConnectivityScoreDto CalculateConnectivityScore(
+        TechnologyBandBreakdownDto? techBreakdown,
+        SpeedStatsDto? speedStats)
     {
-        return generation switch
+        var score = new WirelessConnectivityScoreDto();
+
+        // Calculate scores using shared service (aligned with assessment logic)
+        score.TechnologyTypeScore = _scoringService.CalculateTechnologyTypeScore(techBreakdown);
+        score.InternetAccessScore = _scoringService.CalculateInternetAccessScore(speedStats);
+        score.HighestTechnology = _scoringService.GetHighestTechnology(techBreakdown);
+
+        // Populate speed data if available (used in GenerateRemarks)
+        if (speedStats != null && speedStats.SpeedTestCount > 0)
         {
-            "2G" => stats.Has2G,
-            "3G" => stats.Has3G,
-            "4G" => stats.Has4G,
-            "5G" => stats.Has5G,
-            _ => false
-        };
+            score.AverageDownloadSpeed = (double)(speedStats.AverageDownloadSpeedMbps ?? 0);
+            score.AverageUploadSpeed = (double)(speedStats.AverageUploadSpeedMbps ?? 0);
+        }
+
+        score.TotalScore = score.TechnologyTypeScore + score.InternetAccessScore;
+        
+        // Add score breakdown for debugging and transparency
+        score.ScoreBreakdown = $"Tech: {score.TechnologyTypeScore}/3, Internet: {score.InternetAccessScore}/3";
+
+        return score;
     }
 
-    // ===== Optimized Data Loading =====
+    /// <summary>
+    /// Determine service status from total score.
+    /// Uses shared scoring service for consistency with connectivity assessment.
+    /// </summary>
+    private ServiceStatusEnum DetermineServiceStatus(int totalScore)
+    {
+        return _scoringService.DetermineServiceStatus(totalScore);
+    }
+
+    private string GenerateRemarks(WirelessConnectivityScoreDto score)
+    {
+        // Use DetermineServiceStatus for consistency with scoring service
+        var serviceStatus = DetermineServiceStatus(score.TotalScore);
+        var status = serviceStatus.ToString().ToUpper();
+
+        var remarks = status;
+        remarks += $" (Score: {score.TotalScore}/6)";
+
+        if (!string.IsNullOrEmpty(score.HighestTechnology) && score.HighestTechnology != "None")
+        {
+            remarks += $" - {score.HighestTechnology}";
+        }
+
+        if (score.AverageDownloadSpeed.HasValue)
+        {
+            remarks += $" - Avg: {Math.Round(score.AverageDownloadSpeed.Value, 1)} Mbps";
+        }
+
+        return remarks;
+    }
+
+    /// <summary>
+    /// Build SpeedStatsDto from BarangayWirelessSummaryDto for overall barangay scoring
+    /// Optimized to use single loop instead of multiple LINQ queries
+    /// </summary>
+    private static SpeedStatsDto? BuildSpeedStatsFromSummary(
+        BarangayWirelessSummaryDto summary)
+    {
+        if (summary.TotalSpeedtestCount == 0)
+            return null;
+
+        // Single loop to gather all data - more efficient than multiple LINQ queries
+        int totalTests = 0;
+        decimal weightedDownloadSum = 0;
+        decimal weightedUploadSum = 0;
+        List<decimal>? downloadMedians = null;
+        List<decimal>? uploadMedians = null;
+
+        foreach (var provider in summary.Providers)
+        {
+            // Sum all speedtest counts
+            totalTests += provider.SpeedtestCount;
+            
+            // Weighted averages only from providers with tests
+            if (provider.SpeedtestCount > 0)
+            {
+                if (provider.AverageDownloadSpeedMbps.HasValue)
+                    weightedDownloadSum += provider.AverageDownloadSpeedMbps.Value * provider.SpeedtestCount;
+                
+                if (provider.AverageUploadSpeedMbps.HasValue)
+                    weightedUploadSum += provider.AverageUploadSpeedMbps.Value * provider.SpeedtestCount;
+            }
+
+            // Collect medians from all providers (matches original LINQ behavior)
+            if (provider.MedianDownloadSpeedMbps.HasValue)
+            {
+                downloadMedians ??= new List<decimal>(summary.Providers.Count);
+                downloadMedians.Add(provider.MedianDownloadSpeedMbps.Value);
+            }
+
+            if (provider.MedianUploadSpeedMbps.HasValue)
+            {
+                uploadMedians ??= new List<decimal>(summary.Providers.Count);
+                uploadMedians.Add(provider.MedianUploadSpeedMbps.Value);
+            }
+        }
+
+        if (totalTests == 0)
+            return null;
+
+        var avgDownload = weightedDownloadSum / totalTests;
+        var avgUpload = weightedUploadSum / totalTests;
+
+        // Calculate median only if we have values
+        decimal medianDownload = avgDownload;
+        decimal medianUpload = avgUpload;
+
+        if (downloadMedians != null && downloadMedians.Count > 0)
+        {
+            downloadMedians.Sort();
+            medianDownload = CalculateMedian(downloadMedians);
+        }
+
+        if (uploadMedians != null && uploadMedians.Count > 0)
+        {
+            uploadMedians.Sort();
+            medianUpload = CalculateMedian(uploadMedians);
+        }
+
+        return new SpeedStatsDto
+        {
+            SpeedTestCount = totalTests,
+            AverageDownloadSpeedMbps = avgDownload,
+            AverageUploadSpeedMbps = avgUpload,
+            MedianDownloadSpeedMbps = medianDownload,
+            MedianUploadSpeedMbps = medianUpload
+        };
+    }
 
     /// <summary>
     /// Load wireless coverage from connectivity assessments for the specified barangays.
@@ -929,7 +912,7 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
             barangayIds.Count);
 
         // Query assessments for all barangays at once
-        var assessmentsQuery = _connectivityAssessmentRepository.Query()
+        var assessments = await _connectivityAssessmentRepository.Query()
             .Where(a => barangayIds.Contains(a.LocationId) && a.LocationType == LocationTypeEnum.Barangay)
             .Where(a => !string.IsNullOrEmpty(a.WirelessCoverageJson))
             .Select(a => new
@@ -937,8 +920,8 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
                 a.LocationId,
                 a.WirelessCoverageJson,
                 a.WirelessCoverageLastUpdated
-            });
-        var assessments = await _connectivityAssessmentRepository.ToListAsync(assessmentsQuery, cancellationToken);
+            })
+            .ToListAsync(cancellationToken);
 
         _logger.LogInformation(
             "Found {AssessmentCount} assessments with wireless coverage data out of {TotalCount} barangays",
@@ -1058,57 +1041,36 @@ public class GetWirelessBroadbandScoredReportHandler : IRequestHandler<GetWirele
         return breakdown;
     }
 
-    /// <summary>
-    /// Build SpeedStatsDto from BarangayWirelessSummaryDto for overall barangay scoring
-    /// </summary>
-    private static SpeedStatsDto? BuildSpeedStatsFromSummary(
-        BarangayWirelessSummaryDto summary)
+    private static decimal CalculateMedian(List<decimal> sortedValues)
     {
-        if (summary.TotalSpeedtestCount == 0)
-            return null;
-
-        // Calculate weighted averages across all providers
-        var totalTests = summary.Providers.Sum(p => p.SpeedtestCount);
-        if (totalTests == 0)
-            return null;
-
-        var weightedDownloadSum = summary.Providers
-            .Where(p => p.SpeedtestCount > 0 && p.AverageDownloadSpeedMbps.HasValue)
-            .Sum(p => p.AverageDownloadSpeedMbps!.Value * p.SpeedtestCount);
+        int count = sortedValues.Count;
         
-        var weightedUploadSum = summary.Providers
-            .Where(p => p.SpeedtestCount > 0 && p.AverageUploadSpeedMbps.HasValue)
-            .Sum(p => p.AverageUploadSpeedMbps!.Value * p.SpeedtestCount);
-
-        var avgDownload = weightedDownloadSum / totalTests;
-        var avgUpload = weightedUploadSum / totalTests;
-
-        // Use median values from individual providers for overall median approximation
-        var downloadMedians = summary.Providers
-            .Where(p => p.MedianDownloadSpeedMbps.HasValue)
-            .Select(p => p.MedianDownloadSpeedMbps!.Value)
-            .OrderBy(x => x)
-            .ToList();
-
-        var uploadMedians = summary.Providers
-            .Where(p => p.MedianUploadSpeedMbps.HasValue)
-            .Select(p => p.MedianUploadSpeedMbps!.Value)
-            .OrderBy(x => x)
-            .ToList();
-
-        return new SpeedStatsDto
+        if (count % 2 == 0)
         {
-            SpeedTestCount = summary.TotalSpeedtestCount,
-            AverageDownloadSpeedMbps = avgDownload,
-            AverageUploadSpeedMbps = avgUpload,
-            MedianDownloadSpeedMbps = downloadMedians.Any() ? CalculateMedian(downloadMedians) : avgDownload,
-            MedianUploadSpeedMbps = uploadMedians.Any() ? CalculateMedian(uploadMedians) : avgUpload,
-            MeetsMinimumSpeedRequirement = avgDownload >= 25m
+            // Even number - average of two middle values
+            return (sortedValues[count / 2 - 1] + sortedValues[count / 2]) / 2;
+        }
+        else
+        {
+            // Odd number - middle value
+            return sortedValues[count / 2];
+        }
+    }
+
+    private bool HasGeneration(ProviderWirelessStatsDto stats, string generation)
+    {
+        return generation switch
+        {
+            "2G" => stats.Has2G,
+            "3G" => stats.Has3G,
+            "4G" => stats.Has4G,
+            "5G" => stats.Has5G,
+            _ => false
         };
     }
 
-    /// <summary>
-    /// Load speedtests grouped by barangay using database-side spatial filtering.
+    // ===== Private DTOs for data aggregation =====
+
     /// <summary>
     /// Projection DTO for barangay data to avoid navigational property loading and boundary materialization
     /// </summary>

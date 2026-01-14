@@ -108,21 +108,10 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         return Ok(cellularCoverages);
     }
 
-    /// <summary>
-    /// V2: Get cellular coverage V2 records with pagination and filters
-    /// </summary>
-    [HttpGet("v2")]
-    public async Task<ActionResult<PaginatedResponse<CellularCoverageV2Dto>>> GetCellularCoverageV2(
-        [FromQuery] GetCellularCoverageV2Query query)
-    {
-        var result = await mediator.Send(query);
-        return result.Succeeded ? Ok(result) : BadRequest(result);
-    }
-
     private async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(CellularCoverageQueryParams query)
     {
         var cacheKey = $"{CellularCoverageCachePrefix}{query.PageSize}_{query.PageNumber}_{string.Join(",", query.NetworkIds ?? [])}" +
-               $"_{query.CellId ?? Guid.Empty}_" +
+               $"_{string.Join(",", query.CellIds ?? [])}_" +
                $"{string.Join(",", query.BarangayIds ?? [])}_" +
                $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
                $"{string.Join(",", query.ProvinceIds ?? [])}_" +
@@ -137,13 +126,18 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
             PageSize = query.PageSize,
             PageNumber = query.PageNumber,
             NetworkIds = query.NetworkIds,
-            CellId = query.CellId,
+            CellIds = query.CellIds,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance,
             BarangayIds = query.BarangayIds,
             MunicipalityIds = query.MunicipalityIds,
             ProvinceIds = query.ProvinceIds,
             RegionIds = query.RegionIds,
+            // V2 Parameters
+            BandIds = query.BandIds,
+            TechnologyIds = query.TechnologyIds,
+            ServiceProviderIds = query.ServiceProviderIds,
+            CellSectorIds = query.CellSectorIds
         };
 
         var cellularCoverages = await mediator.Send(request);
@@ -185,8 +179,8 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         [JsonPropertyName("networkIds")]
         public List<Guid>? NetworkIds { get; set; }
 
-        [JsonPropertyName("cellId")]
-        public Guid? CellId { get; set; }
+        [JsonPropertyName("cellIds")]
+        public List<Guid>? CellIds { get; set; }
 
         [JsonPropertyName("barangayIds")]
         public List<Guid>? BarangayIds { get; set; }
@@ -208,5 +202,18 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
 
         [JsonPropertyName("distance")]
         public double Distance { get; set; } = 1500000000;
+
+        // V2 Parameters
+        [JsonPropertyName("bandIds")]
+        public List<Guid>? BandIds { get; set; }
+
+        [JsonPropertyName("technologyIds")]
+        public List<Guid>? TechnologyIds { get; set; }
+
+        [JsonPropertyName("serviceProviderIds")]
+        public List<Guid>? ServiceProviderIds { get; set; }
+
+        [JsonPropertyName("cellSectorIds")]
+        public List<Guid>? CellSectorIds { get; set; }
     }
 }
