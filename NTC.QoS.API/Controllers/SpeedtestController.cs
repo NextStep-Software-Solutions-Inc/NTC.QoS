@@ -85,30 +85,6 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         return speedtest.Succeeded ? Ok(speedtest) : BadRequest(speedtest);
     }
 
-    /// <summary>
-    /// Get speedtest analytics dashboard for a specific location
-    /// Calculates ALL statistics on backend regardless of pagination (not limited to 50, 100, etc.)
-    /// Returns: overview stats, provider performance, signal quality distribution, provider rankings
-    /// </summary>
-    [HttpGet("analytics")]
-    [AllowAnonymous]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "locationId", "startDate", "endDate" })]
-    public async Task<ActionResult<ApiResponse<SpeedtestAnalyticsDto>>> GetSpeedtestAnalytics(
-        [FromQuery] Guid? locationId,
-        [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate)
-    {
-        var request = new GetSpeedtestAnalyticsRequest 
-        { 
-            LocationId = locationId,
-            StartDate = startDate,
-            EndDate = endDate
-        };
-        var analytics = await mediator.Send(request);
-        return analytics.Succeeded ? Ok(analytics) : BadRequest(analytics);
-    }
-
     [HttpDelete]
     [RequirePermission(Permissions.DeleteSpeedtests)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteSpeedtestById([Required][FromQuery] List<Guid> ids)
