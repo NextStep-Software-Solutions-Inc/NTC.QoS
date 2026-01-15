@@ -7,6 +7,7 @@ using NTC.QoS.Application.Features.Reports.WiredBroadband.Requests;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.Requests;
 using NTC.QoS.Application.Services;
+using NTC.QoS.Application.Validators.Reports;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
@@ -916,6 +917,20 @@ public class ReportsController : ControllerBase
                 ReportTitle = reportTitle
             };
 
+            // Validate request
+            var validator = new ConnectivityGapReportJobRequestDtoValidator();
+            var validationResult = validator.Validate(jobRequest);
+            if (!validationResult.IsValid)
+            {
+                return Task.FromResult<ActionResult<ApiResponse<ConnectivityGapReportJobResponseDto>>>(BadRequest(new ApiResponse<ConnectivityGapReportJobResponseDto>
+                {
+                    Succeeded = false,
+                    Message = "Validation failed",
+                    Errors = validationResult.Errors.GroupBy(e => e.PropertyName)
+                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())
+                }));
+            }
+
             // Enqueue background job
             _backgroundJobClient.Enqueue<IProcessConnectivityGapReportJob>(
                 job => job.ExecuteAsync(jobRequest, CancellationToken.None));
@@ -1091,6 +1106,20 @@ public class ReportsController : ControllerBase
                 Format = format,
                 ReportTitle = reportTitle
             };
+
+            // Validate request
+            var validator = new ConnectivityReportJobRequestDtoValidator();
+            var validationResult = validator.Validate(jobRequest);
+            if (!validationResult.IsValid)
+            {
+                return Task.FromResult<ActionResult<ApiResponse<ConnectivityReportJobResponseDto>>>(BadRequest(new ApiResponse<ConnectivityReportJobResponseDto>
+                {
+                    Succeeded = false,
+                    Message = "Validation failed",
+                    Errors = validationResult.Errors.GroupBy(e => e.PropertyName)
+                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())
+                }));
+            }
 
             // Enqueue background job
             _backgroundJobClient.Enqueue<IProcessConnectivityReportJob>(
