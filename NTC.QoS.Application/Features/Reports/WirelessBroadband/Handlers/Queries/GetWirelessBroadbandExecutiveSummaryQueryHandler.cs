@@ -293,48 +293,51 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                 technologyDistribution,
                 totalBarangaysForScoring > 0 ? totalConnectivityScore / totalBarangaysForScoring : 0);
 
-            // PAGINATION STRATEGY: Page 1 = Summary only, Page 2+ = Municipality data
-            // This allows users to see overall statistics first, then drill down
+            // IMPORTANT: Pagination must be based on municipalities that actually have report data.
+            // totalMunicipalities includes municipalities that match geographic filters but have no valid assessments
+            // (or are filtered out), which previously caused blank pages.
             var processedMunicipalityCount = allMunicipalityBroadbandData.Count;
-            List<MunicipalityWirelessBroadbandSummaryDto> paginatedMunicipalityBroadbandData;
+
+            // Calculate pagination metadata based on PROCESSED municipalities
             int totalPages;
             int pageNumber;
             int pageSize;
-            
+
             if (request.DisablePagination)
             {
-                // Show all data when pagination is disabled
-                paginatedMunicipalityBroadbandData = allMunicipalityBroadbandData;
                 totalPages = 1;
                 pageNumber = 1;
                 pageSize = processedMunicipalityCount;
             }
             else
             {
-                // Page 1: Summary only (no municipalities)
-                // Page 2+: Municipality data (offset by 1 page)
-                if (request.PageNumber == 1)
-                {
-                    paginatedMunicipalityBroadbandData = new List<MunicipalityWirelessBroadbandSummaryDto>();
-                }
-                else
-                {
-                    // Offset pagination: page 2 shows first batch, page 3 shows second batch, etc.
-                    var dataPageNumber = request.PageNumber - 1;
-                    paginatedMunicipalityBroadbandData = allMunicipalityBroadbandData
-                        .Skip((dataPageNumber - 1) * request.PageSize)
-                        .Take(request.PageSize)
-                        .ToList();
-                }
-                
-                // Total pages = 1 (summary page) + data pages
-                var dataPages = processedMunicipalityCount > 0 
+                totalPages = processedMunicipalityCount > 0
                     ? (int)Math.Ceiling((double)processedMunicipalityCount / request.PageSize)
                     : 0;
-                totalPages = 1 + dataPages;
                 pageNumber = request.PageNumber;
                 pageSize = request.PageSize;
+
+                if (totalPages > 0 && pageNumber > totalPages)
+                {
+                    return new ApiResponse<WirelessBroadbandExecutiveSummaryDto>
+                    {
+                        Succeeded = false,
+                        Message = $"PageNumber must be between 1 and {totalPages}.",
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            { "PageNumber", [$"PageNumber must be between 1 and {totalPages}."] }
+                        }
+                    };
+                }
             }
+
+            // Apply pagination to the processed municipalities list for the response
+            var paginatedMunicipalityBroadbandData = request.DisablePagination
+                ? allMunicipalityBroadbandData
+                : allMunicipalityBroadbandData
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
 
             var result = new WirelessBroadbandExecutiveSummaryDto
             {
@@ -356,18 +359,9 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
             }
             else
             {
-                if (request.PageNumber == 1)
-                {
-                    messageBuilder.Append($"Wireless broadband executive summary generated successfully (page 1 of {totalPages}). ");
-                    messageBuilder.Append($"Summary statistics reflect all {summary.TotalMunicipalities} municipalities ({summary.TotalBarangays} barangays) matching filters. ");
-                    messageBuilder.Append($"Use page 2 onwards to view detailed municipality data.");
-                }
-                else
-                {
-                    messageBuilder.Append($"Wireless broadband report generated successfully for page {pageNumber} of {totalPages}. ");
-                    messageBuilder.Append($"Showing {paginatedMunicipalityBroadbandData.Count} municipalities on this page. ");
-                    messageBuilder.Append($"Summary statistics reflect all {summary.TotalMunicipalities} municipalities ({summary.TotalBarangays} barangays) matching filters.");
-                }
+                messageBuilder.Append($"Wireless broadband report generated successfully for page {pageNumber} of {totalPages}. ");
+                messageBuilder.Append($"Showing {paginatedMunicipalityBroadbandData.Count} municipalities on this page. ");
+                messageBuilder.Append($"Summary statistics reflect all {summary.TotalMunicipalities} municipalities ({summary.TotalBarangays} barangays) matching filters.");
             }
 
             if (barangaysWithoutAssessments.Count > 0)
