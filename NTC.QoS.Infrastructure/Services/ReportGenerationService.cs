@@ -257,7 +257,7 @@ public class ReportGenerationService : IReportGenerationService
                 {
                     header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Location").Bold();
                     header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Providers").Bold();
-                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Status").Bold();
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Service Status").Bold();
                 });
 
                 foreach (var municipality in reportData.Municipalities)
@@ -457,9 +457,9 @@ public class ReportGenerationService : IReportGenerationService
  
         var wiredBroadbandStartCol = 3;
         var wiredBroadbandEndCol = 2 + providerHeaders.Length;
-        var connectivityStatusCol = wiredBroadbandEndCol + 1;
-        var remarksCol = includeRemarks ? connectivityStatusCol + 1 : 0;
-        var lastCol = includeRemarks ? remarksCol : connectivityStatusCol;
+        var serviceStatusColumn = wiredBroadbandEndCol + 1;
+        var remarksCol = includeRemarks ? serviceStatusColumn + 1 : 0;
+        var lastCol = includeRemarks ? remarksCol : serviceStatusColumn;
      
         // ROW 1: Setup headers
         // Municipality header (spans rows 1-3) - NO rotation for header
@@ -486,12 +486,12 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, wiredBroadbandStartCol).Style.Fill.BackgroundColor = XLColor.Orange;
     
         // CONNECTIVITY STATUS header (spans rows 1-3)
-        worksheet.Cell(1, connectivityStatusCol).Value = "CONNECTIVITY STATUS";
-        worksheet.Range(1, connectivityStatusCol, 3, connectivityStatusCol).Merge();
-        worksheet.Cell(1, connectivityStatusCol).Style.Font.Bold = true;
-        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.WrapText = true;
+        worksheet.Cell(1, serviceStatusColumn).Value = "SERVICE STATUS";
+        worksheet.Range(1, serviceStatusColumn, 3, serviceStatusColumn).Merge();
+        worksheet.Cell(1, serviceStatusColumn).Style.Font.Bold = true;
+        worksheet.Cell(1, serviceStatusColumn).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Cell(1, serviceStatusColumn).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Cell(1, serviceStatusColumn).Style.Alignment.WrapText = true;
 
         // REMARKS header (spans rows 1-3) - conditionally included
         if (includeRemarks)
@@ -583,7 +583,7 @@ public class ReportGenerationService : IReportGenerationService
                 }
   
                 // Connectivity Status column (color-coded)
-                var statusCell = worksheet.Cell(currentRow, connectivityStatusCol);
+                var statusCell = worksheet.Cell(currentRow, serviceStatusColumn);
                 statusCell.Value = barangay.ServiceStatus.ToString().ToUpper();
                 statusCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 statusCell.Style.Font.Bold = true;
@@ -649,7 +649,7 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Column(wiredBroadbandStartCol + i).Width = 25; // Increased width for provider names
         }
       
-        worksheet.Column(connectivityStatusCol).Width = 20; // Connectivity Status
+        worksheet.Column(serviceStatusColumn).Width = 20; // Connectivity Status
         
         if (includeRemarks)
         {

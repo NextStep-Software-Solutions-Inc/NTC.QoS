@@ -406,7 +406,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         {
             // Connectivity Score section
             worksheet.Cells[2, scoreStartCol, 2, scoreStartCol + 3].Merge = true;
-            worksheet.Cells[2, scoreStartCol].Value = "CONNECTIVITY SCORE";
+            worksheet.Cells[2, scoreStartCol].Value = "SERVICE SCORE";
             worksheet.Cells[2, scoreStartCol].Style.Fill.PatternType = ExcelFillStyle.Solid;
             worksheet.Cells[2, scoreStartCol].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
 
@@ -432,7 +432,7 @@ public class GetWirelessBroadbandReportHandler : IRequestHandler<GetWirelessBroa
         // Row 1: Main Title
         worksheet.Cells[1, 1, 1, totalCols].Merge = true;
         worksheet.Cells["A1"].Value = includeScores 
-            ? "WIRELESS BROADBAND WITH CONNECTIVITY SCORES" 
+            ? "WIRELESS BROADBAND WITH SERVICE SCORES" 
             : "WIRELESS BROADBAND REPORT";
         worksheet.Cells["A1"].Style.Font.Bold = true;
         worksheet.Cells["A1"].Style.Font.Size = 14;
