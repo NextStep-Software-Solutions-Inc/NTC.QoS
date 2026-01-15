@@ -257,7 +257,7 @@ public class ReportGenerationService : IReportGenerationService
                 {
                     header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Location").Bold();
                     header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Providers").Bold();
-                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Status").Bold();
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Service Status").Bold();
                 });
 
                 foreach (var municipality in reportData.Municipalities)
@@ -310,22 +310,22 @@ public class ReportGenerationService : IReportGenerationService
             {
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Red.Lighten2).Background(Colors.Red.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.TotalUnservedAreas.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.TotalUnservedAreas.ToString()).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Unserved Areas").FontSize(8);
                 });
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Orange.Lighten2).Background(Colors.Orange.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.TotalUnderservedAreas.ToString()).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.TotalUnderservedAreas.ToString()).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Underserved Areas").FontSize(8);
                 });
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Blue.Lighten2).Background(Colors.Blue.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.UnservedPopulation.ToString("N0")).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.UnservedPopulation.ToString("N0")).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Unserved Population").FontSize(8);
                 });
                 row.AutoItem().Border(1).BorderColor(Colors.Blue.Lighten2).Background(Colors.Blue.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.UnderservedPopulation.ToString("N0")).FontSize(14).Bold();
+                    col.Item().AlignCenter().Text(reportData.Summary.UnderservedPopulation.ToString("N0")).FontSize(14).Bold();
                     col.Item().AlignCenter().Text("Underserved Population").FontSize(8);
                 });
             });
@@ -457,9 +457,9 @@ public class ReportGenerationService : IReportGenerationService
  
         var wiredBroadbandStartCol = 3;
         var wiredBroadbandEndCol = 2 + providerHeaders.Length;
-        var connectivityStatusCol = wiredBroadbandEndCol + 1;
-        var remarksCol = includeRemarks ? connectivityStatusCol + 1 : 0;
-        var lastCol = includeRemarks ? remarksCol : connectivityStatusCol;
+        var serviceStatusColumn = wiredBroadbandEndCol + 1;
+        var remarksCol = includeRemarks ? serviceStatusColumn + 1 : 0;
+        var lastCol = includeRemarks ? remarksCol : serviceStatusColumn;
      
         // ROW 1: Setup headers
         // Municipality header (spans rows 1-3) - NO rotation for header
@@ -486,12 +486,12 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, wiredBroadbandStartCol).Style.Fill.BackgroundColor = XLColor.Orange;
     
         // CONNECTIVITY STATUS header (spans rows 1-3)
-        worksheet.Cell(1, connectivityStatusCol).Value = "CONNECTIVITY STATUS";
-        worksheet.Range(1, connectivityStatusCol, 3, connectivityStatusCol).Merge();
-        worksheet.Cell(1, connectivityStatusCol).Style.Font.Bold = true;
-        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-        worksheet.Cell(1, connectivityStatusCol).Style.Alignment.WrapText = true;
+        worksheet.Cell(1, serviceStatusColumn).Value = "SERVICE STATUS";
+        worksheet.Range(1, serviceStatusColumn, 3, serviceStatusColumn).Merge();
+        worksheet.Cell(1, serviceStatusColumn).Style.Font.Bold = true;
+        worksheet.Cell(1, serviceStatusColumn).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Cell(1, serviceStatusColumn).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Cell(1, serviceStatusColumn).Style.Alignment.WrapText = true;
 
         // REMARKS header (spans rows 1-3) - conditionally included
         if (includeRemarks)
@@ -583,7 +583,7 @@ public class ReportGenerationService : IReportGenerationService
                 }
   
                 // Connectivity Status column (color-coded)
-                var statusCell = worksheet.Cell(currentRow, connectivityStatusCol);
+                var statusCell = worksheet.Cell(currentRow, serviceStatusColumn);
                 statusCell.Value = barangay.ServiceStatus.ToString().ToUpper();
                 statusCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 statusCell.Style.Font.Bold = true;
@@ -649,7 +649,7 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Column(wiredBroadbandStartCol + i).Width = 25; // Increased width for provider names
         }
       
-        worksheet.Column(connectivityStatusCol).Width = 20; // Connectivity Status
+        worksheet.Column(serviceStatusColumn).Width = 20; // Connectivity Status
         
         if (includeRemarks)
         {
@@ -705,9 +705,9 @@ public class ReportGenerationService : IReportGenerationService
         
         // Gap Summary data rows
         worksheet.Cell(4, 1).Value = "Gap Category"; worksheet.Cell(4, 2).Value = "Count"; worksheet.Cell(4, 3).Value = "Population Affected";
-        worksheet.Cell(5, 1).Value = "Unserved Areas"; worksheet.Cell(5, 2).Value = reportData.TotalUnservedAreas; worksheet.Cell(5, 3).Value = reportData.UnservedPopulation;
-        worksheet.Cell(6, 1).Value = "Underserved Areas"; worksheet.Cell(6, 2).Value = reportData.TotalUnderservedAreas; worksheet.Cell(6, 3).Value = reportData.UnderservedPopulation;
-        worksheet.Cell(7, 1).Value = "Total Gap Areas"; worksheet.Cell(7, 2).Value = reportData.TotalUnservedAreas + reportData.TotalUnderservedAreas; worksheet.Cell(7, 3).Value = reportData.UnservedPopulation + reportData.UnderservedPopulation;
+        worksheet.Cell(5, 1).Value = "Unserved Areas"; worksheet.Cell(5, 2).Value = reportData.Summary.TotalUnservedAreas; worksheet.Cell(5, 3).Value = reportData.Summary.UnservedPopulation;
+        worksheet.Cell(6, 1).Value = "Underserved Areas"; worksheet.Cell(6, 2).Value = reportData.Summary.TotalUnderservedAreas; worksheet.Cell(6, 3).Value = reportData.Summary.UnderservedPopulation;
+        worksheet.Cell(7, 1).Value = "Total Gap Areas"; worksheet.Cell(7, 2).Value = reportData.Summary.TotalUnservedAreas + reportData.Summary.TotalUnderservedAreas; worksheet.Cell(7, 3).Value = reportData.Summary.UnservedPopulation + reportData.Summary.UnderservedPopulation;
         
         // Format headers
         worksheet.Range(4, 1, 4, 3).Style.Font.Bold = true;

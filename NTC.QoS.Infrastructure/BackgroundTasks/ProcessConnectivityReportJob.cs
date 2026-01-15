@@ -280,13 +280,17 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 TotalServiceProviders = assessments.Select(a => a.DominantServiceProvider).Where(p => !string.IsNullOrEmpty(p)).Distinct().Count()
             };
 
-            // Create report DTO
+            // Create report DTO with pagination metadata
             var reportData = new ConnectivityReportDto
             {
                 TotalServedAreas = assessments.Count,
                 ServedPopulation = assessments.Sum(a => a.Population ?? 0),
                 Areas = areas,
                 ScoreSummary = scoreSummary,
+                TotalAreas = assessments.Count,
+                PageNumber = 1,
+                PageSize = assessments.Count,
+                TotalPages = 1,
                 GeneratedAt = DateTime.UtcNow
             };
 
