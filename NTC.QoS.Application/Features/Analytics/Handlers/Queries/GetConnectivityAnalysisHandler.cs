@@ -74,7 +74,14 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
                         LocationType = request.LocationType,
                         ConnectivityStatus = ConnectivityStatusEnum.Unserved,
                         TotalScore = 0,
-                        CMTSScores = new CMTSScoresDto(),
+                        CMTSScores = new CMTSScoresDto
+                        {
+                            new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = 0 },
+                            new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = 0 },
+                            new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = 0 },
+                            new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = 0 },
+                            new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = 0 }
+                        },
                         Infrastructure = new InfrastructureStatsDto(),
                         Coverage = new CoverageStatsDto(),
                         AssessmentDate = DateTime.MinValue,
@@ -285,11 +292,11 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
             TotalScore = assessment.TotalScore,
             CMTSScores = new CMTSScoresDto
             {
-                FiberCoverage = assessment.FiberCoverageScore,
-                InternetAccess = assessment.InternetAccessScore,
-                TechnologyType = assessment.TechnologyTypeScore,
-                QualityOfService = assessment.QualityOfServiceScore,
-                CoverageAvailability = assessment.CoverageAvailabilityScore
+                new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = assessment.FiberCoverageScore },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = assessment.InternetAccessScore },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = assessment.TechnologyTypeScore },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = assessment.QualityOfServiceScore },
+                new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = assessment.CoverageAvailabilityScore }
             },
             Infrastructure = new InfrastructureStatsDto
             {
@@ -357,11 +364,31 @@ public class GetConnectivityAnalysisHandler : IRequestHandler<GetConnectivityAna
         {
             summary.AverageCMTSScores = new CMTSScoresDto
             {
-                FiberCoverage = (int)Math.Round(locations.Average(l => l.CMTSScores.FiberCoverage)),
-                InternetAccess = (int)Math.Round(locations.Average(l => l.CMTSScores.InternetAccess)),
-                TechnologyType = (int)Math.Round(locations.Average(l => l.CMTSScores.TechnologyType)),
-                QualityOfService = (int)Math.Round(locations.Average(l => l.CMTSScores.QualityOfService)),
-                CoverageAvailability = (int)Math.Round(locations.Average(l => l.CMTSScores.CoverageAvailability))
+                new CMTSScoreItemDto
+                {
+                    Subject = CMTSSubjects.FiberCoverage,
+                    A = (int)Math.Round(locations.Average(l => l.CMTSScores.FirstOrDefault(s => s.Subject == CMTSSubjects.FiberCoverage)?.A ?? 0))
+                },
+                new CMTSScoreItemDto
+                {
+                    Subject = CMTSSubjects.InternetAccess,
+                    A = (int)Math.Round(locations.Average(l => l.CMTSScores.FirstOrDefault(s => s.Subject == CMTSSubjects.InternetAccess)?.A ?? 0))
+                },
+                new CMTSScoreItemDto
+                {
+                    Subject = CMTSSubjects.TechnologyType,
+                    A = (int)Math.Round(locations.Average(l => l.CMTSScores.FirstOrDefault(s => s.Subject == CMTSSubjects.TechnologyType)?.A ?? 0))
+                },
+                new CMTSScoreItemDto
+                {
+                    Subject = CMTSSubjects.QualityOfService,
+                    A = (int)Math.Round(locations.Average(l => l.CMTSScores.FirstOrDefault(s => s.Subject == CMTSSubjects.QualityOfService)?.A ?? 0))
+                },
+                new CMTSScoreItemDto
+                {
+                    Subject = CMTSSubjects.MobileCoverage,
+                    A = (int)Math.Round(locations.Average(l => l.CMTSScores.FirstOrDefault(s => s.Subject == CMTSSubjects.MobileCoverage)?.A ?? 0))
+                }
             };
 
             summary.TotalInfrastructure = new InfrastructureStatsDto
