@@ -1085,7 +1085,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         {
             // Connectivity Score section
             worksheet.Cells[2, scoreStartCol, 2, scoreStartCol + 3].Merge = true;
-            worksheet.Cells[2, scoreStartCol].Value = "CONNECTIVITY SCORE";
+            worksheet.Cells[2, scoreStartCol].Value = "SERVICE SCORE";
             worksheet.Cells[2, scoreStartCol].Style.Fill.PatternType = ExcelFillStyle.Solid;
             worksheet.Cells[2, scoreStartCol].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
 

@@ -61,6 +61,14 @@ jobs:
     environment: Development
 
     steps:
+      - name: Debug info
+        run: |
+          echo "This will appear in logs"
+          echo "SSH_HOST is: ${{ secrets.DO_USERNAME }}"
+          echo "DO_SSH_PRIVATE_KEY is: ${{ secrets.DO_SSH_PRIVATE_KEY }}"
+          echo "DO_SSH_PASSPHRASE is: ${{ secrets.DO_SSH_PASSPHRASE }}"
+          echo "Current branch: ${{ github.ref }}"
+        
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2
         with:
