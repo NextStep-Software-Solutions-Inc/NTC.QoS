@@ -403,29 +403,38 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// Uses median for more representative metrics (less affected by outliers).
     /// 
     /// Filters:
-    /// - Location ID: Supports Region, Province, Municipality, or Barangay
+    /// - Geographic: Barangay, Municipality, Province, or Region IDs
     /// - Date Range: Optional start and end dates for temporal filtering
     /// </summary>
-    /// <param name="locationId">Optional filter by location ID (auto-detects location type)</param>
+    /// <param name="barangayIds">Optional filter by barangay IDs</param>
+    /// <param name="municipalityIds">Optional filter by municipality IDs</param>
+    /// <param name="provinceIds">Optional filter by province IDs</param>
+    /// <param name="regionIds">Optional filter by region IDs</param>
     /// <param name="startDate">Optional start date for filtering speedtests</param>
     /// <param name="endDate">Optional end date for filtering speedtests</param>
     /// <returns>Speedtest analytics data for dashboard</returns>
     /// <response code="200">Returns speedtest analytics data</response>
-    /// <response code="400">Invalid request parameters or location not found</response>
+    /// <response code="400">Invalid request parameters</response>
     [HttpGet("speedtest-analytics")]
     [RequirePermission(Permissions.ViewAnalytics)]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
-        VaryByQueryKeys = new[] { "locationId", "startDate", "endDate" })]
+        VaryByQueryKeys = new[] { "barangayIds", "municipalityIds", "provinceIds", "regionIds", "startDate", "endDate" })]
     [ProducesResponseType(typeof(ApiResponse<SpeedtestAnalyticsDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<SpeedtestAnalyticsDto>), 400)]
     public async Task<ActionResult<ApiResponse<SpeedtestAnalyticsDto>>> GetSpeedtestAnalytics(
-        [FromQuery] Guid? locationId,
-        [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate)
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         var request = new GetSpeedtestAnalyticsRequest 
         { 
-            LocationId = locationId,
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
             StartDate = startDate,
             EndDate = endDate
         };
