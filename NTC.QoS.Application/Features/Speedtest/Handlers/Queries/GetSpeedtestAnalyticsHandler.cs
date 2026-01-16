@@ -34,64 +34,21 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
     {
         try
         {
-            _logger.LogInformation("Calculating speedtest analytics with filters: LocationId={LocationId}, StartDate={StartDate}, EndDate={EndDate}",
-                request.LocationId,
+            _logger.LogInformation("Calculating speedtest analytics with filters: RegionIds={RegionIds}, ProvinceIds={ProvinceIds}, MunicipalityIds={MunicipalityIds}, BarangayIds={BarangayIds}, StartDate={StartDate}, EndDate={EndDate}",
+                request.RegionIds != null ? string.Join(",", request.RegionIds) : "null",
+                request.ProvinceIds != null ? string.Join(",", request.ProvinceIds) : "null",
+                request.MunicipalityIds != null ? string.Join(",", request.MunicipalityIds) : "null",
+                request.BarangayIds != null ? string.Join(",", request.BarangayIds) : "null",
                 request.StartDate,
                 request.EndDate);
-
-            // Determine which location type the ID belongs to (Region, Province, Municipality, or Barangay)
-            List<Guid>? regionIds = null;
-            List<Guid>? provinceIds = null;
-            List<Guid>? municipalityIds = null;
-            List<Guid>? barangayIds = null;
-
-            if (request.LocationId.HasValue)
-            {
-                var locationId = request.LocationId.Value;
-                
-                // Check in hierarchical order: Region -> Province -> Municipality -> Barangay
-                if (await _context.Regions.AnyAsync(r => r.Id == locationId, cancellationToken))
-                {
-                    regionIds = [locationId];
-                    _logger.LogInformation("Location identified as Region: {LocationId}", locationId);
-                }
-                else if (await _context.Provinces.AnyAsync(p => p.Id == locationId, cancellationToken))
-                {
-                    provinceIds = [locationId];
-                    _logger.LogInformation("Location identified as Province: {LocationId}", locationId);
-                }
-                else if (await _context.Municipalities.AnyAsync(m => m.Id == locationId, cancellationToken))
-                {
-                    municipalityIds = [locationId];
-                    _logger.LogInformation("Location identified as Municipality: {LocationId}", locationId);
-                }
-                else if (await _context.Barangays.AnyAsync(b => b.Id == locationId, cancellationToken))
-                {
-                    barangayIds = [locationId];
-                    _logger.LogInformation("Location identified as Barangay: {LocationId}", locationId);
-                }
-                else
-                {
-                    _logger.LogWarning("LocationId {LocationId} not found in any geographic table", locationId);
-                    return new ApiResponse<SpeedtestAnalyticsDto>
-                    {
-                        Succeeded = false,
-                        Message = "Invalid location ID provided.",
-                        Errors = new Dictionary<string, string[]>
-                        {
-                            { "LocationId", ["The specified location ID was not found."] }
-                        }
-                    };
-                }
-            }
 
             // Build query with geographic filters
             var query = _speedtestRepository.GetEntitiesWithinBoundaries(
                 _speedtestRepository.QueryAsNoTracking(),
-                regionIds: regionIds,
-                provinceIds: provinceIds,
-                municipalityIds: municipalityIds,
-                barangayIds: barangayIds);
+                regionIds: request.RegionIds,
+                provinceIds: request.ProvinceIds,
+                municipalityIds: request.MunicipalityIds,
+                barangayIds: request.BarangayIds);
 
             if (request.StartDate.HasValue)
             {
