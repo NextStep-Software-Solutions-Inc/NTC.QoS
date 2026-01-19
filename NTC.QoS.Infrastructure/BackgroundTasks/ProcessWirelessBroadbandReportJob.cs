@@ -1537,6 +1537,13 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 metadata.Code = municipality.Code;
                 metadata.Type = "municipality";
             }
+            else
+            {
+                // Fallback when municipality not found - indicates data integrity issue
+                metadata.Type = "municipality";
+                metadata.Code = municipalityId.Value.ToString();
+                _logger.LogWarning("Municipality with ID {MunicipalityId} not found in database", municipalityId.Value);
+            }
         }
         else if (provinceId.HasValue)
         {
@@ -1550,6 +1557,13 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 metadata.Code = province.Code;
                 metadata.Type = "province";
             }
+            else
+            {
+                // Fallback when province not found - indicates data integrity issue
+                metadata.Type = "province";
+                metadata.Code = provinceId.Value.ToString();
+                _logger.LogWarning("Province with ID {ProvinceId} not found in database", provinceId.Value);
+            }
         }
         else if (regionId.HasValue)
         {
@@ -1562,6 +1576,13 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 metadata.Name = region.Name;
                 metadata.Code = region.Code;
                 metadata.Type = "region";
+            }
+            else
+            {
+                // Fallback when region not found - indicates data integrity issue
+                metadata.Type = "region";
+                metadata.Code = regionId.Value.ToString();
+                _logger.LogWarning("Region with ID {RegionId} not found in database", regionId.Value);
             }
         }
         else

@@ -554,7 +554,9 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             }
             else
             {
+                // Fallback when municipality not found - indicates data integrity issue
                 areaCode = $"municipality-{municipalityId}";
+                _logger.LogWarning("Municipality with ID {MunicipalityId} not found in database", municipalityId.Value);
             }
         }
         else if (provinceId.HasValue)
@@ -570,7 +572,9 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             }
             else
             {
+                // Fallback when province not found - indicates data integrity issue
                 areaCode = $"province-{provinceId}";
+                _logger.LogWarning("Province with ID {ProvinceId} not found in database", provinceId.Value);
             }
         }
         else if (regionId.HasValue)
@@ -586,7 +590,9 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             }
             else
             {
+                // Fallback when region not found - indicates data integrity issue
                 areaCode = $"region-{regionId}";
+                _logger.LogWarning("Region with ID {RegionId} not found in database", regionId.Value);
             }
         }
         else

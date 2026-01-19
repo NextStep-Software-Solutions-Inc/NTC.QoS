@@ -355,8 +355,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             // Step 4: Upload to blob storage
             _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
 
-            var fileName = await GenerateFileNameAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
-            var blobPath = await GenerateBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileName, cancellationToken);
+            var (fileName, blobPath) = await GenerateFileNameAndBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
             
             using var stream = new MemoryStream(reportBytes);
             await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
@@ -539,9 +538,12 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
     }
 
     /// <summary>
-    /// Generates a file name for the report
+    /// Generates both file name and blob storage path in a single database query to avoid duplicate queries.
+    /// Returns tuple of (fileName, blobPath).
+    /// Blob path follows pattern: env/area-code/filename
+    /// Example: development/region-PH01/ConnectivityGap_RegionI_YYYYMMDD_HHMMSS.xlsx
     /// </summary>
-    private async Task<string> GenerateFileNameAsync(
+    private async Task<(string fileName, string blobPath)> GenerateFileNameAndBlobPathAsync(
         Guid? regionId,
         Guid? provinceId,
         Guid? municipalityId,
@@ -549,78 +551,74 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         CancellationToken cancellationToken)
     {
         var nameParts = new List<string> { "ConnectivityGap" };
+        var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment = environment.ToLower();
+        string areaCode;
 
         if (municipalityId.HasValue)
         {
             var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .Select(m => new { m.Name, m.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (municipality != null)
             {
                 nameParts.Add(SanitizeFileName(municipality.Name));
+                areaCode = $"municipality-{municipality.Code}";
+            }
+            else
+            {
+                // Fallback when municipality not found - indicates data integrity issue
+                areaCode = $"municipality-{municipalityId}";
+                _logger.LogWarning("Municipality with ID {MunicipalityId} not found in database", municipalityId.Value);
             }
         }
         else if (provinceId.HasValue)
         {
             var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .Select(p => new { p.Name, p.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (province != null)
             {
                 nameParts.Add(SanitizeFileName(province.Name));
+                areaCode = $"province-{province.Code}";
+            }
+            else
+            {
+                // Fallback when province not found - indicates data integrity issue
+                areaCode = $"province-{provinceId}";
+                _logger.LogWarning("Province with ID {ProvinceId} not found in database", provinceId.Value);
             }
         }
         else if (regionId.HasValue)
         {
             var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .Select(r => new { r.Name, r.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (region != null)
             {
                 nameParts.Add(SanitizeFileName(region.Name));
+                areaCode = $"region-{region.Code}";
             }
-        }
-
-        nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
-
-        return $"{string.Join("_", nameParts)}.{extension}";
-    }
-
-    /// <summary>
-    /// Generates blob storage path following pattern: env/area-code/filename
-    /// </summary>
-    private async Task<string> GenerateBlobPathAsync(
-        Guid? regionId,
-        Guid? provinceId,
-        Guid? municipalityId,
-        string fileName,
-        CancellationToken cancellationToken)
-    {
-        var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
-        environment = environment.ToLower();
-
-        string areaCode;
-        if (municipalityId.HasValue)
-        {
-            var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
-                .FirstOrDefaultAsync(cancellationToken);
-            areaCode = municipality != null ? $"municipality-{municipality.Code}" : $"municipality-{municipalityId}";
-        }
-        else if (provinceId.HasValue)
-        {
-            var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
-                .FirstOrDefaultAsync(cancellationToken);
-            areaCode = province != null ? $"province-{province.Code}" : $"province-{provinceId}";
-        }
-        else if (regionId.HasValue)
-        {
-            var region = await _regionRepository.Query(r => r.Id == regionId.Value)
-                .FirstOrDefaultAsync(cancellationToken);
-            areaCode = region != null ? $"region-{region.Code}" : $"region-{regionId}";
+            else
+            {
+                // Fallback when region not found - indicates data integrity issue
+                areaCode = $"region-{regionId}";
+                _logger.LogWarning("Region with ID {RegionId} not found in database", regionId.Value);
+            }
         }
         else
         {
             areaCode = "national";
         }
 
-        return $"{environment}/{areaCode}/{fileName}";
+        nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+        var fileName = $"{string.Join("_", nameParts)}.{extension}";
+        var blobPath = $"{environment}/{areaCode}/{fileName}";
+
+        return (fileName, blobPath);
     }
 
     /// <summary>
