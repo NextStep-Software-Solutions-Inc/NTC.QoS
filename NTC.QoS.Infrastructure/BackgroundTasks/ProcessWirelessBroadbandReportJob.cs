@@ -183,7 +183,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
                 
-            var blobUri = await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
+            await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
             var fullBlobPath = $"{BLOB_CONTAINER_NAME}/{blobPath}";
 
             _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, fullBlobPath);
