@@ -664,21 +664,24 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
         string areaCode;
         if (municipalityId.HasValue)
         {
-            var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+            var municipalityCode = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .Select(m => m.Code)
                 .FirstOrDefaultAsync(cancellationToken);
-            areaCode = municipality != null ? $"municipality-{municipality.Code}" : $"municipality-{municipalityId}";
+            areaCode = municipalityCode != null ? $"municipality-{municipalityCode}" : $"municipality-{municipalityId}";
         }
         else if (provinceId.HasValue)
         {
-            var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+            var provinceCode = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .Select(p => p.Code)
                 .FirstOrDefaultAsync(cancellationToken);
-            areaCode = province != null ? $"province-{province.Code}" : $"province-{provinceId}";
+            areaCode = provinceCode != null ? $"province-{provinceCode}" : $"province-{provinceId}";
         }
         else if (regionId.HasValue)
         {
-            var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+            var regionCode = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .Select(r => r.Code)
                 .FirstOrDefaultAsync(cancellationToken);
-            areaCode = region != null ? $"region-{region.Code}" : $"region-{regionId}";
+            areaCode = regionCode != null ? $"region-{regionCode}" : $"region-{regionId}";
         }
         else
         {
