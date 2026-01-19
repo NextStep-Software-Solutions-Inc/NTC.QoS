@@ -568,7 +568,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
 
     /// <summary>
     /// Generates blob storage path following pattern: env/area-code/filename
-    /// Example: development/region-PH01/Connectivity_RegionI_20260119_061555.xlsx
+    /// Example: development/region-PH01/Connectivity_RegionI_YYYYMMDD_HHMMSS.xlsx
     /// </summary>
     private async Task<string> GenerateBlobPathAsync(
         Guid? regionId,
