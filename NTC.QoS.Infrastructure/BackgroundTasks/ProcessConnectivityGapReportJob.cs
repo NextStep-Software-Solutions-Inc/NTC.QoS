@@ -1,5 +1,6 @@
 using Hangfire;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
@@ -63,9 +64,11 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<Province> _provinceRepository;
     private readonly IRepository<Region> _regionRepository;
+    private readonly IConfiguration _configuration;
 
     private const string CACHE_KEY_PREFIX = "connectivity_gap_report_job_";
     private const int CACHE_RETENTION_HOURS = 1;
+    private const string BLOB_CONTAINER_NAME = "reports";
 
     public ProcessConnectivityGapReportJob(
         ILogger<ProcessConnectivityGapReportJob> logger,
@@ -76,7 +79,8 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         IBarangayRepository barangayRepository,
         IMunicipalityRepository municipalityRepository,
         IRepository<Province> provinceRepository,
-        IRepository<Region> regionRepository)
+        IRepository<Region> regionRepository,
+        IConfiguration configuration)
     {
         _logger = logger;
         _reportGenerationService = reportGenerationService;
@@ -87,6 +91,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -351,14 +356,14 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
 
             var fileName = await GenerateFileNameAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
-            var containerName = "connectivity-gap-reports";
+            var blobPath = await GenerateBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileName, cancellationToken);
             
             using var stream = new MemoryStream(reportBytes);
-            var blobUri = await _blobStorageService.UploadAsync(containerName, fileName, stream, contentType, cancellationToken);
+            var blobUri = await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
             
-            var blobPath = $"{containerName}/{fileName}";
+            var fullBlobPath = $"{BLOB_CONTAINER_NAME}/{blobPath}";
 
-            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, blobPath);
+            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, fullBlobPath);
 
             // Step 5: Update status to Completed
             var endTime = DateTime.UtcNow;
@@ -371,7 +376,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 endTime: endTime,
                 currentStep: "Completed",
                 progressPercentage: 100,
-                filePath: blobPath,
+                filePath: fullBlobPath,
                 downloadUrl: downloadUrl,
                 fileSizeBytes: fileSizeBytes,
                 cancellationToken: cancellationToken);
@@ -576,6 +581,46 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
 
         return $"{string.Join("_", nameParts)}.{extension}";
+    }
+
+    /// <summary>
+    /// Generates blob storage path following pattern: env/area-code/filename
+    /// </summary>
+    private async Task<string> GenerateBlobPathAsync(
+        Guid? regionId,
+        Guid? provinceId,
+        Guid? municipalityId,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment = environment.ToLower();
+
+        string areaCode;
+        if (municipalityId.HasValue)
+        {
+            var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            areaCode = municipality != null ? $"municipality-{municipality.Code}" : $"municipality-{municipalityId}";
+        }
+        else if (provinceId.HasValue)
+        {
+            var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            areaCode = province != null ? $"province-{province.Code}" : $"province-{provinceId}";
+        }
+        else if (regionId.HasValue)
+        {
+            var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            areaCode = region != null ? $"region-{region.Code}" : $"region-{regionId}";
+        }
+        else
+        {
+            areaCode = "national";
+        }
+
+        return $"{environment}/{areaCode}/{fileName}";
     }
 
     /// <summary>

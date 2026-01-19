@@ -1,6 +1,7 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.WirelessBroadband.DTOs;
 using NTC.QoS.Domain.Enums;
@@ -81,10 +82,15 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     private readonly ILogger<ProcessWirelessBroadbandReportJob> _logger;
     private readonly IWirelessScoringService _scoringService;
     private readonly IConnectivityAssessmentRepository _connectivityAssessmentRepository;
+    private readonly IConfiguration _configuration;
+    private readonly IMunicipalityRepository _municipalityRepository;
+    private readonly IRepository<Domain.Entities.Province> _provinceRepository;
+    private readonly IRepository<Domain.Entities.Region> _regionRepository;
     
     private const string CACHE_KEY_PREFIX = "wireless_broadband_report_job_";
     private const int CACHE_RETENTION_HOURS = 1;
     private const int StartColumn = 3;
+    private const string BLOB_CONTAINER_NAME = "reports";
 
     public ProcessWirelessBroadbandReportJob(
         ApplicationDbContext context,
@@ -93,7 +99,11 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         IBlobStorageService blobStorageService,
         ILogger<ProcessWirelessBroadbandReportJob> logger,
         IWirelessScoringService scoringService,
-        IConnectivityAssessmentRepository connectivityAssessmentRepository)
+        IConnectivityAssessmentRepository connectivityAssessmentRepository,
+        IConfiguration configuration,
+        IMunicipalityRepository municipalityRepository,
+        IRepository<Domain.Entities.Province> provinceRepository,
+        IRepository<Domain.Entities.Region> regionRepository)
     {
         _context = context;
         _providerTechService = providerTechService;
@@ -102,6 +112,10 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         _logger = logger;
         _scoringService = scoringService;
         _connectivityAssessmentRepository = connectivityAssessmentRepository;
+        _configuration = configuration;
+        _municipalityRepository = municipalityRepository;
+        _provinceRepository = provinceRepository;
+        _regionRepository = regionRepository;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -162,17 +176,17 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
 
             var fileExtension = jobRequest.Format == ReportFormatEnum.Pdf ? "pdf" : "xlsx";
-            var containerName = "wireless-broadband-reports";
+            var blobPath = await GenerateBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileName, cancellationToken);
             
             using var stream = new MemoryStream(fileContent);
             var contentType = jobRequest.Format == ReportFormatEnum.Pdf
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
                 
-            var blobUri = await _blobStorageService.UploadAsync(containerName, fileName, stream, contentType, cancellationToken);
-            var blobPath = $"{containerName}/{fileName}";
+            var blobUri = await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
+            var fullBlobPath = $"{BLOB_CONTAINER_NAME}/{blobPath}";
 
-            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, blobPath);
+            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, fullBlobPath);
 
             // Step 4: Update status to Completed
             var endTime = DateTime.UtcNow;
@@ -185,7 +199,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
                 endTime: endTime,
                 currentStep: "Completed",
                 progressPercentage: 100,
-                filePath: blobPath,
+                filePath: fullBlobPath,
                 downloadUrl: downloadUrl,
                 fileSizeBytes: fileContent.Length,
                 cancellationToken: cancellationToken);
@@ -1538,6 +1552,46 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
 
         return $"{string.Join("_", nameParts)}.{extension}";
+    }
+
+    /// <summary>
+    /// Generates blob storage path following pattern: env/area-code/filename
+    /// </summary>
+    private async Task<string> GenerateBlobPathAsync(
+        Guid? regionId,
+        Guid? provinceId,
+        Guid? municipalityId,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment = environment.ToLower();
+
+        string areaCode;
+        if (municipalityId.HasValue)
+        {
+            var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            areaCode = municipality != null ? $"municipality-{municipality.Code}" : $"municipality-{municipalityId}";
+        }
+        else if (provinceId.HasValue)
+        {
+            var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            areaCode = province != null ? $"province-{province.Code}" : $"province-{provinceId}";
+        }
+        else if (regionId.HasValue)
+        {
+            var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            areaCode = region != null ? $"region-{region.Code}" : $"region-{regionId}";
+        }
+        else
+        {
+            areaCode = "national";
+        }
+
+        return $"{environment}/{areaCode}/{fileName}";
     }
 
     /// <summary>

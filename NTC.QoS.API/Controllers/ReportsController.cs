@@ -255,9 +255,10 @@ public class ReportsController : ControllerBase
         }
 
         // Download file from blob storage
-        var containerName = "wireless-broadband-reports";
-        var blobFileName = Path.GetFileName(statusDto.FilePath);
-        var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+        // FilePath format: reports/environment/area-code/filename
+        var blobPath = statusDto.FilePath.Replace("reports/", "", StringComparison.OrdinalIgnoreCase);
+        var fileName = Path.GetFileName(statusDto.FilePath);
+        var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
 
         if (fileStream == null)
         {
@@ -269,7 +270,7 @@ public class ReportsController : ControllerBase
             ? "application/pdf"
             : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-        return File(fileStream, contentType, blobFileName);
+        return File(fileStream, contentType, fileName);
     }
 
     /// <summary>
@@ -855,9 +856,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            var containerName = "wired-broadband-reports";
-            var blobFileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+            // FilePath format: reports/environment/area-code/filename
+            var blobPath = statusDto.FilePath.Replace("reports/", "", StringComparison.OrdinalIgnoreCase);
+            var fileName = Path.GetFileName(statusDto.FilePath);
+            var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
 
             if (fileStream == null)
             {
@@ -869,7 +871,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, blobFileName);
+            return File(fileStream, contentType, fileName);
         }
         catch (Exception ex)
         {
@@ -1045,9 +1047,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            var containerName = "connectivity-gap-reports";
-            var blobFileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+            // FilePath format: reports/environment/area-code/filename
+            var blobPath = statusDto.FilePath.Replace("reports/", "", StringComparison.OrdinalIgnoreCase);
+            var fileName = Path.GetFileName(statusDto.FilePath);
+            var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
 
             if (fileStream == null)
             {
@@ -1059,7 +1062,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, blobFileName);
+            return File(fileStream, contentType, fileName);
         }
         catch (Exception ex)
         {
@@ -1235,9 +1238,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            var containerName = "connectivity-reports";
-            var blobFileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
+            // FilePath format: reports/environment/area-code/filename
+            var blobPath = statusDto.FilePath.Replace("reports/", "", StringComparison.OrdinalIgnoreCase);
+            var fileName = Path.GetFileName(statusDto.FilePath);
+            var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
 
             if (fileStream == null)
             {
@@ -1249,7 +1253,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, blobFileName);
+            return File(fileStream, contentType, fileName);
         }
         catch (Exception ex)
         {
@@ -1257,4 +1261,3 @@ public class ReportsController : ControllerBase
         }
     }
 }
-
