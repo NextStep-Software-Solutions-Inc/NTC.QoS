@@ -991,7 +991,7 @@ public class ReportGenerationService : IReportGenerationService
 
             // All areas table
             column.Item()
-                .Text(text => text.Span($"All Areas by Score ({reportData.Areas.Count} total)"))
+                .Text($"All Areas by Score ({reportData.Areas.Count} total)")
                 .Bold()
                 .FontSize(14);
             column.Item().Table(table =>
