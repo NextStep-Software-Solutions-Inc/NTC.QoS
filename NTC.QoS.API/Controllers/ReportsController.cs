@@ -255,20 +255,10 @@ public class ReportsController : ControllerBase
         }
 
         // Download file from blob storage
-        // FilePath format: reports/environment/area-code/filename
-        const string reportsPrefix = "reports/";
-        if (!statusDto.FilePath.StartsWith(reportsPrefix, StringComparison.OrdinalIgnoreCase))
+        var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+        if (errorResult != null)
         {
-            return BadRequest(new { message = "Invalid report file path format" });
-        }
-
-        var blobPath = statusDto.FilePath.Substring(reportsPrefix.Length);
-        var fileName = Path.GetFileName(statusDto.FilePath);
-        var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
-
-        if (fileStream == null)
-        {
-            return NotFound(new { message = "Report file not found in storage" });
+            return errorResult;
         }
 
         // Determine content type from format
@@ -276,7 +266,7 @@ public class ReportsController : ControllerBase
             ? "application/pdf"
             : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-        return File(fileStream, contentType, fileName);
+        return File(fileStream!, contentType, fileName);
     }
 
     /// <summary>
@@ -700,6 +690,33 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
+    /// Downloads a report file from blob storage and validates the file path format.
+    /// FilePath format expected: reports/environment/area-code/filename
+    /// </summary>
+    /// <param name="filePath">The full file path from the job status (e.g., reports/development/region-PH01/file.xlsx)</param>
+    /// <returns>A tuple containing (fileStream, fileName) on success, or (null, null) with appropriate ActionResult on error</returns>
+    private async Task<(Stream? fileStream, string? fileName, ActionResult? errorResult)> DownloadReportFromBlobAsync(string filePath)
+    {
+        const string reportsPrefix = "reports/";
+
+        if (!filePath.StartsWith(reportsPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return (null, null, BadRequest(new { message = "Invalid report file path format" }));
+        }
+
+        var blobPath = filePath.Substring(reportsPrefix.Length);
+        var fileName = Path.GetFileName(filePath);
+        var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
+
+        if (fileStream == null)
+        {
+            return (null, null, NotFound(new { message = "Report file not found in storage" }));
+        }
+
+        return (fileStream, fileName, null);
+    }
+
+    /// <summary>
     /// Generate wired broadband report as a background job (recommended for large reports)
     /// </summary>
     /// <param name="format">Report format: Excel (0) or Pdf (1)</param>
@@ -862,19 +879,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            // FilePath format: reports/environment/area-code/filename
-            const string reportsPrefix = "reports/";
-            if (!statusDto.FilePath.StartsWith(reportsPrefix, StringComparison.OrdinalIgnoreCase))
+            var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+            if (errorResult != null)
             {
-                return BadRequest(new { message = "Invalid report file path format" });
-            }
-            var blobPath = statusDto.FilePath.Substring(reportsPrefix.Length);
-            var fileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
-
-            if (fileStream == null)
-            {
-                return NotFound(new { message = "Report file not found in storage" });
+                return errorResult;
             }
 
             // Determine content type and file name from format
@@ -882,7 +890,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, fileName);
+            return File(fileStream!, contentType, fileName);
         }
         catch (Exception ex)
         {
@@ -1058,20 +1066,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            // FilePath format: reports/environment/area-code/filename
-            const string reportsPrefix = "reports/";
-            if (!statusDto.FilePath.StartsWith(reportsPrefix, StringComparison.OrdinalIgnoreCase))
+            var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+            if (errorResult != null)
             {
-                return BadRequest(new { message = "Invalid report file path format" });
-            }
-
-            var blobPath = statusDto.FilePath.Substring(reportsPrefix.Length);
-            var fileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
-
-            if (fileStream == null)
-            {
-                return NotFound(new { message = "Report file not found in storage" });
+                return errorResult;
             }
 
             // Determine content type and file name from format
@@ -1079,7 +1077,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, fileName);
+            return File(fileStream!, contentType, fileName);
         }
         catch (Exception ex)
         {
@@ -1255,22 +1253,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            // FilePath format: reports/environment/area-code/filename
-            var filePath = statusDto.FilePath;
-            const string reportsPrefix = "reports/";
-
-            if (!filePath.StartsWith(reportsPrefix, StringComparison.OrdinalIgnoreCase))
+            var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+            if (errorResult != null)
             {
-                return BadRequest(new { message = "Invalid report file path format" });
-            }
-
-            var blobPath = filePath.Substring(reportsPrefix.Length);
-            var fileName = Path.GetFileName(filePath);
-            var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
-
-            if (fileStream == null)
-            {
-                return NotFound(new { message = "Report file not found in storage" });
+                return errorResult;
             }
 
             // Determine content type and file name from format
@@ -1278,7 +1264,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, fileName);
+            return File(fileStream!, contentType, fileName);
         }
         catch (Exception ex)
         {
