@@ -519,16 +519,16 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         var reportGenStopwatch = Stopwatch.StartNew();
         byte[] fileContent;
         string fileName;
+        var fileExtension = format == ReportFormatEnum.Excel ? "xlsx" : "pdf";
+        fileName = await GenerateFileNameAsync(regionId, provinceId, municipalityId, fileExtension, cancellationToken);
 
         if (format == ReportFormatEnum.Excel)
         {
             fileContent = GenerateExcel(reportTitleName, providers, reportData, includeScores);
-            fileName = $"WirelessBroadband_{reportTitleName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
         }
         else
         {
             fileContent = GeneratePdf(reportTitleName, providers, reportData, includeScores);
-            fileName = $"WirelessBroadband_{reportTitleName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
         }
         reportGenStopwatch.Stop();
         
@@ -1493,6 +1493,60 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             "5G" => stats.Has5G,
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Generates a descriptive file name for the report based on geographic filters
+    /// </summary>
+    private async Task<string> GenerateFileNameAsync(
+        Guid? regionId,
+        Guid? provinceId,
+        Guid? municipalityId,
+        string extension,
+        CancellationToken cancellationToken)
+    {
+        var nameParts = new List<string> { "WirelessBroadband" };
+
+        if (municipalityId.HasValue)
+        {
+            var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (municipality != null)
+            {
+                nameParts.Add(SanitizeFileName(municipality.Name));
+            }
+        }
+        else if (provinceId.HasValue)
+        {
+            var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (province != null)
+            {
+                nameParts.Add(SanitizeFileName(province.Name));
+            }
+        }
+        else if (regionId.HasValue)
+        {
+            var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (region != null)
+            {
+                nameParts.Add(SanitizeFileName(region.Name));
+            }
+        }
+
+        nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+
+        return $"{string.Join("_", nameParts)}.{extension}";
+    }
+
+    /// <summary>
+    /// Sanitizes a string for use in file names
+    /// </summary>
+    private string SanitizeFileName(string fileName)
+    {
+        var invalids = System.IO.Path.GetInvalidFileNameChars();
+        return string.Join("_", fileName.Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
     }
 
     // ===== Private DTOs =====
