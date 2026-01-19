@@ -149,7 +149,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             _logger.LogInformation("Job {JobId}: Starting report generation", jobId);
 
             var reportGenStopwatch = Stopwatch.StartNew();
-            var (fileContent, fileName, barangayCount) = await GenerateReportAsync(
+            var (fileContent, fileName, barangayCount, geoMetadata) = await GenerateReportAsync(
                 jobRequest.RegionId,
                 jobRequest.ProvinceId,
                 jobRequest.MunicipalityId,
@@ -175,8 +175,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             // Step 3: Upload to blob storage
             _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
 
-            var fileExtension = jobRequest.Format == ReportFormatEnum.Pdf ? "pdf" : "xlsx";
-            var blobPath = await GenerateBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileName, cancellationToken);
+            // Optimized: Use cached geographic metadata instead of querying database again
+            var blobPath = GenerateBlobPath(geoMetadata, fileName);
             
             using var stream = new MemoryStream(fileContent);
             var contentType = jobRequest.Format == ReportFormatEnum.Pdf
@@ -292,7 +292,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         return $"{len:0.##} {sizes[order]}";
     }
 
-    private async Task<(byte[] FileContent, string FileName, int BarangayCount)> GenerateReportAsync(
+    private async Task<(byte[] FileContent, string FileName, int BarangayCount, GeographicMetadata Metadata)> GenerateReportAsync(
         Guid? regionId,
         Guid? provinceId,
         Guid? municipalityId,
@@ -533,8 +533,10 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         var reportGenStopwatch = Stopwatch.StartNew();
         byte[] fileContent;
         string fileName;
+        GeographicMetadata metadata;
         var fileExtension = format == ReportFormatEnum.Excel ? "xlsx" : "pdf";
-        fileName = await GenerateFileNameAsync(regionId, provinceId, municipalityId, fileExtension, cancellationToken);
+        // Optimized: Query geographic entity once and generate filename
+        (fileName, metadata) = await GenerateFileNameAndMetadataAsync(regionId, provinceId, municipalityId, fileExtension, cancellationToken);
 
         if (format == ReportFormatEnum.Excel)
         {
@@ -559,7 +561,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             scoringStopwatch.ElapsedMilliseconds,
             reportGenStopwatch.ElapsedMilliseconds);
 
-        return (fileContent, fileName, barangays.Count);
+        return (fileContent, fileName, barangays.Count, metadata);
     }
 
     // ===== Helper methods from GetWirelessBroadbandScoredReportQueryHandler =====
@@ -1510,9 +1512,10 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     }
 
     /// <summary>
-    /// Generates a descriptive file name for the report based on geographic filters
+    /// OPTIMIZED: Fetches geographic entity once and returns both filename and metadata (name, code).
+    /// This eliminates duplicate database queries when both filename and blob path are needed.
     /// </summary>
-    private async Task<string> GenerateFileNameAsync(
+    private async Task<(string FileName, GeographicMetadata Metadata)> GenerateFileNameAndMetadataAsync(
         Guid? regionId,
         Guid? provinceId,
         Guid? municipalityId,
@@ -1520,42 +1523,79 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         CancellationToken cancellationToken)
     {
         var nameParts = new List<string> { "WirelessBroadband" };
+        var metadata = new GeographicMetadata();
 
         if (municipalityId.HasValue)
         {
             var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .Select(m => new { m.Name, m.Code })
                 .FirstOrDefaultAsync(cancellationToken);
             if (municipality != null)
             {
                 nameParts.Add(SanitizeFileName(municipality.Name));
+                metadata.Name = municipality.Name;
+                metadata.Code = municipality.Code;
+                metadata.Type = "municipality";
             }
         }
         else if (provinceId.HasValue)
         {
             var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .Select(p => new { p.Name, p.Code })
                 .FirstOrDefaultAsync(cancellationToken);
             if (province != null)
             {
                 nameParts.Add(SanitizeFileName(province.Name));
+                metadata.Name = province.Name;
+                metadata.Code = province.Code;
+                metadata.Type = "province";
             }
         }
         else if (regionId.HasValue)
         {
             var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .Select(r => new { r.Name, r.Code })
                 .FirstOrDefaultAsync(cancellationToken);
             if (region != null)
             {
                 nameParts.Add(SanitizeFileName(region.Name));
+                metadata.Name = region.Name;
+                metadata.Code = region.Code;
+                metadata.Type = "region";
             }
+        }
+        else
+        {
+            metadata.Type = "national";
+            metadata.Code = "national";
         }
 
         nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+        var fileName = $"{string.Join("_", nameParts)}.{extension}";
 
-        return $"{string.Join("_", nameParts)}.{extension}";
+        return (fileName, metadata);
     }
 
     /// <summary>
-    /// Generates blob storage path following pattern: env/area-code/filename
+    /// Generates blob storage path using cached geographic metadata.
+    /// Should be called after GenerateFileNameAndMetadataAsync to reuse the cached entity.
+    /// </summary>
+    private string GenerateBlobPath(GeographicMetadata metadata, string fileName)
+    {
+        var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment = environment.ToLower();
+
+        var areaCode = metadata.Code != null 
+            ? $"{metadata.Type}-{metadata.Code}" 
+            : metadata.Type;
+
+        return $"{environment}/{areaCode}/{fileName}";
+    }
+
+    /// <summary>
+    /// LEGACY: Generates blob storage path following pattern: env/area-code/filename.
+    /// Kept for backward compatibility but performs duplicate query.
+    /// Prefer using GenerateFileNameAndMetadataAsync + GenerateBlobPath for better performance.
     /// </summary>
     private async Task<string> GenerateBlobPathAsync(
         Guid? regionId,
@@ -1571,18 +1611,21 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         if (municipalityId.HasValue)
         {
             var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .Select(m => new { m.Code })
                 .FirstOrDefaultAsync(cancellationToken);
             areaCode = municipality != null ? $"municipality-{municipality.Code}" : $"municipality-{municipalityId}";
         }
         else if (provinceId.HasValue)
         {
             var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .Select(p => new { p.Code })
                 .FirstOrDefaultAsync(cancellationToken);
             areaCode = province != null ? $"province-{province.Code}" : $"province-{provinceId}";
         }
         else if (regionId.HasValue)
         {
             var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .Select(r => new { r.Code })
                 .FirstOrDefaultAsync(cancellationToken);
             areaCode = region != null ? $"region-{region.Code}" : $"region-{regionId}";
         }
@@ -1604,6 +1647,13 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
     }
 
     // ===== Private DTOs =====
+
+    private class GeographicMetadata
+    {
+        public string? Name { get; set; }
+        public string? Code { get; set; }
+        public string Type { get; set; } = string.Empty; // "region", "province", "municipality", or "national"
+    }
 
     private class BarangayProjection
     {
