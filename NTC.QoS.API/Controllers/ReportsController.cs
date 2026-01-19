@@ -465,7 +465,8 @@ public class ReportsController : ControllerBase
 
     /// <summary>
     /// Generate and download connectivity report (served areas) in PDF or Excel format.
-    /// Includes all served areas with complete rubric score breakdown.
+    /// Includes all served areas with complete data (no samples or limits). 
+    /// Complete rubric score breakdown is included for all areas.
     /// </summary>
     /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
     /// <param name="regionId">Optional filter by Region ID</param>

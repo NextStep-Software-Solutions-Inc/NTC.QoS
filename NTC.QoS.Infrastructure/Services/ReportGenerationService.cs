@@ -31,9 +31,6 @@ public class ReportGenerationService : IReportGenerationService
     {
         _logger.LogInformation("Generating PDF report: {ReportTitle}", reportTitle);
 
-        // Configure QuestPDF license (Community license is free for open source/non-commercial)
-        QuestPDF.Settings.License = LicenseType.Community;
-
         var document = Document.Create(container =>
         {
             container.Page(page =>
@@ -95,8 +92,6 @@ public class ReportGenerationService : IReportGenerationService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating connectivity gap PDF report: {ReportTitle}", reportTitle);
-
-        QuestPDF.Settings.License = LicenseType.Community;
 
         var document = Document.Create(container =>
         {
@@ -994,8 +989,8 @@ public class ReportGenerationService : IReportGenerationService
                 });
             });
 
-            // Top areas table (limited to first 20)
-            column.Item().Text($"Top {Math.Min(20, reportData.Areas.Count)} Areas by Score").Bold().FontSize(14);
+            // All areas table
+            column.Item().Text($"All Areas by Score ({reportData.Areas.Count} total)").Bold().FontSize(14);
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(columns =>
@@ -1030,7 +1025,7 @@ public class ReportGenerationService : IReportGenerationService
                 });
 
                 // Data rows
-                foreach (var area in reportData.Areas.Take(20))
+                foreach (var area in reportData.Areas)
                 {
                     table.Cell().Element(CellStyle).Text(area.LocationName).FontSize(8);
                     table.Cell().Element(CellStyle).Text(area.Population?.ToString("N0") ?? "N/A").FontSize(8);
