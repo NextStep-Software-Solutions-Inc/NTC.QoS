@@ -256,7 +256,13 @@ public class ReportsController : ControllerBase
 
         // Download file from blob storage
         // FilePath format: reports/environment/area-code/filename
-        var blobPath = statusDto.FilePath.Replace("reports/", "", StringComparison.OrdinalIgnoreCase);
+        const string reportsPrefix = "reports/";
+        if (!statusDto.FilePath.StartsWith(reportsPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Invalid report file path format" });
+        }
+
+        var blobPath = statusDto.FilePath.Substring(reportsPrefix.Length);
         var fileName = Path.GetFileName(statusDto.FilePath);
         var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
 
