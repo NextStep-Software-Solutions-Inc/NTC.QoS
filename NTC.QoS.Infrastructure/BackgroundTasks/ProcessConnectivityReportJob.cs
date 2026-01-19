@@ -597,6 +597,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         }
         else
         {
+            nameParts.Add("National");
             areaCode = "national";
         }
 

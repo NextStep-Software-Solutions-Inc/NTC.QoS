@@ -676,6 +676,7 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
         }
         else
         {
+            nameParts.Add("National");
             areaCode = "national";
         }
 

@@ -1587,8 +1587,10 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         }
         else
         {
+            nameParts.Add("National");
             metadata.Type = "national";
             metadata.Code = "national";
+            metadata.Name = "National";
         }
 
         nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));

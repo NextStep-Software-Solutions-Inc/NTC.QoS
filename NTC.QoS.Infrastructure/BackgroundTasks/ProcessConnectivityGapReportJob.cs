@@ -611,6 +611,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         }
         else
         {
+            nameParts.Add("National");
             areaCode = "national";
         }
 
