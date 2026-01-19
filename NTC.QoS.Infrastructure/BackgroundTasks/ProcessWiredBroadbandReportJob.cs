@@ -250,7 +250,7 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
             var blobPath = await GenerateBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileName, cancellationToken);
             
             using var stream = new MemoryStream(reportBytes);
-            var blobUri = await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
+            await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
             
             var fullBlobPath = $"{BLOB_CONTAINER_NAME}/{blobPath}";
 
