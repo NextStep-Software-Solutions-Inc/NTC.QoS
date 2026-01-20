@@ -1608,9 +1608,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         environment = environment.ToLower();
 
-        var areaCode = metadata.Code != null 
-            ? $"{metadata.Type}-{metadata.Code}" 
-            : metadata.Type;
+        var areaCode = $"{metadata.Type}-{metadata.Code}";
 
         return $"{environment}/{areaCode}/{fileName}";
     }

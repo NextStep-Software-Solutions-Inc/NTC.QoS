@@ -983,6 +983,7 @@ public class ReportGenerationService : IReportGenerationService
 
                 row.RelativeItem().Column(col =>
                 {
+                    // Empty header to align with the previous column's "Average Rubric Scores" header
                     col.Item().Text(text => text.Span("").FontSize(14));
                     col.Item().PaddingTop(5).Text($"Quality of Service: {reportData.ScoreSummary.AverageQualityOfServiceScore:F2}/3");
                     col.Item().Text($"Coverage Availability: {reportData.ScoreSummary.AverageCoverageAvailabilityScore:F2}/3");
