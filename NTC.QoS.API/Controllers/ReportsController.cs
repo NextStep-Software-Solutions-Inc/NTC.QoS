@@ -704,7 +704,7 @@ public class ReportsController : ControllerBase
             return (null, null, BadRequest(new { message = "Invalid report file path format" }));
         }
 
-        var blobPath = filePath.Substring(reportsPrefix.Length);
+        var blobPath = filePath[reportsPrefix.Length..];
         var fileName = Path.GetFileName(filePath);
         var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
 
@@ -713,7 +713,7 @@ public class ReportsController : ControllerBase
             return (null, null, NotFound(new { message = "Report file not found in storage" }));
         }
 
-        return (fileStream, fileName, null);
+        return (fileStream!, fileName!, null);
     }
 
     /// <summary>
