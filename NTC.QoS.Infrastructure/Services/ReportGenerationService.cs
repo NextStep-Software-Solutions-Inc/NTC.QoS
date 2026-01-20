@@ -31,9 +31,6 @@ public class ReportGenerationService : IReportGenerationService
     {
         _logger.LogInformation("Generating PDF report: {ReportTitle}", reportTitle);
 
-        // Configure QuestPDF license (Community license is free for open source/non-commercial)
-        QuestPDF.Settings.License = LicenseType.Community;
-
         var document = Document.Create(container =>
         {
             container.Page(page =>
@@ -95,8 +92,6 @@ public class ReportGenerationService : IReportGenerationService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating connectivity gap PDF report: {ReportTitle}", reportTitle);
-
-        QuestPDF.Settings.License = LicenseType.Community;
 
         var document = Document.Create(container =>
         {
@@ -178,40 +173,40 @@ public class ReportGenerationService : IReportGenerationService
         container.PaddingVertical(10).Column(column =>
         {
             // Executive Summary
-            column.Item().Text("Executive Summary").FontSize(12).Bold();
+            column.Item().Text(text => text.Span("Executive Summary").FontSize(12).Bold());
             column.Item().PaddingTop(5).Row(row =>
             {
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.Summary.TotalMunicipalities.ToString()).FontSize(14).Bold();
-                    col.Item().AlignCenter().Text("Municipalities").FontSize(8);
+                    col.Item().AlignCenter().Text(text => text.Span(reportData.Summary.TotalMunicipalities.ToString()).FontSize(14).Bold());
+                    col.Item().AlignCenter().Text(text => text.Span("Municipalities").FontSize(8));
                 });
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text(reportData.Summary.TotalBarangays.ToString()).FontSize(14).Bold();
-                    col.Item().AlignCenter().Text("Total Barangays").FontSize(8);
+                    col.Item().AlignCenter().Text(text => text.Span(reportData.Summary.TotalBarangays.ToString()).FontSize(14).Bold());
+                    col.Item().AlignCenter().Text(text => text.Span("Total Barangays").FontSize(8));
                 });
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Green.Lighten3).Background(Colors.Green.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text($"{reportData.Summary.ServedBarangays} ({reportData.Summary.ServedPercentage:F1}%)").FontSize(14).Bold();
-                    col.Item().AlignCenter().Text("Served").FontSize(8);
+                    col.Item().AlignCenter().Text(text => text.Span($"{reportData.Summary.ServedBarangays} ({reportData.Summary.ServedPercentage:F1}%)").FontSize(14).Bold());
+                    col.Item().AlignCenter().Text(text => text.Span("Served").FontSize(8));
                 });
                 row.AutoItem().PaddingRight(10).Border(1).BorderColor(Colors.Orange.Lighten2).Background(Colors.Orange.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text($"{reportData.Summary.UnderservedBarangays} ({reportData.Summary.UnderservedPercentage:F1}%)").FontSize(14).Bold();
-                    col.Item().AlignCenter().Text("Underserved").FontSize(8);
+                    col.Item().AlignCenter().Text(text => text.Span($"{reportData.Summary.UnderservedBarangays} ({reportData.Summary.UnderservedPercentage:F1}%)").FontSize(14).Bold());
+                    col.Item().AlignCenter().Text(text => text.Span("Underserved").FontSize(8));
                 });
                 row.AutoItem().Border(1).BorderColor(Colors.Red.Lighten2).Background(Colors.Red.Lighten4).Padding(8).Column(col =>
                 {
-                    col.Item().AlignCenter().Text($"{reportData.Summary.UnservedBarangays} ({reportData.Summary.UnservedPercentage:F1}%)").FontSize(14).Bold();
-                    col.Item().AlignCenter().Text("Unserved").FontSize(8);
+                    col.Item().AlignCenter().Text(text => text.Span($"{reportData.Summary.UnservedBarangays} ({reportData.Summary.UnservedPercentage:F1}%)").FontSize(14).Bold());
+                    col.Item().AlignCenter().Text(text => text.Span("Unserved").FontSize(8));
                 });
             });
 
             // Provider Coverage Summary
             if (reportData.Summary.AllProviders.Count > 0)
             {
-                column.Item().PaddingTop(15).Text("Provider Coverage Summary").FontSize(12).Bold();
+                column.Item().PaddingTop(15).Text(text => text.Span("Provider Coverage Summary").FontSize(12).Bold());
                 column.Item().PaddingTop(5).Table(table =>
                 {
                     table.ColumnsDefinition(columns =>
@@ -223,9 +218,9 @@ public class ReportGenerationService : IReportGenerationService
 
                     table.Header(header =>
                     {
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Service Provider").Bold();
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Barangays Covered").Bold();
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Coverage %").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Service Provider").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Barangays Covered").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Coverage %").Bold());
                     });
 
                     foreach (var provider in reportData.Summary.AllProviders.Take(10))
@@ -233,15 +228,15 @@ public class ReportGenerationService : IReportGenerationService
                         var coverage = reportData.Summary.ProviderCoverage.GetValueOrDefault(provider, 0);
                         var percentage = reportData.Summary.TotalBarangays > 0 ? (double)coverage / reportData.Summary.TotalBarangays * 100 : 0;
 
-                        table.Cell().Border(1).Padding(5).Text(provider);
-                        table.Cell().Border(1).Padding(5).AlignCenter().Text(coverage.ToString());
-                        table.Cell().Border(1).Padding(5).AlignCenter().Text($"{percentage:F1}%");
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span(provider));
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(coverage.ToString()));
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span($"{percentage:F1}%"));
                     }
                 });
             }
 
             // Municipality Breakdown
-            column.Item().PaddingTop(15).Text("Municipality Breakdown").FontSize(12).Bold();
+            column.Item().PaddingTop(15).Text(text => text.Span("Municipality Breakdown").FontSize(12).Bold());
 
             // Municipality Sample Table
             column.Item().PaddingTop(5).Table(table =>
@@ -255,9 +250,9 @@ public class ReportGenerationService : IReportGenerationService
 
                 table.Header(header =>
                 {
-                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Location").Bold();
-                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Providers").Bold();
-                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Service Status").Bold();
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Location").Bold());
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Providers").Bold());
+                    header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Service Status").Bold());
                 });
 
                 foreach (var municipality in reportData.Municipalities)
@@ -272,9 +267,9 @@ public class ReportGenerationService : IReportGenerationService
                             _ => Colors.Red.Lighten4
                         };
 
-                        table.Cell().Border(1).Padding(5).Text($"{municipality.Name} - {barangay.Name}").FontSize(8);
-                        table.Cell().Border(1).Padding(5).Text(providersText).FontSize(7);
-                        table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(barangay.ServiceStatus.ToString().ToUpper()).FontSize(8).Bold();
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span($"{municipality.Name} - {barangay.Name}").FontSize(8));
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span(providersText).FontSize(7));
+                        table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(text => text.Span(barangay.ServiceStatus.ToString().ToUpper()).FontSize(8).Bold());
                     }
                 }
             });
@@ -347,11 +342,11 @@ public class ReportGenerationService : IReportGenerationService
 
                     table.Header(header =>
                     {
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Area").Bold();
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Status").Bold();
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Population").Bold();
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Score").Bold();
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Last Assessed").Bold();
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Area").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Status").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Population").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Score").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Last Assessed").Bold());
                     });
 
                     foreach (var area in reportData.PriorityAreas)
@@ -363,11 +358,11 @@ public class ReportGenerationService : IReportGenerationService
                             _ => Colors.Grey.Lighten4
                         };
 
-                        table.Cell().Border(1).Padding(5).Text(area.LocationName).FontSize(8);
-                        table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(area.ConnectivityStatus.ToString()).FontSize(8);
-                        table.Cell().Border(1).Padding(5).AlignRight().Text((area.Population ?? 0).ToString("N0")).FontSize(8);
-                        table.Cell().Border(1).Padding(5).AlignCenter().Text(area.TotalScore.ToString()).FontSize(8);
-                        table.Cell().Border(1).Padding(5).AlignCenter().Text(area.LastAssessed.ToString("MMM dd, yyyy")).FontSize(8);
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span(area.LocationName).FontSize(8));
+                        table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(text => text.Span(area.ConnectivityStatus.ToString()).FontSize(8));
+                        table.Cell().Border(1).Padding(5).AlignRight().Text(text => text.Span((area.Population ?? 0).ToString("N0")).FontSize(8));
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(area.TotalScore.ToString()).FontSize(8));
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(area.LastAssessed.ToString("MMM dd, yyyy")).FontSize(8));
                     }
                 });
             }
@@ -903,7 +898,7 @@ public class ReportGenerationService : IReportGenerationService
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
-                page.Header().Text(reportTitle).Bold().FontSize(16).AlignCenter();
+                page.Header().AlignCenter().Text(text => text.Span(reportTitle).Bold().FontSize(16));
                 page.Content().Element(content => ComposeConnectivityContent(content, reportData));
                 page.Footer().AlignCenter().Text(x =>
                 {
@@ -959,7 +954,7 @@ public class ReportGenerationService : IReportGenerationService
             {
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Text("Summary Statistics").Bold().FontSize(14);
+                    col.Item().Text(text => text.Span("Summary Statistics").Bold().FontSize(14));
                     col.Item().PaddingTop(5).Text($"Total Served Areas: {reportData.TotalServedAreas:N0}");
                     col.Item().Text($"Total Population Served: {reportData.ServedPopulation:N0}");
                     col.Item().Text($"Average Total Score: {reportData.ScoreSummary.AverageTotalScore:F2}/15");
@@ -967,7 +962,7 @@ public class ReportGenerationService : IReportGenerationService
 
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Text("Score Distribution").Bold().FontSize(14);
+                    col.Item().Text(text => text.Span("Score Distribution").Bold().FontSize(14));
                     col.Item().PaddingTop(5).Text($"Excellent (13-15): {reportData.ScoreSummary.ExcellentCount:N0}");
                     col.Item().Text($"Good (11-12): {reportData.ScoreSummary.GoodCount:N0}");
                     col.Item().Text($"Moderate (8-10): {reportData.ScoreSummary.ModerateCount:N0}");
@@ -980,7 +975,7 @@ public class ReportGenerationService : IReportGenerationService
             {
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Text("Average Rubric Scores").Bold().FontSize(14);
+                    col.Item().Text(text => text.Span("Average Rubric Scores").Bold().FontSize(14));
                     col.Item().PaddingTop(5).Text($"Fiber Coverage: {reportData.ScoreSummary.AverageFiberCoverageScore:F2}/3");
                     col.Item().Text($"Internet Access: {reportData.ScoreSummary.AverageInternetAccessScore:F2}/3");
                     col.Item().Text($"Technology Type: {reportData.ScoreSummary.AverageTechnologyTypeScore:F2}/3");
@@ -988,14 +983,16 @@ public class ReportGenerationService : IReportGenerationService
 
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Text("").FontSize(14);
+                    // Empty header to align with the previous column's "Average Rubric Scores" header
+                    col.Item().Text(text => text.Span("").FontSize(14));
                     col.Item().PaddingTop(5).Text($"Quality of Service: {reportData.ScoreSummary.AverageQualityOfServiceScore:F2}/3");
                     col.Item().Text($"Coverage Availability: {reportData.ScoreSummary.AverageCoverageAvailabilityScore:F2}/3");
                 });
             });
 
-            // Top areas table (limited to first 20)
-            column.Item().Text($"Top {Math.Min(20, reportData.Areas.Count)} Areas by Score").Bold().FontSize(14);
+            // All areas table
+            column.Item()
+                .Text(text => text.Span($"All Areas by Score ({reportData.Areas.Count} total)").Bold().FontSize(14));
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(columns =>
@@ -1013,14 +1010,14 @@ public class ReportGenerationService : IReportGenerationService
                 // Header
                 table.Header(header =>
                 {
-                    header.Cell().Element(CellStyle).Text("Location").Bold();
-                    header.Cell().Element(CellStyle).Text("Pop").Bold();
-                    header.Cell().Element(CellStyle).Text("Fiber").Bold();
-                    header.Cell().Element(CellStyle).Text("Internet").Bold();
-                    header.Cell().Element(CellStyle).Text("Tech").Bold();
-                    header.Cell().Element(CellStyle).Text("QoS").Bold();
-                    header.Cell().Element(CellStyle).Text("Cov").Bold();
-                    header.Cell().Element(CellStyle).Text("Total").Bold();
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Location").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Pop").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Fiber").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Internet").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Tech").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("QoS").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Cov").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Total").Bold());
 
                     static IContainer CellStyle(IContainer container)
                     {
@@ -1030,16 +1027,16 @@ public class ReportGenerationService : IReportGenerationService
                 });
 
                 // Data rows
-                foreach (var area in reportData.Areas.Take(20))
+                foreach (var area in reportData.Areas)
                 {
-                    table.Cell().Element(CellStyle).Text(area.LocationName).FontSize(8);
-                    table.Cell().Element(CellStyle).Text(area.Population?.ToString("N0") ?? "N/A").FontSize(8);
-                    table.Cell().Element(CellStyle).Text(area.FiberCoverageScore.ToString()).FontSize(8);
-                    table.Cell().Element(CellStyle).Text(area.InternetAccessScore.ToString()).FontSize(8);
-                    table.Cell().Element(CellStyle).Text(area.TechnologyTypeScore.ToString()).FontSize(8);
-                    table.Cell().Element(CellStyle).Text(area.QualityOfServiceScore.ToString()).FontSize(8);
-                    table.Cell().Element(CellStyle).Text(area.CoverageAvailabilityScore.ToString()).FontSize(8);
-                    table.Cell().Element(CellStyle).Text(area.TotalScore.ToString()).Bold().FontSize(8);
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.LocationName).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.Population?.ToString("N0") ?? "N/A").FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.FiberCoverageScore.ToString()).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.InternetAccessScore.ToString()).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.TechnologyTypeScore.ToString()).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.QualityOfServiceScore.ToString()).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.CoverageAvailabilityScore.ToString()).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.TotalScore.ToString()).Bold().FontSize(8));
 
                     static IContainer CellStyle(IContainer container)
                     {

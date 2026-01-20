@@ -255,13 +255,10 @@ public class ReportsController : ControllerBase
         }
 
         // Download file from blob storage
-        var containerName = "wireless-broadband-reports";
-        var blobFileName = Path.GetFileName(statusDto.FilePath);
-        var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
-
-        if (fileStream == null)
+        var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+        if (errorResult != null)
         {
-            return NotFound(new { message = "Report file not found in storage" });
+            return errorResult;
         }
 
         // Determine content type from format
@@ -269,7 +266,7 @@ public class ReportsController : ControllerBase
             ? "application/pdf"
             : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-        return File(fileStream, contentType, blobFileName);
+        return File(fileStream!, contentType, fileName!);
     }
 
     /// <summary>
@@ -465,7 +462,8 @@ public class ReportsController : ControllerBase
 
     /// <summary>
     /// Generate and download connectivity report (served areas) in PDF or Excel format.
-    /// Includes all served areas with complete rubric score breakdown.
+    /// Includes all served areas with complete data (no samples or limits). 
+    /// Complete rubric score breakdown is included for all areas.
     /// </summary>
     /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
     /// <param name="regionId">Optional filter by Region ID</param>
@@ -692,6 +690,33 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
+    /// Downloads a report file from blob storage and validates the file path format.
+    /// FilePath format expected: reports/environment/area-code/filename
+    /// </summary>
+    /// <param name="filePath">The full file path from the job status (e.g., reports/development/region-PH01/file.xlsx)</param>
+    /// <returns>A tuple containing (fileStream, fileName) on success, or (null, null) with appropriate ActionResult on error</returns>
+    private async Task<(Stream? fileStream, string? fileName, ActionResult? errorResult)> DownloadReportFromBlobAsync(string filePath)
+    {
+        const string reportsPrefix = "reports/";
+
+        if (!filePath.StartsWith(reportsPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return (null, null, BadRequest(new { message = "Invalid report file path format" }));
+        }
+
+        var blobPath = filePath[reportsPrefix.Length..];
+        var fileName = Path.GetFileName(filePath);
+        var fileStream = await _blobStorageService.DownloadAsync("reports", blobPath);
+
+        if (fileStream == null)
+        {
+            return (null, null, NotFound(new { message = "Report file not found in storage" }));
+        }
+
+        return (fileStream!, fileName!, null);
+    }
+
+    /// <summary>
     /// Generate wired broadband report as a background job (recommended for large reports)
     /// </summary>
     /// <param name="format">Report format: Excel (0) or Pdf (1)</param>
@@ -854,13 +879,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            var containerName = "wired-broadband-reports";
-            var blobFileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
-
-            if (fileStream == null)
+            var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+            if (errorResult != null)
             {
-                return NotFound(new { message = "Report file not found in storage" });
+                return errorResult;
             }
 
             // Determine content type and file name from format
@@ -868,7 +890,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, blobFileName);
+            return File(fileStream!, contentType, fileName!);
         }
         catch (Exception ex)
         {
@@ -1044,13 +1066,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            var containerName = "connectivity-gap-reports";
-            var blobFileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
-
-            if (fileStream == null)
+            var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+            if (errorResult != null)
             {
-                return NotFound(new { message = "Report file not found in storage" });
+                return errorResult;
             }
 
             // Determine content type and file name from format
@@ -1058,7 +1077,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, blobFileName);
+            return File(fileStream!, contentType, fileName!);
         }
         catch (Exception ex)
         {
@@ -1234,13 +1253,10 @@ public class ReportsController : ControllerBase
             }
 
             // Download file from blob storage
-            var containerName = "connectivity-reports";
-            var blobFileName = Path.GetFileName(statusDto.FilePath);
-            var fileStream = await _blobStorageService.DownloadAsync(containerName, blobFileName);
-
-            if (fileStream == null)
+            var (fileStream, fileName, errorResult) = await DownloadReportFromBlobAsync(statusDto.FilePath);
+            if (errorResult != null)
             {
-                return NotFound(new { message = "Report file not found in storage" });
+                return errorResult;
             }
 
             // Determine content type and file name from format
@@ -1248,7 +1264,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream, contentType, blobFileName);
+            return File(fileStream!, contentType, fileName!);
         }
         catch (Exception ex)
         {
@@ -1256,4 +1272,3 @@ public class ReportsController : ControllerBase
         }
     }
 }
-
