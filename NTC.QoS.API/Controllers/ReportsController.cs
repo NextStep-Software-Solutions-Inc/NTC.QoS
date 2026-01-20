@@ -890,7 +890,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream!, contentType, fileName);
+            return File(fileStream!, contentType, fileName!);
         }
         catch (Exception ex)
         {
@@ -1077,7 +1077,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream!, contentType, fileName);
+            return File(fileStream!, contentType, fileName!);
         }
         catch (Exception ex)
         {
@@ -1264,7 +1264,7 @@ public class ReportsController : ControllerBase
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-            return File(fileStream!, contentType, fileName);
+            return File(fileStream!, contentType, fileName!);
         }
         catch (Exception ex)
         {
