@@ -246,7 +246,7 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
             // Step 4: Upload to blob storage
             _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
 
-            var (fileName, blobPath) = await GenerateFileNameAndBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
+            var (_, blobPath) = await GenerateFileNameAndBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
             
             using var stream = new MemoryStream(reportBytes);
             await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
