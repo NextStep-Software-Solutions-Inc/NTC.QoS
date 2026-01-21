@@ -146,8 +146,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 // Trigger background job for municipality assessments with hierarchical barangay generation
                 var jobRequest = new StartConnectivityAssessmentJobRequest
                 {
-                    LocationIds = municipalityIds,
-                    LocationType = LocationTypeEnum.Municipality,
+                    MunicipalityIds = municipalityIds,
                     ForceRecalculate = true,
                     GenerateHierarchicalAssessments = true,
                     HierarchicalDepth = 1 // Generate barangay assessments

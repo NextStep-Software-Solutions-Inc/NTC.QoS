@@ -139,7 +139,12 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
             GenerateHierarchicalAssessments = false,
             HierarchicalDepth = 0,
             ForceRecalculate = true, // Since new data may change existing assessments
-            JobId = Guid.NewGuid().ToString()
+            JobId = Guid.NewGuid().ToString(),
+            // Also populate deprecated properties for backward compatibility
+            #pragma warning disable CS0618 // Type or member is obsolete
+            LocationIds = [file.RegionId.Value],
+            LocationType = Domain.Enums.LocationTypeEnum.Regional
+            #pragma warning restore CS0618
         };
 
         // Store the assessment job ID in the file record for status tracking

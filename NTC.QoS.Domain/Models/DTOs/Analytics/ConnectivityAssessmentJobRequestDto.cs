@@ -38,7 +38,7 @@ public class ConnectivityAssessmentJobRequestDto
     /// Kept for backward compatibility - will be removed in future version
     /// </summary>
     [Obsolete("Use typed location ID properties (RegionIds, ProvinceIds, MunicipalityIds, BarangayIds) instead")]
-    public List<Guid> LocationIds { get; set; } = [];
+    public List<Guid>? LocationIds { get; set; }
 
     /// <summary>
     /// DEPRECATED: Use GetLocationType() method instead
@@ -136,7 +136,7 @@ public class ConnectivityAssessmentJobRequestDto
         
         // Fallback to deprecated property
         #pragma warning disable CS0618 // Type or member is obsolete
-        return LocationIds;
+        return LocationIds ?? [];
         #pragma warning restore CS0618
     }
 

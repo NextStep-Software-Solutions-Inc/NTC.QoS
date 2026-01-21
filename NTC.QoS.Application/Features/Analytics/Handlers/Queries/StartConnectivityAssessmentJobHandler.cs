@@ -129,9 +129,12 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             var jobId = Guid.NewGuid().ToString("N"); // Generate unique job ID before enqueueing
 
             // Step 2: Calculate ACTUAL location counts from database FIRST
+            var locationType = request.GetLocationType();
+            var locationIds = request.GetLocationIds();
+            
             var actualTotalLocations = await CalculateActualTotalLocationsAsync(
-                request.LocationIds,
-                request.LocationType,
+                locationIds,
+                locationType,
                 request.GenerateHierarchicalAssessments,
                 request.HierarchicalDepth,
                 request.MaxHierarchicalLocations ?? int.MaxValue,
@@ -199,37 +202,23 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             HierarchicalDepth = request.HierarchicalDepth,
             MaxHierarchicalLocations = request.MaxHierarchicalLocations ?? int.MaxValue,
             HierarchicalBatchSize = request.HierarchicalBatchSize ??
-                GetDefaultHierarchicalBatchSize(request.LocationType),
+                GetDefaultHierarchicalBatchSize(request.GetLocationType()),
             ActualTotalLocations = actualTotalLocations,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             UserId = userId,
-            RequestedAt = startTime
+            RequestedAt = startTime,
+            // Copy typed location properties directly
+            RegionIds = request.RegionIds,
+            ProvinceIds = request.ProvinceIds,
+            MunicipalityIds = request.MunicipalityIds,
+            BarangayIds = request.BarangayIds
         };
-
-        // Populate typed location ID properties based on location type
-        switch (request.LocationType)
-        {
-            case LocationTypeEnum.Regional:
-                jobRequest.RegionIds = request.LocationIds;
-                break;
-            case LocationTypeEnum.Provincial:
-                jobRequest.ProvinceIds = request.LocationIds;
-                break;
-            case LocationTypeEnum.Municipality:
-                jobRequest.MunicipalityIds = request.LocationIds;
-                break;
-            case LocationTypeEnum.Barangay:
-                jobRequest.BarangayIds = request.LocationIds;
-                break;
-            default:
-                throw new InvalidOperationException($"Unsupported location type: {request.LocationType}");
-        }
 
         // Also populate deprecated properties for backward compatibility
         #pragma warning disable CS0618 // Type or member is obsolete
-        jobRequest.LocationIds = request.LocationIds;
-        jobRequest.LocationType = request.LocationType;
+        jobRequest.LocationIds = request.GetLocationIds();
+        jobRequest.LocationType = request.GetLocationType();
         #pragma warning restore CS0618
 
         return jobRequest;
@@ -323,7 +312,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
         _logger.LogInformation(
             "Started background connectivity assessment job {JobId} (Hangfire: {HangfireJobId}) for {LocationCount} {LocationType}s. " +
             "Hierarchical: {Hierarchical}, Force: {Force}, ActualTotal: {ActualTotal}",
-            jobId, hangfireJobId, request.LocationIds.Count, request.LocationType,
+            jobId, hangfireJobId, request.GetLocationCount(), request.GetLocationType(),
             request.GenerateHierarchicalAssessments,
             request.ForceRecalculate, actualTotalLocations);
     }

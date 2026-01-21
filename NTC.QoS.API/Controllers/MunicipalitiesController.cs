@@ -37,24 +37,28 @@ public class MunicipalitiesController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewMunicipalities)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "provinceId", "regionIds", "isWiredCovered", "isWirelessCovered" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "provinceId", "provinceIds", "regionIds", "isWiredCovered", "isWirelessCovered" })]
     public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(
         int pageSize = 10, 
         int pageNumber = 1, 
+        [FromQuery] Guid[]? provinceIds = null,
         Guid? provinceId = null,
         [FromQuery] Guid[]? regionIds = null,
         bool? isWiredCovered = null,
         bool? isWirelessCovered = null)
     {
+#pragma warning disable CS0618 // Type or member is obsolete
         var request = new GetAllMunicipalitiesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
+            ProvinceIds = provinceIds,
             ProvinceId = provinceId,
             RegionIds = regionIds,
             IsWiredCovered = isWiredCovered,
             IsWirelessCovered = isWirelessCovered
         };
+#pragma warning restore CS0618 // Type or member is obsolete
         var municipalities = await _mediator.Send(request);
         return municipalities.Succeeded ? Ok(municipalities) : BadRequest(municipalities);
     }

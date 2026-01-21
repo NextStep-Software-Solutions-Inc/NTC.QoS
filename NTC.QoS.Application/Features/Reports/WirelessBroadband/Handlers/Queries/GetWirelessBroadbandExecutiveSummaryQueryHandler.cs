@@ -160,8 +160,7 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                 
                 var jobRequest = new StartConnectivityAssessmentJobRequest
                 {
-                    LocationIds = municipalityIds,
-                    LocationType = LocationTypeEnum.Municipality,
+                    MunicipalityIds = municipalityIds,
                     ForceRecalculate = true,
                     GenerateHierarchicalAssessments = true,
                     HierarchicalDepth = 1 // Generate barangay assessments

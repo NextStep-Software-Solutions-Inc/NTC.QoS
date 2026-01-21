@@ -11,8 +11,26 @@ namespace NTC.QoS.Application.Features.Analytics.Requests;
 /// </summary>
 public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<ConnectivityAssessmentJobResponseDto>>
 {
-    public List<Guid> LocationIds { get; set; } = [];
-    public LocationTypeEnum LocationType { get; set; }
+    /// <summary>
+    /// Region IDs to process (mutually exclusive with other location types)
+    /// </summary>
+    public List<Guid>? RegionIds { get; set; }
+
+    /// <summary>
+    /// Province IDs to process (mutually exclusive with other location types)
+    /// </summary>
+    public List<Guid>? ProvinceIds { get; set; }
+
+    /// <summary>
+    /// Municipality IDs to process (mutually exclusive with other location types)
+    /// </summary>
+    public List<Guid>? MunicipalityIds { get; set; }
+
+    /// <summary>
+    /// Barangay IDs to process (mutually exclusive with other location types)
+    /// </summary>
+    public List<Guid>? BarangayIds { get; set; }
+
     public bool ForceRecalculate { get; set; } = false;
 
     /// <summary>
@@ -56,4 +74,38 @@ public class StartConnectivityAssessmentJobRequest : IRequest<ApiResponse<Connec
     /// If null, no end date filter is applied.
     /// </summary>
     public DateTime? EndDate { get; set; }
+
+    /// <summary>
+    /// Get the location type based on which typed property is populated
+    /// </summary>
+    public LocationTypeEnum GetLocationType()
+    {
+        if (BarangayIds?.Any() == true) return LocationTypeEnum.Barangay;
+        if (MunicipalityIds?.Any() == true) return LocationTypeEnum.Municipality;
+        if (ProvinceIds?.Any() == true) return LocationTypeEnum.Provincial;
+        if (RegionIds?.Any() == true) return LocationTypeEnum.Regional;
+        
+        throw new InvalidOperationException("No location IDs provided. Please specify RegionIds, ProvinceIds, MunicipalityIds, or BarangayIds.");
+    }
+
+    /// <summary>
+    /// Get all location IDs regardless of type
+    /// </summary>
+    public List<Guid> GetLocationIds()
+    {
+        if (BarangayIds?.Any() == true) return BarangayIds;
+        if (MunicipalityIds?.Any() == true) return MunicipalityIds;
+        if (ProvinceIds?.Any() == true) return ProvinceIds;
+        if (RegionIds?.Any() == true) return RegionIds;
+        
+        return [];
+    }
+
+    /// <summary>
+    /// Get count of locations to process
+    /// </summary>
+    public int GetLocationCount()
+    {
+        return GetLocationIds().Count;
+    }
 }

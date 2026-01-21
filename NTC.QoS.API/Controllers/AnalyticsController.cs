@@ -298,8 +298,19 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <summary>
     /// Start a background job to generate connectivity assessments
     /// Use this for large-scale processing that would timeout in regular API calls
+    /// 
+    /// Location Specification:
+    /// - RegionIds: Process assessments for specified regions
+    /// - ProvinceIds: Process assessments for specified provinces
+    /// - MunicipalityIds: Process assessments for specified municipalities
+    /// - BarangayIds: Process assessments for specified barangays
+    /// 
+    /// At least one location type must be provided. Multiple filters can be specified,
+    /// but the most specific filter takes precedence (Barangay > Municipality > Province > Region).
+    /// The job will process assessments for the specified locations and optionally their children 
+    /// (if GenerateHierarchicalAssessments is true).
     /// </summary>
-    /// <param name="request">Background job request parameters</param>
+    /// <param name="request">Background job request parameters including typed location IDs</param>
     /// <returns>Job ID and tracking information</returns>
     [HttpPost("connectivity-assessment/background")]
     [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobResponseDto>), StatusCodes.Status200OK)]
