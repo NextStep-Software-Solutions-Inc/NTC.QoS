@@ -20,23 +20,29 @@ public class StartConnectivityAssessmentJobRequestValidator : AbstractValidator<
 
     public StartConnectivityAssessmentJobRequestValidator()
     {
-        // Location IDs validation
-        RuleFor(x => x.LocationIds)
-            .NotNull()
-            .WithMessage("LocationIds is required.")
-            .NotEmpty()
+        // MANDATORY: Require at least one geographic filter to prevent unscoped queries
+        RuleFor(x => x)
+            .Must(HaveAtLeastOneGeographicFilter)
+            .WithMessage("At least one geographic filter (RegionIds, ProvinceIds, MunicipalityIds, or BarangayIds) is required to generate assessments. This prevents performance issues from processing all locations.")
+            .WithName("GeographicFilters");
+
+        // Note: Geographic filter precedence is handled in the query handler.
+        // Lower admin levels take precedence: Barangay > Municipality > Province > Region
+        // Multiple filters can be provided, but the most specific will be used.
+
+        // Location count validation
+        RuleFor(x => x.GetLocationCount())
+            .GreaterThan(0)
             .WithMessage("At least one LocationId must be provided.")
-            .Must(ids => ids.Count <= MAX_LOCATIONS_PER_JOB)
-            .WithMessage($"Cannot queue background job for more than {MAX_LOCATIONS_PER_JOB} locations at once.")
+            .LessThanOrEqualTo(MAX_LOCATIONS_PER_JOB)
+            .WithMessage($"Cannot queue background job for more than {MAX_LOCATIONS_PER_JOB} locations at once.");
+
+        // Individual location ID validation
+        RuleFor(x => x.GetLocationIds())
             .Must(ids => ids.All(id => id != Guid.Empty))
             .WithMessage("All LocationIds must be valid (non-empty) GUIDs.")
             .Must(ids => ids.Distinct().Count() == ids.Count)
             .WithMessage("Duplicate LocationIds are not allowed.");
-
-        // Location type validation
-        RuleFor(x => x.LocationType)
-            .IsInEnum()
-            .WithMessage("LocationType must be a valid enum value (Barangay, Municipality, Provincial, or Regional).");
 
         // Hierarchical depth validation
         RuleFor(x => x.HierarchicalDepth)
@@ -81,19 +87,30 @@ public class StartConnectivityAssessmentJobRequestValidator : AbstractValidator<
 
         // Business rule validations - more lenient for background processing
         RuleFor(x => x)
-            .Must(x => x.LocationType != LocationTypeEnum.Regional || x.LocationIds.Count <= MAX_REGIONAL_LOCATIONS)
+            .Must(x => x.GetLocationType() != LocationTypeEnum.Regional || x.GetLocationCount() <= MAX_REGIONAL_LOCATIONS)
             .WithMessage($"Regional-level background assessment generation is limited to {MAX_REGIONAL_LOCATIONS} locations at once due to data volume.")
 
             // Warning for very large hierarchical jobs
-            .Must(x => !x.GenerateHierarchicalAssessments || x.LocationIds.Count <= 50)
+            .Must(x => !x.GenerateHierarchicalAssessments || x.GetLocationCount() <= 50)
             .WithMessage("When GenerateHierarchicalAssessments is enabled, recommend limiting to 50 locations to manage processing time.")
 
             // Combined high-resource scenario guidance
-            .Must(x => !(x.ForceRecalculate && x.GenerateHierarchicalAssessments && x.LocationIds.Count > 20))
+            .Must(x => !(x.ForceRecalculate && x.GenerateHierarchicalAssessments && x.GetLocationCount() > 20))
             .WithMessage("When ForceRecalculate and GenerateHierarchicalAssessments are both enabled, recommend limiting to 20 locations for reasonable processing time.")
 
             // Prevent extremely large jobs with full hierarchical processing
-            .Must(x => !(x.GenerateHierarchicalAssessments && x.HierarchicalDepth >= 3 && x.LocationIds.Count > 10))
+            .Must(x => !(x.GenerateHierarchicalAssessments && x.HierarchicalDepth >= 3 && x.GetLocationCount() > 10))
             .WithMessage("When enabling full hierarchical processing (depth >= 3), recommend limiting to 10 locations to prevent extremely long processing times.");
+    }
+
+    /// <summary>
+    /// Validates that at least one geographic filter is provided
+    /// </summary>
+    private static bool HaveAtLeastOneGeographicFilter(StartConnectivityAssessmentJobRequest request)
+    {
+        return request.RegionIds?.Any() == true || 
+               request.ProvinceIds?.Any() == true || 
+               request.MunicipalityIds?.Any() == true || 
+               request.BarangayIds?.Any() == true;
     }
 }
