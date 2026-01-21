@@ -52,7 +52,17 @@ public class GetAllMunicipalitiesHandler(
             allMunicipalities = allMunicipalities.Where(m => coveredMunicipalityIds.Contains(m.Id));
         }
 
-        allMunicipalities = allMunicipalities.Where(m => !request.ProvinceId.HasValue || m.Province.Id == request.ProvinceId);
+        // Filter by province(s) - ProvinceIds takes precedence over deprecated ProvinceId
+        if (request.ProvinceIds is not null && request.ProvinceIds.Length > 0)
+        {
+            allMunicipalities = allMunicipalities.Where(m => request.ProvinceIds.Contains(m.ProvinceId));
+        }
+#pragma warning disable CS0618 // Type or member is obsolete
+        else if (request.ProvinceId.HasValue)
+        {
+            allMunicipalities = allMunicipalities.Where(m => m.Province.Id == request.ProvinceId);
+        }
+#pragma warning restore CS0618 // Type or member is obsolete
 
         if (request.RegionIds is not null && request.RegionIds.Length > 0)
         {
