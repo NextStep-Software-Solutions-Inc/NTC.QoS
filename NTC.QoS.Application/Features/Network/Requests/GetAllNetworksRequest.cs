@@ -11,8 +11,9 @@ public class GetAllNetworksRequest(
     Guid? networkTemplateId,
     Guid? technologyId,
     Guid? bandId,
-    Guid? locationId,
-    string? locationType,
+    Guid? municipalityId,
+    Guid? provinceId,
+    Guid? regionId,
     Guid? systemTypeId,
     Guid? serviceProviderId,
     Guid? cellId) : IRequest<PaginatedResponse<NetworkDto>>
@@ -23,8 +24,9 @@ public class GetAllNetworksRequest(
     public Guid? NetworkTemplateId { get; set; } = networkTemplateId;
     public Guid? TechnologyId { get; set; } = technologyId;
     public Guid? BandId { get; set; } = bandId;
-    public Guid? LocationId { get; set; } = locationId;
-    public string? LocationType { get; set; } = locationType;
+    public Guid? MunicipalityId { get; set; } = municipalityId;
+    public Guid? ProvinceId { get; set; } = provinceId;
+    public Guid? RegionId { get; set; } = regionId;
     public Guid? SystemTypeId { get; set; } = systemTypeId;
     public Guid? ServiceProviderId { get; set; } = serviceProviderId;
     public Guid? CellId { get; set; } = cellId;
