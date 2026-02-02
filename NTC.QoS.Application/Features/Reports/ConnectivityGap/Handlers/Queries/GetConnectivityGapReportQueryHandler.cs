@@ -16,6 +16,7 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IProvinceRepository _provinceRepository;
     private readonly IRegionRepository _regionRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly ILogger<GetConnectivityGapReportQueryHandler> _logger;
 
     // Cache for location names during the request lifetime
@@ -27,6 +28,7 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
         IMunicipalityRepository municipalityRepository,
         IProvinceRepository provinceRepository,
         IRegionRepository regionRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         ILogger<GetConnectivityGapReportQueryHandler> logger)
     {
         _assessmentRepository = assessmentRepository;
@@ -34,6 +36,7 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _logger = logger;
     }
 
@@ -104,10 +107,17 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
                 paginatedGaps.Select(a => (a.LocationId, a.LocationType)).ToList(),
                 cancellationToken);
 
+            // Fetch barangay details with municipality and province names
+            var barangayDetails = await GetBarangayDetailsAsync(
+                paginatedGaps.Select(a => a.LocationId).ToList(),
+                cancellationToken);
+
             var priorityAreas = paginatedGaps.Select(a => new PriorityAreaDto
             {
                 LocationId = a.LocationId,
                 LocationName = locationNames.GetValueOrDefault((a.LocationId, a.LocationType), $"Location-{a.LocationId}"),
+                MunicipalityName = barangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
+                ProvinceName = barangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
                 ConnectivityStatus = a.ConnectivityStatus,
                 Population = a.Population,
                 TotalScore = a.TotalScore,
@@ -148,13 +158,17 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
     {
         var query = _assessmentRepository.Query(a => a.LocationType == locationType);
 
+        // Only include barangays with BarangayCoverage records
+        var coveredBarangayIds = _barangayCoverageRepository.Query()
+            .Select(bc => bc.BarangayId);
+
         // Apply geographic filter precedence: Municipality > Province > Region
         // Lower admin levels take priority - only the most specific filter is applied
         if (municipalityId.HasValue)
         {
             // Get barangay IDs first, then filter assessments
             var barangayIdsInMunicipality = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value)
+                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id),
                 cancellationToken);
 
@@ -172,7 +186,7 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
         {
             // Get barangay IDs in province first, then filter assessments
             var barangayIdsInProvince = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value)
+                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id),
                 cancellationToken);
 
@@ -190,7 +204,7 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
         {
             // Get barangay IDs in region first, then filter assessments
             var barangayIdsInRegion = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value)
+                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id),
                 cancellationToken);
 
@@ -201,6 +215,23 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
             else
             {
                 // No barangays found, return empty query
+                query = query.Where(a => false);
+            }
+        }
+        else
+        {
+            // No geographic filter, just filter by covered barangays
+            var allCoveredBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            if (allCoveredBarangayIds.Count > 0)
+            {
+                query = query.Where(a => allCoveredBarangayIds.Contains(a.LocationId));
+            }
+            else
+            {
                 query = query.Where(a => false);
             }
         }
@@ -308,5 +339,35 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
 
             _ => new Dictionary<Guid, string>()
         };
+    }
+
+    private async Task<Dictionary<Guid, (string MunicipalityName, string ProvinceName)>> GetBarangayDetailsAsync(
+        List<Guid> barangayIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (barangayIds.Count == 0)
+            return new Dictionary<Guid, (string, string)>();
+
+        try
+        {
+            var barangays = await _barangayRepository.ToListAsync(
+                _barangayRepository.QueryAsNoTracking(b => barangayIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.Id,
+                        MunicipalityName = b.Municipality.Name,
+                        ProvinceName = b.Municipality.Province.Name
+                    }),
+                cancellationToken);
+
+            return barangays.ToDictionary(
+                x => x.Id,
+                x => (x.MunicipalityName, x.ProvinceName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching barangay details with municipality and province names");
+            return new Dictionary<Guid, (string, string)>();
+        }
     }
 }

@@ -16,6 +16,7 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IProvinceRepository _provinceRepository;
     private readonly IRegionRepository _regionRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly ILogger<GetConnectivityReportQueryHandler> _logger;
 
     // Cache for location names during the request lifetime
@@ -27,6 +28,7 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
         IMunicipalityRepository municipalityRepository,
         IProvinceRepository provinceRepository,
         IRegionRepository regionRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         ILogger<GetConnectivityReportQueryHandler> logger)
     {
         _assessmentRepository = assessmentRepository;
@@ -34,6 +36,7 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _logger = logger;
     }
 
@@ -91,10 +94,17 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 paginatedAreas.Select(a => (a.LocationId, a.LocationType)).ToList(),
                 cancellationToken);
 
+            // Fetch barangay details with municipality and province names
+            var barangayDetails = await GetBarangayDetailsAsync(
+                paginatedAreas.Select(a => a.LocationId).ToList(),
+                cancellationToken);
+
             var areaDetails = paginatedAreas.Select(a => new ConnectivityAreaDetailDto
             {
                 LocationId = a.LocationId,
                 LocationName = locationNames.GetValueOrDefault((a.LocationId, a.LocationType), $"Location-{a.LocationId}"),
+                MunicipalityName = barangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
+                ProvinceName = barangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
                 ConnectivityStatus = a.ConnectivityStatus,
                 Population = a.Population,
                 FiberCoverageScore = a.FiberCoverageScore,
@@ -179,11 +189,15 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
     {
         var query = _assessmentRepository.Query(a => a.LocationType == locationType);
 
+        // Only include barangays with BarangayCoverage records
+        var coveredBarangayIds = _barangayCoverageRepository.Query()
+            .Select(bc => bc.BarangayId);
+
         // Apply geographic filter precedence: Municipality > Province > Region
         if (municipalityId.HasValue)
         {
             var barangayIdsInMunicipality = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value)
+                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id),
                 cancellationToken);
 
@@ -199,7 +213,7 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
         else if (provinceId.HasValue)
         {
             var barangayIdsInProvince = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value)
+                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id),
                 cancellationToken);
 
@@ -215,13 +229,30 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
         else if (regionId.HasValue)
         {
             var barangayIdsInRegion = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value)
+                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id),
                 cancellationToken);
 
             if (barangayIdsInRegion.Count > 0)
             {
                 query = query.Where(a => barangayIdsInRegion.Contains(a.LocationId));
+            }
+            else
+            {
+                query = query.Where(a => false);
+            }
+        }
+        else
+        {
+            // No geographic filter, just filter by covered barangays
+            var allCoveredBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            if (allCoveredBarangayIds.Count > 0)
+            {
+                query = query.Where(a => allCoveredBarangayIds.Contains(a.LocationId));
             }
             else
             {
@@ -322,5 +353,35 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
 
             _ => new Dictionary<Guid, string>()
         };
+    }
+
+    private async Task<Dictionary<Guid, (string MunicipalityName, string ProvinceName)>> GetBarangayDetailsAsync(
+        List<Guid> barangayIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (barangayIds.Count == 0)
+            return new Dictionary<Guid, (string, string)>();
+
+        try
+        {
+            var barangays = await _barangayRepository.ToListAsync(
+                _barangayRepository.QueryAsNoTracking(b => barangayIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.Id,
+                        MunicipalityName = b.Municipality.Name,
+                        ProvinceName = b.Municipality.Province.Name
+                    }),
+                cancellationToken);
+
+            return barangays.ToDictionary(
+                x => x.Id,
+                x => (x.MunicipalityName, x.ProvinceName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching barangay details with municipality and province names");
+            return new Dictionary<Guid, (string, string)>();
+        }
     }
 }
