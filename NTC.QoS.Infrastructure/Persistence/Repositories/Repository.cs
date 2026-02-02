@@ -86,7 +86,15 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
     public void Update(TEntity entity) => _context.Update(entity);
     public void Delete(TEntity entity) => _context.Remove(entity);
     public void AddRange(IEnumerable<TEntity> entities) => _context.AddRange(entities);
-    public async Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default) => await _context.BulkInsertAsync(entities, cancellationToken: cancellationToken);
+    public async Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    {
+        var bulkConfig = new EFCore.BulkExtensions.BulkConfig
+        {
+            BulkCopyTimeout = 600, // 10 minutes for large batches
+            BatchSize = 500 // Optimize batch size for PostgreSQL
+        };
+        await _context.BulkInsertAsync(entities, bulkConfig, cancellationToken: cancellationToken);
+    }
     public void RemoveRange(IEnumerable<TEntity> entities) => _context.RemoveRange(entities);
     public async Task BulkDeleteAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default) => await _context.BulkDeleteAsync(entities, cancellationToken: cancellationToken);
 

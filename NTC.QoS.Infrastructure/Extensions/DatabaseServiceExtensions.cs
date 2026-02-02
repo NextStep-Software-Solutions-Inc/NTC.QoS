@@ -40,6 +40,27 @@ internal static class DatabaseServiceExtensions
                 "For production, set the ConnectionStrings__PostgreSqlConnection environment variable.");
         }
 
+        // Enhance connection string with pool settings if not already present
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
+        
+        // Set connection pool settings for better resilience
+        if (!builder.ContainsKey("Minimum Pool Size"))
+            builder.MinPoolSize = 5; // Keep connections warm
+        
+        if (!builder.ContainsKey("Maximum Pool Size"))
+            builder.MaxPoolSize = 50; // Allow more concurrent connections
+        
+        if (!builder.ContainsKey("Connection Idle Lifetime"))
+            builder.ConnectionIdleLifetime = 300; // 5 minutes - prevents stale connections
+        
+        if (!builder.ContainsKey("Timeout"))
+            builder.Timeout = 60; // 60 seconds connection timeout
+        
+        if (!builder.ContainsKey("Command Timeout"))
+            builder.CommandTimeout = 600; // 10 minutes for long-running commands
+        
+        connectionString = builder.ConnectionString;
+
         // Register interceptors
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<SoftDeleteInterceptor>();

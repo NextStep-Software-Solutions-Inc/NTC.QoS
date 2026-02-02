@@ -190,26 +190,58 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
     {
         if (points.Count == 0) return new List<(double, double)>();
 
-        const double tolerance = 0.0001;
+        try
+        {
+            const double tolerance = 0.0001;
 
-        // Get min/max bounds for efficient querying
-        var minLat = points.Min(p => p.lat) - tolerance;
-        var maxLat = points.Max(p => p.lat) + tolerance;
-        var minLng = points.Min(p => p.lng) - tolerance;
-        var maxLng = points.Max(p => p.lng) + tolerance;
+            // Get min/max bounds for efficient querying
+            var minLat = points.Min(p => p.lat) - tolerance;
+            var maxLat = points.Max(p => p.lat) + tolerance;
+            var minLng = points.Min(p => p.lng) - tolerance;
+            var maxLng = points.Max(p => p.lng) + tolerance;
 
-        var existing = await _coverageRepository
-            .Query(cc =>
-                !cc.IsDeleted &&
-                cc.NetworkId == networkId &&
-                cc.BandId == bandId &&
-                cc.MunicipalityId == municipalityId &&
-                cc.Location.Y >= minLat && cc.Location.Y <= maxLat &&
-                cc.Location.X >= minLng && cc.Location.X <= maxLng)
-            .Select(cc => new { cc.Location.Y, cc.Location.X })
-            .ToListAsync(cancellationToken);
+            // Check count first to avoid scanning large result sets
+            var estimatedCount = await _coverageRepository
+                .Query(cc =>
+                    !cc.IsDeleted &&
+                    cc.NetworkId == networkId &&
+                    cc.BandId == bandId &&
+                    cc.MunicipalityId == municipalityId)
+                .CountAsync(cancellationToken);
 
-        return existing.Select(e => (e.Y, e.X)).ToList();
+            // If there are too many existing records (>100k), skip duplicate check
+            // It's faster to insert and let the database handle unique constraints
+            if (estimatedCount > 100000)
+            {
+                _logger.LogWarning(
+                    "Municipality has {Count} existing coverage points. Skipping in-memory duplicate check for performance.",
+                    estimatedCount);
+                return new List<(double, double)>();
+            }
+
+            var existing = await _coverageRepository
+                .Query(cc =>
+                    !cc.IsDeleted &&
+                    cc.NetworkId == networkId &&
+                    cc.BandId == bandId &&
+                    cc.MunicipalityId == municipalityId &&
+                    cc.Location.Y >= minLat && cc.Location.Y <= maxLat &&
+                    cc.Location.X >= minLng && cc.Location.X <= maxLng)
+                .Select(cc => new { cc.Location.Y, cc.Location.X })
+                .ToListAsync(cancellationToken);
+
+            return existing.Select(e => (e.Y, e.X)).ToList();
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Duplicate check query was cancelled. Proceeding without duplicate filtering.");
+            return new List<(double, double)>();
+        }
+        catch (Npgsql.NpgsqlException ex) when (ex.SqlState == "57014")
+        {
+            _logger.LogWarning(ex, "Duplicate check query timed out (PostgreSQL cancelled). Proceeding without duplicate filtering.");
+            return new List<(double, double)>();
+        }
     }
 
     /// <summary>

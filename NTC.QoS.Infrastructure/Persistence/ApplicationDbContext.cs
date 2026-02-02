@@ -65,8 +65,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             {
                 x.UseNetTopologySuite();
                 x.UseVector(); // Enable pgvector support
-                // Increase command timeout for long-running spatial queries
-                x.CommandTimeout(300); // 5 minutes
+                // Increase command timeout for long-running spatial queries and bulk operations
+                x.CommandTimeout(600); // 10 minutes (increased from 5 for large bulk inserts)
             });
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -441,6 +441,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(cc => cc.Location)
             .HasDatabaseName("IX_CellularCoverage_Location")
             .HasMethod("GIST");
+
+        // Composite index for efficient duplicate checking during bulk uploads
+        modelBuilder.Entity<CellularCoverage>()
+            .HasIndex(cc => new { cc.NetworkId, cc.BandId, cc.MunicipalityId, cc.IsDeleted })
+            .HasDatabaseName("IX_CellularCoverage_DuplicateCheck")
+            .HasFilter("\"IsDeleted\" = false");
 
         modelBuilder.Entity<SystemType>()
             .HasMany(st => st.Networks)

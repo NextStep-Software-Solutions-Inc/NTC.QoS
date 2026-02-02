@@ -24,6 +24,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
     private readonly IBlobStorageService _blobStorageService;
     private readonly IRepository<Network> _networkRepository;
     private readonly IBackgroundJobService _backgroundJobService;
+    private readonly IUserContextService _userContextService;
 
     public ProcessCellularCoverageV2Job(
         ILogger<ProcessCellularCoverageV2Job> logger,
@@ -32,7 +33,8 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         ICellularCoverageV2MappingService mappingService,
         IBlobStorageService blobStorageService,
         IRepository<Network> networkRepository,
-        IBackgroundJobService backgroundJobService)
+        IBackgroundJobService backgroundJobService,
+        IUserContextService userContextService)
     {
         _logger = logger;
         _fileRepository = fileRepository;
@@ -41,9 +43,10 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         _blobStorageService = blobStorageService;
         _networkRepository = networkRepository;
         _backgroundJobService = backgroundJobService;
+        _userContextService = userContextService;
     }
 
-    [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(
         FileDto fileDto,
         Guid networkId,
@@ -178,8 +181,12 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                 await _mappingService.InitializeAsync(networkId, municipalityId, cancellationToken);
 
                 // Step 6: Stream CSV in batches to avoid loading entire file into memory
-                const int csvBatchSize = 1000;   // Read 1000 CSV records at a time from stream
-                const int insertBatchSize = 500; // Insert 500 to DB at a time
+                const int csvBatchSize = 500;   // Reduced from 1000 to 500 for stability
+                const int insertBatchSize = 250; // Reduced from 500 to 250 to prevent timeout
+
+                // Get current user and timestamp for audit fields
+                var now = DateTime.UtcNow;
+                var userId = _userContextService.GetCurrentUserId() ?? "System";
 
                 var allMappedRecords = new List<CellularCoverage>();
                 int totalRecordsProcessed = 0;
@@ -224,6 +231,15 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                         // Insert to database when we have enough records
                         if (allMappedRecords.Count >= insertBatchSize)
                         {
+                            // CRITICAL: Set audit properties before BulkInsertAsync since it bypasses interceptors
+                            foreach (var record in allMappedRecords)
+                            {
+                                record.CreatedAt = now;
+                                record.CreatedBy = userId;
+                                record.UpdatedAt = now;
+                                record.UpdatedBy = userId;
+                            }
+
                             await InsertBatchAsync(allMappedRecords, cancellationToken);
                             _logger.LogInformation("Inserted {Count} records to database (total processed: {Total})",
                                 allMappedRecords.Count, stats.ProcessedSuccessfully);
@@ -237,6 +253,15 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                     // Insert remaining records
                     if (allMappedRecords.Count > 0)
                     {
+                        // CRITICAL: Set audit properties before BulkInsertAsync since it bypasses interceptors
+                        foreach (var record in allMappedRecords)
+                        {
+                            record.CreatedAt = now;
+                            record.CreatedBy = userId;
+                            record.UpdatedAt = now;
+                            record.UpdatedBy = userId;
+                        }
+
                         await InsertBatchAsync(allMappedRecords, cancellationToken);
                         _logger.LogInformation("Inserted final batch of {Count} records", allMappedRecords.Count);
                         
@@ -283,16 +308,61 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                 }
             }
         }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "Database operation timed out during CellularCoverage V2 processing. This usually indicates connection pool exhaustion or long-running queries.");
+            try
+            {
+                await ProcessingJobHelper.TerminateProcessAsync(
+                    file,
+                    _fileRepository,
+                    _logger,
+                    FileTypeEnum.CellularCoverageV2,
+                    "Database timeout - connection pool exhausted or query too slow",
+                    CancellationToken.None); // Use None to avoid cascading cancellation
+            }
+            catch (Exception termEx)
+            {
+                _logger.LogError(termEx, "Failed to update file status after timeout. File may be stuck in Processing state.");
+            }
+            throw;
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogError(ex, "Operation was cancelled during CellularCoverage V2 processing");
+            try
+            {
+                await ProcessingJobHelper.TerminateProcessAsync(
+                    file,
+                    _fileRepository,
+                    _logger,
+                    FileTypeEnum.CellularCoverageV2,
+                    "Operation cancelled",
+                    CancellationToken.None);
+            }
+            catch (Exception termEx)
+            {
+                _logger.LogError(termEx, "Failed to update file status after cancellation");
+            }
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred while processing CellularCoverage V2 file");
-            await ProcessingJobHelper.TerminateProcessAsync(
-                file,
-                _fileRepository,
-                _logger,
-                FileTypeEnum.CellularCoverageV2,
-                $"Processing error: {ex.Message}",
-                cancellationToken);
+            try
+            {
+                await ProcessingJobHelper.TerminateProcessAsync(
+                    file,
+                    _fileRepository,
+                    _logger,
+                    FileTypeEnum.CellularCoverageV2,
+                    $"Processing error: {ex.Message}",
+                    cancellationToken);
+            }
+            catch (Exception termEx)
+            {
+                _logger.LogError(termEx, "Failed to update file status after error");
+            }
             throw;
         }
     }
@@ -301,15 +371,55 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         List<CellularCoverage> records,
         CancellationToken cancellationToken)
     {
-        try
+        const int maxRetries = 3;
+        const int baseDelayMs = 1000;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            await _coverageV2Repository.BulkInsertAsync(records, cancellationToken);
+            try
+            {
+                await _coverageV2Repository.BulkInsertAsync(records, cancellationToken);
+                
+                if (attempt > 1)
+                {
+                    _logger.LogInformation("Bulk insert succeeded on attempt {Attempt} for {Count} records", attempt, records.Count);
+                }
+                
+                return; // Success
+            }
+            catch (TaskCanceledException ex) when (attempt < maxRetries)
+            {
+                var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1);
+                _logger.LogWarning(ex, "Database timeout on attempt {Attempt}/{MaxRetries} for {Count} records. Retrying in {Delay}ms...",
+                    attempt, maxRetries, records.Count, delay);
+                await Task.Delay(delay, CancellationToken.None); // Don't use cancellationToken to allow retry
+            }
+            catch (Npgsql.NpgsqlException ex) when (IsTransientError(ex) && attempt < maxRetries)
+            {
+                var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1);
+                _logger.LogWarning(ex, "Transient database error on attempt {Attempt}/{MaxRetries} for {Count} records. Retrying in {Delay}ms...",
+                    attempt, maxRetries, records.Count, delay);
+                await Task.Delay(delay, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during bulk insert of {Count} records on attempt {Attempt}/{MaxRetries}",
+                    records.Count, attempt, maxRetries);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during bulk insert of {Count} records", records.Count);
-            throw;
-        }
+    }
+
+    private static bool IsTransientError(Npgsql.NpgsqlException ex)
+    {
+        // Check for common transient error codes
+        return ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+               ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
+               ex.Message.Contains("network", StringComparison.OrdinalIgnoreCase) ||
+               ex.SqlState == "08000" || // connection_exception
+               ex.SqlState == "08003" || // connection_does_not_exist
+               ex.SqlState == "08006" || // connection_failure
+               ex.SqlState == "57P03";   // cannot_connect_now
     }
 
     /// <summary>

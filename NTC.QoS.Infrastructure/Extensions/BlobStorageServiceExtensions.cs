@@ -28,7 +28,20 @@ public static class BlobStorageServiceExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton(provider => new BlobServiceClient(blobConnectionString));
+        // Configure BlobClientOptions with extended timeouts for large file uploads
+        var blobClientOptions = new Azure.Storage.Blobs.BlobClientOptions
+        {
+            Retry =
+            {
+                MaxRetries = 10, // Increased from default 3 to 10
+                NetworkTimeout = TimeSpan.FromMinutes(10), // Increased from 100 seconds to 10 minutes for large files
+                Delay = TimeSpan.FromSeconds(2), // Initial delay between retries
+                MaxDelay = TimeSpan.FromSeconds(30), // Max delay between retries
+                Mode = Azure.Core.RetryMode.Exponential
+            }
+        };
+
+        services.AddSingleton(provider => new BlobServiceClient(blobConnectionString, blobClientOptions));
         services.AddScoped<IBlobStorageService, BlobStorageService>();
 
         return services;

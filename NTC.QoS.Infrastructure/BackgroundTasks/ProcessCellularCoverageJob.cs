@@ -23,6 +23,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IUserContextService _userContextService;
 
     public ProcessCellularCoverageJob(
         ILogger<ProcessCellularCoverageJob> logger,
@@ -34,7 +35,8 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         ICellularCoverageMappingService mappingService,
         IMunicipalityRepository municipalityRepository,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IUserContextService userContextService
         )
     {
         _logger = logger;
@@ -47,6 +49,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         _municipalityRepository = municipalityRepository;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _userContextService = userContextService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -359,6 +362,10 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         continue;
                     }
 
+                    // Get current user and timestamp for audit fields
+                    var now = DateTime.UtcNow;
+                    var userId = _userContextService.GetCurrentUserId() ?? "System";
+
                     // Create coverage record with all derived fields
                     var cellularCoverage = new Domain.Entities.CellularCoverage
                     {
@@ -372,6 +379,11 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
                         SignalStrength = record.SignalStrength,
                         Address = record.Address,
                         IsFileUploaded = true,
+                        // CRITICAL: Manually set audit properties since BulkInsertAsync bypasses interceptors
+                        CreatedAt = now,
+                        CreatedBy = userId,
+                        UpdatedAt = now,
+                        UpdatedBy = userId
                     };
                     currentBatch.Add(cellularCoverage);
                     processedSuccessfully++;
