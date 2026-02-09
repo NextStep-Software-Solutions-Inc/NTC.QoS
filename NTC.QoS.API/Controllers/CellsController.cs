@@ -27,8 +27,15 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     public async Task<ActionResult<ApiResponse<CellDto>>> CreateCell(CreateCellDto createCell)
     {
         var cell = await mediator.Send(new CreateCellRequest(createCell));
-        if (!cell.Succeeded || cell.Data == null)
-            return BadRequest(cell.Data == null ? "Cell creation failed, no data returned." : cell);
+        if (!cell.Succeeded)
+            return BadRequest(cell);
+
+        if (cell.Data == null)
+            return BadRequest(new ApiResponse<CellDto>
+            {
+                Succeeded = false,
+                Message = "Cell creation failed, no data returned.",
+            });
 
         RemoveAllCellsCache();
         return CreatedAtAction(nameof(GetCellById), new { id = cell.Data.Id }, cell);
