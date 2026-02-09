@@ -82,34 +82,48 @@ public class LocationConnectivityDto
 }
 
 /// <summary>
-/// CMTS rubric scores breakdown
+/// CMTS subject/criterion names
 /// </summary>
-public class CMTSScoresDto
+public static class CMTSSubjects
+{
+    public const string FiberCoverage = "Fiber Coverage";
+    public const string InternetAccess = "Internet Access";
+    public const string TechnologyType = "Technology Type";
+    public const string QualityOfService = "Quality of Service";
+    public const string MobileCoverage = "Mobile Coverage";
+}
+
+/// <summary>
+/// Individual CMTS score item for radar chart visualization
+/// </summary>
+public class CMTSScoreItemDto
 {
     /// <summary>
-    /// Fiber Coverage Score (0-3 points)
+    /// Maximum score for CMTS criteria
     /// </summary>
-    public int FiberCoverage { get; set; }
+    public const int MaxScore = 3;
 
     /// <summary>
-    /// Internet Access Speed Score (0-3 points)
+    /// Subject/criterion name
     /// </summary>
-    public int InternetAccess { get; set; }
+    public string Subject { get; set; } = string.Empty;
 
     /// <summary>
-    /// Technology Type Score (0-3 points)
+    /// Actual score achieved (0-3).
     /// </summary>
-    public int TechnologyType { get; set; }
+    public int A { get; set; }
 
     /// <summary>
-    /// Quality of Service Score (0-3 points)
+    /// Maximum possible score (always 3 for CMTS rubric)
     /// </summary>
-    public int QualityOfService { get; set; }
+    public int FullMark { get; set; } = MaxScore;
+}
 
-    /// <summary>
-    /// Overall Coverage Availability Score (0-3 points)
-    /// </summary>
-    public int CoverageAvailability { get; set; }
+/// <summary>
+/// CMTS rubric scores breakdown as array of score items
+/// </summary>
+public class CMTSScoresDto : List<CMTSScoreItemDto>
+{
 }
 
 /// <summary>

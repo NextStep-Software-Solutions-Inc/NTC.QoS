@@ -1,5 +1,6 @@
 using Hangfire;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
@@ -63,9 +64,11 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<Province> _provinceRepository;
     private readonly IRepository<Region> _regionRepository;
+    private readonly IConfiguration _configuration;
 
     private const string CACHE_KEY_PREFIX = "connectivity_gap_report_job_";
     private const int CACHE_RETENTION_HOURS = 1;
+    private const string BLOB_CONTAINER_NAME = "reports";
 
     public ProcessConnectivityGapReportJob(
         ILogger<ProcessConnectivityGapReportJob> logger,
@@ -76,7 +79,8 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         IBarangayRepository barangayRepository,
         IMunicipalityRepository municipalityRepository,
         IRepository<Province> provinceRepository,
-        IRepository<Region> regionRepository)
+        IRepository<Region> regionRepository,
+        IConfiguration configuration)
     {
         _logger = logger;
         _reportGenerationService = reportGenerationService;
@@ -87,6 +91,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -274,24 +279,31 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             // Create report DTO using overall ConnectivityStatus
             var reportData = new ConnectivityGapReportDto
             {
-                TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
-                TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
-                UnservedPopulation = assessments
-                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
-                    .Sum(a => a.Population ?? 0),
-                UnderservedPopulation = assessments
-                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
-                    .Sum(a => a.Population ?? 0),
+                Summary = new ConnectivityGapSummaryDto
+                {
+                    TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                    TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                    UnservedPopulation = assessments
+                        .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
+                        .Sum(a => a.Population ?? 0),
+                    UnderservedPopulation = assessments
+                        .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
+                        .Sum(a => a.Population ?? 0)
+                },
                 PriorityAreas = priorityAreas,
+                TotalPriorityAreas = priorityAreas.Count,
+                PageNumber = 1,
+                PageSize = priorityAreas.Count,
+                TotalPages = 1,
                 GeneratedAt = DateTime.UtcNow
             };
 
             _logger.LogInformation(
                 "Job {JobId}: Report data generated. Unserved: {Unserved}, Underserved: {Underserved}, Priority Areas: {PriorityCount}",
-                jobId, reportData.TotalUnservedAreas, reportData.TotalUnderservedAreas, priorityAreas.Count);
+                jobId, reportData.Summary.TotalUnservedAreas, reportData.Summary.TotalUnderservedAreas, priorityAreas.Count);
 
             await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
-                $"Data generated: {reportData.TotalUnservedAreas} unserved, {reportData.TotalUnderservedAreas} underserved areas",
+                $"Data generated: {reportData.Summary.TotalUnservedAreas} unserved, {reportData.Summary.TotalUnderservedAreas} underserved areas",
                 currentStep: "Generating Report",
                 progressPercentage: 40,
                 areasProcessed: assessments.Count,
@@ -343,15 +355,14 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             // Step 4: Upload to blob storage
             _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
 
-            var fileName = await GenerateFileNameAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
-            var containerName = "connectivity-gap-reports";
+            var (_, blobPath) = await GenerateFileNameAndBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
             
             using var stream = new MemoryStream(reportBytes);
-            var blobUri = await _blobStorageService.UploadAsync(containerName, fileName, stream, contentType, cancellationToken);
+            await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
             
-            var blobPath = $"{containerName}/{fileName}";
+            var fullBlobPath = $"{BLOB_CONTAINER_NAME}/{blobPath}";
 
-            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, blobPath);
+            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, fullBlobPath);
 
             // Step 5: Update status to Completed
             var endTime = DateTime.UtcNow;
@@ -364,7 +375,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 endTime: endTime,
                 currentStep: "Completed",
                 progressPercentage: 100,
-                filePath: blobPath,
+                filePath: fullBlobPath,
                 downloadUrl: downloadUrl,
                 fileSizeBytes: fileSizeBytes,
                 cancellationToken: cancellationToken);
@@ -527,9 +538,12 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
     }
 
     /// <summary>
-    /// Generates a file name for the report
+    /// Generates both file name and blob storage path in a single database query to avoid duplicate queries.
+    /// Returns tuple of (fileName, blobPath).
+    /// Blob path follows pattern: env/area-code/filename
+    /// Example: development/region-PH01/ConnectivityGap_RegionI_YYYYMMDD_HHMMSS.xlsx
     /// </summary>
-    private async Task<string> GenerateFileNameAsync(
+    private async Task<(string fileName, string blobPath)> GenerateFileNameAndBlobPathAsync(
         Guid? regionId,
         Guid? provinceId,
         Guid? municipalityId,
@@ -537,38 +551,75 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         CancellationToken cancellationToken)
     {
         var nameParts = new List<string> { "ConnectivityGap" };
+        var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment = environment.ToLower();
+        string areaCode;
 
         if (municipalityId.HasValue)
         {
             var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .Select(m => new { m.Name, m.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (municipality != null)
             {
                 nameParts.Add(SanitizeFileName(municipality.Name));
+                areaCode = $"municipality-{municipality.Code}";
+            }
+            else
+            {
+                // Fallback when municipality not found - indicates data integrity issue
+                areaCode = $"municipality-{municipalityId}";
+                _logger.LogWarning("Municipality with ID {MunicipalityId} not found in database", municipalityId.Value);
             }
         }
         else if (provinceId.HasValue)
         {
             var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .Select(p => new { p.Name, p.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (province != null)
             {
                 nameParts.Add(SanitizeFileName(province.Name));
+                areaCode = $"province-{province.Code}";
+            }
+            else
+            {
+                // Fallback when province not found - indicates data integrity issue
+                areaCode = $"province-{provinceId}";
+                _logger.LogWarning("Province with ID {ProvinceId} not found in database", provinceId.Value);
             }
         }
         else if (regionId.HasValue)
         {
             var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .Select(r => new { r.Name, r.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (region != null)
             {
                 nameParts.Add(SanitizeFileName(region.Name));
+                areaCode = $"region-{region.Code}";
             }
+            else
+            {
+                // Fallback when region not found - indicates data integrity issue
+                areaCode = $"region-{regionId}";
+                _logger.LogWarning("Region with ID {RegionId} not found in database", regionId.Value);
+            }
+        }
+        else
+        {
+            nameParts.Add("National");
+            areaCode = "national";
         }
 
         nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+        var fileName = $"{string.Join("_", nameParts)}.{extension}";
+        var blobPath = $"{environment}/{areaCode}/{fileName}";
 
-        return $"{string.Join("_", nameParts)}.{extension}";
+        return (fileName, blobPath);
     }
 
     /// <summary>

@@ -34,8 +34,9 @@ public class NetworksController(IMediator mediator) : ControllerBase
         Guid? networkTemplateId = null,
         Guid? technologyId = null,
         Guid? bandId = null,
-        Guid? locationId = null,
-        string? locationType = null,
+        Guid? municipalityId = null,
+        Guid? provinceId = null,
+        Guid? regionId = null,
         Guid? systemTypeId = null,
         Guid? serviceProviderId = null,
         Guid? cellId = null)
@@ -47,8 +48,9 @@ public class NetworksController(IMediator mediator) : ControllerBase
             networkTemplateId, 
             technologyId, 
             bandId, 
-            locationId, 
-            locationType, 
+            municipalityId, 
+            provinceId, 
+            regionId, 
             systemTypeId,
             serviceProviderId,
             cellId);

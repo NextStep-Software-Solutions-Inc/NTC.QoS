@@ -1296,9 +1296,16 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             // Calculate CMTS scores based on infrastructure, speed data, and population
             var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
 
+            // Extract individual scores from the array for entity mapping - using dictionary for O(1) lookups
+            var scoreDict = cmtsScores.ToDictionary(s => s.Subject);
+            var fiberCoverage = scoreDict.TryGetValue(CMTSSubjects.FiberCoverage, out var fiberScore) ? fiberScore.A : 0;
+            var internetAccess = scoreDict.TryGetValue(CMTSSubjects.InternetAccess, out var internetScore) ? internetScore.A : 0;
+            var technologyType = scoreDict.TryGetValue(CMTSSubjects.TechnologyType, out var techScore) ? techScore.A : 0;
+            var qualityOfService = scoreDict.TryGetValue(CMTSSubjects.QualityOfService, out var qosScore) ? qosScore.A : 0;
+            var coverageAvailability = scoreDict.TryGetValue(CMTSSubjects.MobileCoverage, out var mobileScore) ? mobileScore.A : 0;
+
             // Determine connectivity status and total score
-            var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess +
-                            cmtsScores.TechnologyType + cmtsScores.QualityOfService + cmtsScores.CoverageAvailability;
+            var totalScore = fiberCoverage + internetAccess + technologyType + qualityOfService + coverageAvailability;
 
             var connectivityStatus = DetermineConnectivityStatus(totalScore);
             var hasReliableConnectivity = DetermineReliableConnectivity(infrastructureStats, speedStats);
@@ -1371,11 +1378,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 AssessedBy = _currentUserId,
                 ConnectivityStatus = connectivityStatus,
                 TotalScore = totalScore,
-                FiberCoverageScore = cmtsScores.FiberCoverage,
-                InternetAccessScore = cmtsScores.InternetAccess,
-                TechnologyTypeScore = cmtsScores.TechnologyType,
-                QualityOfServiceScore = cmtsScores.QualityOfService,
-                CoverageAvailabilityScore = cmtsScores.CoverageAvailability,
+                FiberCoverageScore = fiberCoverage,
+                InternetAccessScore = internetAccess,
+                TechnologyTypeScore = technologyType,
+                QualityOfServiceScore = qualityOfService,
+                CoverageAvailabilityScore = coverageAvailability,
                 CellTowerCount = infrastructureStats.CellTowerCount,
                 FiberNAPCount = infrastructureStats.FiberNAPCount,
                 WifiHotspotCount = infrastructureStats.WiFiHotspotCount,
@@ -2782,19 +2789,24 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     /// </summary>
     private static CMTSScoresDto CalculateCMTSScores(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats, double areaKm2, int? population, int? householdCount)
     {
-        var scores = new CMTSScoresDto();
-
         // Calculate population density context once
         var populationContext = CalculatePopulationContext(population, areaKm2);
 
         // Calculate each CMTS criterion using dedicated methods
-        scores.FiberCoverage = CalculateFiberCoverageScore(infrastructure, areaKm2, population, populationContext);
-        scores.InternetAccess = CalculateInternetAccessScore(speedStats);
-        scores.TechnologyType = CalculateTechnologyTypeScore(infrastructure);
-        scores.QualityOfService = CalculateQualityOfServiceScore(speedStats, infrastructure);
-        scores.CoverageAvailability = CalculateCoverageAvailabilityScore(infrastructure, areaKm2, population, populationContext);
+        var fiberCoverage = CalculateFiberCoverageScore(infrastructure, areaKm2, population, populationContext);
+        var internetAccess = CalculateInternetAccessScore(speedStats);
+        var technologyType = CalculateTechnologyTypeScore(infrastructure);
+        var qualityOfService = CalculateQualityOfServiceScore(speedStats, infrastructure);
+        var coverageAvailability = CalculateCoverageAvailabilityScore(infrastructure, areaKm2, population, populationContext);
 
-        return scores;
+        return new CMTSScoresDto
+        {
+            new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = fiberCoverage },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = internetAccess },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = technologyType },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = qualityOfService },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = coverageAvailability }
+        };
     }
 
     /// <summary>
@@ -2830,35 +2842,35 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
             return 1; // No fiber providers
         }
 
-        // Identify major telco providers (Globe, Smart, DITO)
-        var majorTelcoProviders = fiberProviders
-            .Where(p => IsMajorTelcoProvider(p.ProviderName))
+        // Identify major wired/fiber providers (PLDT, Globe, Converge)
+        var majorWiredProviders = fiberProviders
+            .Where(p => IsMajorWiredProvider(p.ProviderName))
             .ToList();
 
         var localVasProviders = fiberProviders
-            .Where(p => !IsMajorTelcoProvider(p.ProviderName))
+            .Where(p => !IsMajorWiredProvider(p.ProviderName))
             .ToList();
 
-        // Count distinct major telcos with fiber presence
-        var majorTelcoCount = majorTelcoProviders.Count;
+        // Count distinct major wired providers with fiber presence
+        var majorWiredCount = majorWiredProviders.Count;
         var totalFiberProviderCount = fiberProviders.Count;
 
         // SERVED (3 points): All major service providers have fiber infrastructure
-        // Interpretation: At least 2-3 major telcos present (Globe, Smart, DITO)
-        if (majorTelcoCount >= 2)
+        // Interpretation: At least 2-3 major wired providers present (PLDT, Globe, Converge)
+        if (majorWiredCount >= 2)
         {
             return 3; // Served - Fiber facilities for all/most major service providers present
         }
 
-        // UNDERSERVED (2 points): Few major telcos OR only local/VAS providers
-        // Case 1: Only 1 major telco with fiber
-        if (majorTelcoCount == 1)
+        // UNDERSERVED (2 points): Few major wired providers OR only local/VAS providers
+        // Case 1: Only 1 major wired provider with fiber
+        if (majorWiredCount == 1)
         {
-            return 2; // Underserved - Few major telcos with fiber
+            return 2; // Underserved - Few major wired providers with fiber
         }
 
-        // Case 2: No major telcos, but local/VAS providers have fiber
-        if (majorTelcoCount == 0 && localVasProviders.Any())
+        // Case 2: No major wired providers, but local/VAS providers have fiber
+        if (majorWiredCount == 0 && localVasProviders.Any())
         {
             return 2; // Underserved - Only local or VAS providers with fiber
         }
@@ -2868,24 +2880,47 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
     }
 
     /// <summary>
-    /// Identifies if a provider is a major telecommunications company in the Philippines
-    /// Major telcos: Globe, Smart, DITO
+    /// Identifies if a provider is a major wired/fiber service provider in the Philippines.
+    /// Major wired providers: PLDT, Globe, Converge
     /// </summary>
-    private static bool IsMajorTelcoProvider(string providerName)
+    private static bool IsMajorWiredProvider(string providerName)
     {
         if (string.IsNullOrWhiteSpace(providerName))
             return false;
 
-        // Major telco providers in the Philippines
-        var majorTelcos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        // Major wired/fiber providers in the Philippines
+        var majorWiredProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "PLDT", "Globe", "Converge",
+            // Include common variations and subsidiaries
+            "PLDT Inc", "PLDT Home", "PLDT Fibr",
+            "Globe Telecom", "Globe Broadband", "Globe At Home",
+            "Converge ICT", "Converge FiberX"
+        };
+
+        return majorWiredProviders.Any(provider => providerName.Contains(provider, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Identifies if a provider is a major wireless/cellular service provider in the Philippines.
+    /// Major wireless providers: Globe, Smart, DITO
+    /// </summary>
+    private static bool IsMajorWirelessProvider(string providerName)
+    {
+        if (string.IsNullOrWhiteSpace(providerName))
+            return false;
+
+        // Major wireless/cellular providers in the Philippines
+        var majorWirelessProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "Globe", "Smart", "DITO",
             // Include common variations and subsidiaries
-            "Globe Telecom", "Smart Communications", "DITO Telecommunity",
-            "PLDT", "Globe Broadband", "Smart Broadband"
+            "Globe Telecom", "Globe Mobile",
+            "Smart Communications", "Smart Broadband", "TNT", "Sun Cellular",
+            "DITO Telecommunity", "DITO CME"
         };
 
-        return majorTelcos.Any(telco => providerName.Contains(telco, StringComparison.OrdinalIgnoreCase));
+        return majorWirelessProviders.Any(provider => providerName.Contains(provider, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -3588,11 +3623,11 @@ public class ProcessConnectivityAssessmentJob : IProcessConnectivityAssessmentJo
                 TotalScore = assessment.TotalScore,
                 CMTSScores = new()
                 {
-                    FiberCoverage = assessment.FiberCoverageScore,
-                    InternetAccess = assessment.InternetAccessScore,
-                    TechnologyType = assessment.TechnologyTypeScore,
-                    QualityOfService = assessment.QualityOfServiceScore,
-                    CoverageAvailability = assessment.CoverageAvailabilityScore
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = assessment.FiberCoverageScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = assessment.InternetAccessScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = assessment.TechnologyTypeScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = assessment.QualityOfServiceScore },
+                    new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = assessment.CoverageAvailabilityScore }
                 },
                 Infrastructure = new()
                 {

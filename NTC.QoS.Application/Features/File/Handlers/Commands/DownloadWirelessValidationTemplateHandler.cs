@@ -103,7 +103,7 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             return c;
         }
 
-        // Data rows (Row 5+): each Barangay × each Provider
+        // Data rows (Row 5+): each Barangay ï¿½ each Provider
         int currentRow = 5;
         foreach (var barangay in barangays)
         {

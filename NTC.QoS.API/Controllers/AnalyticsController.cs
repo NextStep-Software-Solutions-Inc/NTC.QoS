@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Analytics.Requests;
+using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Analytics;
+using NTC.QoS.Domain.Models.DTOs.Speedtest;
 using System.ComponentModel.DataAnnotations;
 
 namespace NTC.QoS.API.Controllers;
@@ -296,8 +298,19 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
     /// <summary>
     /// Start a background job to generate connectivity assessments
     /// Use this for large-scale processing that would timeout in regular API calls
+    /// 
+    /// Location Specification:
+    /// - RegionIds: Process assessments for specified regions
+    /// - ProvinceIds: Process assessments for specified provinces
+    /// - MunicipalityIds: Process assessments for specified municipalities
+    /// - BarangayIds: Process assessments for specified barangays
+    /// 
+    /// At least one location type must be provided. Multiple filters can be specified,
+    /// but the most specific filter takes precedence (Barangay > Municipality > Province > Region).
+    /// The job will process assessments for the specified locations and optionally their children 
+    /// (if GenerateHierarchicalAssessments is true).
     /// </summary>
-    /// <param name="request">Background job request parameters</param>
+    /// <param name="request">Background job request parameters including typed location IDs</param>
     /// <returns>Job ID and tracking information</returns>
     [HttpPost("connectivity-assessment/background")]
     [ProducesResponseType(typeof(ApiResponse<ConnectivityAssessmentJobResponseDto>), StatusCodes.Status200OK)]
@@ -379,6 +392,62 @@ public class AnalyticsController(IMediator mediator) : ControllerBase
             RegionIds = regionIds,
             ServiceProviderIds = serviceProviderIds,
             IncludeGeographicCoverage = includeGeographicCoverage
+        };
+
+        var result = await mediator.Send(request);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Gets speedtest analytics for dashboard visualization.
+    /// Provides comprehensive performance metrics, provider comparison, and signal quality analysis.
+    /// 
+    /// Includes:
+    /// - Overview statistics (total tests, average/median speeds, ping, provider count)
+    /// - Provider performance comparison (download/upload speeds, test counts)
+    /// - Signal quality distribution (excellent, good, average, weak, very weak)
+    /// - Provider rankings with performance scores and badges
+    /// - Performance ratings and competition analysis
+    /// - Coverage area estimation
+    /// 
+    /// Note: Calculates ALL statistics on backend regardless of pagination.
+    /// Uses median for more representative metrics (less affected by outliers).
+    /// 
+    /// Filters:
+    /// - Geographic: Barangay, Municipality, Province, or Region IDs
+    /// - Date Range: Optional start and end dates for temporal filtering
+    /// </summary>
+    /// <param name="barangayIds">Optional filter by barangay IDs</param>
+    /// <param name="municipalityIds">Optional filter by municipality IDs</param>
+    /// <param name="provinceIds">Optional filter by province IDs</param>
+    /// <param name="regionIds">Optional filter by region IDs</param>
+    /// <param name="startDate">Optional start date for filtering speedtests</param>
+    /// <param name="endDate">Optional end date for filtering speedtests</param>
+    /// <returns>Speedtest analytics data for dashboard</returns>
+    /// <response code="200">Returns speedtest analytics data</response>
+    /// <response code="400">Invalid request parameters</response>
+    [HttpGet("speedtest-analytics")]
+    [RequirePermission(Permissions.ViewAnalytics)]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "barangayIds", "municipalityIds", "provinceIds", "regionIds", "startDate", "endDate" })]
+    [ProducesResponseType(typeof(ApiResponse<SpeedtestAnalyticsDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<SpeedtestAnalyticsDto>), 400)]
+    public async Task<ActionResult<ApiResponse<SpeedtestAnalyticsDto>>> GetSpeedtestAnalytics(
+        [FromQuery] List<Guid>? barangayIds = null,
+        [FromQuery] List<Guid>? municipalityIds = null,
+        [FromQuery] List<Guid>? provinceIds = null,
+        [FromQuery] List<Guid>? regionIds = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
+    {
+        var request = new GetSpeedtestAnalyticsRequest 
+        { 
+            BarangayIds = barangayIds,
+            MunicipalityIds = municipalityIds,
+            ProvinceIds = provinceIds,
+            RegionIds = regionIds,
+            StartDate = startDate,
+            EndDate = endDate
         };
 
         var result = await mediator.Send(request);

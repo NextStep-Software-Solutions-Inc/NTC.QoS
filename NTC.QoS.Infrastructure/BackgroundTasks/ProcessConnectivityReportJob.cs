@@ -1,5 +1,6 @@
 using Hangfire;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
@@ -55,9 +56,11 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<Province> _provinceRepository;
     private readonly IRepository<Region> _regionRepository;
+    private readonly IConfiguration _configuration;
 
     private const string CACHE_KEY_PREFIX = "connectivity_report_job_";
     private const int CACHE_RETENTION_HOURS = 1;
+    private const string BLOB_CONTAINER_NAME = "reports";
 
     public ProcessConnectivityReportJob(
         ILogger<ProcessConnectivityReportJob> logger,
@@ -68,7 +71,8 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         IBarangayRepository barangayRepository,
         IMunicipalityRepository municipalityRepository,
         IRepository<Province> provinceRepository,
-        IRepository<Region> regionRepository)
+        IRepository<Region> regionRepository,
+        IConfiguration configuration)
     {
         _logger = logger;
         _reportGenerationService = reportGenerationService;
@@ -79,6 +83,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -280,13 +285,17 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 TotalServiceProviders = assessments.Select(a => a.DominantServiceProvider).Where(p => !string.IsNullOrEmpty(p)).Distinct().Count()
             };
 
-            // Create report DTO
+            // Create report DTO with pagination metadata
             var reportData = new ConnectivityReportDto
             {
                 TotalServedAreas = assessments.Count,
                 ServedPopulation = assessments.Sum(a => a.Population ?? 0),
                 Areas = areas,
                 ScoreSummary = scoreSummary,
+                TotalAreas = assessments.Count,
+                PageNumber = 1,
+                PageSize = assessments.Count,
+                TotalPages = 1,
                 GeneratedAt = DateTime.UtcNow
             };
 
@@ -346,15 +355,14 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             // Step 4: Upload to blob storage
             _logger.LogInformation("Job {JobId}: Uploading report file to blob storage", jobId);
 
-            var fileName = await GenerateFileNameAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
-            var containerName = "connectivity-reports";
+            var (_, blobPath) = await GenerateFileNameAndBlobPathAsync(jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, fileExtension, cancellationToken);
             
             using var stream = new MemoryStream(reportBytes);
-            var blobUri = await _blobStorageService.UploadAsync(containerName, fileName, stream, contentType, cancellationToken);
+            await _blobStorageService.UploadAsync(BLOB_CONTAINER_NAME, blobPath, stream, contentType, cancellationToken);
             
-            var blobPath = $"{containerName}/{fileName}";
+            var fullBlobPath = $"{BLOB_CONTAINER_NAME}/{blobPath}";
 
-            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, blobPath);
+            _logger.LogInformation("Job {JobId}: Report file uploaded successfully to {Path}", jobId, fullBlobPath);
 
             // Step 5: Update status to Completed
             var endTime = DateTime.UtcNow;
@@ -367,7 +375,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 endTime: endTime,
                 currentStep: "Completed",
                 progressPercentage: 100,
-                filePath: blobPath,
+                filePath: fullBlobPath,
                 downloadUrl: downloadUrl,
                 fileSizeBytes: fileSizeBytes,
                 cancellationToken: cancellationToken);
@@ -515,7 +523,13 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         return string.Join(" - ", titleParts);
     }
 
-    private async Task<string> GenerateFileNameAsync(
+    /// <summary>
+    /// Generates both file name and blob storage path in a single database query to avoid duplicate queries.
+    /// Returns tuple of (fileName, blobPath).
+    /// Blob path follows pattern: env/area-code/filename
+    /// Example: development/region-PH01/Connectivity_RegionI_YYYYMMDD_HHMMSS.xlsx
+    /// </summary>
+    private async Task<(string fileName, string blobPath)> GenerateFileNameAndBlobPathAsync(
         Guid? regionId,
         Guid? provinceId,
         Guid? municipalityId,
@@ -523,38 +537,75 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         CancellationToken cancellationToken)
     {
         var nameParts = new List<string> { "Connectivity" };
+        var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment = environment.ToLower();
+        string areaCode;
 
         if (municipalityId.HasValue)
         {
             var municipality = await _municipalityRepository.Query(m => m.Id == municipalityId.Value)
+                .Select(m => new { m.Name, m.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (municipality != null)
             {
                 nameParts.Add(SanitizeFileName(municipality.Name));
+                areaCode = $"municipality-{municipality.Code}";
+            }
+            else
+            {
+                // Fallback when municipality not found - indicates data integrity issue
+                areaCode = $"municipality-{municipalityId}";
+                _logger.LogWarning("Municipality with ID {MunicipalityId} not found in database", municipalityId.Value);
             }
         }
         else if (provinceId.HasValue)
         {
             var province = await _provinceRepository.Query(p => p.Id == provinceId.Value)
+                .Select(p => new { p.Name, p.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (province != null)
             {
                 nameParts.Add(SanitizeFileName(province.Name));
+                areaCode = $"province-{province.Code}";
+            }
+            else
+            {
+                // Fallback when province not found - indicates data integrity issue
+                areaCode = $"province-{provinceId}";
+                _logger.LogWarning("Province with ID {ProvinceId} not found in database", provinceId.Value);
             }
         }
         else if (regionId.HasValue)
         {
             var region = await _regionRepository.Query(r => r.Id == regionId.Value)
+                .Select(r => new { r.Name, r.Code })
                 .FirstOrDefaultAsync(cancellationToken);
+            
             if (region != null)
             {
                 nameParts.Add(SanitizeFileName(region.Name));
+                areaCode = $"region-{region.Code}";
             }
+            else
+            {
+                // Fallback when region not found - indicates data integrity issue
+                areaCode = $"region-{regionId}";
+                _logger.LogWarning("Region with ID {RegionId} not found in database", regionId.Value);
+            }
+        }
+        else
+        {
+            nameParts.Add("National");
+            areaCode = "national";
         }
 
         nameParts.Add(DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+        var fileName = $"{string.Join("_", nameParts)}.{extension}";
+        var blobPath = $"{environment}/{areaCode}/{fileName}";
 
-        return $"{string.Join("_", nameParts)}.{extension}";
+        return (fileName, blobPath);
     }
 
     private string SanitizeFileName(string fileName)

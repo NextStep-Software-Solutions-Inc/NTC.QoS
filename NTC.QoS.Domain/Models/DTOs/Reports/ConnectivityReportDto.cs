@@ -11,6 +11,10 @@ public class ConnectivityReportDto
     public int ServedPopulation { get; set; }
     public List<ConnectivityAreaDetailDto> Areas { get; set; } = [];
     public ConnectivityScoreSummaryDto ScoreSummary { get; set; } = new();
+    public int TotalAreas { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages { get; set; }
     public DateTime GeneratedAt { get; set; }
 }
 
@@ -21,6 +25,8 @@ public class ConnectivityAreaDetailDto
 {
     public Guid LocationId { get; set; }
     public string LocationName { get; set; } = string.Empty;
+    public string? MunicipalityName { get; set; }
+    public string? ProvinceName { get; set; }
     public ConnectivityStatusEnum ConnectivityStatus { get; set; }
     public int? Population { get; set; }
     

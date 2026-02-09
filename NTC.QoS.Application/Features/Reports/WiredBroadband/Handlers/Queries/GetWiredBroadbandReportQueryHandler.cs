@@ -126,14 +126,6 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                     .OrderBy(m => m.Name),
                 cancellationToken);
 
-            // Apply pagination to determine which municipalities to include in the response
-            var municipalitiesToReturn = request.DisablePagination
-                ? allMunicipalities
-                : allMunicipalities
-                    .Skip((request.PageNumber - 1) * request.PageSize)
-                    .Take(request.PageSize)
-                    .ToList();
-
             if (request.DisablePagination)
             {
                 _logger.LogInformation("Pagination disabled - processing all {Count} municipalities", totalMunicipalities);
@@ -154,8 +146,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 // Trigger background job for municipality assessments with hierarchical barangay generation
                 var jobRequest = new StartConnectivityAssessmentJobRequest
                 {
-                    LocationIds = municipalityIds,
-                    LocationType = LocationTypeEnum.Municipality,
+                    MunicipalityIds = municipalityIds,
                     ForceRecalculate = true,
                     GenerateHierarchicalAssessments = true,
                     HierarchicalDepth = 1 // Generate barangay assessments
@@ -235,33 +226,84 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 }
             }
 
+            // If no municipalities have usable assessment data, return empty report with helpful message.
+            // This avoids confusing pagination metadata that implies data exists.
+            if (allMunicipalityBroadbandData.Count == 0)
+            {
+                return new ApiResponse<WiredBroadbandReportDto>
+                {
+                    Succeeded = true,
+                    Message = "No municipalities with valid connectivity assessments were found for the specified criteria. Trigger a connectivity assessment job first (ForceGenerateConnectivityAssessment=true) and try again.",
+                    Data = new WiredBroadbandReportDto
+                    {
+                        Municipalities = [],
+                        Summary = new WiredBroadbandSummaryDto
+                        {
+                            TotalMunicipalities = 0,
+                            TotalBarangays = 0,
+                            ServedBarangays = 0,
+                            UnderservedBarangays = 0,
+                            UnservedBarangays = 0,
+                            AllProviders = [],
+                            ProviderCoverage = new Dictionary<string, int>(),
+                            GeneratedAt = DateTime.UtcNow
+                        },
+                        PageNumber = request.DisablePagination ? 1 : request.PageNumber,
+                        PageSize = request.DisablePagination ? 0 : request.PageSize,
+                        TotalMunicipalities = 0,
+                        TotalPages = 0
+                    }
+                };
+            }
+
             // Generate summary from ALL processed data (not just paginated subset)
             var summary = GenerateSummary(allMunicipalityBroadbandData, allProvidersFound.ToList());
 
-            // Apply pagination to the municipalities list for the response
-            var paginatedMunicipalityBroadbandData = request.DisablePagination
-                ? allMunicipalityBroadbandData
-                : allMunicipalityBroadbandData
-                    .Where(m => municipalitiesToReturn.Any(mtr => mtr.Id == m.Id))
-                    .ToList();
+            // IMPORTANT: Pagination must be based on municipalities that actually have report data.
+            // totalMunicipalities includes municipalities that match geographic filters but have no valid assessments
+            // (or are filtered out), which previously caused blank pages.
+            var processedMunicipalityCount = allMunicipalityBroadbandData.Count;
 
-            // Calculate pagination metadata
+            // Calculate pagination metadata based on PROCESSED municipalities
             int totalPages;
             int pageNumber;
             int pageSize;
-            
+
             if (request.DisablePagination)
             {
                 totalPages = 1;
                 pageNumber = 1;
-                pageSize = totalMunicipalities;
+                pageSize = processedMunicipalityCount;
             }
             else
             {
-                totalPages = (int)Math.Ceiling((double)totalMunicipalities / request.PageSize);
+                totalPages = processedMunicipalityCount > 0
+                    ? (int)Math.Ceiling((double)processedMunicipalityCount / request.PageSize)
+                    : 0;
                 pageNumber = request.PageNumber;
                 pageSize = request.PageSize;
+
+                if (totalPages > 0 && pageNumber > totalPages)
+                {
+                    return new ApiResponse<WiredBroadbandReportDto>
+                    {
+                        Succeeded = false,
+                        Message = $"PageNumber must be between 1 and {totalPages}.",
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            { "PageNumber", [$"PageNumber must be between 1 and {totalPages}."] }
+                        }
+                    };
+                }
             }
+
+            // Apply pagination to the processed municipalities list for the response
+            var paginatedMunicipalityBroadbandData = request.DisablePagination
+                ? allMunicipalityBroadbandData
+                : allMunicipalityBroadbandData
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
 
             var result = new WiredBroadbandReportDto
             {
@@ -269,7 +311,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 Summary = summary,
                 PageNumber = pageNumber,
                 PageSize = pageSize,
-                TotalMunicipalities = totalMunicipalities,
+                TotalMunicipalities = processedMunicipalityCount,
                 TotalPages = totalPages
             };
 
@@ -290,7 +332,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
             if (municipalitiesWithoutAssessments.Count > 0 || barangaysWithoutAssessments.Count > 0)
             {
-                messageBuilder.Append($" Note: {municipalitiesWithoutAssessments.Count} municipalities and {barangaysWithoutAssessments.Count} barangays on this page are missing connectivity assessments and were excluded from the report.");
+                messageBuilder.Append($" Note: {municipalitiesWithoutAssessments.Count} municipalities and {barangaysWithoutAssessments.Count} barangays matching the filters are missing connectivity assessments and were excluded from the report.");
                 messageBuilder.Append(" To include them, trigger a connectivity assessment job first.");
             }
 

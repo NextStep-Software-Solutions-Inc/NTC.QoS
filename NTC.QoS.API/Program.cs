@@ -18,6 +18,7 @@ using NTC.QoS.Infrastructure.HealthChecks;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using QuestPDF.Infrastructure;
 
 namespace NTC.QoS.API;
 
@@ -25,6 +26,9 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
+        // Configure QuestPDF license globally (Community license is free for organizations with revenue < $1M USD)
+        QuestPDF.Settings.License = LicenseType.Community;
+
         var builder = WebApplication.CreateBuilder(args);
         var env = builder.Environment;
 
