@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Authorization;
@@ -24,9 +25,15 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpPost]
     [RequirePermission(Permissions.CreateCells)]
-    public async Task<ActionResult<ApiResponse<CellDto>>> CreateCell(CreateCellDto createCell)
+    public async Task<ActionResult<ApiResponse<CellDto>>> Create(
+        [FromBody] CreateCellDto createCell, 
+        [FromQuery] Guid? regionId = null,
+        [FromServices] IUserContextService userContext = null!)
     {
-        var cell = await mediator.Send(new CreateCellRequest(createCell));
+        var cell = await mediator.Send(new CreateCellRequest(createCell) 
+        { 
+            RegionId = regionId ?? userContext?.GetCurrentRegionId()
+        });
         if (!cell.Succeeded)
             return BadRequest(cell);
 
@@ -115,9 +122,16 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpDelete]
     [RequirePermission(Permissions.DeleteCells)]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById([Required][FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById(
+        [Required][FromQuery] List<Guid> ids,
+        [FromQuery] Guid? regionId = null,
+        [FromServices] IUserContextService userContext = null!)
     {
-        var cells = await mediator.Send(new DeleteCellsByIdsRequest { Ids = ids });
+        var cells = await mediator.Send(new DeleteCellsByIdsRequest 
+        { 
+            Ids = ids,
+            RegionId = regionId ?? userContext?.GetCurrentRegionId()
+        });
         if (!cells.Succeeded)
             return BadRequest(cells);
 

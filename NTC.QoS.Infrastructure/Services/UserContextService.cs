@@ -31,4 +31,41 @@ public class UserContextService(IHttpContextAccessor httpContextAccessor, ILogge
         return userId;
     }
 
+    public Guid? GetCurrentRegionId()
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext == null)
+        {
+            _logger.LogWarning("User context: No HTTP context available for region ID extraction");
+            return null;
+        }
+
+        // Try to get region ID from X-Region-Id header
+        if (httpContext.Request.Headers.TryGetValue("X-Region-Id", out var regionIdHeader))
+        {
+            if (Guid.TryParse(regionIdHeader.ToString(), out var regionId))
+            {
+                _logger.LogDebug("Region context: Extracted region ID {RegionId} from X-Region-Id header", regionId);
+                return regionId;
+            }
+            else
+            {
+                _logger.LogWarning("Region context: Invalid region ID format in X-Region-Id header: {Value}", regionIdHeader.ToString());
+            }
+        }
+
+        // Try to get from query string as fallback
+        if (httpContext.Request.Query.TryGetValue("regionId", out var regionIdQuery))
+        {
+            if (Guid.TryParse(regionIdQuery.ToString(), out var regionId))
+            {
+                _logger.LogDebug("Region context: Extracted region ID {RegionId} from query string", regionId);
+                return regionId;
+            }
+        }
+
+        _logger.LogDebug("Region context: No region ID found in request context");
+        return null;
+    }
+
 }

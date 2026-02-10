@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Enums;
@@ -15,11 +16,14 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository, IValidator<CreateCellRequest> validator) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
+public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository, IBarangayRepository barangayRepository, IValidator<CreateCellRequest> validator, IBackgroundJobService backgroundJobService, ILogger<CreateCellHandler> logger) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
+    private readonly IBarangayRepository _barangayRepository = barangayRepository;
     private readonly IValidator<CreateCellRequest> _validator = validator;
+    private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
+    private readonly ILogger<CreateCellHandler> _logger = logger;
 
     public async Task<ApiResponse<CellDto>> Handle(CreateCellRequest request, CancellationToken cancellationToken)
     {
@@ -123,6 +127,29 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
         try
         {
             await _cellRepository.SaveChangesAsync(cancellationToken);
+            
+            // Trigger connectivity assessment generation after successful cell creation
+            Guid? regionId = request.RegionId;
+            
+            // If region not provided in request, fallback to spatial lookup
+            if (!regionId.HasValue)
+            {
+                _logger.LogDebug("No region ID provided in request, performing spatial lookup for cell {CellId}", newCell.Id);
+                var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(newCell.Location, cancellationToken);
+                regionId = barangay?.Municipality?.Province?.RegionId;
+            }
+            
+            if (regionId.HasValue)
+            {
+                _logger.LogInformation("Triggering connectivity assessment for region {RegionId} after cell creation", regionId.Value);
+                _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
+                    job => job.ExecuteForRegionAsync(regionId.Value, cancellationToken));
+            }
+            else
+            {
+                _logger.LogWarning("Could not determine region for cell {CellId} at location {Location}. Assessment not triggered.", 
+                    newCell.Id, newCell.Location?.Coordinate);
+            }
         }
         catch (Exception ex)
         {
