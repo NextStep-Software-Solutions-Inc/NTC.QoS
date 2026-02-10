@@ -180,7 +180,7 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
     /// This method bypasses file lookup and directly triggers assessment for the provided region.
     /// </summary>
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
-    public async Task ExecuteForRegionAsync(Guid regionId, CancellationToken cancellationToken)
+    public Task ExecuteForRegionAsync(Guid regionId, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting connectivity assessment generation for Region {RegionId} (manual trigger)", regionId);
 
@@ -191,7 +191,7 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
             _logger.LogInformation(
                 "Assessment consolidation: Skipping manual assessment trigger for Region {RegionId} due to recent assessment.",
                 regionId);
-            return;
+            return Task.CompletedTask;
         }
 
         // Check if assessment is already scheduled for this region
@@ -214,7 +214,7 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
                 _logger.LogInformation(
                     "Assessment for Region {RegionId} rescheduled to {NewScheduledTime:O}",
                     regionId, newScheduledTime);
-                return;
+                return Task.CompletedTask;
             }
             else
             {
@@ -223,7 +223,7 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
                     "Assessment already scheduled for Region {RegionId} at {ScheduledTime:O}. " +
                     "Manual operation will be included in scheduled assessment.",
                     regionId, scheduledTime.Value);
-                return;
+                return Task.CompletedTask;
             }
         }
 
@@ -260,5 +260,7 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
             "Scheduled connectivity assessment for Region {RegionId} (manual trigger) with job ID {JobId}. " +
             "Assessment scheduled for {ScheduledTime:O} ({DelaySeconds}s from now).",
             regionId, request.JobId, assessmentScheduledTime, delay.TotalSeconds);
+        
+        return Task.CompletedTask;
     }
 }
