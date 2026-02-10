@@ -16,7 +16,7 @@ public class CreateCellDto
     public string? LAC { get; set; }
     public string TAC { get; set; } = string.Empty;
     public string SiteId { get; set; } = string.Empty;
-    public string TowerType { get; set; } = string.Empty;
+    public string? TowerType { get; set; }
     public float Elevation { get; set; }
     public required double Latitude { get; set; }
     public required double Longitude { get; set; }

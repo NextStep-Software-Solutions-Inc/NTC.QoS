@@ -57,6 +57,11 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
             cellQuery = cellQuery.Where(c => request.ServiceProviderIds.Contains(c.ServiceProviderId));
         }
 
+        if (request.IsVerified.HasValue)
+        {
+            cellQuery = cellQuery.Where(c => c.IsVerified == request.IsVerified.Value);
+        }
+
         if (request.BarangayIds is { Count: > 0 })
             cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.BarangayIds, _barangayRepository, cellQuery, cancellationToken);
         else if (request.MunicipalityIds is { Count: > 0 })
@@ -76,7 +81,7 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
             Lat = c.Location.Coordinate.Y,
             Lng = c.Location.Coordinate.X,
             Name = c.Name,
-            Status = EnumHelper<CellStatusEnum>.GetName(c.Status)
+            Status = c.Status.ToString()
         });
 
         return await _cellRepository.PaginateAsync(cellViewportDtoQuery, request.PageNumber, effectivePageSize, cancellationToken);

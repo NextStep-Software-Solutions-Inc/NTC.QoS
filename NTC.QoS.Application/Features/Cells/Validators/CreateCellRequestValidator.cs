@@ -30,6 +30,10 @@ namespace NTC.QoS.Application.Features.Cells.Validators
                     .NotEmpty().WithMessage("Status is required.")
                     .Must(s => Enum.TryParse<CellStatusEnum>(s, true, out _))
                     .WithMessage("Status is not a valid CellStatusEnum value.");
+
+                RuleFor(x => x.Cell.TowerType)
+                    .Must(t => string.IsNullOrEmpty(t) || Enum.TryParse<TowerTypeEnum>(t, true, out _))
+                    .WithMessage("TowerType is not a valid TowerTypeEnum value.");
             });
         }
     }

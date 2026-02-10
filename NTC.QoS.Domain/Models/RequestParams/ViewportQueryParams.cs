@@ -51,6 +51,9 @@ public sealed class ViewportQueryParams
     [JsonPropertyName("regionIds")]
     public List<Guid>? RegionIds { get; set; }
 
+    [JsonPropertyName("isVerified")]
+    public bool? IsVerified { get; set; }
+
     /// <summary>
     /// Validates that viewport bounds are logically correct
     /// </summary>
