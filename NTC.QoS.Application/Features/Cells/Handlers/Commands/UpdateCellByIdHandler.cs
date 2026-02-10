@@ -32,11 +32,12 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
             };
         }
 
+        if (!string.IsNullOrEmpty(request.Cell.Name)) cell.Name = request.Cell.Name;
         if (!string.IsNullOrEmpty(request.Cell.CID)) cell.CID = request.Cell.CID;
         if (!string.IsNullOrEmpty(request.Cell.LAC)) cell.LAC = request.Cell.LAC;
         if (!string.IsNullOrEmpty(request.Cell.TAC)) cell.TAC = request.Cell.TAC;
         if (!string.IsNullOrEmpty(request.Cell.SiteId)) cell.SiteId = request.Cell.SiteId;
-        if (!string.IsNullOrEmpty(request.Cell.TowerType)) cell.TowerType = request.Cell.TowerType;
+        if (!string.IsNullOrEmpty(request.Cell.TowerType) && Enum.TryParse<TowerTypeEnum>(request.Cell.TowerType, true, out var towerType)) cell.TowerType = towerType;
         if (request.Cell.Elevation is not 0) cell.Elevation = request.Cell.Elevation;
         if (request.Cell.Latitude is not 0 || request.Cell.Longitude is not 0)
         {
@@ -78,7 +79,7 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
                 LAC = cell.LAC,
                 TAC = cell.TAC,
                 SiteId = cell.SiteId,
-                TowerType = cell.TowerType,
+                TowerType = cell.TowerType.ToString(),
                 Elevation = cell.Elevation,
                 Latitude = cell.Location.Coordinate.Y,
                 Longitude = cell.Location.Coordinate.X,

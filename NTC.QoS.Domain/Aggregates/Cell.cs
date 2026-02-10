@@ -15,7 +15,7 @@ public class Cell : BaseEntity, IGeoLocatedEntity
     public string? Address { get; set; }
     public string CID { get; set; } = string.Empty;
     public string SiteId { get; set; } = string.Empty;
-    public string TowerType { get; set; } = string.Empty;
+    public TowerTypeEnum TowerType { get; set; } = TowerTypeEnum.Unknown;
     public float Elevation { get; set; }
     public string TAC { get; set; } = string.Empty;
     public string? LAC { get; set; }

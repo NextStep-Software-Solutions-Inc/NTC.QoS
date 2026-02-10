@@ -38,11 +38,17 @@ public class GetAllCellsHandler(ICellRepository cellRepository,
             cellQuery = cellQuery.Where(searchExpression);
         }
 
+        if (!string.IsNullOrEmpty(request.Status))
+        {
+            var statusEnum = EnumHelper<CellStatusEnum>.ParseUserInput(request.Status);
+            cellQuery = cellQuery.Where(c => c.Status == statusEnum);
+        }
+
         cellQuery = cellQuery
-            .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
             .Where(c => request.ServiceProviderIds == null || request.ServiceProviderIds.Contains(c.ServiceProviderId))
             .Where(c => request.ProviderIds == null || (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId)))
             .Where(c => request.ServiceIds == null || (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId)))
+            .Where(c => request.IsVerified == null || c.IsVerified == request.IsVerified.Value)
             .Where(c => locationPoint.IsValid && c.Location.IsWithinDistance(locationPoint, request.Distance));
 
         if (request.BarangayIds is { Count: > 0 })
@@ -94,12 +100,12 @@ public class GetAllCellsHandler(ICellRepository cellRepository,
                 LAC = cell.LAC,
                 TAC = cell.TAC,
                 SiteId = cell.SiteId,
-                TowerType = cell.TowerType,
+                TowerType = cell.TowerType.ToString(),
                 Elevation = cell.Elevation,
                 Latitude = cell.Location.Coordinate.Y,
                 Longitude = cell.Location.Coordinate.X,
                 IsVerified = cell.IsVerified,
-                Status = EnumHelper<CellStatusEnum>.GetName(cell.Status),
+                Status = cell.Status.ToString(),
                 Distance = Math.Round(cell.Location.Distance(locationPoint), 2)
             });
 

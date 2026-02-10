@@ -19,4 +19,5 @@ public class GetAllCellsRequest(int pageNumber, int pageSize) : IRequest<Paginat
     public List<Guid>? MunicipalityIds { get; set; }
     public List<Guid>? ProvinceIds { get; set; }
     public List<Guid>? RegionIds { get; set; }
+    public bool? IsVerified { get; set; }
 }
