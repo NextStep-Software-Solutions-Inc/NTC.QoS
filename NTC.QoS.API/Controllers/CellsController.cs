@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Authorization;
@@ -24,11 +25,24 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpPost]
     [RequirePermission(Permissions.CreateCells)]
-    public async Task<ActionResult<ApiResponse<CellDto>>> CreateCell(CreateCellDto createCell)
+    public async Task<ActionResult<ApiResponse<CellDto>>> Create(
+        [FromBody] CreateCellDto createCell, 
+        [FromQuery] Guid? regionId = null,
+        [FromServices] IUserContextService userContext = null!)
     {
-        var cell = await mediator.Send(new CreateCellRequest(createCell));
-        if (!cell.Succeeded || cell.Data == null)
-            return BadRequest(cell.Data == null ? "Cell creation failed, no data returned." : cell);
+        var cell = await mediator.Send(new CreateCellRequest(createCell) 
+        { 
+            RegionId = regionId ?? userContext?.GetCurrentRegionId()
+        });
+        if (!cell.Succeeded)
+            return BadRequest(cell);
+
+        if (cell.Data == null)
+            return BadRequest(new ApiResponse<CellDto>
+            {
+                Succeeded = false,
+                Message = "Cell creation failed, no data returned.",
+            });
 
         RemoveAllCellsCache();
         return CreatedAtAction(nameof(GetCellById), new { id = cell.Data.Id }, cell);
@@ -41,7 +55,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
         VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
-            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "isVerified" })]
     public async Task<ActionResult<PaginatedResponse<CellViewportDto>>> GetAllPublicCellsViewport([FromQuery] ViewportQueryParams query)
     {
         if (!query.IsViewportValid())
@@ -60,7 +74,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance", "isVerified" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] LocationQueryParams query)
     {
         return await GetAllCells(query);
@@ -108,9 +122,16 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpDelete]
     [RequirePermission(Permissions.DeleteCells)]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById([Required][FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById(
+        [Required][FromQuery] List<Guid> ids,
+        [FromQuery] Guid? regionId = null,
+        [FromServices] IUserContextService userContext = null!)
     {
-        var cells = await mediator.Send(new DeleteCellsByIdsRequest { Ids = ids });
+        var cells = await mediator.Send(new DeleteCellsByIdsRequest 
+        { 
+            Ids = ids,
+            RegionId = regionId ?? userContext?.GetCurrentRegionId()
+        });
         if (!cells.Succeeded)
             return BadRequest(cells);
 
@@ -128,7 +149,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
                $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
                $"{string.Join(",", query.ProviderIds ?? [])}_" +
                $"{string.Join(",", query.ServiceIds ?? [])}_" +
-               $"{query.Longitude}_{query.Latitude}_{query.Distance}";
+               $"{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsVerified}";
 
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
             return Ok(cachedCells);
@@ -145,7 +166,8 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
             BarangayIds = query.BarangayIds,
             MunicipalityIds = query.MunicipalityIds,
             ProvinceIds = query.ProvinceIds,
-            RegionIds = query.RegionIds
+            RegionIds = query.RegionIds,
+            IsVerified = query.IsVerified
         };
         var cells = await mediator.Send(request);
         if (cells.Succeeded && cells.Data != null)

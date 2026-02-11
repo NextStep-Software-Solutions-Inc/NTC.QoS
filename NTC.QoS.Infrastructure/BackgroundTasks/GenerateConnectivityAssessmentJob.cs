@@ -174,4 +174,93 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
             "If more files complete before then, assessment will be rescheduled to include their data.",
             fileId, file.RegionId.Value, request.JobId, assessmentScheduledTime, delay.TotalSeconds);
     }
+
+    /// <summary>
+    /// Triggers connectivity assessment generation for a specific region (used for manual cell operations).
+    /// This method bypasses file lookup and directly triggers assessment for the provided region.
+    /// </summary>
+    [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    public Task ExecuteForRegionAsync(Guid regionId, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Starting connectivity assessment generation for Region {RegionId} (manual trigger)", regionId);
+
+        // SMART CONSOLIDATION CHECK WITH SLIDING WINDOW
+        // Check if assessment was recently triggered for this region
+        if (!_consolidationService.ShouldTriggerAssessment(Guid.Empty, regionId))
+        {
+            _logger.LogInformation(
+                "Assessment consolidation: Skipping manual assessment trigger for Region {RegionId} due to recent assessment.",
+                regionId);
+            return Task.CompletedTask;
+        }
+
+        // Check if assessment is already scheduled for this region
+        var scheduledTime = _consolidationService.GetScheduledAssessmentTime(regionId);
+        if (scheduledTime.HasValue)
+        {
+            // Assessment is already scheduled for this region
+            if (_consolidationService.ShouldRescheduleAssessment(regionId))
+            {
+                // Reschedule it forward to wait for more operations (sliding window)
+                _logger.LogInformation(
+                    "Manual operation triggered while assessment was pending for Region {RegionId}. " +
+                    "Rescheduling assessment to allow more operations to complete.",
+                    regionId);
+
+                _consolidationService.RecordReschedule(regionId);
+                var newScheduledTime = DateTime.UtcNow.AddSeconds(AssessmentConsolidationService.ASSESSMENT_DELAY_SECONDS);
+                _consolidationService.SetScheduledAssessmentTime(regionId, newScheduledTime);
+
+                _logger.LogInformation(
+                    "Assessment for Region {RegionId} rescheduled to {NewScheduledTime:O}",
+                    regionId, newScheduledTime);
+                return Task.CompletedTask;
+            }
+            else
+            {
+                // Assessment is scheduled but not within threshold, or max reschedules reached
+                _logger.LogInformation(
+                    "Assessment already scheduled for Region {RegionId} at {ScheduledTime:O}. " +
+                    "Manual operation will be included in scheduled assessment.",
+                    regionId, scheduledTime.Value);
+                return Task.CompletedTask;
+            }
+        }
+
+        // Create request for assessment generation
+        var request = new ConnectivityAssessmentJobRequestDto
+        {
+            RegionIds = [regionId],
+            GenerateHierarchicalAssessments = false,
+            HierarchicalDepth = 0,
+            ForceRecalculate = true,
+            JobId = Guid.NewGuid().ToString(),
+            // Also populate deprecated properties for backward compatibility
+            #pragma warning disable CS0618 // Type or member is obsolete
+            LocationIds = [regionId],
+            LocationType = Domain.Enums.LocationTypeEnum.Regional
+            #pragma warning restore CS0618
+        };
+
+        // Record this assessment trigger in consolidation service for future deduplication
+        _consolidationService.MarkAssessmentTriggered(regionId);
+
+        // Schedule the assessment job with delay to batch multiple operations
+        var delay = _consolidationService.GetAssessmentDelay();
+        var assessmentScheduledTime = DateTime.UtcNow.Add(delay);
+        
+        // Record the scheduled time for sliding window rescheduling
+        _consolidationService.SetScheduledAssessmentTime(regionId, assessmentScheduledTime);
+
+        _backgroundJobService.Schedule<IProcessConnectivityAssessmentJob>(
+            job => job.ExecuteAsync(request, cancellationToken), 
+            delay);
+
+        _logger.LogInformation(
+            "Scheduled connectivity assessment for Region {RegionId} (manual trigger) with job ID {JobId}. " +
+            "Assessment scheduled for {ScheduledTime:O} ({DelaySeconds}s from now).",
+            regionId, request.JobId, assessmentScheduledTime, delay.TotalSeconds);
+        
+        return Task.CompletedTask;
+    }
 }

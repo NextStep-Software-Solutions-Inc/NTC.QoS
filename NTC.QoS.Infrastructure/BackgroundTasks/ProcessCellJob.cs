@@ -205,7 +205,7 @@ public class ProcessCellJob : IProcessCellJob
 
                     foreach (var cell in existingBatch)
                     {
-                        var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
+                        var normalizedTowerType = cell.TowerType == TowerTypeEnum.Unknown || cell.TowerType == 0 ? "Unknown" : cell.TowerType.ToString();
                         var hash = GenerateCellHash(cell.ServiceProviderId, normalizedTowerType, cell.Location);
 
                         if (cellLookup.Add(hash))
@@ -883,7 +883,7 @@ public class ProcessCellJob : IProcessCellJob
                         Group = record.Provider,
                         Address = address,
                         ServiceProviderId = serviceProviderId,
-                        TowerType = normalizedTowerType,
+                        TowerType = Enum.TryParse<TowerTypeEnum>(normalizedTowerType, true, out var towerTypeEnum) ? towerTypeEnum : TowerTypeEnum.Unknown,
                         Location = location,
                         IsFileUploaded = true,
                     };
