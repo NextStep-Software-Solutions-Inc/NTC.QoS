@@ -9,5 +9,4 @@ public class CreateNAPDto
     public string Address { get; set; } = string.Empty;
     public required double Latitude { get; set; }
     public required double Longitude { get; set; }
-    public bool IsFileUploaded { get; set; } = false;
 }

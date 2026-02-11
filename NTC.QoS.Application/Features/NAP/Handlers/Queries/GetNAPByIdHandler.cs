@@ -12,9 +12,21 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
 
     public async Task<ApiResponse<NAPDto>> Handle(GetNAPByIdRequest request, CancellationToken cancellationToken)
     {
-        var napQuery = _NAPRepository.Query(n => n.Id.Equals(request.Id));
-        var nap = await _NAPRepository.FirstOrDefaultAsync(napQuery, cancellationToken);
-        if (nap is null)
+        // Use projection to fetch only required fields for optimal performance
+        var napDtoQuery = _NAPRepository.Query(n => n.Id.Equals(request.Id))
+            .Select(n => new NAPDto
+            {
+                Id = n.Id,
+                ISP = n.ServiceProvider.Provider != null ? n.ServiceProvider.Provider.Name : "",
+                ISPColor = n.ServiceProvider.Provider != null ? n.ServiceProvider.Provider.Color : "",
+                Lat = n.Location.Coordinate.Y,
+                Lng = n.Location.Coordinate.X,
+                Dist = 0
+            });
+        
+        var napDto = await _NAPRepository.FirstOrDefaultAsync(napDtoQuery, cancellationToken);
+        
+        if (napDto is null)
         {
             return new ApiResponse<NAPDto>("NAP not found");
         }
@@ -23,15 +35,7 @@ public class GetNAPByIdHandler(INAPRepository NAPRepository) : IRequestHandler<G
         {
             Succeeded = true,
             Message = "NAP details retrieved successfully.",
-            Data = new NAPDto
-            {
-                Id = nap.Id,
-                ISP = nap.ServiceProvider.Provider.Name,
-                ISPColor = nap.ServiceProvider.Provider.Color,
-                Lat = nap.Location.Coordinate.Y,
-                Lng = nap.Location.Coordinate.X,
-                Dist = 0,
-            }
+            Data = napDto
         };
     }
 }

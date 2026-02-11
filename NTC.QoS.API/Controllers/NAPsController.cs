@@ -43,6 +43,19 @@ public class NAPsController : ControllerBase
         return BadRequest(NAP);
     }
 
+    [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateNAPs)]
+    public async Task<ActionResult<ApiResponse<NAPDto>>> PatchNAP(Guid id, UpdateNAPDto updateNAPDto)
+    {
+        var NAP = await _mediator.Send(new UpdateNAPRequest(id, updateNAPDto));
+        if (NAP.Succeeded)
+        {
+            RemoveAllNAPsCache();
+            return Ok(NAP);
+        }
+        return BadRequest(NAP);
+    }
+
     [HttpGet("public")]
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
