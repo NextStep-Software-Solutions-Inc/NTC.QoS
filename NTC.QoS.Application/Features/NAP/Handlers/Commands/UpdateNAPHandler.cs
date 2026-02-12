@@ -69,7 +69,7 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
                 };
             }
 
-            existingNap!.Location = newLocation;
+            existingNap.Location = newLocation;
         }
 
         // Update ServiceProviderId if provided
@@ -78,7 +78,7 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
             var newServiceProviderId = request.NAP.ServiceProviderId.Value;
 
             // If location was not changed but ServiceProviderId is changing, check for duplicates
-            if (newLocation is null && newServiceProviderId != existingNap!.ServiceProviderId)
+            if (newLocation is null && newServiceProviderId != existingNap.ServiceProviderId)
             {
                 var duplicateCheck = _repository.Query()
                     .Where(n => n.Id != request.Id
@@ -101,17 +101,17 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
                 }
             }
 
-            existingNap!.ServiceProviderId = newServiceProviderId;
+            existingNap.ServiceProviderId = newServiceProviderId;
         }
 
         // Update Address if provided
         if (request.NAP.Address != null)
         {
-            existingNap!.Address = request.NAP.Address;
+            existingNap.Address = request.NAP.Address;
         }
 
         // IsFileUploaded remains false for manual CRUD operations
-        existingNap!.IsFileUploaded = false;
+        existingNap.IsFileUploaded = false;
 
         _repository.Update(existingNap);
         await _repository.SaveChangesAsync(cancellationToken);
