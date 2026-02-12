@@ -25,7 +25,7 @@ public class UpdateNAPRequestValidator : AbstractValidator<UpdateNAPRequest>
                 .WithMessage("NAP Id is required.")
                 .MustAsync(async (napId, cancellationToken) =>
                 {
-                    var query = _napRepository.Query(n => n.Id == napId);
+                    var query = _napRepository.QueryAsNoTracking(n => n.Id == napId);
                     var nap = await _napRepository.FirstOrDefaultAsync(query, cancellationToken);
                     return nap != null;
                 })
