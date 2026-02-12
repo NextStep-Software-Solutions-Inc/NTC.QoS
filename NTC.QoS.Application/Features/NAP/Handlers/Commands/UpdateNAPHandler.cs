@@ -24,6 +24,21 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
         var napQuery = _repository.Query(n => n.Id == request.Id);
         var existingNap = await _repository.FirstOrDefaultAsync(napQuery, cancellationToken);
 
+        // Null check: entity may have been deleted between validation and handling
+        if (existingNap == null)
+        {
+            return new ApiResponse<NAPDto>
+            {
+            Message = "NAP not found.",
+            Succeeded = false,
+            Errors = new Dictionary<string, string[]>
+            {
+                { "NotFound", ["The requested NAP does not exist."] }
+            }
+            };
+        }
+
+
         // Update only the fields that are provided (partial update/PATCH behavior)
         Point? newLocation = null;
 
