@@ -65,6 +65,30 @@ public class UpdateSpeedtestHandler(
             existingSpeedtest.ServiceProviderId = request.Speedtest.ServiceProviderId.Value;
         }
 
+        // Check for duplicates using post-update values (exclude current record)
+        var duplicateCheck = _speedtestRepository.Query()
+            .Where(s => s.Id != request.Id &&
+                       s.Address == (request.Speedtest.Address ?? existingSpeedtest.Address) &&
+                       s.ServiceProviderId == (request.Speedtest.ServiceProviderId ?? existingSpeedtest.ServiceProviderId) &&
+                       s.GenerationId == (request.Speedtest.GenerationId ?? existingSpeedtest.GenerationId) &&
+                       s.TechnologyId == (request.Speedtest.TechnologyId ?? existingSpeedtest.TechnologyId) &&
+                       s.DateTime == (request.Speedtest.DateTime ?? existingSpeedtest.DateTime))
+            .Select(s => s.Id);
+        var duplicateId = await _speedtestRepository.FirstOrDefaultAsync(duplicateCheck, cancellationToken);
+
+        if (duplicateId != Guid.Empty)
+        {
+            return new ApiResponse<SpeedtestDto>
+            {
+                Message = "A Speedtest entry with the same DateTime already exists for this combination.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Duplicate", ["Another speedtest with the same Address, ServiceProvider, Generation, Technology, and DateTime already exists."] }
+                }
+            };
+        }
+
         // Update GenerationId if provided (nullable)
         if (request.Speedtest.GenerationId.HasValue)
         {
@@ -83,13 +107,13 @@ public class UpdateSpeedtestHandler(
             existingSpeedtest.DateTime = request.Speedtest.DateTime.Value;
         }
 
-        // Update Ping if provided (nullable, store 0 if null)
+        // Update Ping if provided (leaves existing value unchanged if not provided)
         if (request.Speedtest.Ping.HasValue)
         {
             existingSpeedtest.Ping = request.Speedtest.Ping.Value;
         }
 
-        // Update Jitter if provided (nullable, store 0 if null)
+        // Update Jitter if provided (leaves existing value unchanged if not provided)
         if (request.Speedtest.Jitter.HasValue)
         {
             existingSpeedtest.Jitter = request.Speedtest.Jitter.Value;
@@ -175,16 +199,16 @@ public class UpdateSpeedtestHandler(
         _speedtestRepository.Update(existingSpeedtest);
         await _speedtestRepository.SaveChangesAsync(cancellationToken);
 
-        // Fetch related data for the response
+        // Fetch related data for the response (use Query() to load navigation properties)
         var serviceProviderQuery = _serviceProviderRepository
-            .QueryAsNoTracking(sp => sp.Id == existingSpeedtest.ServiceProviderId);
+            .Query(sp => sp.Id == existingSpeedtest.ServiceProviderId);
         var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
 
         Domain.Aggregates.Generation? generation = null;
         if (existingSpeedtest.GenerationId.HasValue)
         {
             var generationQuery = _generationRepository
-                .QueryAsNoTracking(g => g.Id == existingSpeedtest.GenerationId.Value);
+                .Query(g => g.Id == existingSpeedtest.GenerationId.Value);
             generation = await _generationRepository.FirstOrDefaultAsync(generationQuery, cancellationToken);
         }
 
@@ -192,7 +216,7 @@ public class UpdateSpeedtestHandler(
         if (existingSpeedtest.TechnologyId.HasValue)
         {
             var technologyQuery = _technologyRepository
-                .QueryAsNoTracking(t => t.Id == existingSpeedtest.TechnologyId.Value);
+                .Query(t => t.Id == existingSpeedtest.TechnologyId.Value);
             technology = await _technologyRepository.FirstOrDefaultAsync(technologyQuery, cancellationToken);
         }
 

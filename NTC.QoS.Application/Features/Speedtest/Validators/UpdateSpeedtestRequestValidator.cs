@@ -89,13 +89,16 @@ public class UpdateSpeedtestRequestValidator : AbstractValidator<UpdateSpeedtest
                     .WithMessage("Download speed cannot be negative.");
             });
 
-            // If both speeds are provided, at least one must be > 0
-            When(x => x.Speedtest.UploadSpeed.HasValue && x.Speedtest.DownloadSpeed.HasValue, () =>
-            {
-                RuleFor(x => x.Speedtest)
-                    .Must(speedtest => speedtest.UploadSpeed > 0 || speedtest.DownloadSpeed > 0)
-                    .WithMessage("At least one of Upload or Download speed must be greater than 0.");
-            });
+            // If either speed is provided, ensure that at least one of the (possibly updated) speeds is > 0.
+            RuleFor(x => x.Speedtest)
+                .Must(speedtest =>
+                {
+                    var upload = speedtest.UploadSpeed ?? 0;
+                    var download = speedtest.DownloadSpeed ?? 0;
+                    return upload > 0 || download > 0;
+                })
+                .When(x => x.Speedtest.UploadSpeed.HasValue || x.Speedtest.DownloadSpeed.HasValue)
+                .WithMessage("At least one of Upload or Download speed must be greater than 0.");
 
             // Ping and Jitter validations (optional)
             When(x => x.Speedtest.Ping.HasValue, () =>
