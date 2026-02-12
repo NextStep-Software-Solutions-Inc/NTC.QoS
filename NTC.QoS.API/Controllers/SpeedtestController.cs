@@ -33,6 +33,17 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         return CreatedAtAction(nameof(GetSpeedtestById), new { id = speedtest.Data }, speedtest);
     }
 
+    [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateSpeedtests)]
+    public async Task<ActionResult<ApiResponse<SpeedtestDto>>> UpdateSpeedtest(Guid id, UpdateSpeedtestDto updateSpeedtest)
+    {
+        var speedtest = await mediator.Send(new UpdateSpeedtestRequest(id, updateSpeedtest));
+        if (!speedtest.Succeeded) return BadRequest(speedtest);
+
+        RemoveAllSpeedtestsCache();
+        return Ok(speedtest);
+    }
+
     /// <summary>
     /// v2 Viewport API: Get speedtests within viewport bounds (OPTIMIZED FOR MILLIONS OF DATA POINTS)
     /// Uses spatial bounding box for efficient PostGIS queries.
