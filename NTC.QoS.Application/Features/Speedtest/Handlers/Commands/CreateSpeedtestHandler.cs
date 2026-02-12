@@ -33,7 +33,7 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository) : 
         }
 
         // Check for duplicates (same ServiceProvider, Generation, Technology, DateTime, and Address)
-        var duplicateCheck = _speedtestRepository.Query()
+        var duplicateCheck = _speedtestRepository.QueryAsNoTracking()
             .Where(s => s.Address == request.Speedtest.Address &&
                        s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
                        s.GenerationId == request.Speedtest.GenerationId &&
