@@ -105,11 +105,11 @@ jobs:
             --set image.repository=${{ env.DOCKER_IMAGE }} \
             --set image.tag=latest \
             --set env.ASPNETCORE_ENVIRONMENT=Production \
-            --force --atomic --wait --timeout 1m
+            --force --atomic --wait --timeout 5m
 
       - name: Check deployment rollout status
         run: |
-          kubectl rollout status deployment/${{ env.RELEASE_NAME }} --timeout=1m
+          kubectl rollout status deployment/${{ env.RELEASE_NAME }} --timeout=5m
 
       - name: Get Ingress Host
         id: get_url
