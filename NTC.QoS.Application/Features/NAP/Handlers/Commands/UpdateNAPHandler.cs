@@ -10,7 +10,8 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Commands;
 
 /// <summary>
 /// Handler for updating an existing NAP.
-/// Validation is performed by UpdateNAPRequestValidator via FluentValidation pipeline.
+/// Input validation is performed by UpdateNAPRequestValidator via FluentValidation pipeline.
+/// Business rule validation (e.g., duplicate checking) is performed within this handler.
 /// </summary>
 public class UpdateNAPHandler(INAPRepository repository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<UpdateNAPRequest, ApiResponse<NAPDto>>
 {
@@ -121,10 +122,24 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
             .QueryAsNoTracking(sp => sp.Id == existingNap.ServiceProviderId)
             .Select(sp => new
             {
-                Name = sp.Provider != null ? sp.Provider.Name : "",
-                Color = sp.Provider != null ? sp.Provider.Color : ""
+                Name = sp.Provider != null ? sp.Provider.Name : null,
+                Color = sp.Provider != null ? sp.Provider.Color : null
             });
         var providerDetails = await _serviceProviderRepository.FirstOrDefaultAsync(providerDetailsQuery, cancellationToken);
+
+        // Validate that Provider data exists (data integrity check)
+        if (providerDetails == null || string.IsNullOrEmpty(providerDetails.Name))
+        {
+            return new ApiResponse<NAPDto>
+            {
+                Message = "Service provider data is missing or incomplete.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The associated service provider information could not be retrieved."] }
+                }
+            };
+        }
 
         // Return updated NAP with ServiceProvider details
         return new ApiResponse<NAPDto>
@@ -132,8 +147,8 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
             Data = new NAPDto
             {
                 Id = existingNap.Id,
-                ISP = providerDetails?.Name ?? "",
-                ISPColor = providerDetails?.Color ?? "",
+                ISP = providerDetails.Name,
+                ISPColor = providerDetails.Color ?? "",
                 Lat = existingNap.Location.Coordinate.Y,
                 Lng = existingNap.Location.Coordinate.X,
                 Dist = 0
