@@ -60,7 +60,33 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
         // Update ServiceProviderId if provided
         if (request.NAP.ServiceProviderId.HasValue)
         {
-            existingNap!.ServiceProviderId = request.NAP.ServiceProviderId.Value;
+            var newServiceProviderId = request.NAP.ServiceProviderId.Value;
+
+            // If location was not changed but ServiceProviderId is changing, check for duplicates
+            if (newLocation is null && newServiceProviderId != existingNap!.ServiceProviderId)
+            {
+                var duplicateCheck = _repository.Query()
+                    .Where(n => n.Id != request.Id
+                             && n.Location.Equals(existingNap.Location)
+                             && n.ServiceProviderId == newServiceProviderId)
+                    .Select(n => n.Id);
+                var duplicateId = await _repository.FirstOrDefaultAsync(duplicateCheck, cancellationToken);
+
+                if (duplicateId != Guid.Empty)
+                {
+                    return new ApiResponse<NAPDto>
+                    {
+                        Message = "Another NAP already exists at this location for this service provider.",
+                        Succeeded = false,
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            { "Duplicate", ["A different NAP with the same location and service provider already exists."] }
+                        }
+                    };
+                }
+            }
+
+            existingNap!.ServiceProviderId = newServiceProviderId;
         }
 
         // Update Address if provided
