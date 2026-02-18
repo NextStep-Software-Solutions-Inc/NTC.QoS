@@ -55,15 +55,19 @@ public sealed class ViewportQueryParams
     public bool? IsVerified { get; set; }
 
     [JsonPropertyName("minDownloadSpeed")]
+    [Range(0, double.MaxValue, ErrorMessage = "MinDownloadSpeed must be greater than or equal to 0")]
     public decimal? MinDownloadSpeed { get; set; }
 
     [JsonPropertyName("maxDownloadSpeed")]
+    [Range(0, double.MaxValue, ErrorMessage = "MaxDownloadSpeed must be greater than or equal to 0")]
     public decimal? MaxDownloadSpeed { get; set; }
 
     [JsonPropertyName("minUploadSpeed")]
+    [Range(0, double.MaxValue, ErrorMessage = "MinUploadSpeed must be greater than or equal to 0")]
     public decimal? MinUploadSpeed { get; set; }
 
     [JsonPropertyName("maxUploadSpeed")]
+    [Range(0, double.MaxValue, ErrorMessage = "MaxUploadSpeed must be greater than or equal to 0")]
     public decimal? MaxUploadSpeed { get; set; }
 
     [JsonPropertyName("startDate")]
@@ -78,6 +82,32 @@ public sealed class ViewportQueryParams
     public bool IsViewportValid()
     {
         return MinLat < MaxLat && MinLng < MaxLng;
+    }
+
+    /// <summary>
+    /// Validates that filter ranges are logically correct (min does not exceed max)
+    /// </summary>
+    public bool AreFiltersValid()
+    {
+        // Validate download speed range
+        if (MinDownloadSpeed.HasValue && MaxDownloadSpeed.HasValue && MinDownloadSpeed > MaxDownloadSpeed)
+        {
+            return false;
+        }
+
+        // Validate upload speed range
+        if (MinUploadSpeed.HasValue && MaxUploadSpeed.HasValue && MinUploadSpeed > MaxUploadSpeed)
+        {
+            return false;
+        }
+
+        // Validate date range
+        if (StartDate.HasValue && EndDate.HasValue && StartDate > EndDate)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
