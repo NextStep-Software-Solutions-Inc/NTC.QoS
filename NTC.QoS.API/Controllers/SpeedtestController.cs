@@ -55,28 +55,8 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds",
             "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate" })]
-    public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] ViewportQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] SpeedtestViewportQueryParams query)
     {
-        if (!query.IsViewportValid())
-        {
-            return BadRequest(new PaginatedResponse<SpeedtestViewportDto>(
-                [], 1, query.PageSize, 0)
-            {
-                Succeeded = false,
-                Message = "Invalid viewport bounds: minLatitude must be less than maxLatitude, and minLongitude must be less than maxLongitude"
-            });
-        }
-
-        if (!query.AreFiltersValid())
-        {
-            return BadRequest(new PaginatedResponse<SpeedtestViewportDto>(
-                [], 1, query.PageSize, 0)
-            {
-                Succeeded = false,
-                Message = "Invalid filter ranges: minimum values must not exceed maximum values for speed and date ranges"
-            });
-        }
-
         var request = new GetAllSpeedtestsViewportRequest(query);
         var result = await mediator.Send(request);
         return Ok(result);
@@ -120,16 +100,6 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     }
     private async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(SpeedtestsQueryParams query)
     {
-        if (!query.AreFiltersValid())
-        {
-            return BadRequest(new PaginatedResponse<SpeedtestDto>(
-                [], 1, query.PageSize, 0)
-            {
-                Succeeded = false,
-                Message = "Invalid filter ranges: minimum values must not exceed maximum values for speed and date ranges"
-            });
-        }
-
         var cacheKey = $"{SpeedtestsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
             $"{string.Join(",", query.BarangayIds ?? [])}_" +
             $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
@@ -235,19 +205,15 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         public string? SignalQuality { get; set; }
 
         [JsonPropertyName("minDownloadSpeed")]
-        [Range(0, double.MaxValue, ErrorMessage = "MinDownloadSpeed must be greater than or equal to 0")]
         public decimal? MinDownloadSpeed { get; set; }
 
         [JsonPropertyName("maxDownloadSpeed")]
-        [Range(0, double.MaxValue, ErrorMessage = "MaxDownloadSpeed must be greater than or equal to 0")]
         public decimal? MaxDownloadSpeed { get; set; }
 
         [JsonPropertyName("minUploadSpeed")]
-        [Range(0, double.MaxValue, ErrorMessage = "MinUploadSpeed must be greater than or equal to 0")]
         public decimal? MinUploadSpeed { get; set; }
 
         [JsonPropertyName("maxUploadSpeed")]
-        [Range(0, double.MaxValue, ErrorMessage = "MaxUploadSpeed must be greater than or equal to 0")]
         public decimal? MaxUploadSpeed { get; set; }
 
         [JsonPropertyName("startDate")]
@@ -263,31 +229,5 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
         [JsonPropertyName("distance")]
         public double Distance { get; set; } = 15000000;
-
-        /// <summary>
-        /// Validates that filter ranges are logically correct (min does not exceed max)
-        /// </summary>
-        public bool AreFiltersValid()
-        {
-            // Validate download speed range
-            if (MinDownloadSpeed.HasValue && MaxDownloadSpeed.HasValue && MinDownloadSpeed > MaxDownloadSpeed)
-            {
-                return false;
-            }
-
-            // Validate upload speed range
-            if (MinUploadSpeed.HasValue && MaxUploadSpeed.HasValue && MinUploadSpeed > MaxUploadSpeed)
-            {
-                return false;
-            }
-
-            // Validate date range
-            if (StartDate.HasValue && EndDate.HasValue && StartDate > EndDate)
-            {
-                return false;
-            }
-
-            return true;
-        }
     }
 }

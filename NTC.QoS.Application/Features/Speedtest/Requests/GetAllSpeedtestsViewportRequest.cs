@@ -7,9 +7,9 @@ namespace NTC.QoS.Application.Features.Speedtest.Requests;
 
 /// <summary>
 /// Request for viewport-based speedtest queries (v2 API).
-/// Uses ViewportQueryParams for bounding box filtering and pagination.
+/// Uses SpeedtestViewportQueryParams for bounding box filtering, speedtest filters, and pagination.
 /// </summary>
-public record GetAllSpeedtestsViewportRequest(ViewportQueryParams QueryParams)
+public record GetAllSpeedtestsViewportRequest(SpeedtestViewportQueryParams QueryParams)
     : IRequest<PaginatedResponse<SpeedtestViewportDto>>
 {
     public ViewportBounds Viewport => QueryParams.ToViewportBounds();
