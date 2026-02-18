@@ -127,16 +127,29 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
         {
             await _cellRepository.SaveChangesAsync(cancellationToken);
             
-            // Trigger connectivity assessment generation after successful cell creation
-            if (newCell.Location != null)
+            // Defensive check: Ensure Location was properly set
+            if (newCell.Location == null)
             {
-                await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
-                    newCell.Location,
-                    newCell.Id,
-                    "Cell",
-                    request.RegionId,
-                    cancellationToken);
+                _logger.LogError("Cell {CellId} was created but Location is null", newCell.Id);
+                return new ApiResponse<CellDto>
+                {
+                    Message = "Cell creation failed due to invalid location data.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "Location", new[] { "Failed to set cell location." } }
+                    }
+                };
             }
+            
+            // Trigger connectivity assessment generation after successful cell creation
+            // Location is guaranteed non-null due to earlier check
+            await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+                newCell.Location,
+                newCell.Id,
+                "Cell",
+                request.RegionId,
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -185,8 +198,8 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
                 SiteId = newCell.SiteId,
                 TowerType = newCell.TowerType.ToString(),
                 Elevation = newCell.Elevation,
-                Latitude = newCell.Location!.Coordinate.Y,
-                Longitude = newCell.Location!.Coordinate.X,
+                Latitude = newCell.Location.Coordinate.Y,
+                Longitude = newCell.Location.Coordinate.X,
                 IsVerified = newCell.IsVerified,
                 IsFileUploaded = newCell.IsFileUploaded,
                 Status = EnumHelper<CellStatusEnum>.GetName(newCell.Status)

@@ -42,6 +42,21 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
             };
         }
 
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (existingNap.Location == null)
+        {
+            _logger.LogError("NAP {NAPId} has null Location - possible data corruption", existingNap.Id);
+            return new ApiResponse<NAPDto>
+            {
+                Message = "NAP data is corrupted (missing location).",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The NAP location data is missing or corrupted."] }
+                }
+            };
+        }
+
 
         // Update only the fields that are provided (partial update/PATCH behavior)
         Point? newLocation = null;
@@ -121,15 +136,13 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
         await _repository.SaveChangesAsync(cancellationToken);
 
         // Trigger connectivity assessment generation after successful NAP update
-        if (existingNap.Location != null)
-        {
-            await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
-                existingNap.Location,
-                existingNap.Id,
-                "NAP",
-                request.RegionId,
-                cancellationToken);
-        }
+        // Location is guaranteed non-null due to earlier check
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            existingNap.Location,
+            existingNap.Id,
+            "NAP",
+            request.RegionId,
+            cancellationToken);
 
         // Fetch only required ServiceProvider details using projection for optimal performance
         var providerDetailsQuery = _serviceProviderRepository
@@ -163,8 +176,8 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
                 Id = existingNap.Id,
                 ISP = providerDetails.Name,
                 ISPColor = providerDetails.Color ?? "",
-                Lat = existingNap.Location!.Coordinate.Y,
-                Lng = existingNap.Location!.Coordinate.X,
+                Lat = existingNap.Location.Coordinate.Y,
+                Lng = existingNap.Location.Coordinate.X,
                 Dist = 0
             },
             Message = "NAP updated successfully.",

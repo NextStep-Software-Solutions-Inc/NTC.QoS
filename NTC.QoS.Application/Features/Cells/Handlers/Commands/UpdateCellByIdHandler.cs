@@ -35,6 +35,21 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository, IConnectivity
             };
         }
 
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (cell.Location == null)
+        {
+            _logger.LogError("Cell {CellId} has null Location - possible data corruption", cell.Id);
+            return new ApiResponse<CellDto>
+            {
+                Message = "Cell data is corrupted (missing location).",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The cell location data is missing or corrupted."] }
+                }
+            };
+        }
+
         if (!string.IsNullOrEmpty(request.Cell.Name)) cell.Name = request.Cell.Name;
         if (!string.IsNullOrEmpty(request.Cell.CID)) cell.CID = request.Cell.CID;
         if (!string.IsNullOrEmpty(request.Cell.LAC)) cell.LAC = request.Cell.LAC;
@@ -52,15 +67,13 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository, IConnectivity
         await _cellRepository.SaveChangesAsync(cancellationToken);
 
         // Trigger connectivity assessment generation after successful cell update
-        if (cell.Location != null)
-        {
-            await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
-                cell.Location,
-                cell.Id,
-                "Cell",
-                request.RegionId,
-                cancellationToken);
-        }
+        // Location is guaranteed non-null due to earlier check
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            cell.Location,
+            cell.Id,
+            "Cell",
+            request.RegionId,
+            cancellationToken);
 
         return new ApiResponse<CellDto>
         {
@@ -95,8 +108,8 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository, IConnectivity
                 SiteId = cell.SiteId,
                 TowerType = cell.TowerType.ToString(),
                 Elevation = cell.Elevation,
-                Latitude = cell.Location!.Coordinate.Y,
-                Longitude = cell.Location!.Coordinate.X,
+                Latitude = cell.Location.Coordinate.Y,
+                Longitude = cell.Location.Coordinate.X,
                 IsVerified = cell.IsVerified,
                 IsFileUploaded = cell.IsFileUploaded,
                 Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)

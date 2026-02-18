@@ -54,6 +54,21 @@ public class UpdateSpeedtestHandler(
             };
         }
 
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (existingSpeedtest.Location == null)
+        {
+            _logger.LogError("Speedtest {SpeedtestId} has null Location - possible data corruption", existingSpeedtest.Id);
+            return new ApiResponse<SpeedtestDto>
+            {
+                Message = "Speedtest data is corrupted (missing location).",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The speedtest location data is missing or corrupted." ] }
+                }
+            };
+        }
+
         // Update only the fields that are provided (partial update/PATCH behavior)
         Point? newLocation = null;
 
@@ -205,15 +220,13 @@ public class UpdateSpeedtestHandler(
         await _speedtestRepository.SaveChangesAsync(cancellationToken);
 
         // Trigger connectivity assessment generation after successful Speedtest update
-        if (existingSpeedtest.Location != null)
-        {
-            await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
-                existingSpeedtest.Location,
-                existingSpeedtest.Id,
-                "Speedtest",
-                request.RegionId,
-                cancellationToken);
-        }
+        // Location is guaranteed non-null due to earlier check
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            existingSpeedtest.Location,
+            existingSpeedtest.Id,
+            "Speedtest",
+            request.RegionId,
+            cancellationToken);
 
         // Fetch related data for the response (use Query() to load navigation properties)
         var serviceProviderQuery = _serviceProviderRepository
@@ -284,8 +297,8 @@ public class UpdateSpeedtestHandler(
                 RSSI = existingSpeedtest.RSSI,
                 UploadSpeed = existingSpeedtest.UploadSpeed,
                 DownloadSpeed = existingSpeedtest.DownloadSpeed,
-                Latitude = existingSpeedtest.Location!.Coordinate.Y,
-                Longitude = existingSpeedtest.Location!.Coordinate.X,
+                Latitude = existingSpeedtest.Location.Coordinate.Y,
+                Longitude = existingSpeedtest.Location.Coordinate.X,
                 PhoneModel = existingSpeedtest.PhoneModel,
                 MCC = existingSpeedtest.MCC,
                 MNC = existingSpeedtest.MNC,
