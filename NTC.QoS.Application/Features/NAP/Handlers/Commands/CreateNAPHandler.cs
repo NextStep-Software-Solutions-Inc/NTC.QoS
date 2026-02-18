@@ -59,6 +59,24 @@ public class CreateNAPHandler(INAPRepository repository, IServiceProviderReposit
         _repository.Add(NAP);
         await _repository.SaveChangesAsync(cancellationToken);
 
+        // Defensive check: Ensure Location was properly set
+        if (NAP.Location == null || NAP.Location.Coordinate == null)
+        {
+            _logger.LogError("NAP {NAPId} was created but Location is null", NAP.Id);
+            return new ApiResponse<NAPDto>
+            {
+                Message = "NAP creation failed due to invalid location data.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "Location", ["Failed to set NAP location."] }
+                }
+            };
+        }
+
+        // Store location in local variable for null-safe usage (helps compiler flow analysis)
+        var napLocation = NAP.Location;
+
         // Trigger connectivity assessment generation after successful NAP creation
         Guid? regionId = request.RegionId;
         
@@ -66,7 +84,7 @@ public class CreateNAPHandler(INAPRepository repository, IServiceProviderReposit
         if (!regionId.HasValue)
         {
             _logger.LogDebug("No region ID provided in request, performing spatial lookup for NAP {NAPId}", NAP.Id);
-            var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(NAP.Location, cancellationToken);
+            var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(napLocation, cancellationToken);
             regionId = barangay?.Municipality?.Province?.RegionId;
         }
         
@@ -79,7 +97,7 @@ public class CreateNAPHandler(INAPRepository repository, IServiceProviderReposit
         else
         {
             _logger.LogWarning("Could not determine region for NAP {NAPId} at location {Location}. Assessment not triggered.", 
-                NAP.Id, NAP.Location?.Coordinate);
+                NAP.Id, napLocation.Coordinate);
         }
 
         // Fetch only required ServiceProvider details using projection for optimal performance
@@ -107,6 +125,7 @@ public class CreateNAPHandler(INAPRepository repository, IServiceProviderReposit
         }
 
         // Return NAP with ServiceProvider details
+        // Location is guaranteed to be non-null due to earlier check
         return new ApiResponse<NAPDto>
         {
             Data = new NAPDto
@@ -114,8 +133,8 @@ public class CreateNAPHandler(INAPRepository repository, IServiceProviderReposit
                 Id = NAP.Id,
                 ISP = providerDetails.Name,
                 ISPColor = providerDetails.Color ?? "",
-                Lat = NAP.Location!.Coordinate.Y,
-                Lng = NAP.Location!.Coordinate.X,
+                Lat = napLocation.Coordinate.Y,
+                Lng = napLocation.Coordinate.X,
                 Dist = 0
             },
             Message = "NAP created successfully.",
