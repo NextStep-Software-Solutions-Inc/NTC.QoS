@@ -18,6 +18,11 @@ public class GetAllZonesHandler(IZoneRepository zoneRepository) : IRequestHandle
             allZonesQuery = allZonesQuery.Where(z => z.BarangayId == request.BarangayId.Value);
         }
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allZonesQuery = _zoneRepository.ApplySearch(allZonesQuery, request.Search, z => z.Name);
+        }
+
         var zoneDtosQuery = allZonesQuery
             .OrderBy(z => z.Name)
             .Select(z => new ZoneDto

@@ -37,12 +37,13 @@ public class BarangaysController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewBarangays)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "regionIds", "name", "municipality", "province", "isWiredCovered", "isWirelessCovered" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "regionIds", "name", "search", "municipality", "province", "isWiredCovered", "isWirelessCovered" })]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1,
                                                                                     [FromQuery] Guid[]? municipalityIds = default,
                                                                                     [FromQuery] Guid[]? regionIds = default,
                                                                                     string? name = default,
+                                                                                    [FromQuery] string? search = null,
                                                                                     string? municipality = default,
                                                                                     string? province = default,
                                                                                     bool? isWiredCovered = default,
@@ -54,7 +55,7 @@ public class BarangaysController : ControllerBase
             PageSize = pageSize,
             MunicipalityIds = municipalityIds,
             RegionIds = regionIds,
-            Name = name,
+            Name = search ?? name,
             Municipality = municipality,
             Province = province,
             IsWiredCovered = isWiredCovered,

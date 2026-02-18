@@ -52,6 +52,11 @@ public class GetAllRegionsHandler(
             allRegions = allRegions.Where(r => coveredRegionIds.Contains(r.Id));
         }
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allRegions = _repository.ApplySearch(allRegions, request.Search, r => r.Name);
+        }
+
         var regionDtos = allRegions.OrderBy(r => r.Name).Select(r => new RegionDto
         {
             Id = r.Id,

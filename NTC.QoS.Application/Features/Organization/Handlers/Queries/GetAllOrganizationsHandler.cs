@@ -12,6 +12,11 @@ public class GetAllOrganizationsHandler(IRepository<Domain.Entities.Organization
     {
         var allOrganizations = _organizationRepository.Query();
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allOrganizations = _organizationRepository.ApplySearch(allOrganizations, request.Search, o => o.Name);
+        }
+
         var organizationDtos = allOrganizations.Select(o => new OrganizationDto
         {
             Id = o.Id,

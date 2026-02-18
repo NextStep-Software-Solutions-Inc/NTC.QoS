@@ -39,7 +39,8 @@ public class LinksController : ControllerBase
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? bandIds = null,
         int pageSize = 10,
-        int pageNumber = 1
+        int pageNumber = 1,
+        [FromQuery] string? search = null
     )
     {
         var result = await _mediator.Send(new GetAllLinksRequest
@@ -48,6 +49,7 @@ public class LinksController : ControllerBase
             PageSize = pageSize,
             ServiceProviderIds = serviceProviderIds,
             BandIds = bandIds,
+            Search = search
         });
         return Ok(result);
     }

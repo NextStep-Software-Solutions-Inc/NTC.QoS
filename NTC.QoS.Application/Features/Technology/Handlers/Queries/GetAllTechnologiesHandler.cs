@@ -15,6 +15,11 @@ public class GetAllTechnologiesHandler(ITechnologyRepository technologyRepositor
 
         technologyQuery = technologyQuery.Where(t => request.GenerationIds == null || request.GenerationIds.Contains(t.GenerationId));
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            technologyQuery = _technologyRepository.ApplySearch(technologyQuery, request.Search, t => t.Standard);
+        }
+
         var technologyQueryDtos = technologyQuery.Select(t => new TechnologyDto
         {
             Id = t.Id,

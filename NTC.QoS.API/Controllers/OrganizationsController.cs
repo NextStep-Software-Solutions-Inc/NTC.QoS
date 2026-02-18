@@ -30,9 +30,9 @@ public class OrganizationsController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewOrganizations)]
-    public async Task<ActionResult<PaginatedResponse<OrganizationDto>>> GetAllOrganizations(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<OrganizationDto>>> GetAllOrganizations(int pageSize = 10, int pageNumber = 1, [FromQuery] string? search = null)
     {
-        var result = await _mediator.Send(new GetAllOrganizationsRequest(pageSize, pageNumber));
+        var result = await _mediator.Send(new GetAllOrganizationsRequest(pageSize, pageNumber, search));
         return Ok(result);
     }
 

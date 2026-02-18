@@ -23,9 +23,9 @@ public class StudiesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<StudyDto>>> GetAllStudies(int pageSize = 10, int pageNumber = 1, Guid? areaStudyId = null)
+    public async Task<ActionResult<PaginatedResponse<StudyDto>>> GetAllStudies(int pageSize = 10, int pageNumber = 1, Guid? areaStudyId = null, [FromQuery] string? search = null)
     {
-        var request = new GetAllStudiesRequest(pageSize, pageNumber, areaStudyId);
+        var request = new GetAllStudiesRequest(pageSize, pageNumber, areaStudyId, search);
         var studies = await _mediator.Send(request);
         return studies.Succeeded ? Ok(studies) : BadRequest(studies);
     }

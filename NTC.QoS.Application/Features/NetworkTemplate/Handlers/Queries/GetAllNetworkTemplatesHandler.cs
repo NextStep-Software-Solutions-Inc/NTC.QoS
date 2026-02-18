@@ -15,7 +15,7 @@ public class GetAllNetworkTemplatesHandler(IRepository<Domain.Entities.NetworkTe
 
         if (request.Search is not null)
         {
-            allNetworkTemplates = allNetworkTemplates.Where(nt => nt.Name.Contains(request.Search));
+            allNetworkTemplates = _repository.ApplySearch(allNetworkTemplates, request.Search, nt => nt.Name);
         }
 
         var networkTemplates = allNetworkTemplates.Select(static allNetworkTemplate => new NetworkTemplateDto

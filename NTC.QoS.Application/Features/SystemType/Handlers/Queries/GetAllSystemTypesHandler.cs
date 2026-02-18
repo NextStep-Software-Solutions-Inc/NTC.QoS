@@ -25,6 +25,11 @@ public class GetAllSystemTypesHandler(ISystemTypeRepository repository)
             systemTypeQuery = systemTypeQuery.Where(st => request.GenerationIds.Contains(st.GenerationId));
         }
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            systemTypeQuery = _repository.ApplySearch(systemTypeQuery, request.Search, st => st.Name);
+        }
+
         var query = systemTypeQuery
             .OrderBy(st => st.Name)
             .Select(st => new SystemTypeDto

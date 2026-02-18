@@ -57,4 +57,13 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
        List<Guid>? provinceIds = null,
        List<Guid>? municipalityIds = null,
        List<Guid>? barangayIds = null) where T : IGeoLocatedEntity;
+
+    /// <summary>
+    /// Applies case-insensitive search (ILIKE) across one or more string properties.
+    /// The implementation uses EF.Functions.ILike internally — no EF dependency required in callers.
+    /// </summary>
+    IQueryable<T> ApplySearch<T>(
+        IQueryable<T> query,
+        string? searchKeyword,
+        params Expression<Func<T, string?>>[] propertySelectors);
 }

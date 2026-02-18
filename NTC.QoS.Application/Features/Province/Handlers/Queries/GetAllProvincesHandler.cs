@@ -58,6 +58,11 @@ public class GetAllProvincesHandler(
             provincesQuery = provincesQuery.Where(p => request.RegionIds.Contains(p.RegionId));
         }
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            provincesQuery = _provinceRepository.ApplySearch(provincesQuery, request.Search, p => p.Name);
+        }
+
         var provinceProjection = provincesQuery
             .OrderBy(p => p.Name)
             .Select(p => new ProvinceDto

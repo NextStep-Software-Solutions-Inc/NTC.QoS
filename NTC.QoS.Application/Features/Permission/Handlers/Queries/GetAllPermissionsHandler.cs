@@ -12,6 +12,11 @@ public class GetAllPermissionsHandler(IRepository<Domain.Entities.Permission> re
     {
         var permissionsQuery = _repository.Query();
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            permissionsQuery = _repository.ApplySearch(permissionsQuery, request.Search, p => p.Name, p => p.Key);
+        }
+
         var permissionDtosQuery = permissionsQuery.Select(static p => new PermissionDto
         {
             Id = p.Id,

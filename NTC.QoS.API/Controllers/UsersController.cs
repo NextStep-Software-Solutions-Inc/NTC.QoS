@@ -40,9 +40,10 @@ public class UsersController(IMediator mediator) : ControllerBase
                                                                          Guid? roleId = null,
                                                                          Guid? organizationId = null,
                                                                          [FromQuery] List<string>? authUserIds = null,
-                                                                         [FromQuery] List<Guid>? regionIds = null)
+                                                                         [FromQuery] List<Guid>? regionIds = null,
+                                                                         [FromQuery] string? search = null)
     {
-        var users = await _mediator.Send(new GetAllUsersRequest(pageSize, pageNumber, roleId, organizationId, authUserIds, regionIds));
+        var users = await _mediator.Send(new GetAllUsersRequest(pageSize, pageNumber, roleId, organizationId, authUserIds, regionIds, search));
         return users.Succeeded ? Ok(users) : BadRequest(users);
     }
 
