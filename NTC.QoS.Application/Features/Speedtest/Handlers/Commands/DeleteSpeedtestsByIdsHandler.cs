@@ -55,22 +55,38 @@ public class DeleteSpeedtestsByIdsHandler(IRepository<Domain.Entities.Speedtest>
         else
         {
             // Fallback to spatial lookup if no region provided
-            _logger.LogDebug("No region ID provided in request, performing spatial lookups for {Count} deleted speedtests", speedtestsToDelete.Count);
-            var regionIds = new HashSet<Guid>();
-            foreach (var speedtest in speedtestsToDelete)
+            // OPTIMIZATION: Deduplicate locations to minimize spatial queries (avoid N+1 pattern)
+            var distinctLocations = speedtestsToDelete
+                .Where(st => st.Location != null)
+                .Select(st => st.Location!)
+                .Distinct()
+                .ToList();
+
+            if (distinctLocations.Count > 50)
             {
-                if (speedtest.Location != null)
+                _logger.LogWarning("Large batch delete of {Count} speedtests across {LocationCount} distinct locations without region ID. " +
+                    "Consider providing RegionId parameter for better performance.", 
+                    speedtestsToDelete.Count, distinctLocations.Count);
+            }
+
+            _logger.LogDebug("Performing spatial lookups for {LocationCount} distinct locations from {TotalCount} deleted speedtests", 
+                distinctLocations.Count, speedtestsToDelete.Count);
+
+            var regionIds = new HashSet<Guid>();
+            foreach (var location in distinctLocations)
+            {
+                var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(location, cancellationToken);
+                if (barangay?.Municipality?.Province?.RegionId != null)
                 {
-                    var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(speedtest.Location, cancellationToken);
-                    if (barangay?.Municipality?.Province?.RegionId != null)
-                    {
-                        regionIds.Add(barangay.Municipality.Province.RegionId);
-                    }
+                    regionIds.Add(barangay.Municipality.Province.RegionId);
                 }
             }
 
             // Trigger assessment once per affected region
-            _logger.LogInformation("Triggering connectivity assessments for {RegionCount} regions after speedtest deletion", regionIds.Count);
+            _logger.LogInformation("Triggering connectivity assessments for {RegionCount} regions after speedtest deletion " +
+                "({LocationCount} locations checked, {TotalCount} speedtests deleted)", 
+                regionIds.Count, distinctLocations.Count, deletedCount);
+            
             foreach (var regionId in regionIds)
             {
                 _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
