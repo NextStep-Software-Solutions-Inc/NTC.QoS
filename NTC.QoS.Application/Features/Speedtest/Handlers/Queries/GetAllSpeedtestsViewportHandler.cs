@@ -75,6 +75,32 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
             speedtestQuery = speedtestQuery.Where(s => request.ServiceProviderIds.Contains(s.ServiceProviderId));
         }
 
+        // Apply speed range and date filters if specified
+        if (request.MinDownloadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DownloadSpeed >= request.MinDownloadSpeed.Value);
+        }
+        if (request.MaxDownloadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DownloadSpeed <= request.MaxDownloadSpeed.Value);
+        }
+        if (request.MinUploadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.UploadSpeed >= request.MinUploadSpeed.Value);
+        }
+        if (request.MaxUploadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.UploadSpeed <= request.MaxUploadSpeed.Value);
+        }
+        if (request.StartDate.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DateTime >= request.StartDate.Value);
+        }
+        if (request.EndDate.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DateTime <= request.EndDate.Value);
+        }
+
         // Apply administrative boundary filters (hierarchical)
         if (request.BarangayIds is { Count: > 0 })
         {

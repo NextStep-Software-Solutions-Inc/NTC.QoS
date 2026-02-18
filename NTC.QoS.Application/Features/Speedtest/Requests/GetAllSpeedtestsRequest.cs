@@ -21,6 +21,12 @@ public class GetAllSpeedtestsRequest(int pageNumber, int pageSize) : IRequest<Pa
     public List<Guid>? ProviderIds { get; set; }
     public List<Guid>? ServiceIds { get; set; }
     public string? SignalQuality { get; set; }
+    public decimal? MinDownloadSpeed { get; set; }
+    public decimal? MaxDownloadSpeed { get; set; }
+    public decimal? MinUploadSpeed { get; set; }
+    public decimal? MaxUploadSpeed { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
     public required Coordinate Coordinate { get; set; }
     public double Distance { get; set; }
 }

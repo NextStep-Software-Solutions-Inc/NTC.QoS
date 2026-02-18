@@ -20,4 +20,10 @@ public record GetAllSpeedtestsViewportRequest(ViewportQueryParams QueryParams)
     public List<Guid>? MunicipalityIds => QueryParams.MunicipalityIds;
     public List<Guid>? ProvinceIds => QueryParams.ProvinceIds;
     public List<Guid>? RegionIds => QueryParams.RegionIds;
+    public decimal? MinDownloadSpeed => QueryParams.MinDownloadSpeed;
+    public decimal? MaxDownloadSpeed => QueryParams.MaxDownloadSpeed;
+    public decimal? MinUploadSpeed => QueryParams.MinUploadSpeed;
+    public decimal? MaxUploadSpeed => QueryParams.MaxUploadSpeed;
+    public DateTime? StartDate => QueryParams.StartDate;
+    public DateTime? EndDate => QueryParams.EndDate;
 }

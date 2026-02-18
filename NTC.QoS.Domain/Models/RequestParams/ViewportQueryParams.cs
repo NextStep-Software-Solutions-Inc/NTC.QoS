@@ -54,6 +54,24 @@ public sealed class ViewportQueryParams
     [JsonPropertyName("isVerified")]
     public bool? IsVerified { get; set; }
 
+    [JsonPropertyName("minDownloadSpeed")]
+    public decimal? MinDownloadSpeed { get; set; }
+
+    [JsonPropertyName("maxDownloadSpeed")]
+    public decimal? MaxDownloadSpeed { get; set; }
+
+    [JsonPropertyName("minUploadSpeed")]
+    public decimal? MinUploadSpeed { get; set; }
+
+    [JsonPropertyName("maxUploadSpeed")]
+    public decimal? MaxUploadSpeed { get; set; }
+
+    [JsonPropertyName("startDate")]
+    public DateTime? StartDate { get; set; }
+
+    [JsonPropertyName("endDate")]
+    public DateTime? EndDate { get; set; }
+
     /// <summary>
     /// Validates that viewport bounds are logically correct
     /// </summary>
