@@ -53,19 +53,10 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
         VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
-            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
-    public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] ViewportQueryParams query)
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds",
+            "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate" })]
+    public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] SpeedtestViewportQueryParams query)
     {
-        if (!query.IsViewportValid())
-        {
-            return BadRequest(new PaginatedResponse<SpeedtestViewportDto>(
-                [], 1, query.PageSize, 0)
-            {
-                Succeeded = false,
-                Message = "Invalid viewport bounds: minLatitude must be less than maxLatitude, and minLongitude must be less than maxLongitude"
-            });
-        }
-
         var request = new GetAllSpeedtestsViewportRequest(query);
         var result = await mediator.Send(request);
         return Ok(result);
@@ -73,7 +64,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllPublicSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
         return await GetAllSpeedtests(query);
@@ -115,7 +106,8 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             $"{string.Join(",", query.ProvinceIds ?? [])}_" +
             $"{string.Join(",", query.RegionIds ?? [])}_" +
             $"_{string.Join(",", query.CellIds ?? [])}_{string.Join(",", query.GenerationIds ?? [])}_{string.Join(",", query.ProviderIds ?? [])}" +
-            $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.Longitude}_{query.Latitude}_{query.Distance}";
+            $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.MinDownloadSpeed}_{query.MaxDownloadSpeed}" +
+            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{query.StartDate:O}_{query.EndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}";
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
             return Ok(cachedSpeedtests);
 
@@ -132,6 +124,12 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             ProviderIds = query.ProviderIds,
             ServiceIds = query.ServiceIds,
             SignalQuality = query.SignalQuality,
+            MinDownloadSpeed = query.MinDownloadSpeed,
+            MaxDownloadSpeed = query.MaxDownloadSpeed,
+            MinUploadSpeed = query.MinUploadSpeed,
+            MaxUploadSpeed = query.MaxUploadSpeed,
+            StartDate = query.StartDate,
+            EndDate = query.EndDate,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance
         };
@@ -205,6 +203,24 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
         [JsonPropertyName("signalQuality")]
         public string? SignalQuality { get; set; }
+
+        [JsonPropertyName("minDownloadSpeed")]
+        public decimal? MinDownloadSpeed { get; set; }
+
+        [JsonPropertyName("maxDownloadSpeed")]
+        public decimal? MaxDownloadSpeed { get; set; }
+
+        [JsonPropertyName("minUploadSpeed")]
+        public decimal? MinUploadSpeed { get; set; }
+
+        [JsonPropertyName("maxUploadSpeed")]
+        public decimal? MaxUploadSpeed { get; set; }
+
+        [JsonPropertyName("startDate")]
+        public DateTime? StartDate { get; set; }
+
+        [JsonPropertyName("endDate")]
+        public DateTime? EndDate { get; set; }
 
         [JsonPropertyName("longitude")]
         public double Longitude { get; set; } = 0;
