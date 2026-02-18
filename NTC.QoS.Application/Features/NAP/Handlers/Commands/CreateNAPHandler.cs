@@ -14,12 +14,11 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Commands;
 /// Input validation is performed by CreateNAPRequestValidator via FluentValidation pipeline.
 /// Business rule validation (e.g., duplicate checking) is performed within this handler.
 /// </summary>
-public class CreateNAPHandler(INAPRepository repository, IServiceProviderRepository serviceProviderRepository, IBarangayRepository barangayRepository, IBackgroundJobService backgroundJobService, ILogger<CreateNAPHandler> logger) : IRequestHandler<CreateNAPRequest, ApiResponse<NAPDto>>
+public class CreateNAPHandler(INAPRepository repository, IServiceProviderRepository serviceProviderRepository, IConnectivityAssessmentTriggerService connectivityAssessmentTriggerService, ILogger<CreateNAPHandler> logger) : IRequestHandler<CreateNAPRequest, ApiResponse<NAPDto>>
 {
     private readonly INAPRepository _repository = repository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
-    private readonly IBarangayRepository _barangayRepository = barangayRepository;
-    private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
+    private readonly IConnectivityAssessmentTriggerService _connectivityAssessmentTriggerService = connectivityAssessmentTriggerService;
     private readonly ILogger<CreateNAPHandler> _logger = logger;
 
     public async Task<ApiResponse<NAPDto>> Handle(CreateNAPRequest request, CancellationToken cancellationToken)
@@ -78,27 +77,12 @@ public class CreateNAPHandler(INAPRepository repository, IServiceProviderReposit
         var napLocation = NAP.Location;
 
         // Trigger connectivity assessment generation after successful NAP creation
-        Guid? regionId = request.RegionId;
-        
-        // If region not provided in request, fallback to spatial lookup
-        if (!regionId.HasValue)
-        {
-            _logger.LogDebug("No region ID provided in request, performing spatial lookup for NAP {NAPId}", NAP.Id);
-            var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(napLocation, cancellationToken);
-            regionId = barangay?.Municipality?.Province?.RegionId;
-        }
-        
-        if (regionId.HasValue)
-        {
-            _logger.LogInformation("Triggering connectivity assessment for region {RegionId} after NAP creation", regionId.Value);
-            _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
-                job => job.ExecuteForRegionAsync(regionId.Value, cancellationToken));
-        }
-        else
-        {
-            _logger.LogWarning("Could not determine region for NAP {NAPId} at location {Location}. Assessment not triggered.", 
-                NAP.Id, napLocation.Coordinate);
-        }
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            napLocation,
+            NAP.Id,
+            "NAP",
+            request.RegionId,
+            cancellationToken);
 
         // Fetch only required ServiceProvider details using projection for optimal performance
         var providerDetailsQuery = _serviceProviderRepository
