@@ -31,17 +31,10 @@ public class DeleteSpeedtestsByIdsHandler(IRepository<Domain.Entities.Speedtest>
             };
         }
 
+        // Perform deletion - using the same query to ensure consistency
         var speedtestQuery = _repository.Query(st => request.Ids.Contains(st.Id));
-        var deletedCount = await _repository.ExecuteHardDeleteAsync(speedtestQuery, cancellationToken);
-
-        if (deletedCount is 0)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Message = "None of the specified speedtest/s exist or are already deleted."
-            };
-        }
+        await _repository.ExecuteHardDeleteAsync(speedtestQuery, cancellationToken);
+        var deletedCount = speedtestsToDelete.Count;
 
         // Trigger connectivity assessment generation for affected regions
         // If region ID provided in request, use it directly (most efficient)

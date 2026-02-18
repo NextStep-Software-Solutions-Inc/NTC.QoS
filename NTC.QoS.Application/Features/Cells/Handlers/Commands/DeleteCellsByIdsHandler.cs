@@ -30,17 +30,10 @@ public class DeleteCellsByIdsHandler(ICellRepository repository, IBarangayReposi
             };
         }
 
+        // Perform deletion - using the same query to ensure consistency
         var cellsToDeleteQuery = _repository.Query(c => request.Ids.Contains(c.Id));
-        var deletedCount = await _repository.ExecuteHardDeleteAsync(cellsToDeleteQuery, cancellationToken);
-
-        if (deletedCount is 0)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Message = "None of the specified cell/s exist or are already deleted.",
-            };
-        }
+        await _repository.ExecuteHardDeleteAsync(cellsToDeleteQuery, cancellationToken);
+        var deletedCount = cellsToDelete.Count;
 
         // Trigger connectivity assessment generation for affected regions
         // If region ID provided in request, use it directly (most efficient)

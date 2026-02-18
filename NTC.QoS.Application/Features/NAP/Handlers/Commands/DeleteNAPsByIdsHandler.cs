@@ -30,17 +30,10 @@ public class DeleteNAPsByIdsHandler(IRepository<Domain.Aggregates.NAP> repositor
             };
         }
 
+        // Perform deletion - using the same query to ensure consistency
         var napQuery = _repository.Query(n => request.Ids.Contains(n.Id));
-        var deletedCount = await _repository.ExecuteHardDeleteAsync(napQuery, cancellationToken);
-
-        if (deletedCount is 0)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Message = "None of the specified NAPs exist or are already deleted."
-            };
-        }
+        await _repository.ExecuteHardDeleteAsync(napQuery, cancellationToken);
+        var deletedCount = napsToDelete.Count;
 
         // Trigger connectivity assessment generation for affected regions
         // If region ID provided in request, use it directly (most efficient)
