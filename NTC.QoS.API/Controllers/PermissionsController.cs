@@ -27,9 +27,9 @@ public class PermissionsController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewPermissions)]
-    public async Task<ActionResult<PaginatedResponse<PermissionDto>>> GetAllPermissions(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<PermissionDto>>> GetAllPermissions(int pageSize = 10, int pageNumber = 1, [FromQuery] string? search = null)
     {
-        var result = await _mediator.Send(new GetAllPermissionsRequest(pageSize, pageNumber));
+        var result = await _mediator.Send(new GetAllPermissionsRequest(pageSize, pageNumber, search));
         return Ok(result);
     }
 

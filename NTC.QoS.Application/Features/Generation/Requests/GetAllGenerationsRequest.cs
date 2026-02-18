@@ -13,4 +13,5 @@ public class GetAllGenerationsRequest : IRequest<PaginatedResponse<GenerationDto
     public List<Guid>? ProviderIds { get; set; }
     public List<Guid>? ServiceIds { get; set; }
     public List<Guid>? ServiceProviderIds { get; set; }
+    public string? Search { get; set; }
 }

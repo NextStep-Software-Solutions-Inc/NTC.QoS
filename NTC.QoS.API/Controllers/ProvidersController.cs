@@ -28,15 +28,16 @@ public class ProvidersController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewProviders)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "serviceIds", "names", "includeLogoData" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "serviceIds", "names", "includeLogoData", "search" })]
     public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(
         int pageSize = 10,
         int pageNumber = 1,
         [FromQuery] List<Guid>? serviceIds = null,
         [FromQuery] List<string>? names = null,
-        [FromQuery] bool? includeLogoData = null)
+        [FromQuery] bool? includeLogoData = null,
+        [FromQuery] string? search = null)
     {
-        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds, names, includeLogoData));
+        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds, names, includeLogoData, search));
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 

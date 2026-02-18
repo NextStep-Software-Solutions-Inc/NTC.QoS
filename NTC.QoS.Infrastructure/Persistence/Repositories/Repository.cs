@@ -269,7 +269,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
     /// <param name="searchKeyword">The search keyword</param>
     /// <param name="propertySelectors">Property selectors to search across</param>
     /// <returns>Filtered queryable</returns>
-    protected IQueryable<T> ApplySearch<T>(
+    public IQueryable<T> ApplySearch<T>(
         IQueryable<T> query,
         string? searchKeyword,
         params Expression<Func<T, string?>>[] propertySelectors)

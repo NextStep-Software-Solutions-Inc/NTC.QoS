@@ -33,6 +33,11 @@ public class GetAllServicesHandler(IServiceRepository repository) : IRequestHand
             }
         }
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allServicesQuery = _repository.ApplySearch(allServicesQuery, request.Search, s => s.Name);
+        }
+
         var serviceDtosQuery = allServicesQuery
             .OrderBy(s => s.CreatedAt)
             .Select(service => new ServiceDto

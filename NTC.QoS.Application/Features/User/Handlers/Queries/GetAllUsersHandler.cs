@@ -32,6 +32,11 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             query = query.Where(u => request.AuthUserIds.Contains(u.AuthUserId));
         }
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            query = _repository.ApplySearch(query, request.Search, u => u.FirstName, u => u.LastName, u => u.Email);
+        }
+
         var userDtosQuery = query
             .OrderBy(u => u.CreatedAt)
             .Select(u => new UserDto

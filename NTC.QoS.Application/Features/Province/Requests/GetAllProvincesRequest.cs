@@ -17,6 +17,7 @@ public class GetAllProvincesRequest : IRequest<PaginatedResponse<ProvinceDto>>
     public Guid[]? RegionIds { get; set; }
     public bool? IsWiredCovered { get; set; }
     public bool? IsWirelessCovered { get; set; }
+    public string? Search { get; set; }
 }
 
 

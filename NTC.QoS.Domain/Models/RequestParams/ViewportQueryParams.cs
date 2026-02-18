@@ -9,7 +9,7 @@ namespace NTC.QoS.Domain.Models.RequestParams;
 /// Query parameters for viewport-based spatial queries (v2 API).
 /// OPTIMIZED FOR MILLIONS OF DATA POINTS - Uses bounding box instead of distance calculations.
 /// </summary>
-public sealed class ViewportQueryParams
+public class ViewportQueryParams
 {
     [JsonPropertyName("pageNumber")]
     [Range(1, int.MaxValue, ErrorMessage = "PageNumber must be at least 1")]

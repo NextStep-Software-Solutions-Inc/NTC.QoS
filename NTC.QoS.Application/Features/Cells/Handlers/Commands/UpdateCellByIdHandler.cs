@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Enums;
@@ -9,9 +10,11 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHandler<UpdateCellByIdRequest, ApiResponse<CellDto>>
+public class UpdateCellByIdHandler(ICellRepository cellRepository, IConnectivityAssessmentTriggerService connectivityAssessmentTriggerService, ILogger<UpdateCellByIdHandler> logger) : IRequestHandler<UpdateCellByIdRequest, ApiResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IConnectivityAssessmentTriggerService _connectivityAssessmentTriggerService = connectivityAssessmentTriggerService;
+    private readonly ILogger<UpdateCellByIdHandler> _logger = logger;
 
     public async Task<ApiResponse<CellDto>> Handle(UpdateCellByIdRequest request, CancellationToken cancellationToken)
     {
@@ -32,6 +35,21 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
             };
         }
 
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (cell.Location == null)
+        {
+            _logger.LogError("Cell {CellId} has null Location - possible data corruption", cell.Id);
+            return new ApiResponse<CellDto>
+            {
+                Message = "Cell data is corrupted (missing location).",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The cell location data is missing or corrupted."] }
+                }
+            };
+        }
+
         if (!string.IsNullOrEmpty(request.Cell.Name)) cell.Name = request.Cell.Name;
         if (!string.IsNullOrEmpty(request.Cell.CID)) cell.CID = request.Cell.CID;
         if (!string.IsNullOrEmpty(request.Cell.LAC)) cell.LAC = request.Cell.LAC;
@@ -47,6 +65,15 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
 
         _cellRepository.Update(cell);
         await _cellRepository.SaveChangesAsync(cancellationToken);
+
+        // Trigger connectivity assessment generation after successful cell update
+        // Location is guaranteed non-null due to earlier check
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            cell.Location,
+            cell.Id,
+            "Cell",
+            request.RegionId,
+            cancellationToken);
 
         return new ApiResponse<CellDto>
         {

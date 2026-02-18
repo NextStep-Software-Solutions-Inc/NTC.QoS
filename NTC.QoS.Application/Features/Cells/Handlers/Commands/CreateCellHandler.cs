@@ -16,13 +16,12 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository, IBarangayRepository barangayRepository, IValidator<CreateCellRequest> validator, IBackgroundJobService backgroundJobService, ILogger<CreateCellHandler> logger) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
+public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderRepository serviceProviderRepository, IValidator<CreateCellRequest> validator, IConnectivityAssessmentTriggerService connectivityAssessmentTriggerService, ILogger<CreateCellHandler> logger) : IRequestHandler<CreateCellRequest, ApiResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
-    private readonly IBarangayRepository _barangayRepository = barangayRepository;
     private readonly IValidator<CreateCellRequest> _validator = validator;
-    private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
+    private readonly IConnectivityAssessmentTriggerService _connectivityAssessmentTriggerService = connectivityAssessmentTriggerService;
     private readonly ILogger<CreateCellHandler> _logger = logger;
 
     public async Task<ApiResponse<CellDto>> Handle(CreateCellRequest request, CancellationToken cancellationToken)
@@ -128,28 +127,29 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
         {
             await _cellRepository.SaveChangesAsync(cancellationToken);
             
+            // Defensive check: Ensure Location was properly set
+            if (newCell.Location == null)
+            {
+                _logger.LogError("Cell {CellId} was created but Location is null", newCell.Id);
+                return new ApiResponse<CellDto>
+                {
+                    Message = "Cell creation failed due to invalid location data.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "Location", new[] { "Failed to set cell location." } }
+                    }
+                };
+            }
+            
             // Trigger connectivity assessment generation after successful cell creation
-            Guid? regionId = request.RegionId;
-            
-            // If region not provided in request, fallback to spatial lookup
-            if (!regionId.HasValue)
-            {
-                _logger.LogDebug("No region ID provided in request, performing spatial lookup for cell {CellId}", newCell.Id);
-                var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(newCell.Location, cancellationToken);
-                regionId = barangay?.Municipality?.Province?.RegionId;
-            }
-            
-            if (regionId.HasValue)
-            {
-                _logger.LogInformation("Triggering connectivity assessment for region {RegionId} after cell creation", regionId.Value);
-                _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
-                    job => job.ExecuteForRegionAsync(regionId.Value, cancellationToken));
-            }
-            else
-            {
-                _logger.LogWarning("Could not determine region for cell {CellId} at location {Location}. Assessment not triggered.", 
-                    newCell.Id, newCell.Location?.Coordinate);
-            }
+            // Location is guaranteed non-null due to earlier check
+            await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+                newCell.Location,
+                newCell.Id,
+                "Cell",
+                request.RegionId,
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -198,8 +198,8 @@ public class CreateCellHandler(ICellRepository cellRepository, IServiceProviderR
                 SiteId = newCell.SiteId,
                 TowerType = newCell.TowerType.ToString(),
                 Elevation = newCell.Elevation,
-                Latitude = newCell.Location!.Coordinate.Y,
-                Longitude = newCell.Location!.Coordinate.X,
+                Latitude = newCell.Location.Coordinate.Y,
+                Longitude = newCell.Location.Coordinate.X,
                 IsVerified = newCell.IsVerified,
                 IsFileUploaded = newCell.IsFileUploaded,
                 Status = EnumHelper<CellStatusEnum>.GetName(newCell.Status)

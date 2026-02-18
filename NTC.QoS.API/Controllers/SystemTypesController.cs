@@ -32,9 +32,10 @@ public class SystemTypesController(IMediator mediator) : ControllerBase
         int pageSize = 10,
         int pageNumber = 1,
         [FromQuery] List<Guid>? technologyIds = null,
-        [FromQuery] List<Guid>? generationIds = null)
+        [FromQuery] List<Guid>? generationIds = null,
+        [FromQuery] string? search = null)
     {
-        var systemType = await _mediator.Send(new GetAllSystemTypesRequest(pageSize, pageNumber, technologyIds, generationIds));
+        var systemType = await _mediator.Send(new GetAllSystemTypesRequest(pageSize, pageNumber, technologyIds, generationIds, search));
         return systemType.Succeeded ? Ok(systemType) : BadRequest(systemType);
     }
 
