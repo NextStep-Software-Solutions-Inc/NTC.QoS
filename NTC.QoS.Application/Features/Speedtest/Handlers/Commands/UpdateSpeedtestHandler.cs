@@ -23,16 +23,14 @@ public class UpdateSpeedtestHandler(
     IServiceProviderRepository serviceProviderRepository,
     IGenerationRepository generationRepository,
     ITechnologyRepository technologyRepository,
-    IBarangayRepository barangayRepository,
-    IBackgroundJobService backgroundJobService,
+    IConnectivityAssessmentTriggerService connectivityAssessmentTriggerService,
     ILogger<UpdateSpeedtestHandler> logger) : IRequestHandler<UpdateSpeedtestRequest, ApiResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationRepository _generationRepository = generationRepository;
     private readonly ITechnologyRepository _technologyRepository = technologyRepository;
-    private readonly IBarangayRepository _barangayRepository = barangayRepository;
-    private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
+    private readonly IConnectivityAssessmentTriggerService _connectivityAssessmentTriggerService = connectivityAssessmentTriggerService;
     private readonly ILogger<UpdateSpeedtestHandler> _logger = logger;
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(UpdateSpeedtestRequest request, CancellationToken cancellationToken)
@@ -52,6 +50,21 @@ public class UpdateSpeedtestHandler(
                 Errors = new Dictionary<string, string[]>
                 {
                     { "NotFound", ["The requested Speedtest does not exist."] }
+                }
+            };
+        }
+
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (existingSpeedtest.Location == null)
+        {
+            _logger.LogError("Speedtest {SpeedtestId} has null Location - possible data corruption", existingSpeedtest.Id);
+            return new ApiResponse<SpeedtestDto>
+            {
+                Message = "Speedtest data is corrupted (missing location).",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The speedtest location data is missing or corrupted." ] }
                 }
             };
         }
@@ -207,27 +220,13 @@ public class UpdateSpeedtestHandler(
         await _speedtestRepository.SaveChangesAsync(cancellationToken);
 
         // Trigger connectivity assessment generation after successful Speedtest update
-        Guid? regionId = request.RegionId;
-        
-        // If region not provided in request, fallback to spatial lookup
-        if (!regionId.HasValue)
-        {
-            _logger.LogDebug("No region ID provided in request, performing spatial lookup for Speedtest {SpeedtestId}", existingSpeedtest.Id);
-            var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(existingSpeedtest.Location, cancellationToken);
-            regionId = barangay?.Municipality?.Province?.RegionId;
-        }
-        
-        if (regionId.HasValue)
-        {
-            _logger.LogInformation("Triggering connectivity assessment for region {RegionId} after Speedtest update", regionId.Value);
-            _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
-                job => job.ExecuteForRegionAsync(regionId.Value, cancellationToken));
-        }
-        else
-        {
-            _logger.LogWarning("Could not determine region for Speedtest {SpeedtestId} at location {Location}. Assessment not triggered.", 
-                existingSpeedtest.Id, existingSpeedtest.Location?.Coordinate);
-        }
+        // Location is guaranteed non-null due to earlier check
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            existingSpeedtest.Location,
+            existingSpeedtest.Id,
+            "Speedtest",
+            request.RegionId,
+            cancellationToken);
 
         // Fetch related data for the response (use Query() to load navigation properties)
         var serviceProviderQuery = _serviceProviderRepository
@@ -298,8 +297,8 @@ public class UpdateSpeedtestHandler(
                 RSSI = existingSpeedtest.RSSI,
                 UploadSpeed = existingSpeedtest.UploadSpeed,
                 DownloadSpeed = existingSpeedtest.DownloadSpeed,
-                Latitude = existingSpeedtest.Location!.Coordinate.Y,
-                Longitude = existingSpeedtest.Location!.Coordinate.X,
+                Latitude = existingSpeedtest.Location.Coordinate.Y,
+                Longitude = existingSpeedtest.Location.Coordinate.X,
                 PhoneModel = existingSpeedtest.PhoneModel,
                 MCC = existingSpeedtest.MCC,
                 MNC = existingSpeedtest.MNC,

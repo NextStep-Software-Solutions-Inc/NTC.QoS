@@ -30,17 +30,10 @@ public class DeleteNAPsByIdsHandler(IRepository<Domain.Aggregates.NAP> repositor
             };
         }
 
+        // Perform deletion - using the same query to ensure consistency
         var napQuery = _repository.Query(n => request.Ids.Contains(n.Id));
-        var deletedCount = await _repository.ExecuteHardDeleteAsync(napQuery, cancellationToken);
-
-        if (deletedCount is 0)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Message = "None of the specified NAPs exist or are already deleted."
-            };
-        }
+        await _repository.ExecuteHardDeleteAsync(napQuery, cancellationToken);
+        var deletedCount = napsToDelete.Count;
 
         // Trigger connectivity assessment generation for affected regions
         // If region ID provided in request, use it directly (most efficient)
@@ -54,22 +47,38 @@ public class DeleteNAPsByIdsHandler(IRepository<Domain.Aggregates.NAP> repositor
         else
         {
             // Fallback to spatial lookup if no region provided
-            _logger.LogDebug("No region ID provided in request, performing spatial lookups for {Count} deleted NAPs", napsToDelete.Count);
-            var regionIds = new HashSet<Guid>();
-            foreach (var nap in napsToDelete)
+            // OPTIMIZATION: Deduplicate locations to minimize spatial queries (avoid N+1 pattern)
+            var distinctLocations = napsToDelete
+                .Where(n => n.Location != null)
+                .Select(n => n.Location!)
+                .Distinct()
+                .ToList();
+
+            if (distinctLocations.Count > 50)
             {
-                if (nap.Location != null)
+                _logger.LogWarning("Large batch delete of {Count} NAPs across {LocationCount} distinct locations without region ID. " +
+                    "Consider providing RegionId parameter for better performance.", 
+                    napsToDelete.Count, distinctLocations.Count);
+            }
+
+            _logger.LogDebug("Performing spatial lookups for {LocationCount} distinct locations from {TotalCount} deleted NAPs", 
+                distinctLocations.Count, napsToDelete.Count);
+
+            var regionIds = new HashSet<Guid>();
+            foreach (var location in distinctLocations)
+            {
+                var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(location, cancellationToken);
+                if (barangay?.Municipality?.Province?.RegionId != null)
                 {
-                    var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(nap.Location, cancellationToken);
-                    if (barangay?.Municipality?.Province?.RegionId != null)
-                    {
-                        regionIds.Add(barangay.Municipality.Province.RegionId);
-                    }
+                    regionIds.Add(barangay.Municipality.Province.RegionId);
                 }
             }
 
             // Trigger assessment once per affected region
-            _logger.LogInformation("Triggering connectivity assessments for {RegionCount} regions after NAP deletion", regionIds.Count);
+            _logger.LogInformation("Triggering connectivity assessments for {RegionCount} regions after NAP deletion " +
+                "({LocationCount} locations checked, {TotalCount} NAPs deleted)", 
+                regionIds.Count, distinctLocations.Count, deletedCount);
+            
             foreach (var regionId in regionIds)
             {
                 _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(

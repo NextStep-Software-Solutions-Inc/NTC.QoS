@@ -30,17 +30,10 @@ public class DeleteCellsByIdsHandler(ICellRepository repository, IBarangayReposi
             };
         }
 
+        // Perform deletion - using the same query to ensure consistency
         var cellsToDeleteQuery = _repository.Query(c => request.Ids.Contains(c.Id));
-        var deletedCount = await _repository.ExecuteHardDeleteAsync(cellsToDeleteQuery, cancellationToken);
-
-        if (deletedCount is 0)
-        {
-            return new ApiResponse<bool>
-            {
-                Succeeded = false,
-                Message = "None of the specified cell/s exist or are already deleted.",
-            };
-        }
+        await _repository.ExecuteHardDeleteAsync(cellsToDeleteQuery, cancellationToken);
+        var deletedCount = cellsToDelete.Count;
 
         // Trigger connectivity assessment generation for affected regions
         // If region ID provided in request, use it directly (most efficient)
@@ -54,22 +47,38 @@ public class DeleteCellsByIdsHandler(ICellRepository repository, IBarangayReposi
         else
         {
             // Fallback to spatial lookup if no region provided
-            _logger.LogDebug("No region ID provided in request, performing spatial lookups for {Count} deleted cells", cellsToDelete.Count);
-            var regionIds = new HashSet<Guid>();
-            foreach (var cell in cellsToDelete)
+            // OPTIMIZATION: Deduplicate locations to minimize spatial queries (avoid N+1 pattern)
+            var distinctLocations = cellsToDelete
+                .Where(c => c.Location != null)
+                .Select(c => c.Location!)
+                .Distinct()
+                .ToList();
+
+            if (distinctLocations.Count > 50)
             {
-                if (cell.Location != null)
+                _logger.LogWarning("Large batch delete of {Count} cells across {LocationCount} distinct locations without region ID. " +
+                    "Consider providing RegionId parameter for better performance.", 
+                    cellsToDelete.Count, distinctLocations.Count);
+            }
+
+            _logger.LogDebug("Performing spatial lookups for {LocationCount} distinct locations from {TotalCount} deleted cells", 
+                distinctLocations.Count, cellsToDelete.Count);
+
+            var regionIds = new HashSet<Guid>();
+            foreach (var location in distinctLocations)
+            {
+                var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(location, cancellationToken);
+                if (barangay?.Municipality?.Province?.RegionId != null)
                 {
-                    var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(cell.Location, cancellationToken);
-                    if (barangay?.Municipality?.Province?.RegionId != null)
-                    {
-                        regionIds.Add(barangay.Municipality.Province.RegionId);
-                    }
+                    regionIds.Add(barangay.Municipality.Province.RegionId);
                 }
             }
 
             // Trigger assessment once per affected region
-            _logger.LogInformation("Triggering connectivity assessments for {RegionCount} regions after cell deletion", regionIds.Count);
+            _logger.LogInformation("Triggering connectivity assessments for {RegionCount} regions after cell deletion " +
+                "({LocationCount} locations checked, {TotalCount} cells deleted)", 
+                regionIds.Count, distinctLocations.Count, deletedCount);
+            
             foreach (var regionId in regionIds)
             {
                 _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
