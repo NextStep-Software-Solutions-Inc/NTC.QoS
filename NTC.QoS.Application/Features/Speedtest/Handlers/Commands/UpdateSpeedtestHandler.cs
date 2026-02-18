@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Enums;
@@ -21,12 +22,16 @@ public class UpdateSpeedtestHandler(
     ISpeedtestRepository speedtestRepository,
     IServiceProviderRepository serviceProviderRepository,
     IGenerationRepository generationRepository,
-    ITechnologyRepository technologyRepository) : IRequestHandler<UpdateSpeedtestRequest, ApiResponse<SpeedtestDto>>
+    ITechnologyRepository technologyRepository,
+    IConnectivityAssessmentTriggerService connectivityAssessmentTriggerService,
+    ILogger<UpdateSpeedtestHandler> logger) : IRequestHandler<UpdateSpeedtestRequest, ApiResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationRepository _generationRepository = generationRepository;
     private readonly ITechnologyRepository _technologyRepository = technologyRepository;
+    private readonly IConnectivityAssessmentTriggerService _connectivityAssessmentTriggerService = connectivityAssessmentTriggerService;
+    private readonly ILogger<UpdateSpeedtestHandler> _logger = logger;
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(UpdateSpeedtestRequest request, CancellationToken cancellationToken)
     {
@@ -45,6 +50,21 @@ public class UpdateSpeedtestHandler(
                 Errors = new Dictionary<string, string[]>
                 {
                     { "NotFound", ["The requested Speedtest does not exist."] }
+                }
+            };
+        }
+
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (existingSpeedtest.Location == null)
+        {
+            _logger.LogError("Speedtest {SpeedtestId} has null Location - possible data corruption", existingSpeedtest.Id);
+            return new ApiResponse<SpeedtestDto>
+            {
+                Message = "Speedtest data is corrupted (missing location).",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The speedtest location data is missing or corrupted." ] }
                 }
             };
         }
@@ -198,6 +218,15 @@ public class UpdateSpeedtestHandler(
 
         _speedtestRepository.Update(existingSpeedtest);
         await _speedtestRepository.SaveChangesAsync(cancellationToken);
+
+        // Trigger connectivity assessment generation after successful Speedtest update
+        // Location is guaranteed non-null due to earlier check
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            existingSpeedtest.Location,
+            existingSpeedtest.Id,
+            "Speedtest",
+            request.RegionId,
+            cancellationToken);
 
         // Fetch related data for the response (use Query() to load navigation properties)
         var serviceProviderQuery = _serviceProviderRepository

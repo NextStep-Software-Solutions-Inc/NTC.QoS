@@ -27,6 +27,20 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
             };
         }
 
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (speedtest.Location == null)
+        {
+            return new ApiResponse<SpeedtestDto>
+            {
+                Succeeded = false,
+                Message = "Speedtest data is corrupted (missing location).",
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", new[] { "The speedtest location data is missing or corrupted." } }
+                }
+            };
+        }
+
         return new ApiResponse<SpeedtestDto>
         {
             Succeeded = true,

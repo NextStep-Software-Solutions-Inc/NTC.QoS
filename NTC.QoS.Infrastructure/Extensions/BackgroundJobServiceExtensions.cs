@@ -26,6 +26,9 @@ internal static class BackgroundJobServiceExtensions
         // Assessment consolidation service (singleton for in-memory consolidation across requests)
         services.AddSingleton<IAssessmentConsolidationService, AssessmentConsolidationService>();
 
+        // Connectivity assessment trigger service (shared logic for triggering assessments)
+        services.AddScoped<IConnectivityAssessmentTriggerService, ConnectivityAssessmentTriggerService>();
+
         // Job implementations
         services.AddTransient<IProcessNAPJob, ProcessNAPJob>();
         services.AddTransient<IProcessCellJob, ProcessCellJob>();

@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Helper;
@@ -13,10 +14,12 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Commands;
 /// Input validation is performed by UpdateNAPRequestValidator via FluentValidation pipeline.
 /// Business rule validation (e.g., duplicate checking) is performed within this handler.
 /// </summary>
-public class UpdateNAPHandler(INAPRepository repository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<UpdateNAPRequest, ApiResponse<NAPDto>>
+public class UpdateNAPHandler(INAPRepository repository, IServiceProviderRepository serviceProviderRepository, IConnectivityAssessmentTriggerService connectivityAssessmentTriggerService, ILogger<UpdateNAPHandler> logger) : IRequestHandler<UpdateNAPRequest, ApiResponse<NAPDto>>
 {
     private readonly INAPRepository _repository = repository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
+    private readonly IConnectivityAssessmentTriggerService _connectivityAssessmentTriggerService = connectivityAssessmentTriggerService;
+    private readonly ILogger<UpdateNAPHandler> _logger = logger;
 
     public async Task<ApiResponse<NAPDto>> Handle(UpdateNAPRequest request, CancellationToken cancellationToken)
     {
@@ -36,6 +39,21 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
             {
                 { "NotFound", ["The requested NAP does not exist."] }
             }
+            };
+        }
+
+        // Defensive check: Ensure Location exists (protect against corrupt data)
+        if (existingNap.Location == null)
+        {
+            _logger.LogError("NAP {NAPId} has null Location - possible data corruption", existingNap.Id);
+            return new ApiResponse<NAPDto>
+            {
+                Message = "NAP data is corrupted (missing location).",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DataIntegrity", ["The NAP location data is missing or corrupted."] }
+                }
             };
         }
 
@@ -116,6 +134,15 @@ public class UpdateNAPHandler(INAPRepository repository, IServiceProviderReposit
 
         _repository.Update(existingNap);
         await _repository.SaveChangesAsync(cancellationToken);
+
+        // Trigger connectivity assessment generation after successful NAP update
+        // Location is guaranteed non-null due to earlier check
+        await _connectivityAssessmentTriggerService.TriggerAssessmentAsync(
+            existingNap.Location,
+            existingNap.Id,
+            "NAP",
+            request.RegionId,
+            cancellationToken);
 
         // Fetch only required ServiceProvider details using projection for optimal performance
         var providerDetailsQuery = _serviceProviderRepository
