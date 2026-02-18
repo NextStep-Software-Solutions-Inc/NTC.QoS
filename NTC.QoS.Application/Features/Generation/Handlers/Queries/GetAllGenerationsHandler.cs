@@ -17,6 +17,11 @@ public class GetAllGenerationsHandler(IRepository<Domain.Aggregates.Generation> 
             .Where(g => request.ServiceIds == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.ServiceIds.Contains(l.ServiceProvider.ServiceId))))
             .Where(g => request.ServiceProviderIds == null || g.GenerationBands.Any(gb => gb.Band.Links.Any(l => request.ServiceProviderIds.Contains(l.ServiceProviderId))));
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            generationQuery = _repository.ApplySearch(generationQuery, request.Search, g => g.Name);
+        }
+
         var generationDtosQuery = generationQuery.Select(g => new GenerationDto
         {
             Id = g.Id,

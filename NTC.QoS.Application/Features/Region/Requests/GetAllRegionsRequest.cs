@@ -15,6 +15,7 @@ public class GetAllRegionsRequest : IRequest<PaginatedResponse<RegionDto>>
     public int PageNumber { get; set; }
     public bool? IsWiredCovered { get; set; }
     public bool? IsWirelessCovered { get; set; }
+    public string? Search { get; set; }
 }
 
 

@@ -37,14 +37,15 @@ public class ZonesController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewZones)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "barangayId" })]
-    public async Task<ActionResult<PaginatedResponse<ZoneDto>>> GetAllZones(int pageSize = 10, int pageNumber = 1, Guid? barangayId = null)
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "barangayId", "search" })]
+    public async Task<ActionResult<PaginatedResponse<ZoneDto>>> GetAllZones(int pageSize = 10, int pageNumber = 1, Guid? barangayId = null, [FromQuery] string? search = null)
     {
         var request = new GetAllZonesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
             BarangayId = barangayId,
+            Search = search
         };
         var zones = await _mediator.Send(request);
         return Ok(zones);

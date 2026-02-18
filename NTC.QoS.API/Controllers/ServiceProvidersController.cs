@@ -28,12 +28,13 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewServiceProviders)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "providerIds", "serviceIds", "serviceTypes" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "providerIds", "serviceIds", "serviceTypes", "search" })]
     public async Task<ActionResult<PaginatedResponse<ServiceProviderDto>>> GetAllServiceProviders(int pageSize = 10,
                                                                                                   int pageNumber = 1,
                                                                                                   [FromQuery] List<Guid>? providerIds = null,
                                                                                                   [FromQuery] List<Guid>? serviceIds = null,
-                                                                                                  [FromQuery] List<string>? serviceTypes = null)
+                                                                                                  [FromQuery] List<string>? serviceTypes = null,
+                                                                                                  [FromQuery] string? search = null)
     {
         var serviceProviders = await _mediator.Send(new GetAllServiceProvidersRequest
         {
@@ -41,7 +42,8 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
             PageNumber = pageNumber,
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
-            ServiceTypes = serviceTypes
+            ServiceTypes = serviceTypes,
+            Search = search
         });
         return serviceProviders.Succeeded ? Ok(serviceProviders) : BadRequest(serviceProviders);
     }

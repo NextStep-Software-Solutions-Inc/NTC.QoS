@@ -32,12 +32,13 @@ public class AntennaPatternsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<AntennaPatternDto>>> GetAllAntennaPatterns(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<AntennaPatternDto>>> GetAllAntennaPatterns(int pageSize = 10, int pageNumber = 1, [FromQuery] string? search = null)
     {
         var result = await _mediator.Send(new GetAllAntennaPatternsRequest
         {
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize = pageSize,
+            Search = search
         });
 
         return Ok(result);

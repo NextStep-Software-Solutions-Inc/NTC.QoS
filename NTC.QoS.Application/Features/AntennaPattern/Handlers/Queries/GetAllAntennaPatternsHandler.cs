@@ -10,9 +10,14 @@ public class GetAllAntennaPatternsHandler(IRepository<Domain.Entities.AntennaPat
     private readonly IRepository<Domain.Entities.AntennaPattern> _repository = repository;
     public async Task<PaginatedResponse<AntennaPatternDto>> Handle(GetAllAntennaPatternsRequest request, CancellationToken cancellationToken)
     {
-        var allAntennaPatternsQuery = _repository.Query().OrderBy(ap => ap.CreatedAt);
+        var allAntennaPatternsQuery = _repository.Query();
 
-        var antennaPatternDtosQuery = allAntennaPatternsQuery.Select(ap => new AntennaPatternDto
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allAntennaPatternsQuery = _repository.ApplySearch(allAntennaPatternsQuery, request.Search, ap => ap.Name);
+        }
+
+        var antennaPatternDtosQuery = allAntennaPatternsQuery.OrderBy(ap => ap.CreatedAt).Select(ap => new AntennaPatternDto
         {
             Id = ap.Id,
             Name = ap.Name,

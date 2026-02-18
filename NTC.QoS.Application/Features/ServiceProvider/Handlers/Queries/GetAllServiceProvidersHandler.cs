@@ -23,6 +23,11 @@ public class GetAllServiceProvidersHandler(IServiceProviderRepository servicePro
             .Where(s => request.ServiceIds == null || request.ServiceIds.Contains(s.ServiceId))
             .Where(s => request.ServiceTypes == null || (requestedServiceTypes != null && requestedServiceTypes.Contains(s.Service.Type)));
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allServiceProvidersQuery = _serviceProviderRepository.ApplySearch(allServiceProvidersQuery, request.Search, s => s.Provider!.Name);
+        }
+
         var serviceProviderDtosQuery = allServiceProvidersQuery
             .OrderBy(s => s.CreatedAt)
             .Select(serviceProvider => new ServiceProviderDto

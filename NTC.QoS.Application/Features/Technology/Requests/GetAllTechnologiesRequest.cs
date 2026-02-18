@@ -10,6 +10,7 @@ public class GetAllTechnologiesRequest : IRequest<PaginatedResponse<TechnologyDt
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
     public List<Guid>? GenerationIds { get; set; }
+    public string? Search { get; set; }
 }
 
 
