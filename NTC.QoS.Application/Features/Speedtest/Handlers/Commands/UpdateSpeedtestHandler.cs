@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Enums;
@@ -21,12 +22,18 @@ public class UpdateSpeedtestHandler(
     ISpeedtestRepository speedtestRepository,
     IServiceProviderRepository serviceProviderRepository,
     IGenerationRepository generationRepository,
-    ITechnologyRepository technologyRepository) : IRequestHandler<UpdateSpeedtestRequest, ApiResponse<SpeedtestDto>>
+    ITechnologyRepository technologyRepository,
+    IBarangayRepository barangayRepository,
+    IBackgroundJobService backgroundJobService,
+    ILogger<UpdateSpeedtestHandler> logger) : IRequestHandler<UpdateSpeedtestRequest, ApiResponse<SpeedtestDto>>
 {
     private readonly ISpeedtestRepository _speedtestRepository = speedtestRepository;
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly IGenerationRepository _generationRepository = generationRepository;
     private readonly ITechnologyRepository _technologyRepository = technologyRepository;
+    private readonly IBarangayRepository _barangayRepository = barangayRepository;
+    private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
+    private readonly ILogger<UpdateSpeedtestHandler> _logger = logger;
 
     public async Task<ApiResponse<SpeedtestDto>> Handle(UpdateSpeedtestRequest request, CancellationToken cancellationToken)
     {
@@ -199,6 +206,29 @@ public class UpdateSpeedtestHandler(
         _speedtestRepository.Update(existingSpeedtest);
         await _speedtestRepository.SaveChangesAsync(cancellationToken);
 
+        // Trigger connectivity assessment generation after successful Speedtest update
+        Guid? regionId = request.RegionId;
+        
+        // If region not provided in request, fallback to spatial lookup
+        if (!regionId.HasValue)
+        {
+            _logger.LogDebug("No region ID provided in request, performing spatial lookup for Speedtest {SpeedtestId}", existingSpeedtest.Id);
+            var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(existingSpeedtest.Location, cancellationToken);
+            regionId = barangay?.Municipality?.Province?.RegionId;
+        }
+        
+        if (regionId.HasValue)
+        {
+            _logger.LogInformation("Triggering connectivity assessment for region {RegionId} after Speedtest update", regionId.Value);
+            _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
+                job => job.ExecuteForRegionAsync(regionId.Value, cancellationToken));
+        }
+        else
+        {
+            _logger.LogWarning("Could not determine region for Speedtest {SpeedtestId} at location {Location}. Assessment not triggered.", 
+                existingSpeedtest.Id, existingSpeedtest.Location?.Coordinate);
+        }
+
         // Fetch related data for the response (use Query() to load navigation properties)
         var serviceProviderQuery = _serviceProviderRepository
             .Query(sp => sp.Id == existingSpeedtest.ServiceProviderId);
@@ -268,8 +298,8 @@ public class UpdateSpeedtestHandler(
                 RSSI = existingSpeedtest.RSSI,
                 UploadSpeed = existingSpeedtest.UploadSpeed,
                 DownloadSpeed = existingSpeedtest.DownloadSpeed,
-                Latitude = existingSpeedtest.Location.Coordinate.Y,
-                Longitude = existingSpeedtest.Location.Coordinate.X,
+                Latitude = existingSpeedtest.Location!.Coordinate.Y,
+                Longitude = existingSpeedtest.Location!.Coordinate.X,
                 PhoneModel = existingSpeedtest.PhoneModel,
                 MCC = existingSpeedtest.MCC,
                 MNC = existingSpeedtest.MNC,

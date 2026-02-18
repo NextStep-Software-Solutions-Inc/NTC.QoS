@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Enums;
@@ -9,9 +10,12 @@ using NTC.QoS.Domain.Models.DTOs.Cell;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
-public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHandler<UpdateCellByIdRequest, ApiResponse<CellDto>>
+public class UpdateCellByIdHandler(ICellRepository cellRepository, IBarangayRepository barangayRepository, IBackgroundJobService backgroundJobService, ILogger<UpdateCellByIdHandler> logger) : IRequestHandler<UpdateCellByIdRequest, ApiResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IBarangayRepository _barangayRepository = barangayRepository;
+    private readonly IBackgroundJobService _backgroundJobService = backgroundJobService;
+    private readonly ILogger<UpdateCellByIdHandler> _logger = logger;
 
     public async Task<ApiResponse<CellDto>> Handle(UpdateCellByIdRequest request, CancellationToken cancellationToken)
     {
@@ -48,6 +52,29 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
         _cellRepository.Update(cell);
         await _cellRepository.SaveChangesAsync(cancellationToken);
 
+        // Trigger connectivity assessment generation after successful cell update
+        Guid? regionId = request.RegionId;
+        
+        // If region not provided in request, fallback to spatial lookup
+        if (!regionId.HasValue)
+        {
+            _logger.LogDebug("No region ID provided in request, performing spatial lookup for cell {CellId}", cell.Id);
+            var barangay = await _barangayRepository.FindBarangayByLocationWithHierarchyAsync(cell.Location, cancellationToken);
+            regionId = barangay?.Municipality?.Province?.RegionId;
+        }
+        
+        if (regionId.HasValue)
+        {
+            _logger.LogInformation("Triggering connectivity assessment for region {RegionId} after cell update", regionId.Value);
+            _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(
+                job => job.ExecuteForRegionAsync(regionId.Value, cancellationToken));
+        }
+        else
+        {
+            _logger.LogWarning("Could not determine region for cell {CellId} at location {Location}. Assessment not triggered.", 
+                cell.Id, cell.Location?.Coordinate);
+        }
+
         return new ApiResponse<CellDto>
         {
             Data = new CellDto
@@ -81,8 +108,8 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository) : IRequestHan
                 SiteId = cell.SiteId,
                 TowerType = cell.TowerType.ToString(),
                 Elevation = cell.Elevation,
-                Latitude = cell.Location.Coordinate.Y,
-                Longitude = cell.Location.Coordinate.X,
+                Latitude = cell.Location!.Coordinate.Y,
+                Longitude = cell.Location!.Coordinate.X,
                 IsVerified = cell.IsVerified,
                 IsFileUploaded = cell.IsFileUploaded,
                 Status = EnumHelper<CellStatusEnum>.GetName(cell.Status)

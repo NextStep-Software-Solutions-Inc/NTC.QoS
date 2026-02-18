@@ -8,4 +8,9 @@ public class UpdateSpeedtestRequest(Guid id, UpdateSpeedtestDto updateSpeedtestD
 {
     public Guid Id { get; set; } = id;
     public UpdateSpeedtestDto Speedtest { get; set; } = updateSpeedtestDto;
+    
+    /// <summary>
+    /// Optional region ID for assessment triggering. If not provided, will attempt spatial lookup.
+    /// </summary>
+    public Guid? RegionId { get; set; }
 }
