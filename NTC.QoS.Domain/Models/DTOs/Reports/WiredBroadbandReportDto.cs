@@ -109,18 +109,29 @@ public enum ServiceStatusEnum
 // Additional DTOs for connectivity gap reporting
 public class ConnectivityGapReportDto
 {
+    public ConnectivityGapSummaryDto Summary { get; set; } = new();
+    public List<PriorityAreaDto> PriorityAreas { get; set; } = [];
+    public int TotalPriorityAreas { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages { get; set; }
+    public DateTime GeneratedAt { get; set; }
+}
+
+public class ConnectivityGapSummaryDto
+{
     public int TotalUnservedAreas { get; set; }
     public int TotalUnderservedAreas { get; set; }
     public int UnservedPopulation { get; set; }
     public int UnderservedPopulation { get; set; }
-    public List<PriorityAreaDto> PriorityAreas { get; set; } = [];
-    public DateTime GeneratedAt { get; set; }
 }
 
 public class PriorityAreaDto
 {
     public Guid LocationId { get; set; }
     public string LocationName { get; set; } = string.Empty;
+    public string? MunicipalityName { get; set; }
+    public string? ProvinceName { get; set; }
     public NTC.QoS.Domain.Enums.ConnectivityStatusEnum ConnectivityStatus { get; set; }
     public int? Population { get; set; }
     public int TotalScore { get; set; }

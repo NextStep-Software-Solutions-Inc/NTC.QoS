@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Provider.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 
@@ -17,6 +19,7 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateProviders)]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> CreateProvider([FromBody] CreateProviderDto createProvider)
     {
         var provider = await _mediator.Send(new CreateProviderRequest(createProvider));
@@ -24,19 +27,22 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "serviceIds", "names", "includeLogoData" })]
+    [RequirePermission(Permissions.ViewProviders)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "serviceIds", "names", "includeLogoData", "search" })]
     public async Task<ActionResult<PaginatedResponse<ProviderDto>>> GetAllProviders(
         int pageSize = 10,
         int pageNumber = 1,
         [FromQuery] List<Guid>? serviceIds = null,
         [FromQuery] List<string>? names = null,
-        [FromQuery] bool? includeLogoData = null)
+        [FromQuery] bool? includeLogoData = null,
+        [FromQuery] string? search = null)
     {
-        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds, names, includeLogoData));
+        var providers = await _mediator.Send(new GetAllProvidersRequest(pageSize, pageNumber, serviceIds, names, includeLogoData, search));
         return providers.Succeeded ? Ok(providers) : BadRequest(providers);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewProviders)]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> GetProviderById(
         Guid id,
         [FromQuery] bool? includeLogoData = null)
@@ -46,6 +52,7 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id}/logo")]
+    [RequirePermission(Permissions.ViewProviders)]
     public async Task<IActionResult> GetProviderLogo(Guid id)
     {
         var result = await _mediator.Send(new GetProviderLogoByIdRequest(id));
@@ -59,6 +66,7 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPost("{id}/logo")]
+    [RequirePermission(Permissions.UpdateProviders)]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> AddProviderLogo(Guid id, [FromForm] UploadProviderLogoDto logo)
     {
         var result = await _mediator.Send(new AddProviderLogoByIdRequest(id, logo));
@@ -66,6 +74,7 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}/logo")]
+    [RequirePermission(Permissions.UpdateProviders)]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> DeleteProviderLogo(Guid id)
     {
         var result = await _mediator.Send(new DeleteProviderLogoByIdRequest(id));
@@ -73,6 +82,7 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateProviders)]
     public async Task<ActionResult<ApiResponse<ProviderDto>>> UpdateProviderById(Guid id, UpdateProviderDto updateProvider)
     {
         var provider = await _mediator.Send(new UpdateProviderByIdRequest(id, new UpdateProviderDto
@@ -86,6 +96,7 @@ public class ProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteProviders)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteProviderById(Guid id)
     {
         var provider = await _mediator.Send(new DeleteProviderByIdRequest(id));

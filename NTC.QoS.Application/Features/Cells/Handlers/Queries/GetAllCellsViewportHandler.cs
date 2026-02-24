@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Enums;
@@ -50,12 +49,17 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
         var maxAllowedPageSize = request.Viewport.GetRecommendedMaxResults();
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
 
-        var cellQuery = _cellRepository.Query().AsNoTracking();
+        var cellQuery = _cellRepository.QueryAsNoTracking();
         cellQuery = cellQuery.ApplyViewportFilter(request.Viewport);
 
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
         {
             cellQuery = cellQuery.Where(c => request.ServiceProviderIds.Contains(c.ServiceProviderId));
+        }
+
+        if (request.IsVerified.HasValue)
+        {
+            cellQuery = cellQuery.Where(c => c.IsVerified == request.IsVerified.Value);
         }
 
         if (request.BarangayIds is { Count: > 0 })
@@ -77,7 +81,7 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
             Lat = c.Location.Coordinate.Y,
             Lng = c.Location.Coordinate.X,
             Name = c.Name,
-            Status = EnumHelper<CellStatusEnum>.GetName(c.Status)
+            Status = c.Status.ToString()
         });
 
         return await _cellRepository.PaginateAsync(cellViewportDtoQuery, request.PageNumber, effectivePageSize, cancellationToken);

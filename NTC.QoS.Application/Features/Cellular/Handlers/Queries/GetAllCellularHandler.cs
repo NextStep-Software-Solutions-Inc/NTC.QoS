@@ -19,6 +19,10 @@ public class GetAllCellularHandler(ICellularRepository cellularRepository) : IRe
             .Where(c => !request.TechnologyId.HasValue || c.TechnologyId.Equals(request.TechnologyId.Value))
             .Where(c => !request.BandId.HasValue || c.BandId.Equals(request.BandId.Value));
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allCellularsQuery = _cellularRepository.ApplySearch(allCellularsQuery, request.Search, c => c.Address);
+        }
 
         var cellularDtosQuery = allCellularsQuery
             .Select(c => new CellularDto

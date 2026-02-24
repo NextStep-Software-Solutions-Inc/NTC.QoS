@@ -48,6 +48,9 @@ public class GetAllNAPsHandler(INAPRepository NAPRepository,
         }
         napQuery = napQuery.OrderBy(n => n.Location.Distance(locationPoint));
 
+        // Filter out NAPs with missing Provider data to ensure data integrity
+        napQuery = napQuery.Where(n => n.ServiceProvider != null && n.ServiceProvider.Provider != null);
+
         var NAPsDtoQuery = napQuery
         .Select(n => new NAPDto
         {

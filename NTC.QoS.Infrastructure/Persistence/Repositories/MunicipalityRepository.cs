@@ -11,15 +11,46 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
 {
     public override IQueryable<Municipality> Query(Expression<Func<Municipality, bool>>? expression = null)
     {
-        var query = _context.Set<Municipality>()
+        var baseQuery = _context.Set<Municipality>()
             .Include(m => m.Province)
-            .ThenInclude(p => p.Region)
+                .ThenInclude(p => p.Region)
             .AsQueryable();
 
         if (expression != null)
         {
-            query = query.Where(expression);
+            baseQuery = baseQuery.Where(expression);
         }
+
+        var query = baseQuery.Select(m => new Municipality
+        {
+            Id = m.Id,
+            Name = m.Name,
+            Code = m.Code,
+            IsCity = m.IsCity,
+            ProvinceId = m.ProvinceId,
+            Center = m.Center,
+            Area = m.Area,
+            TotalPopulation = m.TotalPopulation,
+            HouseholdPopulation = m.HouseholdPopulation,
+            HouseholdCount = m.HouseholdCount,
+            CreatedAt = m.CreatedAt,
+            CreatedBy = m.CreatedBy,
+            UpdatedAt = m.UpdatedAt,
+            UpdatedBy = m.UpdatedBy,
+            Province = new Province
+            {
+                Id = m.Province.Id,
+                Name = m.Province.Name,
+                Code = m.Province.Code,
+                RegionId = m.Province.RegionId,
+                Region = new Region
+                {
+                    Id = m.Province.Region.Id,
+                    Name = m.Province.Region.Name,
+                    Code = m.Province.Region.Code
+                }
+            }
+        });
 
         return query;
 
@@ -122,5 +153,17 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
             .CountAsync(cancellationToken);
 
         return barangayCount;
+    }
+
+    /// <summary>
+    /// Fetches the full Municipality entity (including Boundaries and Description) for update operations,
+    /// bypassing the read-optimized projection used by Query().
+    /// </summary>
+    public async Task<Municipality?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<Municipality>()
+            .Include(m => m.Province)
+                .ThenInclude(p => p.Region)
+            .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }
 }

@@ -31,6 +31,8 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IUserContextService _userContextService;
+    private readonly IBackgroundJobService _backgroundJobService;
+    private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
 
     // Batch processing configuration
     private const int BATCH_SIZE = 500; // Process 500 cell records per batch
@@ -55,7 +57,9 @@ public class ProcessCellJob : IProcessCellJob
         IMunicipalityRepository municipalityRepository,
         IRepository<Domain.Entities.SystemType> systemTypeRepository,
         IBlobStorageService blobStorageService,
-        IUserContextService userContextService
+        IUserContextService userContextService,
+        IBackgroundJobService backgroundJobService,
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
         )
     {
         _logger = logger;
@@ -72,6 +76,8 @@ public class ProcessCellJob : IProcessCellJob
         _systemTypeRepository = systemTypeRepository;
         _blobStorageService = blobStorageService;
         _userContextService = userContextService;
+        _backgroundJobService = backgroundJobService;
+        _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -199,7 +205,7 @@ public class ProcessCellJob : IProcessCellJob
 
                     foreach (var cell in existingBatch)
                     {
-                        var normalizedTowerType = string.IsNullOrWhiteSpace(cell.TowerType) ? "Unknown" : cell.TowerType;
+                        var normalizedTowerType = cell.TowerType == TowerTypeEnum.Unknown || cell.TowerType == 0 ? "Unknown" : cell.TowerType.ToString();
                         var hash = GenerateCellHash(cell.ServiceProviderId, normalizedTowerType, cell.Location);
 
                         if (cellLookup.Add(hash))
@@ -793,6 +799,13 @@ public class ProcessCellJob : IProcessCellJob
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
+        // Trigger connectivity assessment generation upon successful processing
+        if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
+        {
+            _logger.LogInformation("File processing completed successfully. Enqueuing connectivity assessment generation for file {FileId}", file.Id);
+            _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, token));
+        }
+
         _logger.LogInformation("Processing completed successfully.");
     }
 
@@ -870,7 +883,7 @@ public class ProcessCellJob : IProcessCellJob
                         Group = record.Provider,
                         Address = address,
                         ServiceProviderId = serviceProviderId,
-                        TowerType = normalizedTowerType,
+                        TowerType = Enum.TryParse<TowerTypeEnum>(normalizedTowerType, true, out var towerTypeEnum) ? towerTypeEnum : TowerTypeEnum.Unknown,
                         Location = location,
                         IsFileUploaded = true,
                     };

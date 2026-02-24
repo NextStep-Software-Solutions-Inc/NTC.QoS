@@ -5,17 +5,59 @@ using NTC.QoS.Domain.Models.DTOs.Barangay;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 
-public class GetAllBarangaysHandler(IBarangayRepository barangayRepository) : IRequestHandler<GetAllBarangaysRequest, PaginatedResponse<BarangayDto>>
+public class GetAllBarangaysHandler(
+    IBarangayRepository barangayRepository,
+    IBarangayCoverageRepository barangayCoverageRepository) 
+    : IRequestHandler<GetAllBarangaysRequest, PaginatedResponse<BarangayDto>>
 {
     private readonly IBarangayRepository _barangayRepository = barangayRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository = barangayCoverageRepository;
 
     public async Task<PaginatedResponse<BarangayDto>> Handle(GetAllBarangaysRequest request, CancellationToken cancellationToken)
     {
-        var allBarangaysQuery = _barangayRepository.Query();
+        var allBarangaysQuery = _barangayRepository.QueryAsNoTracking();
+
+        // Filter by coverage status if requested
+        if (request.IsWiredCovered.HasValue || request.IsWirelessCovered.HasValue)
+        {
+            var coverageQuery = _barangayCoverageRepository.QueryAsNoTracking();
+            
+            if (request.IsWiredCovered.HasValue)
+            {
+                if (request.IsWiredCovered.Value)
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WiredFtthPercentage == 100);
+                }
+                else
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WiredFtthPercentage < 100);
+                }
+            }
+            
+            if (request.IsWirelessCovered.HasValue)
+            {
+                if (request.IsWirelessCovered.Value)
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WirelessPercentage == 100);
+                }
+                else
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WirelessPercentage < 100);
+                }
+            }
+            
+            var coveredBarangayIds = coverageQuery.Select(bc => bc.BarangayId);
+            allBarangaysQuery = allBarangaysQuery.Where(b => coveredBarangayIds.Contains(b.Id));
+        }
 
         if (request.MunicipalityIds is not null && request.MunicipalityIds.Length > 0)
         {
             allBarangaysQuery = allBarangaysQuery.Where(b => request.MunicipalityIds.Contains(b.MunicipalityId));
+        }
+
+        if (request.RegionIds is not null && request.RegionIds.Length > 0)
+        {
+            allBarangaysQuery = allBarangaysQuery.Where(b => request.RegionIds.Contains(b.Municipality.Province.RegionId));
         }
 
         if (!string.IsNullOrEmpty(request.Name))

@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Province.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Province;
 
@@ -22,6 +24,7 @@ public class ProvincesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateProvinces)]
     public async Task<ActionResult<ApiResponse<ProvinceDto>>> CreateProvince([FromForm] CreateProvinceDto provinceDto)
     {
         var province = await _mediator.Send(new CreateProvinceRequest
@@ -33,20 +36,31 @@ public class ProvincesController : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "regionId" })]
-    public async Task<ActionResult<PaginatedResponse<ProvinceDto>>> GetAllProvinces(int pageSize = 10, int pageNumber = 1, Guid? regionId = null)
+    [RequirePermission(Permissions.ViewProvinces)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "regionIds", "isWiredCovered", "isWirelessCovered", "search" })]
+    public async Task<ActionResult<PaginatedResponse<ProvinceDto>>> GetAllProvinces(
+        int pageSize = 10, 
+        int pageNumber = 1, 
+        [FromQuery] Guid[]? regionIds = null,
+        bool? isWiredCovered = null,
+        bool? isWirelessCovered = null,
+        [FromQuery] string? search = null)
     {
         var request = new GetAllProvincesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
-            RegionId = regionId,
+            RegionIds = regionIds,
+            IsWiredCovered = isWiredCovered,
+            IsWirelessCovered = isWirelessCovered,
+            Search = search
         };
         var provinces = await _mediator.Send(request);
         return Ok(provinces);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewProvinces)]
     public async Task<ActionResult<ApiResponse<ProvinceDto>>> GetProvinceById(Guid id)
     {
         var request = new GetProvinceByIdRequest(id);
@@ -55,6 +69,7 @@ public class ProvincesController : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateProvinces)]
     public async Task<ActionResult<ApiResponse<ProvinceDto>>> UpdateProvinceById(Guid id, [FromForm] UpdateProvinceDto updateProvince)
     {
         var province = await _mediator.Send(new UpdateProvinceRequest { Id = id, Province = updateProvince });
@@ -62,6 +77,7 @@ public class ProvincesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteProvinces)]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
         var request = new DeleteProvinceByIdRequest(id);

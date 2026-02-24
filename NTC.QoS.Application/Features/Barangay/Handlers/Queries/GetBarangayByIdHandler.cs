@@ -3,6 +3,7 @@ using NTC.QoS.Application.Features.Barangay.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
+using NTC.QoS.Domain.Helper;
 
 namespace NTC.QoS.Application.Features.Barangay.Handlers.Queries;
 
@@ -60,6 +61,16 @@ public class GetBarangayByIdHandler(IBarangayRepository barangayRepository) : IR
                 },
                 Code = barangay.Code ?? string.Empty,
                 Area = barangay.Area,
+                Boundaries = GeoJsonHelper.BuildFeature(
+                    barangay.Boundaries,
+                    new Dictionary<string, object>
+                    {
+                        { "id", barangay.Id },
+                        { "name", barangay.Name },
+                        { "code", barangay.Code ?? string.Empty },
+                        { "municipalityId", barangay.MunicipalityId }
+                    }
+                ),
             }
         };
     }

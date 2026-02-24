@@ -33,7 +33,7 @@ public class GetCellularCoverageByIdHandler(ICellularCoverageRepository cellular
                 NetworkId = cellularCoverage.NetworkId,
                 Lat = cellularCoverage.Location.Coordinate.Y,
                 Lng = cellularCoverage.Location.Coordinate.X,
-                Strength = cellularCoverage.Strength,
+                SignalStrength = cellularCoverage.SignalStrength,
                 Gen = cellularCoverage.Network.SystemType != null && cellularCoverage.Network.SystemType.Technology != null ? cellularCoverage.Network.SystemType.Technology.Generation.Name : string.Empty,
                 Std = cellularCoverage.Network.SystemType != null && cellularCoverage.Network.SystemType.Technology != null ? cellularCoverage.Network.SystemType.Technology.Standard : string.Empty,
             }

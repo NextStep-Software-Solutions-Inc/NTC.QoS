@@ -24,19 +24,10 @@ public class GetAllNetworksHandler(INetworkRepository networkRepository) : IRequ
             .Where(n => !request.TechnologyId.HasValue || n.SystemType.TechnologyId == request.TechnologyId)
             .Where(n => !request.BandId.HasValue || n.BandId == request.BandId)
             .Where(n => !request.ServiceProviderId.HasValue || n.ServiceProviderId == request.ServiceProviderId)
-            .Where(n => !request.CellId.HasValue || n.Sectors.Any(s => s.CellSector != null && s.CellSector.CellId == request.CellId));
-
-        // Location filtering based on location type
-        if (request.LocationId.HasValue && !string.IsNullOrEmpty(request.LocationType))
-        {
-            networksQuery = request.LocationType.ToLower() switch
-            {
-                "municipality" => networksQuery.Where(n => n.MunicipalityId == request.LocationId),
-                "province" => networksQuery.Where(n => n.Municipality != null && n.Municipality.ProvinceId == request.LocationId),
-                "region" => networksQuery.Where(n => n.Municipality != null && n.Municipality.Province != null && n.Municipality.Province.RegionId == request.LocationId),
-                _ => networksQuery
-            };
-        }
+            .Where(n => !request.CellId.HasValue || n.Sectors.Any(s => s.CellSector != null && s.CellSector.CellId == request.CellId))
+            .Where(n => !request.MunicipalityId.HasValue || n.MunicipalityId == request.MunicipalityId)
+            .Where(n => !request.ProvinceId.HasValue || (n.Municipality != null && n.Municipality.ProvinceId == request.ProvinceId))
+            .Where(n => !request.RegionId.HasValue || (n.Municipality != null && n.Municipality.Province != null && n.Municipality.Province.RegionId == request.RegionId));
 
         networksQuery = networksQuery.OrderBy(n => n.Name);
 

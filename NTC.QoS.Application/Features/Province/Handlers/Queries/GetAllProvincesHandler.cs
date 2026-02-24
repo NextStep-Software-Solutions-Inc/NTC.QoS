@@ -5,17 +5,62 @@ using NTC.QoS.Domain.Models.DTOs.Province;
 
 namespace NTC.QoS.Application.Features.Province.Handlers.Queries;
 
-public class GetAllProvincesHandler(IProvinceRepository provinceRepository) : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
+public class GetAllProvincesHandler(
+    IProvinceRepository provinceRepository,
+    IBarangayCoverageRepository barangayCoverageRepository) 
+    : IRequestHandler<GetAllProvincesRequest, PaginatedResponse<ProvinceDto>>
 {
     private readonly IProvinceRepository _provinceRepository = provinceRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository = barangayCoverageRepository;
 
     public async Task<PaginatedResponse<ProvinceDto>> Handle(GetAllProvincesRequest request, CancellationToken cancellationToken)
     {
         // Step 1: Get paginated provinces WITHOUT ISP counts (to avoid N+1 queries and boundary materialization)
         var provincesQuery = _provinceRepository.QueryAsNoTracking();
-        if (request.RegionId.HasValue)
+        
+        // Filter by coverage status if requested
+        if (request.IsWiredCovered.HasValue || request.IsWirelessCovered.HasValue)
         {
-            provincesQuery = provincesQuery.Where(p => p.RegionId == request.RegionId.Value);
+            var coverageQuery = _barangayCoverageRepository.Query();
+            
+            if (request.IsWiredCovered.HasValue)
+            {
+                if (request.IsWiredCovered.Value)
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WiredFtthPercentage == 100);
+                }
+                else
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WiredFtthPercentage < 100);
+                }
+            }
+            
+            if (request.IsWirelessCovered.HasValue)
+            {
+                if (request.IsWirelessCovered.Value)
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WirelessPercentage == 100);
+                }
+                else
+                {
+                    coverageQuery = coverageQuery.Where(bc => bc.WirelessPercentage < 100);
+                }
+            }
+            
+            var coveredProvinceIds = coverageQuery
+                .Select(bc => bc.Barangay.Municipality.ProvinceId)
+                .Distinct();
+            provincesQuery = provincesQuery.Where(p => coveredProvinceIds.Contains(p.Id));
+        }
+        
+        if (request.RegionIds is not null && request.RegionIds.Length > 0)
+        {
+            provincesQuery = provincesQuery.Where(p => request.RegionIds.Contains(p.RegionId));
+        }
+
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            provincesQuery = _provinceRepository.ApplySearch(provincesQuery, request.Search, p => p.Name);
         }
 
         var provinceProjection = provincesQuery

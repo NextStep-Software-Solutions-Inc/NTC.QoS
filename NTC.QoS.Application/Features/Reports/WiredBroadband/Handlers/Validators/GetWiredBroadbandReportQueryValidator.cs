@@ -13,23 +13,9 @@ public class GetWiredBroadbandReportQueryValidator : AbstractValidator<GetWiredB
             .WithMessage("At least one geographic filter (RegionId, ProvinceId, or MunicipalityId) is required to generate the report. This prevents performance issues from processing all municipalities.")
             .WithName("GeographicFilters");
 
-        // Logical validation: if municipality is specified, province and region should not conflict
-        When(x => x.MunicipalityId.HasValue, () => {
-            RuleFor(x => x.ProvinceId)
-                .Empty()
-                .WithMessage("When Municipality ID is specified, Province ID should not be provided as it will be inferred.");
-            
-            RuleFor(x => x.RegionId)
-                .Empty()
-                .WithMessage("When Municipality ID is specified, Region ID should not be provided as it will be inferred.");
-        });
-
-        // Logical validation: if province is specified, region should not conflict  
-        When(x => x.ProvinceId.HasValue && !x.MunicipalityId.HasValue, () => {
-            RuleFor(x => x.RegionId)
-                .Empty()
-                .WithMessage("When Province ID is specified, Region ID should not be provided as it will be inferred.");
-        });
+        // Note: Geographic filter precedence is handled in the query handler.
+        // Lower admin levels take precedence: Municipality > Province > Region
+        // Multiple filters can be provided, but the most specific will be used.
 
         // Pagination validation (only when pagination is enabled)
         When(x => !x.DisablePagination, () => {

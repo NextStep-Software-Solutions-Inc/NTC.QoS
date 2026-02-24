@@ -13,6 +13,11 @@ public class GetAllBandsHandler(IRepository<Domain.Entities.Band> repository) : 
         var tempQuery = _repository.Query();
         tempQuery = tempQuery.Where(b => request.Technologies == null || b.GenerationBands.Any(gb => gb.Generation.Technologies.Any(t => request.Technologies.Contains(t.Id))));
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            tempQuery = _repository.ApplySearch(tempQuery, request.Search, b => b.Name);
+        }
+
         var bandDtosQuery = tempQuery.Select(b => new BandDto
         {
             Id = b.Id,

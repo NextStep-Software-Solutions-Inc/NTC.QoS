@@ -8,11 +8,13 @@ public class GetAllProvidersRequest(
     int pageNumber,
     List<Guid>? serviceIds,
     List<string>? names,
-    bool? includeLogoData = null) : IRequest<PaginatedResponse<ProviderDto>>
+    bool? includeLogoData = null,
+    string? search = null) : IRequest<PaginatedResponse<ProviderDto>>
 {
     public int PageSize { get; set; } = pageSize;
     public int PageNumber { get; set; } = pageNumber;
     public List<Guid>? ServiceIds { get; set; } = serviceIds;
     public List<string>? Names { get; set; } = names;
     public bool? IncludeLogoData { get; set; } = includeLogoData;
+    public string? Search { get; set; } = search;
 }

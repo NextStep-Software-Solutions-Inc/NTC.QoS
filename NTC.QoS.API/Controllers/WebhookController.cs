@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Filters;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models;
 using NTC.QoS.Domain.Models.DTOs.User;
 
@@ -13,9 +14,10 @@ namespace NTC.QoS.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("webhooks")]
-public class WebhookController(IMediator mediator) : ControllerBase
+public class WebhookController(IMediator mediator, IClerkUserService clerkUserService) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
+    private readonly IClerkUserService _clerkUserService = clerkUserService;
 
     /// <summary>
     /// Processes Clerk webhook events for user creation and updates
@@ -49,6 +51,9 @@ public class WebhookController(IMediator mediator) : ControllerBase
         {
             "user.created" => await HandleUserCreated(payload.Data),
             "user.updated" => await HandleUserUpdated(payload.Data),
+            "session.created" => await HandleSessionCreated(payload.Data),
+            "session.ended" => await HandleSessionEnded(payload.Data),
+            "session.removed" => await HandleSessionRemoved(payload.Data),
             _ => new Domain.Models.DTOs.ApiResponse<UserDto>
             {
                 Succeeded = false,
@@ -59,8 +64,17 @@ public class WebhookController(IMediator mediator) : ControllerBase
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
-    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleUserCreated(ClerkUserData userData)
+    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleUserCreated(object userDataObj)
     {
+        if (userDataObj is not ClerkUserData userData)
+        {
+            return new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Invalid user data."
+            };
+        }
+
         if (userData.Id is null || userData.FirstName is null || userData.LastName is null)
         {
             // Log or handle invalid user data
@@ -85,8 +99,17 @@ public class WebhookController(IMediator mediator) : ControllerBase
 
     }
 
-    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleUserUpdated(ClerkUserData userData)
+    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleUserUpdated(object userDataObj)
     {
+        if (userDataObj is not ClerkUserData userData)
+        {
+            return new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Invalid user data."
+            };
+        }
+
         if (userData.Id is null)
         {
             // Log or handle invalid user data
@@ -103,7 +126,7 @@ public class WebhookController(IMediator mediator) : ControllerBase
         if (!userResponse.Succeeded || userResponse.Data == null)
         {
             // User not found, perhaps create
-            return await HandleUserCreated(userData);
+            return await HandleUserCreated(userDataObj);
 
         }
 
@@ -116,5 +139,138 @@ public class WebhookController(IMediator mediator) : ControllerBase
         });
 
         return await _mediator.Send(updateRequest);
+    }
+
+    private async Task EnsureUserExists(string authUserId)
+    {
+        var userQuery = new GetUserByAuthUserIdRequest(authUserId);
+        var userResponse = await _mediator.Send(userQuery);
+        if (!userResponse.Succeeded || userResponse.Data == null)
+        {
+            // User not found, fetch from Clerk and create
+            var clerkUser = await _clerkUserService.GetUserByIdAsync(authUserId);
+            if (clerkUser != null)
+            {
+                var createUserRequest = new CreateUserRequest(new CreateUserDto
+                {
+                    AuthUserId = clerkUser.Id,
+                    Email = clerkUser.EmailAddresses?.FirstOrDefault()?.EmailAddress ?? "",
+                    FirstName = clerkUser.FirstName ?? "",
+                    LastName = clerkUser.LastName ?? "",
+                    RoleId = Guid.Empty,
+                    OrganizationId = Guid.Empty
+                });
+
+                await _mediator.Send(createUserRequest);
+            }
+        }
+    }
+
+    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleSessionCreated(object sessionData)
+    {
+        if (sessionData is not ClerkSessionData data)
+        {
+            return new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Invalid session data."
+            };
+        }
+
+        // Check if user exists in DB
+        var userQuery = new GetUserByAuthUserIdRequest(data.UserId);
+        var userResponse = await _mediator.Send(userQuery);
+        if (!userResponse.Succeeded || userResponse.Data == null)
+        {
+            // User not found, fetch from Clerk and create
+            var clerkUser = await _clerkUserService.GetUserByIdAsync(data.UserId);
+            if (clerkUser == null)
+            {
+                return new Domain.Models.DTOs.ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "User not found in Clerk."
+                };
+            }
+
+            var createUserRequest = new CreateUserRequest(new CreateUserDto
+            {
+                AuthUserId = clerkUser.Id,
+                Email = clerkUser.EmailAddresses?.FirstOrDefault()?.EmailAddress ?? "",
+                FirstName = clerkUser.FirstName ?? "",
+                LastName = clerkUser.LastName ?? "",
+                RoleId = Guid.Empty,
+                OrganizationId = Guid.Empty
+            });
+
+            var createResponse = await _mediator.Send(createUserRequest);
+            if (!createResponse.Succeeded)
+            {
+                return new Domain.Models.DTOs.ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = createResponse.Message
+                };
+            }
+        }
+
+        var createSessionRequest = new CreateSessionRequest
+        {
+            AuthUserId = data.UserId
+        };
+
+        var response = await _mediator.Send(createSessionRequest);
+
+        return new Domain.Models.DTOs.ApiResponse<UserDto>
+        {
+            Succeeded = response.Succeeded,
+            Message = response.Message
+        };
+    }
+
+    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleSessionEnded(object sessionData)
+    {
+        if (sessionData is not ClerkSessionData data)
+        {
+            return new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Invalid session data."
+            };
+        }
+
+        // Ensure user exists
+        await EnsureUserExists(data.UserId);
+
+        // TODO: Implement session ended logic, e.g., update user status or log logout
+        await Task.CompletedTask;
+        return new Domain.Models.DTOs.ApiResponse<UserDto>
+        {
+            Succeeded = true,
+            Message = "Session ended event handled."
+        };
+    }
+
+    private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleSessionRemoved(object sessionData)
+    {
+        if (sessionData is not ClerkSessionData data)
+        {
+            return new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Invalid session data."
+            };
+        }
+
+        // Ensure user exists
+        await EnsureUserExists(data.UserId);
+
+        // TODO: Implement session removed logic, e.g., cleanup session data
+        await Task.CompletedTask;
+        return new Domain.Models.DTOs.ApiResponse<UserDto>
+        {
+            Succeeded = true,
+            Message = "Session removed event handled."
+        };
     }
 }

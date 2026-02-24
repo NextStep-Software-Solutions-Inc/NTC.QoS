@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Entities;
 using NTC.QoS.Infrastructure.Persistence;
 
 namespace NTC.QoS.Infrastructure.Seed;
@@ -52,12 +53,15 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UploadFiles, Name = "Upload Files", Description = "Can upload files" },
             new { Key = Permissions.DeleteFiles, Name = "Delete Files", Description = "Can delete files" },
             new { Key = Permissions.ProcessFiles, Name = "Process Files", Description = "Can process uploaded files" },
+            new { Key = Permissions.DownloadFiles, Name = "Download Files", Description = "Can download files" },
+            new { Key = Permissions.UpdateFiles, Name = "Update Files", Description = "Can update file metadata" },
 
             // User permissions
             new { Key = Permissions.ViewUsers, Name = "View Users", Description = "Can view user listings" },
             new { Key = Permissions.CreateUsers, Name = "Create Users", Description = "Can create new users" },
             new { Key = Permissions.UpdateUsers, Name = "Update Users", Description = "Can update user information" },
             new { Key = Permissions.DeleteUsers, Name = "Delete Users", Description = "Can delete users" },
+            new { Key = Permissions.InviteUsers, Name = "Invite Users", Description = "Can invite new users via email" },
 
             // Role permissions
             new { Key = Permissions.ViewRoles, Name = "View Roles", Description = "Can view role listings" },
@@ -105,6 +109,12 @@ public static class AuthorizationSeeder
             new { Key = Permissions.CreateBarangays, Name = "Create Barangays", Description = "Can create new barangays" },
             new { Key = Permissions.UpdateBarangays, Name = "Update Barangays", Description = "Can update barangay information" },
             new { Key = Permissions.DeleteBarangays, Name = "Delete Barangays", Description = "Can delete barangays" },
+
+            // Barangay Coverage permissions
+            new { Key = Permissions.ViewBarangayCoverage, Name = "View Barangay Coverage", Description = "Can view barangay coverage records" },
+            new { Key = Permissions.CreateBarangayCoverage, Name = "Create Barangay Coverage", Description = "Can create barangay coverage records" },
+            new { Key = Permissions.UpdateBarangayCoverage, Name = "Update Barangay Coverage", Description = "Can update barangay coverage records" },
+            new { Key = Permissions.DeleteBarangayCoverage, Name = "Delete Barangay Coverage", Description = "Can delete barangay coverage records" },
 
             // Zone permissions
             new { Key = Permissions.ViewZones, Name = "View Zones", Description = "Can view zone listings" },
@@ -211,7 +221,6 @@ public static class AuthorizationSeeder
             // Cellular permissions
             new { Key = Permissions.ViewCellulars, Name = "View Cellulars", Description = "Can view cellular listings" },
             new { Key = Permissions.CreateCellulars, Name = "Create Cellulars", Description = "Can create new cellular records" },
-            new { Key = Permissions.UpdateCellulars, Name = "Update Cellulars", Description = "Can update cellular information" },
             new { Key = Permissions.DeleteCellulars, Name = "Delete Cellulars", Description = "Can delete cellular records" },
 
             // Report permissions
@@ -222,7 +231,11 @@ public static class AuthorizationSeeder
             // System permissions
             new { Key = Permissions.SystemAdministration, Name = "System Administration", Description = "Full system administration access" },
             new { Key = Permissions.ViewLogs, Name = "View Logs", Description = "Can view system logs" },
-            new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" }
+            new { Key = Permissions.ManageSettings, Name = "Manage Settings", Description = "Can manage system settings" },
+
+            // GenAI permissions
+            new { Key = Permissions.ChatWithAI, Name = "Chat with AI", Description = "Can access AI chat assistant" },
+            new { Key = Permissions.GenerateReports, Name = "Generate AI Reports", Description = "Can generate reports using AI" }
         };
 
 
@@ -326,16 +339,17 @@ public static class AuthorizationSeeder
         {
             var fieldOfficerPermissions = new[]
             {
-                Permissions.ViewFiles, Permissions.UploadFiles, Permissions.ProcessFiles,
+                Permissions.ViewFiles, Permissions.UploadFiles, Permissions.ProcessFiles, Permissions.DownloadFiles, Permissions.UpdateFiles,
                 Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
                 Permissions.ViewNetworks, Permissions.CreateNetworks, Permissions.UpdateNetworks,
                 Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors,
                 Permissions.ViewCellSectors, Permissions.CreateCellSectors, Permissions.UpdateCellSectors,
                 Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
-                Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars, Permissions.UpdateCellulars,
+                Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars,
                 Permissions.ViewSpeedtests, Permissions.CreateSpeedtests, Permissions.UpdateSpeedtests,
                 Permissions.ViewNAPs, Permissions.CreateNAPs, Permissions.UpdateNAPs,
-                Permissions.ViewAnalytics
+                Permissions.ViewAnalytics,
+                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports
             };
             await AssignPermissionsToRole(context, logger, fieldOfficerRole, fieldOfficerPermissions);
         }

@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Analytics.Requests;
 using NTC.QoS.Domain.Interfaces;
@@ -97,7 +96,6 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     private readonly IProvinceRepository _provinceRepository;
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IBarangayRepository _barangayRepository;
-    private static int _jobIdCounter = ConnectivityAssessmentJobConfiguration.JobIdCounterStart;
 
     public StartConnectivityAssessmentJobHandler(
         IBackgroundJobService backgroundJobService,
@@ -125,46 +123,49 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     {
         try
         {
-            // Step 1: Initialize job
-            var jobId = Interlocked.Increment(ref _jobIdCounter);
+            // Step 1: Initialize and generate unique job ID
             var startTime = DateTime.UtcNow;
             var currentUserId = _userContextService.GetCurrentUserId() ?? "System";
+            var jobId = Guid.NewGuid().ToString("N"); // Generate unique job ID before enqueueing
 
             // Step 2: Calculate ACTUAL location counts from database FIRST
+            var locationType = request.GetLocationType();
+            var locationIds = request.GetLocationIds();
+            
             var actualTotalLocations = await CalculateActualTotalLocationsAsync(
-                request.LocationIds,
-                request.LocationType,
+                locationIds,
+                locationType,
                 request.GenerateHierarchicalAssessments,
                 request.HierarchicalDepth,
                 request.MaxHierarchicalLocations ?? int.MaxValue,
                 cancellationToken);
 
-            // Step 3: Create job request with actual total locations
+            // Step 3: Create job request with the generated job ID
             var jobRequest = CreateJobRequest(jobId, request, currentUserId, startTime, actualTotalLocations);
 
-            // Step 4: Log configuration
-            LogJobConfiguration(jobId, jobRequest);
-
-            // Step 5: Log location count details
-            LogLocationCounts(jobId, jobRequest, actualTotalLocations);
-
-            // Step 6: Initialize cache with actual counts
+            // Step 4: Initialize cache BEFORE enqueueing so status is available immediately
             InitializeJobStatusCache(jobId, actualTotalLocations, startTime);
 
-            // Step 7: Enqueue job
+            // Step 5: Store job request in cache
+            var jobRequestCacheKey = $"job_request_{jobId}";
+            _memoryCache.Set(jobRequestCacheKey, jobRequest, TimeSpan.FromHours(2));
+
+            // Step 6: Enqueue job with Hangfire (the jobRequest now has proper JobId)
             var hangfireJobId = _backgroundJobService.Enqueue<IProcessConnectivityAssessmentJob>(
                 job => job.ExecuteAsync(jobRequest, CancellationToken.None));
 
-            // Step 8: Log job start
+            // Step 7: Log configuration and start
+            LogJobConfiguration(jobId, jobRequest);
+            LogLocationCounts(jobId, jobRequest, actualTotalLocations);
             LogJobStart(jobId, hangfireJobId, request, jobRequest, actualTotalLocations);
 
-            // Step 9: Create and return response
+            // Step 8: Create and return response
             var response = CreateJobResponse(jobId, jobRequest, actualTotalLocations);
 
             return await Task.FromResult(new ApiResponse<ConnectivityAssessmentJobResponseDto>
             {
                 Succeeded = true,
-                Message = $"Background job started successfully. Job ID: {jobId}",
+                Message = $"Background job started successfully. Job ID: {jobId} (Hangfire: {hangfireJobId})",
                 Data = response
             });
         }
@@ -187,35 +188,46 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// Creates the job request DTO with all necessary configuration
     /// </summary>
     private ConnectivityAssessmentJobRequestDto CreateJobRequest(
-        int jobId,
+        string jobId,
         StartConnectivityAssessmentJobRequest request,
         string userId,
         DateTime startTime,
         int actualTotalLocations)
     {
-        return new ConnectivityAssessmentJobRequestDto
+        var jobRequest = new ConnectivityAssessmentJobRequestDto
         {
             JobId = jobId,
-            LocationIds = request.LocationIds,
-            LocationType = request.LocationType,
             ForceRecalculate = request.ForceRecalculate,
             GenerateHierarchicalAssessments = request.GenerateHierarchicalAssessments,
             HierarchicalDepth = request.HierarchicalDepth,
             MaxHierarchicalLocations = request.MaxHierarchicalLocations ?? int.MaxValue,
             HierarchicalBatchSize = request.HierarchicalBatchSize ??
-                GetDefaultHierarchicalBatchSize(request.LocationType),
+                GetDefaultHierarchicalBatchSize(request.GetLocationType()),
             ActualTotalLocations = actualTotalLocations,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             UserId = userId,
-            RequestedAt = startTime
+            RequestedAt = startTime,
+            // Copy typed location properties directly
+            RegionIds = request.RegionIds,
+            ProvinceIds = request.ProvinceIds,
+            MunicipalityIds = request.MunicipalityIds,
+            BarangayIds = request.BarangayIds
         };
+
+        // Also populate deprecated properties for backward compatibility
+        #pragma warning disable CS0618 // Type or member is obsolete
+        jobRequest.LocationIds = request.GetLocationIds();
+        jobRequest.LocationType = request.GetLocationType();
+        #pragma warning restore CS0618
+
+        return jobRequest;
     }
 
     /// <summary>
     /// Initializes job status in memory cache
     /// </summary>
-    private void InitializeJobStatusCache(int jobId, int estimatedLocations, DateTime startTime)
+    private void InitializeJobStatusCache(string jobId, int estimatedLocations, DateTime startTime)
     {
         var initialJobStatus = new ConnectivityAssessmentJobStatusDto
         {
@@ -225,6 +237,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             LastUpdated = startTime,
             StartTime = null,
             EndTime = null,
+            ProcessingCount = 0,
             ProcessedCount = 0,
             TotalCount = estimatedLocations
         };
@@ -238,7 +251,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// Creates the job response DTO
     /// </summary>
     private static ConnectivityAssessmentJobResponseDto CreateJobResponse(
-        int jobId,
+        string jobId,
         ConnectivityAssessmentJobRequestDto jobRequest,
         int actualTotalLocations)
     {
@@ -255,7 +268,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// <summary>
     /// Logs job configuration for transparency
     /// </summary>
-    private void LogJobConfiguration(int jobId, ConnectivityAssessmentJobRequestDto jobRequest)
+    private void LogJobConfiguration(string jobId, ConnectivityAssessmentJobRequestDto jobRequest)
     {
         _logger.LogInformation(
             "Job {JobId} configuration - Hierarchical: {Hierarchical}, " +
@@ -269,12 +282,12 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
     /// <summary>
     /// Logs location count details for debugging
     /// </summary>
-    private void LogLocationCounts(int jobId, ConnectivityAssessmentJobRequestDto jobRequest, int actualTotalLocations)
+    private void LogLocationCounts(string jobId, ConnectivityAssessmentJobRequestDto jobRequest, int actualTotalLocations)
     {
         if (!jobRequest.GenerateHierarchicalAssessments)
             return;
 
-        var primaryCount = jobRequest.LocationIds.Count;
+        var primaryCount = jobRequest.GetLocationCount();
         var actualChildrenCount = actualTotalLocations - primaryCount;
         var hasLimit = jobRequest.MaxHierarchicalLocations < int.MaxValue;
         var limitInfo = hasLimit ? $", limited to: {jobRequest.MaxHierarchicalLocations}" : ", no limit (processing all)";
@@ -283,14 +296,14 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
             "Job {JobId} actual location counts - Primary: {Primary}, Actual children: {ActualChildren}, " +
             "Total: {Total}, LocationType: {LocationType}, Depth: {Depth}{LimitInfo}",
             jobId, primaryCount, actualChildrenCount, actualTotalLocations,
-            jobRequest.LocationType, jobRequest.HierarchicalDepth, limitInfo);
+            jobRequest.GetLocationType(), jobRequest.HierarchicalDepth, limitInfo);
     }
 
     /// <summary>
     /// Logs job start information
     /// </summary>
     private void LogJobStart(
-        int jobId,
+        string jobId,
         string hangfireJobId,
         StartConnectivityAssessmentJobRequest request,
         ConnectivityAssessmentJobRequestDto jobRequest,
@@ -299,7 +312,7 @@ public class StartConnectivityAssessmentJobHandler : IRequestHandler<StartConnec
         _logger.LogInformation(
             "Started background connectivity assessment job {JobId} (Hangfire: {HangfireJobId}) for {LocationCount} {LocationType}s. " +
             "Hierarchical: {Hierarchical}, Force: {Force}, ActualTotal: {ActualTotal}",
-            jobId, hangfireJobId, request.LocationIds.Count, request.LocationType,
+            jobId, hangfireJobId, request.GetLocationCount(), request.GetLocationType(),
             request.GenerateHierarchicalAssessments,
             request.ForceRecalculate, actualTotalLocations);
     }

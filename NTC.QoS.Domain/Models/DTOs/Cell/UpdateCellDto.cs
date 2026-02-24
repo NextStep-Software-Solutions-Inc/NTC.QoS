@@ -2,6 +2,7 @@
 
 public class UpdateCellDto
 {
+    public string? Name { get; set; }
     public string? CID { get; set; }
     public string? LAC { get; set; }
     public string? TAC { get; set; }

@@ -19,18 +19,20 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
 {
     private readonly ILogger<ProcessCellularCoverageV2Job> _logger;
     private readonly IRepository<Domain.Entities.File> _fileRepository;
-    private readonly ICellularCoverageV2Repository _coverageV2Repository;
+    private readonly ICellularCoverageRepository _coverageV2Repository;
     private readonly ICellularCoverageV2MappingService _mappingService;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IRepository<Network> _networkRepository;
+    private readonly IBackgroundJobService _backgroundJobService;
 
     public ProcessCellularCoverageV2Job(
         ILogger<ProcessCellularCoverageV2Job> logger,
         IRepository<Domain.Entities.File> fileRepository,
-        ICellularCoverageV2Repository coverageV2Repository,
+        ICellularCoverageRepository coverageV2Repository,
         ICellularCoverageV2MappingService mappingService,
         IBlobStorageService blobStorageService,
-        IRepository<Network> networkRepository)
+        IRepository<Network> networkRepository,
+        IBackgroundJobService backgroundJobService)
     {
         _logger = logger;
         _fileRepository = fileRepository;
@@ -38,6 +40,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         _mappingService = mappingService;
         _blobStorageService = blobStorageService;
         _networkRepository = networkRepository;
+        _backgroundJobService = backgroundJobService;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -178,7 +181,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                 const int csvBatchSize = 1000;   // Read 1000 CSV records at a time from stream
                 const int insertBatchSize = 500; // Insert 500 to DB at a time
 
-                var allMappedRecords = new List<CellularCoverageVersion2>();
+                var allMappedRecords = new List<CellularCoverage>();
                 int totalRecordsProcessed = 0;
                 int batchNumber = 0;
 
@@ -261,6 +264,10 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                         _logger,
                         FileTypeEnum.CellularCoverageV2,
                         cancellationToken);
+
+                    // Trigger connectivity assessment generation for the file's region
+                    _logger.LogInformation("File processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
+                    _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, cancellationToken));
                 }
                 catch (Exception ex)
                 {
@@ -291,7 +298,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
     }
 
     private async Task InsertBatchAsync(
-        List<CellularCoverageVersion2> records,
+        List<CellularCoverage> records,
         CancellationToken cancellationToken)
     {
         try

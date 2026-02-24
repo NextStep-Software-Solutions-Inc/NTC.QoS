@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Interfaces;
@@ -65,7 +64,7 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
         var effectivePageSize = Math.Min(request.PageSize, maxAllowedPageSize);
 
         // Start with base query using AsNoTracking for read-only optimization
-        var speedtestQuery = _speedtestRepository.Query().AsNoTracking();
+        var speedtestQuery = _speedtestRepository.QueryAsNoTracking();
 
         // Apply viewport spatial filter (leverages PostGIS spatial index)
         speedtestQuery = speedtestQuery.ApplyViewportFilter(request.Viewport);
@@ -74,6 +73,32 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
         {
             speedtestQuery = speedtestQuery.Where(s => request.ServiceProviderIds.Contains(s.ServiceProviderId));
+        }
+
+        // Apply speed range and date filters if specified
+        if (request.MinDownloadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DownloadSpeed >= request.MinDownloadSpeed.Value);
+        }
+        if (request.MaxDownloadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DownloadSpeed <= request.MaxDownloadSpeed.Value);
+        }
+        if (request.MinUploadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.UploadSpeed >= request.MinUploadSpeed.Value);
+        }
+        if (request.MaxUploadSpeed.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.UploadSpeed <= request.MaxUploadSpeed.Value);
+        }
+        if (request.StartDate.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DateTime >= request.StartDate.Value);
+        }
+        if (request.EndDate.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.DateTime <= request.EndDate.Value);
         }
 
         // Apply administrative boundary filters (hierarchical)

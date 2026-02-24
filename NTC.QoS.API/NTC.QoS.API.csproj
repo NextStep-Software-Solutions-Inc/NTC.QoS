@@ -30,4 +30,11 @@
     <Folder Include="Middlewares\" />
   </ItemGroup>
 
+  <!-- Copy Global AI Instruction file to output directory -->
+  <ItemGroup>
+    <None Update="Global AI Instruction.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

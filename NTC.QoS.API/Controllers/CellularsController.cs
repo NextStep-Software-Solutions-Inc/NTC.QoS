@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
 
@@ -16,6 +18,7 @@ public class CellularsController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateCellulars)]
     public async Task<IActionResult> CreateCellular(CreateCellularDto cellularDto)
     {
         var cellular = await _mediator.Send(new CreateCellularRequest
@@ -26,13 +29,15 @@ public class CellularsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewCellulars)]
     public async Task<ActionResult<PaginatedResponse<GetCellularDto>>> GetAllCellulars(int pageSize = 10,
                                                                                        int pageNumber = 1,
                                                                                        Guid? cellId = null,
                                                                                        Guid? cellSectorId = null,
                                                                                        Guid? serviceProviderId = null,
                                                                                        Guid? technologyId = null,
-                                                                                       Guid? bandId = null)
+                                                                                       Guid? bandId = null,
+                                                                                       [FromQuery] string? search = null)
     {
         var result = await _mediator.Send(new GetAllCellularsRequest
         {
@@ -42,12 +47,14 @@ public class CellularsController(IMediator mediator) : ControllerBase
             CellSectorId = cellSectorId,
             ServiceProviderId = serviceProviderId,
             TechnologyId = technologyId,
-            BandId = bandId
+            BandId = bandId,
+            Search = search
         });
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewCellulars)]
     public async Task<ActionResult<ApiResponse<CellularDto>>> GetCellularById(Guid id)
     {
         var request = new GetCellularByIdRequest(id);
@@ -56,6 +63,7 @@ public class CellularsController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteCellulars)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteCellularById(Guid id)
     {
         var cellular = await _mediator.Send(new DeleteCellularByIdRequest(id));

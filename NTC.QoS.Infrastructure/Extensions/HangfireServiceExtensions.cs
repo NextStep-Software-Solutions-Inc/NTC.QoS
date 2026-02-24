@@ -69,6 +69,21 @@ internal static class HangfireServiceExtensions
 
             // Configure server name
             options.ServerName = hangfireOptions.ServerName ?? GenerateServerName();
+
+            // Increase shutdown timeout to allow long-running jobs to complete gracefully
+            // Default is 15 seconds, which is too short for long-running spatial analysis jobs
+            options.ShutdownTimeout = TimeSpan.FromMinutes(5);
+
+            // Increase cancellation timeout to allow database operations to complete
+            options.CancellationCheckInterval = TimeSpan.FromSeconds(30);
+
+            // CRITICAL: Set worker stop timeout to prevent 30-minute job cancellation
+            // Default is 30 minutes which causes long-running jobs to be cancelled
+            // Set to a very high value to allow multi-hour processing jobs
+            options.StopTimeout = TimeSpan.FromHours(6);
+
+            // Increase schedule polling interval to reduce database load
+            options.SchedulePollingInterval = TimeSpan.FromMinutes(1);
         });
 
         // Register Hangfire filter registrar

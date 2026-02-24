@@ -9,5 +9,7 @@ public class FileDto
     public DateTime UploadDate { get; set; }
     public string Type { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public Guid? RegionId { get; set; }
+    public string? AssessmentJobId { get; set; } // Connectivity assessment job ID for status tracking
 
 }

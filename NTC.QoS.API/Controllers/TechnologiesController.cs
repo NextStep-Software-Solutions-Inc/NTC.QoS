@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Technology.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Technology;
 
@@ -21,6 +23,7 @@ public class TechnologiesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateTechnologies)]
     public async Task<IActionResult> CreateTechnology(CreateTechnologyDto technologyDto)
     {
         var technology = await _mediator.Send(new CreateTechnologyRequest
@@ -32,19 +35,22 @@ public class TechnologiesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<TechnologyDto>>> GetAllTechnologies(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? generationIds = null)
+    [RequirePermission(Permissions.ViewTechnologies)]
+    public async Task<ActionResult<PaginatedResponse<TechnologyDto>>> GetAllTechnologies(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? generationIds = null, [FromQuery] string? search = null)
     {
         var request = new GetAllTechnologiesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
             GenerationIds = generationIds,
+            Search = search
         };
         var technologies = await _mediator.Send(request);
         return Ok(technologies);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewTechnologies)]
     public async Task<ActionResult<ApiResponse<TechnologyDto>>> GetTechnologyById(Guid id)
     {
         var request = new GetTechnologyByIdRequest(id);
@@ -53,6 +59,7 @@ public class TechnologiesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.UpdateTechnologies)]
     public async Task<ActionResult<ApiResponse<UpdateTechnologyDto>>> UpdateTechnologyById(Guid id, UpdateTechnologyDto updateTechnologyDto)
     {
         var technology = await _mediator.Send(new UpdateTechnologyRequest
@@ -65,6 +72,7 @@ public class TechnologiesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteTechnologies)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteTechnologyById(Guid id)
     {
         var request = new DeleteTechnologyByIdRequest(id);

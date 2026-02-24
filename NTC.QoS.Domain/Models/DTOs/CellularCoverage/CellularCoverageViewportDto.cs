@@ -30,5 +30,5 @@ public class CellularCoverageViewportDto
     /// <summary>
     /// Signal strength value
     /// </summary>
-    public decimal Strength { get; set; }
+    public decimal SignalStrength { get; set; }
 }

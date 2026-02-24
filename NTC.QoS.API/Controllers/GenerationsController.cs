@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Generation.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Generation;
 
@@ -21,6 +23,7 @@ public class GenerationsController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateGenerations)]
     public async Task<IActionResult> CreateGeneration(CreateGenerationDto generationDto)
     {
         var generation = await _mediator.Send(new CreateGenerationRequest
@@ -32,11 +35,13 @@ public class GenerationsController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.ViewGenerations)]
     public async Task<ActionResult<PaginatedResponse<GenerationDto>>> GetAllGenerations(int pageSize = 10,
                                                                                         int pageNumber = 1,
                                                                                         [FromQuery] List<Guid>? providerIds = default,
                                                                                         [FromQuery] List<Guid>? serviceIds = default,
-                                                                                        [FromQuery] List<Guid>? serviceProviderIds = default)
+                                                                                        [FromQuery] List<Guid>? serviceProviderIds = default,
+                                                                                        [FromQuery] string? search = null)
     {
         var generations = await _mediator.Send(new GetAllGenerationsRequest
         {
@@ -44,13 +49,15 @@ public class GenerationsController : ControllerBase
             PageSize = pageSize,
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
-            ServiceProviderIds = serviceProviderIds
+            ServiceProviderIds = serviceProviderIds,
+            Search = search
         });
 
         return generations.Succeeded ? Ok(generations) : BadRequest(generations);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewGenerations)]
     public async Task<ActionResult<ApiResponse<GenerationDto>>> GetGenerationById(Guid id)
     {
         var request = new GetGenerationByIdRequest(id);
@@ -59,6 +66,7 @@ public class GenerationsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.UpdateGenerations)]
     public async Task<ActionResult<ApiResponse<UpdateGenerationDto>>> UpdateGenerationById(Guid id, UpdateGenerationDto updateGeneration)
     {
         var generation = await _mediator.Send(new UpdateGenerationByIdRequest
@@ -71,6 +79,7 @@ public class GenerationsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteGenerations)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteGenerationById(Guid id)
     {
         var generation = await _mediator.Send(new DeleteGenerationByIdRequest(id));

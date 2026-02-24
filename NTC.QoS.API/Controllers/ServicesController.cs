@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Service.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Service;
 
@@ -18,6 +20,7 @@ public class ServicesController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateServices)]
     public async Task<ActionResult<ApiResponse<ServiceDto>>> CreateService([FromBody] CreateServiceDto createService)
     {
         var service = await _mediator.Send(new CreateServiceRequest(createService));
@@ -31,13 +34,15 @@ public class ServicesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<PaginatedResponse<ServiceDto>>> GetAllServices(int pageSize = 10,
                                                                                   int pageNumber = 1,
                                                                                   [FromQuery] List<Guid>? providerIds = null,
-                                                                                  [FromQuery] List<string>? types = null)
+                                                                                  [FromQuery] List<string>? types = null,
+                                                                                  [FromQuery] string? search = null)
     {
-        var services = await _mediator.Send(new GetAllServicesRequest(pageSize, pageNumber, providerIds, types));
+        var services = await _mediator.Send(new GetAllServicesRequest(pageSize, pageNumber, providerIds, types, search));
         return services.Succeeded ? Ok(services) : BadRequest(services);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewServices)]
     public async Task<ActionResult<ApiResponse<ServiceDto>>> GetServiceById(Guid id)
     {
         var service = await _mediator.Send(new GetServiceByIdRequest(id));
@@ -45,6 +50,7 @@ public class ServicesController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.UpdateServices)]
     public async Task<ActionResult<ApiResponse<ServiceDto>>> UpdateServiceById(Guid id, UpdateServiceDto updateService)
     {
         var service = await _mediator.Send(new UpdateServiceByIdRequest(id, updateService));
@@ -52,6 +58,7 @@ public class ServicesController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteServices)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteServiceById(Guid id)
     {
         var service = await _mediator.Send(new DeleteServiceByIdRequest(id));

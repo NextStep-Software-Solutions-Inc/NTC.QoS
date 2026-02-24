@@ -12,6 +12,11 @@ public class GetAllRolesHandler(IRepository<Domain.Entities.Role> repository) : 
     {
         var allRoles = _repository.Query();
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allRoles = _repository.ApplySearch(allRoles, request.Search, r => r.Name, r => r.Key);
+        }
+
         var roleDtos = allRoles.Select(r => new RoleDto
         {
             Id = r.Id,

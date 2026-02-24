@@ -21,8 +21,9 @@ public class UpdateMunicipalityByIdHandler : IRequestHandler<UpdateMunicipalityB
 
     public async Task<ApiResponse<MunicipalityDto>> Handle(UpdateMunicipalityByIdRequest request, CancellationToken cancellationToken)
     {
-        var municipalityQuery = _repository.Query(m => m.Id == request.Id);
-        var municipality = await _repository.FirstOrDefaultAsync(municipalityQuery, cancellationToken);
+        // Use GetByIdForUpdateAsync to load the full entity (including Boundaries and Description),
+        // bypassing the read-optimized Query() projection which omits those fields.
+        var municipality = await _repository.GetByIdForUpdateAsync(request.Id, cancellationToken);
 
         if (municipality is null)
         {

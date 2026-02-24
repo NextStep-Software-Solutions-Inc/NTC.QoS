@@ -154,9 +154,16 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         // Calculate CMTS scores based on infrastructure, speed data, and population
         var cmtsScores = CalculateCMTSScores(infrastructureStats, speedStats, areaKm2, population, householdCount);
 
+        // Extract individual scores from the array for entity mapping using dictionary for efficiency
+        var scoreDict = cmtsScores.ToDictionary(s => s.Subject);
+        var fiberCoverage = scoreDict.TryGetValue(CMTSSubjects.FiberCoverage, out var fiberScore) ? fiberScore.A : 0;
+        var internetAccess = scoreDict.TryGetValue(CMTSSubjects.InternetAccess, out var internetScore) ? internetScore.A : 0;
+        var technologyType = scoreDict.TryGetValue(CMTSSubjects.TechnologyType, out var techScore) ? techScore.A : 0;
+        var qualityOfService = scoreDict.TryGetValue(CMTSSubjects.QualityOfService, out var qosScore) ? qosScore.A : 0;
+        var coverageAvailability = scoreDict.TryGetValue(CMTSSubjects.MobileCoverage, out var mobileScore) ? mobileScore.A : 0;
+
         // Determine connectivity status and total score
-        var totalScore = cmtsScores.FiberCoverage + cmtsScores.InternetAccess +
-                        cmtsScores.TechnologyType + cmtsScores.QualityOfService + cmtsScores.CoverageAvailability;
+        var totalScore = fiberCoverage + internetAccess + technologyType + qualityOfService + coverageAvailability;
 
         var connectivityStatus = DetermineConnectivityStatus(totalScore);
 
@@ -181,11 +188,11 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
             AssessedBy = currentUserId,
             ConnectivityStatus = connectivityStatus,
             TotalScore = totalScore,
-            FiberCoverageScore = cmtsScores.FiberCoverage,
-            InternetAccessScore = cmtsScores.InternetAccess,
-            TechnologyTypeScore = cmtsScores.TechnologyType,
-            QualityOfServiceScore = cmtsScores.QualityOfService,
-            CoverageAvailabilityScore = cmtsScores.CoverageAvailability,
+            FiberCoverageScore = fiberCoverage,
+            InternetAccessScore = internetAccess,
+            TechnologyTypeScore = technologyType,
+            QualityOfServiceScore = qualityOfService,
+            CoverageAvailabilityScore = coverageAvailability,
             CellTowerCount = infrastructureStats.CellTowerCount,
             FiberNAPCount = infrastructureStats.FiberNAPCount,
             WifiHotspotCount = infrastructureStats.WiFiHotspotCount,
@@ -1504,19 +1511,24 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
 
     private static CMTSScoresDto CalculateCMTSScores(InfrastructureStatsDto infrastructure, SpeedStatsDto? speedStats, double areaKm2, int? population, int? householdCount)
     {
-        var scores = new CMTSScoresDto();
-
         // Calculate population density context once
         var populationContext = CalculatePopulationContext(population, areaKm2);
 
         // Calculate each CMTS criterion using dedicated methods
-        scores.FiberCoverage = CalculateFiberCoverageScore(infrastructure, areaKm2, population, populationContext);
-        scores.InternetAccess = CalculateInternetAccessScore(speedStats);
-        scores.TechnologyType = CalculateTechnologyTypeScore(infrastructure);
-        scores.QualityOfService = CalculateQualityOfServiceScore(speedStats, infrastructure);
-        scores.CoverageAvailability = CalculateCoverageAvailabilityScore(infrastructure, areaKm2, population, populationContext);
+        var fiberCoverage = CalculateFiberCoverageScore(infrastructure, areaKm2, population, populationContext);
+        var internetAccess = CalculateInternetAccessScore(speedStats);
+        var technologyType = CalculateTechnologyTypeScore(infrastructure);
+        var qualityOfService = CalculateQualityOfServiceScore(speedStats, infrastructure);
+        var coverageAvailability = CalculateCoverageAvailabilityScore(infrastructure, areaKm2, population, populationContext);
 
-        return scores;
+        return new CMTSScoresDto
+        {
+            new CMTSScoreItemDto { Subject = CMTSSubjects.FiberCoverage, A = fiberCoverage },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.InternetAccess, A = internetAccess },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.TechnologyType, A = technologyType },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.QualityOfService, A = qualityOfService },
+            new CMTSScoreItemDto { Subject = CMTSSubjects.MobileCoverage, A = coverageAvailability }
+        };
     }
 
     /// <summary>
@@ -1614,6 +1626,7 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
     /// <summary>
     /// Calculate Internet Access Score (0-3 points) - CMTS Criterion 2
     /// Evaluates internet availability, speed, and reliability per CMTS rubric
+    /// Uses MEDIAN download speed (more resistant to outliers)
     /// </summary>
     private static int CalculateInternetAccessScore(SpeedStatsDto? speedStats)
     {
@@ -1640,21 +1653,22 @@ public class GenerateConnectivityAssessmentHandler : IRequestHandler<GenerateCon
         var isUnreliable = speedVariability > 0.3m; // >30% variance = unreliable
 
         // SERVED (3 points): Stable internet meeting/exceeding national broadband standards
-        // Criteria: ?25 Mbps AND reliable (low variability)
-        if (avgDownloadSpeed >= 25 && !isUnreliable)
+        // Criteria: ≥25 Mbps AND reliable (low variability)
+        // Use MEDIAN speed as it's more resistant to outliers
+        if (medianDownloadSpeed >= 25 && !isUnreliable)
         {
             return 3; // Served - Stable internet meeting or exceeding standards (25+ Mbps)
         }
 
         // UNDERSERVED (2 points): Internet available but slow, unreliable, or below standards
-        // Case 1: Speed ?25 Mbps but unreliable
-        if (avgDownloadSpeed >= 25 && isUnreliable)
+        // Case 1: Speed ≥25 Mbps but unreliable
+        if (medianDownloadSpeed >= 25 && isUnreliable)
         {
             return 2; // Underserved - Available but unreliable
         }
 
         // Case 2: Speed between 10-25 Mbps (below standards but functional)
-        if (avgDownloadSpeed >= 10 && avgDownloadSpeed < 25)
+        if (medianDownloadSpeed >= 10 && medianDownloadSpeed < 25)
         {
             return 2; // Underserved - Available but below national broadband standards
         }

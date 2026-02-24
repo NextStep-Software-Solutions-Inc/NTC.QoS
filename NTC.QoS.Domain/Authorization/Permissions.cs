@@ -21,12 +21,15 @@ public static class Permissions
     public const string UploadFiles = "files.upload";
     public const string DeleteFiles = "files.delete";
     public const string ProcessFiles = "files.process";
+    public const string DownloadFiles = "files.download";
+    public const string UpdateFiles = "files.edit";
 
     // User management permissions
     public const string ViewUsers = "users.view";
     public const string CreateUsers = "users.create";
     public const string UpdateUsers = "users.update";
     public const string DeleteUsers = "users.delete";
+    public const string InviteUsers = "users.invite";
 
     // Role management permissions
     public const string ViewRoles = "roles.view";
@@ -74,6 +77,12 @@ public static class Permissions
     public const string CreateBarangays = "barangays.create";
     public const string UpdateBarangays = "barangays.update";
     public const string DeleteBarangays = "barangays.delete";
+
+    // Barangay Coverage management permissions
+    public const string ViewBarangayCoverage = "barangay_coverage.view";
+    public const string CreateBarangayCoverage = "barangay_coverage.create";
+    public const string UpdateBarangayCoverage = "barangay_coverage.update";
+    public const string DeleteBarangayCoverage = "barangay_coverage.delete";
 
     // Zone management permissions
     public const string ViewZones = "zones.view";
@@ -168,7 +177,6 @@ public static class Permissions
 
     public const string ViewCellulars = "cellulars.view";
     public const string CreateCellulars = "cellulars.create";
-    public const string UpdateCellulars = "cellulars.update";
     public const string DeleteCellulars = "cellulars.delete";
 
     // Reporting permissions
@@ -180,4 +188,8 @@ public static class Permissions
     public const string SystemAdministration = "system.admin";
     public const string ViewLogs = "logs.view";
     public const string ManageSettings = "settings.manage";
+
+    // GenAI permissions
+    public const string ChatWithAI = "genai.chat";
+    public const string GenerateReports = "genai.generate_reports";
 }

@@ -38,6 +38,14 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
         var technologyIds = request.TechnologyIds;
         var signalQuality = request.SignalQuality;
 
+        // Apply speed range filters if specified
+        var minDownloadSpeed = request.MinDownloadSpeed;
+        var maxDownloadSpeed = request.MaxDownloadSpeed;
+        var minUploadSpeed = request.MinUploadSpeed;
+        var maxUploadSpeed = request.MaxUploadSpeed;
+        var startDate = request.StartDate;
+        var endDate = request.EndDate;
+
         // Combine all filters in a single Where clause for better query optimization
         speedtestQuery = speedtestQuery.Where(s =>
             (serviceProviderIds == null || serviceProviderIds.Count == 0 || serviceProviderIds.Contains(s.ServiceProviderId)) &&
@@ -45,7 +53,13 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
             (serviceIds == null || serviceIds.Count == 0 || (s.ServiceProvider != null && serviceIds.Contains(s.ServiceProvider.ServiceId))) &&
             (generationIds == null || generationIds.Count == 0 || (s.GenerationId.HasValue && generationIds.Contains(s.GenerationId.Value))) &&
             (technologyIds == null || technologyIds.Count == 0 || (s.TechnologyId.HasValue && technologyIds.Contains(s.TechnologyId.Value))) &&
-            (string.IsNullOrEmpty(signalQuality) || s.SignalQuality == signalQuality));
+            (string.IsNullOrEmpty(signalQuality) || s.SignalQuality == signalQuality) &&
+            (!minDownloadSpeed.HasValue || s.DownloadSpeed >= minDownloadSpeed.Value) &&
+            (!maxDownloadSpeed.HasValue || s.DownloadSpeed <= maxDownloadSpeed.Value) &&
+            (!minUploadSpeed.HasValue || s.UploadSpeed >= minUploadSpeed.Value) &&
+            (!maxUploadSpeed.HasValue || s.UploadSpeed <= maxUploadSpeed.Value) &&
+            (!startDate.HasValue || s.DateTime >= startDate.Value) &&
+            (!endDate.HasValue || s.DateTime <= endDate.Value));
 
         // Project to DTO - ordered by DateTime descending (most recent first)
         var speedtestDtos = speedtestQuery

@@ -28,6 +28,11 @@ public class GetAllStudiesHandler(IStudyRepository studyRepository) : IRequestHa
 
         allStudies = allStudies.Where(s => !request.AreaStudyId.HasValue || s.AreaStudy!.Id == request.AreaStudyId.Value);
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allStudies = _studyRepository.ApplySearch(allStudies, request.Search, s => s.Name);
+        }
+
         return await _studyRepository.PaginateAsync(allStudies, request.PageNumber, request.PageSize, cancellationToken);
     }
 }

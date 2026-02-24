@@ -15,4 +15,5 @@ public class GetAllZonesRequest : IRequest<PaginatedResponse<ZoneDto>>
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
     public Guid? BarangayId { get; set; }
+    public string? Search { get; set; }
 }

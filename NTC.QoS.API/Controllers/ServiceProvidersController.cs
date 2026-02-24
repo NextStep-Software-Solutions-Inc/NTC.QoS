@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.ServiceProvider.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.ServiceProvider;
 
@@ -17,6 +19,7 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateServiceProviders)]
     public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> CreateServiceProvider(CreateServiceProviderDto createServiceProvider)
     {
         var serviceProvider = await _mediator.Send(new CreateServiceProviderRequest(createServiceProvider));
@@ -24,12 +27,14 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "providerIds", "serviceIds", "serviceTypes" })]
+    [RequirePermission(Permissions.ViewServiceProviders)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "providerIds", "serviceIds", "serviceTypes", "search" })]
     public async Task<ActionResult<PaginatedResponse<ServiceProviderDto>>> GetAllServiceProviders(int pageSize = 10,
                                                                                                   int pageNumber = 1,
                                                                                                   [FromQuery] List<Guid>? providerIds = null,
                                                                                                   [FromQuery] List<Guid>? serviceIds = null,
-                                                                                                  [FromQuery] List<string>? serviceTypes = null)
+                                                                                                  [FromQuery] List<string>? serviceTypes = null,
+                                                                                                  [FromQuery] string? search = null)
     {
         var serviceProviders = await _mediator.Send(new GetAllServiceProvidersRequest
         {
@@ -37,12 +42,14 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
             PageNumber = pageNumber,
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
-            ServiceTypes = serviceTypes
+            ServiceTypes = serviceTypes,
+            Search = search
         });
         return serviceProviders.Succeeded ? Ok(serviceProviders) : BadRequest(serviceProviders);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewServiceProviders)]
     public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> GetServiceProviderById(Guid id)
     {
         var serviceProvider = await _mediator.Send(new GetServiceProviderByIdRequest(id));
@@ -50,6 +57,7 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.UpdateServiceProviders)]
     public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> UpdateServiceProviderById(Guid id, UpdateServiceProviderDto updateServiceProvider)
     {
         var serviceProvider = await _mediator.Send(new UpdateServiceProviderByIdRequest(id, updateServiceProvider));
@@ -57,6 +65,7 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteServiceProviders)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteServiceProviderById(Guid id)
     {
         var serviceProvider = await _mediator.Send(new DeleteServiceProviderByIdRequest(id));

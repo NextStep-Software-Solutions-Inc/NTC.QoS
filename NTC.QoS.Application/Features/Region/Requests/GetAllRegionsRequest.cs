@@ -1,5 +1,4 @@
 ﻿using MediatR;
-using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Region;
 namespace NTC.QoS.Application.Features.Region.Requests;
 
@@ -14,6 +13,9 @@ public class GetAllRegionsRequest : IRequest<PaginatedResponse<RegionDto>>
 
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
+    public bool? IsWiredCovered { get; set; }
+    public bool? IsWirelessCovered { get; set; }
+    public string? Search { get; set; }
 }
 
 

@@ -40,7 +40,7 @@ public interface IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
-        bool includeFullDetail = false,
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -52,6 +52,7 @@ public interface IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -174,7 +175,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
             .ToList();
 
         // OPTIMIZED: Batch load location names instead of individual calls
-        var priorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).Take(20).ToList();
+        // Include ALL priority gaps (no limit) - sorted by population descending
+        var priorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).ToList();
         var locationNames = await GetLocationNamesBatchAsync(
             priorityGaps.Select(a => (a.LocationId, a.LocationType)).ToList(), 
             cancellationToken);
@@ -191,13 +193,20 @@ public class ConnectivityReportingService : IConnectivityReportingService
 
         return new ConnectivityGapReportDto
         {
-            TotalUnservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
-            TotalUnderservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
-            UnservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
-                                   .Sum(a => a.Population ?? 0),
-            UnderservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
-                                      .Sum(a => a.Population ?? 0),
+            Summary = new ConnectivityGapSummaryDto
+            {
+                TotalUnservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                TotalUnderservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                UnservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
+                                       .Sum(a => a.Population ?? 0),
+                UnderservedPopulation = gaps.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
+                                          .Sum(a => a.Population ?? 0)
+            },
             PriorityAreas = priorityAreas,
+            TotalPriorityAreas = priorityAreas.Count,
+            PageNumber = 1,
+            PageSize = priorityAreas.Count,
+            TotalPages = 1,
             GeneratedAt = DateTime.UtcNow
         };
     }
@@ -208,10 +217,10 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
-        bool includeFullDetail = false,
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Generating wired broadband PDF report (FullDetail: {FullDetail})", includeFullDetail);
+        _logger.LogInformation("Generating wired broadband PDF report with filterByStatus: {FilterByStatus}", filterByStatus);
 
         // Use the MediatR handler for consistent data processing
         var query = new GetWiredBroadbandReportQuery
@@ -231,7 +240,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
         }
 
-        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, includeFullDetail, cancellationToken);
+        return await _reportGenerationService.GenerateWiredBroadbandPdfAsync(response.Data, reportTitle, includeRemarks, cancellationToken);
     }
 
     public async Task<byte[]> GenerateWiredBroadbandExcelAsync(
@@ -240,6 +249,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
         Guid? municipalityId = null,
         ServiceStatusEnum? filterByStatus = null,
         string reportTitle = "Wired Broadband Report",
+        bool includeRemarks = true,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating wired broadband Excel report");
@@ -262,7 +272,7 @@ public class ConnectivityReportingService : IConnectivityReportingService
             throw new InvalidOperationException($"Failed to generate wired broadband report data: {response.Message}");
         }
 
-        return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(response.Data, reportTitle, cancellationToken);
+        return await _reportGenerationService.GenerateWiredBroadbandExcelAsync(response.Data, reportTitle, includeRemarks, cancellationToken);
     }
 
     public async Task<byte[]> GenerateConnectivityGapPdfAsync(
@@ -296,6 +306,8 @@ public class ConnectivityReportingService : IConnectivityReportingService
     {
         var query = _assessmentRepository.Query(a => a.LocationType == locationType);
 
+        // Apply geographic filter precedence: Municipality > Province > Region
+        // Lower admin levels take priority - only the most specific filter is applied
         if (municipalityId.HasValue)
         {
             // Get barangay IDs first, then filter assessments
@@ -551,22 +563,22 @@ public class ConnectivityReportingService : IConnectivityReportingService
         return locationType switch
         {
             LocationTypeEnum.Barangay => await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => locationIds.Contains(b.Id))
+                _barangayRepository.QueryAsNoTracking(b => locationIds.Contains(b.Id))
                     .Select(b => new { b.Id, b.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 
             LocationTypeEnum.Municipality => await _municipalityRepository.ToListAsync(
-                _municipalityRepository.Query(m => locationIds.Contains(m.Id))
+                _municipalityRepository.QueryAsNoTracking(m => locationIds.Contains(m.Id))
                     .Select(m => new { m.Id, m.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 
             LocationTypeEnum.Provincial => await _provinceRepository.ToListAsync(
-                _provinceRepository.Query(p => locationIds.Contains(p.Id))
+                _provinceRepository.QueryAsNoTracking(p => locationIds.Contains(p.Id))
                     .Select(p => new { p.Id, p.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 
             LocationTypeEnum.Regional => await _regionRepository.ToListAsync(
-                _regionRepository.Query(r => locationIds.Contains(r.Id))
+                _regionRepository.QueryAsNoTracking(r => locationIds.Contains(r.Id))
                     .Select(r => new { r.Id, r.Name }), cancellationToken)
                 .ContinueWith(task => task.Result.ToDictionary(x => x.Id, x => x.Name), cancellationToken),
 

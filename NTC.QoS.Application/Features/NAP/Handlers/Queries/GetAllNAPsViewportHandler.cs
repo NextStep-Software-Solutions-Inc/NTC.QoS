@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.NAP.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.NAP;
@@ -71,7 +70,7 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
 
         // Start with base query using AsNoTracking for read-only optimization`
         // This eliminates change tracking overhead for millions of entities
-        var napQuery = _napRepository.Query().AsNoTracking();
+        var napQuery = _napRepository.QueryAsNoTracking();
 
         // Apply service provider filter if specified
         if (request.ServiceProviderIds != null && request.ServiceProviderIds.Count > 0)
@@ -92,6 +91,9 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         // Order by ID for consistent pagination (no distance ordering needed in viewport)
         // ID ordering is fast with primary key index
         napQuery = napQuery.OrderBy(n => n.Id);
+
+        // Filter out NAPs with missing Provider data to ensure data integrity
+        napQuery = napQuery.Where(n => n.ServiceProvider != null && n.ServiceProvider.Provider != null);
 
         // CRITICAL: Project to lightweight DTO early to minimize memory footprint
         // Only select 4 fields needed for map rendering - NO Guid ID (saves ~16 bytes per record)

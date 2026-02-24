@@ -49,4 +49,7 @@ public sealed class LocationQueryParams
 
     [JsonPropertyName("regionIds")]
     public List<Guid>? RegionIds { get; set; }
+
+    [JsonPropertyName("isVerified")]
+    public bool? IsVerified { get; set; }
 }

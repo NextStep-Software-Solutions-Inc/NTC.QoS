@@ -84,7 +84,7 @@ public class BroadbandAnalyticsService
         try
         {
             var strengths = cellularCoverageData
-                .Select(c => c.Strength)
+                .Select(c => c.SignalStrength)
                 .ToList();
 
             if (!strengths.Any())

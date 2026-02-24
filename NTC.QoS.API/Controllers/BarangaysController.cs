@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Barangay.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Barangay;
 
@@ -22,6 +24,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.CreateBarangays)]
     public async Task<ActionResult<ApiResponse<BarangayDto>>> CreateBarangay([FromForm] CreateBarangayDto barangayDto)
     {
         var barangay = await _mediator.Send(new CreateBarangayRequest
@@ -33,28 +36,37 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpGet]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "name", "municipality", "province" })]
+    [RequirePermission(Permissions.ViewBarangays)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "municipalityIds", "regionIds", "name", "search", "municipality", "province", "isWiredCovered", "isWirelessCovered" })]
     public async Task<ActionResult<PaginatedResponse<BarangayDto>>> GetAllBarangays(int pageSize = 10,
                                                                                     int pageNumber = 1,
                                                                                     [FromQuery] Guid[]? municipalityIds = default,
+                                                                                    [FromQuery] Guid[]? regionIds = default,
                                                                                     string? name = default,
+                                                                                    [FromQuery] string? search = null,
                                                                                     string? municipality = default,
-                                                                                    string? province = default)
+                                                                                    string? province = default,
+                                                                                    bool? isWiredCovered = default,
+                                                                                    bool? isWirelessCovered = default)
     {
         var request = new GetAllBarangaysRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
             MunicipalityIds = municipalityIds,
-            Name = name,
+            RegionIds = regionIds,
+            Name = search ?? name,
             Municipality = municipality,
-            Province = province
+            Province = province,
+            IsWiredCovered = isWiredCovered,
+            IsWirelessCovered = isWirelessCovered
         };
         var barangays = await _mediator.Send(request);
         return Ok(barangays);
     }
 
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.ViewBarangays)]
     public async Task<ActionResult<ApiResponse<BarangayDto>>> GetBarangayById(Guid id)
     {
         var request = new GetBarangayByIdRequest(id);
@@ -63,6 +75,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpPatch("{id}")]
+    [RequirePermission(Permissions.UpdateBarangays)]
     public async Task<ActionResult<ApiResponse<BarangayDto>>> UpdateBarangayById(Guid id, [FromForm] UpdateBarangayDto updateBarangay)
     {
         var barangay = await _mediator.Send(new UpdateBarangayByIdRequest(id, updateBarangay));
@@ -70,6 +83,7 @@ public class BarangaysController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequirePermission(Permissions.DeleteBarangays)]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
         var request = new DeleteBarangayByIdRequest(id);

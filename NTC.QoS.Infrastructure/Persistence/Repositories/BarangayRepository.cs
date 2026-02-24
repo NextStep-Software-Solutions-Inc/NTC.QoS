@@ -2,6 +2,8 @@
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
+using System.Linq.Expressions;
+using NetTopologySuite.Geometries;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -81,5 +83,19 @@ internal sealed class BarangayRepository(ApplicationDbContext context) : Reposit
             .ToList();
 
         return results;
+    }
+
+    /// <summary>
+    /// Finds a barangay containing the specified point location with its full hierarchy loaded.
+    /// </summary>
+    public async Task<Barangay?> FindBarangayByLocationWithHierarchyAsync(Point location, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<Barangay>()
+            .AsNoTracking()
+            .Include(b => b.Municipality)
+                .ThenInclude(m => m.Province)
+                    .ThenInclude(p => p.Region)
+            .Where(b => b.Boundaries != null && b.Boundaries.Intersects(location))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

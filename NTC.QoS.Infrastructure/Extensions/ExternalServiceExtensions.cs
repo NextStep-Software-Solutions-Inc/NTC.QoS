@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Services;
 
 namespace NTC.QoS.Infrastructure.Extensions;
@@ -29,8 +30,16 @@ internal static class ExternalServiceExtensions
         // Core services
         services.AddScoped<IUserContextService, UserContextService>();
         
-        // CellularCoverage V2 mapping service
+        // Register CellularCoverage mapping services (standard and V2)
+        services.AddScoped<ICellularCoverageMappingService, CellularCoverageMappingService>();
         services.AddScoped<ICellularCoverageV2MappingService, CellularCoverageV2MappingService>();
+
+        // Google Generative AI configuration and service
+        services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
+        services.AddScoped<IGenAIService, GenAIService>();
+        
+        // AI Instruction service (loads global AI context/instruction)
+        services.AddSingleton<IAIInstructionService, AIInstructionService>();
 
         return services;
     }

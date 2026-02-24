@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.CellularCoverage;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
@@ -11,9 +10,9 @@ namespace NTC.QoS.Application.Features.CellularCoverage.Handlers.Queries;
 /// </summary>
 public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV2Query, PaginatedResponse<CellularCoverageV2Dto>>
 {
-    private readonly ICellularCoverageV2Repository _repository;
+    private readonly ICellularCoverageRepository _repository;
 
-    public GetCellularCoverageV2Handler(ICellularCoverageV2Repository repository)
+    public GetCellularCoverageV2Handler(ICellularCoverageRepository repository)
     {
         _repository = repository;
     }
@@ -22,7 +21,7 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
         GetCellularCoverageV2Query request,
         CancellationToken cancellationToken)
     {
-        var query = _repository.Query(cc => !cc.IsDeleted);
+        var query = _repository.QueryAsNoTracking(cc => !cc.IsDeleted);
 
         // Apply filters
         if (request.MunicipalityId.HasValue)
@@ -42,19 +41,19 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
 
         if (request.ServiceProviderId.HasValue)
         {
-            query = query.Where(cc => cc.CellSector.Cell.ServiceProviderId == request.ServiceProviderId.Value);
+            query = query.Where(cc => cc.CellSector != null && cc.CellSector.Cell.ServiceProviderId == request.ServiceProviderId.Value);
         }
 
         if (request.CellId.HasValue)
         {
-            query = query.Where(cc => cc.CellSector.CellId == request.CellId.Value);
+            query = query.Where(cc => cc.CellSector != null && cc.CellSector.CellId == request.CellId.Value);
         }
 
         // Get total count
-        var totalCount = await query.CountAsync(cancellationToken);
+        var totalCount = await _repository.CountAsync(query, cancellationToken);
 
-        // Apply pagination
-        var items = await query
+        // Apply pagination and projection
+        var paginatedQuery = query
             .OrderByDescending(cc => cc.CreatedAt)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
@@ -63,22 +62,23 @@ public class GetCellularCoverageV2Handler : IRequestHandler<GetCellularCoverageV
                 Id = cc.Id,
                 NetworkId = cc.NetworkId,
                 NetworkName = cc.Network.Name,
-                BandId = cc.BandId,
-                BandName = cc.Band.Name,
-                TechnologyId = cc.TechnologyId,
-                TechnologyName = cc.Technology.Standard,
-                CellSectorId = cc.CellSectorId,
-                CellSectorName = cc.CellSector.Cell.Name,
-                MunicipalityId = cc.MunicipalityId,
-                MunicipalityName = cc.Municipality.Name,
+                BandId = cc.BandId!.Value,
+                BandName = cc.Band!.Name,
+                TechnologyId = cc.TechnologyId!.Value,
+                TechnologyName = cc.Technology!.Standard,
+                CellSectorId = cc.CellSectorId!.Value,
+                CellSectorName = cc.CellSector!.Cell.Name,
+                MunicipalityId = cc.MunicipalityId!.Value,
+                MunicipalityName = cc.Municipality!.Name,
                 Lat = cc.Location.Y,
                 Lng = cc.Location.X,
                 SignalStrength = cc.SignalStrength,
                 Address = cc.Address,
                 IsFileUploaded = cc.IsFileUploaded,
                 CreatedAt = cc.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
+            });
+
+        var items = await _repository.ToListAsync(paginatedQuery, cancellationToken);
 
         return new PaginatedResponse<CellularCoverageV2Dto>(
             items,
