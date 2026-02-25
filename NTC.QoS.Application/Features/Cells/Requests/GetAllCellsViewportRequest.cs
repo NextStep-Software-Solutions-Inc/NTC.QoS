@@ -21,4 +21,5 @@ public record GetAllCellsViewportRequest(ViewportQueryParams QueryParams)
     public List<Guid>? ProvinceIds => QueryParams.ProvinceIds;
     public List<Guid>? RegionIds => QueryParams.RegionIds;
     public bool? IsVerified => QueryParams.IsVerified;
+    public List<Guid>? GenerationIds => QueryParams.GenerationIds;
 }
