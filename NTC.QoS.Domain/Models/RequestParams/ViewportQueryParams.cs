@@ -54,6 +54,9 @@ public class ViewportQueryParams
     [JsonPropertyName("isVerified")]
     public bool? IsVerified { get; set; }
 
+    [JsonPropertyName("generationIds")]
+    public List<Guid>? GenerationIds { get; set; }
+
     /// <summary>
     /// Validates that viewport bounds are logically correct
     /// </summary>
