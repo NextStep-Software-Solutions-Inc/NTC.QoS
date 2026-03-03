@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -16,7 +15,7 @@ public class GetCellTechnologiesHandler(ICellularRepository cellularRepository)
         GetCellTechnologiesRequest request,
         CancellationToken cancellationToken)
     {
-        var rows = await _cellularRepository.Query()
+        var query = _cellularRepository.Query()
             .Where(c => c.CellSector != null && c.CellSector.CellId == request.CellId)
             .Select(c => new
             {
@@ -27,8 +26,9 @@ public class GetCellTechnologiesHandler(ICellularRepository cellularRepository)
                 BandName          = c.Band != null ? c.Band.Name : string.Empty,
                 BandDesc          = c.Band != null ? c.Band.Description : null,
             })
-            .Distinct()
-            .ToListAsync(cancellationToken);
+            .Distinct();
+
+        var rows = await _cellularRepository.ToListAsync(query, cancellationToken);
 
         var grouped = rows
             .GroupBy(r => r.TechnologyId)
