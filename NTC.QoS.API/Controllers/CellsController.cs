@@ -108,6 +108,19 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>
+    /// Cross-validate the cell site's active technologies and bands against
+    /// regulatory frequency allocations. Returns per-combination compliance status
+    /// with a warning flag for any unauthorized bands.
+    /// </summary>
+    [HttpGet("{id}/compliance")]
+    [RequirePermission(Permissions.ViewCells)]
+    public async Task<ActionResult<ApiResponse<CellComplianceDto>>> GetCellCompliance(Guid id)
+    {
+        var result = await mediator.Send(new GetCellComplianceRequest { CellId = id });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPatch("{id}")]
     [RequirePermission(Permissions.UpdateCells)]
     public async Task<ActionResult<ApiResponse<CellDto>>> UpdateCellById(Guid id, UpdateCellDto updateCell)

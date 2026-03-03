@@ -57,6 +57,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ConnectivityAssessmentScheduler> ConnectivityAssessmentSchedulers { get; set; }
     public DbSet<GeneratedReport> GeneratedReports { get; set; }
     public DbSet<ReportTemplate> ReportTemplates { get; set; }
+    public DbSet<FrequencyAllocation> FrequencyAllocations { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -689,6 +690,30 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMethod("hnsw")
             .HasOperators("vector_cosine_ops")
             .HasDatabaseName("IX_GeneratedReport_Embedding");
+
+        // FrequencyAllocation configuration
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasOne(fa => fa.Provider)
+            .WithMany(p => p.FrequencyAllocations)
+            .HasForeignKey(fa => fa.ProviderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasOne(fa => fa.UpLink)
+            .WithMany()
+            .HasForeignKey(fa => fa.UpLinkId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasOne(fa => fa.DownLink)
+            .WithMany()
+            .HasForeignKey(fa => fa.DownLinkId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasIndex(fa => new { fa.ProviderId, fa.UpLinkId, fa.DownLinkId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         // BarangayCoverage unique constraint - one coverage record per barangay
         modelBuilder.Entity<BarangayCoverage>()

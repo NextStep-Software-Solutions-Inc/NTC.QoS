@@ -13,4 +13,5 @@ public class Provider : BaseEntity
     public string? LogoFileName { get; set; }
     public DateTime? LogoUploadedAt { get; set; }
     public virtual List<ServiceProvider> ServiceProviders { get; set; } = [];
+    public virtual List<FrequencyAllocation> FrequencyAllocations { get; set; } = [];
 }
