@@ -96,6 +96,18 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
     }
 
+    /// <summary>
+    /// Get all distinct technologies and their bands for a specific cell site.
+    /// Results are grouped by technology and deduplicated — suitable for the Technologies tab on the cell site detail page.
+    /// </summary>
+    [HttpGet("{id}/technologies")]
+    [RequirePermission(Permissions.ViewCells)]
+    public async Task<ActionResult<ApiResponse<List<CellTechnologyBandDto>>>> GetCellTechnologies(Guid id)
+    {
+        var result = await mediator.Send(new GetCellTechnologiesRequest { CellId = id });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPatch("{id}")]
     [RequirePermission(Permissions.UpdateCells)]
     public async Task<ActionResult<ApiResponse<CellDto>>> UpdateCellById(Guid id, UpdateCellDto updateCell)
