@@ -8,7 +8,11 @@ namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 internal sealed class FrequencyAllocationRepository(ApplicationDbContext context)
     : Repository<FrequencyAllocation>(context), IFrequencyAllocationRepository
 {
-    public override IQueryable<FrequencyAllocation> Query(Expression<Func<FrequencyAllocation, bool>>? expression = null)
+    // Query() intentionally falls through to the base (no includes) so that
+    // scalar checks, updates, deletes, and DTO projections stay lightweight.
+
+    /// <inheritdoc />
+    public IQueryable<FrequencyAllocation> QueryWithIncludes(Expression<Func<FrequencyAllocation, bool>>? expression = null)
     {
         var query = _context.Set<FrequencyAllocation>()
             .Include(fa => fa.Provider)

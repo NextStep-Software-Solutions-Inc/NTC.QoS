@@ -3451,12 +3451,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTC.QoS.Domain.Entities.SystemType", "SystemType")
-                        .WithMany("FrequencyAllocations")
-                        .HasForeignKey("SystemTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("NTC.QoS.Domain.Aggregates.Link", "UpLink")
                         .WithMany()
                         .HasForeignKey("UpLinkId")
