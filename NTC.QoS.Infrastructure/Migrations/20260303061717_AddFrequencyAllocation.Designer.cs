@@ -1623,9 +1623,6 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<Guid>("ProviderId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("SystemTypeId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("UpLinkId")
                         .HasColumnType("uuid");
 
@@ -1640,11 +1637,9 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("DownLinkId");
 
-                    b.HasIndex("SystemTypeId");
-
                     b.HasIndex("UpLinkId");
 
-                    b.HasIndex("ProviderId", "SystemTypeId", "UpLinkId", "DownLinkId")
+                    b.HasIndex("ProviderId", "UpLinkId", "DownLinkId")
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 

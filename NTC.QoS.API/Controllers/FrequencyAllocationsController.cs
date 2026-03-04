@@ -18,7 +18,7 @@ public class FrequencyAllocationsController(IMediator mediator) : ControllerBase
 
     /// <summary>
     /// Get a paginated list of regulatory frequency allocations.
-    /// Supports filtering by provider, system type, active status, and a name search.
+    /// Supports filtering by provider, active status, and a name search.
     /// </summary>
     [HttpGet]
     [RequirePermission(Permissions.ViewRegulatoryAllocations)]
@@ -53,7 +53,7 @@ public class FrequencyAllocationsController(IMediator mediator) : ControllerBase
 
     /// <summary>
     /// Create a new regulatory frequency allocation.
-    /// Each Provider + SystemType + UpLink + DownLink combination must be unique.
+    /// Each Provider + UpLink + DownLink combination must be unique.
     /// </summary>
     [HttpPost]
     [RequirePermission(Permissions.CreateRegulatoryAllocations)]

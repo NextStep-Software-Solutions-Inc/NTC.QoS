@@ -42,11 +42,16 @@ public class GetCellComplianceHandler(
             };
 
         var distinctEntries = cellularEntries
+            .Where(c => c.ProviderId != Guid.Empty)
             .GroupBy(c => (c.ServiceProviderId, c.TechnologyId, c.BandId))
             .Select(g => g.First())
             .ToList();
 
-        var providerIds = distinctEntries.Select(e => e.ProviderId).Distinct().ToList();
+        var providerIds = distinctEntries
+            .Select(e => e.ProviderId)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
 
         var allocations = await _allocationRepository.ToListAsync(
             _allocationRepository.Query(fa =>
@@ -61,13 +66,21 @@ public class GetCellComplianceHandler(
                 }),
             cancellationToken);
 
+        var allocationLookup = allocations
+            .SelectMany(a => new[]
+            {
+                (Key: (a.ProviderId, BandId: a.UpLinkBandId),   Allocation: a),
+                (Key: (a.ProviderId, BandId: a.DownLinkBandId), Allocation: a),
+            })
+            .Where(x => x.Key.BandId != Guid.Empty)
+            .GroupBy(x => x.Key)
+            .ToDictionary(g => g.Key, g => g.First().Allocation);
+
         var items = new List<CellBandComplianceItemDto>();
 
         foreach (var entry in distinctEntries)
         {
-            var matched = allocations.FirstOrDefault(fa =>
-                fa.ProviderId == entry.ProviderId &&
-                (fa.UpLinkBandId == entry.BandId || fa.DownLinkBandId == entry.BandId));
+            allocationLookup.TryGetValue((entry.ProviderId, entry.BandId), out var matched);
 
             items.Add(new CellBandComplianceItemDto
             {
