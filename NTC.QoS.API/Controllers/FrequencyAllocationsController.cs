@@ -78,7 +78,7 @@ public class FrequencyAllocationsController(IMediator mediator) : ControllerBase
         [FromBody] UpdateFrequencyAllocationDto updateDto)
     {
         var result = await _mediator.Send(new UpdateFrequencyAllocationByIdRequest { Id = id, FrequencyAllocation = updateDto });
-        return result.Succeeded ? Ok(result) : BadRequest(result);
+        return result.Succeeded ? Ok(result) : NotFound(result);
     }
 
     /// <summary>
