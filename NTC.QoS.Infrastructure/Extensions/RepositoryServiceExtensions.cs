@@ -84,5 +84,6 @@ internal static class RepositoryServiceExtensions
         services.AddScoped<IConnectivityAssessmentSchedulerRepository, ConnectivityAssessmentSchedulerRepository>();
         services.AddScoped<IWiFiHotspotRepository, WiFiHotspotRepository>();
         services.AddScoped<IWirelessValidationRepository, WirelessValidationRepository>();
+        services.AddScoped<IFrequencyAllocationRepository, FrequencyAllocationRepository>();
     }
 }

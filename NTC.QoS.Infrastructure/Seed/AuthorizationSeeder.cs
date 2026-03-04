@@ -170,6 +170,12 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UpdateFrequencyAllocations, Name = "Update Frequency Allocations", Description = "Can update frequency allocation information" },
             new { Key = Permissions.DeleteFrequencyAllocations, Name = "Delete Frequency Allocations", Description = "Can delete frequency allocations" },
 
+            // Regulatory Allocation permissions
+            new { Key = Permissions.ViewRegulatoryAllocations,   Name = "View Regulatory Allocations",   Description = "Can view regulatory frequency allocation records" },
+            new { Key = Permissions.CreateRegulatoryAllocations, Name = "Create Regulatory Allocations", Description = "Can create regulatory frequency allocations" },
+            new { Key = Permissions.UpdateRegulatoryAllocations, Name = "Update Regulatory Allocations", Description = "Can update regulatory frequency allocation records" },
+            new { Key = Permissions.DeleteRegulatoryAllocations, Name = "Delete Regulatory Allocations", Description = "Can delete regulatory frequency allocations" },
+
             // Network permissions
             new { Key = Permissions.ViewNetworks, Name = "View Networks", Description = "Can view network listings" },
             new { Key = Permissions.CreateNetworks, Name = "Create Networks", Description = "Can create new networks" },
