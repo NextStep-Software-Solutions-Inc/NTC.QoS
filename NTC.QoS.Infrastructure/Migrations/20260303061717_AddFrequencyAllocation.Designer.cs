@@ -3856,8 +3856,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.SystemType", b =>
                 {
-                    b.Navigation("FrequencyAllocations");
-
                     b.Navigation("Networks");
                 });
 
