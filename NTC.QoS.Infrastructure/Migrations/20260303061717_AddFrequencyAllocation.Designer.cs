@@ -3461,8 +3461,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.Navigation("Provider");
 
-                    b.Navigation("SystemType");
-
                     b.Navigation("UpLink");
                 });
 
