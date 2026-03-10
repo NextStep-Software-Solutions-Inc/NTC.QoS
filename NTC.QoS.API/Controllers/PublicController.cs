@@ -76,7 +76,7 @@ public class PublicController : ControllerBase
     }
 
     [HttpGet("cells")]
-    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
