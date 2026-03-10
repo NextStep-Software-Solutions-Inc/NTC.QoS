@@ -55,11 +55,28 @@ public class GetAllCellsHandler(ICellRepository cellRepository,
 
         if (request.GenerationIds is { Count: > 0 } || request.TechnologyIds is { Count: > 0 } || request.BandIds is { Count: > 0 })
         {
-            var cellIdsWithFilters = _cellularRepository.QueryAsNoTracking()
-                .Where(cellular => request.TechnologyIds == null || request.TechnologyIds.Count == 0 || request.TechnologyIds.Contains(cellular.TechnologyId))
-                .Where(cellular => request.BandIds == null || request.BandIds.Count == 0 || request.BandIds.Contains(cellular.BandId))
-                .Where(cellular => request.GenerationIds == null || request.GenerationIds.Count == 0 ||
-                                  (cellular.Technology != null && request.GenerationIds.Contains(cellular.Technology.GenerationId)))
+            var cellularQuery = _cellularRepository.QueryAsNoTracking();
+
+            if (request.TechnologyIds is { Count: > 0 })
+            {
+                cellularQuery = cellularQuery.Where(cellular =>
+                    request.TechnologyIds.Contains(cellular.TechnologyId));
+            }
+
+            if (request.BandIds is { Count: > 0 })
+            {
+                cellularQuery = cellularQuery.Where(cellular =>
+                    request.BandIds.Contains(cellular.BandId));
+            }
+
+            if (request.GenerationIds is { Count: > 0 })
+            {
+                cellularQuery = cellularQuery.Where(cellular =>
+                    cellular.Technology != null &&
+                    request.GenerationIds.Contains(cellular.Technology.GenerationId));
+            }
+
+            var cellIdsWithFilters = cellularQuery
                 .Select(cellular => cellular.CellSector!.CellId)
                 .Distinct();
 
