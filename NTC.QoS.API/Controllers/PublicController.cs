@@ -76,7 +76,7 @@ public class PublicController : ControllerBase
     }
 
     [HttpGet("cells")]
-    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -89,6 +89,9 @@ public class PublicController : ControllerBase
         [FromQuery] List<Guid>? serviceProviderIds = null,
         [FromQuery] List<Guid>? providerIds = null,
         [FromQuery] List<Guid>? serviceIds = null,
+        [FromQuery] List<Guid>? generationIds = null,
+        [FromQuery] List<Guid>? technologyIds = null,
+        [FromQuery] List<Guid>? bandIds = null,
         double longitude = 0,
         double latitude = 0,
         double distance = 180000000)
@@ -102,6 +105,9 @@ public class PublicController : ControllerBase
                $"{string.Join(",", serviceProviderIds ?? [])}_" +
                $"{string.Join(",", providerIds ?? [])}_" +
                $"{string.Join(",", serviceIds ?? [])}_" +
+               $"{string.Join(",", generationIds ?? [])}_" +
+               $"{string.Join(",", technologyIds ?? [])}_" +
+               $"{string.Join(",", bandIds ?? [])}_" +
                $"{longitude}_{latitude}_{distance}";
 
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
@@ -114,6 +120,9 @@ public class PublicController : ControllerBase
             ServiceProviderIds = serviceProviderIds,
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
+            GenerationIds = generationIds,
+            TechnologyIds = technologyIds,
+            BandIds = bandIds,
             Coordinate = new(x: longitude, y: latitude),
             Distance = distance,
             BarangayIds = barangayIds,
