@@ -74,7 +74,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance", "isVerified" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "isVerified" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] LocationQueryParams query)
     {
         return await GetAllCells(query);
