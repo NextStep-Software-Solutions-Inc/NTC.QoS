@@ -9,12 +9,14 @@ using NTC.QoS.Infrastructure.Helper;
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
 public class GetAllCellsHandler(ICellRepository cellRepository,
+    IRepository<Domain.Entities.Cellular> cellularRepository,
     IRepository<Domain.Entities.Barangay> barangayRepository,
     IRepository<Domain.Entities.Municipality> municipalityRepository,
     IRepository<Domain.Entities.Province> provinceRepository,
     IRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IRepository<Domain.Entities.Cellular> _cellularRepository = cellularRepository;
     private readonly IRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
@@ -50,6 +52,19 @@ public class GetAllCellsHandler(ICellRepository cellRepository,
             .Where(c => request.ServiceIds == null || (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId)))
             .Where(c => request.IsVerified == null || c.IsVerified == request.IsVerified.Value)
             .Where(c => locationPoint.IsValid && c.Location.IsWithinDistance(locationPoint, request.Distance));
+
+        if (request.GenerationIds is { Count: > 0 } || request.TechnologyIds is { Count: > 0 } || request.BandIds is { Count: > 0 })
+        {
+            var cellIdsWithFilters = _cellularRepository.QueryAsNoTracking()
+                .Where(cellular => request.TechnologyIds == null || request.TechnologyIds.Contains(cellular.TechnologyId))
+                .Where(cellular => request.BandIds == null || request.BandIds.Contains(cellular.BandId))
+                .Where(cellular => request.GenerationIds == null ||
+                                  (cellular.Technology != null && request.GenerationIds.Contains(cellular.Technology.GenerationId)))
+                .Select(cellular => cellular.CellSector!.CellId)
+                .Distinct();
+
+            cellQuery = cellQuery.Where(cell => cellIdsWithFilters.Contains(cell.Id));
+        }
 
         if (request.BarangayIds is { Count: > 0 })
         {

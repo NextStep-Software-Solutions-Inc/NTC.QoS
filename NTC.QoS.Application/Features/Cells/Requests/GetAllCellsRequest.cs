@@ -13,6 +13,9 @@ public class GetAllCellsRequest(int pageNumber, int pageSize) : IRequest<Paginat
     public List<Guid>? ServiceProviderIds { get; set; }
     public List<Guid>? ProviderIds { get; set; }
     public List<Guid>? ServiceIds { get; set; }
+    public List<Guid>? GenerationIds { get; set; }
+    public List<Guid>? TechnologyIds { get; set; }
+    public List<Guid>? BandIds { get; set; }
     public required Coordinate Coordinate { get; set; }
     public double Distance { get; set; }
     public List<Guid>? BarangayIds { get; set; }

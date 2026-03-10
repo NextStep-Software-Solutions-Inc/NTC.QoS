@@ -74,7 +74,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance", "isVerified" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance", "isVerified" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] LocationQueryParams query)
     {
         return await GetAllCells(query);
@@ -174,6 +174,9 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
                $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
                $"{string.Join(",", query.ProviderIds ?? [])}_" +
                $"{string.Join(",", query.ServiceIds ?? [])}_" +
+             $"{string.Join(",", query.GenerationIds ?? [])}_" +
+             $"{string.Join(",", query.TechnologyIds ?? [])}_" +
+             $"{string.Join(",", query.BandIds ?? [])}_" +
                $"{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsVerified}";
 
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
@@ -186,6 +189,9 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
             ServiceProviderIds = query.ServiceProviderIds,
             ProviderIds = query.ProviderIds,
             ServiceIds = query.ServiceIds,
+            GenerationIds = query.GenerationIds,
+            TechnologyIds = query.TechnologyIds,
+            BandIds = query.BandIds,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance,
             BarangayIds = query.BarangayIds,

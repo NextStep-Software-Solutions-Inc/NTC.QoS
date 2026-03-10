@@ -29,6 +29,15 @@ public sealed class LocationQueryParams
     [JsonPropertyName("serviceIds")]
     public List<Guid>? ServiceIds { get; set; }
 
+    [JsonPropertyName("generationIds")]
+    public List<Guid>? GenerationIds { get; set; }
+
+    [JsonPropertyName("technologyIds")]
+    public List<Guid>? TechnologyIds { get; set; }
+
+    [JsonPropertyName("bandIds")]
+    public List<Guid>? BandIds { get; set; }
+
     [JsonPropertyName("longitude")]
     public double Longitude { get; set; } = 0;
 
