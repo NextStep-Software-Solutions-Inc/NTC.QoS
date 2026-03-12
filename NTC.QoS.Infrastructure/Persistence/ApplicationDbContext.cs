@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Enums;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Helper;
 using System.Linq.Expressions;
@@ -56,6 +57,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ConnectivityAssessmentScheduler> ConnectivityAssessmentSchedulers { get; set; }
     public DbSet<GeneratedReport> GeneratedReports { get; set; }
     public DbSet<ReportTemplate> ReportTemplates { get; set; }
+    public DbSet<FrequencyAllocation> FrequencyAllocations { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -100,6 +102,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(s => new { s.Name, s.Type })
             .IsUnique()
             .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<Service>()
+            .Property(s => s.Type)
+            .HasConversion<int>();
 
         modelBuilder.Entity<Service>()
             .HasMany(s => s.ServiceProviders);
@@ -218,6 +224,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(c => c.Name)
             .IsUnique()
             .HasFilter("\"IsDeleted\" = FALSE");
+
+        modelBuilder.Entity<Cell>()
+            .Property(c => c.Status)
+            .HasConversion<int>();
+
+        modelBuilder.Entity<Cell>()
+            .Property(c => c.TowerType)
+            .HasConversion(
+                v => v.ToString(),
+                v => ConvertToTowerType(v));
 
         modelBuilder.Entity<Cell>()
             .HasOne(c => c.ServiceProvider)
@@ -681,6 +697,30 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOperators("vector_cosine_ops")
             .HasDatabaseName("IX_GeneratedReport_Embedding");
 
+        // FrequencyAllocation configuration
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasOne(fa => fa.Provider)
+            .WithMany(p => p.FrequencyAllocations)
+            .HasForeignKey(fa => fa.ProviderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasOne(fa => fa.UpLink)
+            .WithMany()
+            .HasForeignKey(fa => fa.UpLinkId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasOne(fa => fa.DownLink)
+            .WithMany()
+            .HasForeignKey(fa => fa.DownLinkId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FrequencyAllocation>()
+            .HasIndex(fa => new { fa.ProviderId, fa.UpLinkId, fa.DownLinkId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
         // BarangayCoverage unique constraint - one coverage record per barangay
         modelBuilder.Entity<BarangayCoverage>()
             .HasIndex(bc => bc.BarangayId)
@@ -693,5 +733,23 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(bc => bc.BarangayId);
 
         base.OnModelCreating(modelBuilder);
+    }
+
+    /// <summary>
+    /// Converts database TowerType string values to TowerTypeEnum.
+    /// Handles legacy hyphenated values like "Self-Support" and "Wall-Mounted".
+    /// </summary>
+    private static TowerTypeEnum ConvertToTowerType(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return TowerTypeEnum.Unknown;
+
+        // Handle legacy hyphenated values
+        return value switch
+        {
+            "Self-Support" or "SelfSupporting" => TowerTypeEnum.SelfSupporting,
+            "Wall-Mounted" or "WallMounted" => TowerTypeEnum.WallMounted,
+            _ => Enum.TryParse<TowerTypeEnum>(value, true, out var result) ? result : TowerTypeEnum.Unknown
+        };
     }
 }

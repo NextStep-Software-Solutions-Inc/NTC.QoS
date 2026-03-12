@@ -154,4 +154,16 @@ internal sealed class MunicipalityRepository(ApplicationDbContext context) : Rep
 
         return barangayCount;
     }
+
+    /// <summary>
+    /// Fetches the full Municipality entity (including Boundaries and Description) for update operations,
+    /// bypassing the read-optimized projection used by Query().
+    /// </summary>
+    public async Task<Municipality?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<Municipality>()
+            .Include(m => m.Province)
+                .ThenInclude(p => p.Region)
+            .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
+    }
 }

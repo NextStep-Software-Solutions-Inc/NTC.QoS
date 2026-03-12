@@ -15,7 +15,7 @@ public class GetAllAreaStudiesHandler(IRepository<Domain.Entities.AreaStudy> rep
 
         if (!string.IsNullOrEmpty(request.Search))
         {
-            areaStudiesQuery = areaStudiesQuery.Where(a => a.Name != null && a.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase));
+            areaStudiesQuery = _repository.ApplySearch(areaStudiesQuery, request.Search, a => a.Name);
         }
 
         var areaStudyDtosQuery = areaStudiesQuery.Select(a => new AreaStudyDto

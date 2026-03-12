@@ -28,12 +28,13 @@ public class MIMOsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResponse<MIMODto>>> GetAllMIMOs(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<MIMODto>>> GetAllMIMOs(int pageSize = 10, int pageNumber = 1, [FromQuery] string? search = null)
     {
         var request = new GetAllMIMOsRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
+            Search = search
         };
         var mimos = await _mediator.Send(request);
         return Ok(mimos);

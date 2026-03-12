@@ -40,7 +40,8 @@ public class GenerationsController : ControllerBase
                                                                                         int pageNumber = 1,
                                                                                         [FromQuery] List<Guid>? providerIds = default,
                                                                                         [FromQuery] List<Guid>? serviceIds = default,
-                                                                                        [FromQuery] List<Guid>? serviceProviderIds = default)
+                                                                                        [FromQuery] List<Guid>? serviceProviderIds = default,
+                                                                                        [FromQuery] string? search = null)
     {
         var generations = await _mediator.Send(new GetAllGenerationsRequest
         {
@@ -48,7 +49,8 @@ public class GenerationsController : ControllerBase
             PageSize = pageSize,
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
-            ServiceProviderIds = serviceProviderIds
+            ServiceProviderIds = serviceProviderIds,
+            Search = search
         });
 
         return generations.Succeeded ? Ok(generations) : BadRequest(generations);

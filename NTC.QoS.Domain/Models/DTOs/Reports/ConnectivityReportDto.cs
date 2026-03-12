@@ -25,6 +25,8 @@ public class ConnectivityAreaDetailDto
 {
     public Guid LocationId { get; set; }
     public string LocationName { get; set; } = string.Empty;
+    public string? MunicipalityName { get; set; }
+    public string? ProvinceName { get; set; }
     public ConnectivityStatusEnum ConnectivityStatus { get; set; }
     public int? Population { get; set; }
     

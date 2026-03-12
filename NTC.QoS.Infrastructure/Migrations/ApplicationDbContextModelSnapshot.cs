@@ -1584,6 +1584,67 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("Files");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.FrequencyAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("DownLinkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UpLinkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DownLinkId");
+
+                    b.HasIndex("UpLinkId");
+
+                    b.HasIndex("ProviderId", "UpLinkId", "DownLinkId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
+                    b.ToTable("FrequencyAllocations");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.GeneratedReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3375,6 +3436,33 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Region");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.FrequencyAllocation", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "DownLink")
+                        .WithMany()
+                        .HasForeignKey("DownLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Provider", "Provider")
+                        .WithMany("FrequencyAllocations")
+                        .HasForeignKey("ProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.Link", "UpLink")
+                        .WithMany()
+                        .HasForeignKey("UpLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DownLink");
+
+                    b.Navigation("Provider");
+
+                    b.Navigation("UpLink");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.GeneratedReport", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.User", "User")
@@ -3729,6 +3817,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Provider", b =>
                 {
+                    b.Navigation("FrequencyAllocations");
+
                     b.Navigation("ServiceProviders");
                 });
 

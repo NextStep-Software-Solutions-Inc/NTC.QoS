@@ -92,6 +92,9 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         // ID ordering is fast with primary key index
         napQuery = napQuery.OrderBy(n => n.Id);
 
+        // Filter out NAPs with missing Provider data to ensure data integrity
+        napQuery = napQuery.Where(n => n.ServiceProvider != null && n.ServiceProvider.Provider != null);
+
         // CRITICAL: Project to lightweight DTO early to minimize memory footprint
         // Only select 4 fields needed for map rendering - NO Guid ID (saves ~16 bytes per record)
         // This is crucial when dealing with millions of rows on limited resources

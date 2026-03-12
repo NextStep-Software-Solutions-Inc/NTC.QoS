@@ -16,6 +16,11 @@ public class GetAllCellSectorsHandler(IRepository<Domain.Entities.CellSector> ce
         cellSectorQuery = cellSectorQuery
             .Where(cs => request.CellIds == null || (request.CellIds.Count > 0 && request.CellIds.Contains(cs.CellId)));
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            cellSectorQuery = _cellSectorRepository.ApplySearch(cellSectorQuery, request.Search, cs => cs.Cell!.Name);
+        }
+
         var cellSectorDtoQuery = cellSectorQuery
             .Select(cs => new CellSectorDto
             {

@@ -36,7 +36,8 @@ public class CellularsController(IMediator mediator) : ControllerBase
                                                                                        Guid? cellSectorId = null,
                                                                                        Guid? serviceProviderId = null,
                                                                                        Guid? technologyId = null,
-                                                                                       Guid? bandId = null)
+                                                                                       Guid? bandId = null,
+                                                                                       [FromQuery] string? search = null)
     {
         var result = await _mediator.Send(new GetAllCellularsRequest
         {
@@ -46,7 +47,8 @@ public class CellularsController(IMediator mediator) : ControllerBase
             CellSectorId = cellSectorId,
             ServiceProviderId = serviceProviderId,
             TechnologyId = technologyId,
-            BandId = bandId
+            BandId = bandId,
+            Search = search
         });
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }

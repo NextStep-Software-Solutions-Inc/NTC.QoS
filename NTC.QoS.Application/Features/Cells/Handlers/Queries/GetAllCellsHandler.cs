@@ -9,12 +9,14 @@ using NTC.QoS.Infrastructure.Helper;
 namespace NTC.QoS.Application.Features.Cells.Handlers.Queries;
 
 public class GetAllCellsHandler(ICellRepository cellRepository,
+    IRepository<Domain.Entities.Cellular> cellularRepository,
     IRepository<Domain.Entities.Barangay> barangayRepository,
     IRepository<Domain.Entities.Municipality> municipalityRepository,
     IRepository<Domain.Entities.Province> provinceRepository,
     IRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<GetAllCellsRequest, PaginatedResponse<CellDto>>
 {
     private readonly ICellRepository _cellRepository = cellRepository;
+    private readonly IRepository<Domain.Entities.Cellular> _cellularRepository = cellularRepository;
     private readonly IRepository<Domain.Entities.Barangay> _barangayRepository = barangayRepository;
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository = municipalityRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository = provinceRepository;
@@ -38,12 +40,48 @@ public class GetAllCellsHandler(ICellRepository cellRepository,
             cellQuery = cellQuery.Where(searchExpression);
         }
 
+        if (!string.IsNullOrEmpty(request.Status))
+        {
+            var statusEnum = EnumHelper<CellStatusEnum>.ParseUserInput(request.Status);
+            cellQuery = cellQuery.Where(c => c.Status == statusEnum);
+        }
+
         cellQuery = cellQuery
-            .Where(c => string.IsNullOrEmpty(request.Status) || c.Status == EnumHelper<CellStatusEnum>.ParseUserInput(request.Status))
             .Where(c => request.ServiceProviderIds == null || request.ServiceProviderIds.Contains(c.ServiceProviderId))
             .Where(c => request.ProviderIds == null || (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId)))
             .Where(c => request.ServiceIds == null || (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId)))
+            .Where(c => request.IsVerified == null || c.IsVerified == request.IsVerified.Value)
             .Where(c => locationPoint.IsValid && c.Location.IsWithinDistance(locationPoint, request.Distance));
+
+        if (request.GenerationIds is { Count: > 0 } || request.TechnologyIds is { Count: > 0 } || request.BandIds is { Count: > 0 })
+        {
+            var cellularQuery = _cellularRepository.QueryAsNoTracking();
+
+            if (request.TechnologyIds is { Count: > 0 })
+            {
+                cellularQuery = cellularQuery.Where(cellular =>
+                    request.TechnologyIds.Contains(cellular.TechnologyId));
+            }
+
+            if (request.BandIds is { Count: > 0 })
+            {
+                cellularQuery = cellularQuery.Where(cellular =>
+                    request.BandIds.Contains(cellular.BandId));
+            }
+
+            if (request.GenerationIds is { Count: > 0 })
+            {
+                cellularQuery = cellularQuery.Where(cellular =>
+                    cellular.Technology != null &&
+                    request.GenerationIds.Contains(cellular.Technology.GenerationId));
+            }
+
+            var cellIdsWithFilters = cellularQuery
+                .Select(cellular => cellular.CellSector!.CellId)
+                .Distinct();
+
+            cellQuery = cellQuery.Where(cell => cellIdsWithFilters.Contains(cell.Id));
+        }
 
         if (request.BarangayIds is { Count: > 0 })
         {
@@ -94,12 +132,12 @@ public class GetAllCellsHandler(ICellRepository cellRepository,
                 LAC = cell.LAC,
                 TAC = cell.TAC,
                 SiteId = cell.SiteId,
-                TowerType = cell.TowerType,
+                TowerType = cell.TowerType.ToString(),
                 Elevation = cell.Elevation,
                 Latitude = cell.Location.Coordinate.Y,
                 Longitude = cell.Location.Coordinate.X,
                 IsVerified = cell.IsVerified,
-                Status = EnumHelper<CellStatusEnum>.GetName(cell.Status),
+                Status = cell.Status.ToString(),
                 Distance = Math.Round(cell.Location.Distance(locationPoint), 2)
             });
 

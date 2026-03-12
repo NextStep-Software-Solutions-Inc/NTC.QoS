@@ -22,6 +22,11 @@ public class GetAllProvidersHandler(
             .Where(p => request.ServiceIds == null || request.ServiceIds.Count.Equals(0) || p.ServiceProviders.Any(sp => sp.Service != null && request.ServiceIds.Contains(sp.Service.Id)))
             .Where(p => request.Names == null || request.Names.Any(n => p.Name.Trim().ToLower().Contains(n.Trim().ToLower())));
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allProvidersQuery = _providerRepository.ApplySearch(allProvidersQuery, request.Search, p => p.Name);
+        }
+
         // Performance optimization: Only include logo data if explicitly requested
         var shouldIncludeLogo = request.IncludeLogoData ?? false; // Default to false for list views
 

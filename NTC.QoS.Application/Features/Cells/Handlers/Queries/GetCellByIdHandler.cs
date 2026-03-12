@@ -44,7 +44,7 @@ public class GetCellByIdHandler(ICellRepository cellRepository) : IRequestHandle
                 LAC = cell.LAC,
                 TAC = cell.TAC,
                 SiteId = cell.SiteId,
-                TowerType = cell.TowerType,
+                TowerType = cell.TowerType.ToString(),
                 Elevation = cell.Elevation,
                 Latitude = cell.Location.Coordinate.Y,
                 Longitude = cell.Location.Coordinate.X,

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Authorization;
@@ -24,11 +25,24 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpPost]
     [RequirePermission(Permissions.CreateCells)]
-    public async Task<ActionResult<ApiResponse<CellDto>>> CreateCell(CreateCellDto createCell)
+    public async Task<ActionResult<ApiResponse<CellDto>>> Create(
+        [FromBody] CreateCellDto createCell, 
+        [FromQuery] Guid? regionId = null,
+        [FromServices] IUserContextService userContext = null!)
     {
-        var cell = await mediator.Send(new CreateCellRequest(createCell));
-        if (!cell.Succeeded || cell.Data == null)
-            return BadRequest(cell.Data == null ? "Cell creation failed, no data returned." : cell);
+        var cell = await mediator.Send(new CreateCellRequest(createCell) 
+        { 
+            RegionId = regionId ?? userContext?.GetCurrentRegionId()
+        });
+        if (!cell.Succeeded)
+            return BadRequest(cell);
+
+        if (cell.Data == null)
+            return BadRequest(new ApiResponse<CellDto>
+            {
+                Succeeded = false,
+                Message = "Cell creation failed, no data returned.",
+            });
 
         RemoveAllCellsCache();
         return CreatedAtAction(nameof(GetCellById), new { id = cell.Data.Id }, cell);
@@ -41,7 +55,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     [AllowAnonymous]
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
         VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
-            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "isVerified" })]
     public async Task<ActionResult<PaginatedResponse<CellViewportDto>>> GetAllPublicCellsViewport([FromQuery] ViewportQueryParams query)
     {
         if (!query.IsViewportValid())
@@ -60,15 +74,15 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] LocationQueryParams query)
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "isVerified" })]
+    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllPublicCells([FromQuery] CellsQueryParams query)
     {
         return await GetAllCells(query);
     }
     [HttpGet]
     [RequirePermission(Permissions.ViewCells)]
     // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "serviceProviderIds", "providerIds", "serviceIds", "longitude", "latitude", "distance" })]
-    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] LocationQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] CellsQueryParams query)
     {
         return await GetAllCells(query);
     }
@@ -80,6 +94,31 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     {
         var cell = await mediator.Send(new GetCellByIdRequest(id));
         return cell.Succeeded ? Ok(cell) : BadRequest(cell);
+    }
+
+    /// <summary>
+    /// Get all distinct technologies and their bands for a specific cell site.
+    /// Results are grouped by technology and deduplicated — suitable for the Technologies tab on the cell site detail page.
+    /// </summary>
+    [HttpGet("{id}/technologies")]
+    [RequirePermission(Permissions.ViewCells)]
+    public async Task<ActionResult<ApiResponse<List<CellTechnologyBandDto>>>> GetCellTechnologies(Guid id)
+    {
+        var result = await mediator.Send(new GetCellTechnologiesRequest { CellId = id });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Cross-validate the cell site's active technologies and bands against
+    /// regulatory frequency allocations. Returns per-combination compliance status
+    /// with a warning flag for any unauthorized bands.
+    /// </summary>
+    [HttpGet("{id}/compliance")]
+    [RequirePermission(Permissions.ViewCells)]
+    public async Task<ActionResult<ApiResponse<CellComplianceDto>>> GetCellCompliance(Guid id)
+    {
+        var result = await mediator.Send(new GetCellComplianceRequest { CellId = id });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
     [HttpPatch("{id}")]
@@ -108,9 +147,16 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
 
     [HttpDelete]
     [RequirePermission(Permissions.DeleteCells)]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById([Required][FromQuery] List<Guid> ids)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCellById(
+        [Required][FromQuery] List<Guid> ids,
+        [FromQuery] Guid? regionId = null,
+        [FromServices] IUserContextService userContext = null!)
     {
-        var cells = await mediator.Send(new DeleteCellsByIdsRequest { Ids = ids });
+        var cells = await mediator.Send(new DeleteCellsByIdsRequest 
+        { 
+            Ids = ids,
+            RegionId = regionId ?? userContext?.GetCurrentRegionId()
+        });
         if (!cells.Succeeded)
             return BadRequest(cells);
 
@@ -118,7 +164,7 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return Ok(cells);
     }
 
-    private async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(LocationQueryParams query)
+    private async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(CellsQueryParams query)
     {
         var cacheKey = $"{CellsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{query.Status}_" +
                $"{string.Join(",", query.BarangayIds ?? [])}_" +
@@ -128,7 +174,10 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
                $"{string.Join(",", query.ServiceProviderIds ?? [])}_" +
                $"{string.Join(",", query.ProviderIds ?? [])}_" +
                $"{string.Join(",", query.ServiceIds ?? [])}_" +
-               $"{query.Longitude}_{query.Latitude}_{query.Distance}";
+             $"{string.Join(",", query.GenerationIds ?? [])}_" +
+             $"{string.Join(",", query.TechnologyIds ?? [])}_" +
+             $"{string.Join(",", query.BandIds ?? [])}_" +
+               $"{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsVerified}";
 
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
             return Ok(cachedCells);
@@ -140,12 +189,16 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
             ServiceProviderIds = query.ServiceProviderIds,
             ProviderIds = query.ProviderIds,
             ServiceIds = query.ServiceIds,
+            GenerationIds = query.GenerationIds,
+            TechnologyIds = query.TechnologyIds,
+            BandIds = query.BandIds,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance,
             BarangayIds = query.BarangayIds,
             MunicipalityIds = query.MunicipalityIds,
             ProvinceIds = query.ProvinceIds,
-            RegionIds = query.RegionIds
+            RegionIds = query.RegionIds,
+            IsVerified = query.IsVerified
         };
         var cells = await mediator.Send(request);
         if (cells.Succeeded && cells.Data != null)

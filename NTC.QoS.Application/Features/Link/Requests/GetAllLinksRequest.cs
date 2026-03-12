@@ -16,4 +16,5 @@ public class GetAllLinksRequest : IRequest<PaginatedResponse<LinkDto>>
     public int PageNumber { get; set; }
     public List<Guid>? ServiceProviderIds { get; set; }
     public List<Guid>? BandIds { get; set; }
+    public string? Search { get; set; }
 }

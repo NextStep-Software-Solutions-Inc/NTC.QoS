@@ -23,6 +23,11 @@ public class GetAllLinksHandler(ILinkRepository linkRepository) : IRequestHandle
             allLinksQuery = allLinksQuery.Where(l => request.BandIds.Contains(l.BandId));
         }
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allLinksQuery = _linkRepository.ApplySearch(allLinksQuery, request.Search, l => l.Band!.Name, l => l.ServiceProvider!.Provider!.Name);
+        }
+
         var linkDtosQuery = allLinksQuery
             .OrderBy(l => l.CreatedAt)
             .Select(l => new LinkDto

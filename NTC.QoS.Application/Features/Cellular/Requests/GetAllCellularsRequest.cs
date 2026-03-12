@@ -12,4 +12,5 @@ public class GetAllCellularsRequest : IRequest<PaginatedResponse<CellularDto>>
     public Guid? ServiceProviderId { get; set; }
     public Guid? TechnologyId { get; set; }
     public Guid? BandId { get; set; }
+    public string? Search { get; set; }
 }

@@ -12,6 +12,11 @@ public class GetAllMIMOsHandler(IRepository<Domain.Entities.MIMO> repository) : 
     {
         var allMIMOs = _repository.Query();
 
+        if (!string.IsNullOrEmpty(request.Search))
+        {
+            allMIMOs = allMIMOs.Where(m => m.Type.ToString() != null && m.Type.ToString()!.Contains(request.Search));
+        }
+
         var mimoDtos = allMIMOs.Select(m => new MIMODto
         {
             Id = m.Id,

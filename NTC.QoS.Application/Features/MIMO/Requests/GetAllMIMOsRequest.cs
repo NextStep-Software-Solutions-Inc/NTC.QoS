@@ -14,4 +14,5 @@ public class GetAllMIMOsRequest : IRequest<PaginatedResponse<MIMODto>>
     public GetAllMIMOsRequest() { }
     public int PageSize { get; set; }
     public int PageNumber { get; set; }
+    public string? Search { get; set; }
 }

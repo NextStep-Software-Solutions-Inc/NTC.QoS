@@ -143,6 +143,12 @@ public static class Permissions
     public const string UpdateFrequencyAllocations = "links.update";
     public const string DeleteFrequencyAllocations = "links.delete";
 
+    // Regulatory Frequency Allocation permissions
+    public const string ViewRegulatoryAllocations = "regulatory_allocations.view";
+    public const string CreateRegulatoryAllocations = "regulatory_allocations.create";
+    public const string UpdateRegulatoryAllocations = "regulatory_allocations.update";
+    public const string DeleteRegulatoryAllocations = "regulatory_allocations.delete";
+
     // Network infrastructure permissions
     public const string ViewNetworks = "networks.view";
     public const string CreateNetworks = "networks.create";

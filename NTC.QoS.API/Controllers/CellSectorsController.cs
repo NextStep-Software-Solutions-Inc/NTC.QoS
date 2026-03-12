@@ -33,9 +33,10 @@ public class CellSectorsController(IMediator mediator) : ControllerBase
     [RequirePermission(Permissions.ViewCellSectors)]
     public async Task<ActionResult<PaginatedResponse<CellSectorDto>>> GetAllCellSectors([FromQuery] int pageNumber = 1,
                                                                             [FromQuery] int pageSize = 10,
-                                                                            [FromQuery] List<Guid>? cellIds = null)
+                                                                            [FromQuery] List<Guid>? cellIds = null,
+                                                                            [FromQuery] string? search = null)
     {
-        var request = new GetAllCellSectorsRequest(pageNumber, pageSize)
+        var request = new GetAllCellSectorsRequest(pageNumber, pageSize, search)
         {
             CellIds = cellIds
         };

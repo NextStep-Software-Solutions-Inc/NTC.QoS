@@ -1,5 +1,6 @@
 ﻿using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Models.DTOs.GeoEntity;
+using NetTopologySuite.Geometries;
 
 namespace NTC.QoS.Domain.Interfaces;
 
@@ -29,4 +30,9 @@ public interface IBarangayRepository : IRepository<Barangay>
         DateTime? startDate = null,
         DateTime? endDate = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds a barangay containing the specified point location with its full hierarchy (municipality, province, region).
+    /// </summary>
+    Task<Barangay?> FindBarangayByLocationWithHierarchyAsync(Point location, CancellationToken cancellationToken = default);
 }

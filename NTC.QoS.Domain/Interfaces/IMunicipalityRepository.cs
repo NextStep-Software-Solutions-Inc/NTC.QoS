@@ -27,4 +27,10 @@ public interface IMunicipalityRepository : IRepository<Municipality>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Total count of barangays in the municipality</returns>
     Task<int> GetChildLocationCountAsync(Guid municipalityId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the full Municipality entity (including Boundaries and Description) for update operations,
+    /// bypassing the read-optimized projection used by Query().
+    /// </summary>
+    Task<Municipality?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
 }

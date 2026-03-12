@@ -36,13 +36,14 @@ public class TechnologiesController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewTechnologies)]
-    public async Task<ActionResult<PaginatedResponse<TechnologyDto>>> GetAllTechnologies(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? generationIds = null)
+    public async Task<ActionResult<PaginatedResponse<TechnologyDto>>> GetAllTechnologies(int pageSize = 10, int pageNumber = 1, [FromQuery] List<Guid>? generationIds = null, [FromQuery] string? search = null)
     {
         var request = new GetAllTechnologiesRequest()
         {
             PageNumber = pageNumber,
             PageSize = pageSize,
             GenerationIds = generationIds,
+            Search = search
         };
         var technologies = await _mediator.Send(request);
         return Ok(technologies);

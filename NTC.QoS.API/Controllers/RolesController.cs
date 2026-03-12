@@ -27,9 +27,9 @@ public class RolesController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewRoles)]
-    public async Task<ActionResult<PaginatedResponse<RoleDto>>> GetAllRoles(int pageSize = 10, int pageNumber = 1)
+    public async Task<ActionResult<PaginatedResponse<RoleDto>>> GetAllRoles(int pageSize = 10, int pageNumber = 1, [FromQuery] string? search = null)
     {
-        var result = await _mediator.Send(new GetAllRolesRequest(pageSize, pageNumber));
+        var result = await _mediator.Send(new GetAllRolesRequest(pageSize, pageNumber, search));
         return Ok(result);
     }
 

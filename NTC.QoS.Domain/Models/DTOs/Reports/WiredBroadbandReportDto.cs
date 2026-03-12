@@ -130,6 +130,8 @@ public class PriorityAreaDto
 {
     public Guid LocationId { get; set; }
     public string LocationName { get; set; } = string.Empty;
+    public string? MunicipalityName { get; set; }
+    public string? ProvinceName { get; set; }
     public NTC.QoS.Domain.Enums.ConnectivityStatusEnum ConnectivityStatus { get; set; }
     public int? Population { get; set; }
     public int TotalScore { get; set; }

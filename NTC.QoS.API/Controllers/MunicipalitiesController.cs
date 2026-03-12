@@ -37,7 +37,7 @@ public class MunicipalitiesController : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewMunicipalities)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "provinceId", "provinceIds", "regionIds", "isWiredCovered", "isWirelessCovered" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "provinceId", "provinceIds", "regionIds", "isWiredCovered", "isWirelessCovered", "search" })]
     public async Task<ActionResult<PaginatedResponse<MunicipalityDto>>> GetAllMunicipalities(
         int pageSize = 10, 
         int pageNumber = 1, 
@@ -45,7 +45,8 @@ public class MunicipalitiesController : ControllerBase
         Guid? provinceId = null,
         [FromQuery] Guid[]? regionIds = null,
         bool? isWiredCovered = null,
-        bool? isWirelessCovered = null)
+        bool? isWirelessCovered = null,
+        [FromQuery] string? search = null)
     {
 #pragma warning disable CS0618 // Type or member is obsolete
         var request = new GetAllMunicipalitiesRequest()
@@ -56,7 +57,8 @@ public class MunicipalitiesController : ControllerBase
             ProvinceId = provinceId,
             RegionIds = regionIds,
             IsWiredCovered = isWiredCovered,
-            IsWirelessCovered = isWirelessCovered
+            IsWirelessCovered = isWirelessCovered,
+            Search = search
         };
 #pragma warning restore CS0618 // Type or member is obsolete
         var municipalities = await _mediator.Send(request);
