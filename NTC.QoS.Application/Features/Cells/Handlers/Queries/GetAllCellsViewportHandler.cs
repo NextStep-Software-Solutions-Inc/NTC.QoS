@@ -1,8 +1,5 @@
 using MediatR;
 using NTC.QoS.Application.Features.Cells.Requests;
-using NTC.QoS.Domain.Constants;
-using NTC.QoS.Domain.Enums;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Infrastructure.Helper;
@@ -20,19 +17,22 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
     private readonly IRepository<Domain.Entities.Municipality> _municipalityRepository;
     private readonly IRepository<Domain.Entities.Province> _provinceRepository;
     private readonly IRepository<Domain.Entities.Region> _regionRepository;
+    private readonly IRepository<Domain.Entities.Cellular> _cellularRepository;
 
     public GetAllCellsViewportHandler(
         ICellRepository cellRepository,
         IRepository<Domain.Entities.Barangay> barangayRepository,
         IRepository<Domain.Entities.Municipality> municipalityRepository,
         IRepository<Domain.Entities.Province> provinceRepository,
-        IRepository<Domain.Entities.Region> regionRepository)
+        IRepository<Domain.Entities.Region> regionRepository,
+        IRepository<Domain.Entities.Cellular> cellularRepository)
     {
         _cellRepository = cellRepository;
         _barangayRepository = barangayRepository;
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _cellularRepository = cellularRepository;
     }
 
     public async Task<PaginatedResponse<CellViewportDto>> Handle(GetAllCellsViewportRequest request, CancellationToken cancellationToken)
@@ -62,6 +62,20 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
             cellQuery = cellQuery.Where(c => c.IsVerified == request.IsVerified.Value);
         }
 
+        if (request.GenerationIds is { Count: > 0 })
+        {
+            // Query upward from Cellulars → CellSector.CellId — mirrors the pattern used
+            // in WirelessCoverageComputationService / ProviderTechnologyService, which is
+            // proven to work. The inverse downward path (Cell.CellSectors.Any(...)) returns
+            // empty because most Cell rows have no CellSector children in the DB.
+            var cellIdsWithGeneration = _cellularRepository.QueryAsNoTracking()
+                .Where(cellular => cellular.Technology != null && request.GenerationIds.Contains(cellular.Technology!.GenerationId))
+                .Select(cellular => cellular.CellSector!.CellId)
+                .Distinct();
+
+            cellQuery = cellQuery.Where(c => cellIdsWithGeneration.Contains(c.Id));
+        }
+
         if (request.BarangayIds is { Count: > 0 })
             cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.BarangayIds, _barangayRepository, cellQuery, cancellationToken);
         else if (request.MunicipalityIds is { Count: > 0 })
@@ -72,6 +86,7 @@ public class GetAllCellsViewportHandler : IRequestHandler<GetAllCellsViewportReq
             cellQuery = await GeoQueryHelper.ApplyBoundaryFilterAsync(request.RegionIds, _regionRepository, cellQuery, cancellationToken);
 
         cellQuery = cellQuery.OrderBy(c => c.Id);
+    
 
         var cellViewportDtoQuery = cellQuery.Select(c => new CellViewportDto
         {
