@@ -51,7 +51,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
         _userContextService = userContextService;
     }
-
+    [Queue("import")]
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(FileDto parameters, CancellationToken token)
     {
@@ -441,7 +441,7 @@ public class ProcessCellularCoverageJob : IProcessCellularCoverageJob
 
                 // Trigger connectivity assessment generation upon successful processing
                 _logger.LogInformation("Cellular coverage processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
-                await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
+                _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, CancellationToken.None));
 
                 _logger.LogInformation("File processing completed successfully.");
             }

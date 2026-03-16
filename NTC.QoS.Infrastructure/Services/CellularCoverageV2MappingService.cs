@@ -145,6 +145,9 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
                 continue; // Skip duplicate
             }
 
+            // Track accepted points so duplicates within the same CSV batch are skipped too.
+            existingPointSet.Add((roundedLat, roundedLng));
+
             // Find nearest CellSector using in-memory cache
             var cellSectorId = FindNearestCellSectorInMemory(record.Latitude, record.Longitude);
             if (cellSectorId == null)
@@ -200,25 +203,6 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
             var minLng = points.Min(p => p.lng) - tolerance;
             var maxLng = points.Max(p => p.lng) + tolerance;
 
-            // Check count first to avoid scanning large result sets
-            var estimatedCount = await _coverageRepository
-                .Query(cc =>
-                    !cc.IsDeleted &&
-                    cc.NetworkId == networkId &&
-                    cc.BandId == bandId &&
-                    cc.MunicipalityId == municipalityId)
-                .CountAsync(cancellationToken);
-
-            // If there are too many existing records (>100k), skip duplicate check
-            // It's faster to insert and let the database handle unique constraints
-            if (estimatedCount > 100000)
-            {
-                _logger.LogWarning(
-                    "Municipality has {Count} existing coverage points. Skipping in-memory duplicate check for performance.",
-                    estimatedCount);
-                return new List<(double, double)>();
-            }
-
             var existing = await _coverageRepository
                 .Query(cc =>
                     !cc.IsDeleted &&
@@ -234,13 +218,13 @@ public class CellularCoverageV2MappingService : ICellularCoverageV2MappingServic
         }
         catch (OperationCanceledException ex)
         {
-            _logger.LogWarning(ex, "Duplicate check query was cancelled. Proceeding without duplicate filtering.");
-            return new List<(double, double)>();
+            _logger.LogError(ex, "Duplicate check query was cancelled. Aborting processing to prevent duplicate persistence.");
+            throw new InvalidOperationException("Duplicate check was cancelled. Processing aborted to prevent duplicates.", ex);
         }
         catch (Npgsql.NpgsqlException ex) when (ex.SqlState == "57014")
         {
-            _logger.LogWarning(ex, "Duplicate check query timed out (PostgreSQL cancelled). Proceeding without duplicate filtering.");
-            return new List<(double, double)>();
+            _logger.LogError(ex, "Duplicate check query timed out (PostgreSQL cancelled). Aborting processing to prevent duplicate persistence.");
+            throw new InvalidOperationException("Duplicate check timed out. Processing aborted to prevent duplicates.", ex);
         }
     }
 

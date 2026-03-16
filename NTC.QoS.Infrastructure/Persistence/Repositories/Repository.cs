@@ -91,7 +91,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
         var bulkConfig = new EFCore.BulkExtensions.BulkConfig
         {
             BulkCopyTimeout = 600, // 10 minutes for large batches
-            BatchSize = 500 // Optimize batch size for PostgreSQL
+            BatchSize = 200 // Reduced from 500 to 200 to lower per-operation connection pressure
         };
         await _context.BulkInsertAsync(entities, bulkConfig, cancellationToken: cancellationToken);
     }

@@ -52,7 +52,15 @@ public class GenerateConnectivityAssessmentJob : IGenerateConnectivityAssessment
         }
 
         // Determine if this file type should trigger assessment generation
-        var relevantTypes = new[] { NTC.QoS.Domain.Enums.FileTypeEnum.NAP, NTC.QoS.Domain.Enums.FileTypeEnum.Cell, NTC.QoS.Domain.Enums.FileTypeEnum.Speedtest, NTC.QoS.Domain.Enums.FileTypeEnum.WirelessValidation, NTC.QoS.Domain.Enums.FileTypeEnum.CellularCoverage };
+        var relevantTypes = new[]
+        {
+            NTC.QoS.Domain.Enums.FileTypeEnum.NAP,
+            NTC.QoS.Domain.Enums.FileTypeEnum.Cell,
+            NTC.QoS.Domain.Enums.FileTypeEnum.Speedtest,
+            NTC.QoS.Domain.Enums.FileTypeEnum.WirelessValidation,
+            NTC.QoS.Domain.Enums.FileTypeEnum.CellularCoverage,
+            NTC.QoS.Domain.Enums.FileTypeEnum.CellularCoverageV2
+        };
         if (!relevantTypes.Contains(file.Type))
         {
             _logger.LogInformation("File type {Type} does not trigger connectivity assessment generation", file.Type);

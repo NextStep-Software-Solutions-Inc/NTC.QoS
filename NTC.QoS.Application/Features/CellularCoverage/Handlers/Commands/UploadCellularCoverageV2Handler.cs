@@ -54,6 +54,28 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
     {
         try
         {
+            var maxUploadSizeBytes = GetMaxUploadSizeBytes();
+            if (request.CsvFile.Length <= 0)
+            {
+                return new ApiResponse<CellularCoverageV2UploadResultDto>
+                {
+                    Succeeded = false,
+                    Message = "Uploaded file is empty.",
+                    Data = null
+                };
+            }
+
+            if (request.CsvFile.Length > maxUploadSizeBytes)
+            {
+                var maxMb = maxUploadSizeBytes / (1024.0 * 1024.0);
+                return new ApiResponse<CellularCoverageV2UploadResultDto>
+                {
+                    Succeeded = false,
+                    Message = $"File is too large. Maximum allowed size is {maxMb:0.#} MB.",
+                    Data = null
+                };
+            }
+
             _logger.LogInformation(
                 "Starting CellularCoverage V2 upload for NetworkId={NetworkId}, ServiceProviderId={ServiceProviderId}, MunicipalityId={MunicipalityId}, RegionId={RegionId}",
                 request.NetworkId, request.ServiceProviderId, request.MunicipalityId, request.RegionId);
@@ -111,7 +133,8 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
                 Type = FileTypeEnum.CellularCoverageV2,
                 Status = FileStatusEnum.Pending,
                 UploadedBy = _userContextService.GetCurrentUserId() ?? "Unknown",
-                UploadDate = DateTime.UtcNow
+                UploadDate = DateTime.UtcNow,
+                RegionId = request.RegionId
             };
 
             _fileRepository.Add(fileRecord);
@@ -173,6 +196,20 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
                 Data = null
             };
         }
+    }
+
+    private long GetMaxUploadSizeBytes()
+    {
+        var maxSizeMb = _configuration.GetValue<long?>("CellularCoverageV2Upload:MaxFileSizeMB")
+            ?? _configuration.GetValue<long?>("AzureBlobStorage:MaxFileSizeMB")
+            ?? 50;
+
+        if (maxSizeMb <= 0)
+        {
+            maxSizeMb = 50;
+        }
+
+        return maxSizeMb * 1024L * 1024L;
     }
 
     /// <summary>

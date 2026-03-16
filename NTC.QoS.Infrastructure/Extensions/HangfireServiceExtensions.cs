@@ -84,6 +84,22 @@ internal static class HangfireServiceExtensions
 
             // Increase schedule polling interval to reduce database load
             options.SchedulePollingInterval = TimeSpan.FromMinutes(1);
+
+            // Explicitly list queues so the main server never picks up "import" jobs.
+            // Import jobs are handled exclusively by the dedicated single-worker import server
+            // to prevent concurrent large bulk inserts from exhausting the DB connection pool.
+            options.Queues = new[] { "default", "report-generation", "connectivity-assessment", "seed-processing" };
+        });
+
+        // Dedicated import server — 1 worker prevents concurrent large imports from exhausting
+        // the DB connection pool during bulk insert operations (NpgsqlConnection pool exhaustion).
+        services.AddHangfireServer((_, importOptions) =>
+        {
+            importOptions.WorkerCount = 1;
+            importOptions.ServerName = $"{GenerateServerName()}-import";
+            importOptions.Queues = new[] { "import" };
+            importOptions.ShutdownTimeout = TimeSpan.FromMinutes(5);
+            importOptions.StopTimeout = TimeSpan.FromHours(6);
         });
 
         // Register Hangfire filter registrar

@@ -1,5 +1,6 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
@@ -23,8 +24,10 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
     private readonly ICellularCoverageV2MappingService _mappingService;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IRepository<Network> _networkRepository;
+    private readonly IRepository<Municipality> _municipalityRepository;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IUserContextService _userContextService;
+    private readonly int _maxCsvRows;
 
     public ProcessCellularCoverageV2Job(
         ILogger<ProcessCellularCoverageV2Job> logger,
@@ -33,8 +36,10 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         ICellularCoverageV2MappingService mappingService,
         IBlobStorageService blobStorageService,
         IRepository<Network> networkRepository,
+        IRepository<Municipality> municipalityRepository,
         IBackgroundJobService backgroundJobService,
-        IUserContextService userContextService)
+        IUserContextService userContextService,
+        IConfiguration configuration)
     {
         _logger = logger;
         _fileRepository = fileRepository;
@@ -42,10 +47,18 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
         _mappingService = mappingService;
         _blobStorageService = blobStorageService;
         _networkRepository = networkRepository;
+        _municipalityRepository = municipalityRepository;
         _backgroundJobService = backgroundJobService;
         _userContextService = userContextService;
+        _maxCsvRows = configuration.GetValue<int?>("CellularCoverageV2Upload:MaxRows") ?? 1_000_000;
+
+        if (_maxCsvRows <= 0)
+        {
+            _maxCsvRows = 1_000_000;
+        }
     }
 
+    [Queue("import")]
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ExecuteAsync(
         FileDto fileDto,
@@ -109,6 +122,34 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
             _logger.LogInformation(
                 "Derived from Network: BandId={BandId}, TechnologyId={TechnologyId}",
                 bandId, technologyId);
+
+        // Defensive backfill: older uploads may have no RegionId on the file record.
+        // Assessment generation requires RegionId, so derive it from municipality when missing.
+        if (!file.RegionId.HasValue)
+        {
+            var municipalityRegionId = await _municipalityRepository
+                .Query(m => m.Id == municipalityId)
+                .Include(m => m.Province)
+                .Select(m => (Guid?)m.Province.RegionId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (municipalityRegionId.HasValue)
+            {
+                file.RegionId = municipalityRegionId.Value;
+                _fileRepository.Update(file);
+                await _fileRepository.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation(
+                    "Backfilled missing RegionId for FileId={FileId} using MunicipalityId={MunicipalityId}: RegionId={RegionId}",
+                    file.Id, municipalityId, municipalityRegionId.Value);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Unable to backfill RegionId for FileId={FileId}. MunicipalityId={MunicipalityId} has no resolvable region.",
+                    file.Id, municipalityId);
+            }
+        }
 
         // Step 3: Update file status to Processing (if not already)
         if (file.Status != FileStatusEnum.Processing)
@@ -182,13 +223,14 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
 
                 // Step 6: Stream CSV in batches to avoid loading entire file into memory
                 const int csvBatchSize = 500;   // Reduced from 1000 to 500 for stability
-                const int insertBatchSize = 250; // Reduced from 500 to 250 to prevent timeout
+                const int insertBatchSize = 100; // Reduced from 250 to 100 to reduce connection pressure per bulk op
 
                 // Get current user and timestamp for audit fields
                 var now = DateTime.UtcNow;
                 var userId = _userContextService.GetCurrentUserId() ?? "System";
 
                 var allMappedRecords = new List<CellularCoverage>();
+                var pendingPointSet = new HashSet<(double lat, double lng)>();
                 int totalRecordsProcessed = 0;
                 int batchNumber = 0;
 
@@ -211,6 +253,24 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                         totalRecordsProcessed += csvBatch.Count;
                         stats.TotalRows += csvBatch.Count;
 
+                        if (stats.TotalRows > _maxCsvRows)
+                        {
+                            var message = $"Row limit exceeded. Maximum allowed rows is {_maxCsvRows:N0}.";
+                            _logger.LogWarning(
+                                "CSV row limit exceeded for FileId={FileId}. TotalRows={TotalRows}, MaxRows={MaxRows}",
+                                file.Id, stats.TotalRows, _maxCsvRows);
+
+                            await ProcessingJobHelper.TerminateProcessAsync(
+                                file,
+                                _fileRepository,
+                                _logger,
+                                FileTypeEnum.CellularCoverageV2,
+                                message,
+                                CancellationToken.None);
+
+                            return;
+                        }
+
                         _logger.LogInformation(
                             "Processing CSV batch {BatchNumber} ({Count} records, total: {Total})",
                             batchNumber, csvBatch.Count, totalRecordsProcessed);
@@ -223,10 +283,23 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                             municipalityId,
                             cancellationToken);
 
-                        stats.ProcessedSuccessfully += mappedBatch.Count;
-                        stats.Skipped += csvBatch.Count - mappedBatch.Count;
+                        var uniqueMappedBatch = new List<CellularCoverage>(mappedBatch.Count);
+                        foreach (var mappedRecord in mappedBatch)
+                        {
+                            var roundedLat = Math.Round(mappedRecord.Location.Y, 4);
+                            var roundedLng = Math.Round(mappedRecord.Location.X, 4);
+                            if (!pendingPointSet.Add((roundedLat, roundedLng)))
+                            {
+                                continue;
+                            }
 
-                        allMappedRecords.AddRange(mappedBatch);
+                            uniqueMappedBatch.Add(mappedRecord);
+                        }
+
+                        stats.ProcessedSuccessfully += uniqueMappedBatch.Count;
+                        stats.Skipped += csvBatch.Count - uniqueMappedBatch.Count;
+
+                        allMappedRecords.AddRange(uniqueMappedBatch);
 
                         // Insert to database when we have enough records
                         if (allMappedRecords.Count >= insertBatchSize)
@@ -244,6 +317,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                             _logger.LogInformation("Inserted {Count} records to database (total processed: {Total})",
                                 allMappedRecords.Count, stats.ProcessedSuccessfully);
                             allMappedRecords.Clear();
+                            pendingPointSet.Clear();
                             
                             // Save checkpoint after successful database insert
                             await SaveCheckpointAsync(file, batchNumber, totalRecordsProcessed, cancellationToken);
@@ -264,6 +338,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
 
                         await InsertBatchAsync(allMappedRecords, cancellationToken);
                         _logger.LogInformation("Inserted final batch of {Count} records", allMappedRecords.Count);
+                        pendingPointSet.Clear();
                         
                         // Save final checkpoint
                         await SaveCheckpointAsync(file, batchNumber, totalRecordsProcessed, cancellationToken);
@@ -292,7 +367,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
 
                     // Trigger connectivity assessment generation for the file's region
                     _logger.LogInformation("File processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
-                    _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, cancellationToken));
+                    _backgroundJobService.Enqueue<IGenerateConnectivityAssessmentJob>(job => job.ExecuteAsync(file.Id, CancellationToken.None));
                 }
                 catch (Exception ex)
                 {
@@ -303,7 +378,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                         _logger,
                         FileTypeEnum.CellularCoverageV2,
                         $"Streaming processing error: {ex.Message}",
-                        cancellationToken);
+                        CancellationToken.None);
                     throw;
                 }
             }
@@ -357,7 +432,7 @@ public class ProcessCellularCoverageV2Job : IProcessCellularCoverageV2Job
                     _logger,
                     FileTypeEnum.CellularCoverageV2,
                     $"Processing error: {ex.Message}",
-                    cancellationToken);
+                    CancellationToken.None);
             }
             catch (Exception termEx)
             {
