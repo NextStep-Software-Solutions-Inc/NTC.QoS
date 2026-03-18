@@ -5,12 +5,19 @@ using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace NTC.QoS.Application.Features.UserRegion.Handlers.Commands;
 
-public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionRepository) : IRequestHandler<UpdateUserRegionStatusByIdRequest, ApiResponse<UserRegionDto>>
+public class UpdateUserRegionStatusByIdHandler(
+    IUserRegionRepository userRegionRepository,
+    INotificationService notificationService,
+    ILogger<UpdateUserRegionStatusByIdHandler> logger)
+    : IRequestHandler<UpdateUserRegionStatusByIdRequest, ApiResponse<UserRegionDto>>
 {
     private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
+    private readonly INotificationService _notificationService = notificationService;
+    private readonly ILogger<UpdateUserRegionStatusByIdHandler> _logger = logger;
 
     public async Task<ApiResponse<UserRegionDto>> Handle(UpdateUserRegionStatusByIdRequest request, CancellationToken cancellationToken)
     {
@@ -22,6 +29,8 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
             return new ApiResponse<UserRegionDto>("User Region with the specified ID does not exist.");
         }
 
+        var previousStatus = userRegion.Status;
+
         if (!string.IsNullOrEmpty(request.UserRegion.Status))
         {
             var parsedStatus = EnumHelper<UserRegionStatus>.ParseUserInput(request.UserRegion.Status);
@@ -29,6 +38,37 @@ public class UpdateUserRegionStatusByIdHandler(IUserRegionRepository userRegionR
         }
 
         await _userRegionRepository.SaveChangesAsync(cancellationToken);
+
+        // Notify the requesting user when their access status changes meaningfully
+        if (userRegion.Status != previousStatus)
+        {
+            try
+            {
+                var newStatus = EnumHelper<UserRegionStatus>.ParseUserInput(userRegion.Status);
+                var regionName = userRegion.Region!.Name;
+
+                if (newStatus == UserRegionStatus.Active)
+                {
+                    await _notificationService.NotifyRegionAccessGrantedAsync(
+                        recipientUserId: userRegion.UserId,
+                        regionName: regionName,
+                        userRegionId: userRegion.Id,
+                        cancellationToken: cancellationToken);
+                }
+                else if (newStatus == UserRegionStatus.Declined)
+                {
+                    await _notificationService.NotifyRegionAccessDeclinedAsync(
+                        recipientUserId: userRegion.UserId,
+                        regionName: regionName,
+                        userRegionId: userRegion.Id,
+                        cancellationToken: cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send status change notification for UserRegionId: {UserRegionId}", userRegion.Id);
+            }
+        }
 
         return new ApiResponse<UserRegionDto>
         {

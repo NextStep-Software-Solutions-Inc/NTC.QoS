@@ -41,6 +41,9 @@ internal static class ExternalServiceExtensions
         // AI Instruction service (loads global AI context/instruction)
         services.AddSingleton<IAIInstructionService, AIInstructionService>();
 
+        // Notification service
+        services.AddScoped<INotificationService, NotificationService>();
+
         return services;
     }
 }

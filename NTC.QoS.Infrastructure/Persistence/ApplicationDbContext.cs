@@ -58,6 +58,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<GeneratedReport> GeneratedReports { get; set; }
     public DbSet<ReportTemplate> ReportTemplates { get; set; }
     public DbSet<FrequencyAllocation> FrequencyAllocations { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
