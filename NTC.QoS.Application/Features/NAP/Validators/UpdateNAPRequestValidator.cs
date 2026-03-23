@@ -1,5 +1,6 @@
 using FluentValidation;
 using NTC.QoS.Application.Features.NAP.Requests;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 
 namespace NTC.QoS.Application.Features.NAP.Validators;
@@ -60,11 +61,14 @@ public class UpdateNAPRequestValidator : AbstractValidator<UpdateNAPRequest>
                     .WithMessage("ServiceProviderId cannot be empty.")
                     .MustAsync(async (serviceProviderId, cancellationToken) =>
                     {
-                        var query = _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == serviceProviderId);
+                        var query = _serviceProviderRepository.QueryAsNoTracking(sp =>
+                            sp.Id == serviceProviderId &&
+                            sp.Service != null &&
+                            sp.Service.Type == ServiceTypeEnum.Wired);
                         var serviceProvider = await _serviceProviderRepository.FirstOrDefaultAsync(query, cancellationToken);
                         return serviceProvider != null;
                     })
-                    .WithMessage("The specified Service Provider does not exist.");
+                    .WithMessage("The specified Service Provider does not exist or is not wired.");
             });
 
             // Validate Address only if provided
