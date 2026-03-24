@@ -109,7 +109,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 _logger.LogInformation("Preloading {Count} unique service providers from NAP data...", providerNames.Count);
 
                 var serviceProvidersFromData = await _serviceProviderRepository
-                  .QueryAsNoTracking(sp => !sp.IsDeleted && sp.Provider != null)
+                                    .QueryAsNoTracking(sp => !sp.IsDeleted && sp.Provider != null && sp.Service != null && sp.Service.Type == ServiceTypeEnum.Wired)
                      .Include(sp => sp.Provider)
                 .Select(sp => new { sp.Id, sp.Provider.Name })
               .ToListAsync(token);
