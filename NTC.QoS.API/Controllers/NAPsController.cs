@@ -200,7 +200,7 @@ public class NAPsController : ControllerBase
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
         VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
-    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllNAPsViewport([FromQuery] ViewportQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllNAPsViewport([FromQuery] NAPViewportQueryParams query)
     {
         // Validate viewport bounds
         if (!query.IsViewportValid())
@@ -227,13 +227,9 @@ public class NAPsController : ControllerBase
             return Ok(cachedNAPs);
         }
 
-        // Create viewport bounds DTO
-        var viewport = query.ToViewportBounds();
-
         // Create and send request
-        var request = new GetAllNAPsViewportRequest(query.PageNumber, query.PageSize, viewport)
+        var request = new GetAllNAPsViewportRequest(query.PageNumber, query.PageSize, query.ToViewportBounds())
         {
-            Viewport = viewport,
             ServiceProviderIds = query.ServiceProviderIds,
             BarangayIds = query.BarangayIds,
             MunicipalityIds = query.MunicipalityIds,
@@ -266,7 +262,7 @@ public class NAPsController : ControllerBase
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
         VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds" })]
-    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllPublicNAPsViewport([FromQuery] ViewportQueryParams query)
+    public async Task<ActionResult<PaginatedResponse<NAPViewportDto>>> GetAllPublicNAPsViewport([FromQuery] NAPViewportQueryParams query)
     {
         return await GetAllNAPsViewport(query);
     }
