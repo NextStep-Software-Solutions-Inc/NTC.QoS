@@ -8,7 +8,7 @@ namespace NTC.QoS.Application.Features.NAP.Requests;
 /// Request for retrieving NAPs within a map viewport bounding box.
 /// Optimized for v2 API - viewport-based spatial filtering to prevent OOM and improve UI performance.
 /// This request uses rectangular viewport bounds instead of radius-based distance filtering.
-/// Returns lightweight NAPViewportDto without Guid IDs for optimal payload size.
+/// Returns NAPViewportDto with all fields required for display, editing, and deletion.
 /// </summary>
 public class GetAllNAPsViewportRequest : IRequest<PaginatedResponse<NAPViewportDto>>
 {
@@ -57,6 +57,20 @@ public class GetAllNAPsViewportRequest : IRequest<PaginatedResponse<NAPViewportD
     /// Applies administrative boundary filtering in addition to viewport.
     /// </summary>
     public List<Guid>? RegionIds { get; set; }
+
+    /// <summary>
+    /// Optional: Filter by verification status.
+    /// Note: NAPs do not currently have an IsVerified property; this parameter is reserved
+    /// for future use and is accepted by the API for forward-compatibility.
+    /// </summary>
+    public bool? IsVerified { get; set; }
+
+    /// <summary>
+    /// Optional: Filter by generation/technology IDs.
+    /// Note: NAPs are not associated with cellular generations; this parameter is reserved
+    /// for future use and is accepted by the API for forward-compatibility.
+    /// </summary>
+    public List<Guid>? GenerationIds { get; set; }
 
     public GetAllNAPsViewportRequest(int pageNumber, int pageSize, ViewportBounds viewport)
     {
