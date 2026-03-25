@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using MediatR;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
@@ -58,20 +59,7 @@ public class GetAllNAPsViewportRequest : IRequest<PaginatedResponse<NAPViewportD
     /// </summary>
     public List<Guid>? RegionIds { get; set; }
 
-    /// <summary>
-    /// Optional: Filter by verification status.
-    /// Note: NAPs do not currently have an IsVerified property; this parameter is reserved
-    /// for future use and is accepted by the API for forward-compatibility.
-    /// </summary>
-    public bool? IsVerified { get; set; }
-
-    /// <summary>
-    /// Optional: Filter by generation/technology IDs.
-    /// Note: NAPs are not associated with cellular generations; this parameter is reserved
-    /// for future use and is accepted by the API for forward-compatibility.
-    /// </summary>
-    public List<Guid>? GenerationIds { get; set; }
-
+    [SetsRequiredMembers]
     public GetAllNAPsViewportRequest(int pageNumber, int pageSize, ViewportBounds viewport)
     {
         PageNumber = pageNumber;

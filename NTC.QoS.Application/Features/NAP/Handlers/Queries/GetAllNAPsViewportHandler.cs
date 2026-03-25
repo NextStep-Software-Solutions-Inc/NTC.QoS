@@ -13,7 +13,7 @@ namespace NTC.QoS.Application.Features.NAP.Handlers.Queries;
 /// Key optimizations for resource-constrained environments:
 /// - AsNoTracking for read-only queries (no change tracking overhead)
 /// - Viewport bounding box instead of distance calculations (spatial index friendly)
-/// - Minimal column projection (only 4 fields: ISP, ISPColor, Lat, Lng - NO Guid ID)
+/// - Minimal column projection (only required fields: Id, ISP, ISPColor, ServiceProviderId, Address, Lat, Lng)
 /// - Smart pagination limits based on viewport size
 /// - Query timeout protection (30 seconds max)
 /// - Spatial index utilization via PostGIS && operator
@@ -95,13 +95,15 @@ public class GetAllNAPsViewportHandler : IRequestHandler<GetAllNAPsViewportReque
         // Filter out NAPs with missing Provider data to ensure data integrity
         napQuery = napQuery.Where(n => n.ServiceProvider != null && n.ServiceProvider.Provider != null);
 
-        // CRITICAL: Project to lightweight DTO early to minimize memory footprint
-        // Only select 4 fields needed for map rendering - NO Guid ID (saves ~16 bytes per record)
-        // This is crucial when dealing with millions of rows on limited resources
+        // CRITICAL: Project to DTO early to minimise memory footprint.
+        // Select only the fields needed for map rendering, inline editing, and deletion.
         var napViewportDtoQuery = napQuery.Select(n => new NAPViewportDto
         {
+            Id = n.Id,
             ISP = n.ServiceProvider.Provider.Name,
             ISPColor = n.ServiceProvider.Provider.Color,
+            ServiceProviderId = n.ServiceProviderId,
+            Address = n.Address,
             Lat = n.Location.Coordinate.Y,  // Extract Y coordinate directly
             Lng = n.Location.Coordinate.X   // Extract X coordinate directly
         });
