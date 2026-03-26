@@ -1,9 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
-using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
-using NTC.QoS.Domain.Models.DTOs.BarangayCoverage;
-using NTC.QoS.Domain.Models.DTOs.Common;
 
 namespace NTC.QoS.Infrastructure.Persistence.Repositories;
 
@@ -209,61 +206,5 @@ internal sealed class BarangayCoverageRepository(ApplicationDbContext context)
                 UpdatedBy = bc.UpdatedBy
             })
             .ToListAsync(cancellationToken);
-    }
-
-    /// <inheritdoc/>
-    public async Task<List<FiberCoverageViewportDto>> GetFiberCoverageViewportAsync(
-        ViewportBounds viewport,
-        List<Guid>? regionIds = null,
-        List<Guid>? provinceIds = null,
-        List<Guid>? municipalityIds = null,
-        CancellationToken cancellationToken = default)
-    {
-        var envelope = viewport.CreateEnvelopeFromViewport();
-
-        var query = _context.BarangayCoverages
-            .AsNoTracking()
-            .Where(bc => bc.WiredFtthPercentage > 0
-                && bc.Barangay.Boundaries != null
-                && bc.Barangay.Boundaries.Intersects(envelope));
-
-        // Administrative boundary filters (hierarchical – most specific wins)
-        if (municipalityIds != null && municipalityIds.Count > 0)
-        {
-            query = query.Where(bc => municipalityIds.Contains(bc.Barangay.MunicipalityId));
-        }
-        else if (provinceIds != null && provinceIds.Count > 0)
-        {
-            query = query.Where(bc => provinceIds.Contains(bc.Barangay.Municipality.ProvinceId));
-        }
-        else if (regionIds != null && regionIds.Count > 0)
-        {
-            query = query.Where(bc => regionIds.Contains(bc.Barangay.Municipality.Province.RegionId));
-        }
-
-        var rawResults = await query
-            .Select(bc => new
-            {
-                bc.BarangayId,
-                BarangayName = bc.Barangay.Name,
-                bc.WiredFtthPercentage,
-                Boundaries = bc.Barangay.Boundaries
-            })
-            .OrderBy(bc => bc.BarangayId)
-            .ToListAsync(cancellationToken);
-
-        // Convert NetTopologySuite MultiPolygon to GeoJSON on the application side
-        return rawResults.Select(r => new FiberCoverageViewportDto
-        {
-            BarangayId = r.BarangayId,
-            BarangayName = r.BarangayName,
-            WiredFtthPercentage = r.WiredFtthPercentage,
-            Boundaries = GeoJsonHelper.BuildFeature(r.Boundaries, new Dictionary<string, object>
-            {
-                ["barangayId"] = r.BarangayId,
-                ["barangayName"] = r.BarangayName,
-                ["wiredFtthPercentage"] = r.WiredFtthPercentage
-            })
-        }).ToList();
     }
 }
