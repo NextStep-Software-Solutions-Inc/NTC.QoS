@@ -31,6 +31,8 @@ public class RestoreServiceProviderByIdHandler(IServiceProviderRepository reposi
         }
 
         serviceProvider.IsDeleted = false;
+        serviceProvider.DeletedAt = null;
+        serviceProvider.DeletedBy = null;
         _repository.Update(serviceProvider);
         await _repository.SaveChangesAsync(cancellationToken);
 
