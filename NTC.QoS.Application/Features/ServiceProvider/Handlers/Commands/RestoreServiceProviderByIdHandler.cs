@@ -30,6 +30,27 @@ public class RestoreServiceProviderByIdHandler(IServiceProviderRepository reposi
             };
         }
 
+        var conflictingServiceProviderQuery = _repository.QueryWithIgnoreQueryFilters(
+            sp => sp.ServiceId == serviceProvider.ServiceId
+                  && sp.ProviderId == serviceProvider.ProviderId
+                  && sp.MNC == serviceProvider.MNC
+                  && sp.Id != serviceProvider.Id
+                  && !sp.IsDeleted);
+        var conflictingServiceProvider = await _repository.FirstOrDefaultAsync(conflictingServiceProviderQuery, cancellationToken);
+
+        if (conflictingServiceProvider is not null)
+        {
+            return new ApiResponse<ServiceProviderDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DuplicateServiceProvider", [$"An active service provider with the same ServiceId, ProviderId, and MNC already exists."] }
+                },
+                Message = "The service provider cannot be restored because another active service provider already uses the same ServiceId, ProviderId, and MNC combination."
+            };
+        }
+
         serviceProvider.IsDeleted = false;
         serviceProvider.DeletedAt = null;
         serviceProvider.DeletedBy = null;
