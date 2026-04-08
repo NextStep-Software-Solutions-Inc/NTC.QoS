@@ -10,35 +10,10 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
 {
     public async Task<ApiResponse<ProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
     {
-        var providerQueryAll = repository.QueryWithIgnoreQueryFilters(p => p.Name == request.Provider.Name);
-        var provider = await repository.FirstOrDefaultAsync(providerQueryAll, cancellationToken);
+        var providerQuery = repository.Query(p => p.Name == request.Provider.Name);
+        var provider = await repository.FirstOrDefaultAsync(providerQuery, cancellationToken);
 
-        if (provider is not null && provider.IsDeleted)
-        {
-            var restoreQuery = repository.QueryWithIgnoreQueryFilters(p => p.Id == provider.Id && p.IsDeleted);
-            await repository.RestoreAsync(restoreQuery, cancellationToken);
-
-            return new ApiResponse<ProviderDto>
-            {
-                Data = new ProviderDto
-                {
-                    Id = provider.Id,
-                    Name = provider.Name,
-                    Description = provider.Description,
-                    LicenseNumber = provider.LicenseNumber,
-                    Color = provider.Color,
-                    HasLogo = provider.LogoData != null && provider.LogoData.Length > 0,
-                    LogoContentType = provider.LogoContentType,
-                    LogoFileName = provider.LogoFileName,
-                    LogoSizeBytes = provider.LogoData?.Length,
-                    LogoUploadedAt = provider.LogoUploadedAt
-                },
-                Message = "Provider restored successfully.",
-                Succeeded = true
-            };
-        }
-
-        if (provider is not null && !provider.IsDeleted)
+        if (provider is not null)
         {
             return new ApiResponse<ProviderDto>
             {
@@ -48,6 +23,24 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
                 {
                     {
                         "Duplicate", ["Provider with the same name already exists."]
+                    }
+                }
+            };
+        }
+
+        var deletedProviderQuery = repository.QueryWithIgnoreQueryFilters(p => p.Name == request.Provider.Name && p.IsDeleted);
+        var deletedProvider = await repository.FirstOrDefaultAsync(deletedProviderQuery, cancellationToken);
+
+        if (deletedProvider is not null)
+        {
+            return new ApiResponse<ProviderDto>
+            {
+                Message = $"A deleted provider with the name '{request.Provider.Name}' already exists (Id: {deletedProvider.Id}). Use POST /providers/{deletedProvider.Id}/restore to reactivate it.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "DeletedProviderExists", [$"A soft-deleted provider with this name exists (Id: {deletedProvider.Id})."]
                     }
                 }
             };

@@ -95,6 +95,14 @@ public class ProvidersController(IMediator mediator) : ControllerBase
         return provider.Succeeded ? Ok(provider) : BadRequest(provider);
     }
 
+    [HttpPost("{id}/restore")]
+    [RequirePermission(Permissions.CreateProviders)]
+    public async Task<ActionResult<ApiResponse<ProviderDto>>> RestoreProviderById(Guid id)
+    {
+        var provider = await _mediator.Send(new RestoreProviderByIdRequest(id));
+        return provider.Succeeded ? Ok(provider) : BadRequest(provider);
+    }
+
     [HttpDelete("{id}")]
     [RequirePermission(Permissions.DeleteProviders)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteProviderById(Guid id)
