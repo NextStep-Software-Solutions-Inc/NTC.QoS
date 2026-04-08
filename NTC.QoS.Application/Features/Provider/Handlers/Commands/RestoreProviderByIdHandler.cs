@@ -28,6 +28,22 @@ public class RestoreProviderByIdHandler(IRepository<Domain.Entities.Provider> re
             };
         }
 
+        var conflictingProviderQuery = _repository.QueryWithIgnoreQueryFilters(
+            p => p.Name == provider.Name && p.Id != provider.Id && !p.IsDeleted);
+        var conflictingProvider = await _repository.FirstOrDefaultAsync(conflictingProviderQuery, cancellationToken);
+
+        if (conflictingProvider is not null)
+        {
+            return new ApiResponse<ProviderDto>
+            {
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "DuplicateProviderName", [$"An active provider with the name '{provider.Name}' already exists."] }
+                },
+                Message = "The provider cannot be restored because another active provider already uses this name."
+            };
+        }
         await _repository.RestoreAsync(providerQuery, cancellationToken);
         await _repository.SaveChangesAsync(cancellationToken);
 
