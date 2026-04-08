@@ -64,6 +64,14 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
         return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
     }
 
+    [HttpPost("{id}/restore")]
+    [RequirePermission(Permissions.CreateServiceProviders)]
+    public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> RestoreServiceProviderById(Guid id)
+    {
+        var serviceProvider = await _mediator.Send(new RestoreServiceProviderByIdRequest(id));
+        return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
+    }
+
     [HttpDelete("{id}")]
     [RequirePermission(Permissions.DeleteServiceProviders)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteServiceProviderById(Guid id)
