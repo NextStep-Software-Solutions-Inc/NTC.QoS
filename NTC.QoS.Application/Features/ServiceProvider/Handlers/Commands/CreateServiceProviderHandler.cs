@@ -14,8 +14,7 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
     {
         var serviceProviderQuery = _repository.Query(sp => sp.ServiceId == request.ServiceProvider.ServiceId
                                                         && sp.ProviderId == request.ServiceProvider.ProviderId
-                                                        && sp.MNC == request.ServiceProvider.MNC
-                                                        && sp.MCC == request.ServiceProvider.MCC);
+                                                        && sp.MNC == request.ServiceProvider.MNC);
         var serviceProvider = await _repository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
         if (serviceProvider is not null)
         {
