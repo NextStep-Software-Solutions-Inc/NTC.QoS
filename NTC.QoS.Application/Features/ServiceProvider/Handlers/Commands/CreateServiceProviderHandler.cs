@@ -31,6 +31,28 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
             };
         }
 
+        var deletedServiceProviderQuery = _repository.QueryWithIgnoreQueryFilters(
+            sp => sp.ServiceId == request.ServiceProvider.ServiceId
+               && sp.ProviderId == request.ServiceProvider.ProviderId
+               && sp.MNC == request.ServiceProvider.MNC
+               && sp.IsDeleted);
+        var deletedServiceProvider = await _repository.FirstOrDefaultAsync(deletedServiceProviderQuery, cancellationToken);
+
+        if (deletedServiceProvider is not null)
+        {
+            return new ApiResponse<ServiceProviderDto>
+            {
+                Message = $"A deleted service provider with the same ServiceId, ProviderId, and MNC already exists. Use POST /service-providers/{deletedServiceProvider.Id}/restore to reactivate it.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "DeletedServiceProviderExists", [$"A soft-deleted service provider with this ServiceId/ProviderId/MNC combination exists (Id: {deletedServiceProvider.Id}). Restore it via POST /service-providers/{deletedServiceProvider.Id}/restore."]
+                    }
+                }
+            };
+        }
+
         var newServiceProvider = new Domain.Aggregates.ServiceProvider
         {
             ServiceId = request.ServiceProvider.ServiceId,

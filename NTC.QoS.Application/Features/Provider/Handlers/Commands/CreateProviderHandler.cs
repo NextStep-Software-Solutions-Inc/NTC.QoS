@@ -28,6 +28,24 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
             };
         }
 
+        var deletedProviderQuery = repository.QueryWithIgnoreQueryFilters(p => p.Name == request.Provider.Name && p.IsDeleted);
+        var deletedProvider = await repository.FirstOrDefaultAsync(deletedProviderQuery, cancellationToken);
+
+        if (deletedProvider is not null)
+        {
+            return new ApiResponse<ProviderDto>
+            {
+                Message = $"A deleted provider with the name '{request.Provider.Name}' already exists. Use POST /providers/{deletedProvider.Id}/restore to reactivate it.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "DeletedProviderExists", [$"A soft-deleted provider with this name exists (Id: {deletedProvider.Id}). Restore it via POST /providers/{deletedProvider.Id}/restore."]
+                    }
+                }
+            };
+        }
+
         var newProvider = new Domain.Entities.Provider
         {
             Name = request.Provider.Name,
