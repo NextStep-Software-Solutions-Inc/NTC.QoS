@@ -42,12 +42,12 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
         {
             return new ApiResponse<ServiceProviderDto>
             {
-                Message = $"A deleted service provider with the same ServiceId, ProviderId, and MNC already exists. Use POST /service-providers/{deletedServiceProvider.Id}/restore to reactivate it.",
+                Message = $"A deleted service provider with this ServiceId/ProviderId/MNC combination already exists (Id: {deletedServiceProvider.Id}). Use POST /service-providers/{deletedServiceProvider.Id}/restore to reactivate it.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "DeletedServiceProviderExists", [$"A soft-deleted service provider with this ServiceId/ProviderId/MNC combination exists (Id: {deletedServiceProvider.Id}). Restore it via POST /service-providers/{deletedServiceProvider.Id}/restore."]
+                        "DeletedServiceProviderExists", [$"A soft-deleted service provider with this ServiceId/ProviderId/MNC combination exists (Id: {deletedServiceProvider.Id})."]
                     }
                 }
             };

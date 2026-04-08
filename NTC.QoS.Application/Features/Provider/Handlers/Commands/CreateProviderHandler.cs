@@ -35,12 +35,12 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
         {
             return new ApiResponse<ProviderDto>
             {
-                Message = $"A deleted provider with the name '{request.Provider.Name}' already exists. Use POST /providers/{deletedProvider.Id}/restore to reactivate it.",
+                Message = $"A deleted provider with the name '{request.Provider.Name}' already exists (Id: {deletedProvider.Id}). Use POST /providers/{deletedProvider.Id}/restore to reactivate it.",
                 Succeeded = false,
                 Errors = new Dictionary<string, string[]>
                 {
                     {
-                        "DeletedProviderExists", [$"A soft-deleted provider with this name exists (Id: {deletedProvider.Id}). Restore it via POST /providers/{deletedProvider.Id}/restore."]
+                        "DeletedProviderExists", [$"A soft-deleted provider with this name exists (Id: {deletedProvider.Id})."]
                     }
                 }
             };
