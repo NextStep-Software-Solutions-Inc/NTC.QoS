@@ -29,6 +29,7 @@ public class RestoreProviderByIdHandler(IRepository<Domain.Entities.Provider> re
         }
 
         await _repository.RestoreAsync(providerQuery, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<ProviderDto>
         {
