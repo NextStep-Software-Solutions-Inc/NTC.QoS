@@ -6,9 +6,10 @@ using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Commands;
 
-public class RestoreProviderByIdHandler(IRepository<Domain.Entities.Provider> repository) : IRequestHandler<RestoreProviderByIdRequest, ApiResponse<ProviderDto>>
+public class RestoreProviderByIdHandler(IRepository<Domain.Entities.Provider> repository, IServiceProviderRepository serviceProviderRepository) : IRequestHandler<RestoreProviderByIdRequest, ApiResponse<ProviderDto>>
 {
     private readonly IRepository<Domain.Entities.Provider> _repository = repository;
+    private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
 
     public async Task<ApiResponse<ProviderDto>> Handle(RestoreProviderByIdRequest request, CancellationToken cancellationToken)
     {
@@ -29,7 +30,7 @@ public class RestoreProviderByIdHandler(IRepository<Domain.Entities.Provider> re
         }
 
         var conflictingProviderQuery = _repository.QueryWithIgnoreQueryFilters(
-            p => p.Name == provider.Name && p.Id != provider.Id && !p.IsDeleted);
+            p => p.Name.ToLower() == provider.Name.ToLower() && p.Id != provider.Id && !p.IsDeleted);
         var conflictingProvider = await _repository.FirstOrDefaultAsync(conflictingProviderQuery, cancellationToken);
 
         if (conflictingProvider is not null)
@@ -45,6 +46,12 @@ public class RestoreProviderByIdHandler(IRepository<Domain.Entities.Provider> re
             };
         }
         await _repository.RestoreAsync(providerQuery, cancellationToken);
+
+        // Cascade restore: restore all soft-deleted service providers that belong to this provider
+        var serviceProviderRestoreQuery = _serviceProviderRepository.QueryWithIgnoreQueryFilters(
+            sp => sp.ProviderId == provider.Id && sp.IsDeleted);
+        await _serviceProviderRepository.RestoreAsync(serviceProviderRestoreQuery, cancellationToken);
+
         await _repository.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<ProviderDto>

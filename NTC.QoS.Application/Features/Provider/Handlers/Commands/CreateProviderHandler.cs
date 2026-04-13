@@ -10,7 +10,7 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
 {
     public async Task<ApiResponse<ProviderDto>> Handle(CreateProviderRequest request, CancellationToken cancellationToken)
     {
-        var providerQuery = repository.Query(p => p.Name == request.Provider.Name);
+        var providerQuery = repository.Query(p => p.Name.ToLower() == request.Provider.Name.ToLower());
         var provider = await repository.FirstOrDefaultAsync(providerQuery, cancellationToken);
 
         if (provider is not null)
@@ -28,7 +28,7 @@ public class CreateProviderHandler(IRepository<Domain.Entities.Provider> reposit
             };
         }
 
-        var deletedProviderQuery = repository.QueryWithIgnoreQueryFilters(p => p.Name == request.Provider.Name && p.IsDeleted);
+        var deletedProviderQuery = repository.QueryWithIgnoreQueryFilters(p => p.Name.ToLower() == request.Provider.Name.ToLower() && p.IsDeleted);
         var deletedProvider = await repository.FirstOrDefaultAsync(deletedProviderQuery, cancellationToken);
 
         if (deletedProvider is not null)
