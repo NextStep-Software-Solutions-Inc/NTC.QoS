@@ -148,11 +148,11 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
         var medianUpload = CalculateMedian(uploadSpeeds);
         var avgPing = pings.Count > 0 ? Math.Round(pings.Average(), 2) : 0;
 
-        // Group by provider to count unique providers
+        // Group by provider to count unique providers (includes NBC records — providers were present in the area)
         var providers = speedtests.GroupBy(s => s.ProviderName).ToList();
         var providerCount = providers.Count;
 
-        // Determine best provider (highest median download, excluding NBC records)
+        // Determine best provider (highest median download, excluding NBC records which have no speed data)
         var bestProvider = speedRecords
             .GroupBy(s => s.ProviderName)
             .Select(g => new
