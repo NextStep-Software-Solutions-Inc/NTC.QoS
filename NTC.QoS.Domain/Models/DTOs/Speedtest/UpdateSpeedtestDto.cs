@@ -21,4 +21,5 @@ public class UpdateSpeedtestDto
     public string? SignalQuality { get; set; }
     public string? CellIdentifier { get; set; }
     public bool? IsFixedBroadband { get; set; }
+    public bool? IsNoBroadbandCoverage { get; set; }
 }

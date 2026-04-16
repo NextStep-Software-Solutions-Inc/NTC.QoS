@@ -213,6 +213,12 @@ public class UpdateSpeedtestHandler(
             existingSpeedtest.IsFixedBroadband = request.Speedtest.IsFixedBroadband.Value;
         }
 
+        // Update IsNoBroadbandCoverage if provided
+        if (request.Speedtest.IsNoBroadbandCoverage.HasValue)
+        {
+            existingSpeedtest.IsNoBroadbandCoverage = request.Speedtest.IsNoBroadbandCoverage.Value;
+        }
+
         // IsFileUploaded remains false for manual CRUD operations
         existingSpeedtest.IsFileUploaded = false;
 
@@ -308,6 +314,7 @@ public class UpdateSpeedtestHandler(
                 Address = existingSpeedtest.Address,
                 IsFileUploaded = existingSpeedtest.IsFileUploaded,
                 IsFixedBroadband = existingSpeedtest.IsFixedBroadband,
+                IsNoBroadbandCoverage = existingSpeedtest.IsNoBroadbandCoverage,
                 Distance = 0
             },
             Message = "Speedtest updated successfully.",

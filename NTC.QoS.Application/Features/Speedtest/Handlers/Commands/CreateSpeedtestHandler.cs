@@ -75,6 +75,7 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository) : 
             SignalQuality = validatedSignalQuality,
             CellIdentifier = request.Speedtest.CellIdentifier ?? string.Empty,
             IsFixedBroadband = request.Speedtest.IsFixedBroadband,
+            IsNoBroadbandCoverage = request.Speedtest.IsNoBroadbandCoverage,
             IsFileUploaded = false, // Always false for manual CRUD operations
             Location = location
         };

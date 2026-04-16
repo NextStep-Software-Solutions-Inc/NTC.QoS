@@ -72,7 +72,8 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
                     SignalQuality = s.SignalQuality,
                     ProviderName = s.ServiceProvider.Provider.Name,
                     ProviderColor = s.ServiceProvider.Provider.Color,
-                    Location = s.Location
+                    Location = s.Location,
+                    IsNoBroadbandCoverage = s.IsNoBroadbandCoverage
                 })
                 .ToListAsync(cancellationToken);
 
@@ -135,22 +136,25 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
 
     private static SpeedtestOverviewDto CalculateOverview(List<SpeedtestAnalyticsItem> speedtests)
     {
-        var downloadSpeeds = speedtests.Select(s => s.DownloadSpeed).OrderBy(s => s).ToList();
-        var uploadSpeeds = speedtests.Select(s => s.UploadSpeed).OrderBy(s => s).ToList();
-        var pings = speedtests.Select(s => s.Ping).ToList();
+        // Exclude NBC records from speed averages — they have no meaningful speed data
+        var speedRecords = speedtests.Where(s => !s.IsNoBroadbandCoverage).ToList();
+        var downloadSpeeds = speedRecords.Select(s => s.DownloadSpeed).OrderBy(s => s).ToList();
+        var uploadSpeeds = speedRecords.Select(s => s.UploadSpeed).OrderBy(s => s).ToList();
+        var pings = speedRecords.Select(s => s.Ping).ToList();
 
-        var avgDownload = Math.Round(downloadSpeeds.Average(), 2);
-        var avgUpload = Math.Round(uploadSpeeds.Average(), 2);
+        var avgDownload = downloadSpeeds.Count > 0 ? Math.Round(downloadSpeeds.Average(), 2) : 0;
+        var avgUpload = uploadSpeeds.Count > 0 ? Math.Round(uploadSpeeds.Average(), 2) : 0;
         var medianDownload = CalculateMedian(downloadSpeeds);
         var medianUpload = CalculateMedian(uploadSpeeds);
-        var avgPing = Math.Round(pings.Average(), 2);
+        var avgPing = pings.Count > 0 ? Math.Round(pings.Average(), 2) : 0;
 
         // Group by provider to count unique providers
         var providers = speedtests.GroupBy(s => s.ProviderName).ToList();
         var providerCount = providers.Count;
 
-        // Determine best provider (highest median download)
-        var bestProvider = providers
+        // Determine best provider (highest median download, excluding NBC records)
+        var bestProvider = speedRecords
+            .GroupBy(s => s.ProviderName)
             .Select(g => new
             {
                 Name = g.Key,
@@ -219,7 +223,9 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
 
     private static List<ProviderPerformanceDto> CalculateProviderPerformance(List<SpeedtestAnalyticsItem> speedtests)
     {
-        var providerGroups = speedtests.GroupBy(s => new { Name = s.ProviderName, Color = s.ProviderColor });
+        // Exclude NBC records from speed calculations
+        var speedRecords = speedtests.Where(s => !s.IsNoBroadbandCoverage).ToList();
+        var providerGroups = speedRecords.GroupBy(s => new { Name = s.ProviderName, Color = s.ProviderColor });
 
         var performance = providerGroups.Select(g =>
         {
@@ -345,5 +351,6 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
         public string ProviderName { get; set; } = string.Empty;
         public string? ProviderColor { get; set; }
         public Point Location { get; set; } = null!;
+        public bool IsNoBroadbandCoverage { get; set; }
     }
 }

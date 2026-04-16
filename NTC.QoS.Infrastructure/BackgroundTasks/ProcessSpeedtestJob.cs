@@ -331,8 +331,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             token))
                             return;
 
-                        // Validate numeric required fields (Upload, Download, Latitude, Longitude)
-                        // Allow 0 speeds (may indicate measurement issues but still valid data to save)
                         // Skip records with negative speeds as they are invalid
                         if (record.Upload < 0)
                         {
@@ -348,12 +346,13 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             continue; // Skip this record but continue processing others
                         }
 
-                        // Skip records where both upload and download are 0 or less (no meaningful speed data)
-                        if (record.Upload <= 0 && record.Download <= 0)
+                        // Detect No Broadband Coverage (NBC):
+                        // Either explicit nbc=true in the Excel file, or implicitly when both upload and download are 0.
+                        var isNoBroadbandCoverage = record.IsNoBroadbandCoverage || (record.Upload == 0 && record.Download == 0);
+                        if (isNoBroadbandCoverage)
                         {
-                            _logger.LogWarning("Skipping record at Row {Row}: Both Upload and Download speeds are 0 or less. Upload: {Upload}, Download: {Download}",
-                                currentRow, record.Upload, record.Download);
-                            continue; // Skip this record but continue processing others
+                            _logger.LogInformation("Record at Row {Row} is marked as No Broadband Coverage (NBC). Upload: {Upload}, Download: {Download}, NBC flag: {NBC}",
+                                currentRow, record.Upload, record.Download, record.IsNoBroadbandCoverage);
                         }
 
                         // Validate latitude and longitude (must be valid coordinates)
@@ -489,6 +488,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                     Ping = pingValue,
                                     Jitter = jitterValue,
                                     IsFileUploaded = true,
+                                    IsNoBroadbandCoverage = isNoBroadbandCoverage,
                                     CreatedAt = now,
                                     CreatedBy = userId,
                                     UpdatedAt = now,

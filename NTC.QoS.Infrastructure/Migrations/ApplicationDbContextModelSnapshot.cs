@@ -2550,6 +2550,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Property<bool>("IsFixedBroadband")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsNoBroadbandCoverage")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("Jitter")
                         .HasColumnType("numeric");
 

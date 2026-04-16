@@ -27,6 +27,7 @@ public class GetAllSpeedtestsRequest(int pageNumber, int pageSize) : IRequest<Pa
     public decimal? MaxUploadSpeed { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    public bool? IsNoBroadbandCoverage { get; set; }
     public required Coordinate Coordinate { get; set; }
     public double Distance { get; set; }
 }

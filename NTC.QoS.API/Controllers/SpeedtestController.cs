@@ -107,7 +107,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             $"{string.Join(",", query.RegionIds ?? [])}_" +
             $"_{string.Join(",", query.CellIds ?? [])}_{string.Join(",", query.GenerationIds ?? [])}_{string.Join(",", query.ProviderIds ?? [])}" +
             $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.MinDownloadSpeed}_{query.MaxDownloadSpeed}" +
-            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{query.StartDate:O}_{query.EndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}";
+            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{query.StartDate:O}_{query.EndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsNoBroadbandCoverage}";
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
             return Ok(cachedSpeedtests);
 
@@ -130,6 +130,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             MaxUploadSpeed = query.MaxUploadSpeed,
             StartDate = query.StartDate,
             EndDate = query.EndDate,
+            IsNoBroadbandCoverage = query.IsNoBroadbandCoverage,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance
         };
@@ -221,6 +222,9 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
         [JsonPropertyName("endDate")]
         public DateTime? EndDate { get; set; }
+
+        [JsonPropertyName("isNoBroadbandCoverage")]
+        public bool? IsNoBroadbandCoverage { get; set; }
 
         [JsonPropertyName("longitude")]
         public double Longitude { get; set; } = 0;

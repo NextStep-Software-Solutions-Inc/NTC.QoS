@@ -30,4 +30,7 @@ public sealed class SpeedtestViewportQueryParams : ViewportQueryParams
 
     [JsonPropertyName("endDate")]
     public DateTime? EndDate { get; set; }
+
+    [JsonPropertyName("isNoBroadbandCoverage")]
+    public bool? IsNoBroadbandCoverage { get; set; }
 }

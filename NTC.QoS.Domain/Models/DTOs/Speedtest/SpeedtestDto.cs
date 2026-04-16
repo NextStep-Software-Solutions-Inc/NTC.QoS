@@ -31,4 +31,5 @@ public class SpeedtestDto
     public string Address { get; set; } = string.Empty;
     public bool IsFileUploaded { get; set; } = false;
     public bool IsFixedBroadband { get; set; } = false;
+    public bool IsNoBroadbandCoverage { get; set; } = false;
 }
