@@ -24,10 +24,11 @@ public class FilesController(IMediator mediator, IMemoryCache memoryCache) : Con
     private readonly IMediator _mediator = mediator;
     private readonly IMemoryCache _memoryCache = memoryCache;
 
-    // Cache key sets — must match the constants in the respective controllers
-    private const string NAPsCacheKeysSet = "naps_cache_keys";
-    private const string CellsCacheKeysSet = "cells_cache_keys";
-    private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
+    // Cache key sets — derived from shared naming rules to reduce drift from duplicated literals.
+    private const string CacheKeysSetSuffix = "_cache_keys";
+    private static readonly string NAPsCacheKeysSet = $"{nameof(FileTypeEnum.NAP).ToLowerInvariant()}s{CacheKeysSetSuffix}";
+    private static readonly string CellsCacheKeysSet = $"{nameof(FileTypeEnum.Cell).ToLowerInvariant()}s{CacheKeysSetSuffix}";
+    private static readonly string SpeedtestsCacheKeysSet = $"{nameof(FileTypeEnum.Speedtest).ToLowerInvariant()}{CacheKeysSetSuffix}";
 
     [HttpPost]
     [RequirePermission(Permissions.UploadFiles)]
