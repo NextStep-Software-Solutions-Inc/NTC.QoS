@@ -283,7 +283,8 @@ public static class ProcessingJobHelper
     /// Invalidates all memory-cache entries tracked under <paramref name="cacheKeysSet"/> and then removes the
     /// key-set itself.  A snapshot of the key-set is taken before iteration so that concurrent requests adding
     /// entries via <c>TrackCacheKey</c> cannot cause an <see cref="InvalidOperationException"/> mid-enumeration.
-    /// If the snapshot fails (race), the method retries up to three times before giving up gracefully.
+    /// If the snapshot fails after all retries, the key-set is left in cache so that the tracked entries remain
+    /// reachable for a future invalidation attempt; no entries are orphaned.
     /// </summary>
     /// <param name="memoryCache">The <see cref="IMemoryCache"/> instance to invalidate entries in.</param>
     /// <param name="cacheKeysSet">The cache key that stores the <see cref="HashSet{T}"/> of tracked keys.</param>
@@ -293,13 +294,23 @@ public static class ProcessingJobHelper
             return;
 
         var snapshot = GetCacheKeySnapshot(keys);
+
+        // If snapshot is null the key-set was mutated on every attempt; leave it intact so that tracked
+        // entries are not orphaned and can still be removed by the next invalidation.
+        if (snapshot == null)
+            return;
+
         foreach (var key in snapshot)
             memoryCache.Remove(key);
 
         memoryCache.Remove(cacheKeysSet);
     }
 
-    private static string[] GetCacheKeySnapshot(HashSet<string> keys)
+    /// <returns>
+    /// A stable array snapshot of <paramref name="keys"/>, or <see langword="null"/> if every attempt
+    /// was interrupted by a concurrent mutation (all retries exhausted).
+    /// </returns>
+    private static string[]? GetCacheKeySnapshot(HashSet<string> keys)
     {
         const int maxAttempts = 3;
 
@@ -316,6 +327,7 @@ public static class ProcessingJobHelper
             }
         }
 
-        return Array.Empty<string>();
+        // All attempts exhausted — signal failure so the caller can decide not to remove the key-set.
+        return null;
     }
 }
