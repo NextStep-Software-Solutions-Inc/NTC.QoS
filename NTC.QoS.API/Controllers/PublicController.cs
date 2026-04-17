@@ -29,8 +29,6 @@ public class PublicController : ControllerBase
     }
 
     [HttpGet("NAPs")]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
-
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
         [FromQuery] int pageSize = 10,
         [FromQuery] int pageNumber = 1,
@@ -43,18 +41,6 @@ public class PublicController : ControllerBase
         [FromQuery] double latitude = 0,
         [FromQuery] double distance = 15000000)
     {
-        const string NAPCachePrefix = "public_nap_";
-        var cacheKey = $"{NAPCachePrefix}{pageSize}_{pageNumber}_" +
-               $"{string.Join(",", serviceProviderIds ?? [])}_" +
-               $"{string.Join(",", barangayIds ?? [])}_" +
-               $"{string.Join(",", municipalityIds ?? [])}_" +
-               $"{string.Join(",", provinceIds ?? [])}_" +
-               $"{string.Join(",", regionIds ?? [])}_" +
-               $"_{longitude}_{latitude}_{distance}";
-
-        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<NAPDto>? cachedNAPs))
-            return Ok(cachedNAPs);
-
         var NAP = await _mediator.Send(new GetAllNAPsRequest(pageSize: pageSize, pageNumber: pageNumber)
         {
             ServiceProviderIds = serviceProviderIds,
@@ -66,17 +52,10 @@ public class PublicController : ControllerBase
             Distance = distance
         });
 
-        if (NAP.Succeeded && NAP.Data != null)
-        {
-            _memoryCache.Set(cacheKey, NAP, TimeSpan.FromHours(1));
-            TrackCacheKey(cacheKey);
-        }
-
         return NAP.Succeeded ? Ok(NAP) : BadRequest(NAP);
     }
 
     [HttpGet("cells")]
-    [ResponseCache(Duration = 1, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "status", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "serviceProviderIds", "providerIds", "serviceIds", "generationIds", "technologyIds", "bandIds", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetAllCells(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -96,23 +75,6 @@ public class PublicController : ControllerBase
         double latitude = 0,
         double distance = 180000000)
     {
-        const string CellCachePrefix = "public_cell_";
-        var cacheKey = $"{CellCachePrefix}{pageNumber}_{pageSize}_{search}_{status}_" +
-               $"{string.Join(",", barangayIds ?? [])}_" +
-               $"{string.Join(",", municipalityIds ?? [])}_" +
-               $"{string.Join(",", provinceIds ?? [])}_" +
-               $"{string.Join(",", regionIds ?? [])}_" +
-               $"{string.Join(",", serviceProviderIds ?? [])}_" +
-               $"{string.Join(",", providerIds ?? [])}_" +
-               $"{string.Join(",", serviceIds ?? [])}_" +
-               $"{string.Join(",", generationIds ?? [])}_" +
-               $"{string.Join(",", technologyIds ?? [])}_" +
-               $"{string.Join(",", bandIds ?? [])}_" +
-               $"{longitude}_{latitude}_{distance}";
-
-        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<CellDto>? cachedCells))
-            return Ok(cachedCells);
-
         var request = new GetAllCellsRequest(pageNumber, pageSize)
         {
             Search = search,
@@ -131,17 +93,11 @@ public class PublicController : ControllerBase
             RegionIds = regionIds
         };
         var cells = await _mediator.Send(request);
-        if (cells.Succeeded && cells.Data != null)
-        {
-            _memoryCache.Set(cacheKey, cells, TimeSpan.FromHours(1));
-            TrackCacheKey(cacheKey);
-        }
 
         return cells.Succeeded ? Ok(cells) : BadRequest(cells);
     }
 
     [HttpGet("speedtests")]
-    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance", "isNoBroadbandCoverage" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -161,17 +117,6 @@ public class PublicController : ControllerBase
         double distance = 15000000,
         [FromQuery] bool? isNoBroadbandCoverage = null)
     {
-        const string SpeedtestCachePrefix = "public_speedtest_";
-        var cacheKey = $"{SpeedtestCachePrefix}{pageNumber}_{pageSize}_{search}_{string.Join(",", serviceProviderIds ?? [])}_" +
-            $"{string.Join(",", barangayIds ?? [])}_" +
-            $"{string.Join(",", municipalityIds ?? [])}_" +
-            $"{string.Join(",", provinceIds ?? [])}_" +
-            $"{string.Join(",", regionIds ?? [])}_" +
-            $"_{string.Join(",", cellIds ?? [])}_{string.Join(",", generationIds ?? [])}_{string.Join(",", providerIds ?? [])}" +
-            $"_{string.Join(",", serviceIds ?? [])}_{signalQuality}_{longitude}_{latitude}_{distance}_{isNoBroadbandCoverage}";
-        if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
-            return Ok(cachedSpeedtests);
-
         var request = new GetAllSpeedtestsRequest(pageNumber, pageSize)
         {
             Search = search,
@@ -190,11 +135,6 @@ public class PublicController : ControllerBase
             Distance = distance
         };
         var speedtests = await _mediator.Send(request);
-        if (speedtests.Succeeded && speedtests.Data != null)
-        {
-            _memoryCache.Set(cacheKey, speedtests, TimeSpan.FromHours(1));
-            TrackCacheKey(cacheKey);
-        }
         return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
     }
 
