@@ -46,16 +46,22 @@ public class FilesController(IMediator mediator, IMemoryCache memoryCache) : Con
         {
             case FileTypeEnum.NAP:
                 await _mediator.Send(new ProcessNAPFileRequest(file.Data));
-                RemoveAllCacheByKeySet(NAPsCacheKeysSet);
+                // Cache invalidation must happen after the background import job
+                // successfully completes; clearing it here can allow stale data
+                // to be repopulated before the import finishes.
                 break;
             case FileTypeEnum.Speedtest:
                 await _mediator.Send(new ProcessSpeedtestFileRequest(file.Data));
-                RemoveAllCacheByKeySet(SpeedtestsCacheKeysSet);
+                // Cache invalidation must happen after the background import job
+                // successfully completes; clearing it here can allow stale data
+                // to be repopulated before the import finishes.
                 break;
 
             case FileTypeEnum.Cell:
                 await _mediator.Send(new ProcessCellFileRequest(file.Data));
-                RemoveAllCacheByKeySet(CellsCacheKeysSet);
+                // Cache invalidation must happen after the background import job
+                // successfully completes; clearing it here can allow stale data
+                // to be repopulated before the import finishes.
                 break;
 
             case FileTypeEnum.CellularCoverage:
