@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Enums;
@@ -22,6 +23,9 @@ public class ProcessNAPJob : IProcessNAPJob
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IMemoryCache _memoryCache;
+
+    private const string NAPsCacheKeysSet = "naps_cache_keys";
 
     // Batch processing configuration (following ProcessCellJobBatched pattern)
     private const int BATCH_SIZE = 5000; // Large batch size for simple entity
@@ -35,7 +39,8 @@ public class ProcessNAPJob : IProcessNAPJob
         IBlobStorageService blobStorageService,
      IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IMemoryCache memoryCache
         )
     {
         _logger = logger;
@@ -46,6 +51,7 @@ public class ProcessNAPJob : IProcessNAPJob
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _memoryCache = memoryCache;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -400,6 +406,9 @@ public class ProcessNAPJob : IProcessNAPJob
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
+        // Invalidate the NAPs memory cache so subsequent list/viewport requests reflect the newly imported data
+        InvalidateCacheByKeySet(NAPsCacheKeysSet);
+
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
         {
@@ -408,6 +417,16 @@ public class ProcessNAPJob : IProcessNAPJob
         }
 
         _logger.LogInformation("NAP processing completed successfully.");
+    }
+
+    private void InvalidateCacheByKeySet(string cacheKeysSet)
+    {
+        if (_memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) && keys != null)
+        {
+            foreach (var key in keys)
+                _memoryCache.Remove(key);
+            _memoryCache.Remove(cacheKeysSet);
+        }
     }
 
     /// <summary>

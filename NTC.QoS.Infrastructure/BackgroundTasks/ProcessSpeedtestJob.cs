@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
@@ -27,6 +28,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IMemoryCache _memoryCache;
+
+    private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
     private const int BatchSize = 1000; // Process records in batches
     private const int DuplicateLoadBatchSize = 10000; // Load existing records in batches for memory efficiency
@@ -40,7 +44,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         IBlobStorageService blobStorageService,
         IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IMemoryCache memoryCache
         )
     {
         _logger = logger;
@@ -52,6 +57,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _memoryCache = memoryCache;
     }
 
     /// <summary>
@@ -536,6 +542,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
+                // Invalidate the Speedtests memory cache so subsequent list/viewport requests reflect the newly imported data
+                InvalidateCacheByKeySet(SpeedtestsCacheKeysSet);
+
                 // Trigger connectivity assessment generation upon successful processing
                 _logger.LogInformation("Speedtest processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
                 await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
@@ -554,6 +563,16 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 file, _fileRepository, _logger, FileTypeEnum.Speedtest,
                 $"Error occurred during processing: {ex.Message}", token);
             throw;
+        }
+    }
+
+    private void InvalidateCacheByKeySet(string cacheKeysSet)
+    {
+        if (_memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) && keys != null)
+        {
+            foreach (var key in keys)
+                _memoryCache.Remove(key);
+            _memoryCache.Remove(cacheKeysSet);
         }
     }
 
