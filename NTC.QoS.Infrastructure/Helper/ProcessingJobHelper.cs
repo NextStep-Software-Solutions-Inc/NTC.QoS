@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
@@ -276,5 +277,45 @@ public static class ProcessingJobHelper
         }
 
         await MarkFileAsFailedAsync(file, reason, fileRepository, logger, fileType, cancellationToken);
+    }
+
+    /// <summary>
+    /// Invalidates all memory-cache entries tracked under <paramref name="cacheKeysSet"/> and then removes the
+    /// key-set itself.  A snapshot of the key-set is taken before iteration so that concurrent requests adding
+    /// entries via <c>TrackCacheKey</c> cannot cause an <see cref="InvalidOperationException"/> mid-enumeration.
+    /// If the snapshot fails (race), the method retries up to three times before giving up gracefully.
+    /// </summary>
+    /// <param name="memoryCache">The <see cref="IMemoryCache"/> instance to invalidate entries in.</param>
+    /// <param name="cacheKeysSet">The cache key that stores the <see cref="HashSet{T}"/> of tracked keys.</param>
+    public static void InvalidateCacheKeySet(IMemoryCache memoryCache, string cacheKeysSet)
+    {
+        if (!memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) || keys == null)
+            return;
+
+        var snapshot = GetCacheKeySnapshot(keys);
+        foreach (var key in snapshot)
+            memoryCache.Remove(key);
+
+        memoryCache.Remove(cacheKeysSet);
+    }
+
+    private static string[] GetCacheKeySnapshot(HashSet<string> keys)
+    {
+        const int maxAttempts = 3;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
+            {
+                return keys.ToArray();
+            }
+            catch (InvalidOperationException) when (attempt < maxAttempts - 1)
+            {
+                // The tracked key set was modified while being enumerated.
+                // Retry to obtain a stable snapshot so cache invalidation does not fail the job.
+            }
+        }
+
+        return Array.Empty<string>();
     }
 }

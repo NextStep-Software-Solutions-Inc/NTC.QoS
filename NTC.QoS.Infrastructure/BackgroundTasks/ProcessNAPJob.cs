@@ -407,7 +407,7 @@ public class ProcessNAPJob : IProcessNAPJob
         await _fileRepository.SaveChangesAsync(token);
 
         // Invalidate the NAPs memory cache so subsequent list/viewport requests reflect the newly imported data
-        InvalidateCacheByKeySet(NAPsCacheKeysSet);
+        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, NAPsCacheKeysSet);
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
@@ -417,16 +417,6 @@ public class ProcessNAPJob : IProcessNAPJob
         }
 
         _logger.LogInformation("NAP processing completed successfully.");
-    }
-
-    private void InvalidateCacheByKeySet(string cacheKeysSet)
-    {
-        if (_memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) && keys != null)
-        {
-            foreach (var key in keys)
-                _memoryCache.Remove(key);
-            _memoryCache.Remove(cacheKeysSet);
-        }
     }
 
     /// <summary>

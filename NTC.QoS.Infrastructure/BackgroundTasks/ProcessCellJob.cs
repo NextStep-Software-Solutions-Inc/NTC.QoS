@@ -806,7 +806,7 @@ public class ProcessCellJob : IProcessCellJob
         await _fileRepository.SaveChangesAsync(token);
 
         // Invalidate the Cells memory cache so subsequent list/viewport requests reflect the newly imported data
-        InvalidateCacheByKeySet(CellsCacheKeysSet);
+        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, CellsCacheKeysSet);
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
@@ -816,16 +816,6 @@ public class ProcessCellJob : IProcessCellJob
         }
 
         _logger.LogInformation("Processing completed successfully.");
-    }
-
-    private void InvalidateCacheByKeySet(string cacheKeysSet)
-    {
-        if (_memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) && keys != null)
-        {
-            foreach (var key in keys)
-                _memoryCache.Remove(key);
-            _memoryCache.Remove(cacheKeysSet);
-        }
     }
 
     /// <summary>

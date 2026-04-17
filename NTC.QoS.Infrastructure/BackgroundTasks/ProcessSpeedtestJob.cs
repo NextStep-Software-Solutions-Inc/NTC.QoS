@@ -543,7 +543,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
                 // Invalidate the Speedtests memory cache so subsequent list/viewport requests reflect the newly imported data
-                InvalidateCacheByKeySet(SpeedtestsCacheKeysSet);
+                ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, SpeedtestsCacheKeysSet);
 
                 // Trigger connectivity assessment generation upon successful processing
                 _logger.LogInformation("Speedtest processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
@@ -566,37 +566,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         }
     }
 
-    private void InvalidateCacheByKeySet(string cacheKeysSet)
-    {
-        if (_memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) && keys != null)
-        {
-            var snapshot = GetCacheKeySnapshot(keys);
-            foreach (var key in snapshot)
-                _memoryCache.Remove(key);
-
-            _memoryCache.Remove(cacheKeysSet);
-        }
-    }
-
-    private static string[] GetCacheKeySnapshot(HashSet<string> keys)
-    {
-        const int maxAttempts = 3;
-
-        for (var attempt = 0; attempt < maxAttempts; attempt++)
-        {
-            try
-            {
-                return keys.ToArray();
-            }
-            catch (InvalidOperationException) when (attempt < maxAttempts - 1)
-            {
-                // The tracked key set was modified while being enumerated.
-                // Retry to obtain a stable snapshot so cache invalidation does not fail the job.
-            }
-        }
-
-        return Array.Empty<string>();
-    }
     /// <summary>
     /// Generates a hash code for speedtest duplicate detection
     /// Uses hash-based comparison instead of string concatenation for better memory efficiency
