@@ -2,6 +2,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
 using NTC.QoS.Application.Features.File.Requests;
@@ -18,9 +19,15 @@ namespace NTC.QoS.API.Controllers;
 [Route("files", Name = "files")]
 [Authorize]
 
-public class FilesController(IMediator mediator) : ControllerBase
+public class FilesController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
+    private readonly IMemoryCache _memoryCache = memoryCache;
+
+    // Cache key sets — must match the constants in the respective controllers
+    private const string NAPsCacheKeysSet = "naps_cache_keys";
+    private const string CellsCacheKeysSet = "cells_cache_keys";
+    private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
     [HttpPost]
     [RequirePermission(Permissions.UploadFiles)]
@@ -39,13 +46,16 @@ public class FilesController(IMediator mediator) : ControllerBase
         {
             case FileTypeEnum.NAP:
                 await _mediator.Send(new ProcessNAPFileRequest(file.Data));
+                RemoveAllCacheByKeySet(NAPsCacheKeysSet);
                 break;
             case FileTypeEnum.Speedtest:
                 await _mediator.Send(new ProcessSpeedtestFileRequest(file.Data));
+                RemoveAllCacheByKeySet(SpeedtestsCacheKeysSet);
                 break;
 
             case FileTypeEnum.Cell:
                 await _mediator.Send(new ProcessCellFileRequest(file.Data));
+                RemoveAllCacheByKeySet(CellsCacheKeysSet);
                 break;
 
             case FileTypeEnum.CellularCoverage:
@@ -63,6 +73,16 @@ public class FilesController(IMediator mediator) : ControllerBase
 
         // Schedule a background job to delete the file and its database record after 1 day
         return Ok(file);
+    }
+
+    private void RemoveAllCacheByKeySet(string cacheKeysSet)
+    {
+        if (_memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) && keys != null)
+        {
+            foreach (var key in keys)
+                _memoryCache.Remove(key);
+            _memoryCache.Remove(cacheKeysSet);
+        }
     }
 
     [HttpGet]
