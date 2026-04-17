@@ -570,12 +570,33 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     {
         if (_memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) && keys != null)
         {
-            foreach (var key in keys)
+            var snapshot = GetCacheKeySnapshot(keys);
+            foreach (var key in snapshot)
                 _memoryCache.Remove(key);
+
             _memoryCache.Remove(cacheKeysSet);
         }
     }
 
+    private static string[] GetCacheKeySnapshot(HashSet<string> keys)
+    {
+        const int maxAttempts = 3;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
+            {
+                return keys.ToArray();
+            }
+            catch (InvalidOperationException) when (attempt < maxAttempts - 1)
+            {
+                // The tracked key set was modified while being enumerated.
+                // Retry to obtain a stable snapshot so cache invalidation does not fail the job.
+            }
+        }
+
+        return Array.Empty<string>();
+    }
     /// <summary>
     /// Generates a hash code for speedtest duplicate detection
     /// Uses hash-based comparison instead of string concatenation for better memory efficiency
