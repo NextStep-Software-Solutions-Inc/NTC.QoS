@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Enums;
@@ -22,20 +23,24 @@ public class ProcessNAPJob : IProcessNAPJob
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IMemoryCache _memoryCache;
+
+    private const string NAPsCacheKeysSet = "naps_cache_keys";
 
     // Batch processing configuration (following ProcessCellJobBatched pattern)
     private const int BATCH_SIZE = 5000; // Large batch size for simple entity
     private const int DUPLICATE_LOAD_BATCH_SIZE = 10000; // Load existing records in batches for memory efficiency
 
     public ProcessNAPJob(
- ILogger<ProcessNAPJob> logger,
+        ILogger<ProcessNAPJob> logger,
         IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.NAP> NAPRepository,
-    IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
+        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IBlobStorageService blobStorageService,
-     IUserContextService userContextService,
+        IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IMemoryCache memoryCache
         )
     {
         _logger = logger;
@@ -46,6 +51,7 @@ public class ProcessNAPJob : IProcessNAPJob
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _memoryCache = memoryCache;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -399,6 +405,9 @@ public class ProcessNAPJob : IProcessNAPJob
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Invalidate the NAPs memory cache so subsequent list/viewport requests reflect the newly imported data
+        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, NAPsCacheKeysSet, _logger);
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
