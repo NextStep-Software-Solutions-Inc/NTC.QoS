@@ -35,6 +35,7 @@ jobs:
   deploy:
     name: Deploy to DigitalOcean
     if: github.event_name == 'push'
+    needs: build
     runs-on: ubuntu-latest
     environment: Development
 
