@@ -32,12 +32,12 @@ public class ProcessNAPJob : IProcessNAPJob
     private const int DUPLICATE_LOAD_BATCH_SIZE = 10000; // Load existing records in batches for memory efficiency
 
     public ProcessNAPJob(
- ILogger<ProcessNAPJob> logger,
+        ILogger<ProcessNAPJob> logger,
         IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.NAP> NAPRepository,
-    IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
+        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IBlobStorageService blobStorageService,
-     IUserContextService userContextService,
+        IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
         IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
         IMemoryCache memoryCache

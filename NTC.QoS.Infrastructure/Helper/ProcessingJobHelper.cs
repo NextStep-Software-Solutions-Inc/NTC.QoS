@@ -280,11 +280,10 @@ public static class ProcessingJobHelper
     }
 
     /// <summary>
-    /// Invalidates all memory-cache entries tracked under <paramref name="cacheKeysSet"/> and then removes the
-    /// key-set itself.  A snapshot of the key-set is taken before iteration so that concurrent requests adding
-    /// entries via <c>TrackCacheKey</c> cannot cause an <see cref="InvalidOperationException"/> mid-enumeration.
-    /// If the snapshot fails after all retries, the key-set is left in cache so that the tracked entries remain
-    /// reachable for a future invalidation attempt; no entries are orphaned.
+    /// Invalidates all memory-cache entries tracked under <paramref name="cacheKeysSet"/> and resets the
+    /// key-set to an empty set.  Before snapshotting, the tracked key-set is atomically replaced with a fresh
+    /// empty <see cref="HashSet{T}"/> so that any concurrent <c>TrackCacheKey()</c> call that runs after the
+    /// swap adds to the new set and cannot become orphaned — even if it races with the removal loop.
     /// </summary>
     /// <param name="memoryCache">The <see cref="IMemoryCache"/> instance to invalidate entries in.</param>
     /// <param name="cacheKeysSet">The cache key that stores the <see cref="HashSet{T}"/> of tracked keys.</param>
@@ -295,13 +294,19 @@ public static class ProcessingJobHelper
     /// </returns>
     public static bool InvalidateCacheKeySet(IMemoryCache memoryCache, string cacheKeysSet, ILogger? logger = null)
     {
-        if (!memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) || keys == null)
+        if (!memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var oldKeys) || oldKeys == null)
             return true;
 
-        var snapshot = GetCacheKeySnapshot(keys);
+        // Atomically swap the tracked key-set to a new empty set BEFORE snapshotting the old one.
+        // Any TrackCacheKey() call that runs after this point will add to the new set and will
+        // not be orphaned, even if it races with the removal loop below.
+        // The 1-hour TTL matches the controllers' TrackCacheKey() convention.
+        memoryCache.Set(cacheKeysSet, new HashSet<string>(), TimeSpan.FromHours(1));
 
-        // If snapshot is null the key-set was mutated on every attempt; leave it intact so that tracked
-        // entries are not orphaned and can still be removed by the next invalidation.
+        var snapshot = GetCacheKeySnapshot(oldKeys);
+
+        // If snapshotting failed after all retries the old entries remain stale until TTL,
+        // but the key-set is now a fresh empty set so future tracking is unaffected.
         if (snapshot == null)
         {
             logger?.LogWarning(
@@ -313,7 +318,6 @@ public static class ProcessingJobHelper
         foreach (var key in snapshot)
             memoryCache.Remove(key);
 
-        memoryCache.Remove(cacheKeysSet);
         return true;
     }
 
