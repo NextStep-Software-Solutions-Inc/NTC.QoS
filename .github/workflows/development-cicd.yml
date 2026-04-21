@@ -48,7 +48,9 @@ jobs:
           docker build --build-arg BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }} --build-arg ASPNETCORE_ENVIRONMENT=${{ env.ASPNETCORE_ENVIRONMENT }} -t ${{ env.IMAGE_NAME }}:dev -f ./NTC.QoS.API/Dockerfile .
 
       - name: Save Docker image as tar
-        run: docker save ${{ env.IMAGE_NAME }}:dev -o ntc-qos-be.tar
+        run: |
+          docker save ${{ env.IMAGE_NAME }}:dev -o ntc-qos-be.tar
+          chmod 644 ntc-qos-be.tar
 
       - name: Copy image to server via SCP
         uses: appleboy/scp-action@v0.1.7
