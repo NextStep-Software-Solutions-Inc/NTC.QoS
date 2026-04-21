@@ -287,19 +287,36 @@ public static class ProcessingJobHelper
     /// </summary>
     /// <param name="memoryCache">The <see cref="IMemoryCache"/> instance to invalidate entries in.</param>
     /// <param name="cacheKeysSet">The cache key that stores the <see cref="HashSet{T}"/> of tracked keys.</param>
-    public static void InvalidateCacheKeySet(IMemoryCache memoryCache, string cacheKeysSet)
+    /// <param name="logger">Optional logger used to record snapshot failures caused by concurrent mutation.</param>
+    /// <returns>
+    /// <see langword="true"/> when the cache key-set was absent or invalidated successfully;
+    /// <see langword="false"/> when snapshotting failed after all retries and invalidation was skipped.
+    /// </returns>
+    public static bool InvalidateCacheKeySet(IMemoryCache memoryCache, string cacheKeysSet, ILogger? logger = null)
     {
         if (!memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var keys) || keys == null)
-            return;
+            return true;
 
         var snapshot = GetCacheKeySnapshot(keys);
+
+        // If snapshot is null the key-set was mutated on every attempt; leave it intact so that tracked
+        // entries are not orphaned and can still be removed by the next invalidation.
+        if (snapshot == null)
+        {
+            logger?.LogWarning(
+                "Failed to invalidate cache key set '{CacheKeysSet}' because a stable snapshot could not be obtained after retries.",
+                cacheKeysSet);
+            return false;
+        }
+
         foreach (var key in snapshot)
             memoryCache.Remove(key);
 
         memoryCache.Remove(cacheKeysSet);
+        return true;
     }
 
-    private static string[] GetCacheKeySnapshot(HashSet<string> keys)
+    private static string[]? GetCacheKeySnapshot(HashSet<string> keys)
     {
         const int maxAttempts = 3;
 
@@ -316,6 +333,6 @@ public static class ProcessingJobHelper
             }
         }
 
-        return Array.Empty<string>();
+        return null;
     }
 }

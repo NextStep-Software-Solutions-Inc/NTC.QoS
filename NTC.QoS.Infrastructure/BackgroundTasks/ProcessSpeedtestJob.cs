@@ -543,7 +543,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                     file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
                 // Invalidate the Speedtests memory cache so subsequent list/viewport requests reflect the newly imported data
-                ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, SpeedtestsCacheKeysSet);
+                ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, SpeedtestsCacheKeysSet, _logger);
 
                 // Trigger connectivity assessment generation upon successful processing
                 _logger.LogInformation("Speedtest processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);

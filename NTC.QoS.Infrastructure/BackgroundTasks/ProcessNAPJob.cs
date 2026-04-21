@@ -407,7 +407,7 @@ public class ProcessNAPJob : IProcessNAPJob
         await _fileRepository.SaveChangesAsync(token);
 
         // Invalidate the NAPs memory cache so subsequent list/viewport requests reflect the newly imported data
-        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, NAPsCacheKeysSet);
+        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, NAPsCacheKeysSet, _logger);
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
