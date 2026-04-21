@@ -126,6 +126,10 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
             file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
+        // Tracks how many records have been committed to the DB; used in the catch block to decide
+        // whether to invalidate the cache when an exception occurs after partial batch writes.
+        var totalAdded = 0;
+
         try
         {
             // Step 2: Pre-load Static/Reference Data for Performance
@@ -302,7 +306,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
                 // Step 5: Process Records in Batches (OPTIMIZED)
                 var totalRecords = speedtestRecords.Count;
-                var totalAdded = 0;
+                totalAdded = 0;
                 var totalDuplicatesSkipped = 0;
 
                 for (int i = 0; i < totalRecords; i += BatchSize)
@@ -562,6 +566,13 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.Speedtest,
                 $"Error occurred during processing: {ex.Message}", token);
+
+            // If any batches were already committed before the exception, the DB changed but the
+            // success-path cache invalidation never ran. Invalidate now so stale list/viewport
+            // results are not served for the remaining TTL.
+            if (totalAdded > 0)
+                ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, SpeedtestsCacheKeysSet, _logger);
+
             throw;
         }
     }
