@@ -217,6 +217,15 @@ public class UpdateSpeedtestHandler(
         if (request.Speedtest.IsNoBroadbandCoverage.HasValue)
         {
             existingSpeedtest.IsNoBroadbandCoverage = request.Speedtest.IsNoBroadbandCoverage.Value;
+
+            if (existingSpeedtest.IsNoBroadbandCoverage)
+            {
+                existingSpeedtest.UploadSpeed = 0;
+                existingSpeedtest.DownloadSpeed = 0;
+                existingSpeedtest.Ping = 0;
+                existingSpeedtest.Jitter = 0;
+                existingSpeedtest.SignalQuality = null;
+            }
         }
 
         // IsFileUploaded remains false for manual CRUD operations
