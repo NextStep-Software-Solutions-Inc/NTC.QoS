@@ -406,8 +406,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             return;
 
                         // Lookup service provider - try Wireless and Cellular first, then Wired/DSL if not found.
-                        // This covers all four ServiceTypeEnum values so providers whose Type is now
-                        // Cellular or DSL are found even when the import file doesn't specify a type.
+                        // This allows providers whose Type is Cellular or DSL to be found even when
+                        // the import file doesn't specify a service type.
                         var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                         if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {

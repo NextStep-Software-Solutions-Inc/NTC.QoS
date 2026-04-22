@@ -72,13 +72,21 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository) : 
             MCC = request.Speedtest.MCC ?? string.Empty,
             MNC = request.Speedtest.MNC ?? string.Empty,
             TAC = request.Speedtest.TAC ?? string.Empty,
-            SignalQuality = validatedSignalQuality,
+            SignalQuality = request.Speedtest.IsNoBroadbandCoverage == true ? null : validatedSignalQuality,
             CellIdentifier = request.Speedtest.CellIdentifier ?? string.Empty,
             IsFixedBroadband = request.Speedtest.IsFixedBroadband,
             IsNoBroadbandCoverage = request.Speedtest.IsNoBroadbandCoverage,
             IsFileUploaded = false, // Always false for manual CRUD operations
             Location = location
         };
+
+        if (newSpeedtest.IsNoBroadbandCoverage)
+        {
+            newSpeedtest.UploadSpeed = 0;
+            newSpeedtest.DownloadSpeed = 0;
+            newSpeedtest.Ping = 0;
+            newSpeedtest.Jitter = 0;
+        }
 
         _speedtestRepository.Add(newSpeedtest);
         await _speedtestRepository.SaveChangesAsync(cancellationToken);
