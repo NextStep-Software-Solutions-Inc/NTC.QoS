@@ -371,7 +371,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             record.Download = 0m;
                             record.Ping = "0";
                             record.Jitter = "0";
-                            record.SignalQuality = null;
+                            record.SignalQuality = string.Empty;
                         }
 
                         // Validate latitude and longitude (must be valid coordinates)
