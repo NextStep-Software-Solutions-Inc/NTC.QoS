@@ -143,6 +143,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             var serviceProviderCache = (await _serviceProviderRepository
                 .Query(sp => !sp.IsDeleted)
                 .Select(sp => new { sp.Id, sp.Provider.Name, sp.Service.Type })
+                .OrderBy(sp => sp.Id)
                 .ToListAsync(token))
                 .GroupBy(sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type))
                 .ToDictionary(g => g.Key, g => g.First().Id);
