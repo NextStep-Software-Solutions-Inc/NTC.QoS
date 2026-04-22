@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Speedtest.Requests;
 using NTC.QoS.Domain.Authorization;
@@ -15,8 +16,12 @@ namespace NTC.QoS.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("speedtests", Name = "speedtests")]
-public class SpeedtestsController(IMediator mediator) : ControllerBase
+public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
 {
+    private const int BrowserCacheDuration = 21600;
+    private const string SpeedtestsCachePrefix = "speedtest_";
+    private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
+
     [HttpPost]
     [RequirePermission(Permissions.CreateSpeedtests)]
     public async Task<ActionResult<ApiResponse<Guid>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
@@ -24,6 +29,7 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
         var speedtest = await mediator.Send(new CreateSpeedtestRequest(createSpeedtest));
         if (!speedtest.Succeeded) return BadRequest(speedtest);
 
+        RemoveAllSpeedtestsCache();
         return CreatedAtAction(nameof(GetSpeedtestById), new { id = speedtest.Data }, speedtest);
     }
 
@@ -34,6 +40,7 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
         var speedtest = await mediator.Send(new UpdateSpeedtestRequest(id, updateSpeedtest));
         if (!speedtest.Succeeded) return BadRequest(speedtest);
 
+        RemoveAllSpeedtestsCache();
         return Ok(speedtest);
     }
 
@@ -44,6 +51,10 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
     /// </summary>
     [HttpGet("/v2/speedtests/viewport/public")]
     [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
+        VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
+            "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds",
+            "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] SpeedtestViewportQueryParams query)
     {
         var request = new GetAllSpeedtestsViewportRequest(query);
@@ -53,6 +64,7 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
 
     [HttpGet("public")]
     [AllowAnonymous]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate", "longitude", "latitude", "distance", "isNoBroadbandCoverage" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllPublicSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
         return await GetAllSpeedtests(query);
@@ -60,6 +72,7 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewSpeedtests)]
+    // [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllInternalSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
         return await GetAllSpeedtests(query);
@@ -67,6 +80,7 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
 
     [HttpGet("{id}")]
     [RequirePermission(Permissions.ViewSpeedtests)]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false)]
     public async Task<ActionResult<ApiResponse<SpeedtestDto>>> GetSpeedtestById(Guid id)
     {
         var speedtest = await mediator.Send(new GetSpeedtestByIdRequest(id));
@@ -81,10 +95,24 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
         if (!speedtests.Succeeded)
             return BadRequest(speedtests);
 
+        RemoveAllSpeedtestsCache();
         return Ok(speedtests);
     }
+
     private async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(SpeedtestsQueryParams query)
     {
+        var cacheKey = $"{SpeedtestsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+            $"{string.Join(",", query.BarangayIds ?? [])}_" +
+            $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
+            $"{string.Join(",", query.ProvinceIds ?? [])}_" +
+            $"{string.Join(",", query.RegionIds ?? [])}_" +
+            $"_{string.Join(",", query.CellIds ?? [])}_{string.Join(",", query.GenerationIds ?? [])}_{string.Join(",", query.ProviderIds ?? [])}" +
+            $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.MinDownloadSpeed}_{query.MaxDownloadSpeed}" +
+            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{query.StartDate:O}_{query.EndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsNoBroadbandCoverage}";
+
+        if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
+            return Ok(cachedSpeedtests);
+
         var request = new GetAllSpeedtestsRequest(query.PageNumber, query.PageSize)
         {
             Search = query.Search,
@@ -109,7 +137,32 @@ public class SpeedtestsController(IMediator mediator) : ControllerBase
             Distance = query.Distance
         };
         var speedtests = await mediator.Send(request);
+        if (speedtests.Succeeded && speedtests.Data != null)
+        {
+            memoryCache.Set(cacheKey, speedtests, TimeSpan.FromHours(1));
+            TrackCacheKey(cacheKey);
+        }
         return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
+    }
+
+    private void TrackCacheKey(string key)
+    {
+        var keys = memoryCache.GetOrCreate<HashSet<string>>(SpeedtestsCacheKeysSet, _ => []);
+        if (keys != null)
+        {
+            keys.Add(key);
+            memoryCache.Set(SpeedtestsCacheKeysSet, keys, TimeSpan.FromHours(1));
+        }
+    }
+
+    private void RemoveAllSpeedtestsCache()
+    {
+        if (memoryCache.TryGetValue<HashSet<string>>(SpeedtestsCacheKeysSet, out var keys) && keys != null)
+        {
+            foreach (var key in keys)
+                memoryCache.Remove(key);
+            memoryCache.Remove(SpeedtestsCacheKeysSet);
+        }
     }
 
     public sealed class SpeedtestsQueryParams

@@ -68,7 +68,7 @@ public class PublicController : ControllerBase
 
         if (NAP.Succeeded && NAP.Data != null)
         {
-            _memoryCache.Set(cacheKey, NAP, TimeSpan.FromHours(1));
+            _memoryCache.Set(cacheKey, NAP, TimeSpan.FromMinutes(NAPMemoryCacheMinutes));
             TrackCacheKey(cacheKey);
         }
 
