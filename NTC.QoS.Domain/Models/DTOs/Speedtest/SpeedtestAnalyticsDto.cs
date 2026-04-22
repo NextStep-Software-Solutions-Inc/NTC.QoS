@@ -67,11 +67,13 @@ public class SignalQualityDistributionDto
     public int AverageCount { get; set; }
     public int WeakCount { get; set; }
     public int VeryWeakCount { get; set; }
+    public int NoBroadbandCoverageCount { get; set; }
     public decimal ExcellentPercent { get; set; }
     public decimal GoodPercent { get; set; }
     public decimal AveragePercent { get; set; }
     public decimal WeakPercent { get; set; }
     public decimal VeryWeakPercent { get; set; }
+    public decimal NoBroadbandCoveragePercent { get; set; }
 }
 
 /// <summary>

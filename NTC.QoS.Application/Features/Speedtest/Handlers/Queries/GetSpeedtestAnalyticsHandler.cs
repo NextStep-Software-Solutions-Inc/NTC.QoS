@@ -252,12 +252,17 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
     private static SignalQualityDistributionDto CalculateSignalQualityDistribution(List<SpeedtestAnalyticsItem> speedtests)
     {
         var totalTests = speedtests.Count;
+        var nbcCount = speedtests.Count(s => s.IsNoBroadbandCoverage);
 
-        var excellentCount = speedtests.Count(s => s.SignalQuality == "Excellent");
-        var goodCount = speedtests.Count(s => s.SignalQuality == "Good");
-        var averageCount = speedtests.Count(s => s.SignalQuality == "Average");
-        var weakCount = speedtests.Count(s => s.SignalQuality == "Weak");
-        var veryWeakCount = speedtests.Count(s => s.SignalQuality == "Very Weak");
+        // Exclude NBC records from the signal-quality denominator; they have no meaningful quality data.
+        var qualityTests = speedtests.Where(s => !s.IsNoBroadbandCoverage).ToList();
+        var qualityDenominator = qualityTests.Count;
+
+        var excellentCount = qualityTests.Count(s => s.SignalQuality == "Excellent");
+        var goodCount = qualityTests.Count(s => s.SignalQuality == "Good");
+        var averageCount = qualityTests.Count(s => s.SignalQuality == "Average");
+        var weakCount = qualityTests.Count(s => s.SignalQuality == "Weak");
+        var veryWeakCount = qualityTests.Count(s => s.SignalQuality == "Very Weak");
 
         return new SignalQualityDistributionDto
         {
@@ -267,11 +272,13 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
             AverageCount = averageCount,
             WeakCount = weakCount,
             VeryWeakCount = veryWeakCount,
-            ExcellentPercent = totalTests > 0 ? Math.Round((decimal)excellentCount / totalTests * 100, 1) : 0,
-            GoodPercent = totalTests > 0 ? Math.Round((decimal)goodCount / totalTests * 100, 1) : 0,
-            AveragePercent = totalTests > 0 ? Math.Round((decimal)averageCount / totalTests * 100, 1) : 0,
-            WeakPercent = totalTests > 0 ? Math.Round((decimal)weakCount / totalTests * 100, 1) : 0,
-            VeryWeakPercent = totalTests > 0 ? Math.Round((decimal)veryWeakCount / totalTests * 100, 1) : 0
+            NoBroadbandCoverageCount = nbcCount,
+            ExcellentPercent = qualityDenominator > 0 ? Math.Round((decimal)excellentCount / qualityDenominator * 100, 1) : 0,
+            GoodPercent = qualityDenominator > 0 ? Math.Round((decimal)goodCount / qualityDenominator * 100, 1) : 0,
+            AveragePercent = qualityDenominator > 0 ? Math.Round((decimal)averageCount / qualityDenominator * 100, 1) : 0,
+            WeakPercent = qualityDenominator > 0 ? Math.Round((decimal)weakCount / qualityDenominator * 100, 1) : 0,
+            VeryWeakPercent = qualityDenominator > 0 ? Math.Round((decimal)veryWeakCount / qualityDenominator * 100, 1) : 0,
+            NoBroadbandCoveragePercent = totalTests > 0 ? Math.Round((decimal)nbcCount / totalTests * 100, 1) : 0
         };
     }
 

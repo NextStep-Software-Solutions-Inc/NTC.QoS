@@ -364,7 +364,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                         var isNoBroadbandCoverage = (record.IsNoBroadbandCoverage == true) || (record.Upload == 0m && record.Download == 0m);
                         if (isNoBroadbandCoverage)
                         {
-                            _logger.LogInformation("Record at Row {Row} is marked as No Broadband Coverage (NBC). Upload: {Upload}, Download: {Download}, NBC flag: {NBC}",
+                            _logger.LogDebug("Record at Row {Row} is marked as No Broadband Coverage (NBC). Upload: {Upload}, Download: {Download}, NBC flag: {NBC}",
                                 currentRow, record.Upload, record.Download, record.IsNoBroadbandCoverage);
                             // Enforce consistency: NBC records must have zero speed/quality measurements.
                             record.Upload = 0m;
