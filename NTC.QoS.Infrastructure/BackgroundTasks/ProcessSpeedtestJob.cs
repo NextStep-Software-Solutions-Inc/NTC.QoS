@@ -360,11 +360,16 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
                         // Detect No Broadband Coverage (NBC):
                         // Either explicit nbc=true in the Excel file, or implicitly when both upload and download are 0.
-                        var isNoBroadbandCoverage = record.IsNoBroadbandCoverage || (record.Upload == 0m && record.Download == 0m);
+                        var isNoBroadbandCoverage = (record.IsNoBroadbandCoverage == true) || (record.Upload == 0m && record.Download == 0m);
                         if (isNoBroadbandCoverage)
                         {
                             _logger.LogInformation("Record at Row {Row} is marked as No Broadband Coverage (NBC). Upload: {Upload}, Download: {Download}, NBC flag: {NBC}",
                                 currentRow, record.Upload, record.Download, record.IsNoBroadbandCoverage);
+                            // Enforce consistency: NBC records must have zero speed measurements.
+                            record.Upload = 0m;
+                            record.Download = 0m;
+                            record.Ping = "0";
+                            record.Jitter = "0";
                         }
 
                         // Validate latitude and longitude (must be valid coordinates)
