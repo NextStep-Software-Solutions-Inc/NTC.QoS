@@ -366,11 +366,12 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                         {
                             _logger.LogInformation("Record at Row {Row} is marked as No Broadband Coverage (NBC). Upload: {Upload}, Download: {Download}, NBC flag: {NBC}",
                                 currentRow, record.Upload, record.Download, record.IsNoBroadbandCoverage);
-                            // Enforce consistency: NBC records must have zero speed measurements.
+                            // Enforce consistency: NBC records must have zero speed/quality measurements.
                             record.Upload = 0m;
                             record.Download = 0m;
                             record.Ping = "0";
                             record.Jitter = "0";
+                            record.SignalQuality = null;
                         }
 
                         // Validate latitude and longitude (must be valid coordinates)
