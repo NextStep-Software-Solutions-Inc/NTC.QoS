@@ -135,15 +135,18 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             // Step 2: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
-            // Pre-load all service providers with optimized query
-            var serviceProviderCache = await _serviceProviderRepository
+            // Pre-load all service providers with optimized query.
+            // Group by (ProviderName, ServiceType) so that providers with multiple services of the
+            // same ServiceTypeEnum (e.g. both Cellular and DSL are Wireless) do not throw a
+            // duplicate-key exception.  When duplicates exist the first matching ServiceProvider.Id
+            // is used; the Excel import identifies providers by name + wireless/wired type only,
+            // so any matching entry is equally valid for routing the record.
+            var serviceProviderCache = (await _serviceProviderRepository
                 .Query(sp => !sp.IsDeleted)
                 .Select(sp => new { sp.Id, sp.Provider.Name, sp.Service.Type })
-                .ToDictionaryAsync(
-                    sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type),
-                    sp => sp.Id,
-                    token
-                );
+                .ToListAsync(token))
+                .GroupBy(sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type))
+                .ToDictionary(g => g.Key, g => g.First().Id);
             _logger.LogInformation("Pre-loaded {Count} service providers.", serviceProviderCache.Count);
 
             // Pre-load generations and technologies with optimized query
