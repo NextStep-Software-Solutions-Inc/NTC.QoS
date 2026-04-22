@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Attributes;
@@ -33,6 +34,9 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IMemoryCache _memoryCache;
+
+    private const string CellsCacheKeysSet = "cells_cache_keys";
 
     // Batch processing configuration
     private const int BATCH_SIZE = 500; // Process 500 cell records per batch
@@ -59,7 +63,8 @@ public class ProcessCellJob : IProcessCellJob
         IBlobStorageService blobStorageService,
         IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IMemoryCache memoryCache
         )
     {
         _logger = logger;
@@ -78,6 +83,7 @@ public class ProcessCellJob : IProcessCellJob
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _memoryCache = memoryCache;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -798,6 +804,9 @@ public class ProcessCellJob : IProcessCellJob
         file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Invalidate the Cells memory cache so subsequent list/viewport requests reflect the newly imported data
+        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, CellsCacheKeysSet, _logger);
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)

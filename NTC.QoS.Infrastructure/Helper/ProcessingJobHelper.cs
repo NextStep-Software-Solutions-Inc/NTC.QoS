@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
@@ -276,5 +277,72 @@ public static class ProcessingJobHelper
         }
 
         await MarkFileAsFailedAsync(file, reason, fileRepository, logger, fileType, cancellationToken);
+    }
+
+    /// <summary>
+    /// Invalidates all memory-cache entries tracked under <paramref name="cacheKeysSet"/> and resets the
+    /// key-set to an empty set.  Before snapshotting, the tracked key-set is atomically replaced with a fresh
+    /// empty <see cref="HashSet{T}"/> so that any concurrent <c>TrackCacheKey()</c> call that runs after the
+    /// swap adds to the new set and cannot become orphaned — even if it races with the removal loop.
+    /// </summary>
+    /// <param name="memoryCache">The <see cref="IMemoryCache"/> instance to invalidate entries in.</param>
+    /// <param name="cacheKeysSet">The cache key that stores the <see cref="HashSet{T}"/> of tracked keys.</param>
+    /// <param name="logger">Optional logger used to record snapshot failures caused by concurrent mutation.</param>
+    /// <returns>
+    /// <see langword="true"/> when the cache key-set was absent or invalidated successfully;
+    /// <see langword="false"/> when snapshotting failed after all retries and invalidation was skipped.
+    /// </returns>
+    public static bool InvalidateCacheKeySet(IMemoryCache memoryCache, string cacheKeysSet, ILogger? logger = null)
+    {
+        if (!memoryCache.TryGetValue<HashSet<string>>(cacheKeysSet, out var oldKeys) || oldKeys == null)
+            return true;
+
+        // Atomically swap the tracked key-set to a new empty set BEFORE snapshotting the old one.
+        // Any TrackCacheKey() call that runs after this point will add to the new set and will
+        // not be orphaned, even if it races with the removal loop below.
+        // The 1-hour TTL matches the controllers' TrackCacheKey() convention.
+        memoryCache.Set(cacheKeysSet, new HashSet<string>(), TimeSpan.FromHours(1));
+
+        var snapshot = GetCacheKeySnapshot(oldKeys);
+
+        // If snapshotting failed after all retries the old entries remain stale until TTL,
+        // but the key-set is now a fresh empty set so future tracking is unaffected.
+        if (snapshot == null)
+        {
+            logger?.LogWarning(
+                "Failed to invalidate cache key set '{CacheKeysSet}' because a stable snapshot could not be obtained after retries.",
+                cacheKeysSet);
+            return false;
+        }
+
+        foreach (var key in snapshot)
+            memoryCache.Remove(key);
+
+        return true;
+    }
+
+    /// <returns>
+    /// A stable array snapshot of <paramref name="keys"/>, or <see langword="null"/> if every attempt
+    /// was interrupted by a concurrent mutation (all retries exhausted).
+    /// </returns>
+    private static string[]? GetCacheKeySnapshot(HashSet<string> keys)
+    {
+        const int maxAttempts = 3;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
+            {
+                return keys.ToArray();
+            }
+            catch (InvalidOperationException) when (attempt < maxAttempts - 1)
+            {
+                // The tracked key set was modified while being enumerated.
+                // Retry to obtain a stable snapshot so cache invalidation does not fail the job.
+            }
+        }
+
+        // All attempts exhausted — signal failure so the caller can decide not to remove the key-set.
+        return null;
     }
 }

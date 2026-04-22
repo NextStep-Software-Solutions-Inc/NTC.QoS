@@ -6,6 +6,7 @@ using NTC.QoS.Application.Features.BarangayCoverage.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.BarangayCoverage;
+using NTC.QoS.Domain.Models.RequestParams;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -216,6 +217,67 @@ public class BarangayCoverageController : ControllerBase
             RegionId = regionId
         });
 
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    // ============================================================================
+    // V2 VIEWPORT-BASED ENDPOINTS (Optimized for map rendering)
+    // ============================================================================
+
+    /// <summary>
+    /// Get barangay boundary polygons with wired FTTH fiber coverage data within a
+    /// map viewport bounding box (v2 API – viewport-optimized).
+    ///
+    /// Only barangays whose boundaries intersect the viewport AND have
+    /// <c>WiredFtthPercentage &gt; 0</c> are returned.
+    ///
+    /// <para><strong>⚠ Map Rendering Note:</strong>
+    /// The returned GeoJSON features represent the <em>Fiber Networks</em> coverage layer.
+    /// To prevent them from obscuring place-name labels you MUST add this layer
+    /// <strong>before</strong> the first symbol/label layer of the active map style
+    /// using the <c>beforeId</c> parameter in MapLibre/Mapbox GL JS:</para>
+    /// <code>
+    ///   const firstSymbolId = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+    ///   map.addLayer({
+    ///     id: 'fiber-coverage-fill',
+    ///     type: 'fill',
+    ///     source: 'fiber-coverage',   // GeoJSON source built from this response
+    ///     paint: { 'fill-color': '#c026d3', 'fill-opacity': 0.35 }
+    ///   }, firstSymbolId);            // ← insert BEFORE the first label layer
+    /// </code>
+    /// <para>This approach is required for all supported map tile styles
+    /// (Streets, Topography Dark, Basic) to keep labels legible.</para>
+    /// </summary>
+    /// <param name="query">Viewport bounding box and optional administrative filters.</param>
+    /// <returns>
+    /// List of <see cref="FiberCoverageViewportDto"/> items, each containing the barangay
+    /// boundary as a GeoJSON Feature and the associated fiber coverage percentage.
+    /// </returns>
+    [HttpGet("/v2/barangay-coverages/viewport")]
+    [RequirePermission(Permissions.ViewBarangayCoverage)]
+    [ProducesResponseType(typeof(ApiResponse<List<FiberCoverageViewportDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<List<FiberCoverageViewportDto>>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<List<FiberCoverageViewportDto>>>> GetFiberCoverageViewport(
+        [FromQuery] ViewportQueryParams query)
+    {
+        if (!query.IsViewportValid())
+        {
+            return BadRequest(new ApiResponse<List<FiberCoverageViewportDto>>
+            {
+                Succeeded = false,
+                Message = "Invalid viewport bounds. Ensure minLat < maxLat and minLng < maxLng."
+            });
+        }
+
+        var request = new GetFiberCoverageViewportRequest
+        {
+            Viewport = query.ToViewportBounds(),
+            RegionIds = query.RegionIds,
+            ProvinceIds = query.ProvinceIds,
+            MunicipalityIds = query.MunicipalityIds
+        };
+
+        var result = await _mediator.Send(request);
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 }

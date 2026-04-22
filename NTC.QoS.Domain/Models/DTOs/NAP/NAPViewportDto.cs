@@ -3,12 +3,16 @@ using System.Text.Json.Serialization;
 namespace NTC.QoS.Domain.Models.DTOs.NAP;
 
 /// <summary>
-/// Lightweight DTO for viewport-based NAP queries (v2 API).
-/// Optimized for map rendering - excludes Guid ID that UI doesn't need.
-/// Reduces payload size when returning thousands of NAPs in viewport.
+/// DTO for viewport-based NAP queries (v2 API).
+/// Contains all fields required for map rendering, inline editing, and deletion.
 /// </summary>
 public class NAPViewportDto
 {
+    /// <summary>
+    /// NAP database identifier – required by the FE to execute edit (PATCH) and delete operations.
+    /// </summary>
+    public Guid Id { get; set; }
+
     /// <summary>
     /// Internet Service Provider name
     /// </summary>
@@ -18,6 +22,16 @@ public class NAPViewportDto
     /// ISP brand color for map marker styling
     /// </summary>
     public required string ISPColor { get; set; }
+
+    /// <summary>
+    /// Service provider identifier – required to pre-populate the edit form.
+    /// </summary>
+    public Guid ServiceProviderId { get; set; }
+
+    /// <summary>
+    /// Street / location address – used for display and edit form pre-population.
+    /// </summary>
+    public string Address { get; set; } = string.Empty;
 
     /// <summary>
     /// Latitude coordinate (WGS84)

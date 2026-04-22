@@ -18,6 +18,7 @@ namespace NTC.QoS.API.Controllers;
 [AllowAnonymous]
 public class PublicController : ControllerBase
 {
+    private const int NAPMemoryCacheMinutes = 5;
     private readonly IMediator _mediator;
     private readonly IMemoryCache _memoryCache;
     private const string PublicCacheKeysSet = "public_cache_keys";
@@ -209,7 +210,7 @@ public class PublicController : ControllerBase
         if (keys != null)
         {
             keys.Add(key);
-            _memoryCache.Set(PublicCacheKeysSet, keys, TimeSpan.FromHours(1));
+            _memoryCache.Set(PublicCacheKeysSet, keys, TimeSpan.FromMinutes(NAPMemoryCacheMinutes));
         }
     }
 }
