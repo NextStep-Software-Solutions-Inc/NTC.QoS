@@ -135,12 +135,11 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             // Step 2: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
-            // Pre-load all service providers with optimized query.
-            // Group by (ProviderName, ServiceType) so that providers with multiple services of the
-            // same ServiceTypeEnum (e.g. both Cellular and DSL are Wireless) do not throw a
-            // duplicate-key exception.  When duplicates exist the first matching ServiceProvider.Id
-            // is used; the Excel import identifies providers by name + wireless/wired type only,
-            // so any matching entry is equally valid for routing the record.
+            // Group by (ProviderName, ServiceType) so multiple ServiceProvider rows with the same
+            // Provider.Name and the same Service.Type do not throw a duplicate-key exception.
+            // When duplicates exist the first matching ServiceProvider.Id is used; the Excel import
+            // identifies providers by name + wireless/wired type only, so any matching entry is
+            // equally valid for routing the record.
             var serviceProviderCache = (await _serviceProviderRepository
                 .Query(sp => !sp.IsDeleted)
                 .Select(sp => new { sp.Id, sp.Provider.Name, sp.Service.Type })
@@ -400,20 +399,28 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             token))
                             return;
 
-                        // Lookup service provider - try Wireless first, then Wired if not found
-                        // This handles both wireless and wired providers since cache includes all types
+                        // Lookup service provider - try Wireless and Cellular first, then Wired/DSL if not found.
+                        // This covers all four ServiceTypeEnum values so providers whose Type is now
+                        // Cellular or DSL are found even when the import file doesn't specify a type.
                         var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                         if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {
-                            // Try Wired type as fallback
-                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Cellular);
                             if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
                             {
-                                _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
-                                await ProcessingJobHelper.TerminateProcessAsync(
-                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                    $"Service Provider '{record.Provider}' not found in database", token);
-                                return;
+                                providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                                if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                                {
+                                    providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.DSL);
+                                    if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                                    {
+                                        _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
+                                        await ProcessingJobHelper.TerminateProcessAsync(
+                                            file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                            $"Service Provider '{record.Provider}' not found in database", token);
+                                        return;
+                                    }
+                                }
                             }
                         }
 
