@@ -136,7 +136,8 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             var underservedAreas = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).ToList();
             var unservedAreas = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).ToList();
 
-            var scoreSummary = CalculateScoreSummary(servedAreas);
+            // Calculate summary statistics from the full unfiltered dataset (all statuses)
+            var scoreSummary = CalculateScoreSummary(assessments);
 
             var reportDto = new ConnectivityReportDto
             {
