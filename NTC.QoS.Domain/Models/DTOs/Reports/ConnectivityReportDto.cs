@@ -3,12 +3,16 @@ using NTC.QoS.Domain.Enums;
 namespace NTC.QoS.Domain.Models.DTOs.Reports;
 
 /// <summary>
-/// Connectivity Report DTO showing served areas with rubric score breakdown
+/// Connectivity Report DTO showing areas with rubric score breakdown, supporting unified view across all connectivity statuses
 /// </summary>
 public class ConnectivityReportDto
 {
     public int TotalServedAreas { get; set; }
     public int ServedPopulation { get; set; }
+    public int TotalUnservedAreas { get; set; }
+    public int TotalUnderservedAreas { get; set; }
+    public int UnservedPopulation { get; set; }
+    public int UnderservedPopulation { get; set; }
     public List<ConnectivityAreaDetailDto> Areas { get; set; } = [];
     public ConnectivityScoreSummaryDto ScoreSummary { get; set; } = new();
     public int TotalAreas { get; set; }

@@ -44,8 +44,8 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
     {
         try
         {
-            _logger.LogInformation("Generating connectivity report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, PageNumber={PageNumber}, PageSize={PageSize}",
-                request.RegionId, request.ProvinceId, request.MunicipalityId, request.PageNumber, request.PageSize);
+            _logger.LogInformation("Generating unified connectivity report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, FilterByStatus={FilterByStatus}, PageNumber={PageNumber}, PageSize={PageSize}",
+                request.RegionId, request.ProvinceId, request.MunicipalityId, request.FilterByStatus, request.PageNumber, request.PageSize);
 
             // Validate pagination parameters
             if (request.PageNumber < 1)
@@ -74,20 +74,26 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 };
             }
 
-            // Generate report specifically focusing on SERVED areas
+            // Fetch all assessments for the specified geographic area
             var assessments = await GetFilteredAssessmentsAsync(
                 request.RegionId, request.ProvinceId, request.MunicipalityId, LocationTypeEnum.Barangay, cancellationToken);
 
-            var servedAreas = assessments
-                .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served)
-                .OrderByDescending(a => a.TotalScore)
+            // Apply optional status filter; by default include all statuses (unified view)
+            var filteredAreas = request.FilterByStatus.HasValue
+                ? assessments.Where(a => a.ConnectivityStatus == request.FilterByStatus.Value).ToList()
+                : assessments;
+
+            // Order by connectivity status priority (unserved first), then by population descending
+            var orderedAreas = filteredAreas
+                .OrderBy(a => a.ConnectivityStatus)
                 .ThenByDescending(a => a.Population ?? 0)
+                .ThenByDescending(a => a.TotalScore)
                 .ToList();
 
-            var totalAreas = servedAreas.Count;
-            var totalPages = (int)Math.Ceiling(totalAreas / (double)request.PageSize);
+            var totalAreas = orderedAreas.Count;
+            var totalPages = totalAreas > 0 ? (int)Math.Ceiling(totalAreas / (double)request.PageSize) : 0;
             var skip = (request.PageNumber - 1) * request.PageSize;
-            var paginatedAreas = servedAreas.Skip(skip).Take(request.PageSize).ToList();
+            var paginatedAreas = orderedAreas.Skip(skip).Take(request.PageSize).ToList();
 
             // OPTIMIZED: Batch load location names for paginated results only
             var locationNames = await GetLocationNamesBatchAsync(
@@ -124,13 +130,22 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 LastAssessed = a.AssessmentDate
             }).ToList();
 
-            // Calculate summary statistics using all served areas
+            // Calculate summary statistics using all assessments (not just the current page)
+            // Always compute from the full unfiltered set so the summary reflects the whole dataset
+            var servedAreas = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).ToList();
+            var underservedAreas = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).ToList();
+            var unservedAreas = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).ToList();
+
             var scoreSummary = CalculateScoreSummary(servedAreas);
 
             var reportDto = new ConnectivityReportDto
             {
-                TotalServedAreas = totalAreas,
+                TotalServedAreas = servedAreas.Count,
                 ServedPopulation = servedAreas.Sum(a => a.Population ?? 0),
+                TotalUnderservedAreas = underservedAreas.Count,
+                UnderservedPopulation = underservedAreas.Sum(a => a.Population ?? 0),
+                TotalUnservedAreas = unservedAreas.Count,
+                UnservedPopulation = unservedAreas.Sum(a => a.Population ?? 0),
                 Areas = areaDetails,
                 ScoreSummary = scoreSummary,
                 TotalAreas = totalAreas,

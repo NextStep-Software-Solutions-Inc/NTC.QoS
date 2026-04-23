@@ -430,20 +430,22 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate connectivity report (served areas) showing areas with connectivity scores
+    /// Generate unified connectivity report combining asset and gap data, showing areas across all connectivity statuses
     /// </summary>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1). When omitted, all statuses are included.</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
-    /// <returns>Connectivity report with served areas</returns>
+    /// <returns>Unified connectivity report with areas across all statuses</returns>
     [HttpGet("connectivity")]
     [RequirePermission(Permissions.ViewReports)]
     public async Task<ActionResult<ApiResponse<ConnectivityReportDto>>> GetConnectivityReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
@@ -452,6 +454,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
             PageNumber = pageNumber,
             PageSize = pageSize
         };
@@ -461,14 +464,15 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate and download connectivity report (served areas) in PDF or Excel format.
-    /// Includes all served areas with complete data (no samples or limits). 
+    /// Generate and download unified connectivity report (all statuses) in PDF or Excel format.
+    /// Includes all areas with complete data (no samples or limits). 
     /// Complete rubric score breakdown is included for all areas.
     /// </summary>
     /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1). When omitted, all statuses are included.</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity/download")]
@@ -478,6 +482,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
         var query = new Application.Features.Reports.Connectivity.Requests.DownloadConnectivityReportQuery
@@ -485,6 +490,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
             Format = format,
             ReportTitle = reportTitle
         };

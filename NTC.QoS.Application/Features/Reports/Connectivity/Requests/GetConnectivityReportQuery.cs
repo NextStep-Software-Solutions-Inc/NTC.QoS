@@ -1,11 +1,12 @@
 using MediatR;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 
 namespace NTC.QoS.Application.Features.Reports.Connectivity.Requests;
 
 /// <summary>
-/// Query to retrieve connectivity report (served areas) as JSON data
+/// Query to retrieve the unified connectivity report combining asset and gap data as JSON data
 /// </summary>
 public class GetConnectivityReportQuery : IRequest<ApiResponse<ConnectivityReportDto>>
 {
@@ -23,6 +24,12 @@ public class GetConnectivityReportQuery : IRequest<ApiResponse<ConnectivityRepor
     /// Optional filter by Municipality ID
     /// </summary>
     public Guid? MunicipalityId { get; set; }
+
+    /// <summary>
+    /// Optional filter by connectivity status. When null, all statuses (Served, Underserved, Unserved) are included.
+    /// Served = 3, Underserved = 2, Unserved = 1
+    /// </summary>
+    public ConnectivityStatusEnum? FilterByStatus { get; set; }
 
     /// <summary>
     /// Page number for pagination (default: 1)

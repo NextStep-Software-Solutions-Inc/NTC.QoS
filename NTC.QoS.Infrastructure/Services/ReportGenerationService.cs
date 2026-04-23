@@ -955,8 +955,10 @@ public class ReportGenerationService : IReportGenerationService
                 row.RelativeItem().Column(col =>
                 {
                     col.Item().Text(text => text.Span("Summary Statistics").Bold().FontSize(14));
-                    col.Item().PaddingTop(5).Text($"Total Served Areas: {reportData.TotalServedAreas:N0}");
-                    col.Item().Text($"Total Population Served: {reportData.ServedPopulation:N0}");
+                    col.Item().PaddingTop(5).Text($"Total Areas: {reportData.TotalAreas:N0}");
+                    col.Item().Text($"Served: {reportData.TotalServedAreas:N0} (Pop: {reportData.ServedPopulation:N0})");
+                    col.Item().Text($"Underserved: {reportData.TotalUnderservedAreas:N0} (Pop: {reportData.UnderservedPopulation:N0})");
+                    col.Item().Text($"Unserved: {reportData.TotalUnservedAreas:N0} (Pop: {reportData.UnservedPopulation:N0})");
                     col.Item().Text($"Average Total Score: {reportData.ScoreSummary.AverageTotalScore:F2}/15");
                 });
 
@@ -992,12 +994,13 @@ public class ReportGenerationService : IReportGenerationService
 
             // All areas table
             column.Item()
-                .Text(text => text.Span($"All Areas by Score ({reportData.Areas.Count} total)").Bold().FontSize(14));
+                .Text(text => text.Span($"All Areas ({reportData.Areas.Count} total)").Bold().FontSize(14));
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(columns =>
                 {
                     columns.RelativeColumn(3);
+                    columns.RelativeColumn(1.5f);
                     columns.RelativeColumn(1);
                     columns.RelativeColumn(1);
                     columns.RelativeColumn(1);
@@ -1011,6 +1014,7 @@ public class ReportGenerationService : IReportGenerationService
                 table.Header(header =>
                 {
                     header.Cell().Element(CellStyle).Text(text => text.Span("Location").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Status").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Pop").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Fiber").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Internet").Bold());
@@ -1030,6 +1034,7 @@ public class ReportGenerationService : IReportGenerationService
                 foreach (var area in reportData.Areas)
                 {
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.LocationName).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.ConnectivityStatus.ToString()).FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.Population?.ToString("N0") ?? "N/A").FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.FiberCoverageScore.ToString()).FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.InternetAccessScore.ToString()).FontSize(8));
@@ -1063,12 +1068,32 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(row, 1).Style.Font.FontSize = 14;
         
         row++;
+        worksheet.Cell(row, 1).Value = "Total Areas:";
+        worksheet.Cell(row, 2).Value = reportData.TotalAreas;
+
+        row++;
         worksheet.Cell(row, 1).Value = "Total Served Areas:";
         worksheet.Cell(row, 2).Value = reportData.TotalServedAreas;
-        
+
         row++;
-        worksheet.Cell(row, 1).Value = "Total Population Served:";
+        worksheet.Cell(row, 1).Value = "Total Served Population:";
         worksheet.Cell(row, 2).Value = reportData.ServedPopulation;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Underserved Areas:";
+        worksheet.Cell(row, 2).Value = reportData.TotalUnderservedAreas;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Underserved Population:";
+        worksheet.Cell(row, 2).Value = reportData.UnderservedPopulation;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Unserved Areas:";
+        worksheet.Cell(row, 2).Value = reportData.TotalUnservedAreas;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Unserved Population:";
+        worksheet.Cell(row, 2).Value = reportData.UnservedPopulation;
         
         row++;
         worksheet.Cell(row, 1).Value = "Average Total Score:";
@@ -1156,6 +1181,9 @@ public class ReportGenerationService : IReportGenerationService
         // Headers
         int col = 1;
         worksheet.Cell(1, col++).Value = "Location";
+        worksheet.Cell(1, col++).Value = "Municipality";
+        worksheet.Cell(1, col++).Value = "Province";
+        worksheet.Cell(1, col++).Value = "Connectivity Status";
         worksheet.Cell(1, col++).Value = "Population";
         worksheet.Cell(1, col++).Value = "Fiber Score";
         worksheet.Cell(1, col++).Value = "Internet Score";
@@ -1186,6 +1214,9 @@ public class ReportGenerationService : IReportGenerationService
         {
             col = 1;
             worksheet.Cell(row, col++).Value = area.LocationName;
+            worksheet.Cell(row, col++).Value = area.MunicipalityName ?? "";
+            worksheet.Cell(row, col++).Value = area.ProvinceName ?? "";
+            worksheet.Cell(row, col++).Value = area.ConnectivityStatus.ToString();
             worksheet.Cell(row, col++).Value = area.Population ?? 0;
             worksheet.Cell(row, col++).Value = area.FiberCoverageScore;
             worksheet.Cell(row, col++).Value = area.InternetAccessScore;
