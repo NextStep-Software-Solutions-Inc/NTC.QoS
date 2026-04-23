@@ -135,15 +135,18 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             // Step 2: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
-            // Pre-load all service providers with optimized query
-            var serviceProviderCache = await _serviceProviderRepository
+            // Group by (ProviderName, ServiceType) so multiple ServiceProvider rows with the same
+            // Provider.Name and the same Service.Type do not throw a duplicate-key exception.
+            // When duplicates exist the first matching ServiceProvider.Id is used; the Excel import
+            // identifies providers by name + wireless/wired type only, so any matching entry is
+            // equally valid for routing the record.
+            var serviceProviderCache = (await _serviceProviderRepository
                 .Query(sp => !sp.IsDeleted)
                 .Select(sp => new { sp.Id, sp.Provider.Name, sp.Service.Type })
-                .ToDictionaryAsync(
-                    sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type),
-                    sp => sp.Id,
-                    token
-                );
+                .OrderBy(sp => sp.Id)
+                .ToListAsync(token))
+                .GroupBy(sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type))
+                .ToDictionary(g => g.Key, g => g.First().Id);
             _logger.LogInformation("Pre-loaded {Count} service providers.", serviceProviderCache.Count);
 
             // Pre-load generations and technologies with optimized query
@@ -341,8 +344,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             token))
                             return;
 
-                        // Validate numeric required fields (Upload, Download, Latitude, Longitude)
-                        // Allow 0 speeds (may indicate measurement issues but still valid data to save)
                         // Skip records with negative speeds as they are invalid
                         if (record.Upload < 0)
                         {
@@ -358,12 +359,19 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             continue; // Skip this record but continue processing others
                         }
 
-                        // Skip records where both upload and download are 0 or less (no meaningful speed data)
-                        if (record.Upload <= 0 && record.Download <= 0)
+                        // Detect No Broadband Coverage (NBC):
+                        // Either explicit nbc=true in the Excel file, or implicitly when both upload and download are 0.
+                        var isNoBroadbandCoverage = (record.IsNoBroadbandCoverage == true) || (record.Upload == 0m && record.Download == 0m);
+                        if (isNoBroadbandCoverage)
                         {
-                            _logger.LogWarning("Skipping record at Row {Row}: Both Upload and Download speeds are 0 or less. Upload: {Upload}, Download: {Download}",
-                                currentRow, record.Upload, record.Download);
-                            continue; // Skip this record but continue processing others
+                            _logger.LogDebug("Record at Row {Row} is marked as No Broadband Coverage (NBC). Upload: {Upload}, Download: {Download}, NBC flag: {NBC}",
+                                currentRow, record.Upload, record.Download, record.IsNoBroadbandCoverage);
+                            // Enforce consistency: NBC records must have zero speed/quality measurements.
+                            record.Upload = 0m;
+                            record.Download = 0m;
+                            record.Ping = "0";
+                            record.Jitter = "0";
+                            record.SignalQuality = string.Empty;
                         }
 
                         // Validate latitude and longitude (must be valid coordinates)
@@ -398,20 +406,28 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             token))
                             return;
 
-                        // Lookup service provider - try Wireless first, then Wired if not found
-                        // This handles both wireless and wired providers since cache includes all types
+                        // Lookup service provider - try Wireless and Cellular first, then Wired/DSL if not found.
+                        // This allows providers whose Type is Cellular or DSL to be found even when
+                        // the import file doesn't specify a service type.
                         var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                         if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {
-                            // Try Wired type as fallback
-                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Cellular);
                             if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
                             {
-                                _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
-                                await ProcessingJobHelper.TerminateProcessAsync(
-                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                    $"Service Provider '{record.Provider}' not found in database", token);
-                                return;
+                                providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                                if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                                {
+                                    providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.DSL);
+                                    if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                                    {
+                                        _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
+                                        await ProcessingJobHelper.TerminateProcessAsync(
+                                            file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                            $"Service Provider '{record.Provider}' not found in database", token);
+                                        return;
+                                    }
+                                }
                             }
                         }
 
@@ -499,6 +515,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                     Ping = pingValue,
                                     Jitter = jitterValue,
                                     IsFileUploaded = true,
+                                    IsNoBroadbandCoverage = isNoBroadbandCoverage,
                                     CreatedAt = now,
                                     CreatedBy = userId,
                                     UpdatedAt = now,

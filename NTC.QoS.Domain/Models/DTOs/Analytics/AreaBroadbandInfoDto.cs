@@ -232,11 +232,9 @@ public class ServiceAvailabilityDto
     
     /// <summary>
     /// Whether fiber service is available in the area.
-    /// Note: This flag is derived from `ServiceTypeEnum.Wired` in handlers.
-    /// Currently the system models only fiber as the wired service type.
-    /// If other wired technologies (e.g., cable, DSL) are added later,
-    /// consider renaming this property to `HasWired` or filtering specifically for fiber.
-    /// Kept as `HasFiber` for now to match the existing data model and UI expectations.
+    /// Note: This flag is derived from <c>ServiceTypeEnum.Wired</c> in handlers.
+    /// DSL providers are represented by the explicit <c>ServiceTypeEnum.DSL</c> type
+    /// and are intentionally excluded from this flag.
     /// </summary>
     public bool HasFiber { get; set; }
 }

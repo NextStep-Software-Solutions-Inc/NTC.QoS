@@ -20,8 +20,12 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
     [
         "timestamp", "ping", "jitter", "upload", "download", "region", "province", 
         "municipality", "barangay", "rssi", "signal_quality", "operator", "lat", 
-        "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac"
+        "lon", "phone_model", "email", "nro", "network_type", "cell_id", "MCC", "MNC", "tac",
+        "success", "nbc"
     ];
+
+    // Accepted values for the nbc column
+    private static readonly List<string> NbcValues = ["NBC", "TRUE", "FALSE"];
 
     // Speedtest Template Column Positions (1-indexed) - dynamically computed
     private static class SpeedtestTemplateColumns
@@ -34,6 +38,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         public static int Latitude => Array.IndexOf(SpeedtestHeaders, "lat") + 1;
         public static int Longitude => Array.IndexOf(SpeedtestHeaders, "lon") + 1;
         public static int NetworkType => Array.IndexOf(SpeedtestHeaders, "network_type") + 1;
+        public static int Nbc => Array.IndexOf(SpeedtestHeaders, "nbc") + 1;
     }
 
     private readonly IRepository<Domain.Aggregates.ServiceProvider> _serviceProviderRepository;
@@ -254,6 +259,10 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         AddDropdownValidation(worksheet, $"{operatorCol}2:{operatorCol}1048576", providerRange, allowBlank: false);
         AddDropdownValidation(worksheet, $"{networkTypeCol}2:{networkTypeCol}1048576", technologyRange, allowBlank: true);
         AddDropdownValidation(worksheet, $"{signalQualityCol}2:{signalQualityCol}1048576", signalQuality, allowBlank: true);
+
+        // Add NBC column dropdown: blank = no broadband coverage false, "NBC" = true, "TRUE"/"FALSE" also accepted
+        var nbcCol = GetExcelColumnName(SpeedtestTemplateColumns.Nbc);
+        AddDropdownValidation(worksheet, $"{nbcCol}2:{nbcCol}1048576", NbcValues, allowBlank: true);
 
         // Mark required fields with red background color
         MarkRequiredFields(worksheet, new[]

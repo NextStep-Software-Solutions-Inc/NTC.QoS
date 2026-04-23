@@ -26,4 +26,5 @@ public record GetAllSpeedtestsViewportRequest(SpeedtestViewportQueryParams Query
     public decimal? MaxUploadSpeed => QueryParams.MaxUploadSpeed;
     public DateTime? StartDate => QueryParams.StartDate;
     public DateTime? EndDate => QueryParams.EndDate;
+    public bool? IsNoBroadbandCoverage => QueryParams.IsNoBroadbandCoverage;
 }

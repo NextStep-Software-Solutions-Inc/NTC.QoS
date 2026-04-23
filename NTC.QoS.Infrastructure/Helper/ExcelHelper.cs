@@ -73,6 +73,18 @@ public static class ExcelHelper
                             {
                                 convertedValue = ParseDateTime(cellValue);
                             }
+                            // Special handling for bool / bool? to accept blank, "NBC", "0"/"1", "true"/"false"
+                            else if (property.PropertyType == typeof(bool) || property.PropertyType == typeof(bool?))
+                            {
+                                if (string.IsNullOrWhiteSpace(cellValue))
+                                {
+                                    convertedValue = property.PropertyType == typeof(bool?) ? (object?)null : false;
+                                }
+                                else
+                                {
+                                    convertedValue = ParseBool(cellValue, property.Name);
+                                }
+                            }
                             // Handle nullable value types (e.g., decimal?, int?)
                             else if (property.PropertyType.IsGenericType && 
                                      property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
@@ -124,6 +136,20 @@ public static class ExcelHelper
     public static List<T> ParseExcelToClass<T>(FileStream stream) where T : new()
     {
         return ParseExcelToClass<T>((Stream)stream);
+    }
+
+    /// <summary>
+    /// Parses a boolean value from an Excel cell string.
+    /// Accepts "NBC", "TRUE", "YES", "1" as true; "FALSE", "NO", "0" as false.
+    /// </summary>
+    private static bool ParseBool(string value, string propertyName)
+    {
+        return value.Trim().ToUpperInvariant() switch
+        {
+            "NBC" or "TRUE" or "YES" or "1" => true,
+            "FALSE" or "NO" or "0" => false,
+            _ => throw new FormatException($"Cannot convert '{value}' to Boolean for property '{propertyName}'. Expected values: NBC, TRUE, FALSE, YES, NO, 1, 0, or blank.")
+        };
     }
 
     /// <summary>

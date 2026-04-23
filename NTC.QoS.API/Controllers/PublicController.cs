@@ -31,7 +31,6 @@ public class PublicController : ControllerBase
 
     [HttpGet("NAPs")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds", "longitude", "latitude", "distance" })]
-
     public async Task<ActionResult<PaginatedResponse<NAPDto>>> GetAllNAPs(
         [FromQuery] int pageSize = 10,
         [FromQuery] int pageNumber = 1,
@@ -142,7 +141,7 @@ public class PublicController : ControllerBase
     }
 
     [HttpGet("speedtests")]
-    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "longitude", "latitude", "distance", "isNoBroadbandCoverage" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -159,7 +158,8 @@ public class PublicController : ControllerBase
         string? signalQuality = null,
         double longitude = 0,
         double latitude = 0,
-        double distance = 15000000)
+        double distance = 15000000,
+        [FromQuery] bool? isNoBroadbandCoverage = null)
     {
         const string SpeedtestCachePrefix = "public_speedtest_";
         var cacheKey = $"{SpeedtestCachePrefix}{pageNumber}_{pageSize}_{search}_{string.Join(",", serviceProviderIds ?? [])}_" +
@@ -168,7 +168,8 @@ public class PublicController : ControllerBase
             $"{string.Join(",", provinceIds ?? [])}_" +
             $"{string.Join(",", regionIds ?? [])}_" +
             $"_{string.Join(",", cellIds ?? [])}_{string.Join(",", generationIds ?? [])}_{string.Join(",", providerIds ?? [])}" +
-            $"_{string.Join(",", serviceIds ?? [])}_{signalQuality}_{longitude}_{latitude}_{distance}";
+            $"_{string.Join(",", serviceIds ?? [])}_{signalQuality}_{longitude}_{latitude}_{distance}_{isNoBroadbandCoverage}";
+
         if (_memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
             return Ok(cachedSpeedtests);
 
@@ -185,6 +186,7 @@ public class PublicController : ControllerBase
             ProviderIds = providerIds,
             ServiceIds = serviceIds,
             SignalQuality = signalQuality,
+            IsNoBroadbandCoverage = isNoBroadbandCoverage,
             Coordinate = new(x: longitude, y: latitude),
             Distance = distance
         };
