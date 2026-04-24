@@ -969,6 +969,8 @@ public class ReportGenerationService : IReportGenerationService
                     col.Item().Text($"Underserved: {reportData.TotalUnderservedAreas:N0} (Pop: {reportData.UnderservedPopulation:N0})");
                     col.Item().Text($"Unserved: {reportData.TotalUnservedAreas:N0} (Pop: {reportData.UnservedPopulation:N0})");
                     col.Item().Text($"Average Total Score: {reportData.ScoreSummary.AverageTotalScore:F2}/15");
+                    if (reportData.RegionSummary != null)
+                        col.Item().Text($"Overall Status: {reportData.RegionSummary.OverallConnectivityStatus}");
                 });
 
                 row.RelativeItem().Column(col =>
@@ -1251,6 +1253,13 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(row, 1).Value = "Average Total Score:";
         worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageTotalScore;
         worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+
+        if (reportData.RegionSummary != null)
+        {
+            row++;
+            worksheet.Cell(row, 1).Value = "Overall Connectivity Status:";
+            worksheet.Cell(row, 2).Value = reportData.RegionSummary.OverallConnectivityStatus;
+        }
 
         // Score Distribution
         row += 2;
