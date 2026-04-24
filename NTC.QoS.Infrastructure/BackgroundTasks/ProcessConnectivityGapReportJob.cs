@@ -106,8 +106,8 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         try
         {
             _logger.LogInformation(
-                "Starting connectivity gap report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, User: {UserId}",
-                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.UserId);
+                "Starting connectivity gap report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, FilterByStatus: {FilterByStatus}, User: {UserId}",
+                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.FilterByStatus, jobRequest.UserId);
 
             // Step 1: Update status to Processing
             await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
@@ -133,8 +133,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             // Filter by location type: only barangays
             assessmentQuery = assessmentQuery.Where(a => a.LocationType == LocationTypeEnum.Barangay);
 
-            // Filter by overall connectivity status (based on TotalScore)
-            // Only include Underserved and Unserved areas
+            // Gap report always excludes Served areas; apply additional status filter if requested
             assessmentQuery = assessmentQuery.Where(a => 
                 a.ConnectivityStatus == ConnectivityStatusEnum.Unserved || 
                 a.ConnectivityStatus == ConnectivityStatusEnum.Underserved);
@@ -240,8 +239,8 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 totalAreas: assessments.Count,
                 cancellationToken: cancellationToken);
 
-            // Build priority areas with location names
-            var priorityAreas = new List<PriorityAreaDto>();
+            // Build priority areas with location names (all gap areas, before optional status filter)
+            var allPriorityAreas = new List<PriorityAreaDto>();
             var locationIds = assessments.Select(a => a.LocationId).ToList();
 
             // Batch fetch location names using optimized queries
@@ -252,7 +251,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 var assessment = assessments[i];
                 var locationName = locationNames.GetValueOrDefault(assessment.LocationId, $"Location-{assessment.LocationId}");
 
-                priorityAreas.Add(new PriorityAreaDto
+                allPriorityAreas.Add(new PriorityAreaDto
                 {
                     LocationId = assessment.LocationId,
                     LocationName = locationName,
@@ -276,20 +275,28 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 }
             }
 
+            // Summary always reflects ALL gap areas (unserved + underserved) regardless of FilterByStatus
+            var summary = new ConnectivityGapSummaryDto
+            {
+                TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                UnservedPopulation = assessments
+                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
+                    .Sum(a => a.Population ?? 0),
+                UnderservedPopulation = assessments
+                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
+                    .Sum(a => a.Population ?? 0)
+            };
+
+            // Apply optional status filter to the priority areas list
+            var priorityAreas = jobRequest.FilterByStatus.HasValue
+                ? allPriorityAreas.Where(a => a.ConnectivityStatus == jobRequest.FilterByStatus.Value).ToList()
+                : allPriorityAreas;
+
             // Create report DTO using overall ConnectivityStatus
             var reportData = new ConnectivityGapReportDto
             {
-                Summary = new ConnectivityGapSummaryDto
-                {
-                    TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
-                    TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
-                    UnservedPopulation = assessments
-                        .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
-                        .Sum(a => a.Population ?? 0),
-                    UnderservedPopulation = assessments
-                        .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
-                        .Sum(a => a.Population ?? 0)
-                },
+                Summary = summary,
                 PriorityAreas = priorityAreas,
                 TotalPriorityAreas = priorityAreas.Count,
                 PageNumber = 1,
@@ -299,11 +306,11 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             };
 
             _logger.LogInformation(
-                "Job {JobId}: Report data generated. Unserved: {Unserved}, Underserved: {Underserved}, Priority Areas: {PriorityCount}",
-                jobId, reportData.Summary.TotalUnservedAreas, reportData.Summary.TotalUnderservedAreas, priorityAreas.Count);
+                "Job {JobId}: Report data generated. Unserved: {Unserved}, Underserved: {Underserved}, Priority Areas in report: {PriorityCount}",
+                jobId, summary.TotalUnservedAreas, summary.TotalUnderservedAreas, priorityAreas.Count);
 
             await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
-                $"Data generated: {reportData.Summary.TotalUnservedAreas} unserved, {reportData.Summary.TotalUnderservedAreas} underserved areas",
+                $"Data generated: {summary.TotalUnservedAreas} unserved, {summary.TotalUnderservedAreas} underserved areas",
                 currentStep: "Generating Report",
                 progressPercentage: 40,
                 areasProcessed: assessments.Count,

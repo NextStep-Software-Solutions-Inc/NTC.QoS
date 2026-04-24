@@ -98,8 +98,8 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         try
         {
             _logger.LogInformation(
-                "Starting connectivity report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, User: {UserId}",
-                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.UserId);
+                "Starting connectivity report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, FilterByStatus: {FilterByStatus}, User: {UserId}",
+                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.FilterByStatus, jobRequest.UserId);
 
             // Step 1: Update status to Processing
             await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Processing,
@@ -125,8 +125,11 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             // Filter by location type: only barangays
             assessmentQuery = assessmentQuery.Where(a => a.LocationType == LocationTypeEnum.Barangay);
 
-            // Filter for SERVED areas only
-            assessmentQuery = assessmentQuery.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served);
+            // Apply optional connectivity status filter; when null include all statuses
+            if (jobRequest.FilterByStatus.HasValue)
+            {
+                assessmentQuery = assessmentQuery.Where(a => a.ConnectivityStatus == jobRequest.FilterByStatus.Value);
+            }
 
             // Apply geographic filters
             if (jobRequest.RegionId.HasValue)
@@ -209,10 +212,10 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                     .ThenByDescending(a => a.Population ?? 0),
                 cancellationToken);
 
-            _logger.LogInformation("Job {JobId}: Found {Count} served areas", jobId, assessments.Count);
+            _logger.LogInformation("Job {JobId}: Found {Count} areas", jobId, assessments.Count);
 
             await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Processing,
-                $"Processing {assessments.Count} served areas",
+                $"Processing {assessments.Count} areas",
                 currentStep: "Processing Data",
                 progressPercentage: 30,
                 areasProcessed: 0,
@@ -288,8 +291,12 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             // Create report DTO with pagination metadata
             var reportData = new ConnectivityReportDto
             {
-                TotalServedAreas = assessments.Count,
-                ServedPopulation = assessments.Sum(a => a.Population ?? 0),
+                TotalServedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served),
+                TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                ServedPopulation = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).Sum(a => a.Population ?? 0),
+                UnderservedPopulation = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).Sum(a => a.Population ?? 0),
+                UnservedPopulation = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).Sum(a => a.Population ?? 0),
                 Areas = areas,
                 ScoreSummary = scoreSummary,
                 TotalAreas = assessments.Count,
@@ -300,11 +307,11 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             };
 
             _logger.LogInformation(
-                "Job {JobId}: Report data generated. Served Areas: {ServedCount}, Average Total Score: {AvgScore:F2}",
-                jobId, reportData.TotalServedAreas, scoreSummary.AverageTotalScore);
+                "Job {JobId}: Report data generated. Total Areas: {TotalCount}, Served: {ServedCount}, Underserved: {UnderservedCount}, Unserved: {UnservedCount}, Average Total Score: {AvgScore:F2}",
+                jobId, assessments.Count, reportData.TotalServedAreas, reportData.TotalUnderservedAreas, reportData.TotalUnservedAreas, scoreSummary.AverageTotalScore);
 
             await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Processing,
-                $"Data generated: {reportData.TotalServedAreas} served areas with average score {scoreSummary.AverageTotalScore:F2}",
+                $"Data generated: {assessments.Count} areas with average score {scoreSummary.AverageTotalScore:F2}",
                 currentStep: "Generating Report",
                 progressPercentage: 40,
                 areasProcessed: assessments.Count,

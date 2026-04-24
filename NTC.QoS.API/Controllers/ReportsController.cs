@@ -920,6 +920,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by region</param>
     /// <param name="provinceId">Optional filter by province</param>
     /// <param name="municipalityId">Optional filter by municipality</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status within gap areas (Unserved=1, Underserved=2). When omitted, all gap areas are included. Summary always reflects all gap areas.</param>
     /// <param name="format">Report format (Excel or PDF)</param>
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
@@ -929,6 +930,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] string? reportTitle = null)
     {
@@ -947,6 +949,7 @@ public class ReportsController : ControllerBase
                 RegionId = regionId,
                 ProvinceId = provinceId,
                 MunicipalityId = municipalityId,
+                FilterByStatus = filterByStatus,
                 Format = format,
                 ReportTitle = reportTitle
             };
@@ -1102,11 +1105,12 @@ public class ReportsController : ControllerBase
     // ============================================================================
 
     /// <summary>
-    /// Generate a connectivity report (served areas) asynchronously as a background job
+    /// Generate a connectivity report asynchronously as a background job
     /// </summary>
     /// <param name="regionId">Optional filter by region</param>
     /// <param name="provinceId">Optional filter by province</param>
     /// <param name="municipalityId">Optional filter by municipality</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1). When omitted, all statuses are included.</param>
     /// <param name="format">Report format (Excel or PDF)</param>
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
@@ -1116,6 +1120,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] string? reportTitle = null)
     {
@@ -1134,6 +1139,7 @@ public class ReportsController : ControllerBase
                 RegionId = regionId,
                 ProvinceId = provinceId,
                 MunicipalityId = municipalityId,
+                FilterByStatus = filterByStatus,
                 Format = format,
                 ReportTitle = reportTitle
             };
