@@ -45,9 +45,9 @@ public class GetConnectivityGapReportQueryHandlerTests
     {
         var assessments = new List<ConnectivityAssessment>
         {
-            CreateAssessment(_barangayId1, ConnectivityStatusEnum.Served,      totalScore: 12, population: 100),
-            CreateAssessment(_barangayId2, ConnectivityStatusEnum.Underserved,  totalScore: 8,  population: 200),
-            CreateAssessment(_barangayId3, ConnectivityStatusEnum.Unserved,     totalScore: 3,  population: 300),
+            CreateAssessment(_barangayId1, ConnectivityStatusEnum.Served,     totalScore: 12, population: 100),
+            CreateAssessment(_barangayId2, ConnectivityStatusEnum.Underserved, totalScore: 8,  population: 200),
+            CreateAssessment(_barangayId3, ConnectivityStatusEnum.Unserved,    totalScore: 3,  population: 300),
         };
 
         var coverages = new List<BarangayCoverage>
