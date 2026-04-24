@@ -1004,7 +1004,9 @@ public class ReportGenerationService : IReportGenerationService
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.RelativeColumn(3);
+                    columns.RelativeColumn(2.5f);
+                    columns.RelativeColumn(2);
+                    columns.RelativeColumn(2);
                     columns.RelativeColumn(1.5f);
                     columns.RelativeColumn(1);
                     columns.RelativeColumn(1);
@@ -1019,6 +1021,8 @@ public class ReportGenerationService : IReportGenerationService
                 table.Header(header =>
                 {
                     header.Cell().Element(CellStyle).Text(text => text.Span("Barangay").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Municipality").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Province").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Status").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Pop").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Fiber").Bold());
@@ -1039,6 +1043,8 @@ public class ReportGenerationService : IReportGenerationService
                 foreach (var area in reportData.Areas)
                 {
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.LocationName).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.MunicipalityName ?? "").FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.ProvinceName ?? "").FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.ConnectivityStatus.ToString()).FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.Population?.ToString("N0") ?? "N/A").FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.FiberCoverageScore.ToString()).FontSize(8));
