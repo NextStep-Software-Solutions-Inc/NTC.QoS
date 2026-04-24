@@ -189,7 +189,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             var municipalitiesWithoutAssessments = new List<string>();
             var barangaysWithoutAssessments = new List<string>();
 
-            // Pre-filter summary counters — always reflect the full dataset regardless of FilterByStatus
+            // Prefilter summary counters — always reflect the full dataset regardless of FilterByStatus
             var summaryTotalMunicipalities = 0;
             var summaryTotalBarangays = 0;
             var summaryServedBarangays = 0;
@@ -269,7 +269,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 };
             }
 
-            // Generate summary from pre-filter totals so it always reflects the full geographic dataset
+            // Generate summary from prefilter totals so it always reflects the full geographic dataset
             var summary = GenerateSummary(
                 allProvidersFound.ToList(),
                 allMunicipalityBroadbandData,   // used only for provider-coverage detail

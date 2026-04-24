@@ -229,7 +229,7 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
             var totalConnectivityScore = 0.0;
             var totalBarangaysForScoring = 0;
 
-            // Pre-filter summary counters — always reflect the full dataset regardless of FilterByStatus
+            // Prefilter summary counters — always reflect the full dataset regardless of FilterByStatus
             var summaryTotalMunicipalities = 0;
             var summaryTotalBarangays = 0;
             var summaryServedBarangays = 0;
@@ -277,7 +277,7 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                     totalBarangaysForScoring++;
                 }
 
-                // Accumulate pre-filter summary counts
+                // Accumulate prefilter summary counts
                 summaryTotalMunicipalities++;
                 summaryTotalBarangays += municipalityDto.Barangays.Count;
                 summaryServedBarangays += municipalityDto.ServedBarangays;
@@ -299,7 +299,7 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                 }
             }
 
-            // Generate summary from pre-filter totals so it always reflects the full geographic dataset
+            // Generate summary from prefilter totals so it always reflects the full geographic dataset
             var summary = GenerateSummary(
                 allMunicipalityBroadbandData, 
                 allProvidersFound.ToList(), 
