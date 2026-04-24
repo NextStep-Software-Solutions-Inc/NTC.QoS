@@ -56,6 +56,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<Province> _provinceRepository;
     private readonly IRepository<Region> _regionRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly IConfiguration _configuration;
 
     private const string CACHE_KEY_PREFIX = "connectivity_report_job_";
@@ -72,6 +73,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         IMunicipalityRepository municipalityRepository,
         IRepository<Province> provinceRepository,
         IRepository<Region> regionRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         IConfiguration configuration)
     {
         _logger = logger;
@@ -83,6 +85,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _configuration = configuration;
     }
 
@@ -132,6 +135,10 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             }
 
             // Apply geographic filters
+            // Only include barangays with BarangayCoverage records
+            var coveredBarangayIds = _barangayCoverageRepository.QueryAsNoTracking()
+                .Select(bc => bc.BarangayId);
+
             if (jobRequest.RegionId.HasValue)
             {
                 var provinceIds = await _provinceRepository.QueryAsNoTracking()
@@ -149,7 +156,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                     if (municipalityIds.Any())
                     {
                         var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                            .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                            .Where(b => municipalityIds.Contains(b.MunicipalityId) && coveredBarangayIds.Contains(b.Id))
                             .Select(b => b.Id)
                             .ToListAsync(cancellationToken);
 
@@ -176,7 +183,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 if (municipalityIds.Any())
                 {
                     var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                        .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                        .Where(b => municipalityIds.Contains(b.MunicipalityId) && coveredBarangayIds.Contains(b.Id))
                         .Select(b => b.Id)
                         .ToListAsync(cancellationToken);
 
@@ -191,7 +198,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             if (jobRequest.MunicipalityId.HasValue)
             {
                 var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                    .Where(b => b.MunicipalityId == jobRequest.MunicipalityId.Value)
+                    .Where(b => b.MunicipalityId == jobRequest.MunicipalityId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id)
                     .ToListAsync(cancellationToken);
 

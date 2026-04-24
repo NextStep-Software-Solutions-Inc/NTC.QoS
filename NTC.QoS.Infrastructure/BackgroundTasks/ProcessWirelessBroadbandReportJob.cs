@@ -324,7 +324,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             targetBoundaries = mun.Boundaries;
             
             barangays = await _context.Barangays.AsNoTracking()
-                .Where(b => b.MunicipalityId == municipalityId)
+                .Where(b => b.MunicipalityId == municipalityId &&
+                            _context.BarangayCoverages.Select(bc => bc.BarangayId).Contains(b.Id))
                 .OrderBy(b => b.Name)
                 .Select(b => new BarangayProjection
                 {
@@ -346,7 +347,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             targetBoundaries = prov.Boundaries;
             
             barangays = await _context.Barangays.AsNoTracking()
-                .Where(b => b.Municipality.ProvinceId == provinceId)
+                .Where(b => b.Municipality.ProvinceId == provinceId &&
+                            _context.BarangayCoverages.Select(bc => bc.BarangayId).Contains(b.Id))
                 .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
                 .Select(b => new BarangayProjection
                 {
@@ -368,7 +370,8 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             targetBoundaries = reg.Boundaries;
             
             barangays = await _context.Barangays.AsNoTracking()
-                .Where(b => b.Municipality.Province.RegionId == regionId)
+                .Where(b => b.Municipality.Province.RegionId == regionId &&
+                            _context.BarangayCoverages.Select(bc => bc.BarangayId).Contains(b.Id))
                 .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
                 .Select(b => new BarangayProjection
                 {
