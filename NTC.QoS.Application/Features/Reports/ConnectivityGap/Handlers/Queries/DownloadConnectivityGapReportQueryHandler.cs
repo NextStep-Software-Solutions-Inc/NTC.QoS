@@ -37,8 +37,8 @@ public class DownloadConnectivityGapReportQueryHandler : IRequestHandler<Downloa
     {
         try
         {
-            _logger.LogInformation("Downloading connectivity gap report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, Format={Format}",
-                request.RegionId, request.ProvinceId, request.MunicipalityId, request.Format);
+            _logger.LogInformation("Downloading connectivity gap report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, FilterByStatus={FilterByStatus}, Format={Format}",
+                request.RegionId, request.ProvinceId, request.MunicipalityId, request.FilterByStatus, request.Format);
 
             // First, get the report data using the JSON handler
             // For downloads, we want ALL data (not paginated), so use page size 100 and fetch all pages if needed
@@ -47,6 +47,7 @@ public class DownloadConnectivityGapReportQueryHandler : IRequestHandler<Downloa
                 RegionId = request.RegionId,
                 ProvinceId = request.ProvinceId,
                 MunicipalityId = request.MunicipalityId,
+                FilterByStatus = request.FilterByStatus,
                 PageNumber = 1,
                 PageSize = 100  // Max page size
             };
@@ -77,6 +78,7 @@ public class DownloadConnectivityGapReportQueryHandler : IRequestHandler<Downloa
                         RegionId = request.RegionId,
                         ProvinceId = request.ProvinceId,
                         MunicipalityId = request.MunicipalityId,
+                        FilterByStatus = request.FilterByStatus,
                         PageNumber = page,
                         PageSize = 100
                     };

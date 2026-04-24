@@ -229,6 +229,13 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
             var totalConnectivityScore = 0.0;
             var totalBarangaysForScoring = 0;
 
+            // Pre-filter summary counters — always reflect the full dataset regardless of FilterByStatus
+            var summaryTotalMunicipalities = 0;
+            var summaryTotalBarangays = 0;
+            var summaryServedBarangays = 0;
+            var summaryUnderservedBarangays = 0;
+            var summaryUnservedBarangays = 0;
+
             _logger.LogInformation("Processing all {Count} municipalities for summary calculation", allMunicipalities.Count);
 
             foreach (var municipality in allMunicipalities)
@@ -247,7 +254,7 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                     continue; // Municipality has no barangays with coverage
                 }
                 
-                // Collect statistics from all barangays
+                // Collect statistics from all barangays BEFORE filtering
                 foreach (var barangay in municipalityDto.Barangays)
                 {
                     // Collect providers
@@ -269,6 +276,13 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                     totalConnectivityScore += barangay.ConnectivityScore;
                     totalBarangaysForScoring++;
                 }
+
+                // Accumulate pre-filter summary counts
+                summaryTotalMunicipalities++;
+                summaryTotalBarangays += municipalityDto.Barangays.Count;
+                summaryServedBarangays += municipalityDto.ServedBarangays;
+                summaryUnderservedBarangays += municipalityDto.UnderservedBarangays;
+                summaryUnservedBarangays += municipalityDto.UnservedBarangays;
                 
                 // Apply filtering if requested
                 if (request.FilterByStatus.HasValue)
@@ -285,12 +299,17 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
                 }
             }
 
-            // Generate summary from ALL processed data
+            // Generate summary from pre-filter totals so it always reflects the full geographic dataset
             var summary = GenerateSummary(
                 allMunicipalityBroadbandData, 
                 allProvidersFound.ToList(), 
                 technologyDistribution,
-                totalBarangaysForScoring > 0 ? totalConnectivityScore / totalBarangaysForScoring : 0);
+                totalBarangaysForScoring > 0 ? totalConnectivityScore / totalBarangaysForScoring : 0,
+                summaryTotalMunicipalities,
+                summaryTotalBarangays,
+                summaryServedBarangays,
+                summaryUnderservedBarangays,
+                summaryUnservedBarangays);
 
             // IMPORTANT: Pagination must be based on municipalities that actually have report data.
             // totalMunicipalities includes municipalities that match geographic filters but have no valid assessments
@@ -833,21 +852,26 @@ public class GetWirelessBroadbandExecutiveSummaryQueryHandler
         List<MunicipalityWirelessBroadbandSummaryDto> municipalities,
         List<string> allProviders,
         Dictionary<string, int> technologyDistribution,
-        double averageConnectivityScore)
+        double averageConnectivityScore,
+        int totalMunicipalities,
+        int totalBarangays,
+        int servedBarangays,
+        int underservedBarangays,
+        int unservedBarangays)
     {
         var summary = new WirelessBroadbandOverallSummaryDto
         {
-            TotalMunicipalities = municipalities.Count,
-            TotalBarangays = municipalities.Sum(m => m.TotalBarangays),
-            ServedBarangays = municipalities.Sum(m => m.ServedBarangays),
-            UnderservedBarangays = municipalities.Sum(m => m.UnderservedBarangays),
-            UnservedBarangays = municipalities.Sum(m => m.UnservedBarangays),
+            TotalMunicipalities = totalMunicipalities,
+            TotalBarangays = totalBarangays,
+            ServedBarangays = servedBarangays,
+            UnderservedBarangays = underservedBarangays,
+            UnservedBarangays = unservedBarangays,
             AllProviders = allProviders.OrderBy(p => p).ToList(),
             TechnologyDistribution = technologyDistribution,
             AverageConnectivityScore = Math.Round(averageConnectivityScore, 2)
         };
 
-        // Calculate provider coverage
+        // Calculate provider coverage across filtered municipalities
         var providerCoverage = new Dictionary<string, int>();
         
         foreach (var municipality in municipalities)

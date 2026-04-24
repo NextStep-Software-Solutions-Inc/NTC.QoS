@@ -365,6 +365,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status within gap areas (Unserved=1, Underserved=2). When omitted, all gap areas are included. Summary always reflects all gap areas.</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
     /// <returns>Connectivity gap analysis report</returns>
@@ -374,6 +375,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
@@ -382,6 +384,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
             PageNumber = pageNumber,
             PageSize = pageSize
         };
@@ -398,6 +401,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status within gap areas (Unserved=1, Underserved=2). When omitted, all gap areas are included.</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity-gap/download")]
@@ -407,6 +411,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
         var query = new Application.Features.Reports.ConnectivityGap.Requests.DownloadConnectivityGapReportQuery
@@ -414,6 +419,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
             Format = format,
             ReportTitle = reportTitle
         };

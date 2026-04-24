@@ -189,6 +189,13 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
             var municipalitiesWithoutAssessments = new List<string>();
             var barangaysWithoutAssessments = new List<string>();
 
+            // Pre-filter summary counters — always reflect the full dataset regardless of FilterByStatus
+            var summaryTotalMunicipalities = 0;
+            var summaryTotalBarangays = 0;
+            var summaryServedBarangays = 0;
+            var summaryUnderservedBarangays = 0;
+            var summaryUnservedBarangays = 0;
+
             _logger.LogInformation("Processing all {Count} municipalities for summary calculation", allMunicipalities.Count);
 
             foreach (var municipality in allMunicipalities)
@@ -202,7 +209,7 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                     continue; // Municipality has no assessment
                 }
                 
-                // Collect all providers found
+                // Collect all providers found and accumulate summary counts BEFORE filtering
                 foreach (var barangay in municipalityDto.Barangays)
                 {
                     foreach (var provider in barangay.ProviderAvailability.AvailableProviders)
@@ -210,6 +217,12 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                         allProvidersFound.Add(provider);
                     }
                 }
+
+                summaryTotalMunicipalities++;
+                summaryTotalBarangays += municipalityDto.Barangays.Count;
+                summaryServedBarangays += municipalityDto.Barangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Served);
+                summaryUnderservedBarangays += municipalityDto.Barangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Underserved);
+                summaryUnservedBarangays += municipalityDto.Barangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Unserved);
                 
                 // Apply filtering if requested
                 if (request.FilterByStatus.HasValue)
@@ -256,8 +269,15 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
                 };
             }
 
-            // Generate summary from ALL processed data (not just paginated subset)
-            var summary = GenerateSummary(allMunicipalityBroadbandData, allProvidersFound.ToList());
+            // Generate summary from pre-filter totals so it always reflects the full geographic dataset
+            var summary = GenerateSummary(
+                allProvidersFound.ToList(),
+                allMunicipalityBroadbandData,   // used only for provider-coverage detail
+                summaryTotalMunicipalities,
+                summaryTotalBarangays,
+                summaryServedBarangays,
+                summaryUnderservedBarangays,
+                summaryUnservedBarangays);
 
             // IMPORTANT: Pagination must be based on municipalities that actually have report data.
             // totalMunicipalities includes municipalities that match geographic filters but have no valid assessments
@@ -712,11 +732,18 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
         return remarks;
     }
 
-    private static WiredBroadbandSummaryDto GenerateSummary(IEnumerable<MunicipalityBroadbandDto> municipalities, List<string> allProviders)
+    private static WiredBroadbandSummaryDto GenerateSummary(
+        List<string> allProviders,
+        IEnumerable<MunicipalityBroadbandDto> municipalitiesForProviderCoverage,
+        int totalMunicipalities,
+        int totalBarangays,
+        int servedBarangays,
+        int underservedBarangays,
+        int unservedBarangays)
     {
-        var allBarangays = municipalities.SelectMany(m => m.Barangays).ToList();
+        var allBarangays = municipalitiesForProviderCoverage.SelectMany(m => m.Barangays).ToList();
 
-        // Calculate provider coverage
+        // Calculate provider coverage across ALL filtered barangays (for provider stats)
         var providerCoverage = new Dictionary<string, int>();
         foreach (var provider in allProviders)
         {
@@ -727,11 +754,11 @@ public class GetWiredBroadbandReportQueryHandler : IRequestHandler<GetWiredBroad
 
         return new WiredBroadbandSummaryDto
         {
-            TotalMunicipalities = municipalities.Count(),
-            TotalBarangays = allBarangays.Count,
-            ServedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Served),
-            UnderservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Underserved),
-            UnservedBarangays = allBarangays.Count(b => b.ServiceStatus == ServiceStatusEnum.Unserved),
+            TotalMunicipalities = totalMunicipalities,
+            TotalBarangays = totalBarangays,
+            ServedBarangays = servedBarangays,
+            UnderservedBarangays = underservedBarangays,
+            UnservedBarangays = unservedBarangays,
             AllProviders = allProviders,
             ProviderCoverage = providerCoverage,
             GeneratedAt = DateTime.UtcNow

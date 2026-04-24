@@ -44,8 +44,8 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
     {
         try
         {
-            _logger.LogInformation("Generating connectivity gap report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, PageNumber={PageNumber}, PageSize={PageSize}",
-                request.RegionId, request.ProvinceId, request.MunicipalityId, request.PageNumber, request.PageSize);
+            _logger.LogInformation("Generating connectivity gap report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, FilterByStatus={FilterByStatus}, PageNumber={PageNumber}, PageSize={PageSize}",
+                request.RegionId, request.ProvinceId, request.MunicipalityId, request.FilterByStatus, request.PageNumber, request.PageSize);
 
             // Validate pagination parameters
             if (request.PageNumber < 1)
@@ -82,7 +82,7 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
                 .Where(a => a.ConnectivityStatus != ConnectivityStatusEnum.Served)
                 .ToList();
 
-            // Calculate summary statistics
+            // Calculate summary statistics from ALL gap areas (unserved + underserved) regardless of filter
             var summary = new ConnectivityGapSummaryDto
             {
                 TotalUnservedAreas = gaps.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
@@ -93,8 +93,13 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
                                           .Sum(a => a.Population ?? 0)
             };
 
+            // Apply optional status filter for the paginated list; default includes all gap areas
+            var filteredGaps = request.FilterByStatus.HasValue
+                ? gaps.Where(a => a.ConnectivityStatus == request.FilterByStatus.Value).ToList()
+                : gaps;
+
             // Sort priority gaps by population descending
-            var allPriorityGaps = gaps.OrderByDescending(a => a.Population ?? 0).ToList();
+            var allPriorityGaps = filteredGaps.OrderByDescending(a => a.Population ?? 0).ToList();
             var totalPriorityAreas = allPriorityGaps.Count;
 
             // Calculate pagination
