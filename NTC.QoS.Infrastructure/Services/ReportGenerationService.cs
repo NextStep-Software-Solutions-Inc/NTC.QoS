@@ -333,7 +333,8 @@ public class ReportGenerationService : IReportGenerationService
                 {
                     table.ColumnsDefinition(columns =>
                     {
-                        columns.RelativeColumn(3);
+                        columns.RelativeColumn(2.5f);
+                        columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(1);
@@ -342,11 +343,12 @@ public class ReportGenerationService : IReportGenerationService
 
                     table.Header(header =>
                     {
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Area").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Barangay").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Municipality").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Province").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Status").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Population").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Score").Bold());
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Last Assessed").Bold());
                     });
 
                     foreach (var area in reportData.PriorityAreas)
@@ -359,10 +361,11 @@ public class ReportGenerationService : IReportGenerationService
                         };
 
                         table.Cell().Border(1).Padding(5).Text(text => text.Span(area.LocationName).FontSize(8));
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span(area.MunicipalityName ?? "").FontSize(8));
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span(area.ProvinceName ?? "").FontSize(8));
                         table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(text => text.Span(area.ConnectivityStatus.ToString()).FontSize(8));
                         table.Cell().Border(1).Padding(5).AlignRight().Text(text => text.Span((area.Population ?? 0).ToString("N0")).FontSize(8));
                         table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(area.TotalScore.ToString()).FontSize(8));
-                        table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(area.LastAssessed.ToString("MMM dd, yyyy")).FontSize(8));
                     }
                 });
             }
@@ -723,7 +726,7 @@ public class ReportGenerationService : IReportGenerationService
         var worksheet = workbook.Worksheets.Add("Priority Areas");
         
         // Headers
-        var headers = new[] { "Area Name", "Connectivity Status", "Population", "Total Score", "Last Assessed" };
+        var headers = new[] { "Barangay", "Municipality", "Province", "Connectivity Status", "Population", "Total Score", "Last Assessed" };
         for (int i = 0; i < headers.Length; i++)
         {
             worksheet.Cell(1, i + 1).Value = headers[i];
@@ -736,13 +739,15 @@ public class ReportGenerationService : IReportGenerationService
         foreach (var area in reportData.PriorityAreas)
         {
             worksheet.Cell(row, 1).Value = area.LocationName;
-            worksheet.Cell(row, 2).Value = area.ConnectivityStatus.ToString();
-            worksheet.Cell(row, 3).Value = area.Population ?? 0;
-            worksheet.Cell(row, 4).Value = area.TotalScore;
-            worksheet.Cell(row, 5).Value = area.LastAssessed.ToString("MMM dd, yyyy");
+            worksheet.Cell(row, 2).Value = area.MunicipalityName ?? "";
+            worksheet.Cell(row, 3).Value = area.ProvinceName ?? "";
+            worksheet.Cell(row, 4).Value = area.ConnectivityStatus.ToString();
+            worksheet.Cell(row, 5).Value = area.Population ?? 0;
+            worksheet.Cell(row, 6).Value = area.TotalScore;
+            worksheet.Cell(row, 7).Value = area.LastAssessed.ToString("MMM dd, yyyy");
             
             // Color code by status
-            var statusCell = worksheet.Cell(row, 2);
+            var statusCell = worksheet.Cell(row, 4);
             switch (area.ConnectivityStatus)
             {
                 case NTC.QoS.Domain.Enums.ConnectivityStatusEnum.Unserved:
@@ -1013,7 +1018,7 @@ public class ReportGenerationService : IReportGenerationService
                 // Header
                 table.Header(header =>
                 {
-                    header.Cell().Element(CellStyle).Text(text => text.Span("Location").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Barangay").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Status").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Pop").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Fiber").Bold());
@@ -1180,7 +1185,7 @@ public class ReportGenerationService : IReportGenerationService
 
         // Headers
         int col = 1;
-        worksheet.Cell(1, col++).Value = "Location";
+        worksheet.Cell(1, col++).Value = "Barangay";
         worksheet.Cell(1, col++).Value = "Municipality";
         worksheet.Cell(1, col++).Value = "Province";
         worksheet.Cell(1, col++).Value = "Connectivity Status";

@@ -233,16 +233,20 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             var areas = new List<ConnectivityAreaDetailDto>();
             var locationIds = assessments.Select(a => a.LocationId).ToList();
             var locationNames = await GetLocationNamesBatchAsync(locationIds, cancellationToken);
+            var barangayDetails = await GetBarangayDetailsBatchAsync(locationIds, cancellationToken);
 
             for (int i = 0; i < assessments.Count; i++)
             {
                 var assessment = assessments[i];
                 var locationName = locationNames.GetValueOrDefault(assessment.LocationId, $"Location-{assessment.LocationId}");
+                var (municipalityName, provinceName) = barangayDetails.GetValueOrDefault(assessment.LocationId);
 
                 areas.Add(new ConnectivityAreaDetailDto
                 {
                     LocationId = assessment.LocationId,
                     LocationName = locationName,
+                    MunicipalityName = municipalityName,
+                    ProvinceName = provinceName,
                     ConnectivityStatus = assessment.ConnectivityStatus,
                     Population = assessment.Population,
                     FiberCoverageScore = assessment.FiberCoverageScore,
@@ -480,22 +484,40 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         var barangayData = await _barangayRepository.ToListAsync(
             _barangayRepository.QueryAsNoTracking()
                 .Where(b => locationIds.Contains(b.Id))
+                .Select(b => new { b.Id, b.Name }),
+            cancellationToken);
+
+        foreach (var barangay in barangayData)
+        {
+            result[barangay.Id] = barangay.Name;
+        }
+
+        return result;
+    }
+
+    private async Task<Dictionary<Guid, (string MunicipalityName, string ProvinceName)>> GetBarangayDetailsBatchAsync(
+        List<Guid> locationIds,
+        CancellationToken cancellationToken)
+    {
+        if (!locationIds.Any())
+        {
+            return new Dictionary<Guid, (string, string)>();
+        }
+
+        var barangayData = await _barangayRepository.ToListAsync(
+            _barangayRepository.QueryAsNoTracking()
+                .Where(b => locationIds.Contains(b.Id))
                 .Select(b => new
                 {
                     b.Id,
-                    b.Name,
                     MunicipalityName = b.Municipality.Name,
                     ProvinceName = b.Municipality.Province.Name
                 }),
             cancellationToken);
 
-        foreach (var barangay in barangayData)
-        {
-            var locationName = $"{barangay.Name}, {barangay.MunicipalityName}, {barangay.ProvinceName}";
-            result[barangay.Id] = locationName;
-        }
-
-        return result;
+        return barangayData.ToDictionary(
+            b => b.Id,
+            b => (b.MunicipalityName, b.ProvinceName));
     }
 
     private async Task<string> GenerateReportTitleAsync(
