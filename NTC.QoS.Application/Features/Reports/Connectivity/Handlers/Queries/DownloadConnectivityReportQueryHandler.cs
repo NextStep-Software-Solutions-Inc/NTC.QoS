@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.Connectivity.Requests;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
@@ -42,19 +43,19 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
             _logger.LogInformation("Downloading unified connectivity report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, FilterByStatus={FilterByStatus}, Format={Format}",
                 request.RegionId, request.ProvinceId, request.MunicipalityId, request.FilterByStatus, request.Format);
 
-            // First, get the report data using the JSON handler
-            // For downloads, we want ALL data (not paginated), so use page size 100 and fetch all pages if needed
-            var reportQuery = new GetConnectivityReportQuery
+            // Fetch the full unfiltered dataset once (all pages).  If FilterByStatus is set we
+            // derive the filtered Areas list in-memory rather than issuing a second full DB scan.
+            var unfilteredQuery = new GetConnectivityReportQuery
             {
                 RegionId = request.RegionId,
                 ProvinceId = request.ProvinceId,
                 MunicipalityId = request.MunicipalityId,
-                FilterByStatus = request.FilterByStatus,
+                FilterByStatus = null,
                 PageNumber = 1,
-                PageSize = DownloadPageSize  // Max page size
+                PageSize = DownloadPageSize
             };
 
-            var reportResponse = await _mediator.Send(reportQuery, cancellationToken);
+            var reportResponse = await _mediator.Send(unfilteredQuery, cancellationToken);
 
             if (!reportResponse.Succeeded || reportResponse.Data == null)
             {
@@ -66,13 +67,13 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 };
             }
 
-            // If there are multiple pages, fetch all remaining pages
+            // Collect all pages of the unfiltered dataset
             var allAreas = new List<ConnectivityAreaDetailDto>(reportResponse.Data.Areas);
-            
+
             if (reportResponse.Data.TotalPages > 1)
             {
                 _logger.LogInformation("Fetching {PageCount} additional pages for complete report data", reportResponse.Data.TotalPages - 1);
-                
+
                 for (int page = 2; page <= reportResponse.Data.TotalPages; page++)
                 {
                     var pageQuery = new GetConnectivityReportQuery
@@ -80,13 +81,13 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                         RegionId = request.RegionId,
                         ProvinceId = request.ProvinceId,
                         MunicipalityId = request.MunicipalityId,
-                        FilterByStatus = request.FilterByStatus,
+                        FilterByStatus = null,
                         PageNumber = page,
                         PageSize = DownloadPageSize
                     };
 
                     var pageResponse = await _mediator.Send(pageQuery, cancellationToken);
-                    
+
                     if (pageResponse.Succeeded && pageResponse.Data != null)
                     {
                         allAreas.AddRange(pageResponse.Data.Areas);
@@ -94,54 +95,12 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 }
             }
 
-            // When FilterByStatus is active, allAreas contains only the filtered subset.
-            // Build geographic summaries from the full unfiltered dataset so that
-            // municipality/province/region totals are always consistent with the status totals.
-            List<ConnectivityAreaDetailDto> unfilteredAreas;
-            if (request.FilterByStatus.HasValue)
-            {
-                var unfilteredQuery = new GetConnectivityReportQuery
-                {
-                    RegionId = request.RegionId,
-                    ProvinceId = request.ProvinceId,
-                    MunicipalityId = request.MunicipalityId,
-                    FilterByStatus = null,
-                    PageNumber = 1,
-                    PageSize = DownloadPageSize
-                };
+            // Derive the export Areas list in-memory; geographic summaries always use allAreas
+            var filteredAreas = request.FilterByStatus.HasValue
+                ? allAreas.Where(a => a.ConnectivityStatus == request.FilterByStatus.Value).ToList()
+                : allAreas;
 
-                var unfilteredResponse = await _mediator.Send(unfilteredQuery, cancellationToken);
-                unfilteredAreas = unfilteredResponse.Succeeded && unfilteredResponse.Data != null
-                    ? new List<ConnectivityAreaDetailDto>(unfilteredResponse.Data.Areas)
-                    : allAreas;
-
-                if (unfilteredResponse.Succeeded && unfilteredResponse.Data != null
-                    && unfilteredResponse.Data.TotalPages > 1)
-                {
-                    for (int page = 2; page <= unfilteredResponse.Data.TotalPages; page++)
-                    {
-                        var pageQuery = new GetConnectivityReportQuery
-                        {
-                            RegionId = request.RegionId,
-                            ProvinceId = request.ProvinceId,
-                            MunicipalityId = request.MunicipalityId,
-                            FilterByStatus = null,
-                            PageNumber = page,
-                            PageSize = DownloadPageSize
-                        };
-
-                        var pageResponse = await _mediator.Send(pageQuery, cancellationToken);
-                        if (pageResponse.Succeeded && pageResponse.Data != null)
-                            unfilteredAreas.AddRange(pageResponse.Data.Areas);
-                    }
-                }
-            }
-            else
-            {
-                unfilteredAreas = allAreas;
-            }
-
-            // Create a complete report DTO with all areas for export
+            // Create a complete report DTO: summaries from the full dataset, Areas from the filtered list
             var completeReportData = new ConnectivityReportDto
             {
                 TotalServedAreas = reportResponse.Data.TotalServedAreas,
@@ -150,14 +109,14 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 UnderservedPopulation = reportResponse.Data.UnderservedPopulation,
                 TotalUnservedAreas = reportResponse.Data.TotalUnservedAreas,
                 UnservedPopulation = reportResponse.Data.UnservedPopulation,
-                Areas = allAreas,
+                Areas = filteredAreas,
                 ScoreSummary = reportResponse.Data.ScoreSummary,
-                MunicipalitySummaries = BuildMunicipalitySummaries(unfilteredAreas),
-                ProvinceSummaries = BuildProvinceSummaries(unfilteredAreas),
-                RegionSummary = BuildRegionSummary(unfilteredAreas),
+                MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreas),
+                ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreas),
+                RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreas),
                 TotalAreas = reportResponse.Data.TotalAreas,
                 PageNumber = 1,
-                PageSize = allAreas.Count,
+                PageSize = filteredAreas.Count,
                 TotalPages = 1,
                 GeneratedAt = reportResponse.Data.GeneratedAt
             };
@@ -345,103 +304,5 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
     }
 
     // ── Geographic summary builders ──────────────────────────────────────────
-
-    private static List<GeographicLevelSummaryDto> BuildMunicipalitySummaries(
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        return areas
-            .GroupBy(a => new
-            {
-                MunicipalityName = a.MunicipalityName ?? "Unknown",
-                ProvinceName = a.ProvinceName ?? "Unknown"
-            })
-            .Select(g => AggregateToSummary(
-                name: g.Key.MunicipalityName,
-                parentName: g.Key.ProvinceName,
-                level: "Municipality",
-                areas: g.ToList()))
-            .OrderBy(s => s.ParentName)
-            .ThenBy(s => s.Name)
-            .ToList();
-    }
-
-    private static List<GeographicLevelSummaryDto> BuildProvinceSummaries(
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        return areas
-            .GroupBy(a => a.ProvinceName ?? "Unknown")
-            .Select(g => AggregateToSummary(
-                name: g.Key,
-                parentName: null,
-                level: "Province",
-                areas: g.ToList()))
-            .OrderBy(s => s.Name)
-            .ToList();
-    }
-
-    private static GeographicLevelSummaryDto? BuildRegionSummary(
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        if (areas.Count == 0) return null;
-
-        return AggregateToSummary(
-            name: "All Areas",
-            parentName: null,
-            level: "Region",
-            areas: areas);
-    }
-
-    private static GeographicLevelSummaryDto AggregateToSummary(
-        string name,
-        string? parentName,
-        string level,
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        if (areas.Count == 0)
-        {
-            return new GeographicLevelSummaryDto
-            {
-                Name = name,
-                ParentName = parentName,
-                Level = level,
-                OverallConnectivityStatus = "Unserved"
-            };
-        }
-
-        var avgTotal = areas.Average(a => a.TotalScore);
-
-        return new GeographicLevelSummaryDto
-        {
-            Name = name,
-            ParentName = parentName,
-            Level = level,
-            TotalBarangays = areas.Count,
-            ServedBarangays = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served),
-            UnderservedBarangays = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
-            UnservedBarangays = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
-            TotalPopulation = areas.Sum(a => (long)(a.Population ?? 0)),
-            ServedPopulation = areas
-                .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served)
-                .Sum(a => (long)(a.Population ?? 0)),
-            UnderservedPopulation = areas
-                .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
-                .Sum(a => (long)(a.Population ?? 0)),
-            UnservedPopulation = areas
-                .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
-                .Sum(a => (long)(a.Population ?? 0)),
-            AverageFiberCoverageScore = areas.Average(a => a.FiberCoverageScore),
-            AverageInternetAccessScore = areas.Average(a => a.InternetAccessScore),
-            AverageTechnologyTypeScore = areas.Average(a => a.TechnologyTypeScore),
-            AverageQualityOfServiceScore = areas.Average(a => a.QualityOfServiceScore),
-            AverageCoverageAvailabilityScore = areas.Average(a => a.CoverageAvailabilityScore),
-            AverageTotalScore = avgTotal,
-            ExcellentCount = areas.Count(a => a.TotalScore >= 13),
-            GoodCount = areas.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
-            ModerateCount = areas.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
-            FairCount = areas.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
-            OverallConnectivityStatus = avgTotal >= 11 ? "Served"
-                : avgTotal >= 6 ? "Underserved"
-                : "Unserved"
-        };
-    }
+    // Shared logic lives in ConnectivityReportSummaryHelper (NTC.QoS.Domain.Helper).
 }

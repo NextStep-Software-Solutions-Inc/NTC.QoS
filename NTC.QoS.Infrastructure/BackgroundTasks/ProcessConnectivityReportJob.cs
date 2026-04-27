@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 
@@ -331,9 +332,9 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 UnservedPopulation = assessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).Sum(a => a.Population ?? 0),
                 Areas = areas,
                 ScoreSummary = scoreSummary,
-                MunicipalitySummaries = BuildMunicipalitySummaries(allAreas),
-                ProvinceSummaries = BuildProvinceSummaries(allAreas),
-                RegionSummary = BuildRegionSummary(allAreas),
+                MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreas),
+                ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreas),
+                RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreas),
                 TotalAreas = areas.Count,
                 PageNumber = 1,
                 PageSize = areas.Count,
@@ -640,103 +641,5 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
     }
 
     // ── Geographic summary builders ──────────────────────────────────────────
-
-    private static List<GeographicLevelSummaryDto> BuildMunicipalitySummaries(
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        return areas
-            .GroupBy(a => new
-            {
-                MunicipalityName = a.MunicipalityName ?? "Unknown",
-                ProvinceName = a.ProvinceName ?? "Unknown"
-            })
-            .Select(g => AggregateToSummary(
-                name: g.Key.MunicipalityName,
-                parentName: g.Key.ProvinceName,
-                level: "Municipality",
-                areas: g.ToList()))
-            .OrderBy(s => s.ParentName)
-            .ThenBy(s => s.Name)
-            .ToList();
-    }
-
-    private static List<GeographicLevelSummaryDto> BuildProvinceSummaries(
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        return areas
-            .GroupBy(a => a.ProvinceName ?? "Unknown")
-            .Select(g => AggregateToSummary(
-                name: g.Key,
-                parentName: null,
-                level: "Province",
-                areas: g.ToList()))
-            .OrderBy(s => s.Name)
-            .ToList();
-    }
-
-    private static GeographicLevelSummaryDto? BuildRegionSummary(
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        if (areas.Count == 0) return null;
-
-        return AggregateToSummary(
-            name: "All Areas",
-            parentName: null,
-            level: "Region",
-            areas: areas);
-    }
-
-    private static GeographicLevelSummaryDto AggregateToSummary(
-        string name,
-        string? parentName,
-        string level,
-        List<ConnectivityAreaDetailDto> areas)
-    {
-        if (areas.Count == 0)
-        {
-            return new GeographicLevelSummaryDto
-            {
-                Name = name,
-                ParentName = parentName,
-                Level = level,
-                OverallConnectivityStatus = "Unserved"
-            };
-        }
-
-        var avgTotal = areas.Average(a => a.TotalScore);
-
-        return new GeographicLevelSummaryDto
-        {
-            Name = name,
-            ParentName = parentName,
-            Level = level,
-            TotalBarangays = areas.Count,
-            ServedBarangays = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served),
-            UnderservedBarangays = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
-            UnservedBarangays = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
-            TotalPopulation = areas.Sum(a => (long)(a.Population ?? 0)),
-            ServedPopulation = areas
-                .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served)
-                .Sum(a => (long)(a.Population ?? 0)),
-            UnderservedPopulation = areas
-                .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
-                .Sum(a => (long)(a.Population ?? 0)),
-            UnservedPopulation = areas
-                .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
-                .Sum(a => (long)(a.Population ?? 0)),
-            AverageFiberCoverageScore = areas.Average(a => a.FiberCoverageScore),
-            AverageInternetAccessScore = areas.Average(a => a.InternetAccessScore),
-            AverageTechnologyTypeScore = areas.Average(a => a.TechnologyTypeScore),
-            AverageQualityOfServiceScore = areas.Average(a => a.QualityOfServiceScore),
-            AverageCoverageAvailabilityScore = areas.Average(a => a.CoverageAvailabilityScore),
-            AverageTotalScore = avgTotal,
-            ExcellentCount = areas.Count(a => a.TotalScore >= 13),
-            GoodCount = areas.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
-            ModerateCount = areas.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
-            FairCount = areas.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
-            OverallConnectivityStatus = avgTotal >= 11 ? "Served"
-                : avgTotal >= 6 ? "Underserved"
-                : "Unserved"
-        };
-    }
+    // Shared logic lives in ConnectivityReportSummaryHelper (NTC.QoS.Domain.Helper).
 }
