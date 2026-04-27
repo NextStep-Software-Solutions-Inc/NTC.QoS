@@ -10,6 +10,8 @@ namespace NTC.QoS.Application.Features.Reports.Connectivity.Handlers.Queries;
 
 public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadConnectivityReportQuery, ApiResponse<ConnectivityReportDownloadResult>>
 {
+    private const int DownloadPageSize = 100;
+
     private readonly IMediator _mediator;
     private readonly IReportGenerationService _reportGenerationService;
     private readonly IRegionRepository _regionRepository;
@@ -49,7 +51,7 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 MunicipalityId = request.MunicipalityId,
                 FilterByStatus = request.FilterByStatus,
                 PageNumber = 1,
-                PageSize = 100  // Max page size
+                PageSize = DownloadPageSize  // Max page size
             };
 
             var reportResponse = await _mediator.Send(reportQuery, cancellationToken);
@@ -80,7 +82,7 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                         MunicipalityId = request.MunicipalityId,
                         FilterByStatus = request.FilterByStatus,
                         PageNumber = page,
-                        PageSize = 100
+                        PageSize = DownloadPageSize
                     };
 
                     var pageResponse = await _mediator.Send(pageQuery, cancellationToken);
@@ -105,7 +107,7 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                     MunicipalityId = request.MunicipalityId,
                     FilterByStatus = null,
                     PageNumber = 1,
-                    PageSize = 100
+                    PageSize = DownloadPageSize
                 };
 
                 var unfilteredResponse = await _mediator.Send(unfilteredQuery, cancellationToken);
@@ -125,7 +127,7 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                             MunicipalityId = request.MunicipalityId,
                             FilterByStatus = null,
                             PageNumber = page,
-                            PageSize = 100
+                            PageSize = DownloadPageSize
                         };
 
                         var pageResponse = await _mediator.Send(pageQuery, cancellationToken);
