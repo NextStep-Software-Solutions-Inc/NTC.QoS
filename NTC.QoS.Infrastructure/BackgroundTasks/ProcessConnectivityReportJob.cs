@@ -137,6 +137,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             // Only include barangays with BarangayCoverage records
             var coveredBarangayIds = _barangayCoverageRepository.QueryAsNoTracking()
                 .Select(bc => bc.BarangayId);
+            assessmentQuery = assessmentQuery.Where(a => coveredBarangayIds.Contains(a.LocationId));
 
             if (jobRequest.RegionId.HasValue)
             {

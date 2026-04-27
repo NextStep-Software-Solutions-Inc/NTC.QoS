@@ -114,7 +114,7 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreas),
                 ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreas),
                 RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreas),
-                TotalAreas = reportResponse.Data.TotalAreas,
+                TotalAreas = request.FilterByStatus.HasValue ? filteredAreas.Count : reportResponse.Data.TotalAreas,
                 PageNumber = 1,
                 PageSize = filteredAreas.Count,
                 TotalPages = 1,
