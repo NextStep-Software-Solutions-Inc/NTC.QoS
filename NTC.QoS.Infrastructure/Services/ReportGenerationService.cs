@@ -964,7 +964,7 @@ public class ReportGenerationService : IReportGenerationService
                 row.RelativeItem().Column(col =>
                 {
                     col.Item().Text(text => text.Span("Regional/National Summary").Bold().FontSize(14));
-                    col.Item().PaddingTop(5).Text($"Total Areas: {reportData.TotalAreas:N0}");
+                    col.Item().PaddingTop(5).Text($"Total Areas: {(reportData.TotalServedAreas + reportData.TotalUnderservedAreas + reportData.TotalUnservedAreas):N0}");
                     col.Item().Text($"Served: {reportData.TotalServedAreas:N0} (Pop: {reportData.ServedPopulation:N0})");
                     col.Item().Text($"Underserved: {reportData.TotalUnderservedAreas:N0} (Pop: {reportData.UnderservedPopulation:N0})");
                     col.Item().Text($"Unserved: {reportData.TotalUnservedAreas:N0} (Pop: {reportData.UnservedPopulation:N0})");
@@ -1223,7 +1223,7 @@ public class ReportGenerationService : IReportGenerationService
         
         row++;
         worksheet.Cell(row, 1).Value = "Total Areas:";
-        worksheet.Cell(row, 2).Value = reportData.TotalAreas;
+        worksheet.Cell(row, 2).Value = reportData.TotalServedAreas + reportData.TotalUnderservedAreas + reportData.TotalUnservedAreas;
 
         row++;
         worksheet.Cell(row, 1).Value = "Total Served Areas:";

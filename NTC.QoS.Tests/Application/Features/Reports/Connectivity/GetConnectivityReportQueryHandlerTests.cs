@@ -57,11 +57,14 @@ public class GetConnectivityReportQueryHandlerTests
             new() { Id = Guid.NewGuid(), BarangayId = _barangayId3 },
         };
 
+        var province = new Province { Id = Guid.NewGuid(), Name = "Test Province" };
+        var municipality = new Municipality { Id = Guid.NewGuid(), Name = "Test Municipality", Province = province, ProvinceId = province.Id };
+
         var barangays = new List<Barangay>
         {
-            new() { Id = _barangayId1, Name = "Barangay 1" },
-            new() { Id = _barangayId2, Name = "Barangay 2" },
-            new() { Id = _barangayId3, Name = "Barangay 3" },
+            new() { Id = _barangayId1, Name = "Barangay 1", Municipality = municipality, MunicipalityId = municipality.Id },
+            new() { Id = _barangayId2, Name = "Barangay 2", Municipality = municipality, MunicipalityId = municipality.Id },
+            new() { Id = _barangayId3, Name = "Barangay 3", Municipality = municipality, MunicipalityId = municipality.Id },
         };
 
         // Assessment repository
@@ -86,16 +89,28 @@ public class GetConnectivityReportQueryHandlerTests
             .Returns<Expression<Func<Barangay, bool>>>(expr =>
                 barangays.AsQueryable().Where(expr));
 
-        _barangayRepositoryMock
-            .Setup(r => r.ToListAsync(It.IsAny<IQueryable<Guid>>(), It.IsAny<CancellationToken>()))
-            .Returns<IQueryable<Guid>, CancellationToken>((q, ct) =>
-                Task.FromResult(q.ToList()));
-
         // QueryAsNoTracking used for name lookups — return matching barangays in-memory
         _barangayRepositoryMock
             .Setup(r => r.QueryAsNoTracking(It.IsAny<Expression<Func<Barangay, bool>>>()))
             .Returns<Expression<Func<Barangay, bool>>>(expr =>
                 barangays.AsQueryable().Where(expr));
+
+        // Generic ToListAsync — handles Guid projections, anonymous-type projections, and entity lists
+        _barangayRepositoryMock
+            .Setup(r => r.ToListAsync(It.IsAny<IQueryable<It.IsAnyType>>(), It.IsAny<CancellationToken>()))
+            .Returns(new InvocationFunc(invocation =>
+            {
+                var enumerable = (System.Collections.IEnumerable)invocation.Arguments[0];
+                var elementType = invocation.Method.GetGenericArguments()[0];
+                var listType = typeof(List<>).MakeGenericType(elementType);
+                var list = (System.Collections.IList)Activator.CreateInstance(listType)!;
+                foreach (var item in enumerable)
+                    list.Add(item);
+                return typeof(Task)
+                    .GetMethod(nameof(Task.FromResult))!
+                    .MakeGenericMethod(listType)
+                    .Invoke(null, new object[] { list })!;
+            }));
     }
 
     private static ConnectivityAssessment CreateAssessment(

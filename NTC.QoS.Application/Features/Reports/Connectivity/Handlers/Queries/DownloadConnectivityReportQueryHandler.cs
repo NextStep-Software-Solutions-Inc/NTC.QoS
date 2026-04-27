@@ -301,10 +301,14 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
         List<ConnectivityAreaDetailDto> areas)
     {
         return areas
-            .GroupBy(a => a.MunicipalityName ?? "Unknown")
+            .GroupBy(a => new
+            {
+                MunicipalityName = a.MunicipalityName ?? "Unknown",
+                ProvinceName = a.ProvinceName ?? "Unknown"
+            })
             .Select(g => AggregateToSummary(
-                name: g.Key,
-                parentName: g.First().ProvinceName,
+                name: g.Key.MunicipalityName,
+                parentName: g.Key.ProvinceName,
                 level: "Municipality",
                 areas: g.ToList()))
             .OrderBy(s => s.ParentName)

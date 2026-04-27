@@ -130,6 +130,20 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
 
             _logger.LogInformation("Job {JobId}: Fetching connectivity assessments with filters", jobId);
 
+            // Validate FilterByStatus: gap report only supports Unserved/Underserved
+            if (jobRequest.FilterByStatus.HasValue && jobRequest.FilterByStatus.Value == ConnectivityStatusEnum.Served)
+            {
+                await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Failed,
+                    "Invalid FilterByStatus: 'Served' is not valid for the gap report. Use 'Unserved' or 'Underserved'.",
+                    startTime: startTime,
+                    endTime: DateTime.UtcNow,
+                    currentStep: "Failed",
+                    cancellationToken: cancellationToken);
+
+                _logger.LogWarning("Job {JobId}: Rejected invalid FilterByStatus=Served for gap report", jobId);
+                return;
+            }
+
             // Build assessment query with geographic filters using optimized projection pattern
             var assessmentQuery = _connectivityAssessmentRepository.QueryAsNoTracking();
 
@@ -250,9 +264,26 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             var allPriorityAreas = new List<PriorityAreaDto>();
             var locationIds = assessments.Select(a => a.LocationId).ToList();
 
-            // Batch fetch location names using optimized queries
-            var locationNames = await GetLocationNamesBatchAsync(locationIds, cancellationToken);
-            var barangayDetails = await GetBarangayDetailsBatchAsync(locationIds, cancellationToken);
+            // Single batch query for both location names and municipality/province details
+            var barangayLocationData = locationIds.Count > 0
+                ? await _barangayRepository.ToListAsync(
+                    _barangayRepository.QueryAsNoTracking()
+                        .Where(b => locationIds.Contains(b.Id))
+                        .Select(b => new
+                        {
+                            b.Id,
+                            b.Name,
+                            MunicipalityName = b.Municipality != null ? b.Municipality.Name : string.Empty,
+                            ProvinceName = b.Municipality != null && b.Municipality.Province != null
+                                ? b.Municipality.Province.Name
+                                : string.Empty
+                        }),
+                    cancellationToken)
+                : [];
+            var locationNames = barangayLocationData.ToDictionary(x => x.Id, x => x.Name);
+            var barangayDetails = barangayLocationData.ToDictionary(
+                x => x.Id,
+                x => (x.MunicipalityName, x.ProvinceName));
 
             for (int i = 0; i < assessments.Count; i++)
             {
@@ -474,61 +505,6 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         }
 
         await Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Batch fetch location names for barangays using optimized queries
-    /// </summary>
-    private async Task<Dictionary<Guid, string>> GetLocationNamesBatchAsync(
-        List<Guid> locationIds,
-        CancellationToken cancellationToken)
-    {
-        var result = new Dictionary<Guid, string>();
-
-        if (!locationIds.Any())
-        {
-            return result;
-        }
-
-        // Fetch barangays with their municipality and province information using optimized projection
-        // OPTIMIZATION: Project only needed fields to avoid geometry materialization
-        var barangayData = await _barangayRepository.ToListAsync(
-            _barangayRepository.QueryAsNoTracking()
-                .Where(b => locationIds.Contains(b.Id))
-                .Select(b => new { b.Id, b.Name }),
-            cancellationToken);
-
-        foreach (var barangay in barangayData)
-        {
-            result[barangay.Id] = barangay.Name;
-        }
-
-        return result;
-    }
-
-    private async Task<Dictionary<Guid, (string MunicipalityName, string ProvinceName)>> GetBarangayDetailsBatchAsync(
-        List<Guid> locationIds,
-        CancellationToken cancellationToken)
-    {
-        if (!locationIds.Any())
-        {
-            return new Dictionary<Guid, (string, string)>();
-        }
-
-        var barangayData = await _barangayRepository.ToListAsync(
-            _barangayRepository.QueryAsNoTracking()
-                .Where(b => locationIds.Contains(b.Id))
-                .Select(b => new
-                {
-                    b.Id,
-                    MunicipalityName = b.Municipality.Name,
-                    ProvinceName = b.Municipality.Province.Name
-                }),
-            cancellationToken);
-
-        return barangayData.ToDictionary(
-            b => b.Id,
-            b => (b.MunicipalityName, b.ProvinceName));
     }
 
     /// <summary>

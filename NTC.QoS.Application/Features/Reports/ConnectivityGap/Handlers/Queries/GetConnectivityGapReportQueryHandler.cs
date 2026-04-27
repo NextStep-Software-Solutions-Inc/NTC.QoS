@@ -74,6 +74,19 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
                 };
             }
 
+            if (request.FilterByStatus.HasValue && request.FilterByStatus.Value == ConnectivityStatusEnum.Served)
+            {
+                return new ApiResponse<ConnectivityGapReportDto>
+                {
+                    Succeeded = false,
+                    Message = "FilterByStatus cannot be 'Served' for the gap report. Only 'Unserved' or 'Underserved' are valid.",
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "FilterByStatus", ["FilterByStatus cannot be 'Served' for the gap report. Only 'Unserved' or 'Underserved' are valid."] }
+                    }
+                };
+            }
+
             // Generate report specifically focusing on unserved/underserved areas
             var assessments = await GetFilteredAssessmentsAsync(
                 request.RegionId, request.ProvinceId, request.MunicipalityId, LocationTypeEnum.Barangay, cancellationToken);
