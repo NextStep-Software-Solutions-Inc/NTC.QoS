@@ -92,6 +92,53 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 }
             }
 
+            // When FilterByStatus is active, allAreas contains only the filtered subset.
+            // Build geographic summaries from the full unfiltered dataset so that
+            // municipality/province/region totals are always consistent with the status totals.
+            List<ConnectivityAreaDetailDto> unfilteredAreas;
+            if (request.FilterByStatus.HasValue)
+            {
+                var unfilteredQuery = new GetConnectivityReportQuery
+                {
+                    RegionId = request.RegionId,
+                    ProvinceId = request.ProvinceId,
+                    MunicipalityId = request.MunicipalityId,
+                    FilterByStatus = null,
+                    PageNumber = 1,
+                    PageSize = 100
+                };
+
+                var unfilteredResponse = await _mediator.Send(unfilteredQuery, cancellationToken);
+                unfilteredAreas = unfilteredResponse.Succeeded && unfilteredResponse.Data != null
+                    ? new List<ConnectivityAreaDetailDto>(unfilteredResponse.Data.Areas)
+                    : allAreas;
+
+                if (unfilteredResponse.Succeeded && unfilteredResponse.Data != null
+                    && unfilteredResponse.Data.TotalPages > 1)
+                {
+                    for (int page = 2; page <= unfilteredResponse.Data.TotalPages; page++)
+                    {
+                        var pageQuery = new GetConnectivityReportQuery
+                        {
+                            RegionId = request.RegionId,
+                            ProvinceId = request.ProvinceId,
+                            MunicipalityId = request.MunicipalityId,
+                            FilterByStatus = null,
+                            PageNumber = page,
+                            PageSize = 100
+                        };
+
+                        var pageResponse = await _mediator.Send(pageQuery, cancellationToken);
+                        if (pageResponse.Succeeded && pageResponse.Data != null)
+                            unfilteredAreas.AddRange(pageResponse.Data.Areas);
+                    }
+                }
+            }
+            else
+            {
+                unfilteredAreas = allAreas;
+            }
+
             // Create a complete report DTO with all areas for export
             var completeReportData = new ConnectivityReportDto
             {
@@ -103,9 +150,9 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 UnservedPopulation = reportResponse.Data.UnservedPopulation,
                 Areas = allAreas,
                 ScoreSummary = reportResponse.Data.ScoreSummary,
-                MunicipalitySummaries = BuildMunicipalitySummaries(allAreas),
-                ProvinceSummaries = BuildProvinceSummaries(allAreas),
-                RegionSummary = BuildRegionSummary(allAreas),
+                MunicipalitySummaries = BuildMunicipalitySummaries(unfilteredAreas),
+                ProvinceSummaries = BuildProvinceSummaries(unfilteredAreas),
+                RegionSummary = BuildRegionSummary(unfilteredAreas),
                 TotalAreas = reportResponse.Data.TotalAreas,
                 PageNumber = 1,
                 PageSize = allAreas.Count,

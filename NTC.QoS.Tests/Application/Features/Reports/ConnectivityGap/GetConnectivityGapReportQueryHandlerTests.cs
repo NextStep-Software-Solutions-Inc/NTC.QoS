@@ -238,6 +238,22 @@ public class GetConnectivityGapReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WithServedFilter_ReturnsValidationError()
+    {
+        var query = new GetConnectivityGapReportQuery
+        {
+            FilterByStatus = ConnectivityStatusEnum.Served,
+            PageNumber = 1,
+            PageSize = 100
+        };
+
+        var result = await _handler.Handle(query, CancellationToken.None);
+
+        result.Succeeded.Should().BeFalse();
+        result.Errors.Should().ContainKey("FilterByStatus");
+    }
+
+    [Fact]
     public async Task Handle_WithInvalidPageNumber_ReturnsValidationError()
     {
         var query = new GetConnectivityGapReportQuery { PageNumber = 0, PageSize = 10 };

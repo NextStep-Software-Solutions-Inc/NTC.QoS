@@ -74,8 +74,8 @@ public class GeographicLevelSummaryDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Parent geographic name.  For a municipality this is the province name;
-    /// for a province this is the region name; empty for region level.
+    /// Parent geographic name when available in this DTO. For a municipality this is the province name;
+    /// province and region summaries may leave this empty or null when no parent context is supplied.
     /// </summary>
     public string? ParentName { get; set; }
 
