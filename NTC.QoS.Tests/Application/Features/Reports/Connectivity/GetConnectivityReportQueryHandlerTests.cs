@@ -281,6 +281,22 @@ public class GetConnectivityReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WithUndefinedFilterByStatus_ReturnsValidationError()
+    {
+        var query = new GetConnectivityReportQuery
+        {
+            FilterByStatus = (ConnectivityStatusEnum)999,
+            PageNumber = 1,
+            PageSize = 100
+        };
+
+        var result = await _handler.Handle(query, CancellationToken.None);
+
+        result.Succeeded.Should().BeFalse();
+        result.Errors.Should().ContainKey("FilterByStatus");
+    }
+
+    [Fact]
     public async Task Handle_AreaDetails_IncludeConnectivityStatusField()
     {
         var query = new GetConnectivityReportQuery { PageNumber = 1, PageSize = 100 };

@@ -274,4 +274,20 @@ public class GetConnectivityGapReportQueryHandlerTests
         result.Succeeded.Should().BeFalse();
         result.Errors.Should().ContainKey("PageSize");
     }
+
+    [Fact]
+    public async Task Handle_WithUndefinedFilterByStatus_ReturnsValidationError()
+    {
+        var query = new GetConnectivityGapReportQuery
+        {
+            FilterByStatus = (ConnectivityStatusEnum)999,
+            PageNumber = 1,
+            PageSize = 100
+        };
+
+        var result = await _handler.Handle(query, CancellationToken.None);
+
+        result.Succeeded.Should().BeFalse();
+        result.Errors.Should().ContainKey("FilterByStatus");
+    }
 }
