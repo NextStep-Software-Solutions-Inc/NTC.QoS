@@ -446,6 +446,10 @@ public class ReportsController : ControllerBase
     /// reflect the filtered count. Summary totals (<c>TotalServedAreas</c>, <c>TotalUnderservedAreas</c>, etc.),
     /// <c>ScoreSummary</c>, and geographic summaries (<c>MunicipalitySummaries</c>, <c>ProvinceSummaries</c>,
     /// <c>RegionSummary</c>) always reflect the full unfiltered dataset.</param>
+    /// <param name="includeSummaries">When <c>true</c> (default), the response includes geographic summaries
+    /// (<c>MunicipalitySummaries</c>, <c>ProvinceSummaries</c>, <c>RegionSummary</c>) computed from the full
+    /// unfiltered dataset. Set to <c>false</c> on subsequent paginated requests where these summaries are not
+    /// needed to reduce database query cost.</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
     /// <returns>Unified connectivity report with areas across all statuses</returns>
@@ -456,6 +460,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
         [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
+        [FromQuery] bool includeSummaries = true,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
@@ -465,6 +470,7 @@ public class ReportsController : ControllerBase
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
             FilterByStatus = filterByStatus,
+            IncludeSummaries = includeSummaries,
             PageNumber = pageNumber,
             PageSize = pageSize
         };

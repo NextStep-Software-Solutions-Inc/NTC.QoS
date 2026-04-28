@@ -20,8 +20,8 @@ public static class ConnectivityReportSummaryHelper
         return areas
             .GroupBy(a => new
             {
-                MunicipalityName = a.MunicipalityName ?? "Unknown",
-                ProvinceName = a.ProvinceName ?? "Unknown"
+                MunicipalityName = string.IsNullOrWhiteSpace(a.MunicipalityName) ? "Unknown" : a.MunicipalityName,
+                ProvinceName = string.IsNullOrWhiteSpace(a.ProvinceName) ? "Unknown" : a.ProvinceName
             })
             .Select(g => AggregateToSummary(
                 name: g.Key.MunicipalityName,
@@ -41,7 +41,7 @@ public static class ConnectivityReportSummaryHelper
         List<ConnectivityAreaDetailDto> areas)
     {
         return areas
-            .GroupBy(a => a.ProvinceName ?? "Unknown")
+            .GroupBy(a => string.IsNullOrWhiteSpace(a.ProvinceName) ? "Unknown" : a.ProvinceName)
             .Select(g => AggregateToSummary(
                 name: g.Key,
                 parentName: null,
@@ -52,8 +52,11 @@ public static class ConnectivityReportSummaryHelper
     }
 
     /// <summary>
-    /// Produces a single region-level summary over all <paramref name="areas"/>,
+    /// Produces a single overall summary over all <paramref name="areas"/>,
     /// or <c>null</c> when the list is empty.
+    /// The <see cref="GeographicLevelSummaryDto.Level"/> is set to <c>"Overall"</c> regardless
+    /// of the geographic scope of the report, so it remains accurate for national,
+    /// region-, province-, or municipality-scoped reports alike.
     /// </summary>
     public static GeographicLevelSummaryDto? BuildRegionSummary(
         List<ConnectivityAreaDetailDto> areas)
@@ -63,7 +66,7 @@ public static class ConnectivityReportSummaryHelper
         return AggregateToSummary(
             name: "All Areas",
             parentName: null,
-            level: "Region",
+            level: "Overall",
             areas: areas);
     }
 

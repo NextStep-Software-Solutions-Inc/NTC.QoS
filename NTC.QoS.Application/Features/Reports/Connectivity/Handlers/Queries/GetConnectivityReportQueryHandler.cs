@@ -101,9 +101,14 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 paginatedAreas.Select(a => (a.LocationId, a.LocationType)).ToList(),
                 cancellationToken);
 
-            // Fetch barangay details for ALL assessments so geographic summaries cover the full scope
+            // When summaries are requested, fetch barangay details for ALL assessments so geographic
+            // summaries (municipality/province/overall) cover the full unfiltered scope.
+            // When summaries are not needed (e.g., subsequent pagination pages), only fetch details
+            // for the paginated results to avoid a potentially large IN query across all assessments.
             var allBarangayDetails = await GetBarangayDetailsAsync(
-                assessments.Select(a => a.LocationId).ToList(),
+                request.IncludeSummaries
+                    ? assessments.Select(a => a.LocationId).ToList()
+                    : paginatedAreas.Select(a => a.LocationId).ToList(),
                 cancellationToken);
 
             var areaDetails = paginatedAreas.Select(a => new ConnectivityAreaDetailDto
@@ -140,23 +145,35 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             // Calculate summary statistics from the full unfiltered dataset (all statuses)
             var scoreSummary = CalculateScoreSummary(assessments);
 
-            // Build geographic summary DTOs from all unfiltered assessments so they are consistent
-            // with the top-level totals/populations regardless of whether FilterByStatus is set
-            var allAreaDetails = assessments.Select(a => new ConnectivityAreaDetailDto
+            // Build geographic summary DTOs only when IncludeSummaries is true.
+            // Uses the full unfiltered assessment set so they are consistent with the
+            // top-level totals/populations regardless of whether FilterByStatus is set.
+            List<GeographicLevelSummaryDto> municipalitySummaries = [];
+            List<GeographicLevelSummaryDto> provinceSummaries = [];
+            GeographicLevelSummaryDto? regionSummary = null;
+
+            if (request.IncludeSummaries)
             {
-                LocationId = a.LocationId,
-                LocationName = string.Empty,
-                MunicipalityName = allBarangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
-                ProvinceName = allBarangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
-                ConnectivityStatus = a.ConnectivityStatus,
-                Population = a.Population,
-                FiberCoverageScore = a.FiberCoverageScore,
-                InternetAccessScore = a.InternetAccessScore,
-                TechnologyTypeScore = a.TechnologyTypeScore,
-                QualityOfServiceScore = a.QualityOfServiceScore,
-                CoverageAvailabilityScore = a.CoverageAvailabilityScore,
-                TotalScore = a.TotalScore,
-            }).ToList();
+                var allAreaDetails = assessments.Select(a => new ConnectivityAreaDetailDto
+                {
+                    LocationId = a.LocationId,
+                    LocationName = string.Empty,
+                    MunicipalityName = allBarangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
+                    ProvinceName = allBarangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
+                    ConnectivityStatus = a.ConnectivityStatus,
+                    Population = a.Population,
+                    FiberCoverageScore = a.FiberCoverageScore,
+                    InternetAccessScore = a.InternetAccessScore,
+                    TechnologyTypeScore = a.TechnologyTypeScore,
+                    QualityOfServiceScore = a.QualityOfServiceScore,
+                    CoverageAvailabilityScore = a.CoverageAvailabilityScore,
+                    TotalScore = a.TotalScore,
+                }).ToList();
+
+                municipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreaDetails);
+                provinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreaDetails);
+                regionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreaDetails);
+            }
 
             var reportDto = new ConnectivityReportDto
             {
@@ -168,9 +185,9 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 UnservedPopulation = unservedAreas.Sum(a => a.Population ?? 0),
                 Areas = areaDetails,
                 ScoreSummary = scoreSummary,
-                MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreaDetails),
-                ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreaDetails),
-                RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreaDetails),
+                MunicipalitySummaries = municipalitySummaries,
+                ProvinceSummaries = provinceSummaries,
+                RegionSummary = regionSummary,
                 TotalAreas = totalAreas,
                 PageNumber = request.PageNumber,
                 PageSize = request.PageSize,

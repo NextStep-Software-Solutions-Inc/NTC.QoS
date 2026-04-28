@@ -40,4 +40,12 @@ public class GetConnectivityReportQuery : IRequest<ApiResponse<ConnectivityRepor
     /// Page size for pagination (default: 10, max: 100)
     /// </summary>
     public int PageSize { get; set; } = 10;
+
+    /// <summary>
+    /// When <c>true</c> (default), the response includes <c>MunicipalitySummaries</c>,
+    /// <c>ProvinceSummaries</c>, and <c>RegionSummary</c> computed from the full unfiltered dataset.
+    /// Set to <c>false</c> on subsequent paginated requests where geographic summaries are not needed
+    /// to avoid the extra database query cost of loading all assessment location details.
+    /// </summary>
+    public bool IncludeSummaries { get; set; } = true;
 }

@@ -339,6 +339,7 @@ public class ReportGenerationService : IReportGenerationService
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(1);
                         columns.RelativeColumn(2);
+                        columns.RelativeColumn(2);
                     });
 
                     table.Header(header =>
@@ -349,6 +350,7 @@ public class ReportGenerationService : IReportGenerationService
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Status").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Population").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Score").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Last Assessed").Bold());
                     });
 
                     foreach (var area in reportData.PriorityAreas)
@@ -366,6 +368,7 @@ public class ReportGenerationService : IReportGenerationService
                         table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(text => text.Span(area.ConnectivityStatus.ToString()).FontSize(8));
                         table.Cell().Border(1).Padding(5).AlignRight().Text(text => text.Span((area.Population ?? 0).ToString("N0")).FontSize(8));
                         table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(area.TotalScore.ToString()).FontSize(8));
+                        table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(area.LastAssessed.ToString("MMM dd, yyyy")).FontSize(8));
                     }
                 });
             }
