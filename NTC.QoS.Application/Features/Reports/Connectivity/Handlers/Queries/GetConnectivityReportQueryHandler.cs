@@ -148,6 +148,8 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             // Build geographic summary DTOs only when IncludeSummaries is true.
             // Uses the full unfiltered assessment set so they are consistent with the
             // top-level totals/populations regardless of whether FilterByStatus is set.
+            // Empty list defaults mirror the ConnectivityReportDto property defaults;
+            // regionSummary starts null because the DTO property is GeographicLevelSummaryDto?
             List<GeographicLevelSummaryDto> municipalitySummaries = [];
             List<GeographicLevelSummaryDto> provinceSummaries = [];
             GeographicLevelSummaryDto? regionSummary = null;
