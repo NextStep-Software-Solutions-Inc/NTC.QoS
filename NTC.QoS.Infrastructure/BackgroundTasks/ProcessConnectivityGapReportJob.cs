@@ -130,18 +130,24 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
 
             _logger.LogInformation("Job {JobId}: Fetching connectivity assessments with filters", jobId);
 
-            // Validate FilterByStatus: gap report only supports Unserved/Underserved
-            if (jobRequest.FilterByStatus.HasValue && jobRequest.FilterByStatus.Value == ConnectivityStatusEnum.Served)
+            // Validate FilterByStatus: gap report only supports Unserved/Underserved; reject Served and any undefined values
+            if (jobRequest.FilterByStatus.HasValue)
             {
-                await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Failed,
-                    "Invalid FilterByStatus: 'Served' is not valid for the gap report. Use 'Unserved' or 'Underserved'.",
-                    startTime: startTime,
-                    endTime: DateTime.UtcNow,
-                    currentStep: "Failed",
-                    cancellationToken: cancellationToken);
+                var filterByStatus = jobRequest.FilterByStatus.Value;
 
-                _logger.LogWarning("Job {JobId}: Rejected invalid FilterByStatus=Served for gap report", jobId);
-                return;
+                if (!Enum.IsDefined(typeof(ConnectivityStatusEnum), filterByStatus) ||
+                    (filterByStatus != ConnectivityStatusEnum.Unserved &&
+                     filterByStatus != ConnectivityStatusEnum.Underserved))
+                {
+                    await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Failed,
+                        $"Invalid FilterByStatus for the gap report: '{filterByStatus}' is not valid. Use 'Unserved' or 'Underserved'.",
+                        startTime: startTime,
+                        endTime: DateTime.UtcNow,
+                        currentStep: "Failed",
+                        cancellationToken: cancellationToken);
+                    _logger.LogWarning("Job {JobId}: Rejected invalid FilterByStatus={FilterByStatus} for gap report", jobId, filterByStatus);
+                    return;
+                }
             }
 
             // Build assessment query with geographic filters using optimized projection pattern

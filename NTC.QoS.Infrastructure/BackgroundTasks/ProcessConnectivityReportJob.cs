@@ -121,6 +121,19 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 progressPercentage: 10,
                 cancellationToken: cancellationToken);
 
+            // Validate FilterByStatus: reject undefined enum values early
+            if (jobRequest.FilterByStatus.HasValue && !Enum.IsDefined(typeof(ConnectivityStatusEnum), jobRequest.FilterByStatus.Value))
+            {
+                await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Failed,
+                    $"Invalid FilterByStatus value '{(int)jobRequest.FilterByStatus.Value}'. Valid values are: Served (3), Underserved (2), Unserved (1).",
+                    startTime: startTime,
+                    endTime: DateTime.UtcNow,
+                    currentStep: "Failed",
+                    cancellationToken: cancellationToken);
+                _logger.LogWarning("Job {JobId}: Rejected invalid FilterByStatus={FilterByStatus}", jobId, jobRequest.FilterByStatus.Value);
+                return;
+            }
+
             _logger.LogInformation("Job {JobId}: Fetching connectivity assessments for served areas", jobId);
 
             // Build assessment query with geographic filters
@@ -373,6 +386,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 reportBytes = await _reportGenerationService.GenerateConnectivityPdfAsync(
                     reportData,
                     reportTitle,
+                    jobRequest.FilterByStatus,
                     cancellationToken);
                 contentType = "application/pdf";
                 fileExtension = "pdf";

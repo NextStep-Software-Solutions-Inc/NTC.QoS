@@ -74,17 +74,24 @@ public class GetConnectivityGapReportQueryHandler : IRequestHandler<GetConnectiv
                 };
             }
 
-            if (request.FilterByStatus.HasValue && request.FilterByStatus.Value == ConnectivityStatusEnum.Served)
+            if (request.FilterByStatus.HasValue)
             {
-                return new ApiResponse<ConnectivityGapReportDto>
+                var filterByStatus = request.FilterByStatus.Value;
+
+                if (!Enum.IsDefined(typeof(ConnectivityStatusEnum), filterByStatus) ||
+                    (filterByStatus != ConnectivityStatusEnum.Unserved &&
+                     filterByStatus != ConnectivityStatusEnum.Underserved))
                 {
-                    Succeeded = false,
-                    Message = "FilterByStatus cannot be 'Served' for the gap report. Only 'Unserved' or 'Underserved' are valid.",
-                    Errors = new Dictionary<string, string[]>
+                    return new ApiResponse<ConnectivityGapReportDto>
                     {
-                        { "FilterByStatus", ["FilterByStatus cannot be 'Served' for the gap report. Only 'Unserved' or 'Underserved' are valid."] }
-                    }
-                };
+                        Succeeded = false,
+                        Message = "FilterByStatus must be either 'Unserved' or 'Underserved' for the gap report.",
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            { "FilterByStatus", ["FilterByStatus must be either 'Unserved' or 'Underserved' for the gap report."] }
+                        }
+                    };
+                }
             }
 
             // Generate report specifically focusing on unserved/underserved areas

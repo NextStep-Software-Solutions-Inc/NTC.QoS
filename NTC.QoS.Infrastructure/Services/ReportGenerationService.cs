@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 using QuestPDF.Fluent;
@@ -893,6 +894,7 @@ public class ReportGenerationService : IReportGenerationService
     public async Task<byte[]> GenerateConnectivityPdfAsync(
         ConnectivityReportDto reportData,
         string reportTitle = "Connectivity Report",
+        ConnectivityStatusEnum? filterByStatus = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating connectivity PDF report: {ReportTitle}", reportTitle);
@@ -907,7 +909,7 @@ public class ReportGenerationService : IReportGenerationService
                 page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
                 page.Header().AlignCenter().Text(text => text.Span(reportTitle).Bold().FontSize(16));
-                page.Content().Element(content => ComposeConnectivityContent(content, reportData));
+                page.Content().Element(content => ComposeConnectivityContent(content, reportData, filterByStatus));
                 page.Footer().AlignCenter().Text(x =>
                 {
                     x.Span("Page ");
@@ -955,7 +957,7 @@ public class ReportGenerationService : IReportGenerationService
         }, cancellationToken);
     }
 
-    private void ComposeConnectivityContent(IContainer container, ConnectivityReportDto reportData)
+    private void ComposeConnectivityContent(IContainer container, ConnectivityReportDto reportData, ConnectivityStatusEnum? filterByStatus = null)
     {
         container.Column(column =>
         {
@@ -1006,9 +1008,12 @@ public class ReportGenerationService : IReportGenerationService
                 });
             });
 
-            // All areas table
+            // Areas table with title that reflects the active status filter
+            var areasTableTitle = filterByStatus.HasValue
+                ? $"{filterByStatus.Value} Areas ({reportData.Areas.Count} total)"
+                : $"Areas ({reportData.Areas.Count} total)";
             column.Item()
-                .Text(text => text.Span($"All Areas ({reportData.Areas.Count} total)").Bold().FontSize(14));
+                .Text(text => text.Span(areasTableTitle).Bold().FontSize(14));
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(columns =>

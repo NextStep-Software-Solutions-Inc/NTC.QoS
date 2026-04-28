@@ -45,6 +45,8 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
 
             // Fetch the full unfiltered dataset once (all pages).  If FilterByStatus is set we
             // derive the filtered Areas list in-memory rather than issuing a second full DB scan.
+            // IncludeSummaries=false: geographic summaries are built below from allAreas directly,
+            // so we only need per-page barangay details (municipality/province names) for each page.
             var unfilteredQuery = new GetConnectivityReportQuery
             {
                 RegionId = request.RegionId,
@@ -52,7 +54,8 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 MunicipalityId = request.MunicipalityId,
                 FilterByStatus = null,
                 PageNumber = 1,
-                PageSize = DownloadPageSize
+                PageSize = DownloadPageSize,
+                IncludeSummaries = false
             };
 
             var reportResponse = await _mediator.Send(unfilteredQuery, cancellationToken);
@@ -83,7 +86,8 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                         MunicipalityId = request.MunicipalityId,
                         FilterByStatus = null,
                         PageNumber = page,
-                        PageSize = DownloadPageSize
+                        PageSize = DownloadPageSize,
+                        IncludeSummaries = false
                     };
 
                     var pageResponse = await _mediator.Send(pageQuery, cancellationToken);
@@ -145,7 +149,7 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
             if (request.Format == ReportFormat.Pdf)
             {
                 fileContent = await _reportGenerationService.GenerateConnectivityPdfAsync(
-                    completeReportData, title, cancellationToken);
+                    completeReportData, title, request.FilterByStatus, cancellationToken);
                 contentType = "application/pdf";
             }
             else
