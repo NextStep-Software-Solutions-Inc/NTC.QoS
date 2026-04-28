@@ -124,8 +124,9 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             // Validate FilterByStatus: reject undefined enum values early
             if (jobRequest.FilterByStatus.HasValue && !Enum.IsDefined(typeof(ConnectivityStatusEnum), jobRequest.FilterByStatus.Value))
             {
+                var validValues = string.Join(", ", Enum.GetValues<ConnectivityStatusEnum>().Select(v => $"{v} ({(int)v})"));
                 await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Failed,
-                    $"Invalid FilterByStatus value '{(int)jobRequest.FilterByStatus.Value}'. Valid values are: Served (3), Underserved (2), Unserved (1).",
+                    $"Invalid FilterByStatus value '{(int)jobRequest.FilterByStatus.Value}'. Valid values are: {validValues}.",
                     startTime: startTime,
                     endTime: DateTime.UtcNow,
                     currentStep: "Failed",

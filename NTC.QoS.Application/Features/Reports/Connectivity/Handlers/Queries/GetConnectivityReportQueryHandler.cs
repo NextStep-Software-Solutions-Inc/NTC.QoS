@@ -78,13 +78,15 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             // Validate FilterByStatus: reject undefined enum values to avoid silently empty results
             if (request.FilterByStatus.HasValue && !Enum.IsDefined(typeof(ConnectivityStatusEnum), request.FilterByStatus.Value))
             {
+                var validValues = string.Join(", ", Enum.GetValues<ConnectivityStatusEnum>().Select(v => $"{v} ({(int)v})"));
+                var invalidStatusMsg = $"Invalid FilterByStatus value '{(int)request.FilterByStatus.Value}'. Valid values are: {validValues}.";
                 return new ApiResponse<ConnectivityReportDto>
                 {
                     Succeeded = false,
-                    Message = $"Invalid FilterByStatus value '{(int)request.FilterByStatus.Value}'. Valid values are: Served (3), Underserved (2), Unserved (1).",
+                    Message = invalidStatusMsg,
                     Errors = new Dictionary<string, string[]>
                     {
-                        { "FilterByStatus", [$"Invalid FilterByStatus value '{(int)request.FilterByStatus.Value}'. Valid values are: Served (3), Underserved (2), Unserved (1)."] }
+                        { "FilterByStatus", [invalidStatusMsg] }
                     }
                 };
             }
