@@ -441,7 +441,11 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
-    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1). When omitted, all statuses are included.</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1).
+    /// When set, the returned <c>Areas</c> list is limited to the specified status and <c>TotalAreas</c>/<c>TotalPages</c>
+    /// reflect the filtered count. Summary totals (<c>TotalServedAreas</c>, <c>TotalUnderservedAreas</c>, etc.),
+    /// <c>ScoreSummary</c>, and geographic summaries (<c>MunicipalitySummaries</c>, <c>ProvinceSummaries</c>,
+    /// <c>RegionSummary</c>) always reflect the full unfiltered dataset.</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
     /// <returns>Unified connectivity report with areas across all statuses</returns>
@@ -478,7 +482,9 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
-    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1). When omitted, all statuses are included.</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1).
+    /// When set, the exported <c>Areas</c> list is limited to the specified status; however, summary totals and
+    /// geographic summaries always reflect the full unfiltered dataset.</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity/download")]

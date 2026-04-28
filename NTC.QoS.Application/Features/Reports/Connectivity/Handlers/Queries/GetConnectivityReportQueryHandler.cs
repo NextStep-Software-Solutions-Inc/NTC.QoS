@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.Connectivity.Requests;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
@@ -100,17 +101,17 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 paginatedAreas.Select(a => (a.LocationId, a.LocationType)).ToList(),
                 cancellationToken);
 
-            // Fetch barangay details with municipality and province names
-            var barangayDetails = await GetBarangayDetailsAsync(
-                paginatedAreas.Select(a => a.LocationId).ToList(),
+            // Fetch barangay details for ALL assessments so geographic summaries cover the full scope
+            var allBarangayDetails = await GetBarangayDetailsAsync(
+                assessments.Select(a => a.LocationId).ToList(),
                 cancellationToken);
 
             var areaDetails = paginatedAreas.Select(a => new ConnectivityAreaDetailDto
             {
                 LocationId = a.LocationId,
                 LocationName = locationNames.GetValueOrDefault((a.LocationId, a.LocationType), $"Location-{a.LocationId}"),
-                MunicipalityName = barangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
-                ProvinceName = barangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
+                MunicipalityName = allBarangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
+                ProvinceName = allBarangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
                 ConnectivityStatus = a.ConnectivityStatus,
                 Population = a.Population,
                 FiberCoverageScore = a.FiberCoverageScore,
@@ -139,6 +140,24 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             // Calculate summary statistics from the full unfiltered dataset (all statuses)
             var scoreSummary = CalculateScoreSummary(assessments);
 
+            // Build geographic summary DTOs from all unfiltered assessments so they are consistent
+            // with the top-level totals/populations regardless of whether FilterByStatus is set
+            var allAreaDetails = assessments.Select(a => new ConnectivityAreaDetailDto
+            {
+                LocationId = a.LocationId,
+                LocationName = string.Empty,
+                MunicipalityName = allBarangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
+                ProvinceName = allBarangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
+                ConnectivityStatus = a.ConnectivityStatus,
+                Population = a.Population,
+                FiberCoverageScore = a.FiberCoverageScore,
+                InternetAccessScore = a.InternetAccessScore,
+                TechnologyTypeScore = a.TechnologyTypeScore,
+                QualityOfServiceScore = a.QualityOfServiceScore,
+                CoverageAvailabilityScore = a.CoverageAvailabilityScore,
+                TotalScore = a.TotalScore,
+            }).ToList();
+
             var reportDto = new ConnectivityReportDto
             {
                 TotalServedAreas = servedAreas.Count,
@@ -149,6 +168,9 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 UnservedPopulation = unservedAreas.Sum(a => a.Population ?? 0),
                 Areas = areaDetails,
                 ScoreSummary = scoreSummary,
+                MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreaDetails),
+                ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreaDetails),
+                RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreaDetails),
                 TotalAreas = totalAreas,
                 PageNumber = request.PageNumber,
                 PageSize = request.PageSize,
