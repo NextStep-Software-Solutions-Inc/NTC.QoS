@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Reports.Connectivity.Requests;
 using NTC.QoS.Domain.Enums;
@@ -9,11 +8,11 @@ using NTC.QoS.Domain.Models.DTOs.Reports;
 
 namespace NTC.QoS.Application.Features.Reports.Connectivity.Handlers.Queries;
 
-public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadConnectivityReportQuery, ApiResponse<ConnectivityReportDownloadResult>>
+public class DownloadConnectivityReportQueryHandler : MediatR.IRequestHandler<DownloadConnectivityReportQuery, ApiResponse<ConnectivityReportDownloadResult>>
 {
-    private const int DownloadPageSize = 100;
-
-    private readonly IMediator _mediator;
+    private readonly IConnectivityAssessmentRepository _assessmentRepository;
+    private readonly IBarangayRepository _barangayRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly IReportGenerationService _reportGenerationService;
     private readonly IRegionRepository _regionRepository;
     private readonly IProvinceRepository _provinceRepository;
@@ -21,14 +20,18 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
     private readonly ILogger<DownloadConnectivityReportQueryHandler> _logger;
 
     public DownloadConnectivityReportQueryHandler(
-        IMediator mediator,
+        IConnectivityAssessmentRepository assessmentRepository,
+        IBarangayRepository barangayRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         IReportGenerationService reportGenerationService,
         IRegionRepository regionRepository,
         IProvinceRepository provinceRepository,
         IMunicipalityRepository municipalityRepository,
         ILogger<DownloadConnectivityReportQueryHandler> logger)
     {
-        _mediator = mediator;
+        _assessmentRepository = assessmentRepository;
+        _barangayRepository = barangayRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _reportGenerationService = reportGenerationService;
         _regionRepository = regionRepository;
         _provinceRepository = provinceRepository;
@@ -43,86 +46,91 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
             _logger.LogInformation("Downloading unified connectivity report with filters: RegionId={RegionId}, ProvinceId={ProvinceId}, MunicipalityId={MunicipalityId}, FilterByStatus={FilterByStatus}, Format={Format}",
                 request.RegionId, request.ProvinceId, request.MunicipalityId, request.FilterByStatus, request.Format);
 
-            // Fetch the full unfiltered dataset once (all pages).  If FilterByStatus is set we
-            // derive the filtered Areas list in-memory rather than issuing a second full DB scan.
-            // IncludeSummaries=false: geographic summaries are built below from allAreas directly,
-            // so we only need per-page barangay details (municipality/province names) for each page.
-            var unfilteredQuery = new GetConnectivityReportQuery
+            // Validate FilterByStatus before fetching any data
+            if (request.FilterByStatus.HasValue && !Enum.IsDefined(typeof(ConnectivityStatusEnum), request.FilterByStatus.Value))
             {
-                RegionId = request.RegionId,
-                ProvinceId = request.ProvinceId,
-                MunicipalityId = request.MunicipalityId,
-                FilterByStatus = null,
-                PageNumber = 1,
-                PageSize = DownloadPageSize,
-                IncludeSummaries = false
-            };
-
-            var reportResponse = await _mediator.Send(unfilteredQuery, cancellationToken);
-
-            if (!reportResponse.Succeeded || reportResponse.Data == null)
-            {
+                var validValues = string.Join(", ", Enum.GetValues<ConnectivityStatusEnum>().Select(v => $"{v} ({(int)v})"));
+                var invalidStatusMsg = $"Invalid FilterByStatus value '{(int)request.FilterByStatus.Value}'. Valid values are: {validValues}.";
                 return new ApiResponse<ConnectivityReportDownloadResult>
                 {
-                    Message = reportResponse.Message ?? "Failed to generate connectivity report data",
                     Succeeded = false,
-                    Errors = reportResponse.Errors
+                    Message = invalidStatusMsg,
+                    Errors = new Dictionary<string, string[]> { { "FilterByStatus", [invalidStatusMsg] } }
                 };
             }
 
-            // Collect all pages of the unfiltered dataset
-            var allAreas = new List<ConnectivityAreaDetailDto>(reportResponse.Data.Areas);
+            // Fetch the full unfiltered dataset in a single DB call (no pagination loop).
+            // Geographic summaries and summary totals are computed from this complete set.
+            var baseQuery = await BuildBaseQueryAsync(
+                request.RegionId, request.ProvinceId, request.MunicipalityId, cancellationToken);
 
-            if (reportResponse.Data.TotalPages > 1)
+            var allAssessments = await _assessmentRepository.ToListAsync(baseQuery, cancellationToken);
+
+            _logger.LogInformation("Fetched {Count} assessments for connectivity report download", allAssessments.Count);
+
+            // Batch-load location names (barangay names) and municipality/province details
+            var allLocationIds = allAssessments.Select(a => a.LocationId).ToList();
+
+            var barangayNames = await GetBarangayNamesAsync(allLocationIds, cancellationToken);
+            var barangayDetails = await GetBarangayDetailsAsync(allLocationIds, cancellationToken);
+
+            // Project all assessments to ConnectivityAreaDetailDto
+            var allAreas = allAssessments.Select(a => new ConnectivityAreaDetailDto
             {
-                _logger.LogInformation("Fetching {PageCount} additional pages for complete report data", reportResponse.Data.TotalPages - 1);
-
-                for (int page = 2; page <= reportResponse.Data.TotalPages; page++)
-                {
-                    var pageQuery = new GetConnectivityReportQuery
-                    {
-                        RegionId = request.RegionId,
-                        ProvinceId = request.ProvinceId,
-                        MunicipalityId = request.MunicipalityId,
-                        FilterByStatus = null,
-                        PageNumber = page,
-                        PageSize = DownloadPageSize,
-                        IncludeSummaries = false
-                    };
-
-                    var pageResponse = await _mediator.Send(pageQuery, cancellationToken);
-
-                    if (pageResponse.Succeeded && pageResponse.Data != null)
-                    {
-                        allAreas.AddRange(pageResponse.Data.Areas);
-                    }
-                }
-            }
+                LocationId = a.LocationId,
+                LocationName = barangayNames.GetValueOrDefault(a.LocationId, $"Location-{a.LocationId}"),
+                MunicipalityName = barangayDetails.GetValueOrDefault(a.LocationId).MunicipalityName,
+                ProvinceName = barangayDetails.GetValueOrDefault(a.LocationId).ProvinceName,
+                ConnectivityStatus = a.ConnectivityStatus,
+                Population = a.Population,
+                FiberCoverageScore = a.FiberCoverageScore,
+                InternetAccessScore = a.InternetAccessScore,
+                TechnologyTypeScore = a.TechnologyTypeScore,
+                QualityOfServiceScore = a.QualityOfServiceScore,
+                CoverageAvailabilityScore = a.CoverageAvailabilityScore,
+                TotalScore = a.TotalScore,
+                CellTowerCount = a.CellTowerCount,
+                FiberNAPCount = a.FiberNAPCount,
+                WifiHotspotCount = a.WifiHotspotCount,
+                ServiceProviderCount = a.ServiceProviderCount,
+                DominantServiceProvider = a.DominantServiceProvider,
+                AverageDownloadSpeedMbps = a.AverageDownloadSpeedMbps,
+                AverageUploadSpeedMbps = a.AverageUploadSpeedMbps,
+                SpeedTestCount = a.SpeedTestCount,
+                LastAssessed = a.AssessmentDate
+            }).ToList();
 
             // Derive the export Areas list in-memory; geographic summaries always use allAreas
             var filteredAreas = request.FilterByStatus.HasValue
                 ? allAreas.Where(a => a.ConnectivityStatus == request.FilterByStatus.Value).ToList()
                 : allAreas;
 
+            // Compute summary statistics from the full unfiltered set
+            var servedAreas = allAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).ToList();
+            var underservedAreas = allAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).ToList();
+            var unservedAreas = allAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).ToList();
+
+            var scoreSummary = CalculateScoreSummary(allAssessments);
+
             // Create a complete report DTO: summaries from the full dataset, Areas from the filtered list
             var completeReportData = new ConnectivityReportDto
             {
-                TotalServedAreas = reportResponse.Data.TotalServedAreas,
-                ServedPopulation = reportResponse.Data.ServedPopulation,
-                TotalUnderservedAreas = reportResponse.Data.TotalUnderservedAreas,
-                UnderservedPopulation = reportResponse.Data.UnderservedPopulation,
-                TotalUnservedAreas = reportResponse.Data.TotalUnservedAreas,
-                UnservedPopulation = reportResponse.Data.UnservedPopulation,
+                TotalServedAreas = servedAreas.Count,
+                ServedPopulation = servedAreas.Sum(a => a.Population ?? 0),
+                TotalUnderservedAreas = underservedAreas.Count,
+                UnderservedPopulation = underservedAreas.Sum(a => a.Population ?? 0),
+                TotalUnservedAreas = unservedAreas.Count,
+                UnservedPopulation = unservedAreas.Sum(a => a.Population ?? 0),
                 Areas = filteredAreas,
-                ScoreSummary = reportResponse.Data.ScoreSummary,
+                ScoreSummary = scoreSummary,
                 MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreas),
                 ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreas),
                 RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreas),
-                TotalAreas = request.FilterByStatus.HasValue ? filteredAreas.Count : reportResponse.Data.TotalAreas,
+                TotalAreas = request.FilterByStatus.HasValue ? filteredAreas.Count : allAreas.Count,
                 PageNumber = 1,
                 PageSize = filteredAreas.Count,
                 TotalPages = 1,
-                GeneratedAt = reportResponse.Data.GeneratedAt
+                GeneratedAt = DateTime.UtcNow
             };
 
             // Generate location-based default title if not provided
@@ -182,6 +190,141 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
                 Succeeded = false
             };
         }
+    }
+
+    /// <summary>
+    /// Builds an <see cref="IQueryable{ConnectivityAssessment}"/> filtered to barangays that have a
+    /// <c>BarangayCoverage</c> record and are within the specified geographic scope.
+    /// The query is <b>not</b> materialized; callers execute it as a single DB read.
+    /// </summary>
+    private async Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildBaseQueryAsync(
+        Guid? regionId, Guid? provinceId, Guid? municipalityId, CancellationToken cancellationToken)
+    {
+        var query = _assessmentRepository.Query(a => a.LocationType == LocationTypeEnum.Barangay);
+
+        var coveredBarangayIds = _barangayCoverageRepository.Query().Select(bc => bc.BarangayId);
+
+        if (municipalityId.HasValue)
+        {
+            var barangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            query = barangayIds.Count > 0
+                ? query.Where(a => barangayIds.Contains(a.LocationId))
+                : query.Where(a => false);
+        }
+        else if (provinceId.HasValue)
+        {
+            var barangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            query = barangayIds.Count > 0
+                ? query.Where(a => barangayIds.Contains(a.LocationId))
+                : query.Where(a => false);
+        }
+        else if (regionId.HasValue)
+        {
+            var barangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
+
+            query = barangayIds.Count > 0
+                ? query.Where(a => barangayIds.Contains(a.LocationId))
+                : query.Where(a => false);
+        }
+        else
+        {
+            var allCoveredIds = await _barangayRepository.ToListAsync(
+                _barangayRepository.Query(b => coveredBarangayIds.Contains(b.Id)).Select(b => b.Id),
+                cancellationToken);
+
+            query = allCoveredIds.Count > 0
+                ? query.Where(a => allCoveredIds.Contains(a.LocationId))
+                : query.Where(a => false);
+        }
+
+        return query;
+    }
+
+    private async Task<Dictionary<Guid, string>> GetBarangayNamesAsync(
+        List<Guid> barangayIds, CancellationToken cancellationToken)
+    {
+        if (barangayIds.Count == 0)
+            return [];
+
+        try
+        {
+            var items = await _barangayRepository.ToListAsync(
+                _barangayRepository.QueryAsNoTracking(b => barangayIds.Contains(b.Id))
+                    .Select(b => new { b.Id, b.Name }),
+                cancellationToken);
+            return items.ToDictionary(x => x.Id, x => x.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching barangay names for download report");
+            return [];
+        }
+    }
+
+    private async Task<Dictionary<Guid, (string MunicipalityName, string ProvinceName)>> GetBarangayDetailsAsync(
+        List<Guid> barangayIds, CancellationToken cancellationToken)
+    {
+        if (barangayIds.Count == 0)
+            return [];
+
+        try
+        {
+            var items = await _barangayRepository.ToListAsync(
+                _barangayRepository.QueryAsNoTracking(b => barangayIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.Id,
+                        MunicipalityName = b.Municipality.Name,
+                        ProvinceName = b.Municipality.Province.Name
+                    }),
+                cancellationToken);
+            return items.ToDictionary(x => x.Id, x => (x.MunicipalityName, x.ProvinceName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching barangay municipality/province details for download report");
+            return [];
+        }
+    }
+
+    private static ConnectivityScoreSummaryDto CalculateScoreSummary(
+        IReadOnlyList<Domain.Entities.ConnectivityAssessment> assessments)
+    {
+        if (assessments.Count == 0)
+            return new ConnectivityScoreSummaryDto();
+
+        return new ConnectivityScoreSummaryDto
+        {
+            AverageFiberCoverageScore = assessments.Average(a => a.FiberCoverageScore),
+            AverageInternetAccessScore = assessments.Average(a => a.InternetAccessScore),
+            AverageTechnologyTypeScore = assessments.Average(a => a.TechnologyTypeScore),
+            AverageQualityOfServiceScore = assessments.Average(a => a.QualityOfServiceScore),
+            AverageCoverageAvailabilityScore = assessments.Average(a => a.CoverageAvailabilityScore),
+            AverageTotalScore = assessments.Average(a => a.TotalScore),
+            ExcellentCount = assessments.Count(a => a.TotalScore >= 13),
+            GoodCount = assessments.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
+            ModerateCount = assessments.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
+            FairCount = assessments.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
+            TotalCellTowers = assessments.Sum(a => a.CellTowerCount),
+            TotalFiberNAPs = assessments.Sum(a => a.FiberNAPCount),
+            TotalWifiHotspots = assessments.Sum(a => a.WifiHotspotCount),
+            TotalServiceProviders = assessments
+                .Select(a => a.DominantServiceProvider)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Distinct()
+                .Count()
+        };
     }
 
     private async Task<string> GenerateLocationBasedTitleAsync(
@@ -306,7 +449,4 @@ public class DownloadConnectivityReportQueryHandler : IRequestHandler<DownloadCo
 
         return string.IsNullOrWhiteSpace(sanitized) ? defaultTitle : sanitized;
     }
-
-    // ── Geographic summary builders ──────────────────────────────────────────
-    // Shared logic lives in ConnectivityReportSummaryHelper (NTC.QoS.Domain.Helper).
 }

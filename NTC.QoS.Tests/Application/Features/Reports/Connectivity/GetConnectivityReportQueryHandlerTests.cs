@@ -73,10 +73,28 @@ public class GetConnectivityReportQueryHandlerTests
             .Returns<Expression<Func<ConnectivityAssessment, bool>>>(expr =>
                 assessments.AsQueryable().Where(expr));
 
+        // CountAsync — executes the in-memory queryable count
         _assessmentRepositoryMock
-            .Setup(r => r.ToListAsync(It.IsAny<IQueryable<ConnectivityAssessment>>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.CountAsync(It.IsAny<IQueryable<ConnectivityAssessment>>(), It.IsAny<CancellationToken>()))
             .Returns<IQueryable<ConnectivityAssessment>, CancellationToken>((q, ct) =>
-                Task.FromResult(q.ToList()));
+                Task.FromResult(q.Count()));
+
+        // Generic ToListAsync — handles ConnectivityAssessment entities, projection types, and Guid lists
+        _assessmentRepositoryMock
+            .Setup(r => r.ToListAsync(It.IsAny<IQueryable<It.IsAnyType>>(), It.IsAny<CancellationToken>()))
+            .Returns(new InvocationFunc(invocation =>
+            {
+                var enumerable = (System.Collections.IEnumerable)invocation.Arguments[0];
+                var elementType = invocation.Method.GetGenericArguments()[0];
+                var listType = typeof(List<>).MakeGenericType(elementType);
+                var list = (System.Collections.IList)Activator.CreateInstance(listType)!;
+                foreach (var item in enumerable)
+                    list.Add(item);
+                return typeof(Task)
+                    .GetMethod(nameof(Task.FromResult))!
+                    .MakeGenericMethod(listType)
+                    .Invoke(null, new object[] { list })!;
+            }));
 
         // Coverage repository — returns all coverage records for any expression (including null)
         _barangayCoverageRepositoryMock
@@ -317,6 +335,11 @@ public class GetConnectivityReportQueryHandlerTests
         _assessmentRepositoryMock
             .Setup(r => r.Query(It.IsAny<Expression<Func<ConnectivityAssessment, bool>>>()))
             .Returns(Enumerable.Empty<ConnectivityAssessment>().AsQueryable());
+
+        _assessmentRepositoryMock
+            .Setup(r => r.CountAsync(It.IsAny<IQueryable<ConnectivityAssessment>>(), It.IsAny<CancellationToken>()))
+            .Returns<IQueryable<ConnectivityAssessment>, CancellationToken>((q, ct) =>
+                Task.FromResult(q.Count()));
 
         var query = new GetConnectivityReportQuery { PageNumber = 1, PageSize = 10 };
 
