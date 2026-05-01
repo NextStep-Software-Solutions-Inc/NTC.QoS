@@ -313,6 +313,9 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
         NetTopologySuite.Geometries.MultiPolygon? targetBoundaries = null;
         List<BarangayProjection> barangays;
 
+        // Hoist the BarangayCoverage filter subquery so it is not duplicated in each geographic branch.
+        var coveredBarangayIds = _context.BarangayCoverages.Select(bc => bc.BarangayId);
+
         if (municipalityId.HasValue)
         {
             var mun = await _context.Municipalities.AsNoTracking()
@@ -325,7 +328,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             
             barangays = await _context.Barangays.AsNoTracking()
                 .Where(b => b.MunicipalityId == municipalityId &&
-                            _context.BarangayCoverages.Select(bc => bc.BarangayId).Contains(b.Id))
+                            coveredBarangayIds.Contains(b.Id))
                 .OrderBy(b => b.Name)
                 .Select(b => new BarangayProjection
                 {
@@ -348,7 +351,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             
             barangays = await _context.Barangays.AsNoTracking()
                 .Where(b => b.Municipality.ProvinceId == provinceId &&
-                            _context.BarangayCoverages.Select(bc => bc.BarangayId).Contains(b.Id))
+                            coveredBarangayIds.Contains(b.Id))
                 .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
                 .Select(b => new BarangayProjection
                 {
@@ -371,7 +374,7 @@ public class ProcessWirelessBroadbandReportJob : IProcessWirelessBroadbandReport
             
             barangays = await _context.Barangays.AsNoTracking()
                 .Where(b => b.Municipality.Province.RegionId == regionId &&
-                            _context.BarangayCoverages.Select(bc => bc.BarangayId).Contains(b.Id))
+                            coveredBarangayIds.Contains(b.Id))
                 .OrderBy(b => b.Municipality.Name).ThenBy(b => b.Name)
                 .Select(b => new BarangayProjection
                 {

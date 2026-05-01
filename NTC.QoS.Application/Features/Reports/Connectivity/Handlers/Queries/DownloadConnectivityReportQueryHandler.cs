@@ -196,59 +196,49 @@ public class DownloadConnectivityReportQueryHandler : MediatR.IRequestHandler<Do
     /// Builds an <see cref="IQueryable{ConnectivityAssessment}"/> filtered to barangays that have a
     /// <c>BarangayCoverage</c> record and are within the specified geographic scope.
     /// The query is <b>not</b> materialized; callers execute it as a single DB read.
+    /// All filtering is expressed as IQueryable subqueries so the database resolves them in a
+    /// single round-trip without pulling large ID lists into application memory.
     /// </summary>
-    private async Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildBaseQueryAsync(
+    private Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildBaseQueryAsync(
         Guid? regionId, Guid? provinceId, Guid? municipalityId, CancellationToken cancellationToken)
     {
         var query = _assessmentRepository.Query(a => a.LocationType == LocationTypeEnum.Barangay);
 
+        // Subquery: barangay IDs that have a BarangayCoverage record (stays as IQueryable — no materialisation)
         var coveredBarangayIds = _barangayCoverageRepository.Query().Select(bc => bc.BarangayId);
 
+        // Compose a scoped barangay-ID subquery based on the geographic filter.
+        // Each branch remains an IQueryable so the whole chain executes as a single DB subquery.
+        IQueryable<Guid> scopedBarangayIds;
         if (municipalityId.HasValue)
         {
-            var barangayIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
-                    .Select(b => b.Id),
-                cancellationToken);
-
-            query = barangayIds.Count > 0
-                ? query.Where(a => barangayIds.Contains(a.LocationId))
-                : query.Where(a => false);
+            scopedBarangayIds = _barangayRepository
+                .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
         else if (provinceId.HasValue)
         {
-            var barangayIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
-                    .Select(b => b.Id),
-                cancellationToken);
-
-            query = barangayIds.Count > 0
-                ? query.Where(a => barangayIds.Contains(a.LocationId))
-                : query.Where(a => false);
+            scopedBarangayIds = _barangayRepository
+                .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
         else if (regionId.HasValue)
         {
-            var barangayIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
-                    .Select(b => b.Id),
-                cancellationToken);
-
-            query = barangayIds.Count > 0
-                ? query.Where(a => barangayIds.Contains(a.LocationId))
-                : query.Where(a => false);
+            scopedBarangayIds = _barangayRepository
+                .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
         else
         {
-            var allCoveredIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => coveredBarangayIds.Contains(b.Id)).Select(b => b.Id),
-                cancellationToken);
-
-            query = allCoveredIds.Count > 0
-                ? query.Where(a => allCoveredIds.Contains(a.LocationId))
-                : query.Where(a => false);
+            // National scope: all covered barangays
+            scopedBarangayIds = _barangayRepository
+                .Query(b => coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
 
-        return query;
+        query = query.Where(a => scopedBarangayIds.Contains(a.LocationId));
+
+        return Task.FromResult(query);
     }
 
     private async Task<Dictionary<Guid, string>> GetBarangayNamesAsync(

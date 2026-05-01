@@ -279,64 +279,50 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
     /// filters and restricted to barangays that have a <c>BarangayCoverage</c> record.
     /// The query is <b>not</b> materialised; callers apply further predicates, sorting, counting,
     /// and pagination before executing.
+    /// All filtering is expressed as IQueryable subqueries so the database resolves them in a
+    /// single round-trip without pulling large ID lists into application memory.
     /// </summary>
-    private async Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildFilteredQueryAsync(
+    private Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildFilteredQueryAsync(
         Guid? regionId, Guid? provinceId, Guid? municipalityId, LocationTypeEnum locationType, CancellationToken cancellationToken)
     {
         var query = _assessmentRepository.Query(a => a.LocationType == locationType);
 
-        // Only include barangays with BarangayCoverage records
+        // Subquery: barangay IDs that have a BarangayCoverage record (stays as IQueryable — no materialisation)
         var coveredBarangayIds = _barangayCoverageRepository.Query()
             .Select(bc => bc.BarangayId);
 
-        // Apply geographic filter precedence: Municipality > Province > Region
+        // Compose a scoped barangay-ID subquery based on the geographic filter.
+        // Each branch remains an IQueryable so the whole chain is sent to the database as a subquery.
+        IQueryable<Guid> scopedBarangayIds;
         if (municipalityId.HasValue)
         {
-            var barangayIdsInMunicipality = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
-                    .Select(b => b.Id),
-                cancellationToken);
-
-            query = barangayIdsInMunicipality.Count > 0
-                ? query.Where(a => barangayIdsInMunicipality.Contains(a.LocationId))
-                : query.Where(a => false);
+            scopedBarangayIds = _barangayRepository
+                .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
         else if (provinceId.HasValue)
         {
-            var barangayIdsInProvince = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
-                    .Select(b => b.Id),
-                cancellationToken);
-
-            query = barangayIdsInProvince.Count > 0
-                ? query.Where(a => barangayIdsInProvince.Contains(a.LocationId))
-                : query.Where(a => false);
+            scopedBarangayIds = _barangayRepository
+                .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
         else if (regionId.HasValue)
         {
-            var barangayIdsInRegion = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
-                    .Select(b => b.Id),
-                cancellationToken);
-
-            query = barangayIdsInRegion.Count > 0
-                ? query.Where(a => barangayIdsInRegion.Contains(a.LocationId))
-                : query.Where(a => false);
+            scopedBarangayIds = _barangayRepository
+                .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
         else
         {
-            // No geographic filter, just filter by covered barangays
-            var allCoveredBarangayIds = await _barangayRepository.ToListAsync(
-                _barangayRepository.Query(b => coveredBarangayIds.Contains(b.Id))
-                    .Select(b => b.Id),
-                cancellationToken);
-
-            query = allCoveredBarangayIds.Count > 0
-                ? query.Where(a => allCoveredBarangayIds.Contains(a.LocationId))
-                : query.Where(a => false);
+            // National scope: all covered barangays
+            scopedBarangayIds = _barangayRepository
+                .Query(b => coveredBarangayIds.Contains(b.Id))
+                .Select(b => b.Id);
         }
 
-        return query;
+        query = query.Where(a => scopedBarangayIds.Contains(a.LocationId));
+
+        return Task.FromResult(query);
     }
 
     /// <summary>Lightweight projection used for summary statistics and geographic summaries.</summary>
