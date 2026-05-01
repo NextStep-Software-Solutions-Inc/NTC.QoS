@@ -176,11 +176,11 @@ public class GetAreaBroadbandInfoHandler : IRequestHandler<GetAreaBroadbandInfoR
                 : 0;
                 
             // Determine service availability
-            // Note: HasFiber uses ServiceTypeEnum.Wired. Currently, the system only has fiber as the wired service type.
-            // If other wired types (cable, DSL) are added in the future, consider renaming to HasWired or filtering specifically for fiber.
+            // HasCellular matches both the explicit Cellular type and the legacy Wireless type for backward compatibility.
+            // HasFiber matches Wired. DSL providers use ServiceTypeEnum.DSL and are excluded from HasFiber.
             var serviceAvailability = new ServiceAvailabilityDto
             {
-                HasCellular = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wireless),
+                HasCellular = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Cellular || sp.ServiceType == ServiceTypeEnum.Wireless),
                 HasFiber = serviceProviders.Any(sp => sp.ServiceType == ServiceTypeEnum.Wired)
             };
 

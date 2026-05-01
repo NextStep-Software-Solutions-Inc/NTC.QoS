@@ -289,13 +289,17 @@ async function displayBarangayBoundary(barangayId, map) {
       const sourceId = `barangay-${barangayId}`;
       const layerId = `barangay-layer-${barangayId}`;
       
+      // Find the first symbol/label layer so we can insert BEFORE it
+      // This keeps map labels (cities, streets, etc.) visible above the fill overlay
+      const firstSymbolId = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+      
       // Add source
       map.addSource(sourceId, {
         type: 'geojson',
         data: result.data.boundaries
       });
       
-      // Add fill layer
+      // Add fill layer – inserted BEFORE the first symbol layer to keep labels visible
       map.addLayer({
         id: layerId,
         type: 'fill',
@@ -304,9 +308,9 @@ async function displayBarangayBoundary(barangayId, map) {
           'fill-color': '#3388ff',
           'fill-opacity': 0.2
         }
-      });
+      }, firstSymbolId);   // ← beforeId: insert before labels
       
-      // Add outline layer
+      // Add outline layer – also before labels
       map.addLayer({
         id: `${layerId}-outline`,
         type: 'line',
@@ -315,7 +319,7 @@ async function displayBarangayBoundary(barangayId, map) {
           'line-color': '#3388ff',
           'line-width': 2
         }
-      });
+      }, firstSymbolId);   // ← beforeId: insert before labels
       
       // Fit map to boundaries
       const bounds = new mapboxgl.LngLatBounds();
@@ -350,8 +354,124 @@ map.on('load', () => {
 - **Multiple Boundaries**: When displaying multiple barangays, use different colors or layers
 - **Loading State**: Show a loading spinner while fetching boundary data
 - **Error Handling**: Handle cases where boundaries might be null or invalid
+- **Label Visibility**: Always use `beforeId` (first symbol layer) when adding fill/coverage layers to keep map labels readable — see Section 3 for the Fiber Networks pattern
 
-### 3. Boundary Data Format
+---
+
+### 3. Fiber Networks Coverage Layer
+
+> **⚠ IMPORTANT – Label Visibility Across All Map Styles**
+>
+> The Fiber Networks coverage layer MUST be inserted **before** the map style's
+> first symbol/label layer so that place-name labels (streets, cities, landmarks)
+> remain legible.  Failing to do this causes the fiber overlay to obscure labels
+> on every supported map tile style (Streets, Topography Dark, Basic, etc.).
+
+#### Viewport-Optimised Endpoint
+
+Use `GET /v2/barangay-coverages/viewport` to fetch barangay boundary polygons enriched
+with wired FTTH coverage data that are visible in the current map viewport.
+
+| Query parameter | Type | Required | Description |
+|---|---|---|---|
+| `minLat` | `number` | ✅ | Southern boundary of viewport |
+| `maxLat` | `number` | ✅ | Northern boundary of viewport |
+| `minLng` | `number` | ✅ | Western boundary of viewport |
+| `maxLng` | `number` | ✅ | Eastern boundary of viewport |
+| `regionIds` | `Guid[]` | ❌ | Filter by region |
+| `provinceIds` | `Guid[]` | ❌ | Filter by province |
+| `municipalityIds` | `Guid[]` | ❌ | Filter by municipality |
+
+#### Correct Implementation – `beforeId` Pattern
+
+Always locate the **first symbol layer** in the active map style and pass its `id`
+as the second argument to `map.addLayer()`.  This single change ensures the
+coverage overlay sits *below* all label layers in every supported map style.
+
+```javascript
+// MapLibre GL JS / Mapbox GL JS
+async function loadFiberCoverageLayer(map) {
+  const bounds = map.getBounds();
+  const params = new URLSearchParams({
+    minLat: bounds.getSouth(),
+    maxLat: bounds.getNorth(),
+    minLng: bounds.getWest(),
+    maxLng: bounds.getEast(),
+  });
+
+  const response = await fetch(`/v2/barangay-coverages/viewport?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const result = await response.json();
+
+  if (!result.succeeded || !result.data?.length) return;
+
+  // Build a GeoJSON FeatureCollection from the response
+  const geojson = {
+    type: 'FeatureCollection',
+    features: result.data
+      .filter(item => item.boundaries)
+      .map(item => item.boundaries)   // each boundaries is already a GeoJSON Feature
+  };
+
+  // ─── KEY FIX: find the first symbol layer so we can insert BEFORE it ───
+  const firstSymbolId = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+
+  // Add or refresh the GeoJSON source
+  if (map.getSource('fiber-coverage')) {
+    map.getSource('fiber-coverage').setData(geojson);
+  } else {
+    map.addSource('fiber-coverage', { type: 'geojson', data: geojson });
+
+    // Fill layer – inserted BEFORE the first symbol layer to keep labels visible
+    map.addLayer({
+      id: 'fiber-coverage-fill',
+      type: 'fill',
+      source: 'fiber-coverage',
+      paint: {
+        'fill-color': '#c026d3',
+        // Scale opacity with coverage percentage (feature property set by the API)
+        'fill-opacity': [
+          'interpolate', ['linear'],
+          ['get', 'wiredFtthPercentage'],
+          0, 0,
+          100, 0.45
+        ]
+      }
+    }, firstSymbolId);   // ← insert BEFORE labels
+
+    // Outline layer – also before labels
+    map.addLayer({
+      id: 'fiber-coverage-outline',
+      type: 'line',
+      source: 'fiber-coverage',
+      paint: {
+        'line-color': '#86198f',
+        'line-width': 1
+      }
+    }, firstSymbolId);   // ← insert BEFORE labels
+  }
+}
+
+// Re-load on every map move to keep the viewport data fresh
+map.on('moveend', () => loadFiberCoverageLayer(map));
+map.on('load',    () => loadFiberCoverageLayer(map));
+```
+
+#### Why `beforeId` Matters
+
+| Without `beforeId` | With `beforeId` |
+|---|---|
+| Layer added **on top** of all existing layers including labels | Layer inserted **before** the first symbol layer |
+| Labels obscured on Streets, Dark Mode, Basic | Labels remain fully visible on all styles |
+| Coverage appears on top of road/city names | Coverage appears underneath road/city names |
+
+The `firstSymbolId` lookup works automatically for every MapTiler/Mapbox tile style
+because all styles place label rendering in `symbol`-type layers.
+
+---
+
+### 4. Boundary Data Format
 
 The `boundaries` property follows the GeoJSON MultiPolygon format:
 
@@ -379,7 +499,7 @@ interface MultiPolygon {
 - Each polygon is closed (first and last coordinates are the same)
 - Boundaries may be `null` for some barangays if data is not available
 
-### 4. Error Handling
+### 5. Error Handling
 
 ```javascript
 async function fetchBarangay(id) {
@@ -483,6 +603,11 @@ For questions or issues related to these API changes, please contact:
 ---
 
 ## Changelog
+
+### Version 1.2 (March 2026)
+- 🐛 **FIX**: Added `GET /v2/barangay-coverages/viewport` endpoint for the Fiber Networks coverage layer
+- 🐛 **FIX**: Documented mandatory `beforeId` pattern to prevent fiber coverage overlay from obscuring map labels across all tile styles (Streets, Topography Dark, Basic)
+- ✨ **NEW**: `FiberCoverageViewportDto` response — includes barangay boundary GeoJSON + `wiredFtthPercentage` feature property for dynamic opacity
 
 ### Version 1.1 (January 2026)
 - ✨ **NEW**: Case-insensitive search for `name`, `municipality`, and `province` parameters

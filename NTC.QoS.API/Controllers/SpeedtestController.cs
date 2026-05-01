@@ -54,7 +54,8 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false,
         VaryByQueryKeys = new[] { "pageNumber", "pageSize", "minLat", "maxLat", "minLng", "maxLng",
             "serviceProviderIds", "barangayIds", "municipalityIds", "provinceIds", "regionIds",
-            "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate" })]
+            "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate",
+            "isNoBroadbandCoverage" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestViewportDto>>> GetAllPublicSpeedtestsViewport([FromQuery] SpeedtestViewportQueryParams query)
     {
         var request = new GetAllSpeedtestsViewportRequest(query);
@@ -64,7 +65,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
     [HttpGet("public")]
     [AllowAnonymous]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate", "longitude", "latitude", "distance" })]
+    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search", "serviceProviderIds", "cellIds", "generationIds", "providerIds", "serviceIds", "signalQuality", "minDownloadSpeed", "maxDownloadSpeed", "minUploadSpeed", "maxUploadSpeed", "startDate", "endDate", "longitude", "latitude", "distance", "isNoBroadbandCoverage" })]
     public async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllPublicSpeedtests([FromQuery] SpeedtestsQueryParams query)
     {
         return await GetAllSpeedtests(query);
@@ -98,6 +99,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         RemoveAllSpeedtestsCache();
         return Ok(speedtests);
     }
+
     private async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(SpeedtestsQueryParams query)
     {
         var cacheKey = $"{SpeedtestsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
@@ -107,7 +109,8 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             $"{string.Join(",", query.RegionIds ?? [])}_" +
             $"_{string.Join(",", query.CellIds ?? [])}_{string.Join(",", query.GenerationIds ?? [])}_{string.Join(",", query.ProviderIds ?? [])}" +
             $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.MinDownloadSpeed}_{query.MaxDownloadSpeed}" +
-            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{query.StartDate:O}_{query.EndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}";
+            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{query.StartDate:O}_{query.EndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsNoBroadbandCoverage}";
+
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
             return Ok(cachedSpeedtests);
 
@@ -130,6 +133,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             MaxUploadSpeed = query.MaxUploadSpeed,
             StartDate = query.StartDate,
             EndDate = query.EndDate,
+            IsNoBroadbandCoverage = query.IsNoBroadbandCoverage,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance
         };
@@ -141,6 +145,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         }
         return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
     }
+
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(SpeedtestsCacheKeysSet, _ => []);
@@ -221,6 +226,9 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
 
         [JsonPropertyName("endDate")]
         public DateTime? EndDate { get; set; }
+
+        [JsonPropertyName("isNoBroadbandCoverage")]
+        public bool? IsNoBroadbandCoverage { get; set; }
 
         [JsonPropertyName("longitude")]
         public double Longitude { get; set; } = 0;

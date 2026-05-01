@@ -101,6 +101,11 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
             speedtestQuery = speedtestQuery.Where(s => s.DateTime <= request.EndDate.Value);
         }
 
+        if (request.IsNoBroadbandCoverage.HasValue)
+        {
+            speedtestQuery = speedtestQuery.Where(s => s.IsNoBroadbandCoverage == request.IsNoBroadbandCoverage.Value);
+        }
+
         // Apply administrative boundary filters (hierarchical)
         if (request.BarangayIds is { Count: > 0 })
         {
@@ -148,7 +153,8 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
             Lng = s.Location.Coordinate.X,
             DownloadSpeed = s.DownloadSpeed,
             UploadSpeed = s.UploadSpeed,
-            SignalQuality = s.SignalQuality
+            SignalQuality = s.SignalQuality,
+            IsNoBroadbandCoverage = s.IsNoBroadbandCoverage
         });
 
         // Execute paginated query with resource-aware page size
