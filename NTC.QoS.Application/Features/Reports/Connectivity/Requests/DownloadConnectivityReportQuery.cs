@@ -5,7 +5,7 @@ using NTC.QoS.Domain.Models.DTOs;
 namespace NTC.QoS.Application.Features.Reports.Connectivity.Requests;
 
 /// <summary>
-/// Query to download connectivity report (served areas) as PDF or Excel file
+/// Query to download the unified connectivity report as PDF or Excel file
 /// </summary>
 public class DownloadConnectivityReportQuery : IRequest<ApiResponse<ConnectivityReportDownloadResult>>
 {
@@ -23,6 +23,12 @@ public class DownloadConnectivityReportQuery : IRequest<ApiResponse<Connectivity
     /// Optional filter by Municipality ID
     /// </summary>
     public Guid? MunicipalityId { get; set; }
+
+    /// <summary>
+    /// Optional filter by connectivity status. When null, all statuses are included.
+    /// Served = 3, Underserved = 2, Unserved = 1
+    /// </summary>
+    public ConnectivityStatusEnum? FilterByStatus { get; set; }
 
     /// <summary>
     /// Report format (Excel or Pdf)

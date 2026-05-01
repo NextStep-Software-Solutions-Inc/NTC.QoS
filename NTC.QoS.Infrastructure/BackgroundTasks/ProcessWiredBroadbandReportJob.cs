@@ -64,6 +64,7 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
     private readonly IConnectivityAssessmentRepository _connectivityAssessmentRepository;
     private readonly IRepository<Province> _provinceRepository;
     private readonly IRepository<Region> _regionRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly IConfiguration _configuration;
 
     private const string CACHE_KEY_PREFIX = "wired_broadband_report_job_";
@@ -81,6 +82,7 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
         IConnectivityAssessmentRepository connectivityAssessmentRepository,
         IRepository<Province> provinceRepository,
         IRepository<Region> regionRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         IConfiguration configuration)
     {
         _logger = logger;
@@ -92,6 +94,7 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
         _connectivityAssessmentRepository = connectivityAssessmentRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _configuration = configuration;
     }
 
@@ -376,8 +379,11 @@ public class ProcessWiredBroadbandReportJob : IProcessWiredBroadbandReportJob
 
         // Get barangays for this municipality using subquery projection
         // OPTIMIZATION: Project only needed fields (Id, Name, Code) to avoid geometry materialization
+        // Only include barangays with BarangayCoverage records
+        var coveredBarangayIds = _barangayCoverageRepository.QueryAsNoTracking()
+            .Select(bc => bc.BarangayId);
         var barangays = await _barangayRepository.ToListAsync(
-            _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId)
+            _barangayRepository.QueryAsNoTracking(b => b.MunicipalityId == municipalityId && coveredBarangayIds.Contains(b.Id))
                 .Select(b => new { b.Id, b.Name, b.Code })
                 .OrderBy(b => b.Name),
             cancellationToken);

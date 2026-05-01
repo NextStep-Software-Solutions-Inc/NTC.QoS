@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 using QuestPDF.Fluent;
@@ -333,16 +334,20 @@ public class ReportGenerationService : IReportGenerationService
                 {
                     table.ColumnsDefinition(columns =>
                     {
-                        columns.RelativeColumn(3);
+                        columns.RelativeColumn(2.5f);
+                        columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(1);
+                        columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
                     });
 
                     table.Header(header =>
                     {
-                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Area").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Barangay").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Municipality").Bold());
+                        header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Province").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Status").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Population").Bold());
                         header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text(text => text.Span("Score").Bold());
@@ -359,6 +364,8 @@ public class ReportGenerationService : IReportGenerationService
                         };
 
                         table.Cell().Border(1).Padding(5).Text(text => text.Span(area.LocationName).FontSize(8));
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span(area.MunicipalityName ?? "").FontSize(8));
+                        table.Cell().Border(1).Padding(5).Text(text => text.Span(area.ProvinceName ?? "").FontSize(8));
                         table.Cell().Border(1).Background(statusColor).Padding(5).AlignCenter().Text(text => text.Span(area.ConnectivityStatus.ToString()).FontSize(8));
                         table.Cell().Border(1).Padding(5).AlignRight().Text(text => text.Span((area.Population ?? 0).ToString("N0")).FontSize(8));
                         table.Cell().Border(1).Padding(5).AlignCenter().Text(text => text.Span(area.TotalScore.ToString()).FontSize(8));
@@ -723,7 +730,7 @@ public class ReportGenerationService : IReportGenerationService
         var worksheet = workbook.Worksheets.Add("Priority Areas");
         
         // Headers
-        var headers = new[] { "Area Name", "Connectivity Status", "Population", "Total Score", "Last Assessed" };
+        var headers = new[] { "Barangay", "Municipality", "Province", "Connectivity Status", "Population", "Total Score", "Last Assessed" };
         for (int i = 0; i < headers.Length; i++)
         {
             worksheet.Cell(1, i + 1).Value = headers[i];
@@ -736,13 +743,15 @@ public class ReportGenerationService : IReportGenerationService
         foreach (var area in reportData.PriorityAreas)
         {
             worksheet.Cell(row, 1).Value = area.LocationName;
-            worksheet.Cell(row, 2).Value = area.ConnectivityStatus.ToString();
-            worksheet.Cell(row, 3).Value = area.Population ?? 0;
-            worksheet.Cell(row, 4).Value = area.TotalScore;
-            worksheet.Cell(row, 5).Value = area.LastAssessed.ToString("MMM dd, yyyy");
+            worksheet.Cell(row, 2).Value = area.MunicipalityName ?? "";
+            worksheet.Cell(row, 3).Value = area.ProvinceName ?? "";
+            worksheet.Cell(row, 4).Value = area.ConnectivityStatus.ToString();
+            worksheet.Cell(row, 5).Value = area.Population ?? 0;
+            worksheet.Cell(row, 6).Value = area.TotalScore;
+            worksheet.Cell(row, 7).Value = area.LastAssessed.ToString("MMM dd, yyyy");
             
             // Color code by status
-            var statusCell = worksheet.Cell(row, 2);
+            var statusCell = worksheet.Cell(row, 4);
             switch (area.ConnectivityStatus)
             {
                 case NTC.QoS.Domain.Enums.ConnectivityStatusEnum.Unserved:
@@ -885,6 +894,7 @@ public class ReportGenerationService : IReportGenerationService
     public async Task<byte[]> GenerateConnectivityPdfAsync(
         ConnectivityReportDto reportData,
         string reportTitle = "Connectivity Report",
+        ConnectivityStatusEnum? filterByStatus = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating connectivity PDF report: {ReportTitle}", reportTitle);
@@ -899,7 +909,7 @@ public class ReportGenerationService : IReportGenerationService
                 page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
                 page.Header().AlignCenter().Text(text => text.Span(reportTitle).Bold().FontSize(16));
-                page.Content().Element(content => ComposeConnectivityContent(content, reportData));
+                page.Content().Element(content => ComposeConnectivityContent(content, reportData, filterByStatus));
                 page.Footer().AlignCenter().Text(x =>
                 {
                     x.Span("Page ");
@@ -930,6 +940,10 @@ public class ReportGenerationService : IReportGenerationService
             // Create summary worksheet
             CreateConnectivitySummaryWorksheet(workbook, reportData, reportTitle);
             
+            // Create geographic summary worksheets
+            CreateConnectivityMunicipalitySummaryWorksheet(workbook, reportData);
+            CreateConnectivityProvinceSummaryWorksheet(workbook, reportData);
+            
             // Create detailed area data worksheet
             CreateConnectivityDetailWorksheet(workbook, reportData);
 
@@ -943,7 +957,7 @@ public class ReportGenerationService : IReportGenerationService
         }, cancellationToken);
     }
 
-    private void ComposeConnectivityContent(IContainer container, ConnectivityReportDto reportData)
+    private void ComposeConnectivityContent(IContainer container, ConnectivityReportDto reportData, ConnectivityStatusEnum? filterByStatus = null)
     {
         container.Column(column =>
         {
@@ -954,10 +968,14 @@ public class ReportGenerationService : IReportGenerationService
             {
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Text(text => text.Span("Summary Statistics").Bold().FontSize(14));
-                    col.Item().PaddingTop(5).Text($"Total Served Areas: {reportData.TotalServedAreas:N0}");
-                    col.Item().Text($"Total Population Served: {reportData.ServedPopulation:N0}");
+                    col.Item().Text(text => text.Span("Regional/National Summary").Bold().FontSize(14));
+                    col.Item().PaddingTop(5).Text($"Total Areas: {(reportData.TotalServedAreas + reportData.TotalUnderservedAreas + reportData.TotalUnservedAreas):N0}");
+                    col.Item().Text($"Served: {reportData.TotalServedAreas:N0} (Pop: {reportData.ServedPopulation:N0})");
+                    col.Item().Text($"Underserved: {reportData.TotalUnderservedAreas:N0} (Pop: {reportData.UnderservedPopulation:N0})");
+                    col.Item().Text($"Unserved: {reportData.TotalUnservedAreas:N0} (Pop: {reportData.UnservedPopulation:N0})");
                     col.Item().Text($"Average Total Score: {reportData.ScoreSummary.AverageTotalScore:F2}/15");
+                    if (reportData.RegionSummary != null)
+                        col.Item().Text($"Overall Status: {reportData.RegionSummary.OverallConnectivityStatus}");
                 });
 
                 row.RelativeItem().Column(col =>
@@ -990,14 +1008,20 @@ public class ReportGenerationService : IReportGenerationService
                 });
             });
 
-            // All areas table
+            // Areas table with title that reflects the active status filter
+            var areasTableTitle = filterByStatus.HasValue
+                ? $"{filterByStatus.Value} Areas ({reportData.Areas.Count} total)"
+                : $"Areas ({reportData.Areas.Count} total)";
             column.Item()
-                .Text(text => text.Span($"All Areas by Score ({reportData.Areas.Count} total)").Bold().FontSize(14));
+                .Text(text => text.Span(areasTableTitle).Bold().FontSize(14));
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.RelativeColumn(3);
+                    columns.RelativeColumn(2.5f);
+                    columns.RelativeColumn(2);
+                    columns.RelativeColumn(2);
+                    columns.RelativeColumn(1.5f);
                     columns.RelativeColumn(1);
                     columns.RelativeColumn(1);
                     columns.RelativeColumn(1);
@@ -1010,7 +1034,10 @@ public class ReportGenerationService : IReportGenerationService
                 // Header
                 table.Header(header =>
                 {
-                    header.Cell().Element(CellStyle).Text(text => text.Span("Location").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Barangay").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Municipality").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Province").Bold());
+                    header.Cell().Element(CellStyle).Text(text => text.Span("Status").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Pop").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Fiber").Bold());
                     header.Cell().Element(CellStyle).Text(text => text.Span("Internet").Bold());
@@ -1030,6 +1057,9 @@ public class ReportGenerationService : IReportGenerationService
                 foreach (var area in reportData.Areas)
                 {
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.LocationName).FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.MunicipalityName ?? "").FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.ProvinceName ?? "").FontSize(8));
+                    table.Cell().Element(CellStyle).Text(text => text.Span(area.ConnectivityStatus.ToString()).FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.Population?.ToString("N0") ?? "N/A").FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.FiberCoverageScore.ToString()).FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.InternetAccessScore.ToString()).FontSize(8));
@@ -1044,6 +1074,143 @@ public class ReportGenerationService : IReportGenerationService
                     }
                 }
             });
+
+            // Municipality Summary table
+            if (reportData.MunicipalitySummaries.Count > 0)
+            {
+                column.Item()
+                    .Text(text => text.Span($"Municipality Summary ({reportData.MunicipalitySummaries.Count} municipalities)").Bold().FontSize(14));
+                column.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(2.5f);
+                        columns.RelativeColumn(2f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1.5f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1.5f);
+                    });
+
+                    table.Header(header =>
+                    {
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Municipality").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Province").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Brgy").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Served").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Undrsvd").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Unsvd").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Total Pop").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Fiber").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Internet").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Tech").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("QoS").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Cov").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Avg Total").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Status").Bold());
+
+                        static IContainer HdrStyle(IContainer container) =>
+                            container.BorderBottom(1).BorderColor(Colors.Grey.Lighten1)
+                                .PaddingVertical(5).Background(Colors.Grey.Lighten3);
+                    });
+
+                    foreach (var mun in reportData.MunicipalitySummaries)
+                    {
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.Name).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.ParentName ?? "").FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.TotalBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.ServedBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.UnderservedBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.UnservedBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.TotalPopulation.ToString("N0")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageFiberCoverageScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageInternetAccessScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageTechnologyTypeScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageQualityOfServiceScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageCoverageAvailabilityScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageTotalScore.ToString("F2")).Bold().FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.OverallConnectivityStatus).FontSize(8));
+
+                        static IContainer DataStyle(IContainer container) =>
+                            container.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(3);
+                    }
+                });
+            }
+
+            // Province Summary table
+            if (reportData.ProvinceSummaries.Count > 0)
+            {
+                column.Item()
+                    .Text(text => text.Span($"Province Summary ({reportData.ProvinceSummaries.Count} provinces)").Bold().FontSize(14));
+                column.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(2.5f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1.5f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1.5f);
+                    });
+
+                    table.Header(header =>
+                    {
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Province").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Brgy").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Served").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Undrsvd").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Unsvd").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Total Pop").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Fiber").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Internet").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Tech").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("QoS").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Cov").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Avg Total").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Status").Bold());
+
+                        static IContainer HdrStyle(IContainer container) =>
+                            container.BorderBottom(1).BorderColor(Colors.Grey.Lighten1)
+                                .PaddingVertical(5).Background(Colors.Grey.Lighten3);
+                    });
+
+                    foreach (var prov in reportData.ProvinceSummaries)
+                    {
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.Name).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.TotalBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.ServedBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.UnderservedBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.UnservedBarangays.ToString()).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.TotalPopulation.ToString("N0")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageFiberCoverageScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageInternetAccessScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageTechnologyTypeScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageQualityOfServiceScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageCoverageAvailabilityScore.ToString("F2")).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageTotalScore.ToString("F2")).Bold().FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.OverallConnectivityStatus).FontSize(8));
+
+                        static IContainer DataStyle(IContainer container) =>
+                            container.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(3);
+                    }
+                });
+            }
         });
     }
 
@@ -1058,22 +1225,49 @@ public class ReportGenerationService : IReportGenerationService
 
         // Summary Statistics
         int row = 3;
-        worksheet.Cell(row, 1).Value = "Summary Statistics";
+        worksheet.Cell(row, 1).Value = "Regional/National Summary";
         worksheet.Cell(row, 1).Style.Font.Bold = true;
         worksheet.Cell(row, 1).Style.Font.FontSize = 14;
         
         row++;
+        worksheet.Cell(row, 1).Value = "Total Areas:";
+        worksheet.Cell(row, 2).Value = reportData.TotalServedAreas + reportData.TotalUnderservedAreas + reportData.TotalUnservedAreas;
+
+        row++;
         worksheet.Cell(row, 1).Value = "Total Served Areas:";
         worksheet.Cell(row, 2).Value = reportData.TotalServedAreas;
-        
+
         row++;
-        worksheet.Cell(row, 1).Value = "Total Population Served:";
+        worksheet.Cell(row, 1).Value = "Total Served Population:";
         worksheet.Cell(row, 2).Value = reportData.ServedPopulation;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Underserved Areas:";
+        worksheet.Cell(row, 2).Value = reportData.TotalUnderservedAreas;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Underserved Population:";
+        worksheet.Cell(row, 2).Value = reportData.UnderservedPopulation;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Unserved Areas:";
+        worksheet.Cell(row, 2).Value = reportData.TotalUnservedAreas;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Total Unserved Population:";
+        worksheet.Cell(row, 2).Value = reportData.UnservedPopulation;
         
         row++;
         worksheet.Cell(row, 1).Value = "Average Total Score:";
         worksheet.Cell(row, 2).Value = reportData.ScoreSummary.AverageTotalScore;
         worksheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+
+        if (reportData.RegionSummary != null)
+        {
+            row++;
+            worksheet.Cell(row, 1).Value = "Overall Connectivity Status:";
+            worksheet.Cell(row, 2).Value = reportData.RegionSummary.OverallConnectivityStatus;
+        }
 
         // Score Distribution
         row += 2;
@@ -1155,7 +1349,10 @@ public class ReportGenerationService : IReportGenerationService
 
         // Headers
         int col = 1;
-        worksheet.Cell(1, col++).Value = "Location";
+        worksheet.Cell(1, col++).Value = "Barangay";
+        worksheet.Cell(1, col++).Value = "Municipality";
+        worksheet.Cell(1, col++).Value = "Province";
+        worksheet.Cell(1, col++).Value = "Connectivity Status";
         worksheet.Cell(1, col++).Value = "Population";
         worksheet.Cell(1, col++).Value = "Fiber Score";
         worksheet.Cell(1, col++).Value = "Internet Score";
@@ -1186,6 +1383,9 @@ public class ReportGenerationService : IReportGenerationService
         {
             col = 1;
             worksheet.Cell(row, col++).Value = area.LocationName;
+            worksheet.Cell(row, col++).Value = area.MunicipalityName ?? "";
+            worksheet.Cell(row, col++).Value = area.ProvinceName ?? "";
+            worksheet.Cell(row, col++).Value = area.ConnectivityStatus.ToString();
             worksheet.Cell(row, col++).Value = area.Population ?? 0;
             worksheet.Cell(row, col++).Value = area.FiberCoverageScore;
             worksheet.Cell(row, col++).Value = area.InternetAccessScore;
@@ -1207,6 +1407,146 @@ public class ReportGenerationService : IReportGenerationService
         }
 
         // Auto-fit columns
+        worksheet.Columns().AdjustToContents();
+    }
+
+    private void CreateConnectivityMunicipalitySummaryWorksheet(XLWorkbook workbook, ConnectivityReportDto reportData)
+    {
+        var worksheet = workbook.Worksheets.Add("Municipality Summary");
+
+        // Headers
+        int col = 1;
+        worksheet.Cell(1, col++).Value = "Municipality";
+        worksheet.Cell(1, col++).Value = "Province";
+        worksheet.Cell(1, col++).Value = "Total Barangays";
+        worksheet.Cell(1, col++).Value = "Served";
+        worksheet.Cell(1, col++).Value = "Underserved";
+        worksheet.Cell(1, col++).Value = "Unserved";
+        worksheet.Cell(1, col++).Value = "Total Population";
+        worksheet.Cell(1, col++).Value = "Served Population";
+        worksheet.Cell(1, col++).Value = "Underserved Population";
+        worksheet.Cell(1, col++).Value = "Unserved Population";
+        worksheet.Cell(1, col++).Value = "Avg Fiber";
+        worksheet.Cell(1, col++).Value = "Avg Internet";
+        worksheet.Cell(1, col++).Value = "Avg Tech";
+        worksheet.Cell(1, col++).Value = "Avg QoS";
+        worksheet.Cell(1, col++).Value = "Avg Coverage";
+        worksheet.Cell(1, col++).Value = "Avg Total";
+        worksheet.Cell(1, col++).Value = "Excellent";
+        worksheet.Cell(1, col++).Value = "Good";
+        worksheet.Cell(1, col++).Value = "Moderate";
+        worksheet.Cell(1, col++).Value = "Fair";
+        worksheet.Cell(1, col++).Value = "Overall Status";
+
+        var headerRange = worksheet.Range(1, 1, 1, col - 1);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#4472C4");
+        headerRange.Style.Font.FontColor = XLColor.White;
+        headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+
+        int row = 2;
+        foreach (var mun in reportData.MunicipalitySummaries)
+        {
+            col = 1;
+            worksheet.Cell(row, col++).Value = mun.Name;
+            worksheet.Cell(row, col++).Value = mun.ParentName ?? "";
+            worksheet.Cell(row, col++).Value = mun.TotalBarangays;
+            worksheet.Cell(row, col++).Value = mun.ServedBarangays;
+            worksheet.Cell(row, col++).Value = mun.UnderservedBarangays;
+            worksheet.Cell(row, col++).Value = mun.UnservedBarangays;
+            worksheet.Cell(row, col++).Value = mun.TotalPopulation;
+            worksheet.Cell(row, col++).Value = mun.ServedPopulation;
+            worksheet.Cell(row, col++).Value = mun.UnderservedPopulation;
+            worksheet.Cell(row, col++).Value = mun.UnservedPopulation;
+            worksheet.Cell(row, col).Value = mun.AverageFiberCoverageScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = mun.AverageInternetAccessScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = mun.AverageTechnologyTypeScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = mun.AverageQualityOfServiceScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = mun.AverageCoverageAvailabilityScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = mun.AverageTotalScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col++).Value = mun.ExcellentCount;
+            worksheet.Cell(row, col++).Value = mun.GoodCount;
+            worksheet.Cell(row, col++).Value = mun.ModerateCount;
+            worksheet.Cell(row, col++).Value = mun.FairCount;
+            worksheet.Cell(row, col++).Value = mun.OverallConnectivityStatus;
+            row++;
+        }
+
+        worksheet.Columns().AdjustToContents();
+    }
+
+    private void CreateConnectivityProvinceSummaryWorksheet(XLWorkbook workbook, ConnectivityReportDto reportData)
+    {
+        var worksheet = workbook.Worksheets.Add("Province Summary");
+
+        // Headers
+        int col = 1;
+        worksheet.Cell(1, col++).Value = "Province";
+        worksheet.Cell(1, col++).Value = "Total Barangays";
+        worksheet.Cell(1, col++).Value = "Served";
+        worksheet.Cell(1, col++).Value = "Underserved";
+        worksheet.Cell(1, col++).Value = "Unserved";
+        worksheet.Cell(1, col++).Value = "Total Population";
+        worksheet.Cell(1, col++).Value = "Served Population";
+        worksheet.Cell(1, col++).Value = "Underserved Population";
+        worksheet.Cell(1, col++).Value = "Unserved Population";
+        worksheet.Cell(1, col++).Value = "Avg Fiber";
+        worksheet.Cell(1, col++).Value = "Avg Internet";
+        worksheet.Cell(1, col++).Value = "Avg Tech";
+        worksheet.Cell(1, col++).Value = "Avg QoS";
+        worksheet.Cell(1, col++).Value = "Avg Coverage";
+        worksheet.Cell(1, col++).Value = "Avg Total";
+        worksheet.Cell(1, col++).Value = "Excellent";
+        worksheet.Cell(1, col++).Value = "Good";
+        worksheet.Cell(1, col++).Value = "Moderate";
+        worksheet.Cell(1, col++).Value = "Fair";
+        worksheet.Cell(1, col++).Value = "Overall Status";
+
+        var headerRange = worksheet.Range(1, 1, 1, col - 1);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#4472C4");
+        headerRange.Style.Font.FontColor = XLColor.White;
+        headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+
+        int row = 2;
+        foreach (var prov in reportData.ProvinceSummaries)
+        {
+            col = 1;
+            worksheet.Cell(row, col++).Value = prov.Name;
+            worksheet.Cell(row, col++).Value = prov.TotalBarangays;
+            worksheet.Cell(row, col++).Value = prov.ServedBarangays;
+            worksheet.Cell(row, col++).Value = prov.UnderservedBarangays;
+            worksheet.Cell(row, col++).Value = prov.UnservedBarangays;
+            worksheet.Cell(row, col++).Value = prov.TotalPopulation;
+            worksheet.Cell(row, col++).Value = prov.ServedPopulation;
+            worksheet.Cell(row, col++).Value = prov.UnderservedPopulation;
+            worksheet.Cell(row, col++).Value = prov.UnservedPopulation;
+            worksheet.Cell(row, col).Value = prov.AverageFiberCoverageScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = prov.AverageInternetAccessScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = prov.AverageTechnologyTypeScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = prov.AverageQualityOfServiceScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = prov.AverageCoverageAvailabilityScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col).Value = prov.AverageTotalScore;
+            worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
+            worksheet.Cell(row, col++).Value = prov.ExcellentCount;
+            worksheet.Cell(row, col++).Value = prov.GoodCount;
+            worksheet.Cell(row, col++).Value = prov.ModerateCount;
+            worksheet.Cell(row, col++).Value = prov.FairCount;
+            worksheet.Cell(row, col++).Value = prov.OverallConnectivityStatus;
+            row++;
+        }
+
         worksheet.Columns().AdjustToContents();
     }
     #endregion
