@@ -263,10 +263,6 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             AverageQualityOfServiceScore = summaryData.Average(a => a.QualityOfServiceScore),
             AverageCoverageAvailabilityScore = summaryData.Average(a => a.CoverageAvailabilityScore),
             AverageTotalScore = summaryData.Average(a => a.TotalScore),
-            ExcellentCount = summaryData.Count(a => a.TotalScore >= 13),
-            GoodCount = summaryData.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
-            ModerateCount = summaryData.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
-            FairCount = summaryData.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
             TotalCellTowers = summaryData.Sum(a => a.CellTowerCount),
             TotalFiberNAPs = summaryData.Sum(a => a.FiberNAPCount),
             TotalWifiHotspots = summaryData.Sum(a => a.WifiHotspotCount),
@@ -277,52 +273,62 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
     /// <summary>
     /// Builds an <see cref="IQueryable{ConnectivityAssessment}"/> scoped to the specified geographic
     /// filters and restricted to barangays that have a <c>BarangayCoverage</c> record.
-    /// The query is <b>not</b> materialised; callers apply further predicates, sorting, counting,
-    /// and pagination before executing.
-    /// All filtering is expressed as IQueryable subqueries so the database resolves them in a
-    /// single round-trip without pulling large ID lists into application memory.
+    /// Covered barangay IDs are materialised once into a <c>List&lt;Guid&gt;</c> so that the
+    /// subsequent <c>WHERE IN (...)</c> predicate is applied consistently by EF Core across both
+    /// <c>CountAsync</c> and <c>ToListAsync</c> calls (cross-repository nested IQueryable subqueries
+    /// can produce inconsistent results between COUNT and SELECT paths).
     /// </summary>
-    private Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildFilteredQueryAsync(
+    private async Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildFilteredQueryAsync(
         Guid? regionId, Guid? provinceId, Guid? municipalityId, LocationTypeEnum locationType, CancellationToken cancellationToken)
     {
         var query = _assessmentRepository.Query(a => a.LocationType == locationType);
 
-        // Subquery: barangay IDs that have a BarangayCoverage record (stays as IQueryable — no materialisation)
+        // Materialise covered barangay IDs (barangays with a BarangayCoverage record).
+        // Using a concrete List<Guid> ensures EF Core translates the filter identically for
+        // CountAsync and ToListAsync — avoiding the inconsistency seen with nested IQueryable subqueries.
         var coveredBarangayIds = _barangayCoverageRepository.Query()
             .Select(bc => bc.BarangayId);
 
-        // Compose a scoped barangay-ID subquery based on the geographic filter.
-        // Each branch remains an IQueryable so the whole chain is sent to the database as a subquery.
-        IQueryable<Guid> scopedBarangayIds;
+        List<Guid> scopedBarangayIds;
         if (municipalityId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else if (provinceId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else if (regionId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else
         {
             // National scope: all covered barangays
-            scopedBarangayIds = _barangayRepository
-                .Query(b => coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
 
-        query = query.Where(a => scopedBarangayIds.Contains(a.LocationId));
+        query = scopedBarangayIds.Count > 0
+            ? query.Where(a => scopedBarangayIds.Contains(a.LocationId))
+            : query.Where(a => false);
 
-        return Task.FromResult(query);
+        return query;
     }
 
     /// <summary>Lightweight projection used for summary statistics and geographic summaries.</summary>

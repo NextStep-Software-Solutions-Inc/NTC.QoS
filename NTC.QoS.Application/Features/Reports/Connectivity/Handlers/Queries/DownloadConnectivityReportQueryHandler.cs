@@ -199,46 +199,57 @@ public class DownloadConnectivityReportQueryHandler : MediatR.IRequestHandler<Do
     /// All filtering is expressed as IQueryable subqueries so the database resolves them in a
     /// single round-trip without pulling large ID lists into application memory.
     /// </summary>
-    private Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildBaseQueryAsync(
+    private async Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildBaseQueryAsync(
         Guid? regionId, Guid? provinceId, Guid? municipalityId, CancellationToken cancellationToken)
     {
         var query = _assessmentRepository.Query(a => a.LocationType == LocationTypeEnum.Barangay);
 
-        // Subquery: barangay IDs that have a BarangayCoverage record (stays as IQueryable — no materialisation)
+        // Materialise covered barangay IDs (barangays with a BarangayCoverage record).
+        // Using a concrete List<Guid> ensures EF Core translates the filter identically for
+        // both CountAsync and ToListAsync — avoiding inconsistencies from nested cross-repository
+        // IQueryable subqueries.
         var coveredBarangayIds = _barangayCoverageRepository.Query().Select(bc => bc.BarangayId);
 
-        // Compose a scoped barangay-ID subquery based on the geographic filter.
-        // Each branch remains an IQueryable so the whole chain executes as a single DB subquery.
-        IQueryable<Guid> scopedBarangayIds;
+        List<Guid> scopedBarangayIds;
         if (municipalityId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else if (provinceId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else if (regionId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else
         {
             // National scope: all covered barangays
-            scopedBarangayIds = _barangayRepository
-                .Query(b => coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
 
-        query = query.Where(a => scopedBarangayIds.Contains(a.LocationId));
+        query = scopedBarangayIds.Count > 0
+            ? query.Where(a => scopedBarangayIds.Contains(a.LocationId))
+            : query.Where(a => false);
 
-        return Task.FromResult(query);
+        return query;
     }
 
     private async Task<Dictionary<Guid, string>> GetBarangayNamesAsync(
@@ -302,10 +313,6 @@ public class DownloadConnectivityReportQueryHandler : MediatR.IRequestHandler<Do
             AverageQualityOfServiceScore = assessments.Average(a => a.QualityOfServiceScore),
             AverageCoverageAvailabilityScore = assessments.Average(a => a.CoverageAvailabilityScore),
             AverageTotalScore = assessments.Average(a => a.TotalScore),
-            ExcellentCount = assessments.Count(a => a.TotalScore >= 13),
-            GoodCount = assessments.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
-            ModerateCount = assessments.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
-            FairCount = assessments.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
             TotalCellTowers = assessments.Sum(a => a.CellTowerCount),
             TotalFiberNAPs = assessments.Sum(a => a.FiberNAPCount),
             TotalWifiHotspots = assessments.Sum(a => a.WifiHotspotCount),

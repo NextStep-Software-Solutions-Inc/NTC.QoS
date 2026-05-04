@@ -52,9 +52,9 @@ public static class ConnectivityReportSummaryHelper
     }
 
     /// <summary>
-    /// Produces a single overall summary over all <paramref name="areas"/>,
+    /// Produces a single regional summary over all <paramref name="areas"/>,
     /// or <c>null</c> when the list is empty.
-    /// The <see cref="GeographicLevelSummaryDto.Level"/> is set to <c>"Overall"</c> regardless
+    /// The <see cref="GeographicLevelSummaryDto.Level"/> is set to <c>"Regional Summary"</c> regardless
     /// of the geographic scope of the report, so it remains accurate for national,
     /// region-, province-, or municipality-scoped reports alike.
     /// </summary>
@@ -64,9 +64,9 @@ public static class ConnectivityReportSummaryHelper
         if (areas.Count == 0) return null;
 
         return AggregateToSummary(
-            name: "All Areas",
+            name: "Regional Summary",
             parentName: null,
-            level: "Overall",
+            level: "Regional Summary",
             areas: areas);
     }
 
@@ -117,10 +117,6 @@ public static class ConnectivityReportSummaryHelper
             AverageQualityOfServiceScore = areas.Average(a => a.QualityOfServiceScore),
             AverageCoverageAvailabilityScore = areas.Average(a => a.CoverageAvailabilityScore),
             AverageTotalScore = avgTotal,
-            ExcellentCount = areas.Count(a => a.TotalScore >= 13),
-            GoodCount = areas.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
-            ModerateCount = areas.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
-            FairCount = areas.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
             OverallConnectivityStatus = avgTotal >= 11 ? "Served"
                 : avgTotal >= 6 ? "Underserved"
                 : "Unserved"

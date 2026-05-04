@@ -968,7 +968,7 @@ public class ReportGenerationService : IReportGenerationService
             {
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Text(text => text.Span("Regional/National Summary").Bold().FontSize(14));
+                    col.Item().Text(text => text.Span("Regional Summary").Bold().FontSize(14));
                     col.Item().PaddingTop(5).Text($"Total Areas: {(reportData.TotalServedAreas + reportData.TotalUnderservedAreas + reportData.TotalUnservedAreas):N0}");
                     col.Item().Text($"Served: {reportData.TotalServedAreas:N0} (Pop: {reportData.ServedPopulation:N0})");
                     col.Item().Text($"Underserved: {reportData.TotalUnderservedAreas:N0} (Pop: {reportData.UnderservedPopulation:N0})");
@@ -976,15 +976,6 @@ public class ReportGenerationService : IReportGenerationService
                     col.Item().Text($"Average Total Score: {reportData.ScoreSummary.AverageTotalScore:F2}/15");
                     if (reportData.RegionSummary != null)
                         col.Item().Text($"Overall Status: {reportData.RegionSummary.OverallConnectivityStatus}");
-                });
-
-                row.RelativeItem().Column(col =>
-                {
-                    col.Item().Text(text => text.Span("Score Distribution").Bold().FontSize(14));
-                    col.Item().PaddingTop(5).Text($"Excellent (13-15): {reportData.ScoreSummary.ExcellentCount:N0}");
-                    col.Item().Text($"Good (11-12): {reportData.ScoreSummary.GoodCount:N0}");
-                    col.Item().Text($"Moderate (8-10): {reportData.ScoreSummary.ModerateCount:N0}");
-                    col.Item().Text($"Fair (6-7): {reportData.ScoreSummary.FairCount:N0}");
                 });
             });
 
@@ -1225,7 +1216,7 @@ public class ReportGenerationService : IReportGenerationService
 
         // Summary Statistics
         int row = 3;
-        worksheet.Cell(row, 1).Value = "Regional/National Summary";
+        worksheet.Cell(row, 1).Value = "Regional Summary";
         worksheet.Cell(row, 1).Style.Font.Bold = true;
         worksheet.Cell(row, 1).Style.Font.FontSize = 14;
         
@@ -1268,28 +1259,6 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Cell(row, 1).Value = "Overall Connectivity Status:";
             worksheet.Cell(row, 2).Value = reportData.RegionSummary.OverallConnectivityStatus;
         }
-
-        // Score Distribution
-        row += 2;
-        worksheet.Cell(row, 1).Value = "Score Distribution";
-        worksheet.Cell(row, 1).Style.Font.Bold = true;
-        worksheet.Cell(row, 1).Style.Font.FontSize = 14;
-        
-        row++;
-        worksheet.Cell(row, 1).Value = "Excellent (13-15):";
-        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.ExcellentCount;
-        
-        row++;
-        worksheet.Cell(row, 1).Value = "Good (11-12):";
-        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.GoodCount;
-        
-        row++;
-        worksheet.Cell(row, 1).Value = "Moderate (8-10):";
-        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.ModerateCount;
-        
-        row++;
-        worksheet.Cell(row, 1).Value = "Fair (6-7):";
-        worksheet.Cell(row, 2).Value = reportData.ScoreSummary.FairCount;
 
         // Average Rubric Scores
         row += 2;
@@ -1432,10 +1401,6 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, col++).Value = "Avg QoS";
         worksheet.Cell(1, col++).Value = "Avg Coverage";
         worksheet.Cell(1, col++).Value = "Avg Total";
-        worksheet.Cell(1, col++).Value = "Excellent";
-        worksheet.Cell(1, col++).Value = "Good";
-        worksheet.Cell(1, col++).Value = "Moderate";
-        worksheet.Cell(1, col++).Value = "Fair";
         worksheet.Cell(1, col++).Value = "Overall Status";
 
         var headerRange = worksheet.Range(1, 1, 1, col - 1);
@@ -1470,10 +1435,6 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
             worksheet.Cell(row, col).Value = mun.AverageTotalScore;
             worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
-            worksheet.Cell(row, col++).Value = mun.ExcellentCount;
-            worksheet.Cell(row, col++).Value = mun.GoodCount;
-            worksheet.Cell(row, col++).Value = mun.ModerateCount;
-            worksheet.Cell(row, col++).Value = mun.FairCount;
             worksheet.Cell(row, col++).Value = mun.OverallConnectivityStatus;
             row++;
         }
@@ -1502,10 +1463,6 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, col++).Value = "Avg QoS";
         worksheet.Cell(1, col++).Value = "Avg Coverage";
         worksheet.Cell(1, col++).Value = "Avg Total";
-        worksheet.Cell(1, col++).Value = "Excellent";
-        worksheet.Cell(1, col++).Value = "Good";
-        worksheet.Cell(1, col++).Value = "Moderate";
-        worksheet.Cell(1, col++).Value = "Fair";
         worksheet.Cell(1, col++).Value = "Overall Status";
 
         var headerRange = worksheet.Range(1, 1, 1, col - 1);
@@ -1539,10 +1496,6 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
             worksheet.Cell(row, col).Value = prov.AverageTotalScore;
             worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
-            worksheet.Cell(row, col++).Value = prov.ExcellentCount;
-            worksheet.Cell(row, col++).Value = prov.GoodCount;
-            worksheet.Cell(row, col++).Value = prov.ModerateCount;
-            worksheet.Cell(row, col++).Value = prov.FairCount;
             worksheet.Cell(row, col++).Value = prov.OverallConnectivityStatus;
             row++;
         }
