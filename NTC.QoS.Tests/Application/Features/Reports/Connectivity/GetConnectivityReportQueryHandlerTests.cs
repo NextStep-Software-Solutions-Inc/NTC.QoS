@@ -158,8 +158,10 @@ public class GetConnectivityReportQueryHandlerTests
 
         result.Succeeded.Should().BeTrue();
         result.Data.Should().NotBeNull();
-        result.Data!.TotalAreas.Should().Be(3);
-        result.Data.Areas.Should().HaveCount(3);
+        result.Data!.TotalBarangays.Should().Be(3);
+        // All 3 barangays belong to the same municipality
+        result.Data.Municipalities.Should().HaveCount(1);
+        result.Data.Municipalities[0].TotalBarangays.Should().Be(3);
     }
 
     [Fact]
@@ -191,9 +193,10 @@ public class GetConnectivityReportQueryHandlerTests
         var result = await _handler.Handle(query, CancellationToken.None);
 
         result.Succeeded.Should().BeTrue();
-        result.Data!.TotalAreas.Should().Be(1);
-        result.Data.Areas.Should().HaveCount(1);
-        result.Data.Areas[0].ConnectivityStatus.Should().Be(ConnectivityStatusEnum.Served);
+        result.Data!.TotalBarangays.Should().Be(1);
+        result.Data.Municipalities.Should().HaveCount(1);
+        result.Data.Municipalities[0].Barangays.Should().HaveCount(1);
+        result.Data.Municipalities[0].Barangays[0].ConnectivityStatus.Should().Be(ConnectivityStatusEnum.Served);
     }
 
     [Fact]
@@ -209,8 +212,8 @@ public class GetConnectivityReportQueryHandlerTests
         var result = await _handler.Handle(query, CancellationToken.None);
 
         result.Succeeded.Should().BeTrue();
-        result.Data!.TotalAreas.Should().Be(1);
-        result.Data.Areas[0].ConnectivityStatus.Should().Be(ConnectivityStatusEnum.Underserved);
+        result.Data!.TotalBarangays.Should().Be(1);
+        result.Data.Municipalities[0].Barangays[0].ConnectivityStatus.Should().Be(ConnectivityStatusEnum.Underserved);
     }
 
     [Fact]
@@ -226,14 +229,14 @@ public class GetConnectivityReportQueryHandlerTests
         var result = await _handler.Handle(query, CancellationToken.None);
 
         result.Succeeded.Should().BeTrue();
-        result.Data!.TotalAreas.Should().Be(1);
-        result.Data.Areas[0].ConnectivityStatus.Should().Be(ConnectivityStatusEnum.Unserved);
+        result.Data!.TotalBarangays.Should().Be(1);
+        result.Data.Municipalities[0].Barangays[0].ConnectivityStatus.Should().Be(ConnectivityStatusEnum.Unserved);
     }
 
     [Fact]
-    public async Task Handle_WithStatusFilter_SummaryStillReflectsFullDataset()
+    public async Task Handle_WithStatusFilter_SummaryStillReflectsFilteredDataset()
     {
-        // Even when filtering by Served, summary counts should reflect the full unfiltered dataset
+        // Summary counts should reflect only the filtered dataset
         var query = new GetConnectivityReportQuery
         {
             FilterByStatus = ConnectivityStatusEnum.Served,
@@ -245,35 +248,36 @@ public class GetConnectivityReportQueryHandlerTests
 
         result.Succeeded.Should().BeTrue();
         result.Data!.TotalServedAreas.Should().Be(1);
-        result.Data.TotalUnderservedAreas.Should().Be(1);
-        result.Data.TotalUnservedAreas.Should().Be(1);
+        result.Data.TotalUnderservedAreas.Should().Be(0);
+        result.Data.TotalUnservedAreas.Should().Be(0);
     }
 
     [Fact]
     public async Task Handle_Pagination_LimitsResultsPerPage()
     {
-        var query = new GetConnectivityReportQuery { PageNumber = 1, PageSize = 2 };
+        // With all 3 barangays in 1 municipality, PageSize=1 returns 1 municipality
+        var query = new GetConnectivityReportQuery { PageNumber = 1, PageSize = 1 };
 
         var result = await _handler.Handle(query, CancellationToken.None);
 
         result.Succeeded.Should().BeTrue();
-        result.Data!.Areas.Should().HaveCount(2);
-        result.Data.TotalAreas.Should().Be(3);
-        result.Data.TotalPages.Should().Be(2);
-        result.Data.PageSize.Should().Be(2);
+        result.Data!.Municipalities.Should().HaveCount(1);
+        result.Data.TotalMunicipalities.Should().Be(1);
+        result.Data.TotalPages.Should().Be(1);
+        result.Data.PageSize.Should().Be(1);
         result.Data.PageNumber.Should().Be(1);
     }
 
     [Fact]
     public async Task Handle_Pagination_SecondPageReturnsRemainingItems()
     {
-        var query = new GetConnectivityReportQuery { PageNumber = 2, PageSize = 2 };
+        // Only 1 municipality in test data, page 2 should be out of range
+        var query = new GetConnectivityReportQuery { PageNumber = 2, PageSize = 1 };
 
         var result = await _handler.Handle(query, CancellationToken.None);
 
-        result.Succeeded.Should().BeTrue();
-        result.Data!.Areas.Should().HaveCount(1);
-        result.Data.PageNumber.Should().Be(2);
+        result.Succeeded.Should().BeFalse();
+        result.Errors.Should().ContainKey("PageNumber");
     }
 
     [Fact]
@@ -322,7 +326,11 @@ public class GetConnectivityReportQueryHandlerTests
         var result = await _handler.Handle(query, CancellationToken.None);
 
         result.Succeeded.Should().BeTrue();
-        var statuses = result.Data!.Areas.Select(a => a.ConnectivityStatus).Distinct().ToList();
+        var statuses = result.Data!.Municipalities
+            .SelectMany(m => m.Barangays)
+            .Select(b => b.ConnectivityStatus)
+            .Distinct()
+            .ToList();
         statuses.Should().Contain(ConnectivityStatusEnum.Served);
         statuses.Should().Contain(ConnectivityStatusEnum.Underserved);
         statuses.Should().Contain(ConnectivityStatusEnum.Unserved);
@@ -336,18 +344,14 @@ public class GetConnectivityReportQueryHandlerTests
             .Setup(r => r.Query(It.IsAny<Expression<Func<ConnectivityAssessment, bool>>>()))
             .Returns(Enumerable.Empty<ConnectivityAssessment>().AsQueryable());
 
-        _assessmentRepositoryMock
-            .Setup(r => r.CountAsync(It.IsAny<IQueryable<ConnectivityAssessment>>(), It.IsAny<CancellationToken>()))
-            .Returns<IQueryable<ConnectivityAssessment>, CancellationToken>((q, ct) =>
-                Task.FromResult(q.Count()));
-
         var query = new GetConnectivityReportQuery { PageNumber = 1, PageSize = 10 };
 
         var result = await _handler.Handle(query, CancellationToken.None);
 
         result.Succeeded.Should().BeTrue();
-        result.Data!.TotalAreas.Should().Be(0);
-        result.Data.Areas.Should().BeEmpty();
+        result.Data!.TotalBarangays.Should().Be(0);
+        result.Data.TotalMunicipalities.Should().Be(0);
+        result.Data.Municipalities.Should().BeEmpty();
         result.Data.TotalPages.Should().Be(0);
         result.Data.TotalServedAreas.Should().Be(0);
         result.Data.TotalUnderservedAreas.Should().Be(0);

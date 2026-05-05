@@ -1005,9 +1005,10 @@ public class ReportGenerationService : IReportGenerationService
             });
 
             // Areas table with title that reflects the active status filter
+            var allPdfAreas = reportData.Municipalities.SelectMany(m => m.Barangays).ToList();
             var areasTableTitle = filterByStatus.HasValue
-                ? $"{filterByStatus.Value} Areas ({reportData.Areas.Count} total)"
-                : $"Areas ({reportData.Areas.Count} total)";
+                ? $"{filterByStatus.Value} Areas ({allPdfAreas.Count} total)"
+                : $"Areas ({allPdfAreas.Count} total)";
             column.Item()
                 .Text(text => text.Span(areasTableTitle).Bold().FontSize(14));
             column.Item().Table(table =>
@@ -1049,16 +1050,9 @@ public class ReportGenerationService : IReportGenerationService
                     }
                 });
 
-                // Data rows — sorted by status group (Served → Underserved → Unserved), then by name
-                var sortedPdfAreas = reportData.Areas
-                    .OrderBy(a => a.ConnectivityStatus switch
-                    {
-                        ConnectivityStatusEnum.Served => 0,
-                        ConnectivityStatusEnum.Underserved => 1,
-                        _ => 2
-                    })
-                    .ThenBy(a => a.LocationName)
-                    .ToList();
+                // Data rows — sorted by status group (Unserved → Underserved → Served), then by name
+                // Barangays are already sorted within each municipality; flatten in municipality order.
+                var sortedPdfAreas = allPdfAreas;
                 foreach (var area in sortedPdfAreas)
                 {
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.LocationName).FontSize(8));
@@ -1081,10 +1075,10 @@ public class ReportGenerationService : IReportGenerationService
             });
 
             // Municipality Summary table
-            if (reportData.MunicipalitySummaries.Count > 0)
+            if (reportData.Municipalities.Count > 0)
             {
                 column.Item()
-                    .Text(text => text.Span($"Municipality Summary ({reportData.MunicipalitySummaries.Count} municipalities)").Bold().FontSize(14));
+                    .Text(text => text.Span($"Municipality Summary ({reportData.Municipalities.Count} municipalities)").Bold().FontSize(14));
                 column.Item().Table(table =>
                 {
                     table.ColumnsDefinition(columns =>
@@ -1129,10 +1123,10 @@ public class ReportGenerationService : IReportGenerationService
                                 .PaddingVertical(5).Background(Colors.Grey.Lighten3);
                     });
 
-                    foreach (var mun in reportData.MunicipalitySummaries)
+                    foreach (var mun in reportData.Municipalities)
                     {
-                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.Name).FontSize(8));
-                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.ParentName ?? "").FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.MunicipalityName).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.ProvinceName).FontSize(8));
                         table.Cell().Element(DataStyle).Text(text => text.Span(mun.TotalBarangays.ToString()).FontSize(8));
                         table.Cell().Element(DataStyle).Text(text => text.Span(mun.ServedBarangays.ToString()).FontSize(8));
                         table.Cell().Element(DataStyle).Text(text => text.Span(mun.UnderservedBarangays.ToString()).FontSize(8));
@@ -1250,19 +1244,15 @@ public class ReportGenerationService : IReportGenerationService
 
     private static string ResolveConnectivityScopeLabel(string reportTitle, ConnectivityReportDto reportData)
     {
-        var municipalityCount = reportData.Areas
-            .Select(a => a.MunicipalityName)
-            .Where(m => !string.IsNullOrWhiteSpace(m))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
+        var municipalityCount = reportData.Municipalities.Count;
 
-        var provinceCount = reportData.Areas
-            .Select(a => a.ProvinceName)
+        var provinceCount = reportData.Municipalities
+            .Select(m => m.ProvinceName)
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
 
-        if (municipalityCount == 1 && reportData.Areas.Count > 0)
+        if (municipalityCount == 1 && reportData.TotalBarangays > 0)
             return "Municipality Summary";
 
         if (provinceCount == 1 && municipalityCount > 1)
@@ -1454,17 +1444,9 @@ public class ReportGenerationService : IReportGenerationService
         headerRange.Style.Font.FontColor = XLColor.White;
         headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
-        // Data rows — sorted by status group (Served → Underserved → Unserved), then by name
+        // Data rows — grouped by municipality (Unserved → Underserved → Served), barangays pre-sorted within each group
         int row = 2;
-        var sortedAreas = reportData.Areas
-            .OrderBy(a => a.ConnectivityStatus switch
-            {
-                ConnectivityStatusEnum.Served => 0,
-                ConnectivityStatusEnum.Underserved => 1,
-                _ => 2
-            })
-            .ThenBy(a => a.LocationName)
-            .ToList();
+        var sortedAreas = reportData.Municipalities.SelectMany(m => m.Barangays).ToList();
         foreach (var area in sortedAreas)
         {
             col = 1;
@@ -1528,11 +1510,11 @@ public class ReportGenerationService : IReportGenerationService
         headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
         int row = 2;
-        foreach (var mun in reportData.MunicipalitySummaries)
+        foreach (var mun in reportData.Municipalities)
         {
             col = 1;
-            worksheet.Cell(row, col++).Value = mun.Name;
-            worksheet.Cell(row, col++).Value = mun.ParentName ?? "";
+            worksheet.Cell(row, col++).Value = mun.MunicipalityName;
+            worksheet.Cell(row, col++).Value = mun.ProvinceName;
             worksheet.Cell(row, col++).Value = mun.TotalBarangays;
             worksheet.Cell(row, col++).Value = mun.ServedBarangays;
             worksheet.Cell(row, col++).Value = mun.UnderservedBarangays;
