@@ -100,17 +100,21 @@ public class DownloadConnectivityReportQueryHandler : MediatR.IRequestHandler<Do
                 LastAssessed = a.AssessmentDate
             }).ToList();
 
-            // Derive the export Areas list in-memory; geographic summaries always use allAreas
+            // Derive the export Areas list in-memory; geographic summaries follow the filtered areas
             var filteredAreas = request.FilterByStatus.HasValue
                 ? allAreas.Where(a => a.ConnectivityStatus == request.FilterByStatus.Value).ToList()
                 : allAreas;
 
-            // Compute summary statistics from the full unfiltered set
-            var servedAreas = allAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).ToList();
-            var underservedAreas = allAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).ToList();
-            var unservedAreas = allAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).ToList();
+            var filteredAssessments = request.FilterByStatus.HasValue
+                ? allAssessments.Where(a => a.ConnectivityStatus == request.FilterByStatus.Value).ToList()
+                : allAssessments;
 
-            var scoreSummary = CalculateScoreSummary(allAssessments);
+            // Compute top-level status totals from the filtered set
+            var servedAreas = filteredAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).ToList();
+            var underservedAreas = filteredAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).ToList();
+            var unservedAreas = filteredAssessments.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).ToList();
+
+            var scoreSummary = CalculateScoreSummary(filteredAssessments);
 
             // Fetch entity-level assessed statuses for geographic summaries
             var (munAssessedStatuses, provAssessedStatuses) = await FetchEntityAssessedStatusesAsync(
@@ -119,7 +123,8 @@ public class DownloadConnectivityReportQueryHandler : MediatR.IRequestHandler<Do
                 ? await FetchRegionAssessedStatusAsync(request.RegionId.Value, cancellationToken)
                 : null;
 
-            // Create a complete report DTO: summaries from the full dataset, Areas from the filtered list
+            // Create a complete report DTO: top-level totals, Areas and
+            // geographic summaries from the filtered list
             var completeReportData = new ConnectivityReportDto
             {
                 TotalServedAreas = servedAreas.Count,
@@ -130,9 +135,9 @@ public class DownloadConnectivityReportQueryHandler : MediatR.IRequestHandler<Do
                 UnservedPopulation = unservedAreas.Sum(a => a.Population ?? 0),
                 Areas = filteredAreas,
                 ScoreSummary = scoreSummary,
-                MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreas, munAssessedStatuses),
-                ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreas, provAssessedStatuses),
-                RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreas, regionAssessedStatus),
+                MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(filteredAreas, munAssessedStatuses),
+                ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(filteredAreas, provAssessedStatuses),
+                RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(filteredAreas, regionAssessedStatus),
                 TotalAreas = request.FilterByStatus.HasValue ? filteredAreas.Count : allAreas.Count,
                 PageNumber = 1,
                 PageSize = filteredAreas.Count,

@@ -909,7 +909,7 @@ public class ReportGenerationService : IReportGenerationService
                 page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
                 page.Header().AlignCenter().Text(text => text.Span(reportTitle).Bold().FontSize(16));
-                page.Content().Element(content => ComposeConnectivityContent(content, reportData, filterByStatus));
+                page.Content().Element(content => ComposeConnectivityContent(content, reportData, reportTitle, filterByStatus));
                 page.Footer().AlignCenter().Text(x =>
                 {
                     x.Span("Page ");
@@ -957,18 +957,19 @@ public class ReportGenerationService : IReportGenerationService
         }, cancellationToken);
     }
 
-    private void ComposeConnectivityContent(IContainer container, ConnectivityReportDto reportData, ConnectivityStatusEnum? filterByStatus = null)
+    private void ComposeConnectivityContent(IContainer container, ConnectivityReportDto reportData, string reportTitle, ConnectivityStatusEnum? filterByStatus = null)
     {
         container.Column(column =>
         {
             column.Spacing(15);
+            var summaryLabel = ResolveConnectivityScopeLabel(reportTitle, reportData);
 
             // Summary Section
             column.Item().Row(row =>
             {
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Text(text => text.Span("Regional Summary").Bold().FontSize(14));
+                    col.Item().Text(text => text.Span(summaryLabel).Bold().FontSize(14));
                     col.Item().PaddingTop(5).Text($"Total Areas: {(reportData.TotalServedAreas + reportData.TotalUnderservedAreas + reportData.TotalUnservedAreas):N0}");
                     col.Item().Text($"Served: {reportData.TotalServedAreas:N0} (Pop: {reportData.ServedPopulation:N0})");
                     col.Item().Text($"Underserved: {reportData.TotalUnderservedAreas:N0} (Pop: {reportData.UnderservedPopulation:N0})");
@@ -1245,6 +1246,43 @@ public class ReportGenerationService : IReportGenerationService
                 });
             });
         });
+    }
+
+    private static string ResolveConnectivityScopeLabel(string reportTitle, ConnectivityReportDto reportData)
+    {
+        var municipalityCount = reportData.Areas
+            .Select(a => a.MunicipalityName)
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        var provinceCount = reportData.Areas
+            .Select(a => a.ProvinceName)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        if (municipalityCount == 1 && reportData.Areas.Count > 0)
+            return "Municipality Summary";
+
+        if (provinceCount == 1 && municipalityCount > 1)
+            return "Province Summary";
+
+        var title = reportTitle ?? string.Empty;
+
+        if (title.Contains("municipality", StringComparison.OrdinalIgnoreCase))
+            return "Municipality Summary";
+
+        if (title.Contains("province", StringComparison.OrdinalIgnoreCase))
+            return "Province Summary";
+
+        if (title.Contains("region", StringComparison.OrdinalIgnoreCase))
+            return "Regional Summary";
+
+        if (title.Contains("national", StringComparison.OrdinalIgnoreCase))
+            return "National Summary";
+
+        return "Summary";
     }
 
     private void CreateConnectivitySummaryWorksheet(XLWorkbook workbook, ConnectivityReportDto reportData, string reportTitle)
