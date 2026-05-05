@@ -102,6 +102,12 @@ public class GeographicLevelSummaryDto
 
     /// <summary>Derived overall status: Served (avg ≥ 11), Underserved (avg 6–10), Unserved (avg &lt; 6).</summary>
     public string OverallConnectivityStatus { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Pre-computed status from the direct infrastructure assessment of this geographic unit.
+    /// Null when no entity-level assessment has been run for this unit.
+    /// </summary>
+    public string? AssessedConnectivityStatus { get; set; }
 }
 
 /// <summary>

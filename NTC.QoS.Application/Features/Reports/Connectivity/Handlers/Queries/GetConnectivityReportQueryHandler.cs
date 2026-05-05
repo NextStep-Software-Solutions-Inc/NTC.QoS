@@ -208,6 +208,17 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 municipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreaDetails);
                 provinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreaDetails);
                 regionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreaDetails);
+
+                // Enrich geographic summaries with entity-level assessed statuses from stored assessments
+                var (munAssessedStatuses, provAssessedStatuses) = await FetchEntityAssessedStatusesAsync(
+                    detailIds, cancellationToken);
+                var regionAssessedStatus = request.RegionId.HasValue
+                    ? await FetchRegionAssessedStatusAsync(request.RegionId.Value, cancellationToken)
+                    : null;
+
+                municipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreaDetails, munAssessedStatuses);
+                provinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreaDetails, provAssessedStatuses);
+                regionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreaDetails, regionAssessedStatus);
             }
 
             var reportDto = new ConnectivityReportDto
@@ -468,6 +479,88 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
         {
             _logger.LogError(ex, "Error fetching barangay details with municipality and province names");
             return new Dictionary<Guid, (string, string)>();
+        }
+    }
+
+    /// <summary>
+    /// Fetches the pre-stored entity-level ConnectivityStatus for each unique municipality and province
+    /// in the given set of barangay IDs. Returns two lookup dictionaries keyed by name for use in the
+    /// summary helper.
+    /// </summary>
+    private async Task<(IReadOnlyDictionary<(string Name, string Province), string> MunicipalityStatuses,
+                        IReadOnlyDictionary<string, string> ProvinceStatuses)>
+        FetchEntityAssessedStatusesAsync(List<Guid> barangayIds, CancellationToken cancellationToken)
+    {
+        if (barangayIds.Count == 0)
+            return (new Dictionary<(string, string), string>(), new Dictionary<string, string>());
+
+        try
+        {
+            var geoInfo = await _barangayRepository.ToListAsync(
+                _barangayRepository.QueryAsNoTracking(b => barangayIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.MunicipalityId,
+                        MunicipalityName = b.Municipality.Name,
+                        ProvinceId = b.Municipality.ProvinceId,
+                        ProvinceName = b.Municipality.Province.Name
+                    }),
+                cancellationToken);
+
+            var uniqueMunicipalities = geoInfo
+                .GroupBy(g => g.MunicipalityId)
+                .Select(g => (Id: g.Key, g.First().MunicipalityName, g.First().ProvinceName))
+                .ToList();
+
+            var munAssessments = await _assessmentRepository.GetByLocationIdsAsync(
+                uniqueMunicipalities.Select(m => m.Id).ToList(),
+                LocationTypeEnum.Municipality, cancellationToken);
+            var munAssessmentById = munAssessments.ToDictionary(a => a.LocationId);
+
+            var municipalityStatuses = uniqueMunicipalities
+                .Where(m => munAssessmentById.ContainsKey(m.Id))
+                .GroupBy(m => (m.MunicipalityName, m.ProvinceName))
+                .ToDictionary(
+                    g => g.Key,
+                    g => munAssessmentById[g.First().Id].ConnectivityStatus.ToString());
+
+            var uniqueProvinces = geoInfo
+                .GroupBy(g => g.ProvinceId)
+                .Select(g => (Id: g.Key, g.First().ProvinceName))
+                .ToList();
+
+            var provAssessments = await _assessmentRepository.GetByLocationIdsAsync(
+                uniqueProvinces.Select(p => p.Id).ToList(),
+                LocationTypeEnum.Provincial, cancellationToken);
+            var provAssessmentById = provAssessments.ToDictionary(a => a.LocationId);
+
+            var provinceStatuses = uniqueProvinces
+                .Where(p => provAssessmentById.ContainsKey(p.Id))
+                .GroupBy(p => p.ProvinceName)
+                .ToDictionary(
+                    g => g.Key,
+                    g => provAssessmentById[g.First().Id].ConnectivityStatus.ToString());
+
+            return (municipalityStatuses, provinceStatuses);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching entity-level assessed statuses for connectivity report");
+            return (new Dictionary<(string, string), string>(), new Dictionary<string, string>());
+        }
+    }
+
+    private async Task<string?> FetchRegionAssessedStatusAsync(Guid regionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var assessment = await _assessmentRepository.GetByLocationAsync(regionId, LocationTypeEnum.Regional, cancellationToken);
+            return assessment?.ConnectivityStatus.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching region entity-level assessed status for regionId {RegionId}", regionId);
+            return null;
         }
     }
 }

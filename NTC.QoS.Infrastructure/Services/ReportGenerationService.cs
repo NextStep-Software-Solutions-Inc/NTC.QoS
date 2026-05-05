@@ -975,7 +975,11 @@ public class ReportGenerationService : IReportGenerationService
                     col.Item().Text($"Unserved: {reportData.TotalUnservedAreas:N0} (Pop: {reportData.UnservedPopulation:N0})");
                     col.Item().Text($"Average Total Score: {reportData.ScoreSummary.AverageTotalScore:F2}/15");
                     if (reportData.RegionSummary != null)
-                        col.Item().Text($"Overall Status: {reportData.RegionSummary.OverallConnectivityStatus}");
+                    {
+                        col.Item().Text($"Aggregated Status: {reportData.RegionSummary.OverallConnectivityStatus}");
+                        if (!string.IsNullOrEmpty(reportData.RegionSummary.AssessedConnectivityStatus))
+                            col.Item().Text($"Assessed Status: {reportData.RegionSummary.AssessedConnectivityStatus}");
+                    }
                 });
             });
 
@@ -1044,8 +1048,17 @@ public class ReportGenerationService : IReportGenerationService
                     }
                 });
 
-                // Data rows
-                foreach (var area in reportData.Areas)
+                // Data rows — sorted by status group (Served → Underserved → Unserved), then by name
+                var sortedPdfAreas = reportData.Areas
+                    .OrderBy(a => a.ConnectivityStatus switch
+                    {
+                        ConnectivityStatusEnum.Served => 0,
+                        ConnectivityStatusEnum.Underserved => 1,
+                        _ => 2
+                    })
+                    .ThenBy(a => a.LocationName)
+                    .ToList();
+                foreach (var area in sortedPdfAreas)
                 {
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.LocationName).FontSize(8));
                     table.Cell().Element(CellStyle).Text(text => text.Span(area.MunicipalityName ?? "").FontSize(8));
@@ -1089,6 +1102,7 @@ public class ReportGenerationService : IReportGenerationService
                         columns.RelativeColumn(1f);
                         columns.RelativeColumn(1f);
                         columns.RelativeColumn(1.5f);
+                        columns.RelativeColumn(1.5f);
                     });
 
                     table.Header(header =>
@@ -1106,7 +1120,8 @@ public class ReportGenerationService : IReportGenerationService
                         header.Cell().Element(HdrStyle).Text(text => text.Span("QoS").Bold());
                         header.Cell().Element(HdrStyle).Text(text => text.Span("Cov").Bold());
                         header.Cell().Element(HdrStyle).Text(text => text.Span("Avg Total").Bold());
-                        header.Cell().Element(HdrStyle).Text(text => text.Span("Status").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Aggregated").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Assessed").Bold());
 
                         static IContainer HdrStyle(IContainer container) =>
                             container.BorderBottom(1).BorderColor(Colors.Grey.Lighten1)
@@ -1129,6 +1144,7 @@ public class ReportGenerationService : IReportGenerationService
                         table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageCoverageAvailabilityScore.ToString("F2")).FontSize(8));
                         table.Cell().Element(DataStyle).Text(text => text.Span(mun.AverageTotalScore.ToString("F2")).Bold().FontSize(8));
                         table.Cell().Element(DataStyle).Text(text => text.Span(mun.OverallConnectivityStatus).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(mun.AssessedConnectivityStatus ?? "—").FontSize(8));
 
                         static IContainer DataStyle(IContainer container) =>
                             container.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(3);
@@ -1158,6 +1174,7 @@ public class ReportGenerationService : IReportGenerationService
                         columns.RelativeColumn(1f);
                         columns.RelativeColumn(1f);
                         columns.RelativeColumn(1.5f);
+                        columns.RelativeColumn(1.5f);
                     });
 
                     table.Header(header =>
@@ -1174,7 +1191,8 @@ public class ReportGenerationService : IReportGenerationService
                         header.Cell().Element(HdrStyle).Text(text => text.Span("QoS").Bold());
                         header.Cell().Element(HdrStyle).Text(text => text.Span("Cov").Bold());
                         header.Cell().Element(HdrStyle).Text(text => text.Span("Avg Total").Bold());
-                        header.Cell().Element(HdrStyle).Text(text => text.Span("Status").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Aggregated").Bold());
+                        header.Cell().Element(HdrStyle).Text(text => text.Span("Assessed").Bold());
 
                         static IContainer HdrStyle(IContainer container) =>
                             container.BorderBottom(1).BorderColor(Colors.Grey.Lighten1)
@@ -1196,12 +1214,36 @@ public class ReportGenerationService : IReportGenerationService
                         table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageCoverageAvailabilityScore.ToString("F2")).FontSize(8));
                         table.Cell().Element(DataStyle).Text(text => text.Span(prov.AverageTotalScore.ToString("F2")).Bold().FontSize(8));
                         table.Cell().Element(DataStyle).Text(text => text.Span(prov.OverallConnectivityStatus).FontSize(8));
+                        table.Cell().Element(DataStyle).Text(text => text.Span(prov.AssessedConnectivityStatus ?? "—").FontSize(8));
 
                         static IContainer DataStyle(IContainer container) =>
                             container.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(3);
                     }
                 });
             }
+
+            // Footnote
+            column.Item().PaddingTop(10).Column(footnote =>
+            {
+                footnote.Item().Text(text =>
+                {
+                    text.Span("* Status Column Notes").Bold().FontSize(8);
+                });
+                footnote.Item().Text(text =>
+                {
+                    text.Span("\u2022 Aggregated Status").Bold().FontSize(7);
+                    text.Span(" — derived from the average CMTS score of all child barangay assessments within this geographic unit.").FontSize(7);
+                });
+                footnote.Item().Text(text =>
+                {
+                    text.Span("\u2022 Assessed Status").Bold().FontSize(7);
+                    text.Span(" — pre-computed status from the direct infrastructure assessment of this geographic unit itself. ‘—’ means no entity-level assessment has been run.").FontSize(7);
+                });
+                footnote.Item().Text(text =>
+                {
+                    text.Span("Differences may occur when the entity-level assessment was conducted at a different time or with different data than the barangay-level assessments.").FontSize(7).Italic();
+                });
+            });
         });
     }
 
@@ -1256,8 +1298,12 @@ public class ReportGenerationService : IReportGenerationService
         if (reportData.RegionSummary != null)
         {
             row++;
-            worksheet.Cell(row, 1).Value = "Overall Connectivity Status:";
+            worksheet.Cell(row, 1).Value = "Aggregated Connectivity Status:";
             worksheet.Cell(row, 2).Value = reportData.RegionSummary.OverallConnectivityStatus;
+
+            row++;
+            worksheet.Cell(row, 1).Value = "Assessed Connectivity Status:";
+            worksheet.Cell(row, 2).Value = reportData.RegionSummary.AssessedConnectivityStatus ?? "—";
         }
 
         // Average Rubric Scores
@@ -1309,6 +1355,30 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(row, 1).Value = "WiFi Hotspots:";
         worksheet.Cell(row, 2).Value = reportData.ScoreSummary.TotalWifiHotspots;
 
+        // Footnote
+        row += 2;
+        worksheet.Cell(row, 1).Value = "* Status Notes";
+        worksheet.Cell(row, 1).Style.Font.Bold = true;
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Aggregated Connectivity Status — derived from the average CMTS score of all child barangay assessments within this geographic unit.";
+        worksheet.Cell(row, 1).Style.Font.Italic = true;
+        worksheet.Cell(row, 1).Style.Font.FontSize = 9;
+        worksheet.Range(row, 1, row, 3).Merge();
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Assessed Connectivity Status — pre-computed status from the direct infrastructure assessment of this geographic unit itself. '—' means no entity-level assessment has been run.";
+        worksheet.Cell(row, 1).Style.Font.Italic = true;
+        worksheet.Cell(row, 1).Style.Font.FontSize = 9;
+        worksheet.Range(row, 1, row, 3).Merge();
+
+        row++;
+        worksheet.Cell(row, 1).Value = "Differences may occur when the entity-level assessment was conducted at a different time or with different data than the barangay-level assessments.";
+        worksheet.Cell(row, 1).Style.Font.Italic = true;
+        worksheet.Cell(row, 1).Style.Font.FontSize = 9;
+        worksheet.Cell(row, 1).Style.Font.FontColor = XLColor.Gray;
+        worksheet.Range(row, 1, row, 3).Merge();
+
         worksheet.Columns().AdjustToContents();
     }
 
@@ -1346,9 +1416,18 @@ public class ReportGenerationService : IReportGenerationService
         headerRange.Style.Font.FontColor = XLColor.White;
         headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
-        // Data rows
+        // Data rows — sorted by status group (Served → Underserved → Unserved), then by name
         int row = 2;
-        foreach (var area in reportData.Areas)
+        var sortedAreas = reportData.Areas
+            .OrderBy(a => a.ConnectivityStatus switch
+            {
+                ConnectivityStatusEnum.Served => 0,
+                ConnectivityStatusEnum.Underserved => 1,
+                _ => 2
+            })
+            .ThenBy(a => a.LocationName)
+            .ToList();
+        foreach (var area in sortedAreas)
         {
             col = 1;
             worksheet.Cell(row, col++).Value = area.LocationName;
@@ -1401,7 +1480,8 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, col++).Value = "Avg QoS";
         worksheet.Cell(1, col++).Value = "Avg Coverage";
         worksheet.Cell(1, col++).Value = "Avg Total";
-        worksheet.Cell(1, col++).Value = "Overall Status";
+        worksheet.Cell(1, col++).Value = "Aggregated Status";
+        worksheet.Cell(1, col++).Value = "Assessed Status";
 
         var headerRange = worksheet.Range(1, 1, 1, col - 1);
         headerRange.Style.Font.Bold = true;
@@ -1436,6 +1516,7 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Cell(row, col).Value = mun.AverageTotalScore;
             worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
             worksheet.Cell(row, col++).Value = mun.OverallConnectivityStatus;
+            worksheet.Cell(row, col++).Value = mun.AssessedConnectivityStatus ?? "—";
             row++;
         }
 
@@ -1463,7 +1544,8 @@ public class ReportGenerationService : IReportGenerationService
         worksheet.Cell(1, col++).Value = "Avg QoS";
         worksheet.Cell(1, col++).Value = "Avg Coverage";
         worksheet.Cell(1, col++).Value = "Avg Total";
-        worksheet.Cell(1, col++).Value = "Overall Status";
+        worksheet.Cell(1, col++).Value = "Aggregated Status";
+        worksheet.Cell(1, col++).Value = "Assessed Status";
 
         var headerRange = worksheet.Range(1, 1, 1, col - 1);
         headerRange.Style.Font.Bold = true;
@@ -1497,6 +1579,7 @@ public class ReportGenerationService : IReportGenerationService
             worksheet.Cell(row, col).Value = prov.AverageTotalScore;
             worksheet.Cell(row, col++).Style.NumberFormat.Format = "0.00";
             worksheet.Cell(row, col++).Value = prov.OverallConnectivityStatus;
+            worksheet.Cell(row, col++).Value = prov.AssessedConnectivityStatus ?? "—";
             row++;
         }
 
