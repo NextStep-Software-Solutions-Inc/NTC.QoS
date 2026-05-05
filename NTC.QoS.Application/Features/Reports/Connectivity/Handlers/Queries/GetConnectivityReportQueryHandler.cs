@@ -134,22 +134,25 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                 }),
                 cancellationToken);
 
-            var servedSummary = summaryData.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).ToList();
-            var underservedSummary = summaryData.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).ToList();
-            var unservedSummary = summaryData.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).ToList();
-
-            var scoreSummary = CalculateScoreSummary(summaryData);
-
             // Load location names (barangay name) for the page only
             var locationNames = await GetLocationNamesBatchAsync(
                 pageAssessments.Select(a => (a.LocationId, a.LocationType)).ToList(),
                 cancellationToken);
 
             // Barangay details (municipality/province names):
-            //   - IncludeSummaries=true:  load for ALL assessments so geographic summaries are accurate
+            //   - IncludeSummaries=true:  load for all status-filtered assessments so geographic summaries
+            //     follow the same barangay filter set
             //   - IncludeSummaries=false: load only for the current page to keep the query small
+            var filteredSummaryData = request.FilterByStatus.HasValue
+                ? summaryData.Where(a => a.ConnectivityStatus == request.FilterByStatus.Value).ToList()
+                : summaryData;
+            var scoreSummary = CalculateScoreSummary(filteredSummaryData);
+            var servedSummary = filteredSummaryData.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).ToList();
+            var underservedSummary = filteredSummaryData.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).ToList();
+            var unservedSummary = filteredSummaryData.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).ToList();
+
             var detailIds = request.IncludeSummaries
-                ? summaryData.Select(a => a.LocationId).ToList()
+                ? filteredSummaryData.Select(a => a.LocationId).ToList()
                 : pageAssessments.Select(a => a.LocationId).ToList();
             var allBarangayDetails = await GetBarangayDetailsAsync(detailIds, cancellationToken);
 
@@ -179,8 +182,8 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             }).ToList();
 
             // Build geographic summary DTOs only when IncludeSummaries is true.
-            // Uses the full unfiltered assessment set so they are consistent with the
-            // top-level totals/populations regardless of whether FilterByStatus is set.
+            // Uses the status-filtered assessment set so municipality/province/region summaries
+            // reflect only the barangay list currently in scope.
             // Empty list defaults mirror the ConnectivityReportDto property defaults;
             // regionSummary starts null because the DTO property is GeographicLevelSummaryDto?
             List<GeographicLevelSummaryDto> municipalitySummaries = [];
@@ -189,7 +192,7 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
 
             if (request.IncludeSummaries)
             {
-                var allAreaDetails = summaryData.Select(a => new ConnectivityAreaDetailDto
+                var filteredAreaDetails = filteredSummaryData.Select(a => new ConnectivityAreaDetailDto
                 {
                     LocationId = a.LocationId,
                     LocationName = string.Empty,
@@ -205,9 +208,20 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
                     TotalScore = a.TotalScore,
                 }).ToList();
 
-                municipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(allAreaDetails);
-                provinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(allAreaDetails);
-                regionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(allAreaDetails);
+                municipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(filteredAreaDetails);
+                provinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(filteredAreaDetails);
+                regionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(filteredAreaDetails);
+
+                // Enrich geographic summaries with entity-level assessed statuses from stored assessments
+                var (munAssessedStatuses, provAssessedStatuses) = await FetchEntityAssessedStatusesAsync(
+                    detailIds, cancellationToken);
+                var regionAssessedStatus = request.RegionId.HasValue
+                    ? await FetchRegionAssessedStatusAsync(request.RegionId.Value, cancellationToken)
+                    : null;
+
+                municipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(filteredAreaDetails, munAssessedStatuses);
+                provinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(filteredAreaDetails, provAssessedStatuses);
+                regionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(filteredAreaDetails, regionAssessedStatus);
             }
 
             var reportDto = new ConnectivityReportDto
@@ -263,10 +277,6 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
             AverageQualityOfServiceScore = summaryData.Average(a => a.QualityOfServiceScore),
             AverageCoverageAvailabilityScore = summaryData.Average(a => a.CoverageAvailabilityScore),
             AverageTotalScore = summaryData.Average(a => a.TotalScore),
-            ExcellentCount = summaryData.Count(a => a.TotalScore >= 13),
-            GoodCount = summaryData.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
-            ModerateCount = summaryData.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
-            FairCount = summaryData.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
             TotalCellTowers = summaryData.Sum(a => a.CellTowerCount),
             TotalFiberNAPs = summaryData.Sum(a => a.FiberNAPCount),
             TotalWifiHotspots = summaryData.Sum(a => a.WifiHotspotCount),
@@ -277,52 +287,62 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
     /// <summary>
     /// Builds an <see cref="IQueryable{ConnectivityAssessment}"/> scoped to the specified geographic
     /// filters and restricted to barangays that have a <c>BarangayCoverage</c> record.
-    /// The query is <b>not</b> materialised; callers apply further predicates, sorting, counting,
-    /// and pagination before executing.
-    /// All filtering is expressed as IQueryable subqueries so the database resolves them in a
-    /// single round-trip without pulling large ID lists into application memory.
+    /// Covered barangay IDs are materialised once into a <c>List&lt;Guid&gt;</c> so that the
+    /// subsequent <c>WHERE IN (...)</c> predicate is applied consistently by EF Core across both
+    /// <c>CountAsync</c> and <c>ToListAsync</c> calls (cross-repository nested IQueryable subqueries
+    /// can produce inconsistent results between COUNT and SELECT paths).
     /// </summary>
-    private Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildFilteredQueryAsync(
+    private async Task<IQueryable<Domain.Entities.ConnectivityAssessment>> BuildFilteredQueryAsync(
         Guid? regionId, Guid? provinceId, Guid? municipalityId, LocationTypeEnum locationType, CancellationToken cancellationToken)
     {
         var query = _assessmentRepository.Query(a => a.LocationType == locationType);
 
-        // Subquery: barangay IDs that have a BarangayCoverage record (stays as IQueryable — no materialisation)
+        // Materialise covered barangay IDs (barangays with a BarangayCoverage record).
+        // Using a concrete List<Guid> ensures EF Core translates the filter identically for
+        // CountAsync and ToListAsync — avoiding the inconsistency seen with nested IQueryable subqueries.
         var coveredBarangayIds = _barangayCoverageRepository.Query()
             .Select(bc => bc.BarangayId);
 
-        // Compose a scoped barangay-ID subquery based on the geographic filter.
-        // Each branch remains an IQueryable so the whole chain is sent to the database as a subquery.
-        IQueryable<Guid> scopedBarangayIds;
+        List<Guid> scopedBarangayIds;
         if (municipalityId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.MunicipalityId == municipalityId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else if (provinceId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.Municipality.ProvinceId == provinceId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else if (regionId.HasValue)
         {
-            scopedBarangayIds = _barangayRepository
-                .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => b.Municipality.Province.RegionId == regionId.Value && coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
         else
         {
             // National scope: all covered barangays
-            scopedBarangayIds = _barangayRepository
-                .Query(b => coveredBarangayIds.Contains(b.Id))
-                .Select(b => b.Id);
+            scopedBarangayIds = await _barangayRepository.ToListAsync(
+                _barangayRepository
+                    .Query(b => coveredBarangayIds.Contains(b.Id))
+                    .Select(b => b.Id),
+                cancellationToken);
         }
 
-        query = query.Where(a => scopedBarangayIds.Contains(a.LocationId));
+        query = scopedBarangayIds.Count > 0
+            ? query.Where(a => scopedBarangayIds.Contains(a.LocationId))
+            : query.Where(a => false);
 
-        return Task.FromResult(query);
+        return query;
     }
 
     /// <summary>Lightweight projection used for summary statistics and geographic summaries.</summary>
@@ -462,6 +482,88 @@ public class GetConnectivityReportQueryHandler : IRequestHandler<GetConnectivity
         {
             _logger.LogError(ex, "Error fetching barangay details with municipality and province names");
             return new Dictionary<Guid, (string, string)>();
+        }
+    }
+
+    /// <summary>
+    /// Fetches the pre-stored entity-level ConnectivityStatus for each unique municipality and province
+    /// in the given set of barangay IDs. Returns two lookup dictionaries keyed by name for use in the
+    /// summary helper.
+    /// </summary>
+    private async Task<(IReadOnlyDictionary<(string Name, string Province), string> MunicipalityStatuses,
+                        IReadOnlyDictionary<string, string> ProvinceStatuses)>
+        FetchEntityAssessedStatusesAsync(List<Guid> barangayIds, CancellationToken cancellationToken)
+    {
+        if (barangayIds.Count == 0)
+            return (new Dictionary<(string, string), string>(), new Dictionary<string, string>());
+
+        try
+        {
+            var geoInfo = await _barangayRepository.ToListAsync(
+                _barangayRepository.QueryAsNoTracking(b => barangayIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.MunicipalityId,
+                        MunicipalityName = b.Municipality.Name,
+                        ProvinceId = b.Municipality.ProvinceId,
+                        ProvinceName = b.Municipality.Province.Name
+                    }),
+                cancellationToken);
+
+            var uniqueMunicipalities = geoInfo
+                .GroupBy(g => g.MunicipalityId)
+                .Select(g => (Id: g.Key, g.First().MunicipalityName, g.First().ProvinceName))
+                .ToList();
+
+            var munAssessments = await _assessmentRepository.GetByLocationIdsAsync(
+                uniqueMunicipalities.Select(m => m.Id).ToList(),
+                LocationTypeEnum.Municipality, cancellationToken);
+            var munAssessmentById = munAssessments.ToDictionary(a => a.LocationId);
+
+            var municipalityStatuses = uniqueMunicipalities
+                .Where(m => munAssessmentById.ContainsKey(m.Id))
+                .GroupBy(m => (m.MunicipalityName, m.ProvinceName))
+                .ToDictionary(
+                    g => g.Key,
+                    g => munAssessmentById[g.First().Id].ConnectivityStatus.ToString());
+
+            var uniqueProvinces = geoInfo
+                .GroupBy(g => g.ProvinceId)
+                .Select(g => (Id: g.Key, g.First().ProvinceName))
+                .ToList();
+
+            var provAssessments = await _assessmentRepository.GetByLocationIdsAsync(
+                uniqueProvinces.Select(p => p.Id).ToList(),
+                LocationTypeEnum.Provincial, cancellationToken);
+            var provAssessmentById = provAssessments.ToDictionary(a => a.LocationId);
+
+            var provinceStatuses = uniqueProvinces
+                .Where(p => provAssessmentById.ContainsKey(p.Id))
+                .GroupBy(p => p.ProvinceName)
+                .ToDictionary(
+                    g => g.Key,
+                    g => provAssessmentById[g.First().Id].ConnectivityStatus.ToString());
+
+            return (municipalityStatuses, provinceStatuses);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching entity-level assessed statuses for connectivity report");
+            return (new Dictionary<(string, string), string>(), new Dictionary<string, string>());
+        }
+    }
+
+    private async Task<string?> FetchRegionAssessedStatusAsync(Guid regionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var assessment = await _assessmentRepository.GetByLocationAsync(regionId, LocationTypeEnum.Regional, cancellationToken);
+            return assessment?.ConnectivityStatus.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching region entity-level assessed status for regionId {RegionId}", regionId);
+            return null;
         }
     }
 }

@@ -100,14 +100,14 @@ public class GeographicLevelSummaryDto
     public double AverageCoverageAvailabilityScore { get; set; }
     public double AverageTotalScore { get; set; }
 
-    // Score distribution
-    public int ExcellentCount { get; set; } // 13-15
-    public int GoodCount { get; set; }      // 11-12
-    public int ModerateCount { get; set; }  // 8-10
-    public int FairCount { get; set; }      // 6-7
-
     /// <summary>Derived overall status: Served (avg ≥ 11), Underserved (avg 6–10), Unserved (avg &lt; 6).</summary>
     public string OverallConnectivityStatus { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Pre-computed status from the direct infrastructure assessment of this geographic unit.
+    /// Null when no entity-level assessment has been run for this unit.
+    /// </summary>
+    public string? AssessedConnectivityStatus { get; set; }
 }
 
 /// <summary>
@@ -122,12 +122,6 @@ public class ConnectivityScoreSummaryDto
     public double AverageQualityOfServiceScore { get; set; }
     public double AverageCoverageAvailabilityScore { get; set; }
     public double AverageTotalScore { get; set; }
-    
-    // Distribution counts by total score ranges
-    public int ExcellentCount { get; set; } // 13-15 points
-    public int GoodCount { get; set; } // 11-12 points
-    public int ModerateCount { get; set; } // 8-10 points
-    public int FairCount { get; set; } // 6-7 points
     
     // Total infrastructure
     public int TotalCellTowers { get; set; }
