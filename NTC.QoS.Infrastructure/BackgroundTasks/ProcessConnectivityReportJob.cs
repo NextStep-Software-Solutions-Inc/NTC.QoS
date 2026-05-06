@@ -342,6 +342,42 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 ? await FetchRegionAssessedStatusAsync(jobRequest.RegionId.Value, cancellationToken)
                 : null;
 
+            // Group filtered areas into municipality-level objects
+            var municipalities = areas
+                .GroupBy(a => (a.MunicipalityName ?? string.Empty, a.ProvinceName ?? string.Empty))
+                .Select(g =>
+                {
+                    var avgTotal = g.Any() ? g.Average(a => a.TotalScore) : 0.0;
+                    var overallStatus = avgTotal >= 11 ? "Served" : avgTotal >= 6 ? "Underserved" : "Unserved";
+                    munAssessedStatuses.TryGetValue((g.Key.Item1, g.Key.Item2), out var assessedStatus);
+                    return new ConnectivityMunicipalityDto
+                    {
+                        MunicipalityId = Guid.Empty,
+                        MunicipalityName = g.Key.Item1,
+                        ProvinceName = g.Key.Item2,
+                        TotalBarangays = g.Count(),
+                        ServedBarangays = g.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served),
+                        UnderservedBarangays = g.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                        UnservedBarangays = g.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                        TotalPopulation = g.Sum(a => a.Population ?? 0),
+                        ServedPopulation = g.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).Sum(a => a.Population ?? 0),
+                        UnderservedPopulation = g.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).Sum(a => a.Population ?? 0),
+                        UnservedPopulation = g.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).Sum(a => a.Population ?? 0),
+                        AverageFiberCoverageScore = g.Any() ? g.Average(a => a.FiberCoverageScore) : 0,
+                        AverageInternetAccessScore = g.Any() ? g.Average(a => a.InternetAccessScore) : 0,
+                        AverageTechnologyTypeScore = g.Any() ? g.Average(a => a.TechnologyTypeScore) : 0,
+                        AverageQualityOfServiceScore = g.Any() ? g.Average(a => a.QualityOfServiceScore) : 0,
+                        AverageCoverageAvailabilityScore = g.Any() ? g.Average(a => a.CoverageAvailabilityScore) : 0,
+                        AverageTotalScore = avgTotal,
+                        OverallConnectivityStatus = overallStatus,
+                        AssessedConnectivityStatus = assessedStatus,
+                        Barangays = g.OrderBy(a => a.ConnectivityStatus).ThenBy(a => a.LocationName).ToList()
+                    };
+                })
+                .OrderBy(m => m.OverallConnectivityStatus switch { "Unserved" => 0, "Underserved" => 1, _ => 2 })
+                .ThenBy(m => m.MunicipalityName)
+                .ToList();
+
             var reportData = new ConnectivityReportDto
             {
                 TotalServedAreas = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served),
@@ -350,14 +386,14 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 ServedPopulation = areas.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).Sum(a => a.Population ?? 0),
                 UnderservedPopulation = areas.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).Sum(a => a.Population ?? 0),
                 UnservedPopulation = areas.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).Sum(a => a.Population ?? 0),
-                Areas = areas,
+                Municipalities = municipalities,
                 ScoreSummary = scoreSummary,
-                MunicipalitySummaries = ConnectivityReportSummaryHelper.BuildMunicipalitySummaries(areas, munAssessedStatuses),
                 ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(areas, provAssessedStatuses),
                 RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(areas, regionAssessedStatus),
-                TotalAreas = areas.Count,
+                TotalMunicipalities = municipalities.Count,
+                TotalBarangays = areas.Count,
                 PageNumber = 1,
-                PageSize = areas.Count,
+                PageSize = municipalities.Count,
                 TotalPages = 1,
                 GeneratedAt = DateTime.UtcNow
             };

@@ -3,26 +3,69 @@ using NTC.QoS.Domain.Enums;
 namespace NTC.QoS.Domain.Models.DTOs.Reports;
 
 /// <summary>
-/// Connectivity Report DTO showing areas with rubric score breakdown, supporting unified view across all connectivity statuses
+/// Connectivity Report DTO showing areas with rubric score breakdown, supporting unified view across all connectivity statuses.
+/// Municipalities are the pagination unit; each municipality contains its full barangay list.
 /// </summary>
 public class ConnectivityReportDto
 {
+    // Top-level summary counts (all filtered barangays)
     public int TotalServedAreas { get; set; }
     public int ServedPopulation { get; set; }
     public int TotalUnservedAreas { get; set; }
     public int TotalUnderservedAreas { get; set; }
     public int UnservedPopulation { get; set; }
     public int UnderservedPopulation { get; set; }
-    public List<ConnectivityAreaDetailDto> Areas { get; set; } = [];
+
+    /// <summary>Paginated list of municipalities, each containing their full barangay list.</summary>
+    public List<ConnectivityMunicipalityDto> Municipalities { get; set; } = [];
+
     public ConnectivityScoreSummaryDto ScoreSummary { get; set; } = new();
-    public List<GeographicLevelSummaryDto> MunicipalitySummaries { get; set; } = [];
     public List<GeographicLevelSummaryDto> ProvinceSummaries { get; set; } = [];
     public GeographicLevelSummaryDto? RegionSummary { get; set; }
-    public int TotalAreas { get; set; }
+
+    // Pagination (municipality-level)
+    public int TotalMunicipalities { get; set; }
+    public int TotalBarangays { get; set; }
     public int PageNumber { get; set; }
     public int PageSize { get; set; }
     public int TotalPages { get; set; }
     public DateTime GeneratedAt { get; set; }
+}
+
+/// <summary>
+/// A municipality with aggregated connectivity statistics and its full nested barangay list.
+/// </summary>
+public class ConnectivityMunicipalityDto
+{
+    public Guid MunicipalityId { get; set; }
+    public string MunicipalityName { get; set; } = string.Empty;
+    public string ProvinceName { get; set; } = string.Empty;
+
+    public int TotalBarangays { get; set; }
+    public int ServedBarangays { get; set; }
+    public int UnderservedBarangays { get; set; }
+    public int UnservedBarangays { get; set; }
+
+    public long TotalPopulation { get; set; }
+    public long ServedPopulation { get; set; }
+    public long UnderservedPopulation { get; set; }
+    public long UnservedPopulation { get; set; }
+
+    public double AverageFiberCoverageScore { get; set; }
+    public double AverageInternetAccessScore { get; set; }
+    public double AverageTechnologyTypeScore { get; set; }
+    public double AverageQualityOfServiceScore { get; set; }
+    public double AverageCoverageAvailabilityScore { get; set; }
+    public double AverageTotalScore { get; set; }
+
+    /// <summary>Derived overall status computed from average barangay CMTS scores: Served (≥11), Underserved (6–10), Unserved (&lt;6).</summary>
+    public string OverallConnectivityStatus { get; set; } = string.Empty;
+
+    /// <summary>Pre-stored status from the municipality-level connectivity assessment entity (null if not yet assessed).</summary>
+    public string? AssessedConnectivityStatus { get; set; }
+
+    /// <summary>Barangays within this municipality, sorted Unserved → Underserved → Served, then by name.</summary>
+    public List<ConnectivityAreaDetailDto> Barangays { get; set; } = [];
 }
 
 /// <summary>
