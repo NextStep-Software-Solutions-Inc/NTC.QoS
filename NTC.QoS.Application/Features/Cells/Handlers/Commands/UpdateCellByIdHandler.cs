@@ -131,6 +131,8 @@ public class UpdateCellByIdHandler(
         cell.TowerType = updatedTowerType;
         cell.Location = updatedLocation;
 
+        var updatedAddress = request.Cell.Address ?? cell.Address;
+
         if (request.Cell.Group is not null) cell.Group = request.Cell.Group;
         if (request.Cell.Description is not null) cell.Description = request.Cell.Description;
         if (request.Cell.Address is not null) cell.Address = request.Cell.Address;
@@ -158,11 +160,6 @@ public class UpdateCellByIdHandler(
             cell.Status = status;
         }
 
-        var serviceProviderName = await _serviceProviderRepository.FirstOrDefaultAsync(
-            _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == cell.ServiceProviderId)
-                .Select(sp => sp.Provider.Name),
-            cancellationToken) ?? string.Empty;
-
         var hasIdentityFieldChange =
             request.Cell.ServiceProviderId.HasValue ||
             request.Cell.Address is not null ||
@@ -175,7 +172,12 @@ public class UpdateCellByIdHandler(
         }
         else if (hasIdentityFieldChange)
         {
-            cell.Name = $"Cell-{serviceProviderName}-{cell.Address ?? string.Empty}-{cell.TowerType}-{cell.Location.Coordinate.X}-{cell.Location.Coordinate.Y}";
+            var serviceProviderName = await _serviceProviderRepository.FirstOrDefaultAsync(
+                _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == cell.ServiceProviderId)
+                    .Select(sp => sp.Provider.Name),
+                cancellationToken) ?? string.Empty;
+
+            cell.Name = $"Cell-{serviceProviderName}-{updatedAddress ?? string.Empty}-{cell.TowerType}-{cell.Location.Coordinate.X}-{cell.Location.Coordinate.Y}";
         }
 
         var duplicateNameId = await _cellRepository.FirstOrDefaultAsync(
