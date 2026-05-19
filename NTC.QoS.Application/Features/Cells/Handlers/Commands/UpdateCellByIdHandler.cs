@@ -69,7 +69,10 @@ public class UpdateCellByIdHandler(
         }
 
         var updatedServiceProviderId = request.Cell.ServiceProviderId ?? cell.ServiceProviderId;
-        if (updatedServiceProviderId != cell.ServiceProviderId)
+        var serviceProviderNameForGroup = cell.Group; // Default to existing group
+        var isServiceProviderChanging = updatedServiceProviderId != cell.ServiceProviderId;
+        
+        if (isServiceProviderChanging)
         {
             var serviceProviderExists = await _serviceProviderRepository.FirstOrDefaultAsync(
                 _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == updatedServiceProviderId && sp.Service.Type == ServiceTypeEnum.Wireless)
@@ -88,6 +91,12 @@ public class UpdateCellByIdHandler(
                     }
                 };
             }
+
+            // Fetch the provider name for the new service provider
+            serviceProviderNameForGroup = await _serviceProviderRepository.FirstOrDefaultAsync(
+                _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == updatedServiceProviderId)
+                    .Select(sp => sp.Provider.Name),
+                cancellationToken) ?? string.Empty;
         }
 
         var updatedTowerType = cell.TowerType;
@@ -133,7 +142,16 @@ public class UpdateCellByIdHandler(
 
         var updatedAddress = request.Cell.Address ?? cell.Address;
 
-        if (request.Cell.Group is not null) cell.Group = request.Cell.Group;
+        if (request.Cell.Group is not null) 
+        {
+            cell.Group = request.Cell.Group;
+        }
+        else if (isServiceProviderChanging)
+        {
+            // If ServiceProviderId is being updated and Group is not explicitly provided,
+            // update Group to the name of the new service provider
+            cell.Group = serviceProviderNameForGroup;
+        }
         if (request.Cell.Description is not null) cell.Description = request.Cell.Description;
         if (request.Cell.Address is not null) cell.Address = request.Cell.Address;
         if (request.Cell.CID is not null) cell.CID = request.Cell.CID;
