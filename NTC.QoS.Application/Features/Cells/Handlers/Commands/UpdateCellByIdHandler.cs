@@ -102,9 +102,19 @@ public class UpdateCellByIdHandler(
         var updatedTowerType = cell.TowerType;
         if (request.Cell.TowerType is not null)
         {
-            updatedTowerType = Enum.TryParse<TowerTypeEnum>(request.Cell.TowerType, true, out var towerType)
-                ? towerType
-                : TowerTypeEnum.Unknown;
+            if (!Enum.TryParse<TowerTypeEnum>(request.Cell.TowerType, true, out var towerType))
+            {
+                return new ApiResponse<CellDto>
+                {
+                    Message = "Validation failed.",
+                    Succeeded = false,
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "TowerType", ["TowerType is not a valid TowerTypeEnum value."] }
+                    }
+                };
+            }
+            updatedTowerType = towerType;
         }
 
         var updatedLocation = request.Cell.Latitude.HasValue && request.Cell.Longitude.HasValue
@@ -190,10 +200,13 @@ public class UpdateCellByIdHandler(
         }
         else if (hasIdentityFieldChange)
         {
-            var serviceProviderName = await _serviceProviderRepository.FirstOrDefaultAsync(
-                _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == cell.ServiceProviderId)
-                    .Select(sp => sp.Provider.Name),
-                cancellationToken) ?? string.Empty;
+            // Reuse serviceProviderNameForGroup if the service provider hasn't changed; otherwise, fetch the current provider name
+            var serviceProviderName = isServiceProviderChanging
+                ? serviceProviderNameForGroup
+                : (await _serviceProviderRepository.FirstOrDefaultAsync(
+                    _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == cell.ServiceProviderId)
+                        .Select(sp => sp.Provider.Name),
+                    cancellationToken) ?? string.Empty);
 
             cell.Name = $"Cell-{serviceProviderName}-{updatedAddress ?? string.Empty}-{cell.TowerType}-{cell.Location.Coordinate.X}-{cell.Location.Coordinate.Y}";
         }
