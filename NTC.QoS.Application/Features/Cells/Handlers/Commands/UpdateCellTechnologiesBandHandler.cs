@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
@@ -17,6 +18,11 @@ public class UpdateCellTechnologiesBandHandler(
     IRepository<Domain.Entities.Cellular> cellularRepository,
     ITechnologyRepository technologyRepository,
     IBandRepository bandRepository,
+    IServiceProviderRepository serviceProviderRepository,
+    INetworkRepository networkRepository,
+    ISectorRepository sectorRepository,
+    IMunicipalityRepository municipalityRepository,
+    IRepository<Domain.Entities.SystemType> systemTypeRepository,
     ILogger<UpdateCellTechnologiesBandHandler> logger)
     : IRequestHandler<UpdateCellTechnologiesBandRequest, ApiResponse<List<CellTechnologyBandDto>>>
 {
@@ -25,6 +31,11 @@ public class UpdateCellTechnologiesBandHandler(
     private readonly IRepository<Domain.Entities.Cellular> _cellularRepository = cellularRepository;
     private readonly ITechnologyRepository _technologyRepository = technologyRepository;
     private readonly IBandRepository _bandRepository = bandRepository;
+    private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
+    private readonly INetworkRepository _networkRepository = networkRepository;
+    private readonly ISectorRepository _sectorRepository = sectorRepository;
+    private readonly IMunicipalityRepository _municipalityRepository = municipalityRepository;
+    private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository = systemTypeRepository;
     private readonly ILogger<UpdateCellTechnologiesBandHandler> _logger = logger;
 
     public async Task<ApiResponse<List<CellTechnologyBandDto>>> Handle(
@@ -66,8 +77,8 @@ public class UpdateCellTechnologiesBandHandler(
         }
 
         // Validate all technologies and bands exist
-        var technologyIds = request.TechnologyBands.TechnologyBands.Select(tb => tb.TechnologyId).Distinct().ToList();
-        var bandIds = request.TechnologyBands.TechnologyBands.Select(tb => tb.BandId).Distinct().ToList();
+        var technologyIds = request.Payload.TechnologyBands.Select(tb => tb.TechnologyId).Distinct().ToList();
+        var bandIds = request.Payload.TechnologyBands.Select(tb => tb.BandId).Distinct().ToList();
 
         var validTechnologies = await _technologyRepository.ToListAsync(
             _technologyRepository.Query(t => technologyIds.Contains(t.Id)),
@@ -105,19 +116,98 @@ public class UpdateCellTechnologiesBandHandler(
             };
         }
 
+        // Validate all service provider IDs (cell default + any per-item overrides)
+        var overrideProviderIds = request.Payload.TechnologyBands
+            .Where(tb => tb.ServiceProviderId.HasValue)
+            .Select(tb => tb.ServiceProviderId!.Value)
+            .Distinct()
+            .ToList();
+
+        var allProviderIds = overrideProviderIds
+            .Append(cell.ServiceProviderId)
+            .Distinct()
+            .ToList();
+
+        var validProviderCount = await _serviceProviderRepository.CountAsync(
+            _serviceProviderRepository.Query(sp => allProviderIds.Contains(sp.Id)),
+            cancellationToken);
+
+        if (validProviderCount != allProviderIds.Count)
+        {
+            return new ApiResponse<List<CellTechnologyBandDto>>
+            {
+                Message = "One or more service providers do not exist.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "InvalidServiceProviders", ["One or more ServiceProviderIds are invalid."] }
+                }
+            };
+        }
+
         // Get existing Cellular records for this cell
         var existingCellularQuery = _cellularRepository.Query(c =>
             c.CellSector != null && c.CellSector.CellId == request.CellId);
         var existingCellulars = await _cellularRepository.ToListAsync(existingCellularQuery, cancellationToken);
 
-        var sectorIds = sectors.Select(s => s.Id).ToList();
         var defaultServiceProviderId = cell.ServiceProviderId;
+
+        // Resolve municipality from cell location for network lookup/creation
+        var (municipalityId, municipalityName) = await _municipalityRepository
+            .GetMunicipalityIdAndNameByLocationAsync(cell.Location, cancellationToken);
+
+        // Build lookup maps for technology standard and band name
+        var techStandardById = validTechnologies.ToDictionary(t => t.Id, t => t.Standard);
+        var bandNameById = validBands.ToDictionary(b => b.Id, b => b.Name);
+
+        // Resolve network IDs for each unique (techId, bandId, providerId) combination
+        var comboNetworkMap = new Dictionary<(Guid TechId, Guid BandId, Guid ProviderId), (Guid NetworkId, decimal DLFreq, decimal ULFreq, decimal Bandwidth)>();
+
+        foreach (var techBand in request.Payload.TechnologyBands)
+        {
+            var providerId = techBand.ServiceProviderId ?? defaultServiceProviderId;
+            var key = (techBand.TechnologyId, techBand.BandId, providerId);
+
+            if (comboNetworkMap.ContainsKey(key))
+                continue;
+
+            var techStandard = techStandardById[techBand.TechnologyId];
+            var bandName = bandNameById[techBand.BandId];
+
+            var dlFreq = FrequencyHelper.GetDefaultDLCenterFreq(techStandard, bandName);
+            var bandwidth = FrequencyHelper.GetDefaultBandwidth(techStandard);
+            var ulFreq = FrequencyHelper.CalculateULCenterFreq(dlFreq, techStandard, bandName);
+
+            var networkId = await GetOrCreateNetworkAsync(
+                providerId,
+                municipalityId,
+                municipalityName ?? "Unknown",
+                techBand.TechnologyId,
+                techBand.BandId,
+                techStandard,
+                bandName,
+                dlFreq,
+                ulFreq,
+                bandwidth,
+                cancellationToken);
+
+            if (networkId == Guid.Empty)
+            {
+                return new ApiResponse<List<CellTechnologyBandDto>>
+                {
+                    Message = $"Failed to create or retrieve Network for Technology '{techStandard}' and Band '{bandName}'. Check SystemType configuration.",
+                    Succeeded = false
+                };
+            }
+
+            comboNetworkMap[key] = (networkId, dlFreq, ulFreq, bandwidth);
+        }
 
         // Create a set of desired technology-band-sector combinations
         var desiredCombinations = new HashSet<(Guid SectorId, Guid TechId, Guid BandId, Guid ProviderId)>();
         foreach (var sector in sectors)
         {
-            foreach (var techBand in request.TechnologyBands.TechnologyBands)
+            foreach (var techBand in request.Payload.TechnologyBands)
             {
                 var providerId = techBand.ServiceProviderId ?? defaultServiceProviderId;
                 desiredCombinations.Add((sector.Id, techBand.TechnologyId, techBand.BandId, providerId));
@@ -147,12 +237,23 @@ public class UpdateCellTechnologiesBandHandler(
 
         var cellularsToCreate = desiredCombinations
             .Where(combination => !existingCombinations.Contains(combination))
-            .Select(combination => new Domain.Entities.Cellular
+            .Select(combination =>
             {
-                CellSectorId = combination.SectorId,
-                TechnologyId = combination.TechId,
-                BandId = combination.BandId,
-                ServiceProviderId = combination.ProviderId
+                var comboKey = (combination.TechId, combination.BandId, combination.ProviderId);
+                var (networkId, dlFreq, ulFreq, bw) = comboNetworkMap[comboKey];
+                return new Domain.Entities.Cellular
+                {
+                    CellSectorId = combination.SectorId,
+                    TechnologyId = combination.TechId,
+                    BandId = combination.BandId,
+                    ServiceProviderId = combination.ProviderId,
+                    NetworkId = networkId,
+                    DLCenterFreq = dlFreq,
+                    ULCenterFreq = ulFreq,
+                    Bandwidth = bw,
+                    Address = cell.Address,
+                    IsFileUploaded = false
+                };
             })
             .ToList();
 
@@ -160,8 +261,8 @@ public class UpdateCellTechnologiesBandHandler(
         {
             _cellularRepository.Add(cellular);
             _logger.LogInformation(
-                "Created Cellular record: SectorId={SectorId}, TechId={TechId}, BandId={BandId}",
-                cellular.CellSectorId, cellular.TechnologyId, cellular.BandId);
+                "Created Cellular record: SectorId={SectorId}, TechId={TechId}, BandId={BandId}, NetworkId={NetworkId}",
+                cellular.CellSectorId, cellular.TechnologyId, cellular.BandId, cellular.NetworkId);
         }
 
         // Save all changes
@@ -170,6 +271,45 @@ public class UpdateCellTechnologiesBandHandler(
         _logger.LogInformation(
             "Updated technologies for Cell {CellId}: Added {AddedCount}, Deleted {DeletedCount}",
             request.CellId, cellularsToCreate.Count, cellularsToDelete.Count);
+
+        // Create missing Sector rows for sectors that now have Cellular records
+        var sectorsWithNewCellulars = cellularsToCreate
+            .Select(c => c.CellSectorId)
+            .Distinct()
+            .ToList();
+
+        foreach (var sectorId in sectorsWithNewCellulars)
+        {
+            var sectorExists = await _sectorRepository.CountAsync(
+                _sectorRepository.Query(s => s.CellSectorId == sectorId),
+                cancellationToken) > 0;
+
+            if (!sectorExists)
+            {
+                var cellSector = sectors.First(s => s.Id == sectorId);
+                var firstNetworkId = cellularsToCreate
+                    .First(c => c.CellSectorId == sectorId)
+                    .NetworkId;
+
+                _sectorRepository.Add(new Domain.Entities.Sector
+                {
+                    CellSectorId = sectorId,
+                    NetworkId = firstNetworkId,
+                    AntennaType = cellSector.AntennaType,
+                    TxAntennaHeight = cellSector.AntennaHeight,
+                    TxAzimuth = cellSector.Azimuth,
+                    TxBeamTilt = cellSector.BeamTilt,
+                    RxAntennaHeight = cellSector.AntennaHeight,
+                    RxAzimuth = cellSector.Azimuth,
+                    RxBeamTilt = cellSector.BeamTilt,
+                    IsRxEqualTx = true
+                });
+                _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", sectorId);
+            }
+        }
+
+        if (sectorsWithNewCellulars.Count > 0)
+            await _sectorRepository.SaveChangesAsync(cancellationToken);
 
         // Retrieve and return the updated technology list
         var updatedQuery = _cellularRepository.Query()
@@ -215,4 +355,74 @@ public class UpdateCellTechnologiesBandHandler(
             Message = $"Cell technologies updated successfully. Added {cellularsToCreate.Count} and removed {cellularsToDelete.Count} technology-band assignments."
         };
     }
+
+    private async Task<Guid> GetOrCreateNetworkAsync(
+        Guid serviceProviderId,
+        Guid? municipalityId,
+        string municipalityName,
+        Guid technologyId,
+        Guid bandId,
+        string technologyStandard,
+        string bandName,
+        decimal dlCenterFreq,
+        decimal ulCenterFreq,
+        decimal bandwidth,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var networkNamePattern = $"{technologyStandard}_{bandName}_{municipalityName}";
+
+            var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
+                _networkRepository
+                    .Query(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
+                    .Select(n => (Guid?)n.Id),
+                cancellationToken);
+
+            if (existingNetworkId.HasValue)
+                return existingNetworkId.Value;
+
+            var systemTypeId = await _systemTypeRepository.FirstOrDefaultAsync(
+                _systemTypeRepository
+                    .Query(st => st.TechnologyId == technologyId)
+                    .Select(st => (Guid?)st.Id),
+                cancellationToken);
+
+            if (!systemTypeId.HasValue)
+            {
+                _logger.LogWarning(
+                    "SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})",
+                    technologyId, technologyStandard);
+                return Guid.Empty;
+            }
+
+            var newNetwork = new Domain.Aggregates.Network
+            {
+                Name = networkNamePattern,
+                ServiceProviderId = serviceProviderId,
+                SystemTypeId = systemTypeId.Value,
+                BandId = bandId,
+                MunicipalityId = municipalityId,
+                ULCenterFreq = ulCenterFreq,
+                DLCenterFreq = dlCenterFreq,
+                Bandwidth = bandwidth
+            };
+
+            _networkRepository.Add(newNetwork);
+            await _networkRepository.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Network created: {NetworkName} (ServiceProviderId={ServiceProviderId}, TechnologyId={TechnologyId}, BandId={BandId})",
+                newNetwork.Name, serviceProviderId, technologyId, bandId);
+
+            return newNetwork.Id;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting or creating network for Technology={Technology}, Band={Band}",
+                technologyStandard, bandName);
+            return Guid.Empty;
+        }
+    }
 }
+

@@ -2,7 +2,7 @@ namespace NTC.QoS.Domain.Helper;
 
 /// <summary>
 /// Provides frequency calculation utilities for cellular technology bands.
-/// Shared between background processing and manual creation flows.
+/// Used by manual cellular creation flows (CreateCellularHandler and UpdateCellTechnologiesBandHandler).
 /// </summary>
 public static class FrequencyHelper
 {
