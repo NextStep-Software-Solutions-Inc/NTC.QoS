@@ -51,59 +51,50 @@ public class NetworkService(
         decimal bandwidth,
         CancellationToken cancellationToken)
     {
-        try
+        var networkNamePattern = $"{technologyStandard}_{bandName}_{municipalityName}";
+
+        var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
+            _networkRepository
+                .Query(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
+                .Select(n => (Guid?)n.Id),
+            cancellationToken);
+
+        if (existingNetworkId.HasValue)
+            return existingNetworkId.Value;
+
+        var systemTypeId = await _systemTypeRepository.FirstOrDefaultAsync(
+            _systemTypeRepository
+                .Query(st => st.TechnologyId == technologyId)
+                .Select(st => (Guid?)st.Id),
+            cancellationToken);
+
+        if (!systemTypeId.HasValue)
         {
-            var networkNamePattern = $"{technologyStandard}_{bandName}_{municipalityName}";
-
-            var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
-                _networkRepository
-                    .Query(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
-                    .Select(n => (Guid?)n.Id),
-                cancellationToken);
-
-            if (existingNetworkId.HasValue)
-                return existingNetworkId.Value;
-
-            var systemTypeId = await _systemTypeRepository.FirstOrDefaultAsync(
-                _systemTypeRepository
-                    .Query(st => st.TechnologyId == technologyId)
-                    .Select(st => (Guid?)st.Id),
-                cancellationToken);
-
-            if (!systemTypeId.HasValue)
-            {
-                _logger.LogWarning(
-                    "SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})",
-                    technologyId, technologyStandard);
-                return Guid.Empty;
-            }
-
-            var newNetwork = new Domain.Aggregates.Network
-            {
-                Name = networkNamePattern,
-                ServiceProviderId = serviceProviderId,
-                SystemTypeId = systemTypeId.Value,
-                BandId = bandId,
-                MunicipalityId = municipalityId,
-                ULCenterFreq = ulCenterFreq,
-                DLCenterFreq = dlCenterFreq,
-                Bandwidth = bandwidth
-            };
-
-            _networkRepository.Add(newNetwork);
-            await _networkRepository.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation(
-                "Network created: {NetworkName} (ServiceProviderId={ServiceProviderId}, TechnologyId={TechnologyId}, BandId={BandId})",
-                newNetwork.Name, serviceProviderId, technologyId, bandId);
-
-            return newNetwork.Id;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting or creating network for Technology={Technology}, Band={Band}",
-                technologyStandard, bandName);
+            _logger.LogWarning(
+                "SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})",
+                technologyId, technologyStandard);
             return Guid.Empty;
         }
+
+        var newNetwork = new Domain.Aggregates.Network
+        {
+            Name = networkNamePattern,
+            ServiceProviderId = serviceProviderId,
+            SystemTypeId = systemTypeId.Value,
+            BandId = bandId,
+            MunicipalityId = municipalityId,
+            ULCenterFreq = ulCenterFreq,
+            DLCenterFreq = dlCenterFreq,
+            Bandwidth = bandwidth
+        };
+
+        _networkRepository.Add(newNetwork);
+        await _networkRepository.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Network created: {NetworkName} (ServiceProviderId={ServiceProviderId}, TechnologyId={TechnologyId}, BandId={BandId})",
+            newNetwork.Name, serviceProviderId, technologyId, bandId);
+
+        return newNetwork.Id;
     }
 }
