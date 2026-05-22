@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Cellular.Requests;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -14,10 +15,9 @@ public class CreateCellularHandler(
     IServiceProviderRepository serviceProviderRepository,
     ITechnologyRepository technologyRepository,
     IBandRepository bandRepository,
-    INetworkRepository networkRepository,
     ISectorRepository sectorRepository,
     IMunicipalityRepository municipalityRepository,
-    IRepository<Domain.Entities.SystemType> systemTypeRepository,
+    INetworkService networkService,
     ILogger<CreateCellularHandler> logger) : IRequestHandler<CreateCellularRequest, ApiResponse<CellularDto>>
 {
     private readonly ICellularRepository _cellularRepository = cellularRepository;
@@ -25,10 +25,9 @@ public class CreateCellularHandler(
     private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
     private readonly ITechnologyRepository _technologyRepository = technologyRepository;
     private readonly IBandRepository _bandRepository = bandRepository;
-    private readonly INetworkRepository _networkRepository = networkRepository;
     private readonly ISectorRepository _sectorRepository = sectorRepository;
     private readonly IMunicipalityRepository _municipalityRepository = municipalityRepository;
-    private readonly IRepository<Domain.Entities.SystemType> _systemTypeRepository = systemTypeRepository;
+    private readonly INetworkService _networkService = networkService;
     private readonly ILogger<CreateCellularHandler> _logger = logger;
 
     public async Task<ApiResponse<CellularDto>> Handle(CreateCellularRequest request, CancellationToken cancellationToken)
@@ -134,7 +133,7 @@ public class CreateCellularHandler(
             var ulCenterFreq = FrequencyHelper.CalculateULCenterFreq(dlCenterFreq, technology.Standard, band.Name);
 
             // Step 8: Get or create Network
-            var networkId = await GetOrCreateNetworkAsync(
+            var networkId = await _networkService.GetOrCreateNetworkAsync(
                 request.Cellular.ServiceProviderId,
                 municipalityId,
                 municipalityName ?? "Unknown",
@@ -268,81 +267,12 @@ public class CreateCellularHandler(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating Cellular record: {ErrorMessage}", ex.Message);
+            _logger.LogError(ex, "Error creating Cellular record for CellSectorId={CellSectorId}", request.Cellular.CellSectorId);
             return new ApiResponse<CellularDto>
             {
-                Message = $"Error creating Cellular record: {ex.Message}",
+                Message = "An error occurred while creating the Cellular record.",
                 Succeeded = false
             };
-        }
-    }
-
-    private async Task<Guid> GetOrCreateNetworkAsync(
-        Guid serviceProviderId,
-        Guid? municipalityId,
-        string municipalityName,
-        Guid technologyId,
-        Guid bandId,
-        string technologyStandard,
-        string bandName,
-        decimal dlCenterFreq,
-        decimal ulCenterFreq,
-        decimal bandwidth,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var networkNamePattern = $"{technologyStandard}_{bandName}_{municipalityName}";
-
-            var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
-                _networkRepository
-                    .Query(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
-                    .Select(n => (Guid?)n.Id),
-                cancellationToken);
-
-            if (existingNetworkId.HasValue)
-                return existingNetworkId.Value;
-
-            var systemTypeId = await _systemTypeRepository.FirstOrDefaultAsync(
-                _systemTypeRepository
-                    .Query(st => st.TechnologyId == technologyId)
-                    .Select(st => (Guid?)st.Id),
-                cancellationToken);
-
-            if (!systemTypeId.HasValue)
-            {
-                _logger.LogWarning(
-                    "SystemType not found for TechnologyId: {TechnologyId} (Technology: {Technology})",
-                    technologyId, technologyStandard);
-                return Guid.Empty;
-            }
-
-            var newNetwork = new Domain.Aggregates.Network
-            {
-                Name = networkNamePattern,
-                ServiceProviderId = serviceProviderId,
-                SystemTypeId = systemTypeId.Value,
-                BandId = bandId,
-                MunicipalityId = municipalityId,
-                ULCenterFreq = ulCenterFreq,
-                DLCenterFreq = dlCenterFreq,
-                Bandwidth = bandwidth
-            };
-
-            _networkRepository.Add(newNetwork);
-            await _networkRepository.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation(
-                "Network created: {NetworkName} (ServiceProviderId={ServiceProviderId}, TechnologyId={TechnologyId}, BandId={BandId})",
-                newNetwork.Name, serviceProviderId, technologyId, bandId);
-
-            return newNetwork.Id;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting or creating network for Technology={Technology}, Band={Band}",
-                technologyStandard, bandName);
-            return Guid.Empty;
         }
     }
 }

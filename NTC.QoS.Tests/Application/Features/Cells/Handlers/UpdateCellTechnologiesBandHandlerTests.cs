@@ -5,6 +5,7 @@ using Moq;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Handlers.Commands;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Application.Services;
 using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
@@ -408,24 +409,22 @@ public class UpdateCellTechnologiesBandHandlerTests
             .Setup(x => x.CountAsync(It.IsAny<IQueryable<ServiceProvider>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IQueryable<ServiceProvider> q, CancellationToken _) => q.Count());
 
-        // Network repository — mutable so new networks are tracked
-        var currentNetworks = new List<Network>(networks);
-        var networkRepoMock = new Mock<INetworkRepository>();
-        networkRepoMock
-            .Setup(x => x.Query(It.IsAny<System.Linq.Expressions.Expression<Func<Network, bool>>?>()))
-            .Returns((System.Linq.Expressions.Expression<Func<Network, bool>>? expr) =>
-                expr is null ? currentNetworks.AsQueryable() : currentNetworks.AsQueryable().Where(expr));
-        networkRepoMock
-            .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<Guid?>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IQueryable<Guid?> q, CancellationToken _) => q.FirstOrDefault());
-        networkRepoMock
-            .Setup(x => x.Add(It.IsAny<Network>()))
-            .Callback<Network>(n => { n.Id = NetworkId; currentNetworks.Add(n); });
-        networkRepoMock
-            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        // NetworkService mock
+        // Returns Guid.Empty when no SystemType exists (simulates SystemType not found),
+        // returns existing network's ID when networks are provided, otherwise returns NetworkId.
+        var networkServiceReturnValue = (systemTypes.Count == 0)
+            ? Guid.Empty
+            : (networks.Count > 0 ? networks[0].Id : NetworkId);
+        var networkServiceMock = new Mock<INetworkService>();
+        networkServiceMock
+            .Setup(x => x.GetOrCreateNetworkAsync(
+                It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<string>(),
+                It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(networkServiceReturnValue);
 
-        // Sector repository
+        // Sector repository — uses batch ToListAsync for existence check
         var currentSectors = new List<Sector>(existingSectors);
         var sectorRepoMock = new Mock<ISectorRepository>();
         sectorRepoMock
@@ -433,8 +432,21 @@ public class UpdateCellTechnologiesBandHandlerTests
             .Returns((System.Linq.Expressions.Expression<Func<Sector, bool>>? expr) =>
                 expr is null ? currentSectors.AsQueryable() : currentSectors.AsQueryable().Where(expr));
         sectorRepoMock
-            .Setup(x => x.CountAsync(It.IsAny<IQueryable<Sector>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IQueryable<Sector> q, CancellationToken _) => q.Count());
+            .Setup(x => x.ToListAsync(It.IsAny<IQueryable<It.IsAnyType>>(), It.IsAny<CancellationToken>()))
+            .Returns(new InvocationFunc(invocation =>
+            {
+                var tResult = invocation.Method.GetGenericArguments()[0];
+                var queryable = (System.Collections.IEnumerable)invocation.Arguments[0];
+                var toList = typeof(Enumerable)
+                    .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                    .First(m => m.Name == nameof(Enumerable.ToList) && m.GetParameters().Length == 1)
+                    .MakeGenericMethod(tResult);
+                var list = toList.Invoke(null, [queryable])!;
+                return typeof(Task)
+                    .GetMethod(nameof(Task.FromResult))!
+                    .MakeGenericMethod(typeof(List<>).MakeGenericType(tResult))
+                    .Invoke(null, [list])!;
+            }));
         sectorRepoMock
             .Setup(x => x.Add(It.IsAny<Sector>()))
             .Callback<Sector>(s => onAddSector?.Invoke(s));
@@ -449,16 +461,6 @@ public class UpdateCellTechnologiesBandHandlerTests
                 It.IsAny<Point>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((MunicipalityId, "TestMunicipality"));
 
-        // SystemType repository
-        var systemTypeRepoMock = new Mock<IRepository<SystemType>>();
-        systemTypeRepoMock
-            .Setup(x => x.Query(It.IsAny<System.Linq.Expressions.Expression<Func<SystemType, bool>>?>()))
-            .Returns((System.Linq.Expressions.Expression<Func<SystemType, bool>>? expr) =>
-                expr is null ? systemTypes.AsQueryable() : systemTypes.AsQueryable().Where(expr));
-        systemTypeRepoMock
-            .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<Guid?>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IQueryable<Guid?> q, CancellationToken _) => q.FirstOrDefault());
-
         return new UpdateCellTechnologiesBandHandler(
             cellRepoMock.Object,
             cellSectorRepoMock.Object,
@@ -466,10 +468,9 @@ public class UpdateCellTechnologiesBandHandlerTests
             techRepoMock.Object,
             bandRepoMock.Object,
             spRepoMock.Object,
-            networkRepoMock.Object,
             sectorRepoMock.Object,
             municipalityRepoMock.Object,
-            systemTypeRepoMock.Object,
+            networkServiceMock.Object,
             new Mock<ILogger<UpdateCellTechnologiesBandHandler>>().Object);
     }
 }
