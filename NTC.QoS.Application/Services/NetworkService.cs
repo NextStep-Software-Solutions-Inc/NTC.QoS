@@ -58,7 +58,7 @@ public class NetworkService(
         var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
             _networkRepository
                 .Query(n => n.ServiceProviderId == serviceProviderId &&
-                            n.Name.Trim().ToLower() == networkNamePattern)
+                            n.Name.Trim().ToLowerInvariant() == networkNamePattern)
                 .Select(n => (Guid?)n.Id),
             cancellationToken);
 
@@ -105,7 +105,7 @@ public class NetworkService(
             var networkIdCreatedByConcurrentRequest = await _networkRepository.FirstOrDefaultAsync(
                 _networkRepository
                     .Query(n => n.ServiceProviderId == serviceProviderId &&
-                                n.Name.Trim().ToLower() == networkNamePattern)
+                                n.Name.Trim().ToLowerInvariant() == networkNamePattern)
                     .Select(n => (Guid?)n.Id),
                 cancellationToken);
 
