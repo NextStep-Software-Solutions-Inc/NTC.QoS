@@ -53,7 +53,7 @@ public class NetworkService(
         decimal bandwidth,
         CancellationToken cancellationToken)
     {
-        var networkNamePattern = $"{technologyStandard}_{bandName}_{municipalityName}";
+        var networkNamePattern = $"{technologyStandard}_{bandName}_{municipalityName}".ToLowerInvariant();
 
         var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
             _networkRepository
