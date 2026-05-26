@@ -14,19 +14,18 @@ namespace NTC.QoS.Infrastructure.Migrations
                 name: "IX_Networks_ServiceProviderId",
                 table: "Networks");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Networks_ServiceProviderId_Name",
-                table: "Networks",
-                columns: new[] { "ServiceProviderId", "Name" },
-                unique: true,
-                filter: "\"IsDeleted\" = FALSE");
+            migrationBuilder.Sql("""
+                CREATE UNIQUE INDEX "IX_Networks_ServiceProviderId_NormalizedName"
+                ON "Networks" ("ServiceProviderId", lower(btrim("Name")))
+                WHERE "IsDeleted" = FALSE;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropIndex(
-                name: "IX_Networks_ServiceProviderId_Name",
+                name: "IX_Networks_ServiceProviderId_NormalizedName",
                 table: "Networks");
 
             migrationBuilder.CreateIndex(

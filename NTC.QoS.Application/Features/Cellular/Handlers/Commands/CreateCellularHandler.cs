@@ -268,11 +268,7 @@ public class CreateCellularHandler(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating Cellular record for CellSectorId={CellSectorId}", request.Cellular.CellSectorId);
-            return new ApiResponse<CellularDto>
-            {
-                Message = "An error occurred while creating the Cellular record.",
-                Succeeded = false
-            };
+            throw;
         }
     }
 }

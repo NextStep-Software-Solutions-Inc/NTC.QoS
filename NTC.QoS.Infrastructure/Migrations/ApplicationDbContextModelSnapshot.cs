@@ -407,6 +407,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("SystemTypeId");
 
                     b.HasIndex("ServiceProviderId", "Name")
+                        .HasDatabaseName("IX_Networks_ServiceProviderId_NormalizedName")
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = FALSE");
 

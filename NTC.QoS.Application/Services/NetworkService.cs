@@ -53,11 +53,12 @@ public class NetworkService(
         decimal bandwidth,
         CancellationToken cancellationToken)
     {
-        var networkNamePattern = $"{technologyStandard}_{bandName}_{municipalityName}".ToLowerInvariant();
+        var networkNamePattern = NormalizeNetworkName(technologyStandard, bandName, municipalityName);
 
         var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
             _networkRepository
-                .Query(n => n.ServiceProviderId == serviceProviderId && n.Name == networkNamePattern)
+                .Query(n => n.ServiceProviderId == serviceProviderId &&
+                            n.Name.Trim().ToLower() == networkNamePattern)
                 .Select(n => (Guid?)n.Id),
             cancellationToken);
 
@@ -99,9 +100,12 @@ public class NetworkService(
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
                                            postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
         {
+            _networkRepository.Delete(newNetwork);
+
             var networkIdCreatedByConcurrentRequest = await _networkRepository.FirstOrDefaultAsync(
                 _networkRepository
-                    .Query(n => n.ServiceProviderId == serviceProviderId && n.Name == networkNamePattern)
+                    .Query(n => n.ServiceProviderId == serviceProviderId &&
+                                n.Name.Trim().ToLower() == networkNamePattern)
                     .Select(n => (Guid?)n.Id),
                 cancellationToken);
 
@@ -116,5 +120,10 @@ public class NetworkService(
             newNetwork.Name, serviceProviderId, technologyId, bandId);
 
         return newNetwork.Id;
+    }
+
+    private static string NormalizeNetworkName(string technologyStandard, string bandName, string municipalityName)
+    {
+        return $"{technologyStandard.Trim()}_{bandName.Trim()}_{municipalityName.Trim()}".ToLowerInvariant();
     }
 }
