@@ -404,9 +404,11 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("NetworkTemplateId");
 
-                    b.HasIndex("ServiceProviderId");
-
                     b.HasIndex("SystemTypeId");
+
+                    b.HasIndex("ServiceProviderId", "Name")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Networks");
                 });

@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
+using Npgsql;
 
 namespace NTC.QoS.Application.Services;
 
@@ -55,7 +57,7 @@ public class NetworkService(
 
         var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
             _networkRepository
-                .Query(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
+                .Query(n => n.ServiceProviderId == serviceProviderId && n.Name == networkNamePattern)
                 .Select(n => (Guid?)n.Id),
             cancellationToken);
 
@@ -89,7 +91,25 @@ public class NetworkService(
         };
 
         _networkRepository.Add(newNetwork);
-        await _networkRepository.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _networkRepository.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                           postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            var networkIdCreatedByConcurrentRequest = await _networkRepository.FirstOrDefaultAsync(
+                _networkRepository
+                    .Query(n => n.ServiceProviderId == serviceProviderId && n.Name == networkNamePattern)
+                    .Select(n => (Guid?)n.Id),
+                cancellationToken);
+
+            if (networkIdCreatedByConcurrentRequest.HasValue)
+                return networkIdCreatedByConcurrentRequest.Value;
+
+            throw;
+        }
 
         _logger.LogInformation(
             "Network created: {NetworkName} (ServiceProviderId={ServiceProviderId}, TechnologyId={TechnologyId}, BandId={BandId})",

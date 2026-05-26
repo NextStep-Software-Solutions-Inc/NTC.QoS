@@ -189,6 +189,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(nt => nt.Networks)
             .HasForeignKey(n => n.NetworkTemplateId);
 
+        modelBuilder.Entity<Network>()
+            .HasIndex(n => new { n.ServiceProviderId, n.Name })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
         modelBuilder.Entity<AreaStudy>()
             .HasIndex(p => p.Name)
             .IsUnique()
