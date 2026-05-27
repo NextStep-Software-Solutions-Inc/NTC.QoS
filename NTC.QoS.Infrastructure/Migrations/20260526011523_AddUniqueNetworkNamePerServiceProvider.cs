@@ -12,9 +12,11 @@ namespace NTC.QoS.Infrastructure.Migrations
         {
             migrationBuilder.Sql("""
                 UPDATE "Networks"
-                SET "Name" = lower(btrim("Name"))
+                SET "Name" = lower(regexp_replace(btrim("Name"), '\s*_\s*', '_', 'g')),
+                    "UpdatedAt" = NOW(),
+                    "UpdatedBy" = 'migration-20260526011523'
                 WHERE "IsDeleted" = FALSE
-                  AND "Name" <> lower(btrim("Name"));
+                  AND "Name" <> lower(regexp_replace(btrim("Name"), '\s*_\s*', '_', 'g'));
                 """);
 
             migrationBuilder.Sql("""
@@ -82,7 +84,9 @@ namespace NTC.QoS.Infrastructure.Migrations
                 UPDATE "Networks" AS n
                 SET "IsDeleted" = TRUE,
                     "DeletedAt" = NOW(),
-                    "DeletedBy" = 'migration-20260526011523'
+                    "DeletedBy" = 'migration-20260526011523',
+                    "UpdatedAt" = NOW(),
+                    "UpdatedBy" = 'migration-20260526011523'
                 FROM ranked
                 WHERE n."Id" = ranked."Id"
                   AND ranked.row_num > 1;
