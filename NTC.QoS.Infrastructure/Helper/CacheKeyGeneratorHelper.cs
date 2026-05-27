@@ -82,7 +82,8 @@ namespace NTC.QoS.Infrastructure.Helper
         /// <returns>The standardized cache key for the network.</returns>
         public static string GenerateNetworkCacheKey(Guid serviceProviderId, string municipalityName, Guid technologyId, Guid bandId)
         {
-            return $"Network-{serviceProviderId}_{municipalityName}_{technologyId}_{bandId}";
+            var normalizedMunicipalityName = municipalityName?.Trim().ToLowerInvariant() ?? string.Empty;
+            return $"Network-{serviceProviderId}_{normalizedMunicipalityName}_{technologyId}_{bandId}";
         }
 
         /// <summary>
