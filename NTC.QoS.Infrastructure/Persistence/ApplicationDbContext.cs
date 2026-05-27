@@ -191,7 +191,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Network>()
             .HasIndex(n => new { n.ServiceProviderId, n.Name })
-            .HasDatabaseName("IX_Networks_ServiceProviderId_NormalizedName")
+            .HasDatabaseName("IX_Networks_ServiceProviderId_Name_Active")
             .IsUnique()
             .HasFilter("\"IsDeleted\" = FALSE");
 

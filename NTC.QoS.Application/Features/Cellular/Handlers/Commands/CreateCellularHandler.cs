@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Cellular.Requests;
 using NTC.QoS.Application.Services;
@@ -6,6 +7,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cellular;
+using Npgsql;
 
 namespace NTC.QoS.Application.Features.Cellular.Handlers.Commands;
 
@@ -184,7 +186,7 @@ public class CreateCellularHandler(
 
             if (!sectorExists)
             {
-                _sectorRepository.Add(new Domain.Entities.Sector
+                var newSector = new Domain.Entities.Sector
                 {
                     CellSectorId = cellSector.Id,
                     NetworkId = networkId,
@@ -196,9 +198,27 @@ public class CreateCellularHandler(
                     RxAzimuth = cellSector.Azimuth,
                     RxBeamTilt = cellSector.BeamTilt,
                     IsRxEqualTx = true
-                });
-                await _sectorRepository.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", cellSector.Id);
+                };
+
+                _sectorRepository.Add(newSector);
+
+                try
+                {
+                    await _sectorRepository.SaveChangesAsync(cancellationToken);
+                    _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", cellSector.Id);
+                }
+                catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                                   postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+                {
+                    _sectorRepository.Delete(newSector);
+
+                    var sectorCreatedByConcurrentRequest = await _sectorRepository.CountAsync(
+                        _sectorRepository.Query(s => s.CellSectorId == cellSector.Id),
+                        cancellationToken) > 0;
+
+                    if (!sectorCreatedByConcurrentRequest)
+                        throw;
+                }
             }
 
             // Step 11: Return response using same Select projection as GetCellularByIdHandler

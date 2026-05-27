@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Application.Services;
@@ -6,6 +7,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using Npgsql;
 
 namespace NTC.QoS.Application.Features.Cells.Handlers.Commands;
 
@@ -203,7 +205,7 @@ public class UpdateCellTechnologiesBandHandler(
         }
 
         // Create a set of desired technology-band-sector combinations
-        var desiredCombinations = new HashSet<(Guid SectorId, Guid TechId, Guid BandId, Guid ProviderId)>();
+        var desiredCombinations = new HashSet<(Guid CellSectorId, Guid TechId, Guid BandId, Guid ProviderId)>();
         foreach (var sector in sectors)
         {
             foreach (var techBand in request.Payload.TechnologyBands)
@@ -226,12 +228,12 @@ public class UpdateCellTechnologiesBandHandler(
         {
             _cellularRepository.Delete(cellular);
             _logger.LogInformation(
-                "Deleted Cellular record: SectorId={SectorId}, TechId={TechId}, BandId={BandId}",
+                "Deleted Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}",
                 cellular.CellSectorId, cellular.TechnologyId, cellular.BandId);
         }
 
         // Determine which Cellular records to create (not already existing)
-        var existingCombinations = new HashSet<(Guid SectorId, Guid TechId, Guid BandId, Guid ProviderId)>(
+        var existingCombinations = new HashSet<(Guid CellSectorId, Guid TechId, Guid BandId, Guid ProviderId)>(
             existingCellulars.Select(c => (c.CellSectorId, c.TechnologyId, c.BandId, c.ServiceProviderId)));
 
         var cellularsToCreate = desiredCombinations
@@ -242,7 +244,7 @@ public class UpdateCellTechnologiesBandHandler(
                 var (networkId, dlFreq, ulFreq, bw) = comboNetworkMap[comboKey];
                 return new Domain.Entities.Cellular
                 {
-                    CellSectorId = combination.SectorId,
+                    CellSectorId = combination.CellSectorId,
                     TechnologyId = combination.TechId,
                     BandId = combination.BandId,
                     ServiceProviderId = combination.ProviderId,
@@ -260,7 +262,7 @@ public class UpdateCellTechnologiesBandHandler(
         {
             _cellularRepository.Add(cellular);
             _logger.LogInformation(
-                "Created Cellular record: SectorId={SectorId}, TechId={TechId}, BandId={BandId}, NetworkId={NetworkId}",
+                "Created Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}, NetworkId={NetworkId}",
                 cellular.CellSectorId, cellular.TechnologyId, cellular.BandId, cellular.NetworkId);
         }
 
@@ -287,19 +289,19 @@ public class UpdateCellTechnologiesBandHandler(
                 cancellationToken);
             var existingSectorSet = new HashSet<Guid>(existingSectorCellSectorIds);
 
-            foreach (var sectorId in sectorsWithNewCellulars)
+            foreach (var cellSectorId in sectorsWithNewCellulars)
             {
-                if (existingSectorSet.Contains(sectorId))
+                if (existingSectorSet.Contains(cellSectorId))
                     continue;
 
-                var cellSector = sectors.First(s => s.Id == sectorId);
+                var cellSector = sectors.First(s => s.Id == cellSectorId);
                 var firstNetworkId = cellularsToCreate
-                    .First(c => c.CellSectorId == sectorId)
+                    .First(c => c.CellSectorId == cellSectorId)
                     .NetworkId;
 
-                _sectorRepository.Add(new Domain.Entities.Sector
+                var newSector = new Domain.Entities.Sector
                 {
-                    CellSectorId = sectorId,
+                    CellSectorId = cellSectorId,
                     NetworkId = firstNetworkId,
                     AntennaType = cellSector.AntennaType,
                     TxAntennaHeight = cellSector.AntennaHeight,
@@ -309,11 +311,31 @@ public class UpdateCellTechnologiesBandHandler(
                     RxAzimuth = cellSector.Azimuth,
                     RxBeamTilt = cellSector.BeamTilt,
                     IsRxEqualTx = true
-                });
-                _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", sectorId);
-            }
+                };
 
-            await _sectorRepository.SaveChangesAsync(cancellationToken);
+                _sectorRepository.Add(newSector);
+
+                try
+                {
+                    await _sectorRepository.SaveChangesAsync(cancellationToken);
+                    existingSectorSet.Add(cellSectorId);
+                    _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", cellSectorId);
+                }
+                catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                                   postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+                {
+                    _sectorRepository.Delete(newSector);
+
+                    var sectorCreatedByConcurrentRequest = await _sectorRepository.CountAsync(
+                        _sectorRepository.Query(s => s.CellSectorId == cellSectorId),
+                        cancellationToken) > 0;
+
+                    if (!sectorCreatedByConcurrentRequest)
+                        throw;
+
+                    existingSectorSet.Add(cellSectorId);
+                }
+            }
         }
 
         // Retrieve and return the updated technology list
@@ -361,4 +383,3 @@ public class UpdateCellTechnologiesBandHandler(
         };
     }
 }
-

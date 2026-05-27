@@ -15,7 +15,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                 SET "Name" = lower(btrim("Name"))
                 WHERE "IsDeleted" = FALSE
                   AND "Name" <> lower(btrim("Name"));
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 DROP TABLE IF EXISTS network_dedup_map;
@@ -39,35 +39,35 @@ namespace NTC.QoS.Infrastructure.Migrations
                    AND winner."Name" = loser."Name"
                    AND winner.row_num = 1
                 WHERE loser.row_num > 1;
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 UPDATE "Cellulars" AS c
                 SET "NetworkId" = m.winner_id
                 FROM network_dedup_map AS m
                 WHERE c."NetworkId" = m.loser_id;
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 UPDATE "Sectors" AS s
                 SET "NetworkId" = m.winner_id
                 FROM network_dedup_map AS m
                 WHERE s."NetworkId" = m.loser_id;
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 UPDATE "CellularCoverages" AS cc
                 SET "NetworkId" = m.winner_id
                 FROM network_dedup_map AS m
                 WHERE cc."NetworkId" = m.loser_id;
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 UPDATE "StudyNetworks" AS sn
                 SET "NetworkId" = m.winner_id
                 FROM network_dedup_map AS m
                 WHERE sn."NetworkId" = m.loser_id;
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 WITH ranked AS (
@@ -86,18 +86,18 @@ namespace NTC.QoS.Infrastructure.Migrations
                 FROM ranked
                 WHERE n."Id" = ranked."Id"
                   AND ranked.row_num > 1;
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 DROP TABLE IF EXISTS network_dedup_map;
-                """, suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql("""
                 DROP INDEX CONCURRENTLY IF EXISTS "IX_Networks_ServiceProviderId";
                 """, suppressTransaction: true);
 
             migrationBuilder.Sql("""
-                CREATE UNIQUE INDEX CONCURRENTLY "IX_Networks_ServiceProviderId_NormalizedName"
+                CREATE UNIQUE INDEX CONCURRENTLY "IX_Networks_ServiceProviderId_Name_Active"
                 ON "Networks" ("ServiceProviderId", "Name")
                 WHERE "IsDeleted" = FALSE;
                 """, suppressTransaction: true);
@@ -107,7 +107,7 @@ namespace NTC.QoS.Infrastructure.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""
-                DROP INDEX CONCURRENTLY IF EXISTS "IX_Networks_ServiceProviderId_NormalizedName";
+                DROP INDEX CONCURRENTLY IF EXISTS "IX_Networks_ServiceProviderId_Name_Active";
                 """, suppressTransaction: true);
 
             migrationBuilder.Sql("""
