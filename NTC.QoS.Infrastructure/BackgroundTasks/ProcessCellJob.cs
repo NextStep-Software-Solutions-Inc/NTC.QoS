@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
+using Npgsql;
 using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -495,10 +496,28 @@ public class ProcessCellJob : IProcessCellJob
                             network.UpdatedBy = userId;
                         }
 
-                        await _networkRepository.BulkInsertAsync(networksToAdd, token);
-                        processingResults.NetworksCreated += networksToAdd.Count;
-                        _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.",
-                            batchNumber, networksToAdd.Count);
+                        try
+                        {
+                            await _networkRepository.BulkInsertAsync(networksToAdd, token);
+                            processingResults.NetworksCreated += networksToAdd.Count;
+                            _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.",
+                                batchNumber, networksToAdd.Count);
+                        }
+                        catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                                           postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+                        {
+                            var createdCount = await PersistNetworksIndividuallyAsync(
+                                networksToAdd,
+                                networkCache,
+                                batchResults.CellularToAdd,
+                                token);
+
+                            processingResults.NetworksCreated += createdCount;
+                            _logger.LogInformation(
+                                "Batch {BatchNumber}: Recovered from concurrent network insert conflict for {Count:N0} pending networks.",
+                                batchNumber,
+                                networksToAdd.Count);
+                        }
 
                         // Clear the list for the next batch
                         networksToAdd.Clear();
@@ -1552,6 +1571,92 @@ public class ProcessCellJob : IProcessCellJob
         networksToAdd.Add(network);
         networkCache[networkCacheKey] = network.Id;
         return network.Id;
+    }
+
+    private async Task<int> PersistNetworksIndividuallyAsync(
+        IEnumerable<Domain.Aggregates.Network> networksToAdd,
+        Dictionary<string, Guid> networkCache,
+        List<Domain.Entities.Cellular> pendingCellulars,
+        CancellationToken token)
+    {
+        var createdCount = 0;
+
+        foreach (var network in networksToAdd)
+        {
+            var originalNetworkId = network.Id;
+            var persistedNetworkId = await GetOrCreatePersistedNetworkIdAsync(network, token);
+
+            if (persistedNetworkId == originalNetworkId)
+                createdCount++;
+
+            RemapPendingNetworkReferences(originalNetworkId, persistedNetworkId, networkCache, pendingCellulars);
+        }
+
+        return createdCount;
+    }
+
+    private async Task<Guid> GetOrCreatePersistedNetworkIdAsync(
+        Domain.Aggregates.Network pendingNetwork,
+        CancellationToken token)
+    {
+        var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
+            _networkRepository
+                .Query(n => n.ServiceProviderId == pendingNetwork.ServiceProviderId &&
+                            n.Name == pendingNetwork.Name)
+                .Select(n => (Guid?)n.Id),
+            token);
+
+        if (existingNetworkId.HasValue)
+            return existingNetworkId.Value;
+
+        _networkRepository.Add(pendingNetwork);
+
+        try
+        {
+            await _networkRepository.SaveChangesAsync(token);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                           postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            _networkRepository.Delete(pendingNetwork);
+
+            var networkIdCreatedByConcurrentRequest = await _networkRepository.FirstOrDefaultAsync(
+                _networkRepository
+                    .Query(n => n.ServiceProviderId == pendingNetwork.ServiceProviderId &&
+                                n.Name == pendingNetwork.Name)
+                    .Select(n => (Guid?)n.Id),
+                token);
+
+            if (networkIdCreatedByConcurrentRequest.HasValue)
+                return networkIdCreatedByConcurrentRequest.Value;
+
+            throw;
+        }
+
+        return pendingNetwork.Id;
+    }
+
+    private static void RemapPendingNetworkReferences(
+        Guid originalNetworkId,
+        Guid persistedNetworkId,
+        Dictionary<string, Guid> networkCache,
+        List<Domain.Entities.Cellular> pendingCellulars)
+    {
+        if (originalNetworkId == persistedNetworkId)
+            return;
+
+        foreach (var cacheKey in networkCache
+                     .Where(entry => entry.Value == originalNetworkId)
+                     .Select(entry => entry.Key)
+                     .ToList())
+        {
+            networkCache[cacheKey] = persistedNetworkId;
+        }
+
+        foreach (var pendingCellular in pendingCellulars.Where(cellular => cellular.NetworkId == originalNetworkId))
+        {
+            pendingCellular.NetworkId = persistedNetworkId;
+        }
     }
 
     /// <summary>
