@@ -262,14 +262,13 @@ Error: "Cellular already exists"
 
 ## DEPENDENCIES ADDED
 
-The handler now requires these additional repository injections:
-- `INetworkRepository` - for network lookup/creation
+The handler now requires these additional injections:
+- `INetworkService` - for network lookup/creation (and frequency/network normalization consistency)
 - `ISectorRepository` - for sector creation
 - `IMunicipalityRepository` - for municipality lookup by location
-- `IRepository<Domain.Entities.SystemType>` - for network creation
 - `ILogger<CreateCellularHandler>` - for logging
 
-**Note:** These are registered in `RepositoryServiceExtensions.cs`, so no configuration changes needed.
+`INetworkService` is registered in `ApplicationDependencyInjection` (`services.AddScoped<INetworkService, NetworkService>()`), while repositories remain registered via infrastructure service registration.
 
 ---
 

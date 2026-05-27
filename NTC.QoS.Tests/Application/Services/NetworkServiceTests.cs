@@ -15,13 +15,13 @@ namespace NTC.QoS.Tests.Application.Services;
 public class NetworkServiceTests
 {
     [Fact]
-    public async Task GetOrCreateNetworkAsync_WhenExistingNameHasDifferentCaseAndWhitespace_ReusesExistingNetwork()
+    public async Task GetOrCreateNetworkAsync_WhenExistingNormalizedNameMatches_ReusesExistingNetwork()
     {
         var serviceProviderId = Guid.NewGuid();
         var existingNetwork = new Network
         {
             Id = Guid.NewGuid(),
-            Name = " LTE_Band 3_TestMunicipality ",
+            Name = "lte_band 3_testmunicipality",
             ServiceProviderId = serviceProviderId
         };
 

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using Npgsql;
 
@@ -58,7 +59,7 @@ public class NetworkService(
         var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
             _networkRepository
                 .Query(n => n.ServiceProviderId == serviceProviderId &&
-                            n.Name.Trim().ToLowerInvariant() == networkNamePattern)
+                            n.Name == networkNamePattern)
                 .Select(n => (Guid?)n.Id),
             cancellationToken);
 
@@ -105,7 +106,7 @@ public class NetworkService(
             var networkIdCreatedByConcurrentRequest = await _networkRepository.FirstOrDefaultAsync(
                 _networkRepository
                     .Query(n => n.ServiceProviderId == serviceProviderId &&
-                                n.Name.Trim().ToLowerInvariant() == networkNamePattern)
+                                n.Name == networkNamePattern)
                     .Select(n => (Guid?)n.Id),
                 cancellationToken);
 
@@ -122,8 +123,6 @@ public class NetworkService(
         return newNetwork.Id;
     }
 
-    private static string NormalizeNetworkName(string technologyStandard, string bandName, string municipalityName)
-    {
-        return $"{technologyStandard.Trim()}_{bandName.Trim()}_{municipalityName.Trim()}".ToLowerInvariant();
-    }
+    private static string NormalizeNetworkName(string technologyStandard, string bandName, string municipalityName) =>
+        NetworkNameHelper.Normalize(technologyStandard, bandName, municipalityName);
 }

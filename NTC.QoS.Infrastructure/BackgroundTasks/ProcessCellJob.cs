@@ -1518,9 +1518,9 @@ public class ProcessCellJob : IProcessCellJob
         var technologyName = technologyCache.FirstOrDefault(x => x.Value == technologyId).Key ?? "Unknown";
         var bandName = bandCache.FirstOrDefault(x => x.Value == bandId).Key ?? "Unknown";
 
-        var networkNamePattern = $"{technologyName}_{bandName}_{municipalityName}";
+        var networkNamePattern = NetworkNameHelper.Normalize(technologyName, bandName, municipalityName);
         var existingNetwork = await _networkRepository
-            .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
+            .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && n.Name == networkNamePattern)
             .FirstOrDefaultAsync(token);
 
         if (existingNetwork != null)
@@ -1539,7 +1539,7 @@ public class ProcessCellJob : IProcessCellJob
 
         var network = new Domain.Aggregates.Network
         {
-            Name = $"{technologyName}_{bandName}_{municipalityName}",
+            Name = networkNamePattern,
             ServiceProviderId = serviceProviderId,
             SystemTypeId = systemTypeId,
             BandId = bandId,
