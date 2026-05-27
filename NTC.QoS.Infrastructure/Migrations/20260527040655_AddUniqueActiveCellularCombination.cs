@@ -29,7 +29,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                 FROM ranked
                 WHERE c."Id" = ranked."Id"
                   AND ranked.row_num > 1;
-                """);
+                """, suppressTransaction: true);
 
             migrationBuilder.Sql("""
                 DROP INDEX CONCURRENTLY IF EXISTS "IX_Cellulars_CellSectorId";

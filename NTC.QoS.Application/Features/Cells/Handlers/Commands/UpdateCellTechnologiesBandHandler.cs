@@ -236,14 +236,6 @@ public class UpdateCellTechnologiesBandHandler(
             .Concat(obsoleteCellularsToDelete)
             .ToList();
 
-        foreach (var cellular in cellularsToDelete)
-        {
-            _cellularRepository.Delete(cellular);
-            _logger.LogInformation(
-                "Deleted Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}",
-                cellular.CellSectorId, cellular.TechnologyId, cellular.BandId);
-        }
-
         // Determine which Cellular records to create (not already existing)
         var existingCombinations = new HashSet<(Guid CellSectorId, Guid TechId, Guid BandId, Guid ProviderId)>(
             canonicalExistingCellulars.Select(c => (c.CellSectorId, c.TechnologyId, c.BandId, c.ServiceProviderId)));
@@ -278,7 +270,10 @@ public class UpdateCellTechnologiesBandHandler(
                 cellular.CellSectorId, cellular.TechnologyId, cellular.BandId, cellular.NetworkId);
         }
 
-        // Save all changes
+        var isConcurrentCreateConflictHandled = false;
+
+        // Save all create operations first so delete operations are not persisted
+        // if this path resolves a concurrent unique-constraint conflict as a no-op.
         try
         {
             await _cellularRepository.SaveChangesAsync(cancellationToken);
@@ -297,12 +292,27 @@ public class UpdateCellTechnologiesBandHandler(
             if (!desiredCombinations.IsSubsetOf(currentCombinations))
                 throw;
 
+            isConcurrentCreateConflictHandled = true;
             cellularsToCreate.Clear();
             cellularsToDelete.Clear();
 
             _logger.LogInformation(
                 "Detected concurrent Cellular update for Cell {CellId}. Returning reconciled state after unique-constraint conflict.",
                 request.CellId);
+        }
+
+        if (!isConcurrentCreateConflictHandled)
+        {
+            foreach (var cellular in cellularsToDelete)
+            {
+                _cellularRepository.Delete(cellular);
+                _logger.LogInformation(
+                    "Deleted Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}",
+                    cellular.CellSectorId, cellular.TechnologyId, cellular.BandId);
+            }
+
+            if (cellularsToDelete.Count > 0)
+                await _cellularRepository.SaveChangesAsync(cancellationToken);
         }
 
         _logger.LogInformation(
