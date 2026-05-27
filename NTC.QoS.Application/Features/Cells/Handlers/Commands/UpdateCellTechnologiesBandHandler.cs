@@ -279,7 +279,31 @@ public class UpdateCellTechnologiesBandHandler(
         }
 
         // Save all changes
-        await _cellularRepository.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _cellularRepository.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                           postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            _cellularRepository.RemoveRange(cellularsToCreate);
+
+            var currentActiveCellulars = await _cellularRepository.ToListAsync(existingCellularQuery, cancellationToken);
+            var currentCombinations = currentActiveCellulars
+                .GroupBy(c => (c.CellSectorId, c.TechnologyId, c.BandId, c.ServiceProviderId))
+                .Select(g => g.Key)
+                .ToHashSet();
+
+            if (!desiredCombinations.IsSubsetOf(currentCombinations))
+                throw;
+
+            cellularsToCreate.Clear();
+            cellularsToDelete.Clear();
+
+            _logger.LogInformation(
+                "Detected concurrent Cellular update for Cell {CellId}. Returning reconciled state after unique-constraint conflict.",
+                request.CellId);
+        }
 
         _logger.LogInformation(
             "Updated technologies for Cell {CellId}: Added {AddedCount}, Deleted {DeletedCount}",

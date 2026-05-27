@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NetTopologySuite.Geometries;
@@ -12,6 +13,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using Npgsql;
 using Xunit;
 
 namespace NTC.QoS.Tests.Application.Features.Cells.Handlers;
@@ -278,6 +280,19 @@ public class UpdateCellTechnologiesBandHandlerTests
         added.Should().ContainSingle(c => c.NetworkId == existingNetwork.Id);
     }
 
+    [Fact]
+    public async Task Handle_WhenConcurrentInsertCausesUniqueViolation_ReturnsSuccess()
+    {
+        var handler = CreateHandler(simulateConcurrentUniqueViolationOnCellularSave: true);
+
+        var result = await handler.Handle(MakeRequest([MakeItem()]), CancellationToken.None);
+
+        result.Succeeded.Should().BeTrue();
+        result.Data.Should().ContainSingle(x =>
+            x.TechnologyId == TechnologyId &&
+            x.Bands.Any(b => b.BandId == BandId));
+    }
+
     // ── Request/entity builders ───────────────────────────────────────────────
 
     private static UpdateCellTechnologiesBandRequest MakeRequest(
@@ -356,7 +371,8 @@ public class UpdateCellTechnologiesBandHandlerTests
         Action<Cellular>? onAdd = null,
         Action<Cellular>? onDelete = null,
         Action<Sector>? onAddSector = null,
-        Action? onSectorSaveChanges = null)
+        Action? onSectorSaveChanges = null,
+        bool simulateConcurrentUniqueViolationOnCellularSave = false)
     {
         cells ??= [MakeCell()];
         sectors ??= [MakeCellSector()];
@@ -421,8 +437,26 @@ public class UpdateCellTechnologiesBandHandlerTests
             .Setup(x => x.Delete(It.IsAny<Cellular>()))
             .Callback<Cellular>(c => { currentCellulars.Remove(c); onDelete?.Invoke(c); });
         cellularRepoMock
+            .Setup(x => x.RemoveRange(It.IsAny<IEnumerable<Cellular>>()))
+            .Callback<IEnumerable<Cellular>>(items =>
+            {
+                foreach (var item in items)
+                    currentCellulars.Remove(item);
+            });
+        var cellularSaveChangesCalls = 0;
+        cellularRepoMock
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .Returns(() =>
+            {
+                cellularSaveChangesCalls++;
+                if (simulateConcurrentUniqueViolationOnCellularSave && cellularSaveChangesCalls == 1)
+                {
+                    currentCellulars.Add(MakeCellular());
+                    throw CreateUniqueViolationException();
+                }
+
+                return Task.CompletedTask;
+            });
 
         // Technology repository
         var techRepoMock = new Mock<ITechnologyRepository>();
@@ -528,4 +562,13 @@ public class UpdateCellTechnologiesBandHandlerTests
             networkServiceMock.Object,
             new Mock<ILogger<UpdateCellTechnologiesBandHandler>>().Object);
     }
+
+    private static DbUpdateException CreateUniqueViolationException() =>
+        new(
+            "Unique constraint violation",
+            new PostgresException(
+                "duplicate key value violates unique constraint",
+                "ERROR",
+                "ERROR",
+                PostgresErrorCodes.UniqueViolation));
 }

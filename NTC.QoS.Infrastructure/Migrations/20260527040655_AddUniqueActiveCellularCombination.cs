@@ -31,29 +31,28 @@ namespace NTC.QoS.Infrastructure.Migrations
                   AND ranked.row_num > 1;
                 """);
 
-            migrationBuilder.DropIndex(
-                name: "IX_Cellulars_CellSectorId",
-                table: "Cellulars");
+            migrationBuilder.Sql("""
+                DROP INDEX CONCURRENTLY IF EXISTS "IX_Cellulars_CellSectorId";
+                """, suppressTransaction: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band",
-                table: "Cellulars",
-                columns: new[] { "CellSectorId", "ServiceProviderId", "TechnologyId", "BandId" },
-                unique: true,
-                filter: "\"IsDeleted\" = FALSE");
+            migrationBuilder.Sql("""
+                CREATE UNIQUE INDEX CONCURRENTLY "IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band"
+                ON "Cellulars" ("CellSectorId", "ServiceProviderId", "TechnologyId", "BandId")
+                WHERE "IsDeleted" = FALSE;
+                """, suppressTransaction: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band",
-                table: "Cellulars");
+            migrationBuilder.Sql("""
+                DROP INDEX CONCURRENTLY IF EXISTS "IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band";
+                """, suppressTransaction: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Cellulars_CellSectorId",
-                table: "Cellulars",
-                column: "CellSectorId");
+            migrationBuilder.Sql("""
+                CREATE INDEX CONCURRENTLY "IX_Cellulars_CellSectorId"
+                ON "Cellulars" ("CellSectorId");
+                """, suppressTransaction: true);
         }
     }
 }
