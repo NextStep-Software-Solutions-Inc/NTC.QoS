@@ -186,6 +186,22 @@ public class UpdateCellTechnologiesBandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenDuplicateExistingCombinationPresent_DeletesDuplicateRows()
+    {
+        var duplicateA = MakeCellular();
+        var duplicateB = MakeCellular();
+        var deleted = new List<Cellular>();
+        var handler = CreateHandler(
+            cellulars: [duplicateA, duplicateB],
+            onDelete: deleted.Add);
+
+        var result = await handler.Handle(MakeRequest([MakeItem()]), CancellationToken.None);
+
+        result.Succeeded.Should().BeTrue();
+        deleted.Should().ContainSingle(c => c.Id == duplicateB.Id);
+    }
+
+    [Fact]
     public async Task Handle_WhenSectorHasNoCellulars_CreatesMissingSectorRow()
     {
         var addedSectors = new List<Sector>();
@@ -209,6 +225,34 @@ public class UpdateCellTechnologiesBandHandlerTests
         await handler.Handle(MakeRequest([MakeItem()]), CancellationToken.None);
 
         addedSectors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenMultipleSectorsMissing_BatchesSectorCreationIntoSingleSave()
+    {
+        var secondSectorId = Guid.NewGuid();
+        var sectors = new List<CellSector>
+        {
+            MakeCellSector(),
+            new()
+            {
+                Id = secondSectorId,
+                CellId = CellId,
+                AntennaType = AntennaTypeEnum.Unknown,
+                AntennaHeight = 30m,
+                Azimuth = 0m,
+                BeamTilt = 0m
+            }
+        };
+
+        var saveCalls = 0;
+        var handler = CreateHandler(
+            sectors: sectors,
+            onSectorSaveChanges: () => saveCalls++);
+
+        await handler.Handle(MakeRequest([MakeItem()]), CancellationToken.None);
+
+        saveCalls.Should().Be(1);
     }
 
     [Fact]
@@ -311,7 +355,8 @@ public class UpdateCellTechnologiesBandHandlerTests
         List<Sector>? existingSectors = null,
         Action<Cellular>? onAdd = null,
         Action<Cellular>? onDelete = null,
-        Action<Sector>? onAddSector = null)
+        Action<Sector>? onAddSector = null,
+        Action? onSectorSaveChanges = null)
     {
         cells ??= [MakeCell()];
         sectors ??= [MakeCellSector()];
@@ -451,7 +496,17 @@ public class UpdateCellTechnologiesBandHandlerTests
             .Setup(x => x.Add(It.IsAny<Sector>()))
             .Callback<Sector>(s => onAddSector?.Invoke(s));
         sectorRepoMock
+            .Setup(x => x.AddRange(It.IsAny<IEnumerable<Sector>>()))
+            .Callback<IEnumerable<Sector>>(sectorsToAdd =>
+            {
+                foreach (var sector in sectorsToAdd)
+                    onAddSector?.Invoke(sector);
+            });
+        sectorRepoMock
+            .Setup(x => x.RemoveRange(It.IsAny<IEnumerable<Sector>>()));
+        sectorRepoMock
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => onSectorSaveChanges?.Invoke())
             .Returns(Task.CompletedTask);
 
         // Municipality repository

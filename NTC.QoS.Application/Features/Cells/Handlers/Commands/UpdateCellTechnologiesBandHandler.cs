@@ -150,6 +150,15 @@ public class UpdateCellTechnologiesBandHandler(
         var existingCellularQuery = _cellularRepository.Query(c =>
             c.CellSector != null && c.CellSector.CellId == request.CellId);
         var existingCellulars = await _cellularRepository.ToListAsync(existingCellularQuery, cancellationToken);
+        var groupedExistingCellulars = existingCellulars
+            .GroupBy(c => (c.CellSectorId, c.TechnologyId, c.BandId, c.ServiceProviderId))
+            .ToList();
+        var duplicateCellularsToDelete = groupedExistingCellulars
+            .SelectMany(g => g.Skip(1))
+            .ToList();
+        var canonicalExistingCellulars = groupedExistingCellulars
+            .Select(g => g.First())
+            .ToList();
 
         var defaultServiceProviderId = cell.ServiceProviderId;
 
@@ -216,12 +225,15 @@ public class UpdateCellTechnologiesBandHandler(
         }
 
         // Determine which Cellular records to delete (not in desired set)
-        var cellularsToDelete = existingCellulars.Where(c =>
+        var obsoleteCellularsToDelete = canonicalExistingCellulars.Where(c =>
             !desiredCombinations.Contains((
                 c.CellSectorId,
                 c.TechnologyId,
                 c.BandId,
                 c.ServiceProviderId)))
+            .ToList();
+        var cellularsToDelete = duplicateCellularsToDelete
+            .Concat(obsoleteCellularsToDelete)
             .ToList();
 
         foreach (var cellular in cellularsToDelete)
@@ -234,7 +246,7 @@ public class UpdateCellTechnologiesBandHandler(
 
         // Determine which Cellular records to create (not already existing)
         var existingCombinations = new HashSet<(Guid CellSectorId, Guid TechId, Guid BandId, Guid ProviderId)>(
-            existingCellulars.Select(c => (c.CellSectorId, c.TechnologyId, c.BandId, c.ServiceProviderId)));
+            canonicalExistingCellulars.Select(c => (c.CellSectorId, c.TechnologyId, c.BandId, c.ServiceProviderId)));
 
         var cellularsToCreate = desiredCombinations
             .Where(combination => !existingCombinations.Contains(combination))
@@ -289,6 +301,7 @@ public class UpdateCellTechnologiesBandHandler(
                 cancellationToken);
             var existingSectorSet = new HashSet<Guid>(existingSectorCellSectorIds);
 
+            var sectorsToCreate = new List<Domain.Entities.Sector>();
             foreach (var cellSectorId in sectorsWithNewCellulars)
             {
                 if (existingSectorSet.Contains(cellSectorId))
@@ -299,7 +312,7 @@ public class UpdateCellTechnologiesBandHandler(
                     .First(c => c.CellSectorId == cellSectorId)
                     .NetworkId;
 
-                var newSector = new Domain.Entities.Sector
+                sectorsToCreate.Add(new Domain.Entities.Sector
                 {
                     CellSectorId = cellSectorId,
                     NetworkId = firstNetworkId,
@@ -311,29 +324,47 @@ public class UpdateCellTechnologiesBandHandler(
                     RxAzimuth = cellSector.Azimuth,
                     RxBeamTilt = cellSector.BeamTilt,
                     IsRxEqualTx = true
-                };
+                });
+            }
 
-                _sectorRepository.Add(newSector);
-
+            if (sectorsToCreate.Count > 0)
+            {
+                _sectorRepository.AddRange(sectorsToCreate);
                 try
                 {
                     await _sectorRepository.SaveChangesAsync(cancellationToken);
-                    existingSectorSet.Add(cellSectorId);
-                    _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", cellSectorId);
+                    foreach (var createdSector in sectorsToCreate)
+                    {
+                        existingSectorSet.Add(createdSector.CellSectorId);
+                        _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", createdSector.CellSectorId);
+                    }
                 }
                 catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
                                                    postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
                 {
-                    _sectorRepository.Delete(newSector);
+                    _sectorRepository.RemoveRange(sectorsToCreate);
 
-                    var sectorCreatedByConcurrentRequest = await _sectorRepository.CountAsync(
-                        _sectorRepository.Query(s => s.CellSectorId == cellSectorId),
-                        cancellationToken) > 0;
+                    var existingSectorIdsAfterConflict = await _sectorRepository.ToListAsync(
+                        _sectorRepository
+                            .Query(s => sectorsWithNewCellulars.Contains(s.CellSectorId))
+                            .Select(s => s.CellSectorId),
+                        cancellationToken);
+                    existingSectorSet.UnionWith(existingSectorIdsAfterConflict);
 
-                    if (!sectorCreatedByConcurrentRequest)
-                        throw;
+                    var missingSectors = sectorsToCreate
+                        .Where(s => !existingSectorSet.Contains(s.CellSectorId))
+                        .ToList();
 
-                    existingSectorSet.Add(cellSectorId);
+                    if (missingSectors.Count > 0)
+                    {
+                        _sectorRepository.AddRange(missingSectors);
+                        await _sectorRepository.SaveChangesAsync(cancellationToken);
+                        foreach (var createdSector in missingSectors)
+                        {
+                            existingSectorSet.Add(createdSector.CellSectorId);
+                            _logger.LogInformation("Sector created for CellSectorId={CellSectorId}", createdSector.CellSectorId);
+                        }
+                    }
                 }
             }
         }

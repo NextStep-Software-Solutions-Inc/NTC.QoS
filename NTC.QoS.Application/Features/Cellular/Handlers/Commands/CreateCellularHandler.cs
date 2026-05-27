@@ -173,7 +173,20 @@ public class CreateCellularHandler(
             };
 
             _cellularRepository.Add(newCellular);
-            await _cellularRepository.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _cellularRepository.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                               postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+            {
+                _cellularRepository.Delete(newCellular);
+                return new ApiResponse<CellularDto>
+                {
+                    Message = "Cellular record with this combination already exists.",
+                    Succeeded = false
+                };
+            }
 
             _logger.LogInformation(
                 "Cellular record created: CellSectorId={CellSectorId}, Technology={Technology}, Band={Band}, NetworkId={NetworkId}",

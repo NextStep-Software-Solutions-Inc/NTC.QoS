@@ -407,8 +407,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("SystemTypeId");
 
                     b.HasIndex("ServiceProviderId", "Name")
-                        .HasDatabaseName("IX_Networks_ServiceProviderId_Name_Active")
                         .IsUnique()
+                        .HasDatabaseName("IX_Networks_ServiceProviderId_Name_Active")
                         .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Networks");
@@ -1076,8 +1076,6 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("BandId");
 
-                    b.HasIndex("CellSectorId");
-
                     b.HasIndex("FileId");
 
                     b.HasIndex("NetworkId");
@@ -1085,6 +1083,11 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.HasIndex("ServiceProviderId");
 
                     b.HasIndex("TechnologyId");
+
+                    b.HasIndex("CellSectorId", "ServiceProviderId", "TechnologyId", "BandId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band")
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Cellulars");
                 });

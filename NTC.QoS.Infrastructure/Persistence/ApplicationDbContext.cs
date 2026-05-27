@@ -331,6 +331,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(b => b.Cellulars)
             .HasForeignKey(c => c.BandId);
 
+        modelBuilder.Entity<Cellular>()
+            .HasIndex(c => new { c.CellSectorId, c.ServiceProviderId, c.TechnologyId, c.BandId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE")
+            .HasDatabaseName("IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band");
+
         modelBuilder.Entity<Province>()
             .HasOne(p => p.Region)
             .WithMany(r => r.Provinces)
