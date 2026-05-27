@@ -20,8 +20,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                 """);
 
             migrationBuilder.Sql("""
-                DROP TABLE IF EXISTS network_dedup_map;
-                CREATE TEMP TABLE network_dedup_map AS
+                DROP TABLE IF EXISTS pg_temp.network_dedup_map;
+                CREATE TEMP TABLE network_dedup_map ON COMMIT DROP AS
                 WITH ranked AS (
                     SELECT "Id",
                            "ServiceProviderId",
@@ -46,28 +46,28 @@ namespace NTC.QoS.Infrastructure.Migrations
             migrationBuilder.Sql("""
                 UPDATE "Cellulars" AS c
                 SET "NetworkId" = m.winner_id
-                FROM network_dedup_map AS m
+                FROM pg_temp.network_dedup_map AS m
                 WHERE c."NetworkId" = m.loser_id;
                 """);
 
             migrationBuilder.Sql("""
                 UPDATE "Sectors" AS s
                 SET "NetworkId" = m.winner_id
-                FROM network_dedup_map AS m
+                FROM pg_temp.network_dedup_map AS m
                 WHERE s."NetworkId" = m.loser_id;
                 """);
 
             migrationBuilder.Sql("""
                 UPDATE "CellularCoverages" AS cc
                 SET "NetworkId" = m.winner_id
-                FROM network_dedup_map AS m
+                FROM pg_temp.network_dedup_map AS m
                 WHERE cc."NetworkId" = m.loser_id;
                 """);
 
             migrationBuilder.Sql("""
                 UPDATE "StudyNetworks" AS sn
                 SET "NetworkId" = m.winner_id
-                FROM network_dedup_map AS m
+                FROM pg_temp.network_dedup_map AS m
                 WHERE sn."NetworkId" = m.loser_id;
                 """);
 
@@ -93,7 +93,7 @@ namespace NTC.QoS.Infrastructure.Migrations
                 """);
 
             migrationBuilder.Sql("""
-                DROP TABLE IF EXISTS network_dedup_map;
+                DROP TABLE IF EXISTS pg_temp.network_dedup_map;
                 """);
 
             migrationBuilder.Sql("""
