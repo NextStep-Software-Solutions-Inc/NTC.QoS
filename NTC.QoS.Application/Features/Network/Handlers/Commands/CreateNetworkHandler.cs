@@ -24,22 +24,23 @@ public class CreateNetworkHandler(
 
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
-        var networkQuery = _networkRepository.Query(n =>
-            n.Name.Equals(request.Network.Name) &&
-            n.SystemTypeId == request.Network.SystemTypeId &&
+        // Normalize the name to match the unique index on (ServiceProviderId, lower(btrim(Name))),
+        // preventing an unhandled unique-violation when a network with the same ServiceProviderId/Name
+        // (but different band/systemType) already exists.
+        var normalizedName = request.Network.Name.Trim().ToLowerInvariant();
+
+        var duplicateNameQuery = _networkRepository.Query(n =>
             n.ServiceProviderId == request.Network.ServiceProviderId &&
-            n.BandId == request.Network.BandId &&
-            n.MunicipalityId == request.Network.MunicipalityId &&
-            n.NetworkTemplateId == request.Network.NetworkTemplateId);
-        var existingNetwork = await _networkRepository.FirstOrDefaultAsync(networkQuery, cancellationToken);
-        if (existingNetwork is not null)
+            n.Name == normalizedName);
+        var duplicateNetwork = await _networkRepository.FirstOrDefaultAsync(duplicateNameQuery, cancellationToken);
+        if (duplicateNetwork is not null)
         {
             return new ApiResponse<NetworkDto>
             {
-                Message = "A network with identical configuration already exists.",
+                Message = "A network with this name already exists for the service provider.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Duplicate", ["Network already exists."] }
+                    { "Duplicate", ["A network with this name already exists for the service provider."] }
                 },
                 Succeeded = false,
             };
@@ -146,7 +147,7 @@ public class CreateNetworkHandler(
 
         var newNetwork = new Domain.Aggregates.Network
         {
-            Name = request.Network.Name,
+            Name = normalizedName,
             NetworkTemplateId = request.Network.NetworkTemplateId,
             SystemTypeId = systemType.Id,
             ServiceProviderId = serviceProvider.Id,
