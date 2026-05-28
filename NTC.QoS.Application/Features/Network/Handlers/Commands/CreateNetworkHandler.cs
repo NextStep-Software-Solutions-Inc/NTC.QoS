@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using NTC.QoS.Application.Features.Network.Requests;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Network;
@@ -24,10 +25,12 @@ public class CreateNetworkHandler(
 
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
-        // Normalize the name to match the unique index on (ServiceProviderId, lower(btrim(Name))),
-        // preventing an unhandled unique-violation when a network with the same ServiceProviderId/Name
-        // (but different band/systemType) already exists.
-        var normalizedName = request.Network.Name.Trim().ToLowerInvariant();
+        // Normalize the name to match the unique index on (ServiceProviderId, Name)
+        // with IsDeleted = FALSE filter, preventing an unhandled unique-violation when a
+        // network with the same ServiceProviderId/Name already exists.
+        // Uses the shared normalization that matches the migration pattern:
+        // lower(regexp_replace(btrim(Name), '\s*_\s*', '_', 'g'))
+        var normalizedName = NetworkNameHelper.NormalizeStoredName(request.Network.Name);
 
         var duplicateNameQuery = _networkRepository.Query(n =>
             n.ServiceProviderId == request.Network.ServiceProviderId &&
