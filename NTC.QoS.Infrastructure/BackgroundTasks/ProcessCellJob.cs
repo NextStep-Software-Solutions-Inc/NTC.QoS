@@ -1620,6 +1620,7 @@ public class ProcessCellJob : IProcessCellJob
                                            postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             _networkRepository.Delete(pendingNetwork);
+            _networkRepository.Detach(pendingNetwork);
 
             var networkIdCreatedByConcurrentRequest = await _networkRepository.FirstOrDefaultAsync(
                 _networkRepository

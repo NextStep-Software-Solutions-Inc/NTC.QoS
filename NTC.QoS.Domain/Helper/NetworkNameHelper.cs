@@ -16,8 +16,11 @@ public static partial class NetworkNameHelper
     /// trims whitespace, collapses whitespace around underscores, and lowercases.
     /// Matches the migration logic: <c>lower(regexp_replace(btrim(Name), '\s*_\s*', '_', 'g'))</c>.
     /// </summary>
-    public static string NormalizeStoredName(string name) =>
-        UnderscoreWhitespace().Replace(name.Trim(), "_").ToLowerInvariant();
+    public static string NormalizeStoredName(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return UnderscoreWhitespace().Replace(name.Trim(), "_").ToLowerInvariant();
+    }
 
     [GeneratedRegex(@"\s*_\s*")]
     private static partial Regex UnderscoreWhitespace();

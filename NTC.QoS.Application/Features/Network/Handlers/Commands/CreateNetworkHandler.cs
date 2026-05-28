@@ -25,6 +25,19 @@ public class CreateNetworkHandler(
 
     public async Task<ApiResponse<NetworkDto>> Handle(CreateNetworkRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Network.Name))
+        {
+            return new ApiResponse<NetworkDto>
+            {
+                Message = "Network name is required.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    { "InvalidName", ["Network name is required."] }
+                },
+                Succeeded = false,
+            };
+        }
+
         // Normalize the name to match the unique index on (ServiceProviderId, Name)
         // with IsDeleted = FALSE filter, preventing an unhandled unique-violation when a
         // network with the same ServiceProviderId/Name already exists.
