@@ -192,6 +192,7 @@ public class UpdateCellTechnologiesBandHandlerTests
     {
         var duplicateA = MakeCellular();
         var duplicateB = MakeCellular();
+        duplicateB.CreatedAt = DateTime.UtcNow; // newer than duplicateA (default DateTime.MinValue) → duplicate to delete
         var deleted = new List<Cellular>();
         var handler = CreateHandler(
             cellulars: [duplicateA, duplicateB],

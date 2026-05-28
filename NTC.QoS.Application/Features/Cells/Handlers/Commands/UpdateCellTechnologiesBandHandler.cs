@@ -152,6 +152,7 @@ public class UpdateCellTechnologiesBandHandler(
         var existingCellulars = await _cellularRepository.ToListAsync(existingCellularQuery, cancellationToken);
         var groupedExistingCellulars = existingCellulars
             .GroupBy(c => (c.CellSectorId, c.TechnologyId, c.BandId, c.ServiceProviderId))
+            .Select(g => g.OrderBy(c => c.CreatedAt).ThenBy(c => c.Id).ToList())
             .ToList();
         var duplicateCellularsToDelete = groupedExistingCellulars
             .SelectMany(g => g.Skip(1))
@@ -265,8 +266,8 @@ public class UpdateCellTechnologiesBandHandler(
         foreach (var cellular in cellularsToCreate)
         {
             _cellularRepository.Add(cellular);
-            _logger.LogInformation(
-                "Created Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}, NetworkId={NetworkId}",
+            _logger.LogDebug(
+                "Creating Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}, NetworkId={NetworkId}",
                 cellular.CellSectorId, cellular.TechnologyId, cellular.BandId, cellular.NetworkId);
         }
 
@@ -294,36 +295,35 @@ public class UpdateCellTechnologiesBandHandler(
 
             isConcurrentCreateConflictHandled = true;
             cellularsToCreate.Clear();
-            cellularsToDelete.Clear();
+            // Do not clear cellularsToDelete: intended deletions must still be applied
+            // so PATCH semantics are preserved even under concurrent creates.
 
             _logger.LogInformation(
-                "Detected concurrent Cellular update for Cell {CellId}. Returning reconciled state after unique-constraint conflict.",
+                "Detected concurrent Cellular update for Cell {CellId}. Applying pending deletes after unique-constraint conflict.",
                 request.CellId);
         }
 
-        if (!isConcurrentCreateConflictHandled)
+        foreach (var cellular in cellularsToDelete)
         {
-            foreach (var cellular in cellularsToDelete)
-            {
-                _cellularRepository.Delete(cellular);
-                _logger.LogInformation(
-                    "Deleted Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}",
-                    cellular.CellSectorId, cellular.TechnologyId, cellular.BandId);
-            }
-
-            if (cellularsToDelete.Count > 0)
-                await _cellularRepository.SaveChangesAsync(cancellationToken);
+            _cellularRepository.Delete(cellular);
+            _logger.LogDebug(
+                "Deleting Cellular record: CellSectorId={CellSectorId}, TechId={TechId}, BandId={BandId}",
+                cellular.CellSectorId, cellular.TechnologyId, cellular.BandId);
         }
+
+        if (cellularsToDelete.Count > 0)
+            await _cellularRepository.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Updated technologies for Cell {CellId}: Added {AddedCount}, Deleted {DeletedCount}",
             request.CellId, cellularsToCreate.Count, cellularsToDelete.Count);
 
-        // Create missing Sector rows for sectors that now have Cellular records
-        var sectorsWithNewCellulars = cellularsToCreate
-            .Select(c => c.CellSectorId)
-            .Distinct()
-            .ToList();
+        // Create missing Sector rows for sectors that now have Cellular records.
+        // When creates were handled concurrently, check all desired sector IDs because
+        // the concurrent request may not have created the corresponding Sector rows.
+        var sectorsWithNewCellulars = isConcurrentCreateConflictHandled
+            ? desiredCombinations.Select(d => d.CellSectorId).Distinct().ToList()
+            : cellularsToCreate.Select(c => c.CellSectorId).Distinct().ToList();
 
         if (sectorsWithNewCellulars.Count > 0)
         {
@@ -342,9 +342,11 @@ public class UpdateCellTechnologiesBandHandler(
                     continue;
 
                 var cellSector = sectors.First(s => s.Id == cellSectorId);
-                var firstNetworkId = cellularsToCreate
-                    .First(c => c.CellSectorId == cellSectorId)
-                    .NetworkId;
+                var firstNetworkId = cellularsToCreate.FirstOrDefault(c => c.CellSectorId == cellSectorId)?.NetworkId
+                    ?? comboNetworkMap[desiredCombinations
+                        .Where(d => d.CellSectorId == cellSectorId)
+                        .Select(d => (d.TechId, d.BandId, d.ProviderId))
+                        .First()].NetworkId;
 
                 sectorsToCreate.Add(new Domain.Entities.Sector
                 {

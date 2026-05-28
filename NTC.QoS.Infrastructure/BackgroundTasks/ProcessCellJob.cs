@@ -1614,6 +1614,7 @@ public class ProcessCellJob : IProcessCellJob
         try
         {
             await _networkRepository.SaveChangesAsync(token);
+            _networkRepository.Detach(pendingNetwork);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
                                            postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
