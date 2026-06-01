@@ -1,3 +1,4 @@
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 
 namespace NTC.QoS.Domain.Interfaces;
@@ -64,11 +65,13 @@ public interface IReportGenerationService
     /// </summary>
     /// <param name="reportData">The connectivity report data</param>
     /// <param name="reportTitle">Title for the report</param>
+    /// <param name="filterByStatus">Optional status filter; when set, the Areas table heading reflects the active filter (e.g., "Served Areas").</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>PDF file as byte array</returns>
     Task<byte[]> GenerateConnectivityPdfAsync(
         ConnectivityReportDto reportData,
         string reportTitle = "Connectivity Report",
+        ConnectivityStatusEnum? filterByStatus = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

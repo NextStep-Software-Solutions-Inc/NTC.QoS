@@ -189,6 +189,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(nt => nt.Networks)
             .HasForeignKey(n => n.NetworkTemplateId);
 
+        modelBuilder.Entity<Network>()
+            .HasIndex(n => new { n.ServiceProviderId, n.Name })
+            .HasDatabaseName("IX_Networks_ServiceProviderId_Name_Active")
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
         modelBuilder.Entity<AreaStudy>()
             .HasIndex(p => p.Name)
             .IsUnique()
@@ -324,6 +330,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(c => c.Band)
             .WithMany(b => b.Cellulars)
             .HasForeignKey(c => c.BandId);
+
+        modelBuilder.Entity<Cellular>()
+            .HasIndex(c => new { c.CellSectorId, c.ServiceProviderId, c.TechnologyId, c.BandId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE")
+            .HasDatabaseName("IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band");
 
         modelBuilder.Entity<Province>()
             .HasOne(p => p.Region)

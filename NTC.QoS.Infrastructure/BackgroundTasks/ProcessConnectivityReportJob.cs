@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 
@@ -56,6 +57,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<Province> _provinceRepository;
     private readonly IRepository<Region> _regionRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly IConfiguration _configuration;
 
     private const string CACHE_KEY_PREFIX = "connectivity_report_job_";
@@ -72,6 +74,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         IMunicipalityRepository municipalityRepository,
         IRepository<Province> provinceRepository,
         IRepository<Region> regionRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         IConfiguration configuration)
     {
         _logger = logger;
@@ -83,6 +86,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _configuration = configuration;
     }
 
@@ -98,8 +102,8 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         try
         {
             _logger.LogInformation(
-                "Starting connectivity report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, User: {UserId}",
-                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.UserId);
+                "Starting connectivity report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, FilterByStatus: {FilterByStatus}, User: {UserId}",
+                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.FilterByStatus, jobRequest.UserId);
 
             // Step 1: Update status to Processing
             await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Processing,
@@ -117,6 +121,20 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 progressPercentage: 10,
                 cancellationToken: cancellationToken);
 
+            // Validate FilterByStatus: reject undefined enum values early
+            if (jobRequest.FilterByStatus.HasValue && !Enum.IsDefined(typeof(ConnectivityStatusEnum), jobRequest.FilterByStatus.Value))
+            {
+                var validValues = string.Join(", ", Enum.GetValues<ConnectivityStatusEnum>().Select(v => $"{v} ({(int)v})"));
+                await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Failed,
+                    $"Invalid FilterByStatus value '{(int)jobRequest.FilterByStatus.Value}'. Valid values are: {validValues}.",
+                    startTime: startTime,
+                    endTime: DateTime.UtcNow,
+                    currentStep: "Failed",
+                    cancellationToken: cancellationToken);
+                _logger.LogWarning("Job {JobId}: Rejected invalid FilterByStatus={FilterByStatus}", jobId, jobRequest.FilterByStatus.Value);
+                return;
+            }
+
             _logger.LogInformation("Job {JobId}: Fetching connectivity assessments for served areas", jobId);
 
             // Build assessment query with geographic filters
@@ -125,10 +143,16 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             // Filter by location type: only barangays
             assessmentQuery = assessmentQuery.Where(a => a.LocationType == LocationTypeEnum.Barangay);
 
-            // Filter for SERVED areas only
-            assessmentQuery = assessmentQuery.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served);
+            // NOTE: Do NOT apply FilterByStatus to the DB query — we need the full dataset so
+            // summary statistics (TotalServedAreas, populations, score averages) always reflect
+            // the entire geographic scope. The status filter is applied in-memory to the Areas list.
 
             // Apply geographic filters
+            // Only include barangays with BarangayCoverage records
+            var coveredBarangayIds = _barangayCoverageRepository.QueryAsNoTracking()
+                .Select(bc => bc.BarangayId);
+            assessmentQuery = assessmentQuery.Where(a => coveredBarangayIds.Contains(a.LocationId));
+
             if (jobRequest.RegionId.HasValue)
             {
                 var provinceIds = await _provinceRepository.QueryAsNoTracking()
@@ -146,7 +170,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                     if (municipalityIds.Any())
                     {
                         var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                            .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                            .Where(b => municipalityIds.Contains(b.MunicipalityId) && coveredBarangayIds.Contains(b.Id))
                             .Select(b => b.Id)
                             .ToListAsync(cancellationToken);
 
@@ -173,7 +197,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 if (municipalityIds.Any())
                 {
                     var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                        .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                        .Where(b => municipalityIds.Contains(b.MunicipalityId) && coveredBarangayIds.Contains(b.Id))
                         .Select(b => b.Id)
                         .ToListAsync(cancellationToken);
 
@@ -188,7 +212,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
             if (jobRequest.MunicipalityId.HasValue)
             {
                 var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                    .Where(b => b.MunicipalityId == jobRequest.MunicipalityId.Value)
+                    .Where(b => b.MunicipalityId == jobRequest.MunicipalityId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id)
                     .ToListAsync(cancellationToken);
 
@@ -209,30 +233,52 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                     .ThenByDescending(a => a.Population ?? 0),
                 cancellationToken);
 
-            _logger.LogInformation("Job {JobId}: Found {Count} served areas", jobId, assessments.Count);
+            _logger.LogInformation("Job {JobId}: Found {Count} areas", jobId, assessments.Count);
 
             await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Processing,
-                $"Processing {assessments.Count} served areas",
+                $"Processing {assessments.Count} areas",
                 currentStep: "Processing Data",
                 progressPercentage: 30,
                 areasProcessed: 0,
                 totalAreas: assessments.Count,
                 cancellationToken: cancellationToken);
 
-            // Build area details with location names
-            var areas = new List<ConnectivityAreaDetailDto>();
-            var locationIds = assessments.Select(a => a.LocationId).ToList();
-            var locationNames = await GetLocationNamesBatchAsync(locationIds, cancellationToken);
+            // Single batch query for both location names and municipality/province details
+            var allLocationIds = assessments.Select(a => a.LocationId).ToList();
+            var barangayLocationData = allLocationIds.Count > 0
+                ? await _barangayRepository.ToListAsync(
+                    _barangayRepository.QueryAsNoTracking()
+                        .Where(b => allLocationIds.Contains(b.Id))
+                        .Select(b => new
+                        {
+                            b.Id,
+                            b.Name,
+                            MunicipalityName = b.Municipality != null ? b.Municipality.Name : string.Empty,
+                            ProvinceName = b.Municipality != null && b.Municipality.Province != null
+                                ? b.Municipality.Province.Name
+                                : string.Empty
+                        }),
+                    cancellationToken)
+                : [];
+            var locationNames = barangayLocationData.ToDictionary(x => x.Id, x => x.Name);
+            var barangayDetails = barangayLocationData.ToDictionary(
+                x => x.Id,
+                x => (x.MunicipalityName, x.ProvinceName));
 
+            // Build ALL areas from the full (unfiltered) assessment list
+            var allAreas = new List<ConnectivityAreaDetailDto>(assessments.Count);
             for (int i = 0; i < assessments.Count; i++)
             {
                 var assessment = assessments[i];
                 var locationName = locationNames.GetValueOrDefault(assessment.LocationId, $"Location-{assessment.LocationId}");
+                var (municipalityName, provinceName) = barangayDetails.GetValueOrDefault(assessment.LocationId);
 
-                areas.Add(new ConnectivityAreaDetailDto
+                allAreas.Add(new ConnectivityAreaDetailDto
                 {
                     LocationId = assessment.LocationId,
                     LocationName = locationName,
+                    MunicipalityName = municipalityName,
+                    ProvinceName = provinceName,
                     ConnectivityStatus = assessment.ConnectivityStatus,
                     Population = assessment.Population,
                     FiberCoverageScore = assessment.FiberCoverageScore,
@@ -266,45 +312,98 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 }
             }
 
-            // Calculate summary statistics
+            // Apply optional status filter to the Areas list; top-level and geographic summaries
+            // reflect this same filtered scope
+            var areas = jobRequest.FilterByStatus.HasValue
+                ? allAreas.Where(a => a.ConnectivityStatus == jobRequest.FilterByStatus.Value).ToList()
+                : allAreas;
+
+            // Summary statistics come from the filtered dataset
             var scoreSummary = new ConnectivityScoreSummaryDto
             {
-                AverageFiberCoverageScore = assessments.Any() ? assessments.Average(a => a.FiberCoverageScore) : 0,
-                AverageInternetAccessScore = assessments.Any() ? assessments.Average(a => a.InternetAccessScore) : 0,
-                AverageTechnologyTypeScore = assessments.Any() ? assessments.Average(a => a.TechnologyTypeScore) : 0,
-                AverageQualityOfServiceScore = assessments.Any() ? assessments.Average(a => a.QualityOfServiceScore) : 0,
-                AverageCoverageAvailabilityScore = assessments.Any() ? assessments.Average(a => a.CoverageAvailabilityScore) : 0,
-                AverageTotalScore = assessments.Any() ? assessments.Average(a => a.TotalScore) : 0,
-                ExcellentCount = assessments.Count(a => a.TotalScore >= 13),
-                GoodCount = assessments.Count(a => a.TotalScore >= 11 && a.TotalScore <= 12),
-                ModerateCount = assessments.Count(a => a.TotalScore >= 8 && a.TotalScore <= 10),
-                FairCount = assessments.Count(a => a.TotalScore >= 6 && a.TotalScore <= 7),
-                TotalCellTowers = assessments.Sum(a => a.CellTowerCount),
-                TotalFiberNAPs = assessments.Sum(a => a.FiberNAPCount),
-                TotalWifiHotspots = assessments.Sum(a => a.WifiHotspotCount),
-                TotalServiceProviders = assessments.Select(a => a.DominantServiceProvider).Where(p => !string.IsNullOrEmpty(p)).Distinct().Count()
+                AverageFiberCoverageScore = areas.Any() ? areas.Average(a => a.FiberCoverageScore) : 0,
+                AverageInternetAccessScore = areas.Any() ? areas.Average(a => a.InternetAccessScore) : 0,
+                AverageTechnologyTypeScore = areas.Any() ? areas.Average(a => a.TechnologyTypeScore) : 0,
+                AverageQualityOfServiceScore = areas.Any() ? areas.Average(a => a.QualityOfServiceScore) : 0,
+                AverageCoverageAvailabilityScore = areas.Any() ? areas.Average(a => a.CoverageAvailabilityScore) : 0,
+                AverageTotalScore = areas.Any() ? areas.Average(a => a.TotalScore) : 0,
+                TotalCellTowers = areas.Sum(a => a.CellTowerCount),
+                TotalFiberNAPs = areas.Sum(a => a.FiberNAPCount),
+                TotalWifiHotspots = areas.Sum(a => a.WifiHotspotCount),
+                TotalServiceProviders = areas.Select(a => a.DominantServiceProvider).Where(p => !string.IsNullOrEmpty(p)).Distinct().Count()
             };
 
-            // Create report DTO with pagination metadata
+            // Create report DTO: status-specific totals/populations from filtered dataset, Areas and
+            // geographic summaries from filtered list
+            // Fetch entity-level assessed statuses to augment geographic summaries
+            var (munAssessedStatuses, provAssessedStatuses) = await FetchEntityAssessedStatusesAsync(
+                allLocationIds, cancellationToken);
+            var regionAssessedStatus = jobRequest.RegionId.HasValue
+                ? await FetchRegionAssessedStatusAsync(jobRequest.RegionId.Value, cancellationToken)
+                : null;
+
+            // Group filtered areas into municipality-level objects
+            var municipalities = areas
+                .GroupBy(a => (a.MunicipalityName ?? string.Empty, a.ProvinceName ?? string.Empty))
+                .Select(g =>
+                {
+                    var avgTotal = g.Any() ? g.Average(a => a.TotalScore) : 0.0;
+                    var overallStatus = avgTotal >= 11 ? "Served" : avgTotal >= 6 ? "Underserved" : "Unserved";
+                    munAssessedStatuses.TryGetValue((g.Key.Item1, g.Key.Item2), out var assessedStatus);
+                    return new ConnectivityMunicipalityDto
+                    {
+                        MunicipalityId = Guid.Empty,
+                        MunicipalityName = g.Key.Item1,
+                        ProvinceName = g.Key.Item2,
+                        TotalBarangays = g.Count(),
+                        ServedBarangays = g.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served),
+                        UnderservedBarangays = g.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                        UnservedBarangays = g.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                        TotalPopulation = g.Sum(a => a.Population ?? 0),
+                        ServedPopulation = g.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).Sum(a => a.Population ?? 0),
+                        UnderservedPopulation = g.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).Sum(a => a.Population ?? 0),
+                        UnservedPopulation = g.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).Sum(a => a.Population ?? 0),
+                        AverageFiberCoverageScore = g.Any() ? g.Average(a => a.FiberCoverageScore) : 0,
+                        AverageInternetAccessScore = g.Any() ? g.Average(a => a.InternetAccessScore) : 0,
+                        AverageTechnologyTypeScore = g.Any() ? g.Average(a => a.TechnologyTypeScore) : 0,
+                        AverageQualityOfServiceScore = g.Any() ? g.Average(a => a.QualityOfServiceScore) : 0,
+                        AverageCoverageAvailabilityScore = g.Any() ? g.Average(a => a.CoverageAvailabilityScore) : 0,
+                        AverageTotalScore = avgTotal,
+                        OverallConnectivityStatus = overallStatus,
+                        AssessedConnectivityStatus = assessedStatus,
+                        Barangays = g.OrderBy(a => a.ConnectivityStatus).ThenBy(a => a.LocationName).ToList()
+                    };
+                })
+                .OrderBy(m => m.OverallConnectivityStatus switch { "Unserved" => 0, "Underserved" => 1, _ => 2 })
+                .ThenBy(m => m.MunicipalityName)
+                .ToList();
+
             var reportData = new ConnectivityReportDto
             {
-                TotalServedAreas = assessments.Count,
-                ServedPopulation = assessments.Sum(a => a.Population ?? 0),
-                Areas = areas,
+                TotalServedAreas = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served),
+                TotalUnderservedAreas = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                TotalUnservedAreas = areas.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                ServedPopulation = areas.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Served).Sum(a => a.Population ?? 0),
+                UnderservedPopulation = areas.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved).Sum(a => a.Population ?? 0),
+                UnservedPopulation = areas.Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved).Sum(a => a.Population ?? 0),
+                Municipalities = municipalities,
                 ScoreSummary = scoreSummary,
-                TotalAreas = assessments.Count,
+                ProvinceSummaries = ConnectivityReportSummaryHelper.BuildProvinceSummaries(areas, provAssessedStatuses),
+                RegionSummary = ConnectivityReportSummaryHelper.BuildRegionSummary(areas, regionAssessedStatus),
+                TotalMunicipalities = municipalities.Count,
+                TotalBarangays = areas.Count,
                 PageNumber = 1,
-                PageSize = assessments.Count,
+                PageSize = municipalities.Count,
                 TotalPages = 1,
                 GeneratedAt = DateTime.UtcNow
             };
 
             _logger.LogInformation(
-                "Job {JobId}: Report data generated. Served Areas: {ServedCount}, Average Total Score: {AvgScore:F2}",
-                jobId, reportData.TotalServedAreas, scoreSummary.AverageTotalScore);
+                "Job {JobId}: Report data generated. Total Areas: {TotalCount}, Served: {ServedCount}, Underserved: {UnderservedCount}, Unserved: {UnservedCount}, Average Total Score: {AvgScore:F2}",
+                jobId, assessments.Count, reportData.TotalServedAreas, reportData.TotalUnderservedAreas, reportData.TotalUnservedAreas, scoreSummary.AverageTotalScore);
 
             await UpdateJobStatusAsync(jobId, ConnectivityReportJobStatusEnum.Processing,
-                $"Data generated: {reportData.TotalServedAreas} served areas with average score {scoreSummary.AverageTotalScore:F2}",
+                $"Data generated: {assessments.Count} areas with average score {scoreSummary.AverageTotalScore:F2}",
                 currentStep: "Generating Report",
                 progressPercentage: 40,
                 areasProcessed: assessments.Count,
@@ -329,6 +428,7 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
                 reportBytes = await _reportGenerationService.GenerateConnectivityPdfAsync(
                     reportData,
                     reportTitle,
+                    jobRequest.FilterByStatus,
                     cancellationToken);
                 contentType = "application/pdf";
                 fileExtension = "pdf";
@@ -450,38 +550,6 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         }
 
         await Task.CompletedTask;
-    }
-
-    private async Task<Dictionary<Guid, string>> GetLocationNamesBatchAsync(
-        List<Guid> locationIds,
-        CancellationToken cancellationToken)
-    {
-        var result = new Dictionary<Guid, string>();
-
-        if (!locationIds.Any())
-        {
-            return result;
-        }
-
-        var barangayData = await _barangayRepository.ToListAsync(
-            _barangayRepository.QueryAsNoTracking()
-                .Where(b => locationIds.Contains(b.Id))
-                .Select(b => new
-                {
-                    b.Id,
-                    b.Name,
-                    MunicipalityName = b.Municipality.Name,
-                    ProvinceName = b.Municipality.Province.Name
-                }),
-            cancellationToken);
-
-        foreach (var barangay in barangayData)
-        {
-            var locationName = $"{barangay.Name}, {barangay.MunicipalityName}, {barangay.ProvinceName}";
-            result[barangay.Id] = locationName;
-        }
-
-        return result;
     }
 
     private async Task<string> GenerateReportTitleAsync(
@@ -627,5 +695,92 @@ public class ProcessConnectivityReportJob : IProcessConnectivityReportJob
         }
 
         return $"{len:0.##} {sizes[order]}";
+    }
+
+    // ── Geographic summary builders ──────────────────────────────────────────
+    // Shared logic lives in ConnectivityReportSummaryHelper (NTC.QoS.Domain.Helper).
+
+    /// <summary>
+    /// Fetches the pre-stored entity-level ConnectivityStatus for each unique municipality and province
+    /// in the given set of barangay IDs. Returns two lookup dictionaries keyed by name for use in the
+    /// summary helper.
+    /// </summary>
+    private async Task<(IReadOnlyDictionary<(string Name, string Province), string> MunicipalityStatuses,
+                        IReadOnlyDictionary<string, string> ProvinceStatuses)>
+        FetchEntityAssessedStatusesAsync(List<Guid> barangayIds, CancellationToken cancellationToken)
+    {
+        if (barangayIds.Count == 0)
+            return (new Dictionary<(string, string), string>(), new Dictionary<string, string>());
+
+        try
+        {
+            var geoInfo = await _barangayRepository.ToListAsync(
+                _barangayRepository.QueryAsNoTracking()
+                    .Where(b => barangayIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.MunicipalityId,
+                        MunicipalityName = b.Municipality.Name,
+                        ProvinceId = b.Municipality.ProvinceId,
+                        ProvinceName = b.Municipality.Province.Name
+                    }),
+                cancellationToken);
+
+            var uniqueMunicipalities = geoInfo
+                .GroupBy(g => g.MunicipalityId)
+                .Select(g => (Id: g.Key, g.First().MunicipalityName, g.First().ProvinceName))
+                .ToList();
+
+            var munAssessments = await _connectivityAssessmentRepository.GetByLocationIdsAsync(
+                uniqueMunicipalities.Select(m => m.Id).ToList(),
+                LocationTypeEnum.Municipality, cancellationToken);
+            var munById = munAssessments.ToDictionary(a => a.LocationId);
+
+            var municipalityStatuses = uniqueMunicipalities
+                .Where(m => munById.ContainsKey(m.Id))
+                .GroupBy(m => (m.MunicipalityName, m.ProvinceName))
+                .ToDictionary(
+                    g => g.Key,
+                    g => munById[g.First().Id].ConnectivityStatus.ToString());
+
+            var uniqueProvinces = geoInfo
+                .GroupBy(g => g.ProvinceId)
+                .Select(g => (Id: g.Key, g.First().ProvinceName))
+                .ToList();
+
+            var provAssessments = await _connectivityAssessmentRepository.GetByLocationIdsAsync(
+                uniqueProvinces.Select(p => p.Id).ToList(),
+                LocationTypeEnum.Provincial, cancellationToken);
+            var provById = provAssessments.ToDictionary(a => a.LocationId);
+
+            var provinceStatuses = uniqueProvinces
+                .Where(p => provById.ContainsKey(p.Id))
+                .GroupBy(p => p.ProvinceName)
+                .ToDictionary(
+                    g => g.Key,
+                    g => provById[g.First().Id].ConnectivityStatus.ToString());
+
+            return (municipalityStatuses, provinceStatuses);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching entity-level assessed statuses for connectivity report job");
+            return (new Dictionary<(string, string), string>(), new Dictionary<string, string>());
+        }
+    }
+
+    private async Task<string?> FetchRegionAssessedStatusAsync(Guid regionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var assessment = await _connectivityAssessmentRepository.GetByLocationAsync(
+                regionId, LocationTypeEnum.Regional, cancellationToken);
+            return assessment?.ConnectivityStatus.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching region entity-level assessed status for regionId {RegionId}", regionId);
+            return null;
+        }
     }
 }

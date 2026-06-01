@@ -17,6 +17,7 @@ namespace NTC.QoS.Tests.Application.Features.Cells.Handlers.Commands;
 public class UpdateCellByIdHandlerNameSyncTests
 {
     private readonly Mock<ICellRepository> _cellRepositoryMock = new();
+    private readonly Mock<IServiceProviderRepository> _serviceProviderRepositoryMock = new();
     private readonly Mock<IConnectivityAssessmentTriggerService> _connectivityAssessmentTriggerServiceMock = new();
     private readonly UpdateCellByIdHandler _handler;
 
@@ -24,6 +25,7 @@ public class UpdateCellByIdHandlerNameSyncTests
     {
         _handler = new UpdateCellByIdHandler(
             _cellRepositoryMock.Object,
+            _serviceProviderRepositoryMock.Object,
             _connectivityAssessmentTriggerServiceMock.Object,
             Mock.Of<ILogger<UpdateCellByIdHandler>>());
     }
@@ -49,8 +51,23 @@ public class UpdateCellByIdHandlerNameSyncTests
             .Setup(x => x.Query(It.IsAny<System.Linq.Expressions.Expression<Func<Cell, bool>>>()))
             .Returns(new List<Cell> { existingCell }.AsQueryable());
         _cellRepositoryMock
+            .Setup(x => x.QueryAsNoTracking(It.IsAny<System.Linq.Expressions.Expression<Func<Cell, bool>>>()))
+            .Returns(new List<Cell> { existingCell }.AsQueryable());
+        _cellRepositoryMock
             .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<Cell>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingCell);
+        _cellRepositoryMock
+            .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.Empty);
+        _cellRepositoryMock
+            .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<CellDto>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<CellDto> q, CancellationToken _) => q.FirstOrDefault());
+        _cellRepositoryMock
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _serviceProviderRepositoryMock
+            .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(providerName);
         _connectivityAssessmentTriggerServiceMock
             .Setup(x => x.TriggerAssessmentAsync(It.IsAny<Point>(), cellId, "Cell", It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -93,8 +110,20 @@ public class UpdateCellByIdHandlerNameSyncTests
             .Setup(x => x.Query(It.IsAny<System.Linq.Expressions.Expression<Func<Cell, bool>>>()))
             .Returns(new List<Cell> { existingCell }.AsQueryable());
         _cellRepositoryMock
+            .Setup(x => x.QueryAsNoTracking(It.IsAny<System.Linq.Expressions.Expression<Func<Cell, bool>>>()))
+            .Returns(new List<Cell> { existingCell }.AsQueryable());
+        _cellRepositoryMock
             .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<Cell>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingCell);
+        _cellRepositoryMock
+            .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.Empty);
+        _cellRepositoryMock
+            .Setup(x => x.FirstOrDefaultAsync(It.IsAny<IQueryable<CellDto>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<CellDto> q, CancellationToken _) => q.FirstOrDefault());
+        _cellRepositoryMock
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         _connectivityAssessmentTriggerServiceMock
             .Setup(x => x.TriggerAssessmentAsync(It.IsAny<Point>(), cellId, "Cell", It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -105,7 +134,7 @@ public class UpdateCellByIdHandlerNameSyncTests
             new UpdateCellDto
             {
                 Name = manualName,
-                TowerType = "GreenField"
+                TowerType = TowerTypeEnum.Unknown.ToString()
             });
 
         var result = await _handler.Handle(request, CancellationToken.None);

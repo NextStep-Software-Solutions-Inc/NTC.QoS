@@ -365,6 +365,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status within gap areas (Unserved=1, Underserved=2). When omitted, all gap areas are included. Summary always reflects all gap areas.</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
     /// <returns>Connectivity gap analysis report</returns>
@@ -374,6 +375,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
@@ -382,6 +384,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
             PageNumber = pageNumber,
             PageSize = pageSize
         };
@@ -398,6 +401,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status within gap areas (Unserved=1, Underserved=2). When omitted, all gap areas are included.</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity-gap/download")]
@@ -407,6 +411,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
         var query = new Application.Features.Reports.ConnectivityGap.Requests.DownloadConnectivityGapReportQuery
@@ -414,6 +419,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
             Format = format,
             ReportTitle = reportTitle
         };
@@ -430,20 +436,31 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate connectivity report (served areas) showing areas with connectivity scores
+    /// Generate unified connectivity report combining asset and gap data, showing areas across all connectivity statuses
     /// </summary>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1).
+    /// When set, the returned <c>Areas</c> list is limited to the specified status and <c>TotalAreas</c>/<c>TotalPages</c>
+    /// reflect the filtered count. Summary totals (<c>TotalServedAreas</c>, <c>TotalUnderservedAreas</c>, etc.),
+    /// <c>ScoreSummary</c>, and geographic summaries (<c>MunicipalitySummaries</c>, <c>ProvinceSummaries</c>,
+    /// <c>RegionSummary</c>) always reflect the full unfiltered dataset.</param>
+    /// <param name="includeSummaries">When <c>true</c> (default), the response includes geographic summaries
+    /// (<c>MunicipalitySummaries</c>, <c>ProvinceSummaries</c>, <c>RegionSummary</c>) computed from the full
+    /// unfiltered dataset. Set to <c>false</c> on subsequent paginated requests where these summaries are not
+    /// needed to reduce database query cost.</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
-    /// <returns>Connectivity report with served areas</returns>
+    /// <returns>Unified connectivity report with areas across all statuses</returns>
     [HttpGet("connectivity")]
     [RequirePermission(Permissions.ViewReports)]
     public async Task<ActionResult<ApiResponse<ConnectivityReportDto>>> GetConnectivityReport(
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
+        [FromQuery] bool includeSummaries = true,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
@@ -452,6 +469,8 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
+            IncludeSummaries = includeSummaries,
             PageNumber = pageNumber,
             PageSize = pageSize
         };
@@ -461,14 +480,17 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate and download connectivity report (served areas) in PDF or Excel format.
-    /// Includes all served areas with complete data (no samples or limits). 
+    /// Generate and download unified connectivity report (all statuses) in PDF or Excel format.
+    /// Includes all areas with complete data (no samples or limits). 
     /// Complete rubric score breakdown is included for all areas.
     /// </summary>
     /// <param name="format">Report format: Excel (0) or Pdf (1). Default: Excel</param>
     /// <param name="regionId">Optional filter by Region ID</param>
     /// <param name="provinceId">Optional filter by Province ID</param>
     /// <param name="municipalityId">Optional filter by Municipality ID</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1).
+    /// When set, the exported <c>Areas</c> list is limited to the specified status; however, summary totals and
+    /// geographic summaries always reflect the full unfiltered dataset.</param>
     /// <param name="reportTitle">Optional custom title for the report. If not provided, uses location-based default title.</param>
     /// <returns>PDF or Excel file download</returns>
     [HttpGet("connectivity/download")]
@@ -478,6 +500,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] string? reportTitle = null)
     {
         var query = new Application.Features.Reports.Connectivity.Requests.DownloadConnectivityReportQuery
@@ -485,6 +508,7 @@ public class ReportsController : ControllerBase
             RegionId = regionId,
             ProvinceId = provinceId,
             MunicipalityId = municipalityId,
+            FilterByStatus = filterByStatus,
             Format = format,
             ReportTitle = reportTitle
         };
@@ -908,6 +932,7 @@ public class ReportsController : ControllerBase
     /// <param name="regionId">Optional filter by region</param>
     /// <param name="provinceId">Optional filter by province</param>
     /// <param name="municipalityId">Optional filter by municipality</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status within gap areas (Unserved=1, Underserved=2). When omitted, all gap areas are included. Summary always reflects all gap areas.</param>
     /// <param name="format">Report format (Excel or PDF)</param>
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
@@ -917,6 +942,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] string? reportTitle = null)
     {
@@ -935,6 +961,7 @@ public class ReportsController : ControllerBase
                 RegionId = regionId,
                 ProvinceId = provinceId,
                 MunicipalityId = municipalityId,
+                FilterByStatus = filterByStatus,
                 Format = format,
                 ReportTitle = reportTitle
             };
@@ -1090,11 +1117,12 @@ public class ReportsController : ControllerBase
     // ============================================================================
 
     /// <summary>
-    /// Generate a connectivity report (served areas) asynchronously as a background job
+    /// Generate a connectivity report asynchronously as a background job
     /// </summary>
     /// <param name="regionId">Optional filter by region</param>
     /// <param name="provinceId">Optional filter by province</param>
     /// <param name="municipalityId">Optional filter by municipality</param>
+    /// <param name="filterByStatus">Optional filter by connectivity status (Served=3, Underserved=2, Unserved=1). When omitted, all statuses are included.</param>
     /// <param name="format">Report format (Excel or PDF)</param>
     /// <param name="reportTitle">Optional custom report title</param>
     /// <returns>Job information including job ID for status tracking</returns>
@@ -1104,6 +1132,7 @@ public class ReportsController : ControllerBase
         [FromQuery] Guid? regionId = null,
         [FromQuery] Guid? provinceId = null,
         [FromQuery] Guid? municipalityId = null,
+        [FromQuery] ConnectivityStatusEnum? filterByStatus = null,
         [FromQuery] ReportFormat format = ReportFormat.Excel,
         [FromQuery] string? reportTitle = null)
     {
@@ -1122,6 +1151,7 @@ public class ReportsController : ControllerBase
                 RegionId = regionId,
                 ProvinceId = provinceId,
                 MunicipalityId = municipalityId,
+                FilterByStatus = filterByStatus,
                 Format = format,
                 ReportTitle = reportTitle
             };

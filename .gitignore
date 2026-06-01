@@ -373,3 +373,5 @@ FodyWeavers.xsd
 
 # Kubernetes
 k8s/secret.yaml
+.vscode/launch.json
+.vscode/tasks.json
