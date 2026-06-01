@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Application.Helpers;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -50,6 +51,19 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository, IConnectivity
             };
         }
 
+        var serviceProviderName = cell.ServiceProvider?.Provider?.Name ?? cell.Group;
+        var currentNameFollowsTemplate = CellNameHelper.IsTemplateName(
+            cell.Name,
+            serviceProviderName,
+            cell.Address,
+            cell.TowerType.ToString(),
+            cell.Location.Coordinate.X,
+            cell.Location.Coordinate.Y);
+        var hasManualNameUpdate = !string.IsNullOrEmpty(request.Cell.Name);
+        var hasTemplateParameterUpdate = !string.IsNullOrEmpty(request.Cell.TowerType)
+            || request.Cell.Latitude is not 0
+            || request.Cell.Longitude is not 0;
+
         if (!string.IsNullOrEmpty(request.Cell.Name)) cell.Name = request.Cell.Name;
         if (!string.IsNullOrEmpty(request.Cell.CID)) cell.CID = request.Cell.CID;
         if (!string.IsNullOrEmpty(request.Cell.LAC)) cell.LAC = request.Cell.LAC;
@@ -62,6 +76,15 @@ public class UpdateCellByIdHandler(ICellRepository cellRepository, IConnectivity
             cell.Location = GeometryHelper.CreatePoint(new Coordinate(y: request.Cell.Latitude, x: request.Cell.Longitude));
         }
         if (request.Cell.IsVerified.HasValue) cell.IsVerified = request.Cell.IsVerified.Value;
+        if (!hasManualNameUpdate && hasTemplateParameterUpdate && currentNameFollowsTemplate)
+        {
+            cell.Name = CellNameHelper.BuildTemplateName(
+                serviceProviderName,
+                cell.Address,
+                cell.TowerType.ToString(),
+                cell.Location.Coordinate.X,
+                cell.Location.Coordinate.Y);
+        }
 
         _cellRepository.Update(cell);
         await _cellRepository.SaveChangesAsync(cancellationToken);
