@@ -10,6 +10,7 @@ using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Cell;
+using ProviderEntity = NTC.QoS.Domain.Entities.Provider;
 using Xunit;
 
 namespace NTC.QoS.Tests.Application.Features.Cells.Handlers;
@@ -22,13 +23,13 @@ public class UpdateCellByIdHandlerTests
         var serviceProvider1 = new ServiceProvider
         {
             Id = Guid.NewGuid(),
-            Provider = new Provider { Id = Guid.NewGuid(), Name = "Globe", Color = "#111111" },
+            Provider = new ProviderEntity { Id = Guid.NewGuid(), Name = "Globe", Color = "#111111" },
             Service = new Service { Id = Guid.NewGuid(), Name = "Wireless", Type = ServiceTypeEnum.Wireless }
         };
         var serviceProvider2 = new ServiceProvider
         {
             Id = Guid.NewGuid(),
-            Provider = new Provider { Id = Guid.NewGuid(), Name = "Smart", Color = "#222222" },
+            Provider = new ProviderEntity { Id = Guid.NewGuid(), Name = "Smart", Color = "#222222" },
             Service = new Service { Id = Guid.NewGuid(), Name = "Wireless", Type = ServiceTypeEnum.Wireless }
         };
 
@@ -69,14 +70,14 @@ public class UpdateCellByIdHandlerTests
         result.Data!.ServiceProvider!.Id.Should().Be(serviceProvider2.Id);
         result.Data.Group.Should().Be("Updated Group");
         result.Data.Address.Should().Be("Updated Address");
-        result.Data.Name.Should().Be("Cell-Smart-Updated Address-SelfSupporting-122-15");
+        result.Data.Name.Should().Be("Old-Cell");
 
         cell.ServiceProviderId.Should().Be(serviceProvider2.Id);
         cell.Group.Should().Be("Updated Group");
         cell.Address.Should().Be("Updated Address");
         cell.Location.Coordinate.X.Should().Be(122.0);
         cell.Location.Coordinate.Y.Should().Be(15.0);
-        cell.Name.Should().Be("Cell-Smart-Updated Address-SelfSupporting-122-15");
+        cell.Name.Should().Be("Old-Cell");
 
         connectivityTriggerServiceMock.Verify(x => x.TriggerAssessmentAsync(
             It.Is<Point>(p => p.Coordinate.X == 122.0 && p.Coordinate.Y == 15.0),
@@ -92,7 +93,7 @@ public class UpdateCellByIdHandlerTests
         var serviceProvider = new ServiceProvider
         {
             Id = Guid.NewGuid(),
-            Provider = new Provider { Id = Guid.NewGuid(), Name = "Smart", Color = "#222222" },
+            Provider = new ProviderEntity { Id = Guid.NewGuid(), Name = "Smart", Color = "#222222" },
             Service = new Service { Id = Guid.NewGuid(), Name = "Wireless", Type = ServiceTypeEnum.Wireless }
         };
 

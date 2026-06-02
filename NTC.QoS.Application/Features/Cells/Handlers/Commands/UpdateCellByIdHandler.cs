@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Cells.Requests;
+using NTC.QoS.Application.Helpers;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -54,6 +55,15 @@ public class UpdateCellByIdHandler(
                 }
             };
         }
+
+        var serviceProviderName = cell.ServiceProvider?.Provider?.Name ?? cell.Group;
+        var currentNameFollowsTemplate = CellNameHelper.IsTemplateName(
+            cell.Name,
+            serviceProviderName,
+            cell.Address,
+            cell.TowerType.ToString(),
+            cell.Location.Coordinate.X,
+            cell.Location.Coordinate.Y);
 
         if (request.Cell.Latitude.HasValue != request.Cell.Longitude.HasValue)
         {
@@ -198,17 +208,22 @@ public class UpdateCellByIdHandler(
         {
             cell.Name = request.Cell.Name;
         }
-        else if (hasIdentityFieldChange)
+        else if (hasIdentityFieldChange && currentNameFollowsTemplate)
         {
             // Reuse serviceProviderNameForGroup if the service provider hasn't changed; otherwise, fetch the current provider name
-            var serviceProviderName = isServiceProviderChanging
+            var effectiveServiceProviderName = isServiceProviderChanging
                 ? serviceProviderNameForGroup
                 : (await _serviceProviderRepository.FirstOrDefaultAsync(
                     _serviceProviderRepository.QueryAsNoTracking(sp => sp.Id == cell.ServiceProviderId)
                         .Select(sp => sp.Provider.Name),
                     cancellationToken) ?? string.Empty);
 
-            cell.Name = $"Cell-{serviceProviderName}-{updatedAddress ?? string.Empty}-{cell.TowerType}-{cell.Location.Coordinate.X}-{cell.Location.Coordinate.Y}";
+            cell.Name = CellNameHelper.BuildTemplateName(
+                effectiveServiceProviderName,
+                updatedAddress,
+                cell.TowerType.ToString(),
+                cell.Location.Coordinate.X,
+                cell.Location.Coordinate.Y);
         }
 
         var duplicateNameId = await _cellRepository.FirstOrDefaultAsync(
