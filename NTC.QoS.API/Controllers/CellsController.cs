@@ -121,6 +121,26 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>
+    /// Update the cell's supported technologies and bands.
+    /// This operation is independent from cellsite metadata updates (name, address, coordinates).
+    /// Allows bulk management of which technology-band combinations are active for this cell.
+    /// Use this endpoint when updating the Technologies tab on the cell detail page.
+    /// </summary>
+    [HttpPatch("{id}/technologies")]
+    [RequirePermission(Permissions.UpdateCells)]
+    public async Task<ActionResult<ApiResponse<List<CellTechnologyBandDto>>>> UpdateCellTechnologies(
+        Guid id, 
+        UpdateCellTechnologiesBandDto updateTechnologies)
+    {
+        var result = await mediator.Send(new UpdateCellTechnologiesBandRequest(id, updateTechnologies));
+        if (!result.Succeeded)
+            return BadRequest(result);
+
+        RemoveAllCellsCache();
+        return Ok(result);
+    }
+
     [HttpPatch("{id}")]
     [RequirePermission(Permissions.UpdateCells)]
     public async Task<ActionResult<ApiResponse<CellDto>>> UpdateCellById(Guid id, UpdateCellDto updateCell)

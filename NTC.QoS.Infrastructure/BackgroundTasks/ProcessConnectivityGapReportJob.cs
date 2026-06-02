@@ -64,6 +64,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
     private readonly IMunicipalityRepository _municipalityRepository;
     private readonly IRepository<Province> _provinceRepository;
     private readonly IRepository<Region> _regionRepository;
+    private readonly IBarangayCoverageRepository _barangayCoverageRepository;
     private readonly IConfiguration _configuration;
 
     private const string CACHE_KEY_PREFIX = "connectivity_gap_report_job_";
@@ -80,6 +81,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         IMunicipalityRepository municipalityRepository,
         IRepository<Province> provinceRepository,
         IRepository<Region> regionRepository,
+        IBarangayCoverageRepository barangayCoverageRepository,
         IConfiguration configuration)
     {
         _logger = logger;
@@ -91,6 +93,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         _municipalityRepository = municipalityRepository;
         _provinceRepository = provinceRepository;
         _regionRepository = regionRepository;
+        _barangayCoverageRepository = barangayCoverageRepository;
         _configuration = configuration;
     }
 
@@ -106,8 +109,8 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         try
         {
             _logger.LogInformation(
-                "Starting connectivity gap report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, User: {UserId}",
-                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.UserId);
+                "Starting connectivity gap report job {JobId}. Format: {Format}, Region: {Region}, Province: {Province}, Municipality: {Municipality}, FilterByStatus: {FilterByStatus}, User: {UserId}",
+                jobId, jobRequest.Format, jobRequest.RegionId, jobRequest.ProvinceId, jobRequest.MunicipalityId, jobRequest.FilterByStatus, jobRequest.UserId);
 
             // Step 1: Update status to Processing
             await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
@@ -127,19 +130,43 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
 
             _logger.LogInformation("Job {JobId}: Fetching connectivity assessments with filters", jobId);
 
+            // Validate FilterByStatus: gap report only supports Unserved/Underserved; reject Served and any undefined values
+            if (jobRequest.FilterByStatus.HasValue)
+            {
+                var filterByStatus = jobRequest.FilterByStatus.Value;
+
+                if (!Enum.IsDefined(typeof(ConnectivityStatusEnum), filterByStatus) ||
+                    (filterByStatus != ConnectivityStatusEnum.Unserved &&
+                     filterByStatus != ConnectivityStatusEnum.Underserved))
+                {
+                    await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Failed,
+                        $"Invalid FilterByStatus for the gap report: '{filterByStatus}' is not valid. Use 'Unserved' or 'Underserved'.",
+                        startTime: startTime,
+                        endTime: DateTime.UtcNow,
+                        currentStep: "Failed",
+                        cancellationToken: cancellationToken);
+                    _logger.LogWarning("Job {JobId}: Rejected invalid FilterByStatus={FilterByStatus} for gap report", jobId, filterByStatus);
+                    return;
+                }
+            }
+
             // Build assessment query with geographic filters using optimized projection pattern
             var assessmentQuery = _connectivityAssessmentRepository.QueryAsNoTracking();
 
             // Filter by location type: only barangays
             assessmentQuery = assessmentQuery.Where(a => a.LocationType == LocationTypeEnum.Barangay);
 
-            // Filter by overall connectivity status (based on TotalScore)
-            // Only include Underserved and Unserved areas
+            // Gap report always excludes Served areas; apply additional status filter if requested
             assessmentQuery = assessmentQuery.Where(a => 
                 a.ConnectivityStatus == ConnectivityStatusEnum.Unserved || 
                 a.ConnectivityStatus == ConnectivityStatusEnum.Underserved);
 
             // Apply geographic filters using subquery pattern
+            // Only include barangays with BarangayCoverage records
+            var coveredBarangayIds = _barangayCoverageRepository.QueryAsNoTracking()
+                .Select(bc => bc.BarangayId);
+            assessmentQuery = assessmentQuery.Where(a => coveredBarangayIds.Contains(a.LocationId));
+
             if (jobRequest.RegionId.HasValue)
             {
                 // Get provinces in the region
@@ -160,7 +187,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                     {
                         // Get barangays in those municipalities
                         var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                            .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                            .Where(b => municipalityIds.Contains(b.MunicipalityId) && coveredBarangayIds.Contains(b.Id))
                             .Select(b => b.Id)
                             .ToListAsync(cancellationToken);
 
@@ -191,7 +218,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 {
                     // Get barangays in those municipalities
                     var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                        .Where(b => municipalityIds.Contains(b.MunicipalityId))
+                        .Where(b => municipalityIds.Contains(b.MunicipalityId) && coveredBarangayIds.Contains(b.Id))
                         .Select(b => b.Id)
                         .ToListAsync(cancellationToken);
 
@@ -208,7 +235,7 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             {
                 // Get barangays in the municipality
                 var barangayIds = await _barangayRepository.QueryAsNoTracking()
-                    .Where(b => b.MunicipalityId == jobRequest.MunicipalityId.Value)
+                    .Where(b => b.MunicipalityId == jobRequest.MunicipalityId.Value && coveredBarangayIds.Contains(b.Id))
                     .Select(b => b.Id)
                     .ToListAsync(cancellationToken);
 
@@ -240,22 +267,43 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 totalAreas: assessments.Count,
                 cancellationToken: cancellationToken);
 
-            // Build priority areas with location names
-            var priorityAreas = new List<PriorityAreaDto>();
+            // Build priority areas with location names (all gap areas, before optional status filter)
+            var allPriorityAreas = new List<PriorityAreaDto>();
             var locationIds = assessments.Select(a => a.LocationId).ToList();
 
-            // Batch fetch location names using optimized queries
-            var locationNames = await GetLocationNamesBatchAsync(locationIds, cancellationToken);
+            // Single batch query for both location names and municipality/province details
+            var barangayLocationData = locationIds.Count > 0
+                ? await _barangayRepository.ToListAsync(
+                    _barangayRepository.QueryAsNoTracking()
+                        .Where(b => locationIds.Contains(b.Id))
+                        .Select(b => new
+                        {
+                            b.Id,
+                            b.Name,
+                            MunicipalityName = b.Municipality != null ? b.Municipality.Name : string.Empty,
+                            ProvinceName = b.Municipality != null && b.Municipality.Province != null
+                                ? b.Municipality.Province.Name
+                                : string.Empty
+                        }),
+                    cancellationToken)
+                : [];
+            var locationNames = barangayLocationData.ToDictionary(x => x.Id, x => x.Name);
+            var barangayDetails = barangayLocationData.ToDictionary(
+                x => x.Id,
+                x => (x.MunicipalityName, x.ProvinceName));
 
             for (int i = 0; i < assessments.Count; i++)
             {
                 var assessment = assessments[i];
                 var locationName = locationNames.GetValueOrDefault(assessment.LocationId, $"Location-{assessment.LocationId}");
+                var (municipalityName, provinceName) = barangayDetails.GetValueOrDefault(assessment.LocationId);
 
-                priorityAreas.Add(new PriorityAreaDto
+                allPriorityAreas.Add(new PriorityAreaDto
                 {
                     LocationId = assessment.LocationId,
                     LocationName = locationName,
+                    MunicipalityName = municipalityName,
+                    ProvinceName = provinceName,
                     ConnectivityStatus = assessment.ConnectivityStatus,
                     Population = assessment.Population,
                     TotalScore = assessment.TotalScore,
@@ -276,20 +324,28 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
                 }
             }
 
+            // Summary always reflects ALL gap areas (unserved + underserved) regardless of FilterByStatus
+            var summary = new ConnectivityGapSummaryDto
+            {
+                TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
+                TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
+                UnservedPopulation = assessments
+                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
+                    .Sum(a => a.Population ?? 0),
+                UnderservedPopulation = assessments
+                    .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
+                    .Sum(a => a.Population ?? 0)
+            };
+
+            // Apply optional status filter to the priority areas list
+            var priorityAreas = jobRequest.FilterByStatus.HasValue
+                ? allPriorityAreas.Where(a => a.ConnectivityStatus == jobRequest.FilterByStatus.Value).ToList()
+                : allPriorityAreas;
+
             // Create report DTO using overall ConnectivityStatus
             var reportData = new ConnectivityGapReportDto
             {
-                Summary = new ConnectivityGapSummaryDto
-                {
-                    TotalUnservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved),
-                    TotalUnderservedAreas = assessments.Count(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved),
-                    UnservedPopulation = assessments
-                        .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Unserved)
-                        .Sum(a => a.Population ?? 0),
-                    UnderservedPopulation = assessments
-                        .Where(a => a.ConnectivityStatus == ConnectivityStatusEnum.Underserved)
-                        .Sum(a => a.Population ?? 0)
-                },
+                Summary = summary,
                 PriorityAreas = priorityAreas,
                 TotalPriorityAreas = priorityAreas.Count,
                 PageNumber = 1,
@@ -299,11 +355,11 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
             };
 
             _logger.LogInformation(
-                "Job {JobId}: Report data generated. Unserved: {Unserved}, Underserved: {Underserved}, Priority Areas: {PriorityCount}",
-                jobId, reportData.Summary.TotalUnservedAreas, reportData.Summary.TotalUnderservedAreas, priorityAreas.Count);
+                "Job {JobId}: Report data generated. Unserved: {Unserved}, Underserved: {Underserved}, Priority Areas in report: {PriorityCount}",
+                jobId, summary.TotalUnservedAreas, summary.TotalUnderservedAreas, priorityAreas.Count);
 
             await UpdateJobStatusAsync(jobId, ConnectivityGapReportJobStatusEnum.Processing,
-                $"Data generated: {reportData.Summary.TotalUnservedAreas} unserved, {reportData.Summary.TotalUnderservedAreas} underserved areas",
+                $"Data generated: {summary.TotalUnservedAreas} unserved, {summary.TotalUnderservedAreas} underserved areas",
                 currentStep: "Generating Report",
                 progressPercentage: 40,
                 areasProcessed: assessments.Count,
@@ -456,43 +512,6 @@ public class ProcessConnectivityGapReportJob : IProcessConnectivityGapReportJob
         }
 
         await Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Batch fetch location names for barangays using optimized queries
-    /// </summary>
-    private async Task<Dictionary<Guid, string>> GetLocationNamesBatchAsync(
-        List<Guid> locationIds,
-        CancellationToken cancellationToken)
-    {
-        var result = new Dictionary<Guid, string>();
-
-        if (!locationIds.Any())
-        {
-            return result;
-        }
-
-        // Fetch barangays with their municipality and province information using optimized projection
-        // OPTIMIZATION: Project only needed fields to avoid geometry materialization
-        var barangayData = await _barangayRepository.ToListAsync(
-            _barangayRepository.QueryAsNoTracking()
-                .Where(b => locationIds.Contains(b.Id))
-                .Select(b => new
-                {
-                    b.Id,
-                    b.Name,
-                    MunicipalityName = b.Municipality.Name,
-                    ProvinceName = b.Municipality.Province.Name
-                }),
-            cancellationToken);
-
-        foreach (var barangay in barangayData)
-        {
-            var locationName = $"{barangay.Name}, {barangay.MunicipalityName}, {barangay.ProvinceName}";
-            result[barangay.Id] = locationName;
-        }
-
-        return result;
     }
 
     /// <summary>

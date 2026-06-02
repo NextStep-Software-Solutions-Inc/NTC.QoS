@@ -27,6 +27,7 @@ public interface IRepository<TEntity> where TEntity : BaseEntity
     void RemoveRange(IEnumerable<TEntity> entities);
     void Update(TEntity entity);
     void Delete(TEntity entity);
+    void Detach(TEntity entity);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<PaginatedResponse<TResult>> PaginateAsync<TResult>(IQueryable<TResult> queryable, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
 

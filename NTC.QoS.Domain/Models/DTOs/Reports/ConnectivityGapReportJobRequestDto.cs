@@ -33,6 +33,13 @@ public class ConnectivityGapReportJobRequestDto
     public Guid? MunicipalityId { get; set; }
 
     /// <summary>
+    /// Optional filter by connectivity status within gap areas.
+    /// When null, all gap areas (Unserved and Underserved) are included.
+    /// Only Unserved (1) and Underserved (2) are applicable; Served areas are never included in the gap report.
+    /// </summary>
+    public ConnectivityStatusEnum? FilterByStatus { get; set; }
+
+    /// <summary>
     /// Report format (Excel or PDF)
     /// </summary>
     public ReportFormat Format { get; set; } = ReportFormat.Excel;

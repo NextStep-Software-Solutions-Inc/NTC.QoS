@@ -85,6 +85,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
     public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default) => await _context.AddAsync(entity, cancellationToken);
     public void Update(TEntity entity) => _context.Update(entity);
     public void Delete(TEntity entity) => _context.Remove(entity);
+    public void Detach(TEntity entity) => _context.Entry(entity).State = EntityState.Detached;
     public void AddRange(IEnumerable<TEntity> entities) => _context.AddRange(entities);
     public async Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default) => await _context.BulkInsertAsync(entities, cancellationToken: cancellationToken);
     public void RemoveRange(IEnumerable<TEntity> entities) => _context.RemoveRange(entities);
