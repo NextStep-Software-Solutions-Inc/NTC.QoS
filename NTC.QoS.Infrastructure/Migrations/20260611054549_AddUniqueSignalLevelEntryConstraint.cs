@@ -32,18 +32,19 @@ namespace NTC.QoS.Infrastructure.Migrations
                 table: "SignalLevelEntries");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SignalLevelEntries_SignalLevelId_ThresholdFrom_ThresholdTo_SortOrder_Active",
+                name: "IX_SignalLevelEntries_SignalLevelId_Range_SortOrder_Active",
                 table: "SignalLevelEntries",
                 columns: new[] { "SignalLevelId", "ThresholdFrom", "ThresholdTo", "SortOrder" },
                 unique: true,
-                filter: "\"IsDeleted\" = FALSE");
+                filter: "\"IsDeleted\" = FALSE")
+                .Annotation("Npgsql:NullsDistinct", false);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropIndex(
-                name: "IX_SignalLevelEntries_SignalLevelId_ThresholdFrom_ThresholdTo_SortOrder_Active",
+                name: "IX_SignalLevelEntries_SignalLevelId_Range_SortOrder_Active",
                 table: "SignalLevelEntries");
 
             migrationBuilder.CreateIndex(

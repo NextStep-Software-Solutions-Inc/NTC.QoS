@@ -47,7 +47,7 @@ All fields are optional — only include what you want to change.
 ## Endpoints
 
 ### POST `/signal-levels/{signalLevelId}/entries`
-**Permission:** `CreateSignalLevelEntries`
+**Permission:** `signal_level_entries.create`
 
 Creates a new signal level entry under the given signal level.
 
@@ -114,7 +114,7 @@ Content-Type: application/json
 ---
 
 ### GET `/signal-levels/{signalLevelId}/entries`
-**Permission:** `ViewSignalLevelEntries`
+**Permission:** `signal_level_entries.view`
 
 Returns a paginated list of entries for the signal level.
 
@@ -153,7 +153,7 @@ Returns a paginated list of entries for the signal level.
 ---
 
 ### GET `/signal-levels/{signalLevelId}/entries/{id}`
-**Permission:** `ViewSignalLevelEntries`
+**Permission:** `signal_level_entries.view`
 
 Returns a single entry by ID.
 
@@ -190,7 +190,7 @@ Returns a single entry by ID.
 ---
 
 ### PATCH `/signal-levels/{signalLevelId}/entries/{id}`
-**Permission:** `UpdateSignalLevelEntries`
+**Permission:** `signal_level_entries.update`
 
 Partially updates an entry. Only send the fields you want to change.
 
@@ -228,7 +228,7 @@ Content-Type: application/json
 ---
 
 ### DELETE `/signal-levels/{signalLevelId}/entries/{id}`
-**Permission:** `DeleteSignalLevelEntries`
+**Permission:** `signal_level_entries.delete`
 
 Soft-deletes an entry.
 

@@ -2600,7 +2600,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
                     b.HasIndex("SignalLevelId", "ThresholdFrom", "ThresholdTo", "SortOrder")
                         .IsUnique()
-                        .HasDatabaseName("IX_SignalLevelEntries_SignalLevelId_ThresholdFrom_ThresholdTo_SortOrder_Active")
+                        .HasDatabaseName("IX_SignalLevelEntries_SignalLevelId_Range_SortOrder_Active")
+                        .AreNullsDistinct(false)
                         .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("SignalLevelEntries");

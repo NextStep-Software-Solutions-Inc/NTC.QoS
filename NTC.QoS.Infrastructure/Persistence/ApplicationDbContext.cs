@@ -219,8 +219,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<SignalLevelEntry>()
             .HasIndex(sle => new { sle.SignalLevelId, sle.ThresholdFrom, sle.ThresholdTo, sle.SortOrder })
-            .HasDatabaseName("IX_SignalLevelEntries_SignalLevelId_ThresholdFrom_ThresholdTo_SortOrder_Active")
+            .HasDatabaseName("IX_SignalLevelEntries_SignalLevelId_Range_SortOrder_Active")
             .IsUnique()
+            .AreNullsDistinct(false)
             .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Study>()
