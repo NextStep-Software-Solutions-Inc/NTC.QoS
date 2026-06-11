@@ -406,7 +406,9 @@ public static class AuthorizationSeeder
                 Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors,
                 Permissions.ViewProviders, Permissions.CreateProviders, Permissions.UpdateProviders,
                 Permissions.ViewTechnologies, Permissions.ViewBands, Permissions.ViewGenerations,
-                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports
+                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports,
+                Permissions.ViewSignalLevels, Permissions.CreateSignalLevels, Permissions.UpdateSignalLevels, Permissions.DeleteSignalLevels,
+                Permissions.ViewSignalLevelEntries, Permissions.CreateSignalLevelEntries, Permissions.UpdateSignalLevelEntries, Permissions.DeleteSignalLevelEntries
             };
             await AssignPermissionsToRole(context, logger, managerRole, managerPermissions);
         }
@@ -426,7 +428,8 @@ public static class AuthorizationSeeder
                 Permissions.ViewUserRegions, Permissions.CreateUserRegions, Permissions.UpdateUserRegions,
                 Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
                 Permissions.ViewNetworks, Permissions.ViewProviders,
-                Permissions.ViewReports, Permissions.CreateReports
+                Permissions.ViewReports, Permissions.CreateReports,
+                Permissions.ViewSignalLevels, Permissions.ViewSignalLevelEntries
             };
             await AssignPermissionsToRole(context, logger, regionalManagerRole, regionalPermissions);
         }
@@ -444,7 +447,8 @@ public static class AuthorizationSeeder
                 Permissions.ViewOrganizations, Permissions.ViewRegions, Permissions.ViewZones,
                 Permissions.ViewCells, Permissions.ViewNetworks, Permissions.ViewSectors,
                 Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
-                Permissions.ViewReports
+                Permissions.ViewReports,
+                Permissions.ViewSignalLevels, Permissions.ViewSignalLevelEntries
             };
             await AssignPermissionsToRole(context, logger, viewerRole, viewerPermissions);
         }

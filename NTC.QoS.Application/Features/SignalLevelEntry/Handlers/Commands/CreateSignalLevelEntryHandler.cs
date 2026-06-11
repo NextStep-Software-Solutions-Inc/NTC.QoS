@@ -32,6 +32,26 @@ public class CreateSignalLevelEntryHandler(
             };
         }
 
+        var currentEntryCount = await _repository.CountAsync(
+            _repository.Query(sle => sle.SignalLevelId == request.SignalLevelId),
+            cancellationToken);
+
+        if (currentEntryCount >= signalLevel.NoOfLevels)
+        {
+            return new ApiResponse<SignalLevelEntryDto>
+            {
+                Succeeded = false,
+                Message = "Signal level entry limit reached.",
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "SignalLevelId",
+                        [$"This signal level already has {currentEntryCount} entries, which equals the configured maximum of {signalLevel.NoOfLevels}."]
+                    }
+                }
+            };
+        }
+
         var hasDuplicate = await _repository.CountAsync(
             _repository.Query(sle =>
                 sle.SignalLevelId == request.SignalLevelId &&

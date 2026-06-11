@@ -251,9 +251,11 @@ A signal level entry is considered a **duplicate** when another non-deleted entr
 | Field          | Enforced at         |
 |----------------|---------------------|
 | `signalLevelId`| App layer + Database |
-| `thresholdFrom`| App layer + Database |
-| `thresholdTo`  | App layer + Database |
+| `thresholdFrom`| App layer + Database (see note below) |
+| `thresholdTo`  | App layer + Database (see note below) |
 | `sortOrder`    | App layer + Database |
+
+> **Note on NULL thresholds:** The database unique index uses `NULLS NOT DISTINCT` (PostgreSQL 15+), which means two `NULL` values in `thresholdFrom` or `thresholdTo` are treated as equal for uniqueness purposes. Database enforcement is therefore complete for all field combinations, including those where `thresholdFrom` or `thresholdTo` is `NULL`.
 
 This rule applies to both **create** and **update** operations.
 
