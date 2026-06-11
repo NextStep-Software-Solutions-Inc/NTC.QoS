@@ -200,6 +200,18 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UpdateAreaStudyTypes, Name = "Update Area Study Types", Description = "Can update area study type information" },
             new { Key = Permissions.DeleteAreaStudyTypes, Name = "Delete Area Study Types", Description = "Can delete area study types" },
 
+            // Signal Level permissions
+            new { Key = Permissions.ViewSignalLevels, Name = "View Signal Levels", Description = "Can view signal level listings" },
+            new { Key = Permissions.CreateSignalLevels, Name = "Create Signal Levels", Description = "Can create signal levels" },
+            new { Key = Permissions.UpdateSignalLevels, Name = "Update Signal Levels", Description = "Can update signal levels" },
+            new { Key = Permissions.DeleteSignalLevels, Name = "Delete Signal Levels", Description = "Can delete signal levels" },
+
+            // Signal Level Entry permissions
+            new { Key = Permissions.ViewSignalLevelEntries, Name = "View Signal Level Entries", Description = "Can view signal level entry listings" },
+            new { Key = Permissions.CreateSignalLevelEntries, Name = "Create Signal Level Entries", Description = "Can create signal level entries" },
+            new { Key = Permissions.UpdateSignalLevelEntries, Name = "Update Signal Level Entries", Description = "Can update signal level entries" },
+            new { Key = Permissions.DeleteSignalLevelEntries, Name = "Delete Signal Level Entries", Description = "Can delete signal level entries" },
+
             // Cell permissions
             new { Key = Permissions.ViewCells, Name = "View Cells", Description = "Can view cell tower listings" },
             new { Key = Permissions.CreateCells, Name = "Create Cells", Description = "Can create new cell towers" },
