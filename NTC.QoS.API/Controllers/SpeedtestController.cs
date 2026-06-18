@@ -22,6 +22,19 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     private const string SpeedtestsCachePrefix = "speedtest_";
     private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
+    // The list cache key is derived from SpeedtestsCacheVersionDto (row count +
+    // last-modified timestamp), not just query params, so it changes automatically
+    // whenever the Speedtests table changes — through this API, a job, or raw SQL.
+    // That means staleness is now bounded by how often we re-check the version, not
+    // by this TTL, so this can safely be generous.
+    private static readonly TimeSpan SpeedtestsCacheDuration = TimeSpan.FromMinutes(5);
+
+    // How long a fetched version signal is trusted before re-querying the DB. This is
+    // the real staleness bound: worst case, a write is invisible for this long. Kept
+    // short and cheap (one grouped aggregate query) rather than running it per request.
+    private static readonly TimeSpan SpeedtestsVersionCacheDuration = TimeSpan.FromSeconds(5);
+    private const string SpeedtestsVersionCacheKey = "speedtest_version";
+
     [HttpPost]
     [RequirePermission(Permissions.CreateSpeedtests)]
     public async Task<ActionResult<ApiResponse<Guid>>> CreateSpeedtest(CreateSpeedtestDto createSpeedtest)
@@ -100,9 +113,33 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         return Ok(speedtests);
     }
 
+    /// <summary>
+    /// Manually busts the in-memory speedtests cache on this instance — both the cached
+    /// version signal and all cached list results. Useful right after an out-of-band
+    /// write (manual DB edits, scripts, migrations) if you don't want to wait out
+    /// SpeedtestsVersionCacheDuration for the version to be re-checked.
+    /// NOTE: IMemoryCache is per-process. If the API runs as multiple replicas, this
+    /// only clears the instance that receives the request — call it on every replica,
+    /// or move to a shared cache (e.g. Redis) once horizontal scaling is in play.
+    /// </summary>
+    [HttpPost("cache/clear")]
+    [RequirePermission(Permissions.DeleteSpeedtests)] // consider a dedicated CacheManagement permission
+    public ActionResult<ApiResponse<bool>> ClearSpeedtestsCache()
+    {
+        RemoveAllSpeedtestsCache();
+        return Ok(new ApiResponse<bool>
+        {
+            Succeeded = true,
+            Message = "Speedtest cache cleared.",
+            Data = true
+        });
+    }
+
     private async Task<ActionResult<PaginatedResponse<SpeedtestDto>>> GetAllSpeedtests(SpeedtestsQueryParams query)
     {
-        var cacheKey = $"{SpeedtestsCachePrefix}{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
+        var version = await GetSpeedtestsVersionAsync();
+
+        var cacheKey = $"{SpeedtestsCachePrefix}v{version.Count}_{version.LastModifiedAt:O}_{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
             $"{string.Join(",", query.BarangayIds ?? [])}_" +
             $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
             $"{string.Join(",", query.ProvinceIds ?? [])}_" +
@@ -140,10 +177,29 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         var speedtests = await mediator.Send(request);
         if (speedtests.Succeeded && speedtests.Data != null)
         {
-            memoryCache.Set(cacheKey, speedtests, TimeSpan.FromHours(1));
+            memoryCache.Set(cacheKey, speedtests, SpeedtestsCacheDuration);
             TrackCacheKey(cacheKey);
         }
         return speedtests.Succeeded ? Ok(speedtests) : BadRequest(speedtests);
+    }
+
+    /// <summary>
+    /// Returns the current speedtests version signal, using a short-lived in-memory
+    /// cache so the underlying aggregate query runs at most once per
+    /// SpeedtestsVersionCacheDuration rather than once per request.
+    /// </summary>
+    private async Task<SpeedtestsCacheVersionDto> GetSpeedtestsVersionAsync()
+    {
+        if (memoryCache.TryGetValue(SpeedtestsVersionCacheKey, out SpeedtestsCacheVersionDto? cachedVersion) && cachedVersion != null)
+            return cachedVersion;
+
+        var result = await mediator.Send(new GetSpeedtestsCacheVersionRequest());
+        var version = result.Succeeded && result.Data != null
+            ? result.Data
+            : new SpeedtestsCacheVersionDto(0, DateTime.MinValue);
+
+        memoryCache.Set(SpeedtestsVersionCacheKey, version, SpeedtestsVersionCacheDuration);
+        return version;
     }
 
     private void TrackCacheKey(string key)
@@ -152,12 +208,14 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
         if (keys != null)
         {
             keys.Add(key);
-            memoryCache.Set(SpeedtestsCacheKeysSet, keys, TimeSpan.FromHours(1));
+            memoryCache.Set(SpeedtestsCacheKeysSet, keys, SpeedtestsCacheDuration);
         }
     }
 
     private void RemoveAllSpeedtestsCache()
     {
+        memoryCache.Remove(SpeedtestsVersionCacheKey);
+
         if (memoryCache.TryGetValue<HashSet<string>>(SpeedtestsCacheKeysSet, out var keys) && keys != null)
         {
             foreach (var key in keys)
