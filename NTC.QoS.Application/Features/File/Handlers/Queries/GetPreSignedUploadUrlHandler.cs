@@ -35,9 +35,9 @@ public class GetPreSignedUploadUrlHandler(
             FileTypeEnum fileType = Enum.TryParse<FileTypeEnum>(request.FileType, out var parsedType) ? parsedType : FileTypeEnum.Unknown;
             var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
             string originalFileName = request.FileName;
-            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName).Replace(" ", "-");
             string fileExtension = Path.GetExtension(originalFileName);
-            string newFileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}";
+            string fileGuid = Guid.NewGuid().ToString("N");
+            string newFileName = $"{timestamp}_{fileGuid}{fileExtension}";
 
             var regionCode = await GetRegionCodeAsync(request.RegionId, cancellationToken);
             if (string.IsNullOrEmpty(regionCode))
