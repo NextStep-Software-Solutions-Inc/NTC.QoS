@@ -1,5 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Storage.Sas;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NTC.QoS.Domain.Interfaces;
@@ -314,4 +321,61 @@ public class BlobStorageService(
         }
     }
 
+    /// <inheritdoc />
+    public string GeneratePreSignedUploadUrl(string containerName, string fileName, TimeSpan? expiryWindow = null)
+    {
+        var expiry = expiryWindow ?? TimeSpan.FromMinutes(1);
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var blobClient = containerClient.GetBlobClient(fileName);
+
+        if (!blobClient.CanGenerateSasUri)
+        {
+            _logger.LogError("BlobClient cannot generate SAS URI for container {ContainerName}, blob {FileName}", containerName, fileName);
+            throw new InvalidOperationException("BlobClient cannot generate SAS URI with the configured Azure credentials.");
+        }
+
+        var sasBuilder = new BlobSasBuilder
+        {
+            BlobContainerName = containerName,
+            BlobName = fileName,
+            Resource = "b",
+            StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
+            ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
+        };
+
+        sasBuilder.SetPermissions(BlobSasPermissions.Write | BlobSasPermissions.Create);
+
+        var sasUri = blobClient.GenerateSasUri(sasBuilder);
+        _logger.LogInformation("Generated pre-signed upload SAS URL for blob {FileName} in container {ContainerName} (expires in {Expiry})", fileName, containerName, expiry);
+        return sasUri.ToString();
+    }
+
+    /// <inheritdoc />
+    public string GeneratePreSignedDownloadUrl(string containerName, string fileName, TimeSpan? expiryWindow = null)
+    {
+        var expiry = expiryWindow ?? TimeSpan.FromMinutes(1);
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var blobClient = containerClient.GetBlobClient(fileName);
+
+        if (!blobClient.CanGenerateSasUri)
+        {
+            _logger.LogError("BlobClient cannot generate SAS URI for container {ContainerName}, blob {FileName}", containerName, fileName);
+            throw new InvalidOperationException("BlobClient cannot generate SAS URI with the configured Azure credentials.");
+        }
+
+        var sasBuilder = new BlobSasBuilder
+        {
+            BlobContainerName = containerName,
+            BlobName = fileName,
+            Resource = "b",
+            StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
+            ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
+        };
+
+        sasBuilder.SetPermissions(BlobSasPermissions.Read);
+
+        var sasUri = blobClient.GenerateSasUri(sasBuilder);
+        _logger.LogInformation("Generated pre-signed download SAS URL for blob {FileName} in container {ContainerName} (expires in {Expiry})", fileName, containerName, expiry);
+        return sasUri.ToString();
+    }
 }
