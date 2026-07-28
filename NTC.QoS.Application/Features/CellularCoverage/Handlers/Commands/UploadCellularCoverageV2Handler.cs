@@ -73,9 +73,9 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
             // Step 2: Prepare file for upload
             var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
             string originalFileName = request.CsvFile.FileName;
-            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName).Replace(" ", "-");
             string fileExtension = Path.GetExtension(originalFileName);
-            string fileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}";
+            string fileGuid = Guid.NewGuid().ToString("N");
+            string fileName = $"{timestamp}_{fileGuid}{fileExtension}";
 
             // Step 3: Determine container and blob path
             string containerName = GetContainerName();
@@ -106,7 +106,7 @@ public class UploadCellularCoverageV2Handler : IRequestHandler<UploadCellularCov
             // Step 5: Create file record in database
             var fileRecord = new Domain.Entities.File
             {
-                Name = fileName,
+                Name = originalFileName,
                 Path = blobUrl,
                 Type = FileTypeEnum.CellularCoverageV2,
                 Status = FileStatusEnum.Pending,

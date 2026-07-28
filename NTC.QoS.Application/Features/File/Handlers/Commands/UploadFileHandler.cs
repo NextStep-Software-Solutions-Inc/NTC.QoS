@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.File.Requests;
@@ -33,9 +33,9 @@ public class UploadFileHandler(
             FileTypeEnum fileType = Enum.TryParse<FileTypeEnum>(request.File.Type, out var parsedType) ? parsedType : FileTypeEnum.Unknown;
             var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
             string originalFileName = request.File.FileName ?? request.File.File.FileName;
-            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName).Replace(" ", "-");
             string fileExtension = Path.GetExtension(originalFileName);
-            string newFileName = $"{fileNameWithoutExtension}_{timestamp}{fileExtension}";
+            string fileGuid = Guid.NewGuid().ToString("N");
+            string newFileName = $"{timestamp}_{fileGuid}{fileExtension}";
 
             _logger.LogInformation("Processing file upload - Original: {OriginalFileName}, New: {NewFileName}, ContentType: {ContentType}, Size: {FileSize} bytes",
                 originalFileName, newFileName, request.File.File.ContentType, request.File.File.Length);
@@ -88,7 +88,7 @@ public class UploadFileHandler(
 
             var newFile = new Domain.Entities.File
             {
-                Name = newFileName,
+                Name = originalFileName,
                 Type = fileType,
                 Path = blobUrl,
                 Status = FileStatusEnum.Pending,
