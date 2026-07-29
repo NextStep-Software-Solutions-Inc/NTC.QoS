@@ -121,6 +121,17 @@ The primary objectives of this system are to:
 - Granular permission system
 - Audit trail capabilities
 
+### 7. **Verbose API Activity Logging**
+
+- **Complete Request/Response Capture**: Logs 100% of API traffic with full details
+- **Correlation ID Tracking**: Automatic generation and tracking of correlation IDs for request tracing
+- **Sensitive Data Redaction**: Automatic masking of passwords, tokens, API keys, and other sensitive information
+- **Configurable Verbosity**: Toggle logging components (headers, bodies) via configuration without code changes
+- **File-Based Persistence**: Logs written to rolling files with configurable retention policies
+- **Structured JSON Logging**: Easy parsing and analysis of log data
+- **Performance Tracking**: Automatic elapsed time tracking for each request
+- See [VERBOSE_API_LOGGING.md](./docs/VERBOSE_API_LOGGING.md) for detailed documentation
+
 ## 📊 Use Cases
 
 ### For NTC Regulators
