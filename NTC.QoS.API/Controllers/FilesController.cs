@@ -1,4 +1,8 @@
-﻿using System.ComponentModel;
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.ComponentModel;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -89,6 +93,25 @@ public class FilesController(IMediator mediator) : ControllerBase
     {
         var file = await _mediator.Send(new GetFileByIdRequest(id));
         return file.Succeeded ? Ok(file) : BadRequest(file);
+    }
+
+    [HttpGet("presigned-upload-url")]
+    [RequirePermission(Permissions.UploadFiles)]
+    public async Task<ActionResult<ApiResponse<PreSignedUrlDto>>> GetPreSignedUploadUrl(
+        [FromQuery] string fileName,
+        [FromQuery] string fileType,
+        [FromQuery] Guid regionId)
+    {
+        var response = await _mediator.Send(new GetPreSignedUploadUrlRequest(fileName, fileType, regionId));
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    [HttpGet("{id}/presigned-download-url")]
+    [RequirePermission(Permissions.ViewFiles)]
+    public async Task<ActionResult<ApiResponse<PreSignedUrlDto>>> GetPreSignedDownloadUrl(Guid id)
+    {
+        var response = await _mediator.Send(new GetPreSignedDownloadUrlRequest(id));
+        return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
     [HttpPut("{id}")]

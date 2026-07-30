@@ -1,15 +1,22 @@
 ﻿using FluentValidation;
 using MediatR;
 using NTC.QoS.Application.Features.Provider.Requests;
+using NTC.QoS.Application.Helpers;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Provider;
 
 namespace NTC.QoS.Application.Features.Provider.Handlers.Commands;
 
-public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> repository, IValidator<UpdateProviderByIdRequest> validator) : IRequestHandler<UpdateProviderByIdRequest, ApiResponse<ProviderDto>>
+public class UpdateProviderByIdHandler(
+    IRepository<Domain.Entities.Provider> repository,
+    IValidator<UpdateProviderByIdRequest> validator,
+    IServiceProviderRepository serviceProviderRepository,
+    ICellRepository cellRepository) : IRequestHandler<UpdateProviderByIdRequest, ApiResponse<ProviderDto>>
 {
     private readonly IRepository<Domain.Entities.Provider> _repository = repository;
+    private readonly IServiceProviderRepository _serviceProviderRepository = serviceProviderRepository;
+    private readonly ICellRepository _cellRepository = cellRepository;
 
     public async Task<ApiResponse<ProviderDto>> Handle(UpdateProviderByIdRequest request, CancellationToken cancellationToken)
     {
@@ -40,6 +47,8 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
                 Message = "The provider you are trying to update does not exist."
             };
         }
+
+        var previousProviderName = provider.Name;
         provider.Name = request.Provider.Name ?? provider.Name;
         provider.Description = request.Provider.Description ?? provider.Description;
         provider.LicenseNumber = request.Provider.LicenseNumber ?? provider.LicenseNumber;
@@ -47,6 +56,54 @@ public class UpdateProviderByIdHandler(IRepository<Domain.Entities.Provider> rep
 
         _repository.Update(provider);
         await _repository.SaveChangesAsync(cancellationToken);
+
+        if (!string.Equals(previousProviderName, provider.Name, StringComparison.Ordinal))
+        {
+            var serviceProviderIds = _serviceProviderRepository
+                .Query(sp => sp.ProviderId == provider.Id)
+                .Select(sp => sp.Id)
+                .ToList();
+            if (serviceProviderIds.Count > 0)
+            {
+                var cells = _cellRepository
+                    .Query(cell => serviceProviderIds.Contains(cell.ServiceProviderId))
+                    .ToList();
+                var hasUpdatedCells = false;
+
+                foreach (var cell in cells)
+                {
+                    if (cell.Location == null)
+                    {
+                        continue;
+                    }
+
+                    if (!CellNameHelper.IsTemplateName(
+                        cell.Name,
+                        previousProviderName,
+                        cell.Address,
+                        cell.TowerType.ToString(),
+                        cell.Location.Coordinate.X,
+                        cell.Location.Coordinate.Y))
+                    {
+                        continue;
+                    }
+
+                    cell.Name = CellNameHelper.BuildTemplateName(
+                        provider.Name,
+                        cell.Address,
+                        cell.TowerType.ToString(),
+                        cell.Location.Coordinate.X,
+                        cell.Location.Coordinate.Y);
+                    _cellRepository.Update(cell);
+                    hasUpdatedCells = true;
+                }
+
+                if (hasUpdatedCells)
+                {
+                    await _cellRepository.SaveChangesAsync(cancellationToken);
+                }
+            }
+        }
 
         return new ApiResponse<ProviderDto>
         {

@@ -14,6 +14,7 @@ using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using Npgsql;
+using ProviderEntity = NTC.QoS.Domain.Entities.Provider;
 using Xunit;
 
 namespace NTC.QoS.Tests.Application.Features.Cells.Handlers;
@@ -350,7 +351,7 @@ public class UpdateCellTechnologiesBandHandlerTests
     private static ServiceProvider MakeServiceProvider() => new()
     {
         Id = ServiceProviderId,
-        Provider = new Provider { Id = Guid.NewGuid(), Name = "Globe", Color = "#FFF" },
+        Provider = new ProviderEntity { Id = Guid.NewGuid(), Name = "Globe", Color = "#FFF" },
         Service = new Service { Id = Guid.NewGuid(), Name = "Wireless", Type = ServiceTypeEnum.Wireless }
     };
 

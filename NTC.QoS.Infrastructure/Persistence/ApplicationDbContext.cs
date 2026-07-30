@@ -26,6 +26,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Generation> Generations { get; set; }
     public DbSet<AntennaPattern> AntennaPatterns { get; set; }
     public DbSet<AreaStudy> AreaStudies { get; set; }
+    public DbSet<SignalLevel> SignalLevels { get; set; }
+    public DbSet<SignalLevelEntry> SignalLevelEntries { get; set; }
     public DbSet<Band> Bands { get; set; }
     public DbSet<Barangay> Barangays { get; set; }
     public DbSet<BarangayCoverage> BarangayCoverages { get; set; }
@@ -204,6 +206,23 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(a => a.Studies)
             .WithOne(s => s.AreaStudy)
             .HasForeignKey(s => s.AreaStudyId);
+
+        modelBuilder.Entity<AreaStudy>()
+            .HasMany(a => a.SignalLevels)
+            .WithOne(sl => sl.AreaStudy)
+            .HasForeignKey(sl => sl.AreaStudyId);
+
+        modelBuilder.Entity<SignalLevel>()
+            .HasMany(sl => sl.SignalLevelEntries)
+            .WithOne(sle => sle.SignalLevel)
+            .HasForeignKey(sle => sle.SignalLevelId);
+
+        modelBuilder.Entity<SignalLevelEntry>()
+            .HasIndex(sle => new { sle.SignalLevelId, sle.ThresholdFrom, sle.ThresholdTo, sle.SortOrder })
+            .HasDatabaseName("IX_SignalLevelEntries_SignalLevelId_Range_SortOrder_Active")
+            .IsUnique()
+            .AreNullsDistinct(false)
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Study>()
             .HasMany(s => s.StudyMunicipalities)

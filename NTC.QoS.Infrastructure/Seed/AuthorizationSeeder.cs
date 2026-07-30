@@ -200,6 +200,18 @@ public static class AuthorizationSeeder
             new { Key = Permissions.UpdateAreaStudyTypes, Name = "Update Area Study Types", Description = "Can update area study type information" },
             new { Key = Permissions.DeleteAreaStudyTypes, Name = "Delete Area Study Types", Description = "Can delete area study types" },
 
+            // Signal Level permissions
+            new { Key = Permissions.ViewSignalLevels, Name = "View Signal Levels", Description = "Can view signal level listings" },
+            new { Key = Permissions.CreateSignalLevels, Name = "Create Signal Levels", Description = "Can create signal levels" },
+            new { Key = Permissions.UpdateSignalLevels, Name = "Update Signal Levels", Description = "Can update signal levels" },
+            new { Key = Permissions.DeleteSignalLevels, Name = "Delete Signal Levels", Description = "Can delete signal levels" },
+
+            // Signal Level Entry permissions
+            new { Key = Permissions.ViewSignalLevelEntries, Name = "View Signal Level Entries", Description = "Can view signal level entry listings" },
+            new { Key = Permissions.CreateSignalLevelEntries, Name = "Create Signal Level Entries", Description = "Can create signal level entries" },
+            new { Key = Permissions.UpdateSignalLevelEntries, Name = "Update Signal Level Entries", Description = "Can update signal level entries" },
+            new { Key = Permissions.DeleteSignalLevelEntries, Name = "Delete Signal Level Entries", Description = "Can delete signal level entries" },
+
             // Cell permissions
             new { Key = Permissions.ViewCells, Name = "View Cells", Description = "Can view cell tower listings" },
             new { Key = Permissions.CreateCells, Name = "Create Cells", Description = "Can create new cell towers" },
@@ -394,7 +406,9 @@ public static class AuthorizationSeeder
                 Permissions.ViewSectors, Permissions.CreateSectors, Permissions.UpdateSectors,
                 Permissions.ViewProviders, Permissions.CreateProviders, Permissions.UpdateProviders,
                 Permissions.ViewTechnologies, Permissions.ViewBands, Permissions.ViewGenerations,
-                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports
+                Permissions.ViewReports, Permissions.CreateReports, Permissions.ExportReports,
+                Permissions.ViewSignalLevels, Permissions.CreateSignalLevels, Permissions.UpdateSignalLevels, Permissions.DeleteSignalLevels,
+                Permissions.ViewSignalLevelEntries, Permissions.CreateSignalLevelEntries, Permissions.UpdateSignalLevelEntries, Permissions.DeleteSignalLevelEntries
             };
             await AssignPermissionsToRole(context, logger, managerRole, managerPermissions);
         }
@@ -414,7 +428,8 @@ public static class AuthorizationSeeder
                 Permissions.ViewUserRegions, Permissions.CreateUserRegions, Permissions.UpdateUserRegions,
                 Permissions.ViewCells, Permissions.CreateCells, Permissions.UpdateCells,
                 Permissions.ViewNetworks, Permissions.ViewProviders,
-                Permissions.ViewReports, Permissions.CreateReports
+                Permissions.ViewReports, Permissions.CreateReports,
+                Permissions.ViewSignalLevels, Permissions.ViewSignalLevelEntries
             };
             await AssignPermissionsToRole(context, logger, regionalManagerRole, regionalPermissions);
         }
@@ -432,7 +447,8 @@ public static class AuthorizationSeeder
                 Permissions.ViewOrganizations, Permissions.ViewRegions, Permissions.ViewZones,
                 Permissions.ViewCells, Permissions.ViewNetworks, Permissions.ViewSectors,
                 Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
-                Permissions.ViewReports
+                Permissions.ViewReports,
+                Permissions.ViewSignalLevels, Permissions.ViewSignalLevelEntries
             };
             await AssignPermissionsToRole(context, logger, viewerRole, viewerPermissions);
         }

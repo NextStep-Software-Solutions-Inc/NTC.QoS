@@ -2505,6 +2505,108 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("Services");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.SignalLevel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AreaStudyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("NoOfLevels")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AreaStudyId");
+
+                    b.ToTable("SignalLevels");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.SignalLevelEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("SignalLevelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("ThresholdFrom")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("ThresholdTo")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SignalLevelId", "ThresholdFrom", "ThresholdTo", "SortOrder")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SignalLevelEntries_SignalLevelId_Range_SortOrder_Active")
+                        .AreNullsDistinct(false)
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
+                    b.ToTable("SignalLevelEntries");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Speedtest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3538,6 +3640,28 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("TxAntennaPattern");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.SignalLevel", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.AreaStudy", "AreaStudy")
+                        .WithMany("SignalLevels")
+                        .HasForeignKey("AreaStudyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AreaStudy");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.SignalLevelEntry", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.SignalLevel", "SignalLevel")
+                        .WithMany("SignalLevelEntries")
+                        .HasForeignKey("SignalLevelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SignalLevel");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Speedtest", b =>
                 {
                     b.HasOne("NTC.QoS.Domain.Entities.Barangay", null)
@@ -3743,6 +3867,8 @@ namespace NTC.QoS.Infrastructure.Migrations
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.AreaStudy", b =>
                 {
+                    b.Navigation("SignalLevels");
+
                     b.Navigation("Studies");
                 });
 
@@ -3851,6 +3977,11 @@ namespace NTC.QoS.Infrastructure.Migrations
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Service", b =>
                 {
                     b.Navigation("ServiceProviders");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.SignalLevel", b =>
+                {
+                    b.Navigation("SignalLevelEntries");
                 });
 
             modelBuilder.Entity("NTC.QoS.Domain.Entities.Study", b =>
