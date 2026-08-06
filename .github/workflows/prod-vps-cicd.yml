@@ -12,10 +12,9 @@ env:
   IMAGE_NAME: qos-api:prod
 
 jobs:
-  deploy:
-    name: Deploy Release to Production VPS
+  build-and-package:
+    name: 🛠️ Build & Package Docker Image
     runs-on: ubuntu-latest
-    environment: Production
 
     steps:
       - name: Checkout Code
@@ -24,13 +23,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and Save Docker Image
+      - name: Build Docker Image
         run: |
           docker build -t ${{ env.IMAGE_NAME }} -f ./NTC.QoS.API/Dockerfile .
           docker save ${{ env.IMAGE_NAME }} -o qos-api.tar
-          sudo chmod 666 qos-api.tar
 
-      - name: Copy Docker Image to Production VPS via SCP
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-api-image
+          path: qos-api.tar
+          retention-days: 1
+
+  deploy-vps:
+    name: 🚀 Deploy to Production VPS
+    needs: build-and-package
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qos-api-image
+
+      - name: Copy Docker Image to VPS via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ vars.HOST }}
