@@ -1,0 +1,84 @@
+name: Production VPS CI/CD
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CONTAINER_NAME: qos-api
+  IMAGE_NAME: qos-api:prod
+
+jobs:
+  deploy:
+    name: Deploy Release to Production VPS
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Save Docker Image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }} -f ./NTC.QoS.API/Dockerfile .
+          docker save ${{ env.IMAGE_NAME }} -o qos-api.tar
+
+      - name: Copy Docker Image to Production VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.LIGHTNODE_HOST }}
+          username: ${{ secrets.LIGHTNODE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "qos-api.tar"
+          target: "/tmp/"
+
+      - name: Execute Remote Production Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.LIGHTNODE_HOST }}
+          username: ${{ secrets.LIGHTNODE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            # Create production directory if not exists
+            mkdir -p /opt/docker/qos-api
+            
+            # Load new image
+            docker load -i /tmp/qos-api.tar
+            rm -f /tmp/qos-api.tar
+
+            # Stop and remove existing container if running
+            docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+            docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+
+            # Ensure networks exist
+            docker network create npm_proxy_net 2>/dev/null || true
+            docker network create ntcqos_db_net 2>/dev/null || true
+
+            # Run container attached to both networks
+            docker run -d \
+              --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              --network ntcqos_db_net \
+              -e ASPNETCORE_ENVIRONMENT=Production \
+              -e ConnectionStrings__PostgreSqlConnection="Host=qos-db;Port=5432;Database=NTCQOS_DB;Username=ntcqos_user;Password=NtcQos_Secure2026!DbPass;" \
+              -e ConnectionStrings__Redis="qos-redis:6379,password=NtcQos_Secure2026!RedisCachePass,abortConnect=false" \
+              -e ConnectionStrings__BlobStorageConnection="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://qos-blobstorage:10000/devstoreaccount1;" \
+              -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
+              -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
+              -e GoogleAI__ApiKey="${{ secrets.GOOGLE_AI_API_KEY }}" \
+              ${{ env.IMAGE_NAME }}
+
+            # Attach container to npm_proxy_net for Nginx Proxy Manager routing
+            docker network connect npm_proxy_net ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+
+            # Verify production container status
+            sleep 3
+            docker ps -f name=${{ env.CONTAINER_NAME }}
