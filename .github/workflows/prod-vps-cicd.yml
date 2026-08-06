@@ -28,6 +28,7 @@ jobs:
         run: |
           docker build -t ${{ env.IMAGE_NAME }} -f ./NTC.QoS.API/Dockerfile .
           docker save ${{ env.IMAGE_NAME }} -o qos-api.tar
+          sudo chmod 666 qos-api.tar
 
       - name: Copy Docker Image to Production VPS via SCP
         uses: appleboy/scp-action@v0.1.7
