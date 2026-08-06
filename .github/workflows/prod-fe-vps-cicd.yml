@@ -1,0 +1,98 @@
+name: Production Frontend VPS CI/CD
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CONTAINER_NAME: qos-fe
+  IMAGE_NAME: qos-fe:prod
+
+jobs:
+  build-and-package-fe:
+    name: 🛠️ Build & Package Next.js Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Next.js Docker Image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }} -f ./NTC.QoS.Web/Dockerfile ./NTC.QoS.Web
+          docker save ${{ env.IMAGE_NAME }} -o qos-fe.tar
+
+      - name: Upload Frontend Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-fe-image
+          path: qos-fe.tar
+          retention-days: 1
+
+  deploy-vps-fe:
+    name: 🚀 Deploy Frontend to Production VPS
+    needs: build-and-package-fe
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - name: Download Frontend Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qos-fe-image
+
+      - name: Copy Frontend Image to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "qos-fe.tar"
+          target: "/tmp/"
+
+      - name: Execute Remote Frontend Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            # Create production directory if not exists
+            mkdir -p /opt/docker/qos-fe
+            
+            # Load new image
+            docker load -i /tmp/qos-fe.tar
+            
+            # Clean up temporary tar file immediately
+            rm -f /tmp/qos-fe.tar
+
+            # Stop and remove existing container if running
+            docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+            docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+
+            # Ensure proxy network exists
+            docker network create npm_proxy_net 2>/dev/null || true
+
+            # Run container attached to npm_proxy_net
+            docker run -d \
+              --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              --network npm_proxy_net \
+              -e NODE_ENV=production \
+              -e NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
+              ${{ env.IMAGE_NAME }}
+
+            # Clean up unused/dangling Docker images to free up disk space
+            docker image prune -f
+
+            # Verify frontend container status
+            sleep 3
+            docker ps -f name=${{ env.CONTAINER_NAME }}
