@@ -1,187 +1,91 @@
-# NTC Quality of Service (QoS) Management System
+# 🇵🇭 NTC Quality of Service (QoS) Management System (Monorepo)
 
-## Project Overview
+> **Monorepo Architecture:** Combined ASP.NET 8 Core Web API Backend + Next.js 16 Bun Frontend
 
-The NTC Quality of Service Management System is a comprehensive web-based platform designed for the **National Telecommunications Commission (NTC)** to monitor, analyze, and manage telecommunications infrastructure and service quality across the Philippines. This system provides tools for tracking network performance, managing service providers, conducting area studies, and ensuring compliance with telecommunications standards.
+---
 
-## 🎯 Project Purpose
+## 🏗️ System Architecture & Stack
 
-The primary objectives of this system are to:
+| Layer | Technology / Framework | Environment Details |
+| :--- | :--- | :--- |
+| **Frontend** | **Next.js 16 + React 19** | **Bun 1.x** Runtime & Package Manager (`NTC.QoS.Web`) |
+| **Backend API** | **ASP.NET Core 8 Web API** | Clean Architecture with CQRS & MediatR (`NTC.QoS.API`) |
+| **Database** | **PostgreSQL 16 + PostGIS + pgvector** | Extended spatial indexing & AI vector embeddings |
+| **Cache** | **Redis 7 (Alpine)** | High-speed memory caching & query acceleration |
+| **Blob Storage** | **Azurite (Azure Blob Storage)** | Local S3/Azure Blob file storage emulator |
+| **Reverse Proxy** | **Nginx Proxy Manager** | Automated SSL termination & container proxy routing |
 
-- **Monitor Network Quality**: Track and analyze telecommunications network performance metrics
-- **Manage Infrastructure**: Maintain comprehensive databases of telecommunications infrastructure including NAPs (Network Access Points), cells, sectors, and antenna patterns
-- **Conduct Area Studies**: Facilitate systematic studies of telecommunications coverage and quality in specific geographical areas
-- **Provider Management**: Oversee telecommunications service providers, their services, and compliance
-- **Geographic Coverage**: Map and analyze telecommunications coverage across regions, provinces, municipalities, and barangays
-- **Data Processing**: Handle bulk data imports and processing for network analysis
-- **Regulatory Compliance**: Ensure telecommunications services meet NTC standards and regulations
+---
 
-## 🏗️ System Architecture
+## 📂 Monorepo Folder Structure
 
-### Technology Stack
+```text
+NTC.QoS/                             <-- Monorepo Root
+├── .github/
+│   └── workflows/
+│       ├── prod-vps-cicd.yml       <-- Backend (.NET API) CI/CD Workflow
+│       └── prod-fe-vps-cicd.yml    <-- Frontend (Next.js Bun) CI/CD Workflow
+│
+├── NTC.QoS.API/                     <-- Backend API (.NET 8 Core)
+├── NTC.QoS.Application/             <-- Business Logic, CQRS Handlers, DTOs
+├── NTC.QoS.Domain/                  <-- Entities & Domain Models
+├── NTC.QoS.Infrastructure/          <-- EF Core, PostgreSQL Migrations, Repositories
+├── NTC.QoS.Tests/                   <-- xUnit Automated Unit Tests
+├── NTC.QoS.sln                      <-- Visual Studio Solution File
+│
+└── NTC.QoS.Web/                    <-- Frontend (Next.js 16 + Bun)
+    ├── Dockerfile                   <-- Multi-stage Bun Dockerfile (`oven/bun:1-alpine`)
+    ├── package.json
+    ├── bun.lock                     <-- Bun Lockfile
+    ├── next.config.ts           
+    ├── src/
+    └── public/
+```
 
-- **Backend Framework**: ASP.NET Core Web API
-- **Architecture Pattern**: Clean Architecture with CQRS (Command Query Responsibility Segregation)
-- **Mediator Pattern**: MediatR for handling requests and responses
-- **Authentication**: JWT Bearer Token authentication
-- **Caching**: In-memory caching for performance optimization
-- **File Processing**: Excel file processing for bulk data imports
-- **Database**: Entity Framework Core (database type configurable)
+---
 
-### Core Components
+## 💻 Local Development Setup
 
-#### 1. **Infrastructure Management**
+### 1. Prerequisites
+* [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+* [Bun 1.x Runtime](https://bun.sh/)
+* Docker & Docker Desktop
 
-- **Network Access Points (NAPs)**: Physical locations where telecommunications networks interconnect
-- **Cellular Infrastructure**: Management of cell towers, sectors, and coverage areas
-- **Antenna Patterns**: Configuration and management of antenna radiation patterns
-- **MIMO Systems**: Multiple-Input Multiple-Output antenna configurations
-- **Network Templates**: Standardized network configurations
-- **Links**: Network connectivity between infrastructure components
+### 2. Running the Backend API (.NET 8)
+```bash
+# Navigate to the API folder
+cd NTC.QoS.API
 
-#### 2. **Geographic Hierarchy**
+# Run API locally
+dotnet run
+```
+API Swagger UI will be available at `http://localhost:5000/swagger`.
 
-- **Regions**: Top-level administrative divisions
-- **Provinces**: Second-level administrative divisions within regions
-- **Municipalities**: Third-level administrative divisions within provinces
-- **Barangays**: Smallest administrative units (not directly shown but referenced)
-- **Zones**: Specific coverage or study areas within municipalities
+### 3. Running the Frontend (Next.js + Bun)
+```bash
+# Navigate to the Web folder
+cd NTC.QoS.Web
 
-#### 3. **Service Provider Management**
+# Install dependencies using Bun
+bun install
 
-- **Providers**: Telecommunications companies and service providers
-- **Services**: Different types of telecommunications services offered
-- **Service Providers**: Mapping between providers and their specific services
-- **Generations**: Technology generations (2G, 3G, 4G, 5G, etc.)
-- **Technologies**: Specific technological implementations within generations
+# Run dev server with Turbopack
+bun dev
+```
+Frontend will be live at `http://localhost:3000`.
 
-#### 4. **Study and Analysis Framework**
+---
 
-- **Area Studies**: Comprehensive telecommunications studies for specific geographic areas
-- **Studies**: Individual research projects within area studies
-- **Study Networks**: Network components involved in specific studies
-- **Study Municipalities**: Geographic scope of studies at municipality level
+## 🚀 CI/CD & Production Deployment (LightNode VPS)
 
-#### 5. **User and Access Management**
+Deployments are automated via **GitHub Actions** using Environment Scoping (`Production`):
 
-- **Users**: System users with different access levels
-- **Roles**: User role definitions (Admin, Analyst, Viewer, etc.)
-- **Permissions**: Granular access controls
-- **Role Permissions**: Mapping between roles and their allowed actions
-- **Organizations**: User organizational affiliations
+1. **Backend API Workflow (`prod-vps-cicd.yml`):**
+   - Triggers on published release or tag (`v*`).
+   - Builds `.NET 8` Docker image (`qos-api:prod`).
+   - Deploys container **`qos-api`** to server IP `38.54.81.51` on network `ntcqos_db_net`.
 
-#### 6. **Data Management**
-
-- **File Processing**: Bulk data import capabilities for various file types
-- **Speed Test Data**: Network performance measurement results
-- **Cellular Coverage Data**: Coverage mapping and analysis
-- **Template Downloads**: Standardized templates for data imports
-
-## 🔧 Key Features
-
-### 1. **Comprehensive API Coverage**
-
-- RESTful API design with consistent response formats
-- Paginated responses for large datasets
-- Advanced filtering and search capabilities
-- Standardized error handling and validation
-
-### 2. **Geographic Data Management**
-
-- Hierarchical geographic data structure
-- Coordinate-based location services
-- Distance-based proximity searches
-- Geographic coverage analysis
-
-### 3. **Network Infrastructure Tracking**
-
-- Real-time infrastructure inventory
-- Network topology mapping
-- Performance monitoring integration
-- Equipment lifecycle management
-
-### 4. **Advanced Caching Strategy**
-
-- Memory-based caching for frequently accessed data
-- Cache invalidation strategies
-- Performance optimization for large datasets
-- Query result caching
-
-### 5. **Bulk Data Processing**
-
-- Excel file import capabilities
-- Automated data validation and processing
-- Background job processing for large files
-- Template-based data standardization
-
-### 6. **Security and Authorization**
-
-- Role-based access control (RBAC)
-- JWT-based authentication
-- Granular permission system
-- Audit trail capabilities
-
-## 📊 Use Cases
-
-### For NTC Regulators
-
-- Monitor compliance with service quality standards
-- Analyze coverage gaps and network performance
-- Generate regulatory reports and assessments
-- Track infrastructure deployment and expansion
-
-### For Telecommunications Analysts
-
-- Conduct detailed area studies and coverage analysis
-- Process and analyze large datasets of network performance
-- Generate technical reports and recommendations
-- Monitor network optimization initiatives
-
-### For Infrastructure Managers
-
-- Maintain comprehensive infrastructure inventories
-- Track equipment performance and lifecycle
-- Plan network expansions and upgrades
-- Coordinate with service providers on infrastructure deployment
-
-### For Service Providers
-
-- Submit compliance reports and performance data
-- Access standardized templates for data submission
-- Track their network performance metrics
-- Coordinate with NTC on regulatory requirements
-
-## 🗂️ Data Flow
-
-1. **Data Collection**: Network performance data, infrastructure inventories, and coverage information collected from various sources
-2. **Data Processing**: Bulk import and validation of data through standardized templates
-3. **Storage & Management**: Structured storage with geographic and hierarchical relationships
-4. **Analysis & Reporting**: Advanced querying, filtering, and analysis capabilities
-5. **Visualization & Export**: Data presentation through APIs for frontend applications and reporting tools
-
-## 🔒 Security Considerations
-
-- **Authentication Required**: All endpoints require valid JWT tokens
-- **Role-Based Access**: Different user roles have varying levels of access
-- **Data Validation**: Comprehensive input validation and sanitization
-- **Audit Logging**: Track user actions and system changes
-- **Secure File Handling**: Safe processing of uploaded files with validation
-
-## 🚀 Future Enhancements
-
-- Real-time network monitoring dashboards
-- Predictive analytics for network performance
-- Mobile application for field data collection
-- Advanced GIS integration for coverage mapping
-- Machine learning models for quality prediction
-- Integration with external monitoring systems
-
-## 📈 Performance Features
-
-- **Pagination**: Efficient handling of large datasets
-- **Caching**: Strategic caching for frequently accessed data
-- **Filtering**: Advanced query capabilities to reduce data transfer
-- **Background Processing**: Asynchronous handling of large file imports
-- **Response Optimization**: Consistent and efficient API response formats
-
-This system serves as the backbone for telecommunications regulation and quality assurance in the Philippines, providing NTC with the tools needed to ensure reliable and high-quality telecommunications services across the nation.
+2. **Frontend Workflow (`prod-fe-vps-cicd.yml`):**
+   - Triggers on published release or tag (`v*`).
+   - Builds `Next.js 16` Docker image using Bun (`oven/bun:1-alpine`).
+   - Deploys container **`qos-fe`** to server on network `npm_proxy_net`.
