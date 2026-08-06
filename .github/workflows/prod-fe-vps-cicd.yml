@@ -15,6 +15,7 @@ jobs:
   build-and-package-fe:
     name: 🛠️ Build & Package Next.js Frontend
     runs-on: ubuntu-latest
+    environment: Production
 
     steps:
       - name: Checkout Code
@@ -25,7 +26,16 @@ jobs:
 
       - name: Build Next.js Docker Image
         run: |
-          docker build -t ${{ env.IMAGE_NAME }} -f ./NTC.QoS.Web/Dockerfile ./NTC.QoS.Web
+          docker build \
+            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" \
+            --build-arg NEXT_PUBLIC_MAPTILER_API_KEY="${{ secrets.NEXT_PUBLIC_MAPTILER_API_KEY }}" \
+            --build-arg NEXT_PUBLIC_MAPTILER_URL="${{ vars.NEXT_PUBLIC_MAPTILER_URL }}" \
+            --build-arg NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID="${{ vars.NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID }}" \
+            --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.NEXT_PUBLIC_SITE_URL }}" \
+            --build-arg NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
+            -t ${{ env.IMAGE_NAME }} \
+            -f ./NTC.QoS.Web/Dockerfile ./NTC.QoS.Web
+            
           docker save ${{ env.IMAGE_NAME }} -o qos-fe.tar
 
       - name: Upload Frontend Image Artifact
@@ -87,6 +97,11 @@ jobs:
               --restart unless-stopped \
               --network npm_proxy_net \
               -e NODE_ENV=production \
+              -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" \
+              -e NEXT_PUBLIC_MAPTILER_API_KEY="${{ secrets.NEXT_PUBLIC_MAPTILER_API_KEY }}" \
+              -e NEXT_PUBLIC_MAPTILER_URL="${{ vars.NEXT_PUBLIC_MAPTILER_URL }}" \
+              -e NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID="${{ vars.NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID }}" \
+              -e NEXT_PUBLIC_SITE_URL="${{ vars.NEXT_PUBLIC_SITE_URL }}" \
               -e NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
               ${{ env.IMAGE_NAME }}
 
