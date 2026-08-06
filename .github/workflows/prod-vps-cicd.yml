@@ -54,6 +54,9 @@ jobs:
           username: ${{ vars.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
           source: "qos-api.tar"
           target: "/tmp/"
 
@@ -64,6 +67,9 @@ jobs:
           username: ${{ vars.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
           script: |
             # Create production directory if not exists
             mkdir -p /opt/docker/qos-api
