@@ -99,6 +99,7 @@ jobs:
               --restart unless-stopped \
               --network npm_proxy_net \
               -e NODE_ENV=production \
+              -e CLERK_SECRET_KEY="${{ secrets.CLERK_SECRET_KEY }}" \
               -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" \
               -e NEXT_PUBLIC_MAPTILER_API_KEY="${{ secrets.NEXT_PUBLIC_MAPTILER_API_KEY }}" \
               -e NEXT_PUBLIC_MAPTILER_URL="${{ vars.NEXT_PUBLIC_MAPTILER_URL }}" \
