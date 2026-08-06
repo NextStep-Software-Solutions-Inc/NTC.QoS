@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 # 1. Install dependencies
 FROM base AS deps
@@ -22,7 +22,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_ENV production
 
-# Disable TypeScript and ESLint strict check during production Docker build if desired
+# Disable ESLint strict check during production Docker build
 ENV NEXT_IGNORE_ESLINT 1
 
 RUN \
