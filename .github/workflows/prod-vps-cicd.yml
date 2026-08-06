@@ -90,6 +90,7 @@ jobs:
               --restart unless-stopped \
               --network ntcqos_db_net \
               -e ASPNETCORE_ENVIRONMENT=Production \
+              -e Database__RunMigrationsOnStartup=true \
               -e ConnectionStrings__PostgreSqlConnection="${{ secrets.DB_CONNECTION_STRING }}" \
               -e ConnectionStrings__Redis="${{ secrets.REDIS_CONNECTION_STRING }}" \
               -e ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
