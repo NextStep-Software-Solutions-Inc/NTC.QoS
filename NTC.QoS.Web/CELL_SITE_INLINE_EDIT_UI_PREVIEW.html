@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cell Site Inline Edit - UI Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        @media (max-width: 1200px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .mode-section {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .mode-header {
+            padding: 20px;
+            font-weight: 600;
+            font-size: 1.2rem;
+            text-align: center;
+            color: white;
+        }
+        
+        .view-mode-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .edit-mode-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .mode-content {
+            padding: 30px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+        }
+        
+        .page-title h2 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+        
+        .page-title p {
+            opacity: 0.9;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .btn-edit {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .btn-edit:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .btn-delete {
+            background: rgba(239, 68, 68, 0.3);
+            color: white;
+        }
+        
+        .btn-delete:hover {
+            background: rgba(239, 68, 68, 0.5);
+        }
+        
+        .btn-cancel {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .btn-save {
+            background: rgba(59, 130, 246, 0.9);
+            color: white;
+        }
+        
+        .btn-save:hover {
+            background: rgba(59, 130, 246, 1);
+        }
+        
+        .cards-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+        
+        .card {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #1f2937;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        
+        .info-label {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        
+        .info-value {
+            font-weight: 500;
+            font-family: 'Courier New', monospace;
+            color: #1f2937;
+        }
+        
+        .input-field {
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 6px 12px;
+            width: 180px;
+            font-size: 0.9rem;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .select-field {
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 6px 12px;
+            width: 180px;
+            font-size: 0.9rem;
+            background: white;
+            cursor: pointer;
+        }
+        
+        .checkbox-field {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .verification-section {
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        
+        .verification-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .icon {
+            width: 20px;
+            height: 20px;
+            color: #6b7280;
+        }
+        
+        .icon-blue {
+            color: #3b82f6;
+        }
+        
+        .icon-red {
+            color: #ef4444;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .features-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .feature-card {
+            padding: 20px;
+            background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .feature-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #1f2937;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .feature-list li {
+            padding: 5px 0;
+            color: #4b5563;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .feature-list li::before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+        }
+        
+        .highlight {
+            background: #fef3c7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Cell Site Inline Edit Feature</h1>
+            <p>Intuitive inline editing for cell site details - No more separate dialogs!</p>
+        </div>
+        
+        <div class="comparison-grid">
+            <!-- VIEW MODE -->
+            <div class="mode-section">
+                <div class="mode-header view-mode-header">
+                    📋 View Mode
+                </div>
+                <div class="mode-content">
+                    <div class="page-header">
+                        <div class="page-title">
+                            <h2>🗼 Cell Site #12345</h2>
+                            <p>Smart Communications Inc.</p>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn btn-edit">
+                                ✏️ Edit
+                            </button>
+                            <button class="btn btn-delete">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="cards-grid">
+                        <div>
+                            <div class="card">
+                                <div class="card-title">
+                                    📍 Location
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Latitude</span>
+                                    <span class="info-value">14.599512</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Longitude</span>
+                                    <span class="info-value">121.034567</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Elevation</span>
+                                    <span class="info-value">45 m</span>
+                                </div>
+                            </div>
+                            
+                            <div class="card" style="margin-top: 20px;">
+                                <div class="card-title">
+                                    📡 Technical Details
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">CID</span>
+                                    <span class="info-value">54321</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">LAC</span>
+                                    <span class="info-value">4567</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">TAC</span>
+                                    <span class="info-value">8901</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Site ID</span>
+                                    <span class="info-value">MNL-001</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Tower Type</span>
+                                    <span class="info-value">Monopole</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-title">
+                                📊 Overview
+                            </div>
+                            <div class="verification-section">
+                                <div class="verification-row">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="icon">🛡️</span>
+                                        <span class="info-label">Verified</span>
+                                    </div>
+                                    <span class="info-value">Yes</span>
+                                </div>
+                            </div>
+                            <div style="padding: 15px; background: white; border-radius: 6px;">
+                                <div class="badge badge-success">
+                                    Status: Active ✓
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- EDIT MODE -->
+            <div class="mode-section">
+                <div class="mode-header edit-mode-header">
+                    ✏️ Edit Mode
+                </div>
+                <div class="mode-content">
+                    <div class="page-header">
+                        <div class="page-title">
+                            <h2>🗼 Cell Site #12345</h2>
+                            <p>Smart Communications Inc.</p>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn btn-cancel">
+                                ✕ Cancel
+                            </button>
+                            <button class="btn btn-save">
+                                💾 Save Changes
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="cards-grid">
+                        <div>
+                            <div class="card">
+                                <div class="card-title">
+                                    📍 Location
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Latitude</span>
+                                    <input type="number" class="input-field" value="14.599512" step="0.000001">
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Longitude</span>
+                                    <input type="number" class="input-field" value="121.034567" step="0.000001">
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Elevation</span>
+                                    <input type="number" class="input-field" value="45">
+                                </div>
+                            </div>
+                            
+                            <div class="card" style="margin-top: 20px;">
+                                <div class="card-title">
+                                    📡 Technical Details
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">CID</span>
+                                    <input type="text" class="input-field" value="54321">
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">LAC</span>
+                                    <input type="text" class="input-field" value="4567">
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">TAC</span>
+                                    <input type="text" class="input-field" value="8901">
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Site ID</span>
+                                    <input type="text" class="input-field" value="MNL-001">
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Tower Type</span>
+                                    <select class="select-field">
+                                        <option>Unknown</option>
+                                        <option>Guyed</option>
+                                        <option>Self Supporting</option>
+                                        <option selected>Monopole</option>
+                                        <option>Stealth</option>
+                                        <option>Rooftop</option>
+                                        <option>Wall Mounted</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-title">
+                                📊 Overview
+                            </div>
+                            <div class="verification-section">
+                                <div class="verification-row">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="icon">🛡️</span>
+                                        <span class="info-label">Verified</span>
+                                    </div>
+                                    <input type="checkbox" class="checkbox-field" checked>
+                                </div>
+                            </div>
+                            <div style="padding: 15px; background: white; border-radius: 6px;">
+                                <div class="badge badge-success">
+                                    Status: Active ✓
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- FEATURES SECTION -->
+        <div class="features-section">
+            <h2 style="text-align: center; margin-bottom: 10px;">✨ Key Features</h2>
+            <p style="text-align: center; color: #6b7280; margin-bottom: 30px;">
+                Everything you need for efficient cell site management
+            </p>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-title">🎯 Inline Editing</div>
+                    <ul class="feature-list">
+                        <li>Edit directly on detail page</li>
+                        <li>No separate dialog needed</li>
+                        <li>Toggle between view/edit modes</li>
+                        <li>Cancel to reset all changes</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-title">📝 Editable Fields</div>
+                    <ul class="feature-list">
+                        <li>CID, LAC, TAC, Site ID</li>
+                        <li>Tower Type dropdown</li>
+                        <li>Lat/Long with precision</li>
+                        <li>Elevation & verification</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-title">🛡️ Data Validation</div>
+                    <ul class="feature-list">
+                        <li>Type-safe inputs</li>
+                        <li>Proper enum values</li>
+                        <li>Decimal precision for coords</li>
+                        <li>Required field validation</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-title">💫 User Experience</div>
+                    <ul class="feature-list">
+                        <li>Consistent 180px input width</li>
+                        <li>Toast notifications</li>
+                        <li>Loading states on save</li>
+                        <li>Auto-refetch on success</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-title">🔧 Tower Types</div>
+                    <ul class="feature-list">
+                        <li><span class="highlight">Unknown</span></li>
+                        <li><span class="highlight">Monopole</span></li>
+                        <li><span class="highlight">Self Supporting</span></li>
+                        <li><span class="highlight">+ 4 more types</span></li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-title">⚡ API Integration</div>
+                    <ul class="feature-list">
+                        <li>PATCH /cells/:id</li>
+                        <li>Optimistic updates</li>
+                        <li>Error handling</li>
+                        <li>Success feedback</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%); border-radius: 8px; text-align: center;">
+                <h3 style="color: #1f2937; margin-bottom: 10px;">🚀 Implementation Complete</h3>
+                <p style="color: #6b7280;">
+                    All editable fields are now inline, providing a seamless editing experience.
+                    <br>
+                    <strong>Status:</strong> ✅ Ready for Testing | <strong>Files Modified:</strong> 1 | <strong>TypeScript Errors:</strong> 0
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

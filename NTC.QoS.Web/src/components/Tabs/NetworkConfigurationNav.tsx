@@ -1,0 +1,37 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { Building2, Cpu, Link as LinkIcon, MapPin, Radio, Settings, Zap } from "lucide-react";
+
+import TabsNav, { type TabItem } from "./TabsNav";
+
+const tabs: TabItem[] = [
+  {
+    label: "Providers & Services",
+    shortLabel: "Providers",
+    value: "providers-and-services",
+    icon: <Building2 className="h-3 w-3" />,
+  },
+  { label: "Generations", value: "generations", icon: <Zap className="h-3 w-3" /> },
+  { label: "Technologies", shortLabel: "Tech", value: "technologies", icon: <Cpu className="h-3 w-3" /> },
+  { label: "Bands", value: "bands", icon: <Radio className="h-3 w-3" /> },
+  { label: "System Types", shortLabel: "Systems", value: "system-types", icon: <Settings className="h-3 w-3" /> },
+  { label: "Area Study Types", shortLabel: "Studies", value: "area-studies", icon: <MapPin className="h-3 w-3" /> },
+  { label: "Frequency Allocation", shortLabel: "Frequency", value: "links", icon: <LinkIcon className="h-3 w-3" /> },
+];
+
+export default function NetworkConfigurationNav() {
+  const pathname = usePathname();
+  // the current tab is determined by the next segment after /network-configuration/ so you need to extract it and check if /network-configuration/ is present in the pathname
+  const currentTab =
+    pathname.split("/").find((segment) => tabs.some((tab) => tab.value === segment)) ?? "providers-and-services";
+
+  const getTabHref = (tab: string) => {
+    if (pathname.includes("/network-configuration")) {
+      return `${tab}`;
+    }
+    return `network-configuration`;
+  };
+
+  return <TabsNav tabs={tabs} currentTab={currentTab} getTabHref={getTabHref} className="p-2" />;
+}

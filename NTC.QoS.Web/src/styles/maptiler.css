@@ -1,0 +1,125 @@
+.maplibregl-popup-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Hide ALL MapTiler/MapLibre default controls */
+.maplibregl-ctrl-top-right,
+.maplibregl-ctrl-top-left,
+.maplibregl-ctrl-bottom-left,
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group,
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib {
+  display: none !important;
+}
+
+/* Keep attribution but make it minimal */
+.maplibregl-ctrl-attrib {
+  font-size: 9px;
+  padding: 2px 5px;
+  background-color: rgba(255, 255, 255, 0.6) !important;
+  border-radius: 4px;
+}
+
+.maplibregl-ctrl-attrib-inner {
+  opacity: 0.7;
+}
+
+.maplibregl-ctrl-attrib:hover .maplibregl-ctrl-attrib-inner {
+  opacity: 1;
+}
+
+/* Ensure map container takes full viewport */
+.maplibregl-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Hide the MapTiler logo */
+.maplibregl-ctrl-logo {
+  display: none !important;
+}
+
+/* Hide MapTiler demo/trial watermark overlays */
+.maptiler-demo,
+.maptilerDemo,
+[class*="maptiler-demo"],
+[class*="maptilerDemo"],
+[class*="maptiler-watermark"],
+[id*="maptiler-demo"],
+[id*="maptilerDemo"] {
+  display: none !important;
+}
+
+/* Custom cursor styles for map interactions */
+.maplibregl-canvas {
+  cursor: grab;
+}
+
+.maplibregl-canvas:active {
+  cursor: grabbing;
+}
+
+/* Crosshair cursor override for point selection and envelope drawing modes */
+/* Uses !important to override all other cursor styles including hover states */
+.cursor-crosshair-override,
+.cursor-crosshair-override *,
+.cursor-crosshair-override:hover,
+.cursor-crosshair-override:active,
+.maplibregl-canvas.cursor-crosshair-override,
+.maplibregl-canvas.cursor-crosshair-override:hover,
+.maplibregl-canvas.cursor-crosshair-override:active,
+.maplibregl-canvas-container.cursor-crosshair-override,
+.maplibregl-canvas-container.cursor-crosshair-override *,
+canvas.cursor-crosshair-override,
+canvas.cursor-crosshair-override:hover {
+  cursor: crosshair !important;
+}
+
+/* Smooth transition for map container */
+.maplibregl-canvas-container {
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* QoS Popup Styles */
+.qos-popup-container .maplibregl-popup-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 16px;
+  overflow: visible;
+}
+
+.qos-popup-container .maplibregl-popup-tip {
+  display: none;
+}
+
+/* Public map popup styles */
+.public-map-popup .maplibregl-popup-content {
+  background: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.public-map-popup .maplibregl-popup-tip {
+  border-top-color: rgba(255, 255, 255, 0.95);
+}
+
+/* Popup animation */
+.maplibregl-popup {
+  animation: popup-fade-in 0.2s ease-out;
+}
+
+@keyframes popup-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
