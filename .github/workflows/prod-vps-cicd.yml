@@ -32,8 +32,8 @@ jobs:
       - name: Copy Docker Image to Production VPS via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "qos-api.tar"
@@ -42,8 +42,8 @@ jobs:
       - name: Execute Remote Production Deployment via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
