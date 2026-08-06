@@ -1,10 +1,12 @@
-name: Production VPS CI/CD
+name: Production VPS CI/CD (Backend API)
 
 on:
   release:
     types: [published]
   push:
     tags:
+      - 'api-v*'
+      - 'v-api-*'
       - 'v*'
 
 env:

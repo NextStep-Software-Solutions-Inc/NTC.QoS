@@ -1,11 +1,13 @@
-name: Production Frontend VPS CI/CD
+name: Production VPS CI/CD (Frontend Web)
 
 on:
   release:
     types: [published]
   push:
     tags:
-      - 'v*'
+      - 'web-v*'
+      - 'v-web-*'
+      - 'fe-v*'
 
 env:
   CONTAINER_NAME: qos-fe
