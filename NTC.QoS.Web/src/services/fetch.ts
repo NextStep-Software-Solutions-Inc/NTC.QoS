@@ -145,7 +145,6 @@ const createRequest = (baseUrl: string, baseInit?: RequestInit) => {
   };
 };
 
-const QOS_BACKEND_URL =
-  process.env.QOS_BACKEND_URL ?? process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "http://localhost:3000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-export const request = createRequest(QOS_BACKEND_URL, { headers: { Accept: "application/json" } });
+export const request = createRequest(API_URL, { headers: { Accept: "application/json" } });

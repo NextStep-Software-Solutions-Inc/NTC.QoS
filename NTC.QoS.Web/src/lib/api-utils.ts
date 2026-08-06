@@ -1,20 +1,16 @@
 /**
  * Get the backend API URL for client-side requests
- * Checks for NEXT_PUBLIC_QOS_BACKEND_URL first, then falls back to window.location.origin
+ * Uses NEXT_PUBLIC_API_URL as the single source of truth
  */
 export function getBackendUrl(): string {
-  // In browser environment
   if (typeof window !== "undefined") {
-    // Try to get from environment variable first
-    const envUrl = process.env.NEXT_PUBLIC_QOS_BACKEND_URL;
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
     if (envUrl) {
       return envUrl;
     }
-    // Fallback to current origin (assumes API is proxied)
     return window.location.origin;
   }
-  // Server-side fallback
-  return process.env.QOS_BACKEND_URL ?? process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "";
+  return process.env.NEXT_PUBLIC_API_URL ?? "";
 }
 
 /**

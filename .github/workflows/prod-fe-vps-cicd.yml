@@ -35,8 +35,6 @@ jobs:
             --build-arg NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID="${{ vars.NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID }}" \
             --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.NEXT_PUBLIC_SITE_URL }}" \
             --build-arg NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
-            --build-arg NEXT_PUBLIC_QOS_BACKEND_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
-            --build-arg QOS_BACKEND_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
             -t ${{ env.IMAGE_NAME }} \
             -f ./NTC.QoS.Web/Dockerfile ./NTC.QoS.Web
             
@@ -108,8 +106,6 @@ jobs:
               -e NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID="${{ vars.NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID }}" \
               -e NEXT_PUBLIC_SITE_URL="${{ vars.NEXT_PUBLIC_SITE_URL }}" \
               -e NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
-              -e NEXT_PUBLIC_QOS_BACKEND_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
-              -e QOS_BACKEND_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
               ${{ env.IMAGE_NAME }}
 
             # Clean up unused/dangling Docker images to free up disk space
