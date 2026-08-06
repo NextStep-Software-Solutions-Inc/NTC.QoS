@@ -1,0 +1,563 @@
+"use client";
+
+import { useState, useMemo, memo, useRef, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
+import { MapPin, Save, Loader2, AlertCircle } from "lucide-react";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
+
+import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
+import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
+import { createInfiniteQueryHookFromTemplate } from "@/hooks/createInfiniteQueryHookFromTemplate";
+import { getBarangaysInfiniteRequest } from "@/components/features/barangay/handlers/getBarangaysInfiniteRequest";
+import { getBarangayCoverageByRegionRequest } from "@/components/features/barangay-coverage/handlers/getBarangayCoverageByRegionRequest";
+import { createBarangayCoverageRequest } from "@/components/features/barangay-coverage/handlers/createBarangayCoverageRequest";
+import { updateBarangayCoverageRequest } from "@/components/features/barangay-coverage/handlers/updateBarangayCoverageRequest";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { type Barangay } from "@/components/features/barangay/types/Barangay";
+import { type BarangayCoverageDto } from "@/components/features/barangay-coverage/types/BarangayCoverage";
+
+const useBarangaysInfinite = createInfiniteQueryHookFromTemplate(getBarangaysInfiniteRequest);
+const useBarangayCoverage = createQueryHookFromTemplate(getBarangayCoverageByRegionRequest);
+const useCreateCoverage = createMutationHookFromTemplate(createBarangayCoverageRequest);
+const useUpdateCoverage = createMutationHookFromTemplate(updateBarangayCoverageRequest);
+
+const ITEMS_PER_PAGE = 100; // Load 100 barangays at a time
+
+type BarangayWithCoverage = Barangay & {
+  coverage?: BarangayCoverageDto;
+  wiredPercentage: number;
+  wirelessPercentage: number;
+  isDirty: boolean;
+};
+
+type GroupedBarangays = {
+  provinceName: string;
+  provinceId: string;
+  municipalities: {
+    municipalityName: string;
+    municipalityId: string;
+    barangays: BarangayWithCoverage[];
+  }[];
+};
+
+// Memoized barangay card to prevent unnecessary re-renders
+const BarangayCard = memo(
+  ({
+    barangay,
+    onCheckboxChange,
+    onPercentageChange,
+    onSave,
+    isSaving,
+  }: {
+    barangay: BarangayWithCoverage;
+    onCheckboxChange: (barangay: BarangayWithCoverage, checked: boolean) => void;
+    onPercentageChange: (barangay: BarangayWithCoverage, field: "wired" | "wireless", value: string) => void;
+    onSave: (barangay: BarangayWithCoverage) => void;
+    isSaving: boolean;
+  }) => {
+    const getCombinedPercentage = (wired: number, wireless: number) => Math.min(wired + wireless, 100);
+    const isCovered = (wired: number, wireless: number) => wired === 100 || wireless === 100;
+    const isChecked = isCovered(barangay.wiredPercentage, barangay.wirelessPercentage);
+    const combinedPercentage = getCombinedPercentage(barangay.wiredPercentage, barangay.wirelessPercentage);
+
+    return (
+      <div
+        className={`
+          relative rounded-lg border-2 p-3 transition-all duration-200 mb-2
+          ${barangay.isDirty
+            ? "border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50"
+            : isChecked
+              ? "border-green-300 bg-gradient-to-r from-green-50 to-emerald-50"
+              : "border-gray-200 bg-white hover:border-purple-200"
+          }
+        `}>
+        <div className="flex items-start gap-3">
+          {/* Checkbox */}
+          <div className="flex items-center pt-1">
+            <Checkbox
+              checked={isChecked}
+              onCheckedChange={(checked) => onCheckboxChange(barangay, checked as boolean)}
+              className="h-4 w-4 border-2 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+              disabled={isSaving}
+            />
+          </div>
+
+          {/* Barangay Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <h4 className="font-semibold text-gray-900 text-sm">{barangay.name}</h4>
+              {barangay.code && (
+                <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
+                  {barangay.code}
+                </Badge>
+              )}
+              {barangay.isDirty && (
+                <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 border-amber-300">
+                  Unsaved
+                </Badge>
+              )}
+              {barangay.coverage?.isWiredCovered && (
+                <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                  Wired 100%
+                </Badge>
+              )}
+              {barangay.coverage?.isWirelessCovered && (
+                <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
+                  Wireless 100%
+                </Badge>
+              )}
+            </div>
+
+            {/* Coverage Inputs - Compact */}
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              {/* Wired FTTH */}
+              <div className="space-y-1">
+                <Label htmlFor={`wired-${barangay.id}`} className="text-xs font-medium text-gray-600">
+                  Wired (%)
+                </Label>
+                <Input
+                  id={`wired-${barangay.id}`}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={barangay.wiredPercentage}
+                  onChange={(e) => onPercentageChange(barangay, "wired", e.target.value)}
+                  className="h-8 text-xs border-purple-200 focus:border-purple-400"
+                  disabled={isSaving}
+                />
+                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-400 to-purple-600 transition-all duration-300"
+                    style={{ width: `${barangay.wiredPercentage}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Wireless */}
+              <div className="space-y-1">
+                <Label htmlFor={`wireless-${barangay.id}`} className="text-xs font-medium text-gray-600">
+                  Wireless (%)
+                </Label>
+                <Input
+                  id={`wireless-${barangay.id}`}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={barangay.wirelessPercentage}
+                  onChange={(e) => onPercentageChange(barangay, "wireless", e.target.value)}
+                  className="h-8 text-xs border-blue-200 focus:border-blue-400"
+                  disabled={isSaving}
+                />
+                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-300"
+                    style={{ width: `${barangay.wirelessPercentage}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Combined */}
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-gray-600">Combined</Label>
+                <div className="h-8 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                  <span className="text-sm font-bold text-gray-700">{combinedPercentage.toFixed(1)}%</span>
+                </div>
+                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-green-400 to-emerald-600 transition-all duration-300"
+                    style={{ width: `${combinedPercentage}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Metadata */}
+            {barangay.coverage && (
+              <div className="mt-2 text-xs text-gray-500">
+                Updated: {new Date(barangay.coverage.updatedAt).toLocaleDateString()} by {barangay.coverage.updatedBy}
+              </div>
+            )}
+          </div>
+
+          {/* Save Button */}
+          {barangay.isDirty && (
+            <div className="flex items-center pt-1">
+              <Button
+                onClick={() => onSave(barangay)}
+                disabled={isSaving}
+                size="sm"
+                className="h-8 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    Saving
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3 w-3 mr-1" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  },
+);
+
+BarangayCard.displayName = "BarangayCard";
+
+export default function ManageBarangayCoverage() {
+  const { region } = useParams<{ region: string }>();
+  const [editingBarangays, setEditingBarangays] = useState<Map<string, BarangayWithCoverage>>(new Map());
+  const [savingBarangays, setSavingBarangays] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"grouped" | "flatten">("grouped");
+
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Fetch barangays - don't block UI on this
+  const {
+    data: barangaysData,
+    isLoading: isLoadingBarangays,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useBarangaysInfinite({
+    pathParams: {},
+    queryParams: { pageSize: ITEMS_PER_PAGE, regionIds: [region] },
+  });
+
+  // Fetch coverage data in background - UI renders without waiting
+  const { data: coverageData, refetch: refetchCoverage } = useBarangayCoverage({
+    pathParams: { regionId: region },
+    queryParams: {},
+  });
+
+  const createMutation = useCreateCoverage();
+  const updateMutation = useUpdateCoverage();
+
+  // Flatten all pages and group barangays by province > municipality
+  const { groupedBarangays, totalBarangays, flattenedBarangays } = useMemo(() => {
+    if (!barangaysData?.pages) return { groupedBarangays: [], totalBarangays: 0 };
+
+    const coverageMap = new Map<string, BarangayCoverageDto>();
+    if (coverageData?.data) {
+      coverageData.data.forEach((coverage) => {
+        coverageMap.set(coverage.barangayId, coverage);
+      });
+    }
+
+    // Flatten all pages
+    const allBarangays = barangaysData.pages.flatMap((page) => page.data);
+    const totalCount = allBarangays.length;
+
+    // Create barangays with coverage
+    const barangaysWithCov: BarangayWithCoverage[] = allBarangays.map((barangay) => {
+      const coverage = coverageMap.get(barangay.id);
+      const editing = editingBarangays.get(barangay.id);
+
+      return {
+        ...barangay,
+        coverage,
+        wiredPercentage: editing?.wiredPercentage ?? coverage?.wiredFtthPercentage ?? 0,
+        wirelessPercentage: editing?.wirelessPercentage ?? coverage?.wirelessPercentage ?? 0,
+        isDirty: editing?.isDirty ?? false,
+      };
+    });
+
+    // Group by province and municipality
+    const provinceMap = new Map<string, GroupedBarangays>();
+
+    barangaysWithCov.forEach((barangay) => {
+      const provinceName = barangay.municipality?.province?.name || "Unknown Province";
+      const provinceId = barangay.municipality?.province?.id || "unknown-province";
+      const municipalityName = barangay.municipality?.name || "Unknown Municipality";
+      const municipalityId = barangay.municipality?.id || "unknown-municipality";
+
+      if (!provinceMap.has(provinceId)) {
+        provinceMap.set(provinceId, {
+          provinceName,
+          provinceId,
+          municipalities: [],
+        });
+      }
+
+      const province = provinceMap.get(provinceId)!;
+      let municipality = province.municipalities.find((m) => m.municipalityId === municipalityId);
+
+      if (!municipality) {
+        municipality = {
+          municipalityName,
+          municipalityId,
+          barangays: [],
+        };
+        province.municipalities.push(municipality);
+      }
+
+      municipality.barangays.push(barangay);
+    });
+
+    return {
+      groupedBarangays: Array.from(provinceMap.values()),
+      totalBarangays: totalCount,
+      flattenedBarangays: barangaysWithCov,
+    };
+  }, [barangaysData, coverageData, editingBarangays]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasNextPage || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const handleCheckboxChange = (barangay: BarangayWithCoverage, checked: boolean) => {
+    const newEditingBarangays = new Map(editingBarangays);
+
+    if (checked) {
+      newEditingBarangays.set(barangay.id, {
+        ...barangay,
+        wiredPercentage: 100,
+        wirelessPercentage: 100,
+        isDirty: true,
+      });
+    } else {
+      newEditingBarangays.set(barangay.id, {
+        ...barangay,
+        wiredPercentage: 0,
+        wirelessPercentage: 0,
+        isDirty: true,
+      });
+    }
+
+    setEditingBarangays(newEditingBarangays);
+  };
+
+  const handlePercentageChange = (barangay: BarangayWithCoverage, field: "wired" | "wireless", value: string) => {
+    const numValue = parseFloat(value) || 0;
+    const clampedValue = Math.min(Math.max(numValue, 0), 100);
+
+    const newEditingBarangays = new Map(editingBarangays);
+    const existing = newEditingBarangays.get(barangay.id) || barangay;
+
+    newEditingBarangays.set(barangay.id, {
+      ...existing,
+      wiredPercentage: field === "wired" ? clampedValue : existing.wiredPercentage,
+      wirelessPercentage: field === "wireless" ? clampedValue : existing.wirelessPercentage,
+      isDirty: true,
+    });
+
+    setEditingBarangays(newEditingBarangays);
+  };
+
+  const handleSave = async (barangay: BarangayWithCoverage) => {
+    setSavingBarangays((prev) => new Set(prev).add(barangay.id));
+
+    try {
+      const payload = {
+        wiredFtthPercentage: barangay.wiredPercentage,
+        wirelessPercentage: barangay.wirelessPercentage,
+      };
+
+      if (barangay.coverage) {
+        await updateMutation.mutateAsync({
+          pathParams: { barangayId: barangay.id },
+          payload,
+        });
+        toast.success(`Updated coverage for ${barangay.name}`);
+      } else {
+        await createMutation.mutateAsync({
+          pathParams: {},
+          payload: {
+            barangayId: barangay.id,
+            ...payload,
+          },
+        });
+        toast.success(`Created coverage for ${barangay.name}`);
+      }
+
+      const newEditingBarangays = new Map(editingBarangays);
+      newEditingBarangays.delete(barangay.id);
+      setEditingBarangays(newEditingBarangays);
+
+      await refetchCoverage();
+    } catch (error) {
+      console.error("Error saving coverage:", error);
+      toast.error(`Failed to save coverage for ${barangay.name}`);
+    } finally {
+      setSavingBarangays((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(barangay.id);
+        return newSet;
+      });
+    }
+  };
+
+  // Only show loading for barangays data
+  if (isLoadingBarangays) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-5 pb-5">
+      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border-2 border-purple-200 bg-gradient-to-br from-purple-50/50 via-pink-50/50 to-blue-50/50">
+        <CardHeader className="border-b border-purple-200 bg-white/80 backdrop-blur">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+            Barangay Coverage Management
+          </CardTitle>
+          <CardDescription className="text-base text-gray-600">
+            Manage broadband coverage data for barangays grouped by province and municipality. Coverage data loads in
+            the background.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="flex-1 overflow-y-auto p-4">
+          {totalBarangays === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+              <AlertCircle className="h-12 w-12 mb-3 text-gray-400" />
+              <p className="text-lg font-medium">No barangays found in this region</p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing {totalBarangays} barangays{hasNextPage && " (loading more...)"}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={viewMode === "grouped" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("grouped")}
+                    className="h-8">
+                    Grouped
+                  </Button>
+                  <Button
+                    variant={viewMode === "flatten" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("flatten")}
+                    className="h-8">
+                    Flatten
+                  </Button>
+                </div>
+              </div>
+
+              {/* Grouped View */}
+              <div className={viewMode === "grouped" ? "block" : "hidden"}>
+                <Accordion type="multiple" className="space-y-2">
+                  {groupedBarangays.map((province) => (
+                    <AccordionItem
+                      key={province.provinceId}
+                      value={province.provinceId}
+                      className="border-2 border-purple-200 rounded-lg bg-white shadow-sm">
+                      <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-purple-50 rounded-t-lg">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-5 w-5 text-purple-600" />
+                          <span className="font-semibold text-lg text-purple-900">{province.provinceName}</span>
+                          <Badge variant="outline" className="ml-2 bg-purple-100 text-purple-700 border-purple-300">
+                            {province.municipalities.reduce((sum, m) => sum + m.barangays.length, 0)} barangays
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-3">
+                        <Accordion type="multiple" className="space-y-2 mt-2">
+                          {province.municipalities.map((municipality) => (
+                            <AccordionItem
+                              key={municipality.municipalityId}
+                              value={municipality.municipalityId}
+                              className="border border-blue-200 rounded-lg bg-blue-50/30">
+                              <AccordionTrigger className="px-3 py-2 hover:no-underline hover:bg-blue-100/50 rounded-t-lg">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-4 w-4 text-blue-600" />
+                                  <span className="font-medium text-base text-blue-900">
+                                    {municipality.municipalityName}
+                                  </span>
+                                  <Badge variant="outline" className="ml-2 bg-blue-100 text-blue-700 border-blue-300">
+                                    {municipality.barangays.length} barangays
+                                  </Badge>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="px-3 pb-2">
+                                <div className="space-y-1 mt-2">
+                                  {municipality.barangays.map((barangay) => (
+                                    <BarangayCard
+                                      key={barangay.id}
+                                      barangay={barangay}
+                                      onCheckboxChange={handleCheckboxChange}
+                                      onPercentageChange={handlePercentageChange}
+                                      onSave={handleSave}
+                                      isSaving={savingBarangays.has(barangay.id)}
+                                    />
+                                  ))}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
+
+              {/* Flatten View */}
+              <div className={viewMode === "flatten" ? "block space-y-2" : "hidden"}>
+                {flattenedBarangays?.map((barangay) => (
+                  <BarangayCard
+                    key={barangay.id}
+                    barangay={barangay}
+                    onCheckboxChange={handleCheckboxChange}
+                    onPercentageChange={handlePercentageChange}
+                    onSave={handleSave}
+                    isSaving={savingBarangays.has(barangay.id)}
+                  />
+                ))}
+              </div>
+
+              {/* Load more trigger */}
+              {hasNextPage && (
+                <div ref={loadMoreRef} className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                  <span className="ml-2 text-sm text-gray-600">Loading more barangays...</span>
+                </div>
+              )}
+
+              {!hasNextPage && totalBarangays > ITEMS_PER_PAGE && (
+                <div className="flex items-center justify-center py-4 text-sm text-gray-500">
+                  All {totalBarangays} barangays loaded
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

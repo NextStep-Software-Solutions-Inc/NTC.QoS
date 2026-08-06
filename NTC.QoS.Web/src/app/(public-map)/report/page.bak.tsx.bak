@@ -1,0 +1,20 @@
+import React from "react";
+
+import ReportContent from "@/components/dashboard/ReportContent";
+import RegionalAppSidebar from "@/components/dashboard/DashboardSidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+
+function page() {
+  return (
+    <SidebarProvider className="cursor-default">
+      <RegionalAppSidebar />
+      <SidebarInset>
+        {/* <RegionalCategories /> */}
+        {/* add report component here */}
+        <ReportContent />
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
+export default page;
