@@ -1,16 +1,20 @@
 /**
- * Get the backend API URL for client-side requests
- * Uses NEXT_PUBLIC_API_URL as the single source of truth
+ * Get the backend API URL for client-side requests.
+ * Reads process.env.NEXT_PUBLIC_API_URL and throws an explicit error if not configured.
  */
 export function getBackendUrl(): string {
-  if (typeof window !== "undefined") {
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (envUrl) {
-      return envUrl;
-    }
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  
+  if (envUrl) {
+    return envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;
+  }
+
+  // In browser environment fallback to window.location.origin only if explicitly in client window
+  if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return process.env.NEXT_PUBLIC_API_URL ?? "";
+
+  throw new Error("Missing required environment variable: NEXT_PUBLIC_API_URL");
 }
 
 /**

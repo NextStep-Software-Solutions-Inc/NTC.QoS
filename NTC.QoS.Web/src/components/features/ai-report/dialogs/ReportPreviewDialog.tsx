@@ -29,8 +29,9 @@ interface ReportPreviewDialogProps {
     report: GeneratedReportDto | null;
 }
 
-const QOS_BACKEND_URL =
-    process.env.QOS_BACKEND_URL ?? process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "http://localhost:3000";
+import { getBackendUrl } from "@/lib/api-utils";
+
+const QOS_BACKEND_URL = getBackendUrl();
 
 // Helper to get session token from cookie
 const getSessionFromCookie = () => {

@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PHILIPPINES_BOUNDS } from "@/lib/constants/map-bounds";
 import { cn } from "@/lib/utils";
 import { copyMapScreenshotToClipboard, downloadMapScreenshot, exportMapScreenshotAsPDF } from "@/utils/map-screenshot";
+import { getBackendUrl } from "@/lib/api-utils";
 // Worker types
 import type {
   LineFeatureCollection,
@@ -630,7 +631,7 @@ export default function NAPMapView({
       });
 
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? process.env.QOS_BACKEND_URL ?? "";
+        const backendUrl = getBackendUrl();
         const res = await fetch(`${backendUrl}/v2/NAPs/viewport/public?${params.toString()}`, {
           headers: { Accept: "application/json" },
         });

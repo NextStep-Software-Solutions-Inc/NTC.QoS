@@ -1,150 +1,114 @@
-const getSessionFromCookie = () => {
-  let token: string | null = null;
-  if (typeof document !== "undefined") {
-    token =
-      document.cookie
-        .split(";")
-        .find((c) => c.trim().startsWith("__session"))
-        ?.split("=")[1] ?? null;
-  }
-  return token;
+import { getBackendUrl } from "@/lib/api-utils";
+
+export type RequestConfig = {
+  headers?: Record<string, string>;
+  baseUrl?: string;
+  credentials?: RequestCredentials;
 };
 
-const createRequest = (baseUrl: string, baseInit?: RequestInit) => {
-  const typeSafeFetch = async <R>(url: string, init?: RequestInit): Promise<R> => {
-    const res = await fetch(`${baseUrl}${url}`, init);
+export type ApiErrorResponse = {
+  message?: string;
+  error?: string;
+  statusCode?: number;
+};
 
-    // Handle 204 No Content - return void/undefined
-    if (res.status === 204) {
-      return undefined as R;
-    }
+export class ApiError extends Error {
+  statusCode: number;
+  data: ApiErrorResponse;
 
-    const contentType = res.headers.get("content-type");
+  constructor(message: string, statusCode: number, data: ApiErrorResponse = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.statusCode = statusCode;
+    this.data = data;
+  }
+}
 
-    let response: Promise<R>;
+async function handleResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type");
+  const isJson = contentType?.includes("application/json");
 
-    // For error responses, be more lenient with content-type parsing
-    if (!res.ok) {
-      // Read response as text first, then try to parse as JSON
-      response = res.text().then((text) => {
-        try {
-          return JSON.parse(text) as R;
-        } catch {
-          return text as R;
-        }
-      }) as Promise<R>;
-    } else {
-      // Handle 204 No Content responses (common for DELETE and PUT operations)
-      if (res.status === 204 || !contentType) {
-        response = Promise.resolve(undefined as R);
+  if (!response.ok) {
+    let errorData: ApiErrorResponse = {};
+    let errorMessage = `HTTP error! status: ${response.status}`;
+
+    try {
+      if (isJson) {
+        errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
       } else {
-        // For successful responses with content, enforce strict content-type checking
-        switch (contentType) {
-          case "application/json":
-          case "application/json; charset=utf-8":
-          case "application/problem+json":
-          case "application/problem+json; charset=utf-8":
-            response = res.json() as Promise<R>;
-            break;
-
-          case "application/xml":
-          case "text/plain":
-            response = res.text() as Promise<R>;
-            break;
-
-          case "application/octet-stream":
-          case "image/png":
-          case "application/pdf":
-            response = res.blob() as Promise<R>;
-            break;
-
-          case "application/x-www-form-urlencoded":
-            response = res.formData() as Promise<R>;
-            break;
-
-          default:
-            throw new Error(`Unsupported content type ${contentType}`);
-        }
+        const text = await response.text();
+        if (text) errorMessage = text;
       }
+    } catch {
+      // Failed to parse error response
     }
 
-    if (!res.ok) {
-      const errorResponse = await response;
-      const error = new Error(`HTTP ${res.status}: ${res.statusText}`) as Error & { status: number; response: R };
-      error.status = res.status;
-      error.response = errorResponse;
-      throw error;
+    throw new ApiError(errorMessage, response.status, errorData);
+  }
+
+  if (response.status === 24) {
+    return {} as T;
+  }
+
+  if (isJson) {
+    return response.json();
+  }
+
+  return response.text() as unknown as T;
+}
+
+export function createRequest(baseUrl: string, defaultConfig: RequestConfig = {}) {
+  const getFullUrl = (url: string): string => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return url;
     }
-    return response;
+    const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    const cleanUrl = url.startsWith("/") ? url : `/${url}`;
+    return `${cleanBaseUrl}${cleanUrl}`;
   };
 
-  // Refactored: Unified payload/init handling, improved header/content-type logic, removed console logs.
-  const createRequestMethod = <R = unknown>({
-    method,
-    hasPayload = false,
-  }: {
-    method: string;
-    hasPayload?: boolean;
-  }) => {
-    return (url: string, payloadOrInit?: unknown, init?: RequestInit): Promise<R> => {
-      const token = getSessionFromCookie();
-
-      // Determine payload and init
-      let payload: unknown;
-      let requestInit: RequestInit | undefined;
-
-      if (hasPayload) {
-        payload = payloadOrInit;
-        requestInit = init;
-      } else {
-        payload = undefined;
-        requestInit = payloadOrInit as RequestInit | undefined;
-      }
-      const isJsonPayload =
-        hasPayload &&
-        payload &&
-        !(payload instanceof FormData || payload instanceof Blob || payload instanceof ArrayBuffer);
-      // Merge headers and set Content-Type if payload is present
-
-      const headers: HeadersInit = {
-        ...(baseInit?.headers ?? {}),
-        ...(requestInit?.headers ?? {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(isJsonPayload ? { "Content-Type": "application/json" } : {}),
-      };
-
-      // Prepare body based on payload type
-      let body: BodyInit | undefined;
-      if (hasPayload && payload) {
-        if (payload instanceof FormData || payload instanceof Blob || payload instanceof ArrayBuffer) {
-          body = payload as BodyInit;
-        } else {
-          body = JSON.stringify(payload);
-        }
-      }
-
-      return typeSafeFetch<R>(url, {
-        ...baseInit,
-        ...requestInit,
-        method,
-        ...(body ? { body } : {}),
-        headers,
-      });
+  const getHeaders = (headers?: Record<string, string>): Record<string, string> => {
+    return {
+      "Content-Type": "application/json",
+      ...defaultConfig.headers,
+      ...headers,
     };
   };
 
-  return {
-    get: <R = unknown>(url: string, init?: RequestInit) => createRequestMethod<R>({ method: "GET" })(url, init),
-    post: <R = unknown>(url: string, payload?: unknown, init?: RequestInit) =>
-      createRequestMethod<R>({ method: "POST", hasPayload: true })(url, payload, init),
-    put: <R = unknown>(url: string, payload?: unknown, init?: RequestInit) =>
-      createRequestMethod<R>({ method: "PUT", hasPayload: true })(url, payload, init),
-    patch: <R = unknown>(url: string, payload?: unknown, init?: RequestInit) =>
-      createRequestMethod<R>({ method: "PATCH", hasPayload: true })(url, payload, init),
-    delete: <R = unknown>(url: string, init?: RequestInit) => createRequestMethod<R>({ method: "DELETE" })(url, init),
+  const requestMethod = async <T = unknown>(
+    url: string,
+    method: string,
+    payload?: unknown,
+    init?: RequestInit
+  ): Promise<T> => {
+    const fullUrl = getFullUrl(url);
+
+    const config: RequestInit = {
+      method,
+      headers: getHeaders(init?.headers as Record<string, string>),
+      credentials: defaultConfig.credentials ?? init?.credentials,
+      ...init,
+    };
+
+    if (payload !== undefined && payload !== null) {
+      config.body = JSON.stringify(payload);
+    }
+
+    const response = await fetch(fullUrl, config);
+    return handleResponse<T>(response);
   };
-};
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+  return {
+    get: <T = unknown>(url: string, init?: RequestInit) => requestMethod<T>(url, "GET", undefined, init),
+    post: <T = unknown>(url: string, payload?: unknown, init?: RequestInit) =>
+      requestMethod<T>(url, "POST", payload, init),
+    put: <T = unknown>(url: string, payload?: unknown, init?: RequestInit) =>
+      requestMethod<T>(url, "PUT", payload, init),
+    patch: <T = unknown>(url: string, payload?: unknown, init?: RequestInit) =>
+      requestMethod<T>(url, "PATCH", payload, init),
+    delete: <T = unknown>(url: string, init?: RequestInit) => requestMethod<T>(url, "DELETE", undefined, init),
+  };
+}
 
-export const request = createRequest(API_URL, { headers: { Accept: "application/json" } });
+export const request = createRequest(getBackendUrl(), { headers: { Accept: "application/json" } });

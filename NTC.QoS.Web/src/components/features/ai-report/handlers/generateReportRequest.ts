@@ -1,9 +1,9 @@
+import { getBackendUrl } from "@/lib/api-utils";
 import { type APIResponse, type MutationBlueprintFromTemplate } from "@/types/reusable/api";
 import { type GenerateReportRequest, type GenerateReportResponse } from "../types/Report";
 import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
 
-const QOS_BACKEND_URL =
-  process.env.QOS_BACKEND_URL ?? process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "http://localhost:3000";
+const QOS_BACKEND_URL = getBackendUrl();
 
 const endpoint = "/genai/generate-report" as const;
 

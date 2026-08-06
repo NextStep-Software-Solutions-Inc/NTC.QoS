@@ -14,6 +14,7 @@ import { type ChatMessage } from "../types/ChatMessage";
 import { cn } from "@/lib/utils";
 import { useSendChatMessage } from "../handlers/sendChatMessageRequest";
 import { sendChatMessageStream } from "../handlers/sendChatMessageStreamRequest";
+import { getBackendUrl } from "@/lib/api-utils";
 
 interface ChatInterfaceProps {
   className?: string;
@@ -256,7 +257,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
             formData.append("files", file);
           });
 
-          const backendUrl = process.env.QOS_BACKEND_URL ?? process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "http://localhost:3000";
+          const backendUrl = getBackendUrl();
           response = await uploadWithProgress(
             `${backendUrl}/genai/chat`,
             formData,

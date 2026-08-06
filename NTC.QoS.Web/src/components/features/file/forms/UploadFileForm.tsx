@@ -39,7 +39,9 @@ interface UploadFileFormProps {
   type: "Speedtest" | "NAP" | "Cell" | "Cellular" | "CellularCoverage" | "WirelessValidation";
 }
 
-const QOS_BACKEND_URL = process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "";
+import { getBackendUrl } from "@/lib/api-utils";
+
+const QOS_BACKEND_URL = getBackendUrl();
 export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileFormProps) {
   const { region } = useParams<{ region: string }>();
   const [files, setFiles] = useState<File[]>([]);

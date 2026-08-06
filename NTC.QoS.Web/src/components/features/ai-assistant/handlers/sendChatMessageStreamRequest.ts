@@ -1,8 +1,8 @@
+import { getBackendUrl } from "@/lib/api-utils";
 import { type SendMessageRequest } from "../types/ChatMessage";
 import { createParser, type EventSourceMessage } from "eventsource-parser";
 
-const QOS_BACKEND_URL =
-  process.env.QOS_BACKEND_URL ?? process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "http://localhost:3000";
+const QOS_BACKEND_URL = getBackendUrl();
 
 const getSessionFromCookie = () => {
   let token: string | null = null;
