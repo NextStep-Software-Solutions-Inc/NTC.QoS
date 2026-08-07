@@ -68,9 +68,24 @@ export function createRequest(baseUrl: string, defaultConfig: RequestConfig = {}
     return `${cleanBaseUrl}${cleanUrl}`;
   };
 
-  const getHeaders = (headers?: Record<string, string>): Record<string, string> => {
+  const getHeaders = async (headers?: Record<string, string>): Promise<Record<string, string>> => {
+    let bearerToken: string | null = null;
+    if (
+      typeof window !== "undefined" &&
+      (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string | null> } } }).Clerk?.session
+    ) {
+      try {
+        bearerToken = await (
+          window as unknown as { Clerk?: { session?: { getToken: () => Promise<string | null> } } }
+        ).Clerk!.session!.getToken();
+      } catch {
+        // Ignore token fetch error
+      }
+    }
+
     return {
       "Content-Type": "application/json",
+      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
       ...defaultConfig.headers,
       ...headers,
     };
@@ -83,10 +98,11 @@ export function createRequest(baseUrl: string, defaultConfig: RequestConfig = {}
     init?: RequestInit
   ): Promise<T> => {
     const fullUrl = getFullUrl(url);
+    const headers = await getHeaders(init?.headers as Record<string, string>);
 
     const config: RequestInit = {
       method,
-      headers: getHeaders(init?.headers as Record<string, string>),
+      headers,
       credentials: defaultConfig.credentials ?? init?.credentials,
       ...init,
     };
