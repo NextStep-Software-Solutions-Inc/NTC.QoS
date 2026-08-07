@@ -1,0 +1,119 @@
+name: 🤖 PR Code Review (Gemini AI)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    name: 🔍 AI Code Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-genai
+
+      - name: Generate PR Diff & Run Gemini Review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          python -c "
+          import os
+          import subprocess
+          import sys
+          from google import genai
+
+          api_key = os.environ.get('GEMINI_API_KEY')
+          if not api_key:
+              print('GEMINI_API_KEY secret is not set. Skipping AI review.')
+              sys.exit(0)
+
+          base_ref = os.environ.get('BASE_REF', 'main')
+          subprocess.run(['git', 'fetch', 'origin', base_ref], check=False)
+
+          diff_cmd = subprocess.run(['git', 'diff', f'origin/{base_ref}...HEAD'], capture_output=True, text=True)
+          diff_text = diff_cmd.stdout.strip()
+
+          if not diff_text:
+              print('No git diff found.')
+              sys.exit(0)
+
+          if len(diff_text) > 80000:
+              diff_text = diff_text[:80000] + '\n\n...[Diff truncated due to size limit]...'
+
+          pr_title = os.environ.get('PR_TITLE', '')
+          
+          prompt = f'''
+          You are an expert Principal Software Engineer and Code Reviewer for the NTC QoS (Quality of Service) Monorepo (.NET 8 C# Web API & Next.js 16 TypeScript React Frontend).
+
+          Please perform a thorough, constructive, high-quality code review for the following Pull Request.
+
+          PR Title: {pr_title}
+
+          Git Diff:
+          \`\`\`diff
+          {diff_text}
+          \`\`\`
+
+          Please format your review using GitHub Markdown with clear sections:
+
+          ## 🤖 Gemini AI Code Review Summary
+
+          ### 🌟 Highlights & Strengths
+          - List notable positive implementations or good practices.
+
+          ### ⚠️ Critical Findings & Security Issues
+          - Identify any potential security vulnerabilities, memory leaks, unhandled exceptions, or missing authorization.
+
+          ### ⚡ Performance & Optimization Suggestions
+          - Suggest micro-optimizations, caching improvements, or query fixes if applicable.
+
+          ### 🧪 Code Quality & Maintainability
+          - Check TypeScript typing, C# conventions, error handling, and clean code principles.
+
+          ### 🎯 Recommendation
+          - State clearly if this PR is **Approved**, **Needs Minor Adjustments**, or **Requires Changes**.
+          '''
+
+          client = genai.Client(api_key=api_key)
+          response = client.models.generate_content(
+              model='gemini-2.5-flash',
+              contents=prompt,
+          )
+
+          review_comment = response.text if response and response.text else 'Gemini review was unable to generate a response.'
+
+          with open('review_comment.md', 'w', encoding='utf-8') as f:
+              f.write(review_comment)
+
+          print('Gemini Review Generated Successfully.')
+          "
+
+      - name: Post Comment to Pull Request
+        if: success() && hashFiles('review_comment.md') != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body-file review_comment.md
