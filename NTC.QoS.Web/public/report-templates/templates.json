@@ -1,0 +1,88 @@
+{
+  "templates": [
+    {
+      "id": "network-coverage-analysis",
+      "name": "Network Coverage Analysis",
+      "description": "Comprehensive analysis of network coverage across regions, including service quality metrics and provider comparisons",
+      "file": "network-coverage-analysis.md",
+      "icon": "Map",
+      "category": "Coverage",
+      "tags": ["coverage", "network", "regional", "providers"],
+      "suggestedPrompts": [
+        "Analyze coverage gaps in underserved regions",
+        "Compare coverage performance across all providers",
+        "Identify areas with poor signal quality"
+      ]
+    },
+    {
+      "id": "speed-test-analysis",
+      "name": "Speed Test Analysis",
+      "description": "Detailed analysis of speed test results, including download/upload speeds, latency metrics, and provider rankings",
+      "file": "speed-test-analysis.md",
+      "icon": "Activity",
+      "category": "Performance",
+      "tags": ["speed", "bandwidth", "performance", "testing"],
+      "suggestedPrompts": [
+        "Analyze peak vs off-peak performance",
+        "Compare provider speed test results",
+        "Identify regions with slowest speeds"
+      ]
+    },
+    {
+      "id": "provider-performance",
+      "name": "Provider Performance Report",
+      "description": "Comparative analysis of all service providers, including infrastructure, service quality, and compliance metrics",
+      "file": "provider-performance.md",
+      "icon": "TrendingUp",
+      "category": "Providers",
+      "tags": ["providers", "comparison", "compliance", "benchmarking"],
+      "suggestedPrompts": [
+        "Rank providers by overall performance",
+        "Analyze provider compliance with NTC standards",
+        "Compare market share and infrastructure deployment"
+      ]
+    },
+    {
+      "id": "broadband-infrastructure",
+      "name": "Broadband Infrastructure Report",
+      "description": "Analysis of telecommunications infrastructure, including cell sites, technology deployment, and expansion planning",
+      "file": "broadband-infrastructure.md",
+      "icon": "Radio",
+      "category": "Infrastructure",
+      "tags": ["infrastructure", "cellsites", "deployment", "investment"],
+      "suggestedPrompts": [
+        "Analyze infrastructure density by region",
+        "Identify priority areas for expansion",
+        "Review 5G deployment progress"
+      ]
+    },
+    {
+      "id": "quality-of-service",
+      "name": "Quality of Service Report",
+      "description": "QoS metrics analysis including uptime, reliability, user experience, and compliance with service standards",
+      "file": "quality-of-service.md",
+      "icon": "CheckCircle",
+      "category": "Quality",
+      "tags": ["qos", "reliability", "uptime", "standards"],
+      "suggestedPrompts": [
+        "Evaluate QoS compliance across providers",
+        "Analyze service availability trends",
+        "Review user experience metrics"
+      ]
+    },
+    {
+      "id": "custom-comprehensive",
+      "name": "Custom Comprehensive Report",
+      "description": "Flexible template for custom analysis with multiple sections - ideal for specialized reporting needs",
+      "file": "custom-comprehensive.md",
+      "icon": "FileText",
+      "category": "Custom",
+      "tags": ["custom", "flexible", "comprehensive"],
+      "suggestedPrompts": [
+        "Create a custom analysis report",
+        "Generate specialized insights",
+        "Build a multi-section analysis"
+      ]
+    }
+  ]
+}

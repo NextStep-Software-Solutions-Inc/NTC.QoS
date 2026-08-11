@@ -1,0 +1,110 @@
+name: Production VPS CI/CD (Backend API)
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'api-v*'
+      - 'v-api-*'
+      - 'v*'
+
+env:
+  CONTAINER_NAME: qos-api
+  IMAGE_NAME: qos-api:prod
+
+jobs:
+  build-and-package:
+    name: 🛠️ Build & Package Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }} -f ./NTC.QoS.API/Dockerfile .
+          docker save ${{ env.IMAGE_NAME }} -o qos-api.tar
+
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-api-image
+          path: qos-api.tar
+          retention-days: 1
+
+  deploy-vps:
+    name: 🚀 Deploy to Production VPS
+    needs: build-and-package
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qos-api-image
+
+      - name: Copy Docker Image to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "qos-api.tar"
+          target: "/tmp/"
+
+      - name: Execute Remote Production Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            # Create production directory if not exists
+            mkdir -p /opt/docker/qos-api
+            
+            # Load new image
+            docker load -i /tmp/qos-api.tar
+            
+            # Clean up temporary tar file immediately
+            rm -f /tmp/qos-api.tar
+
+            # Stop and remove existing container if running
+            docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+            docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+
+            # Ensure networks exist
+            docker network create npm_proxy_net 2>/dev/null || true
+            docker network create ntcqos_db_net 2>/dev/null || true
+
+            # Run container attached to both networks
+            docker run -d \
+              --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              --network ntcqos_db_net \
+              -e ASPNETCORE_ENVIRONMENT=Production \
+              -e Database__RunMigrationsOnStartup=true \
+              -e ConnectionStrings__PostgreSqlConnection="${{ secrets.DB_CONNECTION_STRING }}" \
+              -e ConnectionStrings__Redis="${{ secrets.REDIS_CONNECTION_STRING }}" \
+              -e ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
+              -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
+              -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
+              -e GoogleAI__ApiKey="${{ secrets.GOOGLE_AI_API_KEY }}" \
+              ${{ env.IMAGE_NAME }}
+
+            # Attach container to npm_proxy_net for Nginx Proxy Manager routing
+            docker network connect npm_proxy_net ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+
+            # Clean up unused/dangling Docker images to free up disk space
+            docker image prune -f
+
+            # Verify production container status
+            sleep 3
+            docker ps -f name=${{ env.CONTAINER_NAME }}

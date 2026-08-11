@@ -51,10 +51,17 @@ public class Program
             x.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateAudience = false,
-                NameClaimType = ClaimTypes.NameIdentifier
+                NameClaimType = ClaimTypes.NameIdentifier,
+                ClockSkew = TimeSpan.FromMinutes(5)
             };
             x.Events = new JwtBearerEvents
             {
+                OnAuthenticationFailed = context =>
+                {
+                    var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                    logger.LogError(context.Exception, "JWT Authentication Failed: {Message}", context.Exception.Message);
+                    return Task.CompletedTask;
+                },
                 OnTokenValidated = context =>
                 {
                     var azp = context.Principal?.FindFirstValue("azp");
@@ -63,6 +70,8 @@ public class Program
                     {
                         if (string.IsNullOrEmpty(azp) || authorizedParties == null || !authorizedParties.Contains(azp))
                         {
+                            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                            logger.LogWarning("AZP Claim invalid or missing. Received AZP: '{Azp}', AuthorizedParties: [{Parties}]", azp, string.Join(", ", authorizedParties ?? []));
                             context.Fail("AZP Claim is invalid or missing");
                         }
                     }

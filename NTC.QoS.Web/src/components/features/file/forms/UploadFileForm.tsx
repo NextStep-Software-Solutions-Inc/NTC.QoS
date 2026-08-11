@@ -1,0 +1,307 @@
+import { useState } from "react";
+import { useParams } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { ChevronDown } from "lucide-react";
+
+import SubmitButton from "@/components/SubmitButton";
+import { Button } from "@/components/ui/button";
+import { DialogClose, DialogFooter } from "@/components/ui/dialog";
+import { Form } from "@/components/ui/form";
+import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
+import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
+import { extractErrorMessage } from "@/lib/extract-error-message";
+import { getMunicipalitiesRequest } from "../../municipality/handlers/getMunicipalitiesRequest";
+import { getProvincesRequest } from "../../province/handlers/getProvincesRequest";
+import { type PreSignedUrl } from "@/components/features/file/types/PreSignedUrl";
+import { request } from "@/services/fetch";
+import { type APIResponse } from "@/types/reusable/api";
+import { uploadFileToAzure } from "../handlers/uploadFileToAzure";
+import { uploadFileRequest } from "../handlers/uploadFileRequest";
+import UploadedFilesContent from "./UploadedFilesContent";
+
+const useUploadFile = createMutationHookFromTemplate(uploadFileRequest);
+const useGetProvinces = createQueryHookFromTemplate(getProvincesRequest);
+const useGetMunicipalities = createQueryHookFromTemplate(getMunicipalitiesRequest);
+
+const uploadFileSchema = z.object({
+  fileName: z.string().trim().optional(),
+  type: z.string().trim().min(3, { message: "File type must be at least 3 characters long" }),
+  regionId: z.string({ required_error: "Region ID is required", invalid_type_error: "Region ID must be a string" }),
+});
+
+interface UploadFileFormProps {
+  onSuccess?: () => void;
+  onClose: () => void;
+  type: "Speedtest" | "NAP" | "Cell" | "Cellular" | "CellularCoverage" | "WirelessValidation";
+}
+
+import { getBackendUrl } from "@/lib/api-utils";
+
+const QOS_BACKEND_URL = getBackendUrl();
+export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileFormProps) {
+  const { region } = useParams<{ region: string }>();
+  const [files, setFiles] = useState<File[]>([]);
+  const [selectedProvinceId, setSelectedProvinceId] = useState<string>("");
+  const [selectedMunicipalityId, setSelectedMunicipalityId] = useState<string>("");
+
+  // Format type for display with proper spacing
+  const displayType = type === "CellularCoverage" 
+    ? "Cellular Coverage" 
+    : type === "WirelessValidation" 
+    ? "Wireless Validation" 
+    : type;
+
+  const { mutateAsync, isPending } = useUploadFile();
+  const queryClient = useQueryClient();
+
+  // Fetch provinces for the current region (for WirelessValidation)
+  const { data: provincesData, isLoading: isLoadingProvinces, error: provincesError } = useGetProvinces({
+    pathParams: {},
+    queryParams: { pageSize: 1000, pageNumber: 1, regionIds: region ? [region] : [] },
+    enabled: type === "WirelessValidation" && !!region,
+  });
+
+  // Fetch municipalities for the selected province (for WirelessValidation)
+  const { data: municipalitiesData, isLoading: isLoadingMunicipalities, error: municipalitiesError } = useGetMunicipalities({
+    pathParams: {},
+    queryParams: { pageSize: 1000, pageNumber: 1, provinceIds: selectedProvinceId ? [selectedProvinceId] : [] },
+    enabled: type === "WirelessValidation" && !!selectedProvinceId,
+  });
+
+  const form = useForm<z.infer<typeof uploadFileSchema>>({
+    resolver: zodResolver(uploadFileSchema),
+    progressive: true,
+    mode: "all",
+    values: { fileName: "", type, regionId: region },
+  });
+
+  const onSuccessHandler = () => {
+    onSuccess?.();
+    onClose?.();
+  };
+
+  const handleCancel = () => {
+    void queryClient.cancelQueries({ queryKey: ["upload-file"] });
+    onClose?.();
+  };
+
+  const handleSubmit = form.handleSubmit(async (values) => {
+    for (const file of files) {
+      toast.promise(
+        (async () => {
+          // Step 1: Request 1-minute Pre-Signed Upload SAS URL from backend
+          const presignedRes = await request.get<APIResponse<PreSignedUrl>>(
+            `/files/presigned-upload-url?fileName=${encodeURIComponent(file.name)}&fileType=${encodeURIComponent(values.type)}&regionId=${encodeURIComponent(values.regionId)}`
+          );
+
+          if (!presignedRes.succeeded || !presignedRes.data?.url) {
+            throw new Error(presignedRes.message || "Failed to generate pre-signed upload URL from backend.");
+          }
+
+          // Step 2: Upload file binary directly to Azure Storage via PUT with x-ms-blob-type: BlockBlob
+          await uploadFileToAzure(presignedRes.data.url, file);
+
+          // Step 3: Send metadata to backend to register file record
+          const formData = new FormData();
+          formData.append("type", values.type);
+          formData.append("file", file);
+          formData.append("regionId", values.regionId);
+          const res = await mutateAsync({ pathParams: {}, payload: formData });
+
+          onSuccessHandler();
+          return res.message;
+        })(),
+        {
+          loading: "Uploading file securely to cloud storage...",
+          success: (msg) => (typeof msg === "string" ? msg : "File uploaded successfully."),
+          error: (error) => extractErrorMessage(error) ?? "Failed to upload file.",
+        }
+      );
+    }
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newFiles = e.target.files ? Array.from(e.target.files) : [];
+    const validFiles = newFiles.filter((file) => file.size <= 25 * 1024 * 1024); // 25MB
+    const oversizedFiles = newFiles.filter((file) => file.size > 25 * 1024 * 1024);
+
+    if (oversizedFiles.length > 0) {
+      alert("Some files exceed 25MB and were not added.");
+    }
+    setFiles((prev) => [...prev, ...validFiles]);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const provinces = provincesData?.data ?? [];
+  const municipalities = municipalitiesData?.data ?? [];
+
+  console.log("Province & Municipality data:", {
+    provinces: provinces.length,
+    municipalities: municipalities.length,
+    isLoadingProvinces,
+    isLoadingMunicipalities,
+    hasProvinceError: !!provincesError,
+    hasMunicipalityError: !!municipalitiesError,
+    regionId: region,
+    selectedProvinceId,
+    type,
+  });
+
+  // Generate download URL based on type
+  const getDownloadUrl = () => {
+    if (type === "WirelessValidation" && selectedMunicipalityId) {
+      return `${QOS_BACKEND_URL}/files/download/wireless-validation/${selectedMunicipalityId}`;
+    }
+    return `${QOS_BACKEND_URL}/files/download/${type}`;
+  };
+
+  // Check if download is enabled
+  const isDownloadEnabled = type !== "WirelessValidation" || selectedMunicipalityId !== "";
+
+  return (
+    <Form {...form}>
+      {/* Province and Municipality Selectors for Wireless Validation */}
+      {type === "WirelessValidation" && (
+        <div className="mb-4 space-y-4">
+          {/* Province Selector */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Select Province <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={selectedProvinceId}
+                onChange={(e) => {
+                  setSelectedProvinceId(e.target.value);
+                  setSelectedMunicipalityId(""); // Reset municipality when province changes
+                }}
+                disabled={isLoadingProvinces || provinces.length === 0}
+                className="w-full h-10 px-3 py-2 text-sm border border-input rounded-md bg-background appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                <option value="">
+                  {isLoadingProvinces
+                    ? "Loading provinces..."
+                    : provinces.length === 0
+                      ? "No provinces available"
+                      : "Select a province..."}
+                </option>
+                {provinces.map((province) => (
+                  <option key={province.id} value={province.id}>
+                    {province.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+            {!!provincesError && (
+              <p className="text-xs text-red-500">
+                Error loading provinces. Please try again.
+              </p>
+            )}
+            {!isLoadingProvinces && provinces.length === 0 && !provincesError && (
+              <p className="text-xs text-amber-600">
+                No provinces found for this region.
+              </p>
+            )}
+          </div>
+
+          {/* Municipality Selector - Only show when province is selected */}
+          {selectedProvinceId && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select Municipality <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedMunicipalityId}
+                  onChange={(e) => setSelectedMunicipalityId(e.target.value)}
+                  disabled={isLoadingMunicipalities || municipalities.length === 0}
+                  className="w-full h-10 px-3 py-2 text-sm border border-input rounded-md bg-background appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  <option value="">
+                    {isLoadingMunicipalities
+                      ? "Loading municipalities..."
+                      : municipalities.length === 0
+                        ? "No municipalities available"
+                        : "Select a municipality..."}
+                  </option>
+                  {municipalities.map((municipality) => (
+                    <option key={municipality.id} value={municipality.id}>
+                      {municipality.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+              {!!municipalitiesError && (
+                <p className="text-xs text-red-500">
+                  Error loading municipalities. Please try again.
+                </p>
+              )}
+              {!isLoadingMunicipalities && municipalities.length === 0 && !municipalitiesError && (
+                <p className="text-xs text-amber-600">
+                  No municipalities found for this province.
+                </p>
+              )}
+              {selectedMunicipalityId === "" && municipalities.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Please select a municipality to download the template file.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Download Template Section */}
+      <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800">
+        {isDownloadEnabled ? (
+          <a
+            className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-2"
+            href={getDownloadUrl()}
+            download={`${type}_template-file`}>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            Download {displayType} template file
+          </a>
+        ) : (
+          <div className="text-sm font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2 cursor-not-allowed">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            Download {displayType} template file (select municipality first)
+          </div>
+        )}
+      </div>
+      <form onSubmit={handleSubmit}>
+        <UploadedFilesContent files={files} handleRemoveFile={handleRemoveFile} handleFileChange={handleFileChange} />
+        <DialogFooter className="flex items-center justify-between sm:justify-between">
+          <DialogClose asChild>
+            <Button variant="ghost" onClick={handleCancel}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <SubmitButton loading={isPending} disabled={!form.formState.isValid} type="submit">
+            Upload
+          </SubmitButton>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
