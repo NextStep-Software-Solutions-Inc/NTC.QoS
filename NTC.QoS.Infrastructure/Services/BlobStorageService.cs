@@ -336,8 +336,6 @@ public class BlobStorageService(
 
         var sasBuilder = new BlobSasBuilder
         {
-            BlobContainerName = containerName,
-            BlobName = fileName,
             Resource = "b",
             StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
             ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
@@ -365,8 +363,6 @@ public class BlobStorageService(
 
         var sasBuilder = new BlobSasBuilder
         {
-            BlobContainerName = containerName,
-            BlobName = fileName,
             Resource = "b",
             StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
             ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
