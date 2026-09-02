@@ -93,19 +93,20 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     for (const file of files) {
       toast.promise(
         (async () => {
-          // Step 1: Request 1-minute Pre-Signed Upload SAS URL from backend
-          const presignedRes = await request.get<APIResponse<PreSignedUrl>>(
-            `/files/presigned-upload-url?fileName=${encodeURIComponent(file.name)}&fileType=${encodeURIComponent(values.type)}&regionId=${encodeURIComponent(values.regionId)}`
-          );
+          // Step 1 & 2: Attempt direct Pre-Signed Upload SAS URL to Azure Storage
+          try {
+            const presignedRes = await request.get<APIResponse<PreSignedUrl>>(
+              `/files/presigned-upload-url?fileName=${encodeURIComponent(file.name)}&fileType=${encodeURIComponent(values.type)}&regionId=${encodeURIComponent(values.regionId)}`
+            );
 
-          if (!presignedRes.succeeded || !presignedRes.data?.url) {
-            throw new Error(presignedRes.message || "Failed to generate pre-signed upload URL from backend.");
+            if (presignedRes.succeeded && presignedRes.data?.url) {
+              await uploadFileToAzure(presignedRes.data.url, file);
+            }
+          } catch (azureErr) {
+            console.warn("Direct blob upload fallback triggered:", azureErr);
           }
 
-          // Step 2: Upload file binary directly to Azure Storage via PUT with x-ms-blob-type: BlockBlob
-          await uploadFileToAzure(presignedRes.data.url, file);
-
-          // Step 3: Send metadata to backend to register file record
+          // Step 3: Send file to backend to ensure persistence and queue processing job
           const formData = new FormData();
           formData.append("type", values.type);
           formData.append("file", file);
