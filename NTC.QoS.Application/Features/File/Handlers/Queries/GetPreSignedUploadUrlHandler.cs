@@ -121,8 +121,19 @@ public class GetPreSignedUploadUrlHandler(
         var regionQuery = _regionRepository.Query(r => r.Id == regionId).Select(r => new { r.Id, r.Code });
         var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
-        if (region is null) _logger.LogWarning("Region not found: {RegionId}", regionId);
+        if (region is null)
+        {
+            _logger.LogWarning("Region not found: {RegionId}", regionId);
+            return null;
+        }
 
-        return !string.IsNullOrWhiteSpace(region?.Code) ? $"region-{region.Code:D2}" : null;
+        var rawCode = region.Code;
+        if (string.IsNullOrWhiteSpace(rawCode))
+        {
+            return "region-default";
+        }
+
+        var cleanCode = new string(rawCode.Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray()).ToLowerInvariant();
+        return cleanCode.StartsWith("region-", StringComparison.OrdinalIgnoreCase) ? cleanCode : $"region-{cleanCode}";
     }
 }
