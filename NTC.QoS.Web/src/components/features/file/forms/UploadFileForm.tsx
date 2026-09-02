@@ -93,19 +93,6 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     for (const file of files) {
       toast.promise(
         (async () => {
-          // Step 1: Request 1-minute Pre-Signed Upload SAS URL from backend
-          const presignedRes = await request.get<APIResponse<PreSignedUrl>>(
-            `/files/presigned-upload-url?fileName=${encodeURIComponent(file.name)}&fileType=${encodeURIComponent(values.type)}&regionId=${encodeURIComponent(values.regionId)}`
-          );
-
-          if (!presignedRes.succeeded || !presignedRes.data?.url) {
-            throw new Error(presignedRes.message || "Failed to generate pre-signed upload URL from backend.");
-          }
-
-          // Step 2: Upload file binary directly to Azure Storage via PUT with x-ms-blob-type: BlockBlob
-          await uploadFileToAzure(presignedRes.data.url, file);
-
-          // Step 3: Send metadata to backend to register file record
           const formData = new FormData();
           formData.append("type", values.type);
           formData.append("file", file);
@@ -116,7 +103,7 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
           return res.message;
         })(),
         {
-          loading: "Uploading file securely to cloud storage...",
+          loading: "Uploading file securely...",
           success: (msg) => (typeof msg === "string" ? msg : "File uploaded successfully."),
           error: (error) => extractErrorMessage(error) ?? "Failed to upload file.",
         }
