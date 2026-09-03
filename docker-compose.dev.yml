@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  qos-api:
+    image: ${IMAGE_NAME:-qos-api:dev}
+    container_name: ${CONTAINER_NAME:-qos-api-dev}
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: NTC.QoS.API/Dockerfile
+      args:
+        BUILD_CONFIGURATION: Release
+        ASPNETCORE_ENVIRONMENT: Development
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Database__RunMigrationsOnStartup=true
+      - ConnectionStrings__PostgreSqlConnection=${DB_CONNECTION_STRING}
+      - ConnectionStrings__Redis=${REDIS_CONNECTION_STRING:-}
+      - ConnectionStrings__BlobStorageConnection=${BLOB_STORAGE_CONNECTION_STRING}
+      - Clerk__SecretKey=${CLERK_SECRET_KEY}
+      - Clerk__WebhookSecret=${CLERK_WEBHOOK_SECRET}
+      - GoogleAI__ApiKey=${GOOGLE_AI_API_KEY}
+      - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
+    expose:
+      - "8080"
+    networks:
+      - data-network
+      - npm-default
+
+networks:
+  data-network:
+    external: true
+  npm-default:
+    external: true
