@@ -26,30 +26,54 @@ public class UserCreator : IUserCreator
         var superAdminRole = await GetSuperAdminRoleAsync();
         var nationalOrganization = await GetNationalOrganizationAsync();
 
-        // Create user in Clerk
-        _logger.LogInformation("Creating user in Clerk with email: {Email}", config.Email);
-        var clerkUserPayload = new CreateClerkUserPayload
+        // Check if user already exists in Clerk
+        _logger.LogInformation("Checking if user already exists in Clerk with email: {Email}", config.Email);
+        string authUserId;
+        var existingClerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(config.Email);
+        if (existingClerkUsers.Count > 0)
         {
-            EmailAddress = config.Email,
-            FirstName = config.FirstName,
-            LastName = config.LastName,
-            Password = password,
-            PublicMetadata = new Dictionary<string, object>
-            {
-                { "role", superAdminRole.Key },
-                { "organization", nationalOrganization.Name },
-                { "isDefaultAdmin", true }
-            },
-            PrivateMetadata = new Dictionary<string, object>
-            {
-                { "created_by_seeder", true },
-                { "created_at", DateTime.UtcNow.ToString("O") }
-            }
-        };
+            authUserId = existingClerkUsers[0].Id;
+            _logger.LogInformation("Found existing user in Clerk with ID: {ClerkUserId}. Reusing Clerk account.", authUserId);
 
-        var clerkUser = await config.ClerkUserService.CreateUserAsync(clerkUserPayload);
-        var authUserId = clerkUser.Id;
-        _logger.LogInformation("Successfully created user in Clerk with ID: {ClerkUserId}", authUserId);
+            // Update metadata to ensure proper role and organization assignment
+            var metadataPayload = new UserMetadataPayload
+            {
+                PublicMetadata = new Dictionary<string, object>
+                {
+                    { "role", superAdminRole.Key },
+                    { "organization", nationalOrganization.Name },
+                    { "isDefaultAdmin", true }
+                }
+            };
+            await config.ClerkUserService.UpdateUserMetadataAsync(authUserId, metadataPayload);
+        }
+        else
+        {
+            // Create user in Clerk
+            _logger.LogInformation("Creating user in Clerk with email: {Email}", config.Email);
+            var clerkUserPayload = new CreateClerkUserPayload
+            {
+                EmailAddress = config.Email,
+                FirstName = config.FirstName,
+                LastName = config.LastName,
+                Password = password,
+                PublicMetadata = new Dictionary<string, object>
+                {
+                    { "role", superAdminRole.Key },
+                    { "organization", nationalOrganization.Name },
+                    { "isDefaultAdmin", true }
+                },
+                PrivateMetadata = new Dictionary<string, object>
+                {
+                    { "created_by_seeder", true },
+                    { "created_at", DateTime.UtcNow.ToString("O") }
+                }
+            };
+
+            var clerkUser = await config.ClerkUserService.CreateUserAsync(clerkUserPayload);
+            authUserId = clerkUser.Id;
+            _logger.LogInformation("Successfully created user in Clerk with ID: {ClerkUserId}", authUserId);
+        }
 
         // Create user in local database
         _logger.LogInformation("Creating user in local database...");
@@ -103,7 +127,7 @@ public class UserCreator : IUserCreator
     private async Task<Organization> GetNationalOrganizationAsync()
     {
         var nationalOrganization = await _context.Organizations.AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Name == "National");
+            .FirstOrDefaultAsync(o => o.Name.ToLower() == "national");
 
         if (nationalOrganization == null)
         {

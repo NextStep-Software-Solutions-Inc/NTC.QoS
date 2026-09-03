@@ -29,40 +29,60 @@ public class UserUpdater : IUserUpdater
             .AsNoTracking()
             .FirstOrDefaultAsync(o => o.Id == existingUser.OrganizationId);
 
-        var clerkUserPayload = new CreateClerkUserPayload
+        string authUserId;
+        var existingClerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(existingUser.Email);
+        if (existingClerkUsers.Count > 0)
         {
-            EmailAddress = existingUser.Email,
-            FirstName = "System",
-            LastName = "Administrator",
-            Password = password,
-            PublicMetadata = new Dictionary<string, object>
+            authUserId = existingClerkUsers[0].Id;
+            var metadataPayload = new UserMetadataPayload
             {
-                { "role", role?.Key ?? "super_admin" },
-                { "organization", organization?.Name ?? "National" },
-                { "isDefaultAdmin", true }
-            },
-            PrivateMetadata = new Dictionary<string, object>
+                PublicMetadata = new Dictionary<string, object>
+                {
+                    { "role", role?.Key ?? "super_admin" },
+                    { "organization", organization?.Name ?? "national" },
+                    { "isDefaultAdmin", true }
+                }
+            };
+            await config.ClerkUserService.UpdateUserMetadataAsync(authUserId, metadataPayload);
+        }
+        else
+        {
+            var clerkUserPayload = new CreateClerkUserPayload
             {
-                { "created_by_seeder", true },
-                { "updated_from_placeholder", true },
-                { "updated_at", DateTime.UtcNow.ToString("O") }
-            }
-        };
+                EmailAddress = existingUser.Email,
+                FirstName = "System",
+                LastName = "Administrator",
+                Password = password,
+                PublicMetadata = new Dictionary<string, object>
+                {
+                    { "role", role?.Key ?? "super_admin" },
+                    { "organization", organization?.Name ?? "national" },
+                    { "isDefaultAdmin", true }
+                },
+                PrivateMetadata = new Dictionary<string, object>
+                {
+                    { "created_by_seeder", true },
+                    { "updated_from_placeholder", true },
+                    { "updated_at", DateTime.UtcNow.ToString("O") }
+                }
+            };
 
-        var clerkUser = await config.ClerkUserService.CreateUserAsync(clerkUserPayload);
+            var clerkUser = await config.ClerkUserService.CreateUserAsync(clerkUserPayload);
+            authUserId = clerkUser.Id;
+        }
 
         var userToUpdate = await _context.Users.FirstOrDefaultAsync(u => u.Id == existingUser.Id);
         if (userToUpdate != null)
         {
             var oldAuthUserId = userToUpdate.AuthUserId;
-            userToUpdate.AuthUserId = clerkUser.Id;
+            userToUpdate.AuthUserId = authUserId;
             userToUpdate.UpdatedAt = DateTime.UtcNow;
             userToUpdate.UpdatedBy = "System";
 
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Successfully updated admin user AuthUserId from {OldAuthUserId} to {NewAuthUserId}",
-                oldAuthUserId, clerkUser.Id);
+                oldAuthUserId, authUserId);
         }
     }
 }

@@ -50,7 +50,8 @@ public class UserSeeder(
 
     private async Task<User?> GetExistingUserAsync(string email)
     {
+        var normalizedEmail = email.ToLower();
         return await context.Users.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email == email || u.Role.Key == "super_admin");
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail || u.Role.Key == "super_admin");
     }
 }
