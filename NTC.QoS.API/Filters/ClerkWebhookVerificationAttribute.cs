@@ -67,9 +67,9 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
         }
 
         // Deserialize Data based on Type
-        if (payload.Type.StartsWith("user."))
+        if (payload.Type.StartsWith("user.") && payload.Data is JsonElement userElement)
         {
-            var dataJson = ((JsonElement)payload.Data).GetRawText();
+            var dataJson = userElement.GetRawText();
             var userData = JsonSerializer.Deserialize<ClerkUserData>(dataJson, SerializerOptions);
             if (userData == null)
             {
@@ -78,9 +78,9 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
             }
             payload.Data = userData;
         }
-        else if (payload.Type.StartsWith("session."))
+        else if (payload.Type.StartsWith("session.") && payload.Data is JsonElement sessionElement)
         {
-            var dataJson = ((JsonElement)payload.Data).GetRawText();
+            var dataJson = sessionElement.GetRawText();
             var sessionData = JsonSerializer.Deserialize<ClerkSessionData>(dataJson, SerializerOptions);
             if (sessionData == null)
             {
