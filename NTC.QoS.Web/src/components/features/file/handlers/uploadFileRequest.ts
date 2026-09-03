@@ -12,6 +12,7 @@ export const uploadFileRequest: MutationBlueprintFromTemplate<
 > = {
   endpoint,
   fetcher: async ({ finalUrl, payload, signal }) => {
-    return await request.post<APIResponse<File>>(finalUrl, null, { body: payload });
+    return await request.post<APIResponse<File>>(finalUrl, payload, signal ? { signal } : undefined);
   },
 };
+

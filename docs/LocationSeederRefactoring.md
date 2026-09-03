@@ -188,7 +188,7 @@ If issues occur, set `UseOptimizedLocationSeeder: false` in configuration and re
 
 ### Test Environment
 
-- Node: DigitalOcean 1vCPU 2GB RAM
+- Node: VPS 1vCPU 2GB RAM
 - Database: PostgreSQL with PostGIS
 - Data: Philippine boundaries (17 regions, 88 provinces, ~1,500 municipalities, ~42,000 barangays)
 

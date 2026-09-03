@@ -1,4 +1,4 @@
-name: Development CI/CD
+name: Development VPS CI/CD (Backend API)
 
 on:
   push:
@@ -7,16 +7,15 @@ on:
     branches: ["development"]
 
 env:
-  IMAGE_NAME: "ntc.qos-be"
+  CONTAINER_NAME: qos-api-dev
+  IMAGE_NAME: qos-api:dev
   DOTNET_VERSION: "8.0.x"
-  CONTAINER_PORT: 8080
-  CONTAINER_NAME: "ntc.qos-be"
   BUILD_CONFIGURATION: "Release"
   ASPNETCORE_ENVIRONMENT: "Development"
 
 jobs:
-  build:
-    name: Build
+  build-and-test:
+    name: 🧪 Build & Test (.NET 8)
     runs-on: ubuntu-latest
     environment: Development
 
@@ -29,13 +28,19 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Build
-        run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }}
+      - name: Restore dependencies
+        run: dotnet restore
 
-  deploy:
-    name: Deploy to DigitalOcean
-    if: github.event_name == 'push'
-    needs: build
+      - name: Build Solution
+        run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal
+
+  build-and-package:
+    name: 🛠️ Build & Package Docker Image
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
     runs-on: ubuntu-latest
     environment: Development
 
@@ -43,98 +48,101 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build Docker image
         run: |
-          docker build --build-arg BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }} --build-arg ASPNETCORE_ENVIRONMENT=${{ env.ASPNETCORE_ENVIRONMENT }} -t ${{ env.IMAGE_NAME }}:dev -f ./NTC.QoS.API/Dockerfile .
+          docker build \
+            --build-arg BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }} \
+            --build-arg ASPNETCORE_ENVIRONMENT=${{ env.ASPNETCORE_ENVIRONMENT }} \
+            -t ${{ env.IMAGE_NAME }} \
+            -f ./NTC.QoS.API/Dockerfile .
+          docker save ${{ env.IMAGE_NAME }} -o qos-api-dev.tar
 
-      - name: Save Docker image as tar
-        run: |
-          docker save ${{ env.IMAGE_NAME }}:dev -o ntc-qos-be.tar
-          chmod 644 ntc-qos-be.tar
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-api-dev-image
+          path: qos-api-dev.tar
+          retention-days: 1
 
-      - name: Copy image to server via SCP
+  deploy-vps:
+    name: 🚀 Deploy to Development VPS
+    needs: build-and-package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    environment: Development
+
+    steps:
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qos-api-dev-image
+
+      - name: Copy Docker Image to VPS via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.DO_DROPLET_IP }}
-          username: ${{ secrets.DO_USERNAME }}
-          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
-          source: "ntc-qos-be.tar"
+          host: ${{ vars.HOST || secrets.HOST }}
+          username: ${{ vars.USERNAME || secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "qos-api-dev.tar"
           target: "/tmp/"
 
-      - name: Deploy to DigitalOcean
+      - name: Execute Remote Development Deployment via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
-          host: ${{ secrets.DO_DROPLET_IP }}
-          username: ${{ secrets.DO_USERNAME }}
-          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          host: ${{ vars.HOST || secrets.HOST }}
+          username: ${{ vars.USERNAME || secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
-            # Ensure Docker is installed
-            if ! command -v docker &> /dev/null; then
-              echo "Installing Docker..."
-              sudo apt-get update
-              sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-              sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-              sudo apt-get update
-              sudo apt-get install -y docker-ce
-              sudo systemctl start docker
-              sudo systemctl enable docker
-            fi
+            # Create development directory if not exists
+            mkdir -p /opt/docker/qos-api-dev
+            
+            # Load new image
+            docker load -i /tmp/qos-api-dev.tar
+            
+            # Clean up temporary tar file immediately
+            rm -f /tmp/qos-api-dev.tar
 
-            # Stop and remove existing container with better error handling
-            echo "Stopping existing container..."
-            if docker ps -q -f name=${{ env.CONTAINER_NAME }} | grep -q .; then
-              docker stop ${{ env.CONTAINER_NAME }}
-              echo "Container stopped successfully"
-            else
-              echo "Container not running or doesn't exist"
-            fi
+            # Stop and remove existing container if running
+            docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+            docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
 
-            echo "Removing existing container..."
-            if docker ps -a -q -f name=${{ env.CONTAINER_NAME }} | grep -q .; then
-              docker rm ${{ env.CONTAINER_NAME }}
-              echo "Container removed successfully"
-            else
-              echo "Container doesn't exist"
-            fi
+            # Ensure networks exist
+            docker network create npm_proxy_net 2>/dev/null || true
+            docker network create ntcqos_db_net 2>/dev/null || true
 
-            # Remove old image to free up space
-            echo "Removing old image..."
-            docker image rm ${{ env.IMAGE_NAME }}:dev || echo "Old image not found or in use"
-
-            # Load new image from tar
-            echo "Loading new image..."
-            docker load -i /tmp/ntc-qos-be.tar
-
-            # Clean up tar file
-            rm -f /tmp/ntc-qos-be.tar
-
-            # Run new container
-            echo "Starting new container..."
-            docker run \
-              --restart unless-stopped \
-              -d \
-              --cpus="0.3" \
-              --memory="768m" \
-              -p 91:${{ env.CONTAINER_PORT }} \
+            # Run container attached to database network
+            docker run -d \
               --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              --network ntcqos_db_net \
+              -e ASPNETCORE_ENVIRONMENT=Development \
+              -e Database__RunMigrationsOnStartup=true \
               -e ConnectionStrings__PostgreSqlConnection="${{ secrets.DB_CONNECTION_STRING }}" \
+              -e ConnectionStrings__Redis="${{ secrets.REDIS_CONNECTION_STRING }}" \
               -e ConnectionStrings__BlobStorageConnection="${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}" \
               -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
               -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
               -e GoogleAI__ApiKey="${{ secrets.GOOGLE_AI_API_KEY }}" \
-              ${{ env.IMAGE_NAME }}:dev
+              ${{ env.IMAGE_NAME }}
 
-            # Verify container is running
-            echo "Verifying deployment..."
-            sleep 5
+            # Attach container to npm_proxy_net for Nginx Proxy Manager routing
+            docker network connect npm_proxy_net ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+
+            # Clean up unused/dangling Docker images to free up disk space
+            docker image prune -f
+
+            # Verify development container status
+            sleep 3
             if docker ps -q -f name=${{ env.CONTAINER_NAME }} | grep -q .; then
-              echo "✅ Container deployed successfully"
+              echo "✅ Development container deployed successfully"
               docker ps -f name=${{ env.CONTAINER_NAME }}
             else
-              echo "❌ Container failed to start"
+              echo "❌ Development container failed to start"
               docker logs ${{ env.CONTAINER_NAME }}
               exit 1
             fi
