@@ -22,6 +22,7 @@ import { z } from "zod";
 
 import { getServiceProvidersRequest } from "@/components/features/service-provider/handlers/getServiceProvidersRequest";
 import { type ServiceProvider } from "@/components/features/service-provider/types/serviceProvider";
+import { extractErrorMessage } from "@/lib/extract-error-message";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,25 +67,6 @@ const editNAPFormSchema = z.object({
 
 type EditNAPFormValues = z.infer<typeof editNAPFormSchema>;
 
-/** Shape of the parsed JSON body attached to API errors by the fetch service. */
-type ApiErrorResponse = {
-  message?: string;
-  errors?: Record<string, string[]>;
-};
-
-/** Extracts the most human-readable message from an API error. */
-const getApiErrorMessage = (error: unknown): string => {
-  if (!error) return "An unexpected error occurred. Please try again.";
-  const apiError = error as Error & { response?: ApiErrorResponse };
-  // Prefer the backend `message` field (e.g. "Another NAP already exists…")
-  if (apiError.response?.message) return apiError.response.message;
-  // Fallback: flatten the `errors` object into the first message
-  if (apiError.response?.errors) {
-    const messages = Object.values(apiError.response.errors).flat();
-    if (messages.length > 0) return messages[0]!;
-  }
-  return apiError.message || "An unexpected error occurred. Please try again.";
-};
 
 interface EditNAPFormProps {
   nap: NAPDetails;
@@ -570,7 +552,7 @@ parseFloat(field.value) !== nap.lng && "border-amber-300 bg-amber-50/50",
                   </span>
                 </div>
                 <p className="mt-1 text-red-600">
-                  {getApiErrorMessage(updateNAPMutation.isError ? updateNAPMutation.error : deleteNAPMutation.error)}
+                  {extractErrorMessage(updateNAPMutation.isError ? updateNAPMutation.error : deleteNAPMutation.error)}
                 </p>
               </motion.div>
             )}
