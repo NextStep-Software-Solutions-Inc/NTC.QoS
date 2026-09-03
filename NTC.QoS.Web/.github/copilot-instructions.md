@@ -30,10 +30,10 @@
 - **Dropdowns:** For foreign key relationships (e.g., selecting a Generation in Technology forms), fetch options with a query hook and render a `<select>` with a chevron-down icon for consistency.
 
 ## Developer Workflows
-- **Install dependencies:** `pnpm install`
-- **Run dev server:** `pnpm dev`
-- **Build:** `pnpm build`
-- **Lint/Format:** `pnpm lint` and `pnpm format`
+- **Install dependencies:** `bun install`
+- **Run dev server:** `bun dev`
+- **Build:** `bun run build`
+- **Lint/Format:** `bun run lint` and `bun run format:check` / `bun run format:write`
 - **Test:** (No test scripts found; add if needed)
 - **API Mocking:** Not present; all API calls expect a live backend.
 

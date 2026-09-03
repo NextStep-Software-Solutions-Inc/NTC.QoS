@@ -253,7 +253,7 @@ console.timeEnd('Main Thread Check');
 3. **Test with Slow Network**: Throttle network to see pagination clearly
 4. **Monitor Memory**: Check if memory grows linearly (good) vs spike (bad)
 5. **Test Different Data Sizes**: Try 100, 1000, 10000+ NAPs to verify scalability
-6. **Debug Panel**: Remember it only shows in development mode - run `pnpm dev` to see it
+6. **Debug Panel**: Remember it only shows in development mode - run `bun dev` to see it
 
 ---
 

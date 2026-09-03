@@ -207,7 +207,7 @@ All handlers are structured to work with the backend API once specifications are
 
 ### Modified Files
 - `src/app/(super_admin)/layout.tsx` - Enhanced with sidebar
-- `package.json` & `pnpm-lock.yaml` - Dependency upgrades
+- `package.json` & `bun.lock` - Dependency upgrades
 
 ## Architecture Highlights
 

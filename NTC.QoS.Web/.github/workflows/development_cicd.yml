@@ -19,35 +19,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
+          bun-version: latest
 
-      - name: Cache npm
-        uses: actions/cache@v3
+      - name: Cache Bun store
+        uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/pnpm-lock.yaml') }}
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/bun.lockb') }}
           restore-keys: |
-            ${{ runner.os }}-npm-
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Cache pnpm store
-        uses: actions/cache@v3
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: pnpm install
+        run: bun install --frozen-lockfile
 
       - name: Install Vercel CLI
-        run: npm i -g vercel@latest
+        run: bun install -g vercel@latest
 
       - name: Pull Vercel Environment Information
         run: vercel pull --yes --environment=${{ env.ENVIRONMENT }} --token=${{ secrets.VERCEL_TOKEN }}
@@ -63,35 +52,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
+          bun-version: latest
 
-      - name: Cache npm
-        uses: actions/cache@v3
+      - name: Cache Bun store
+        uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/pnpm-lock.yaml') }}
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/bun.lockb') }}
           restore-keys: |
-            ${{ runner.os }}-npm-
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Cache pnpm store
-        uses: actions/cache@v3
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: pnpm install
+        run: bun install --frozen-lockfile
 
       - name: Install Vercel CLI
-        run: npm i -g vercel@latest
+        run: bun install -g vercel@latest
 
       - name: Pull Vercel Environment Information
         run: vercel pull --yes --environment=${{ env.ENVIRONMENT }} --token=${{ secrets.VERCEL_TOKEN }}
