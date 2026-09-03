@@ -98,7 +98,6 @@ jobs:
               -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
               -e GoogleAI__ApiKey="${{ secrets.GOOGLE_AI_API_KEY }}" \
               -e DefaultAdmin__Password="${{ secrets.DEFAULT_ADMIN_PASSWORD }}" \
-              -e DEFAULT_ADMIN_PASSWORD="${{ secrets.DEFAULT_ADMIN_PASSWORD }}" \
               ${{ env.IMAGE_NAME }}
 
             # Attach container to npm_proxy_net for Nginx Proxy Manager routing
