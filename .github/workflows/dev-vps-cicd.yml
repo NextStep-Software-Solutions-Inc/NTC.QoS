@@ -83,8 +83,8 @@ jobs:
       - name: Copy Docker Image to VPS via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ vars.HOST || secrets.HOST }}
-          username: ${{ vars.USERNAME || secrets.USERNAME }}
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "qos-api-dev.tar"
@@ -93,8 +93,8 @@ jobs:
       - name: Execute Remote Development Deployment via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
-          host: ${{ vars.HOST || secrets.HOST }}
-          username: ${{ vars.USERNAME || secrets.USERNAME }}
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
@@ -128,6 +128,8 @@ jobs:
               -e Clerk__SecretKey="${{ secrets.CLERK_SECRET_KEY }}" \
               -e Clerk__WebhookSecret="${{ secrets.CLERK_WEBHOOK_SECRET }}" \
               -e GoogleAI__ApiKey="${{ secrets.GOOGLE_AI_API_KEY }}" \
+              -e DefaultAdmin__Password="${{ secrets.DEFAULT_ADMIN_PASSWORD }}" \
+              -e DEFAULT_ADMIN_PASSWORD="${{ secrets.DEFAULT_ADMIN_PASSWORD }}" \
               ${{ env.IMAGE_NAME }}
 
             # Attach container to npm_proxy_net for Nginx Proxy Manager routing
