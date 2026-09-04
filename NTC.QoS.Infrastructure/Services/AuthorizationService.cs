@@ -15,6 +15,7 @@ public class UserAuthorizationService : IUserAuthorizationService
     private readonly IUserRepository _userRepository;
     private readonly IUserRegionRepository _userRegionRepository;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IUserProvisioningService _userProvisioningService;
     private readonly ILogger<UserAuthorizationService> _logger;
 
     // Cache for user data to avoid repeated database calls within a request
@@ -27,12 +28,14 @@ public class UserAuthorizationService : IUserAuthorizationService
         IUserRepository userRepository,
         IUserRegionRepository userRegionRepository,
         ApplicationDbContext dbContext,
+        IUserProvisioningService userProvisioningService,
         ILogger<UserAuthorizationService> logger)
     {
         _userContextService = userContextService;
         _userRepository = userRepository;
         _userRegionRepository = userRegionRepository;
         _dbContext = dbContext;
+        _userProvisioningService = userProvisioningService;
         _logger = logger;
     }
 
@@ -59,6 +62,16 @@ public class UserAuthorizationService : IUserAuthorizationService
                 .Include(u => u.Organization);
 
             var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
+
+            if (user == null)
+            {
+                _logger.LogInformation("User not found for AuthUserId: {AuthUserId}. Attempting JIT provisioning...", authUserId);
+                var provisionResult = await _userProvisioningService.EnsureUserExistsAsync(authUserId, cancellationToken);
+                if (provisionResult.Succeeded)
+                {
+                    user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
+                }
+            }
 
             if (user == null)
             {

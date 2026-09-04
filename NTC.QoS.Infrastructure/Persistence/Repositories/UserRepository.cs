@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
@@ -12,6 +12,8 @@ internal sealed class UserRepository(ApplicationDbContext context) : Repository<
         var query = _context.Set<User>()
             .Include(u => u.Organization)
             .Include(u => u.Role)
+                .ThenInclude(r => r.RolePermissions)
+                    .ThenInclude(rp => rp.Permission)
             .AsQueryable();
 
         if (expression != null)

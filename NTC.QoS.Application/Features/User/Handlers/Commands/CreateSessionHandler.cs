@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -24,24 +24,10 @@ public class CreateSessionHandler(IUserRepository userRepository, IClerkUserServ
             };
         }
 
-        //if (user.Role is null || user.Role.RolePermissions is null || user.Organization is null)
-        //{
-        //    return new ApiResponse<bool>
-        //    {
-        //        Succeeded = false,
-        //        Message = "Role or Role Permissions or Role Organization are missing."
-        //    };
-        //}
-
-        //var metadataPayload = new
-        //{
-        //    public_metadata = new
-        //    {
-        //        role = user.Role.Key,
-        //        organization = user.Role.Organization.Name,
-        //        permissions = user.Role.RolePermissions.Select(rp => rp.Permission!.Key).ToList()
-        //    }
-        //};
+        var permissions = user.Role?.RolePermissions?
+            .Where(rp => !rp.IsDeleted && rp.Permission != null && !rp.Permission.IsDeleted)
+            .Select(rp => rp.Permission!.Key)
+            .ToList() ?? [];
 
         await _clerkUserService.UpdateUserMetadataAsync(user.AuthUserId, new UserMetadataPayload
         {
@@ -49,7 +35,7 @@ public class CreateSessionHandler(IUserRepository userRepository, IClerkUserServ
             {
                 { "role", user.Role?.Key ?? "unknown" },
                 { "organization", user.Organization?.Name ?? "unknown" },
-                { "permissions", user.Role?.RolePermissions?.Select(rp => rp.Permission?.Key).ToList() ?? [] }
+                { "permissions", permissions }
             }
         });
 
