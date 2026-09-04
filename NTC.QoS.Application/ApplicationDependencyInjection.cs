@@ -45,6 +45,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<BroadbandAnalyticsService>();
         services.AddScoped<INetworkService, NetworkService>();
         services.AddScoped<IUserProvisioningService, UserProvisioningService>();
+        services.AddScoped<IUserRegionService, UserRegionService>();
         
         // MCP (Model Context Protocol) Server service for AI database access
         services.AddScoped<IMCPServerService, MCPServerService>();

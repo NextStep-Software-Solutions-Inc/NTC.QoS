@@ -57,4 +57,10 @@
     <ProjectReference Include="..\NTC.QoS.Domain\NTC.QoS.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>NTC.QoS.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

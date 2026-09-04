@@ -1,8 +1,6 @@
 using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Authorization;
-using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -10,16 +8,14 @@ using NTC.QoS.Domain.Models.DTOs.User;
 namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
 public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
-                                   IRepository<Domain.Entities.Role> roleRepository,
-                                   IRepository<Domain.Entities.Organization> organizationRepository,
-                                   IUserRegionRepository userRegionRepository,
-                                   IRepository<Domain.Entities.Region> regionRepository) : IRequestHandler<CreateUserRequest, ApiResponse<UserDto>>
+                               IRepository<Domain.Entities.Role> roleRepository,
+                               IRepository<Domain.Entities.Organization> organizationRepository,
+                               IUserRegionService userRegionService) : IRequestHandler<CreateUserRequest, ApiResponse<UserDto>>
 {
     private readonly IRepository<Domain.Entities.User> _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Organization> _organizationRepository = organizationRepository;
-    private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
-    private readonly IRepository<Domain.Entities.Region> _regionRepository = regionRepository;
+    private readonly IUserRegionService _userRegionService = userRegionService;
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
@@ -140,7 +136,7 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         var effectiveRole = providedRole ?? defaultRole;
         if (effectiveRole != null && (string.Equals(effectiveRole.Key, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) || string.Equals(effectiveRole.Key, "super-admin", StringComparison.OrdinalIgnoreCase)))
         {
-            await AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
+            await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
         }
 
         // Step 9: Return success response
@@ -171,48 +167,5 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             Succeeded = true
         };
     }
-
-    private async Task AssignAllRegionsToUserAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var allRegionsQuery = _regionRepository.Query(r => !r.IsDeleted);
-        var allRegions = await _regionRepository.ToListAsync(allRegionsQuery, cancellationToken);
-
-        if (allRegions.Count == 0) return;
-
-        var existingUserRegionsQuery = _userRegionRepository.Query(ur => ur.UserId == userId && !ur.IsDeleted);
-        var existingUserRegions = await _userRegionRepository.ToListAsync(existingUserRegionsQuery, cancellationToken);
-
-        var hasUpdates = false;
-        foreach (var existing in existingUserRegions)
-        {
-            if (existing.Status != UserRegionStatus.Active.ToString())
-            {
-                existing.Status = UserRegionStatus.Active.ToString();
-                _userRegionRepository.Update(existing);
-                hasUpdates = true;
-            }
-        }
-
-        var existingRegionIds = existingUserRegions.Select(ur => ur.RegionId).ToHashSet();
-        var missingRegions = allRegions.Where(r => !existingRegionIds.Contains(r.Id)).ToList();
-
-        if (missingRegions.Count > 0)
-        {
-            var newUserRegions = missingRegions.Select(region => new Domain.Aggregates.UserRegion
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                RegionId = region.Id,
-                Status = UserRegionStatus.Active.ToString(),
-            }).ToList();
-
-            _userRegionRepository.AddRange(newUserRegions);
-            hasUpdates = true;
-        }
-
-        if (hasUpdates)
-        {
-            await _userRegionRepository.SaveChangesAsync(cancellationToken);
-        }
-    }
 }
+
