@@ -118,7 +118,7 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
             }
             else
             {
-                await _userRegionService.DeactivateAllRegionsForUserAsync(user.Id, cancellationToken);
+                await _userRegionService.DeleteAllRegionsForUserAsync(user.Id, cancellationToken);
             }
         }
 

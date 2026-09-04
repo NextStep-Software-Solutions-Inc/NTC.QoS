@@ -79,7 +79,7 @@ public class UpdateUserByIdHandlerTests
         // Assert
         result.Succeeded.Should().BeTrue();
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
-        _userRegionServiceMock.Verify(s => s.DeactivateAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]
@@ -89,7 +89,7 @@ public class UpdateUserByIdHandlerTests
     [InlineData(Roles.Manager)]
     [InlineData(Roles.RegionalManager)]
     [InlineData(Roles.Viewer)]
-    public async Task Handle_WhenUserUpdatedToNonSuperAdminRole_CallsDeactivateAllRegionsForUserAsync(string roleKey)
+    public async Task Handle_WhenUserUpdatedToNonSuperAdminRole_CallsDeleteAllRegionsForUserAsync(string roleKey)
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -131,7 +131,7 @@ public class UpdateUserByIdHandlerTests
 
         // Assert
         result.Succeeded.Should().BeTrue();
-        _userRegionServiceMock.Verify(s => s.DeactivateAllRegionsForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
+        _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -167,6 +167,6 @@ public class UpdateUserByIdHandlerTests
         // Assert
         result.Succeeded.Should().BeTrue();
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-        _userRegionServiceMock.Verify(s => s.DeactivateAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

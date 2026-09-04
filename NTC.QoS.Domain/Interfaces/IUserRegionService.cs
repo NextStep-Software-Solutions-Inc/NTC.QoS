@@ -12,7 +12,7 @@ public interface IUserRegionService
     Task AssignAllRegionsToUserAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deactivates all existing user region assignments for the specified user (sets Status to Inactive).
+    /// Deletes all existing user region assignments for the specified user.
     /// </summary>
-    Task DeactivateAllRegionsForUserAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task DeleteAllRegionsForUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }
