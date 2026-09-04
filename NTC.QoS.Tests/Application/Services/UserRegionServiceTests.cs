@@ -167,4 +167,75 @@ public class UserRegionServiceTests
         _userRegionRepositoryMock.Verify(r => r.AddRange(It.IsAny<IEnumerable<UserRegion>>()), Times.Never);
         _userRegionRepositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task DeactivateAllRegionsForUserAsync_WhenUserHasActiveAndPendingRegions_UpdatesAllToInactive()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var userRegion1 = new UserRegion
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            RegionId = Guid.NewGuid(),
+            Status = UserRegionStatus.Active.ToString(),
+            IsDeleted = false
+        };
+
+        var userRegion2 = new UserRegion
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            RegionId = Guid.NewGuid(),
+            Status = UserRegionStatus.Pending.ToString(),
+            IsDeleted = false
+        };
+
+        var userRegion3 = new UserRegion
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            RegionId = Guid.NewGuid(),
+            Status = UserRegionStatus.Inactive.ToString(),
+            IsDeleted = false
+        };
+
+        var existingList = new List<UserRegion> { userRegion1, userRegion2, userRegion3 };
+
+        _userRegionRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<UserRegion, bool>>>()))
+            .Returns(existingList.AsQueryable());
+        _userRegionRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<UserRegion>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingList);
+
+        // Act
+        await _service.DeactivateAllRegionsForUserAsync(userId);
+
+        // Assert
+        userRegion1.Status.Should().Be(UserRegionStatus.Inactive.ToString());
+        userRegion2.Status.Should().Be(UserRegionStatus.Inactive.ToString());
+        userRegion3.Status.Should().Be(UserRegionStatus.Inactive.ToString());
+
+        _userRegionRepositoryMock.Verify(r => r.Update(userRegion1), Times.Once);
+        _userRegionRepositoryMock.Verify(r => r.Update(userRegion2), Times.Once);
+        _userRegionRepositoryMock.Verify(r => r.Update(userRegion3), Times.Never); // Already inactive
+        _userRegionRepositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeactivateAllRegionsForUserAsync_WhenUserHasNoRegions_DoesNothing()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        _userRegionRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<UserRegion, bool>>>()))
+            .Returns(new List<UserRegion>().AsQueryable());
+        _userRegionRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<UserRegion>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<UserRegion>());
+
+        // Act
+        await _service.DeactivateAllRegionsForUserAsync(userId);
+
+        // Assert
+        _userRegionRepositoryMock.Verify(r => r.Update(It.IsAny<UserRegion>()), Times.Never);
+        _userRegionRepositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

@@ -106,17 +106,20 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
-        // Auto-assign active regions if user is or became SuperAdmin
-        var effectiveRole = role;
-        if (effectiveRole == null && user.RoleId != Guid.Empty)
+        // Handle user region status changes when role is updated
+        if (role != null)
         {
-            var roleQuery = _roleRepository.Query(r => r.Id == user.RoleId);
-            effectiveRole = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
-        }
+            var isSuperAdmin = string.Equals(role.Key, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(role.Key, "super-admin", StringComparison.OrdinalIgnoreCase);
 
-        if (effectiveRole != null && (string.Equals(effectiveRole.Key, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) || string.Equals(effectiveRole.Key, "super-admin", StringComparison.OrdinalIgnoreCase)))
-        {
-            await _userRegionService.AssignAllRegionsToUserAsync(user.Id, cancellationToken);
+            if (isSuperAdmin)
+            {
+                await _userRegionService.AssignAllRegionsToUserAsync(user.Id, cancellationToken);
+            }
+            else
+            {
+                await _userRegionService.DeactivateAllRegionsForUserAsync(user.Id, cancellationToken);
+            }
         }
 
         var result = new UserDto

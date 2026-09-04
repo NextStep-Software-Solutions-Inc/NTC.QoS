@@ -58,4 +58,28 @@ public class UserRegionService(
             await _userRegionRepository.SaveChangesAsync(cancellationToken);
         }
     }
+
+    public async Task DeactivateAllRegionsForUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var existingUserRegionsQuery = _userRegionRepository.Query(ur => ur.UserId == userId && !ur.IsDeleted);
+        var existingUserRegions = await _userRegionRepository.ToListAsync(existingUserRegionsQuery, cancellationToken);
+
+        if (existingUserRegions.Count == 0) return;
+
+        var hasUpdates = false;
+        foreach (var existing in existingUserRegions)
+        {
+            if (existing.Status != UserRegionStatus.Inactive.ToString())
+            {
+                existing.Status = UserRegionStatus.Inactive.ToString();
+                _userRegionRepository.Update(existing);
+                hasUpdates = true;
+            }
+        }
+
+        if (hasUpdates)
+        {
+            await _userRegionRepository.SaveChangesAsync(cancellationToken);
+        }
+    }
 }

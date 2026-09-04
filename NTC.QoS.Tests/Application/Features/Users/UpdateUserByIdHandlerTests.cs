@@ -34,7 +34,7 @@ public class UpdateUserByIdHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenUserUpdatedToSuperAdmin_CallsUserRegionService()
+    public async Task Handle_WhenUserUpdatedToSuperAdmin_CallsAssignAllRegionsToUserAsync()
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -79,19 +79,26 @@ public class UpdateUserByIdHandlerTests
         // Assert
         result.Succeeded.Should().BeTrue();
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
+        _userRegionServiceMock.Verify(s => s.DeactivateAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Handle_WhenUserUpdatedToRegularRole_DoesNotCallUserRegionService()
+    [Theory]
+    [InlineData(Roles.Admin)]
+    [InlineData(Roles.FieldOfficer)]
+    [InlineData(Roles.User)]
+    [InlineData(Roles.Manager)]
+    [InlineData(Roles.RegionalManager)]
+    [InlineData(Roles.Viewer)]
+    public async Task Handle_WhenUserUpdatedToNonSuperAdminRole_CallsDeactivateAllRegionsForUserAsync(string roleKey)
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var regularRoleId = Guid.NewGuid();
-        var regularRole = new Role
+        var nonSuperAdminRoleId = Guid.NewGuid();
+        var nonSuperAdminRole = new Role
         {
-            Id = regularRoleId,
-            Key = Roles.User,
-            Name = "Regular User"
+            Id = nonSuperAdminRoleId,
+            Key = roleKey,
+            Name = roleKey
         };
 
         var existingUser = new User
@@ -110,13 +117,48 @@ public class UpdateUserByIdHandlerTests
             .ReturnsAsync((IQueryable<User> q, CancellationToken ct) => q.FirstOrDefault());
 
         _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
-            .Returns(new List<Role> { regularRole }.AsQueryable());
+            .Returns(new List<Role> { nonSuperAdminRole }.AsQueryable());
         _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(regularRole);
+            .ReturnsAsync(nonSuperAdminRole);
 
         var request = new UpdateUserByIdRequest(userId, new UpdateUserDto
         {
-            RoleId = regularRoleId
+            RoleId = nonSuperAdminRoleId
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        _userRegionServiceMock.Verify(s => s.DeactivateAllRegionsForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
+        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenUserUpdatedWithoutRoleChange_DoesNotModifyUserRegions()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var existingUser = new User
+        {
+            Id = userId,
+            RoleId = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            Email = "user@example.com",
+            FirstName = "OldName"
+        };
+
+        var users = new List<User> { existingUser };
+
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns<Expression<Func<User, bool>>>(expr => users.AsQueryable().Where(expr));
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<User> q, CancellationToken ct) => q.FirstOrDefault());
+
+        var request = new UpdateUserByIdRequest(userId, new UpdateUserDto
+        {
+            FirstName = "NewName"
         });
 
         // Act
@@ -125,5 +167,6 @@ public class UpdateUserByIdHandlerTests
         // Assert
         result.Succeeded.Should().BeTrue();
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _userRegionServiceMock.Verify(s => s.DeactivateAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
