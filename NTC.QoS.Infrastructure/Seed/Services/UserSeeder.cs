@@ -30,14 +30,25 @@ public class UserSeeder(
         {
             logger.LogInformation("Default admin user already exists in database with email: {Email}", existingUser.Email);
 
-            if (existingUser.AuthUserId.StartsWith("clerk_placeholder_"))
+            var clerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(config.Email);
+            if (clerkUsers.Count > 0)
             {
-                logger.LogInformation("Existing user has placeholder AuthUserId. Updating with Clerk integration...");
-                await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
+                var actualClerkUserId = clerkUsers[0].Id;
+                if (existingUser.AuthUserId != actualClerkUserId)
+                {
+                    logger.LogInformation("Existing user AuthUserId '{CurrentAuthUserId}' does not match Clerk ID '{ActualClerkUserId}'. Updating...",
+                        existingUser.AuthUserId, actualClerkUserId);
+                    await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
+                }
+                else
+                {
+                    logger.LogInformation("Default admin user is properly configured with Clerk AuthUserId: {AuthUserId}", existingUser.AuthUserId);
+                }
             }
             else
             {
-                logger.LogInformation("Default admin user is properly configured with Clerk AuthUserId: {AuthUserId}", existingUser.AuthUserId);
+                logger.LogInformation("Default admin user exists in DB but not in Clerk. Creating in Clerk and updating AuthUserId...");
+                await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
             }
         }
         else

@@ -153,6 +153,14 @@ public static class InfrastructureDependencyInjection
 
         var seeders = new (string Name, Func<Task> SeedAction)[]
         {
+            ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
+            ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
+            ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger)),
+            ("User Data", async () =>
+            {
+                var userSeeder = serviceProvider.GetRequiredService<IUserSeeder>();
+                await userSeeder.SeedAsync();
+            }),
             ("Location Data", async () =>
             {
                 if (useOptimizedSeeder)
@@ -167,15 +175,7 @@ public static class InfrastructureDependencyInjection
                     logger.LogInformation("Using legacy LocationSeeder");
                     await LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed);
                 }
-            }),
-            ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
-            ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
-            ("User Data", async () =>
-            {
-                var userSeeder = serviceProvider.GetRequiredService<IUserSeeder>();
-                await userSeeder.SeedAsync();
-            }),
-            ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))
+            })
         };
 
         // Apply migrations first

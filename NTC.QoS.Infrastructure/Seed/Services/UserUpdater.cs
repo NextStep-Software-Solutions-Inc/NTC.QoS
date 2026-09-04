@@ -20,17 +20,17 @@ public class UserUpdater : IUserUpdater
 
     public async Task UpdateExistingUserAsync(User existingUser, ValidatedConfiguration config, string password)
     {
-        _logger.LogInformation("Updating existing admin user with Clerk integration...");
+        _logger.LogInformation("Updating existing admin user with Clerk integration for email: {Email}...", config.Email);
 
         var role = await _context.Roles
             .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Id == existingUser.RoleId);
+            .FirstOrDefaultAsync(r => r.Key == "super_admin");
         var organization = await _context.Organizations
             .AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Id == existingUser.OrganizationId);
+            .FirstOrDefaultAsync(o => o.Name.ToLower() == "national");
 
         string authUserId;
-        var existingClerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(existingUser.Email);
+        var existingClerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(config.Email);
         if (existingClerkUsers.Count > 0)
         {
             authUserId = existingClerkUsers[0].Id;
@@ -49,9 +49,9 @@ public class UserUpdater : IUserUpdater
         {
             var clerkUserPayload = new CreateClerkUserPayload
             {
-                EmailAddress = existingUser.Email,
-                FirstName = "System",
-                LastName = "Administrator",
+                EmailAddress = config.Email,
+                FirstName = config.FirstName,
+                LastName = config.LastName,
                 Password = password,
                 PublicMetadata = new Dictionary<string, object>
                 {
@@ -76,13 +76,18 @@ public class UserUpdater : IUserUpdater
         {
             var oldAuthUserId = userToUpdate.AuthUserId;
             userToUpdate.AuthUserId = authUserId;
+            userToUpdate.Email = config.Email;
+            userToUpdate.FirstName = config.FirstName;
+            userToUpdate.LastName = config.LastName;
+            if (role != null) userToUpdate.RoleId = role.Id;
+            if (organization != null) userToUpdate.OrganizationId = organization.Id;
             userToUpdate.UpdatedAt = DateTime.UtcNow;
             userToUpdate.UpdatedBy = "System";
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Successfully updated admin user AuthUserId from {OldAuthUserId} to {NewAuthUserId}",
-                oldAuthUserId, authUserId);
+            _logger.LogInformation("Successfully updated admin user AuthUserId from {OldAuthUserId} to {NewAuthUserId} for email: {Email}",
+                oldAuthUserId, authUserId, config.Email);
         }
     }
 }
