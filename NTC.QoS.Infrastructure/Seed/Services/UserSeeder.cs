@@ -28,28 +28,8 @@ public class UserSeeder(
 
         if (existingUser != null)
         {
-            logger.LogInformation("Default admin user already exists in database with email: {Email}", existingUser.Email);
-
-            var clerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(config.Email);
-            if (clerkUsers.Count > 0)
-            {
-                var actualClerkUserId = clerkUsers[0].Id;
-                if (existingUser.AuthUserId != actualClerkUserId)
-                {
-                    logger.LogInformation("Existing user AuthUserId '{CurrentAuthUserId}' does not match Clerk ID '{ActualClerkUserId}'. Updating...",
-                        existingUser.AuthUserId, actualClerkUserId);
-                    await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
-                }
-                else
-                {
-                    logger.LogInformation("Default admin user is properly configured with Clerk AuthUserId: {AuthUserId}", existingUser.AuthUserId);
-                }
-            }
-            else
-            {
-                logger.LogInformation("Default admin user exists in DB but not in Clerk. Creating in Clerk and updating AuthUserId...");
-                await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
-            }
+            logger.LogInformation("Default admin user exists in database with email: {Email}. Synchronizing role, organization, Clerk metadata, and user regions...", existingUser.Email);
+            await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
         }
         else
         {
@@ -63,6 +43,6 @@ public class UserSeeder(
     {
         var normalizedEmail = email.ToLower();
         return await context.Users.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail || u.Role.Key == "super_admin");
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
     }
 }

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
@@ -88,6 +90,63 @@ public class UserUpdater : IUserUpdater
 
             _logger.LogInformation("Successfully updated admin user AuthUserId from {OldAuthUserId} to {NewAuthUserId} for email: {Email}",
                 oldAuthUserId, authUserId, config.Email);
+
+            // Auto-assign active regions to superadmin
+            await AssignAllRegionsToUserAsync(userToUpdate.Id);
+        }
+    }
+
+    private async Task AssignAllRegionsToUserAsync(Guid userId)
+    {
+        var allRegions = await _context.Regions
+            .AsNoTracking()
+            .Where(r => !r.IsDeleted)
+            .Select(r => r.Id)
+            .ToListAsync();
+
+        if (allRegions.Count == 0) return;
+
+        var existingUserRegions = await _context.Set<UserRegion>()
+            .Where(ur => ur.UserId == userId && !ur.IsDeleted)
+            .ToListAsync();
+
+        var hasUpdates = false;
+        foreach (var existing in existingUserRegions)
+        {
+            if (existing.Status != UserRegionStatus.Active.ToString())
+            {
+                existing.Status = UserRegionStatus.Active.ToString();
+                existing.UpdatedAt = DateTime.UtcNow;
+                existing.UpdatedBy = "System";
+                hasUpdates = true;
+            }
+        }
+
+        var existingUserRegionIds = existingUserRegions.Select(ur => ur.RegionId).ToHashSet();
+        var missingRegionIds = allRegions.Except(existingUserRegionIds).ToList();
+        if (missingRegionIds.Count > 0)
+        {
+            var newUserRegions = missingRegionIds.Select(regionId => new UserRegion
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                RegionId = regionId,
+                Status = UserRegionStatus.Active.ToString(),
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            }).ToList();
+
+            await _context.Set<UserRegion>().AddRangeAsync(newUserRegions);
+            hasUpdates = true;
+            _logger.LogInformation("Assigned {Count} active regions to superadmin user.", newUserRegions.Count);
+        }
+
+        if (hasUpdates)
+        {
+            await _context.SaveChangesAsync();
         }
     }
 }
