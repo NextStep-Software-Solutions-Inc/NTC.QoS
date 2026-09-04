@@ -109,10 +109,7 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         // Handle user region status changes when role is updated
         if (role != null)
         {
-            var isSuperAdmin = string.Equals(role.Key, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
-                               string.Equals(role.Key, "super-admin", StringComparison.OrdinalIgnoreCase);
-
-            if (isSuperAdmin)
+            if (Roles.IsSuperAdmin(role))
             {
                 await _userRegionService.AssignAllRegionsToUserAsync(user.Id, cancellationToken);
             }
@@ -150,5 +147,3 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         };
     }
 }
-
-

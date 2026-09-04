@@ -134,7 +134,7 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
 
         // Step 8: Auto-assign active regions if user has SuperAdmin role
         var effectiveRole = providedRole ?? defaultRole;
-        if (effectiveRole != null && (string.Equals(effectiveRole.Key, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) || string.Equals(effectiveRole.Key, "super-admin", StringComparison.OrdinalIgnoreCase)))
+        if (Roles.IsSuperAdmin(effectiveRole))
         {
             await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
         }

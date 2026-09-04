@@ -108,7 +108,7 @@ public class InviteUserHandler(IUserRepository userRepository,
         await _userRepository.SaveChangesAsync(cancellationToken);
 
         // Auto-assign active regions if user has SuperAdmin role
-        if (string.Equals(role.Key, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) || string.Equals(role.Key, "super-admin", StringComparison.OrdinalIgnoreCase))
+        if (Roles.IsSuperAdmin(role))
         {
             await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
         }
