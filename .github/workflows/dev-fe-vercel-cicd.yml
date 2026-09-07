@@ -1,4 +1,4 @@
-﻿name: Development Vercel CI/CD (Frontend Web)
+name: Development Vercel CI/CD (Frontend Web)
 
 on:
   push:
@@ -18,9 +18,6 @@ jobs:
     name: 🚀 Deploy Frontend to Vercel (Development)
     runs-on: ubuntu-latest
     environment: Development
-    defaults:
-      run:
-        working-directory: ./NTC.QoS.Web
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -44,9 +41,11 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
+        working-directory: ./NTC.QoS.Web
         run: bun install --frozen-lockfile
 
       - name: Run Typecheck
+        working-directory: ./NTC.QoS.Web
         run: bun run typecheck
 
       - name: Install Vercel CLI
