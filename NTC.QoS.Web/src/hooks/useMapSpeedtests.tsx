@@ -240,6 +240,7 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
 
     if (previousSerialized !== currentSerialized) {
       // Filter options changed - clear accumulated data to load fresh results
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAccumulatedGeoJSON({ type: "FeatureCollection", features: [] });
       setTotalLoadedCount(0);
       previousOptionsRef.current = currentSerialized;
@@ -319,61 +320,67 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
   const enforceSpeedtestLayerOrder = useCallback(() => {
     if (!map || !map.isStyleLoaded()) return;
 
-    const style = map.getStyle();
-    if (!style?.layers) return;
+    try {
+      if (!map.isStyleLoaded()) return;
 
-    // Skip if neither speedtest layer exists yet
-    if (!map.getLayer("speedtests-circles") && !map.getLayer("speedtests-heatmap")) return;
+      const style = map.getStyle();
+      if (!style?.layers) return;
 
-    const layerIds = style.layers.map((l) => l.id);
+      // Skip if neither speedtest layer exists yet
+      if (!map.getLayer("speedtests-circles") && !map.getLayer("speedtests-heatmap")) return;
 
-    // Phase 1: find the highest-z layer from LAYERS_BELOW_SPEEDTEST.
-    let floorIdx = -1;
-    for (const id of LAYERS_BELOW_SPEEDTEST) {
-      const idx = layerIds.indexOf(id);
-      if (idx > floorIdx) floorIdx = idx;
-    }
+      const layerIds = style.layers.map((l) => l.id);
 
-    let anchorId: string | undefined;
+      // Phase 1: find the highest-z layer from LAYERS_BELOW_SPEEDTEST.
+      let floorIdx = -1;
+      for (const id of LAYERS_BELOW_SPEEDTEST) {
+        const idx = layerIds.indexOf(id);
+        if (idx > floorIdx) floorIdx = idx;
+      }
 
-    if (floorIdx !== -1) {
-      // Walk forward from just above the floor layer to find the first non-speedtest
-      // layer.  This is the slot where speedtest layers will be inserted.
-      for (let i = floorIdx + 1; i < layerIds.length; i++) {
-        const id = layerIds[i];
-        if (id !== "speedtests-heatmap" && id !== "speedtests-circles") {
-          anchorId = id;
-          break;
+      let anchorId: string | undefined;
+
+      if (floorIdx !== -1) {
+        // Walk forward from just above the floor layer to find the first non-speedtest
+        // layer.  This is the slot where speedtest layers will be inserted.
+        for (let i = floorIdx + 1; i < layerIds.length; i++) {
+          const id = layerIds[i];
+          if (id !== "speedtests-heatmap" && id !== "speedtests-circles") {
+            anchorId = id;
+            break;
+          }
         }
       }
-    }
 
-    // Phase 2 fallback: topmost non-custom base-map symbol layer.
-    if (!anchorId) {
-      for (let i = style.layers.length - 1; i >= 0; i--) {
-        const layer = style.layers[i];
-        if (layer && layer.type === "symbol" && !CUSTOM_SYMBOL_LAYER_IDS.has(layer.id)) {
-          anchorId = layer.id;
-          break;
+      // Phase 2 fallback: topmost non-custom base-map symbol layer.
+      if (!anchorId) {
+        for (let i = style.layers.length - 1; i >= 0; i--) {
+          const layer = style.layers[i];
+          if (layer && layer.type === "symbol" && !CUSTOM_SYMBOL_LAYER_IDS.has(layer.id)) {
+            anchorId = layer.id;
+            break;
+          }
         }
       }
-    }
 
-    if (!anchorId) return;
+      if (!anchorId) return;
 
-    // Move heatmap first (renders below circles), then circles.
-    // Both are moved before the same anchor, so the final order is:
-    //   [..., speedtests-heatmap, speedtests-circles, <anchorId>, ...]
-    for (const id of ["speedtests-heatmap", "speedtests-circles"] as LayerId[]) {
-      if (!map.getLayer(id)) continue;
-      try {
-        map.moveLayer(id, anchorId);
-      } catch (err) {
-        // Layer may not be ready yet; will be retried on the next scheduled call
-        if (process.env.NODE_ENV === "development") {
-          console.debug(`[useMapSpeedtests] moveLayer(${id}) failed, will retry:`, err);
+      // Move heatmap first (renders below circles), then circles.
+      // Both are moved before the same anchor, so the final order is:
+      //   [..., speedtests-heatmap, speedtests-circles, <anchorId>, ...]
+      for (const id of ["speedtests-heatmap", "speedtests-circles"] as LayerId[]) {
+        if (!map.getLayer(id)) continue;
+        try {
+          map.moveLayer(id, anchorId);
+        } catch (err) {
+          // Layer may not be ready yet; will be retried on the next scheduled call
+          if (process.env.NODE_ENV === "development") {
+            console.debug(`[useMapSpeedtests] moveLayer(${id}) failed, will retry:`, err);
+          }
         }
       }
+    } catch {
+      // Style not ready yet
     }
   }, [map]);
 
@@ -381,12 +388,16 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
     if (!map || !isMapLoaded) return;
 
     const addSpeedtestSourceToMap = () => {
-      if (!map || !map.isStyleLoaded()) return;
-      if (!map.getSource("speedtests")) {
-        // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
-        map.addSource("speedtests", { type: "geojson", data: accumulatedGeoJSONRef.current });
+      try {
+        if (!map || !map.isStyleLoaded()) return;
+
+        if (!map.getSource("speedtests")) {
+          // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
+          map.addSource("speedtests", { type: "geojson", data: accumulatedGeoJSONRef.current });
+        }
+      } catch {
+        // Style not ready yet
       }
-      // Data updates are handled by a dedicated effect to avoid listener re-registration
     };
 
     // Find the best insertion point for speedtest layers.
@@ -394,39 +405,45 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
     // speedtest just above it. Falls back to the topmost base-map symbol if no
     // reference layers exist yet (e.g. first load before other hooks have run).
     const findBeforeLayer = () => {
-      const layers = map.getStyle()?.layers;
-      if (!layers) return undefined;
+      try {
+        if (!map.isStyleLoaded()) return undefined;
 
-      const layerIds = layers.map((l) => l.id);
+        const layers = map.getStyle()?.layers;
+        if (!layers) return undefined;
 
-      // Phase 1: find the first non-speedtest layer just above the highest
-      // known "below speedtest" layer.
-      let floorIdx = -1;
-      for (const id of LAYERS_BELOW_SPEEDTEST) {
-        const idx = layerIds.indexOf(id);
-        if (idx > floorIdx) floorIdx = idx;
-      }
-      if (floorIdx !== -1) {
-        for (let i = floorIdx + 1; i < layerIds.length; i++) {
-          const id = layerIds[i];
-          if (id !== "speedtests-heatmap" && id !== "speedtests-circles") return id;
+        const layerIds = layers.map((l) => l.id);
+
+        // Phase 1: find the first non-speedtest layer just above the highest
+        // known "below speedtest" layer.
+        let floorIdx = -1;
+        for (const id of LAYERS_BELOW_SPEEDTEST) {
+          const idx = layerIds.indexOf(id);
+          if (idx > floorIdx) floorIdx = idx;
         }
-      }
-
-      // Phase 2 fallback: topmost non-custom base-map symbol layer.
-      for (let i = layers.length - 1; i >= 0; i--) {
-        const layer = layers[i];
-        if (
-          layer &&
-          layer.type === "symbol" &&
-          layer.id !== "speedtests-circles" &&
-          layer.id !== "speedtests-heatmap" &&
-          !CUSTOM_SYMBOL_LAYER_IDS.has(layer.id)
-        ) {
-          return layer.id;
+        if (floorIdx !== -1) {
+          for (let i = floorIdx + 1; i < layerIds.length; i++) {
+            const id = layerIds[i];
+            if (id !== "speedtests-heatmap" && id !== "speedtests-circles") return id;
+          }
         }
+
+        // Phase 2 fallback: topmost non-custom base-map symbol layer.
+        for (let i = layers.length - 1; i >= 0; i--) {
+          const layer = layers[i];
+          if (
+            layer &&
+            layer.type === "symbol" &&
+            layer.id !== "speedtests-circles" &&
+            layer.id !== "speedtests-heatmap" &&
+            !CUSTOM_SYMBOL_LAYER_IDS.has(layer.id)
+          ) {
+            return layer.id;
+          }
+        }
+        return undefined;
+      } catch {
+        return undefined;
       }
-      return undefined;
     };
 
     const addSpeedtestsLayers = (
@@ -442,79 +459,85 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
     ) => {
       if (e.sourceId !== "speedtests" || !e.isSourceLoaded) return;
 
-      const beforeId = findBeforeLayer();
+      try {
+        if (!map.isStyleLoaded()) return;
 
-      if (!map.getLayer("speedtests-circles")) {
-        console.info("Adding speedtests circles layer to map");
-        map.addLayer(
-          {
-            id: "speedtests-circles",
-            type: "circle",
-            source: "speedtests",
-            // minzoom: 9,
-            filter: ["all", [">", ["get", "downloadSpeed"], 0]],
-            paint: {
-              // Use the ispColor directly for the circle color
-              "circle-color": ["get", "ispColor"],
-              // Adjust the radius of the circles based on downloadSpeed
-              "circle-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                6, // Zoom level 6
-                ["interpolate", ["linear"], ["get", "downloadSpeed"], 50, 1, 100, 2, 150, 4], // Smaller circles at low zoom
-                10, // Zoom level 10
-                ["interpolate", ["linear"], ["get", "downloadSpeed"], 50, 4, 100, 8, 150, 10], // Larger circles at higher zoom
-              ],
-              // Adjust the opacity of the circles for better visibility
-              "circle-opacity": 0.3,
+        const beforeId = findBeforeLayer();
+
+        if (!map.getLayer("speedtests-circles")) {
+          console.info("Adding speedtests circles layer to map");
+          map.addLayer(
+            {
+              id: "speedtests-circles",
+              type: "circle",
+              source: "speedtests",
+              // minzoom: 9,
+              filter: ["all", [">", ["get", "downloadSpeed"], 0]],
+              paint: {
+                // Use the ispColor directly for the circle color
+                "circle-color": ["get", "ispColor"],
+                // Adjust the radius of the circles based on downloadSpeed
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  6, // Zoom level 6
+                  ["interpolate", ["linear"], ["get", "downloadSpeed"], 50, 1, 100, 2, 150, 4], // Smaller circles at low zoom
+                  10, // Zoom level 10
+                  ["interpolate", ["linear"], ["get", "downloadSpeed"], 50, 4, 100, 8, 150, 10], // Larger circles at higher zoom
+                ],
+                // Adjust the opacity of the circles for better visibility
+                "circle-opacity": 0.3,
+              },
+              layout: { visibility: visibleLayers["speedtests-circles"] ? "visible" : "none" },
             },
-            layout: { visibility: visibleLayers["speedtests-circles"] ? "visible" : "none" },
-          },
-          beforeId,
-        );
-      }
+            beforeId,
+          );
+        }
 
-      if (!map.getLayer("speedtests-heatmap")) {
-        console.info("Adding speedtests heatmap layer to map");
-        map.addLayer(
-          {
-            id: "speedtests-heatmap",
-            type: "heatmap",
-            source: "speedtests",
-            // minzoom: 9,
-            paint: {
-              "heatmap-weight": ["interpolate", ["linear"], ["get", "downloadSpeed"], 0, 0, 100, 1],
-              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 22, 3],
-              "heatmap-color": [
-                "interpolate",
-                ["linear"],
-                ["heatmap-density"],
-                0,
-                "rgba(255,255,255,0.1)", // Light gray for low density
-                0.2,
-                "rgba(135,206,250,0.9)", // Light blue
-                0.4,
-                "rgba(30,144,255,0.8)", // Dodger blue
-                0.6,
-                "rgba(0,0,255,0.9)", // Blue
-                0.8,
-                "rgba(0,0,139,0.9)", // Dark blue
-                1,
-                "rgba(0,0,0,0.9)", // Black for high density
-              ],
-              "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 22, 10],
-              "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 6, 1, 22, 0],
+        if (!map.getLayer("speedtests-heatmap")) {
+          console.info("Adding speedtests heatmap layer to map");
+          map.addLayer(
+            {
+              id: "speedtests-heatmap",
+              type: "heatmap",
+              source: "speedtests",
+              // minzoom: 9,
+              paint: {
+                "heatmap-weight": ["interpolate", ["linear"], ["get", "downloadSpeed"], 0, 0, 100, 1],
+                "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 22, 3],
+                "heatmap-color": [
+                  "interpolate",
+                  ["linear"],
+                  ["heatmap-density"],
+                  0,
+                  "rgba(255,255,255,0.1)", // Light gray for low density
+                  0.2,
+                  "rgba(135,206,250,0.9)", // Light blue
+                  0.4,
+                  "rgba(30,144,255,0.8)", // Dodger blue
+                  0.6,
+                  "rgba(0,0,255,0.9)", // Blue
+                  0.8,
+                  "rgba(0,0,139,0.9)", // Dark blue
+                  1,
+                  "rgba(0,0,0,0.9)", // Black for high density
+                ],
+                "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 22, 10],
+                "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 6, 1, 22, 0],
+              },
+              layout: { visibility: visibleLayers["speedtests-heatmap"] ? "visible" : "none" },
             },
-            layout: { visibility: visibleLayers["speedtests-heatmap"] ? "visible" : "none" },
-          },
-          "speedtests-circles",
-        );
-      }
+            "speedtests-circles",
+          );
+        }
 
-      // After adding layers, schedule deferred enforcement so any concurrent
-      // addLayer calls (fiber, cells, NAPs) finish before we re-order.
-      setTimeout(enforceSpeedtestLayerOrder, 0);
+        // After adding layers, schedule deferred enforcement so any concurrent
+        // addLayer calls (fiber, cells, NAPs) finish before we re-order.
+        setTimeout(enforceSpeedtestLayerOrder, 0);
+      } catch {
+        // Style not ready yet
+      }
     };
     addSpeedtestSourceToMap();
     map.on("styledata", addSpeedtestSourceToMap);
@@ -532,9 +555,14 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
   useEffect(() => {
     if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
 
-    const source = map.getSource<GeoJSONSource>("speedtests");
-    if (source) {
-      source.setData(accumulatedGeoJSON);
+    try {
+      if (!map.isStyleLoaded()) return;
+      const source = map.getSource<GeoJSONSource>("speedtests");
+      if (source) {
+        source.setData(accumulatedGeoJSON);
+      }
+    } catch {
+      // Style not ready yet
     }
   }, [map, isMapLoaded, accumulatedGeoJSON]);
 
@@ -585,11 +613,11 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
   const setLayerVisible = useCallback(
     (layer: LayerId, visible: boolean) => {
       try {
-        if (map && map.getLayer(layer)) {
+        if (map && map.isStyleLoaded() && map.getLayer(layer)) {
           map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
         }
       } catch {
-        // Style may be reloading, silently ignore
+        // Style not ready yet
       }
     },
     [map],

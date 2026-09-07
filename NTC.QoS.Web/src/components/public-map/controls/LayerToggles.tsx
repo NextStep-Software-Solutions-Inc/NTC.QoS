@@ -85,11 +85,12 @@ export function LayerToggles() {
   }, [isOpen]);
 
   // Derive activeFilters from URL params (no effect needed)
+  // Default to active when query param is absent (null) or explicitly "true"
   const activeFilters = useMemo(() => {
     const filters = new Set<string>();
     layers.forEach((layer) => {
       const param = searchParams.get(layer.param);
-      if (param === "true") {
+      if (param === null || param === "true") {
         filters.add(layer.id);
       }
     });

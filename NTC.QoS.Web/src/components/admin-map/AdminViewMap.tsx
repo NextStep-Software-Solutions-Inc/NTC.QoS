@@ -79,7 +79,7 @@ function safeSetPaintProperty(map: ReturnType<typeof useMap>["map"], layerId: st
       map.setPaintProperty(layerId, property, value);
     }
   } catch (error) {
-    console.warn(`Failed to set ${property} on layer ${layerId}:`, error);
+    // Ignore when style is not ready yet
   }
 }
 

@@ -171,66 +171,78 @@ export const useMapViewport = (options: UseMapViewportOptions = {}) => {
   useEffect(() => {
     if (!map || !isMapLoaded || !showDebugBox || !bounds) return;
 
-    const sourceId = "viewport-debug-box";
-    const layerId = "viewport-debug-box-layer";
+    try {
+      if (!map.isStyleLoaded()) return;
 
-    // Create GeoJSON for the bounding box with slight margin for visibility
-    const marginPercent = 0.005; // 0.5% margin
-    const lngRange = bounds.maxLng - bounds.minLng;
-    const latRange = bounds.maxLat - bounds.minLat;
-    const lngMargin = lngRange * marginPercent;
-    const latMargin = latRange * marginPercent;
+      const sourceId = "viewport-debug-box";
+      const layerId = "viewport-debug-box-layer";
 
-    const boxGeoJSON = {
-      type: "FeatureCollection" as const,
-      features: [
-        {
-          type: "Feature" as const,
-          geometry: {
-            type: "Polygon" as const,
-            coordinates: [
-              [
-                [bounds.minLng + lngMargin, bounds.minLat + latMargin], // SW corner (inset)
-                [bounds.maxLng - lngMargin, bounds.minLat + latMargin], // SE corner (inset)
-                [bounds.maxLng - lngMargin, bounds.maxLat - latMargin], // NE corner (inset)
-                [bounds.minLng + lngMargin, bounds.maxLat - latMargin], // NW corner (inset)
-                [bounds.minLng + lngMargin, bounds.minLat + latMargin], // Close the loop
+      // Create GeoJSON for the bounding box with slight margin for visibility
+      const marginPercent = 0.005; // 0.5% margin
+      const lngRange = bounds.maxLng - bounds.minLng;
+      const latRange = bounds.maxLat - bounds.minLat;
+      const lngMargin = lngRange * marginPercent;
+      const latMargin = latRange * marginPercent;
+
+      const boxGeoJSON = {
+        type: "FeatureCollection" as const,
+        features: [
+          {
+            type: "Feature" as const,
+            geometry: {
+              type: "Polygon" as const,
+              coordinates: [
+                [
+                  [bounds.minLng + lngMargin, bounds.minLat + latMargin], // SW corner (inset)
+                  [bounds.maxLng - lngMargin, bounds.minLat + latMargin], // SE corner (inset)
+                  [bounds.maxLng - lngMargin, bounds.maxLat - latMargin], // NE corner (inset)
+                  [bounds.minLng + lngMargin, bounds.maxLat - latMargin], // NW corner (inset)
+                  [bounds.minLng + lngMargin, bounds.minLat + latMargin], // Close the loop
+                ],
               ],
-            ],
+            },
+            properties: {},
           },
-          properties: {},
-        },
-      ],
-    };
+        ],
+      };
 
-    // Add or update source
-    if (map.getSource(sourceId)) {
-      const source = map.getSource<GeoJSONSource>(sourceId)!;
-      if (source.type === "geojson") {
-        // Update existing source data
-        source.setData(boxGeoJSON);
-      }
-    } else {
-      map.addSource(sourceId, { type: "geojson", data: boxGeoJSON });
-
-      // Add layer with dashed line style
-      map.addLayer({
-        id: layerId,
-        type: "line",
-        source: sourceId,
-        paint: { "line-color": "#FF0000", "line-width": 2, "line-opacity": 0.4, "line-dasharray": [4, 4] },
-      });
-    }
-
-    // Cleanup
-    return () => {
-      if (map.getLayer(layerId)) {
-        map.removeLayer(layerId);
-      }
+      // Add or update source
       if (map.getSource(sourceId)) {
-        map.removeSource(sourceId);
+        const source = map.getSource<GeoJSONSource>(sourceId)!;
+        if (source.type === "geojson") {
+          // Update existing source data
+          source.setData(boxGeoJSON);
+        }
+      } else {
+        map.addSource(sourceId, { type: "geojson", data: boxGeoJSON });
+
+        // Add layer with dashed line style
+        map.addLayer({
+          id: layerId,
+          type: "line",
+          source: sourceId,
+          paint: { "line-color": "#FF0000", "line-width": 2, "line-opacity": 0.4, "line-dasharray": [4, 4] },
+        });
       }
-    };
+
+      // Cleanup
+      return () => {
+        try {
+          if (map.isStyleLoaded()) {
+            if (map.getLayer(layerId)) {
+              map.removeLayer(layerId);
+            }
+            if (map.getSource(sourceId)) {
+              map.removeSource(sourceId);
+            }
+          }
+        } catch {
+          // Style not ready
+        }
+      };
+    } catch {
+      // Style not ready
+    }
   }, [map, isMapLoaded, showDebugBox, bounds]);
 
   return {

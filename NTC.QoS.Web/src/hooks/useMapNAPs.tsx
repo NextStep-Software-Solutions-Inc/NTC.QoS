@@ -121,6 +121,7 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
       regionIds: options?.regionIds,
     });
     if (previousOptionsRef.current !== currentSerialized) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAccumulatedGeoJSON({ type: "FeatureCollection", features: [] });
       setTotalLoadedCount(0);
       setIsInitialLoad(true);
@@ -241,11 +242,11 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
   const setLayerVisible = useCallback(
     (layer: LayerId, visible: boolean) => {
       try {
-        if (map && map.getLayer(layer)) {
+        if (map && map.isStyleLoaded() && map.getLayer(layer)) {
           map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
         }
       } catch {
-        // Style may be reloading, silently ignore
+        // Style not ready yet
       }
     },
     [map],
@@ -260,117 +261,133 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
   const addNAPSourceToMap = useCallback(() => {
     if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
 
-    if (!map.getSource("NAPs")) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("🗺️ [NAPs Debug] Adding NAPs source with", accumulatedGeoJSONRef.current.features.length, "features");
-      }
+    try {
+      if (!map.isStyleLoaded()) return;
 
-      map.addSource("NAPs", {
-        type: "geojson",
-        // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
-        data: accumulatedGeoJSONRef.current,
-        cluster: true,
-        clusterMaxZoom: 16,
-        clusterRadius: 30,
-        clusterProperties: {
-          clusterColor: ["coalesce", ["get", "ispColor"], "#808080"], // Default to gray
-        },
-        generateId: true,
-      });
+      if (!map.getSource("NAPs")) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("🗺️ [NAPs Debug] Adding NAPs source with", accumulatedGeoJSONRef.current.features.length, "features");
+        }
+
+        map.addSource("NAPs", {
+          type: "geojson",
+          // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
+          data: accumulatedGeoJSONRef.current,
+          cluster: true,
+          clusterMaxZoom: 16,
+          clusterRadius: 30,
+          clusterProperties: {
+            clusterColor: ["coalesce", ["get", "ispColor"], "#808080"], // Default to gray
+          },
+          generateId: true,
+        });
+      }
+    } catch {
+      // Style not ready yet
     }
-    // Data updates are handled by a dedicated effect to avoid listener re-registration
   }, [map, isMapLoaded]);
 
   const addNAPsLayers = useCallback(
     (e: MapLibreEvent<unknown> & { sourceId: string; isSourceLoaded: boolean }) => {
       if (!map || !map.isStyleLoaded() || e.sourceId !== "NAPs" || !e.isSourceLoaded) return;
 
-      // Find the appropriate layer to insert custom layers before it
-      // We want custom layers ABOVE roads/buildings but BELOW place labels
-      // Strategy: Look for the first symbol layer that contains "place" or is a place name label
-      const findBeforeLayer = () => {
-        const layers = map.getStyle().layers;
-        if (!layers) return undefined;
+      try {
+        if (!map.isStyleLoaded()) return;
 
-        // First, try to find a place name or settlement label layer
-        // These typically come after roads/buildings in MapTiler styles
-        for (const layer of layers) {
-          if (layer.type === "symbol") {
-            const layerId = layer.id.toLowerCase();
-            // Look for place labels specifically (not road labels)
-            if (layerId.includes("place") || layerId.includes("settlement") || layerId.includes("city") || layerId.includes("town")) {
-              return layer.id;
+        // Find the appropriate layer to insert custom layers before it
+        // We want custom layers ABOVE roads/buildings but BELOW place labels
+        // Strategy: Look for the first symbol layer that contains "place" or is a place name label
+        const findBeforeLayer = () => {
+          try {
+            if (!map.isStyleLoaded()) return undefined;
+            const layers = map.getStyle()?.layers;
+            if (!layers) return undefined;
+
+            // First, try to find a place name or settlement label layer
+            // These typically come after roads/buildings in MapTiler styles
+            for (const layer of layers) {
+              if (layer.type === "symbol") {
+                const layerId = layer.id.toLowerCase();
+                // Look for place labels specifically (not road labels)
+                if (layerId.includes("place") || layerId.includes("settlement") || layerId.includes("city") || layerId.includes("town")) {
+                  return layer.id;
+                }
+              }
             }
+
+            // Fallback: find any label layer
+            for (const layer of layers) {
+              if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
+                return layer.id;
+              }
+            }
+
+            return undefined; // Will render on top if no suitable layer found
+          } catch {
+            return undefined;
           }
+        };
+
+        const beforeId = findBeforeLayer();
+
+        if (process.env.NODE_ENV === "development") {
+          console.log("🗺️ [NAPs] Adding layers", beforeId ? `before "${beforeId}"` : "on top");
         }
 
-        // Fallback: find any label layer
-        for (const layer of layers) {
-          if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
-            return layer.id;
-          }
-        }
-
-        return undefined; // Will render on top if no suitable layer found
-      };
-
-      const beforeId = findBeforeLayer();
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("🗺️ [NAPs] Adding layers", beforeId ? `before "${beforeId}"` : "on top");
-      }
-
-      const layers: Array<{ id: LayerId; config: maptilersdk.LayerSpecification }> = [
-        {
-          id: "NAPs-cluster",
-          config: {
+        const layers: Array<{ id: LayerId; config: maptilersdk.LayerSpecification }> = [
+          {
             id: "NAPs-cluster",
-            type: "circle",
-            source: "NAPs",
-            filter: ["has", "point_count"],
-            paint: {
-              "circle-color": ["get", "clusterColor"],
-              "circle-radius": clusterRadiusStep,
-              "circle-opacity": 0.5,
+            config: {
+              id: "NAPs-cluster",
+              type: "circle",
+              source: "NAPs",
+              filter: ["has", "point_count"],
+              paint: {
+                "circle-color": ["get", "clusterColor"],
+                "circle-radius": clusterRadiusStep,
+                "circle-opacity": 0.5,
+              },
+              layout: { visibility: visibleLayers["NAPs-cluster"] ? "visible" : "none" },
             },
-            layout: { visibility: visibleLayers["NAPs-cluster"] ? "visible" : "none" },
           },
-        },
-        {
-          id: "NAPs-cluster-count",
-          config: {
+          {
             id: "NAPs-cluster-count",
-            type: "symbol",
-            source: "NAPs",
-            filter: ["has", "point_count"],
-            layout: {
-              "text-field": "{point_count_abbreviated}",
-              "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-              "text-size": 12,
-              visibility: visibleLayers["NAPs-cluster-count"] ? "visible" : "none",
+            config: {
+              id: "NAPs-cluster-count",
+              type: "symbol",
+              source: "NAPs",
+              filter: ["has", "point_count"],
+              layout: {
+                "text-field": "{point_count_abbreviated}",
+                "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+                "text-size": 12,
+                visibility: visibleLayers["NAPs-cluster-count"] ? "visible" : "none",
+              },
+              paint: { "text-color": "#fff", "text-opacity": 1 },
             },
-            paint: { "text-color": "#fff", "text-opacity": 1 },
           },
-        },
-        {
-          id: "NAPs-unclustered",
-          config: {
+          {
             id: "NAPs-unclustered",
-            type: "circle",
-            source: "NAPs",
-            filter: ["!has", "point_count"],
-            paint: { "circle-radius": 8, "circle-color": ["get", "ispColor"] },
-            layout: { visibility: visibleLayers["NAPs-unclustered"] ? "visible" : "none" },
+            config: {
+              id: "NAPs-unclustered",
+              type: "circle",
+              source: "NAPs",
+              filter: ["!has", "point_count"],
+              paint: { "circle-radius": 8, "circle-color": ["get", "ispColor"] },
+              layout: { visibility: visibleLayers["NAPs-unclustered"] ? "visible" : "none" },
+            },
           },
-        },
-      ];
+        ];
 
-      layers.forEach(({ id, config }) => {
-        if (!map.getLayer(id)) {
-          // If beforeId is undefined, layer will be added on top (still renders)
-          map.addLayer(config, beforeId);
-        }
-      });
+        layers.forEach(({ id, config }) => {
+          if (!map.getLayer(id)) {
+            // If beforeId is undefined, layer will be added on top (still renders)
+            map.addLayer(config, beforeId);
+          }
+        });
+      } catch {
+        // Style not ready yet
+      }
     },
     [map, visibleLayers],
   );
@@ -393,12 +410,17 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
   useEffect(() => {
     if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
 
-    const source = map.getSource<GeoJSONSource>("NAPs");
-    if (source) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("🗺️ [NAPs Debug] Updating NAPs source with", accumulatedGeoJSON.features.length, "total features");
+    try {
+      if (!map.isStyleLoaded()) return;
+      const source = map.getSource<GeoJSONSource>("NAPs");
+      if (source) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("🗺️ [NAPs Debug] Updating NAPs source with", accumulatedGeoJSON.features.length, "total features");
+        }
+        source.setData(accumulatedGeoJSON);
       }
-      source.setData(accumulatedGeoJSON);
+    } catch {
+      // Style not ready yet
     }
   }, [map, isMapLoaded, accumulatedGeoJSON]);
 

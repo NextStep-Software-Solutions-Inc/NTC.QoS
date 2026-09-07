@@ -244,7 +244,8 @@ function _ProviderFilter({
 function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknown> | null) => void }) {
   const { map, isMapLoaded } = useMap();
   const searchParams = useSearchParams();
-  const qosEnabled = searchParams.get("qos") === "true";
+  const qosParam = searchParams.get("qos");
+  const qosEnabled = qosParam === null ? true : qosParam === "true";
   const { opacities } = useLayerOpacity();
 
   const popupRef = useRef<Popup | null>(null);
@@ -253,7 +254,7 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
   const hoveredFeatureIdRef = useRef<string | number | undefined>(undefined);
 
   const SOURCE_ID = "qos-vector-source";
-  const SOURCE_LAYER_ID = process.env.NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID ?? "merged";
+  const SOURCE_LAYER_ID = process.env.NEXT_PUBLIC_MAPTILER_FIBER_SOURCE_LAYER_ID ?? "qos";
   const FILL_LAYER_ID = "qos-fill-layer";
   const LINE_LAYER_ID = "qos-line-layer";
 
@@ -290,7 +291,7 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
 
   // Add QoS source and layers
   useEffect(() => {
-    if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !isMapLoaded) return;
 
     const sourceUrl = process.env.NEXT_PUBLIC_MAPTILER_URL;
     if (!sourceUrl) return;
@@ -311,27 +312,32 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
      * inserted below it, keeping map location labels legible at all times.
      */
     const findFirstLabelLayer = (): string | undefined => {
-      const layers = map.getStyle().layers;
-      if (!layers) return undefined;
+      try {
+        if (!map || !map.isStyleLoaded()) return undefined;
+        const layers = map.getStyle()?.layers;
+        if (!layers) return undefined;
 
-      // Prefer place / settlement / city / town labels
-      for (const layer of layers) {
-        if (layer.type === "symbol") {
-          const id = layer.id.toLowerCase();
-          if (id.includes("place") || id.includes("settlement") || id.includes("city") || id.includes("town")) {
+        // Prefer place / settlement / city / town labels
+        for (const layer of layers) {
+          if (layer.type === "symbol") {
+            const id = layer.id.toLowerCase();
+            if (id.includes("place") || id.includes("settlement") || id.includes("city") || id.includes("town")) {
+              return layer.id;
+            }
+          }
+        }
+
+        // Fallback: any symbol layer whose id contains "label"
+        for (const layer of layers) {
+          if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
             return layer.id;
           }
         }
-      }
 
-      // Fallback: any symbol layer whose id contains "label"
-      for (const layer of layers) {
-        if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
-          return layer.id;
-        }
+        return undefined; // Render on top if no label layer is found
+      } catch {
+        return undefined;
       }
-
-      return undefined; // Render on top if no label layer is found
     };
 
     const addQoSLayers = () => {
@@ -470,17 +476,45 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
       popupRef.current.on("close", () => options?.onFeatureSelect?.(null));
     };
 
-    // Bootstrap: add source immediately
-    addQoSSource();
-
-    // Re-add source after style changes (style change removes all sources/layers)
-    const handleStyleData = () => {
+    const setupQoS = () => {
+      if (!map.isStyleLoaded()) return;
       addQoSSource();
+      addQoSLayers();
+    };
+
+    // Bootstrap: add source and layers once style is ready
+    let cleanupStyleListener: (() => void) | undefined;
+    if (map.isStyleLoaded()) {
+      setupQoS();
+    } else {
+      const onStyleReady = () => {
+        if (map.isStyleLoaded()) {
+          map.off("styledata", onStyleReady);
+          map.off("idle", onStyleReady);
+          setupQoS();
+        }
+      };
+      map.on("styledata", onStyleReady);
+      map.on("idle", onStyleReady);
+      const timer = setTimeout(onStyleReady, 100);
+      cleanupStyleListener = () => {
+        map.off("styledata", onStyleReady);
+        map.off("idle", onStyleReady);
+        clearTimeout(timer);
+      };
+    }
+
+    // Re-add source and layers after style changes (style change removes all sources/layers)
+    const handleStyleData = () => {
+      if (!map.isStyleLoaded()) return;
+      if (!map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER_ID)) {
+        setupQoS();
+      }
     };
 
     // Add layers once source metadata has been fetched
-    const handleSourceData = (e: { sourceId: string; isSourceLoaded: boolean }) => {
-      if (map && map.isStyleLoaded() && e.sourceId === SOURCE_ID && e.isSourceLoaded) {
+    const handleSourceData = (e: { sourceId: string; isSourceLoaded?: boolean }) => {
+      if (map && map.isStyleLoaded() && e.sourceId === SOURCE_ID) {
         addQoSLayers();
       }
     };
@@ -493,6 +527,7 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
     map.on("click", FILL_LAYER_ID, handleClick);
 
     return () => {
+      cleanupStyleListener?.();
       map.off("styledata", handleStyleData);
       map.off("sourcedata", handleSourceData);
       map.off("mousemove", FILL_LAYER_ID, handleMouseMove);
@@ -541,7 +576,7 @@ function PublicViewMapContent() {
   // Cell Site layer configuration - Public map only shows clustered cells and symbols
   const cellsLayerConfig = useMemo(
     () => ({
-      cellSites: params.cellular === "true",
+      cellSites: params.cellular === undefined ? true : params.cellular === "true",
       cellSiteHeatmap: false, // Admin only
       signalCoverage: false, // Admin only
       pointView: false, // Admin only

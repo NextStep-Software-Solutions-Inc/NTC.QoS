@@ -38,11 +38,11 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
   const setLayerVisible = useCallback(
     (layer: LayerId, visible: boolean) => {
       try {
-        if (map && map.getLayer(layer)) {
+        if (map && map.isStyleLoaded() && map.getLayer(layer)) {
           map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
         }
       } catch {
-        // Style may be reloading, silently ignore
+        // Style not ready yet
       }
     },
     [map],
@@ -56,86 +56,120 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
   useEffect(() => {
     if (!map || !isMapLoaded) return;
 
+    /**
+     * Finds the insertion layer for fiber so it stays behind operational point layers
+     * (cell sites and NAPs), while still remaining below top map labels.
+     */
     const findFiberBeforeLayer = (): string | undefined => {
-      const layers = map.getStyle()?.layers;
-      if (!layers) return undefined;
+      try {
+        if (!map || !map.isStyleLoaded()) return undefined;
+        const priorityOperationalLayers = [
+          "signal-coverage-circles",
+          "cells-heatmap",
+          "cells-point-view",
+          "cells-clusters",
+          "cells-cluster-count",
+          "cells-circles",
+          "cells-symbols",
+          "NAPs-cluster",
+          "NAPs-cluster-count",
+          "NAPs-unclustered",
+          "speedtests-cellular",
+          "speedtests-circles",
+          "speedtests-heatmap",
+        ] as const;
 
-      const priorityOperationalLayers = [
-        "signal-coverage-circles",
-        "cells-heatmap",
-        "cells-point-view",
-        "cells-clusters",
-        "cells-cluster-count",
-        "cells-circles",
-        "cells-symbols",
-        "NAPs-cluster",
-        "NAPs-cluster-count",
-        "NAPs-unclustered",
-        "speedtests-cellular",
-        "speedtests-circles",
-        "speedtests-heatmap",
-      ];
-
-      for (const layer of layers) {
-        if (layer.type === "symbol" || priorityOperationalLayers.includes(layer.id)) {
-          return layer.id;
+        for (const layerId of priorityOperationalLayers) {
+          if (map.getLayer(layerId)) {
+            return layerId;
+          }
         }
-      }
 
-      return undefined;
+        const layers = map.getStyle()?.layers;
+        if (!layers) return undefined;
+
+        // Prefer place / settlement / city / town labels
+        for (const layer of layers) {
+          if (layer.type === "symbol") {
+            const id = layer.id.toLowerCase();
+            if (id.includes("place") || id.includes("settlement") || id.includes("city") || id.includes("town")) {
+              return layer.id;
+            }
+          }
+        }
+
+        // Fallback: any symbol layer whose id contains "label"
+        for (const layer of layers) {
+          if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
+            return layer.id;
+          }
+        }
+
+        return undefined; // Render on top if no label layer is found
+      } catch {
+        return undefined;
+      }
     };
 
     const ensureFiberLayers = () => {
       if (!map || !map.isStyleLoaded() || !map.getSource("map-tiles")) return;
 
-      const fiberBeforeLayer = findFiberBeforeLayer();
+      try {
+        // Determine the insertion point so fiber is behind point assets (NAP/cellsites)
+        // while still respecting style label stacking when those layers are absent.
+        const fiberBeforeLayer = findFiberBeforeLayer();
 
-      if (!map.getLayer("fiber")) {
-        console.info("Adding fiber layer");
-        map.addLayer(
-          {
-            id: "fiber",
-            type: "fill",
-            source: "map-tiles",
-            "source-layer": MAPTILER_FIBER_SOURCE_LAYER_ID,
-            paint: {
-              "fill-color": ["case", ["boolean", ["feature-state", "hover"], false], "#f00", "#f0a"],
-              "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.5, 0.3],
+        if (!map.getLayer("fiber")) {
+          console.info("Adding fiber layer");
+          map.addLayer(
+            {
+              id: "fiber",
+              type: "fill",
+              source: "map-tiles",
+              "source-layer": MAPTILER_FIBER_SOURCE_LAYER_ID,
+              paint: {
+                "fill-color": ["case", ["boolean", ["feature-state", "hover"], false], "#f00", "#f0a"],
+                "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.5, 0.3],
+              },
+              layout: { visibility: visibleLayers.fiber ? "visible" : "none" },
             },
-            layout: { visibility: visibleLayers.fiber ? "visible" : "none" },
-          },
-          fiberBeforeLayer,
-        );
-      } else if (fiberBeforeLayer) {
-        try {
-          map.moveLayer("fiber", fiberBeforeLayer);
-        } catch {}
-      }
+            fiberBeforeLayer,
+          );
+        } else if (fiberBeforeLayer) {
+          try {
+            map.moveLayer("fiber", fiberBeforeLayer);
+          } catch {}
+        }
 
-      if (!map.getLayer("fiber-line")) {
-        console.info("Adding fiber-line layer");
-        map.addLayer(
-          {
-            id: "fiber-line",
+        if (!map.getLayer("fiber-line")) {
+          console.info("Adding fiber-line layer");
+          map.addLayer(
+            {
+              id: "fiber-line",
+              type: "line",
+              source: "map-tiles",
+              "source-layer": MAPTILER_FIBER_SOURCE_LAYER_ID,
+              paint: { "line-color": "#FF00FF", "line-opacity": 0.5, "line-width": 1.5, "line-dasharray": [2, 2] },
+              layout: { visibility: visibleLayers["fiber-line"] ? "visible" : "none" },
+            },
+            // Render fiber-line directly below the fiber fill to preserve the
+            // original visual stacking (fill on top of outline).
+            "fiber",
+          );
+        }
+
+        if (!map.getLayer("highlighted-fiber")) {
+          console.info("Adding highlighted-fiber layer");
+          map.addLayer({
+            id: "highlighted-fiber",
             type: "line",
-            source: "map-tiles",
-            "source-layer": MAPTILER_FIBER_SOURCE_LAYER_ID,
-            paint: { "line-color": "#FF00FF", "line-opacity": 0.5, "line-width": 1.5, "line-dasharray": [2, 2] },
-            layout: { visibility: visibleLayers["fiber-line"] ? "visible" : "none" },
-          },
-          "fiber",
-        );
-      }
-
-      if (!map.getLayer("highlighted-fiber")) {
-        console.info("Adding highlighted-fiber layer");
-        map.addLayer({
-          id: "highlighted-fiber",
-          type: "line",
-          source: "highlighted-fiber",
-          paint: { "line-color": "#00f", "line-width": 2, "line-dasharray": [1, 1] },
-          layout: { visibility: visibleLayers["highlighted-fiber"] ? "visible" : "none" },
-        });
+            source: "highlighted-fiber",
+            paint: { "line-color": "#00f", "line-width": 2, "line-dasharray": [1, 1] },
+            layout: { visibility: visibleLayers["highlighted-fiber"] ? "visible" : "none" },
+          });
+        }
+      } catch {
+        // Style not ready yet
       }
     };
 

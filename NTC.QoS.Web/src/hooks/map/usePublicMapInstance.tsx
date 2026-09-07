@@ -128,49 +128,54 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
 
   // Restore layers after style change
   const restoreLayers = useCallback((mapInstance: maptilersdk.Map) => {
-    const registry = layerRegistryRef.current;
-    isRestoringLayersRef.current = true;
+    try {
+      if (!mapInstance.isStyleLoaded()) return;
+      const registry = layerRegistryRef.current;
+      isRestoringLayersRef.current = true;
 
-    // Re-add all sources
-    registry.sources.forEach((config) => {
-      if (!mapInstance.getSource(config.id)) {
-        if (config.type === "geojson") {
-          mapInstance.addSource(config.id, {
-            type: "geojson",
-            data: config.data as GeoJSON.FeatureCollection,
-            cluster: config.cluster,
-            clusterRadius: config.clusterRadius,
-            clusterMaxZoom: config.clusterMaxZoom,
-            clusterProperties: config.clusterProperties,
-            generateId: config.generateId,
-          });
-        } else if (config.type === "vector" && config.url) {
-          mapInstance.addSource(config.id, { type: "vector", url: config.url });
+      // Re-add all sources
+      registry.sources.forEach((config) => {
+        if (!mapInstance.getSource(config.id)) {
+          if (config.type === "geojson") {
+            mapInstance.addSource(config.id, {
+              type: "geojson",
+              data: config.data as GeoJSON.FeatureCollection,
+              cluster: config.cluster,
+              clusterRadius: config.clusterRadius,
+              clusterMaxZoom: config.clusterMaxZoom,
+              clusterProperties: config.clusterProperties,
+              generateId: config.generateId,
+            });
+          } else if (config.type === "vector" && config.url) {
+            mapInstance.addSource(config.id, { type: "vector", url: config.url });
+          }
         }
-      }
-    });
+      });
 
-    // Re-add all layers in order
-    registry.order.forEach((layerId) => {
-      const config = registry.layers.get(layerId);
-      if (config && mapInstance.isStyleLoaded() && !mapInstance.getLayer(layerId)) {
-        const layerSpec: maptilersdk.LayerSpecification = {
-          id: config.id,
-          type: config.type,
-          source: config.source,
-          ...(config.sourceLayer && { "source-layer": config.sourceLayer }),
-          ...(config.paint && { paint: config.paint }),
-          ...(config.layout && { layout: config.layout }),
-          ...(config.filter && { filter: config.filter }),
-          ...(config.minzoom !== undefined && { minzoom: config.minzoom }),
-          ...(config.maxzoom !== undefined && { maxzoom: config.maxzoom }),
-        } as maptilersdk.LayerSpecification;
+      // Re-add all layers in order
+      registry.order.forEach((layerId) => {
+        const config = registry.layers.get(layerId);
+        if (config && mapInstance.isStyleLoaded() && !mapInstance.getLayer(layerId)) {
+          const layerSpec: maptilersdk.LayerSpecification = {
+            id: config.id,
+            type: config.type,
+            source: config.source,
+            ...(config.sourceLayer && { "source-layer": config.sourceLayer }),
+            ...(config.paint && { paint: config.paint }),
+            ...(config.layout && { layout: config.layout }),
+            ...(config.filter && { filter: config.filter }),
+            ...(config.minzoom !== undefined && { minzoom: config.minzoom }),
+            ...(config.maxzoom !== undefined && { maxzoom: config.maxzoom }),
+          } as maptilersdk.LayerSpecification;
 
-        mapInstance.addLayer(layerSpec, config.beforeId);
-      }
-    });
-
-    isRestoringLayersRef.current = false;
+          mapInstance.addLayer(layerSpec, config.beforeId);
+        }
+      });
+    } catch {
+      // Style not ready yet
+    } finally {
+      isRestoringLayersRef.current = false;
+    }
   }, []);
 
   // Initialize map
@@ -259,20 +264,26 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
       // Store in registry for style change restoration
       layerRegistryRef.current.sources.set(config.id, config);
 
-      if (!map.getSource(config.id)) {
-        if (config.type === "geojson") {
-          map.addSource(config.id, {
-            type: "geojson",
-            data: config.data as GeoJSON.FeatureCollection,
-            cluster: config.cluster,
-            clusterRadius: config.clusterRadius,
-            clusterMaxZoom: config.clusterMaxZoom,
-            clusterProperties: config.clusterProperties,
-            generateId: config.generateId,
-          });
-        } else if (config.type === "vector" && config.url) {
-          map.addSource(config.id, { type: "vector", url: config.url });
+      try {
+        if (!map.isStyleLoaded()) return;
+
+        if (!map.getSource(config.id)) {
+          if (config.type === "geojson") {
+            map.addSource(config.id, {
+              type: "geojson",
+              data: config.data as GeoJSON.FeatureCollection,
+              cluster: config.cluster,
+              clusterRadius: config.clusterRadius,
+              clusterMaxZoom: config.clusterMaxZoom,
+              clusterProperties: config.clusterProperties,
+              generateId: config.generateId,
+            });
+          } else if (config.type === "vector" && config.url) {
+            map.addSource(config.id, { type: "vector", url: config.url });
+          }
         }
+      } catch {
+        // Style not ready yet
       }
     },
     [map, isMapReady],
@@ -283,9 +294,14 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
     (id: string, data: GeoJSON.FeatureCollection | GeoJSON.Feature) => {
       if (!map || !isMapReady) return;
 
-      const source = map.getSource(id) as maptilersdk.GeoJSONSource | undefined;
-      if (source) {
-        source.setData(data);
+      try {
+        if (!map.isStyleLoaded()) return;
+        const source = map.getSource(id) as maptilersdk.GeoJSONSource | undefined;
+        if (source) {
+          source.setData(data);
+        }
+      } catch {
+        // Style not ready yet
       }
 
       // Update registry
@@ -302,8 +318,12 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
     (id: string) => {
       if (!map) return;
 
-      if (map.getSource(id)) {
-        map.removeSource(id);
+      try {
+        if (map.isStyleLoaded() && map.getSource(id)) {
+          map.removeSource(id);
+        }
+      } catch {
+        // Style not ready yet
       }
       layerRegistryRef.current.sources.delete(id);
     },
@@ -321,20 +341,26 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
         layerRegistryRef.current.order.push(config.id);
       }
 
-      if (!map.getLayer(config.id)) {
-        const layerSpec: maptilersdk.LayerSpecification = {
-          id: config.id,
-          type: config.type,
-          source: config.source,
-          ...(config.sourceLayer && { "source-layer": config.sourceLayer }),
-          ...(config.paint && { paint: config.paint }),
-          ...(config.layout && { layout: config.layout }),
-          ...(config.filter && { filter: config.filter }),
-          ...(config.minzoom !== undefined && { minzoom: config.minzoom }),
-          ...(config.maxzoom !== undefined && { maxzoom: config.maxzoom }),
-        } as maptilersdk.LayerSpecification;
+      try {
+        if (!map.isStyleLoaded()) return;
 
-        map.addLayer(layerSpec, config.beforeId);
+        if (!map.getLayer(config.id)) {
+          const layerSpec: maptilersdk.LayerSpecification = {
+            id: config.id,
+            type: config.type,
+            source: config.source,
+            ...(config.sourceLayer && { "source-layer": config.sourceLayer }),
+            ...(config.paint && { paint: config.paint }),
+            ...(config.layout && { layout: config.layout }),
+            ...(config.filter && { filter: config.filter }),
+            ...(config.minzoom !== undefined && { minzoom: config.minzoom }),
+            ...(config.maxzoom !== undefined && { maxzoom: config.maxzoom }),
+          } as maptilersdk.LayerSpecification;
+
+          map.addLayer(layerSpec, config.beforeId);
+        }
+      } catch {
+        // Style not ready yet
       }
     },
     [map, isMapReady],
@@ -345,8 +371,12 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
     (id: string) => {
       if (!map) return;
 
-      if (map.isStyleLoaded() && map.getLayer(id)) {
-        map.removeLayer(id);
+      try {
+        if (map.isStyleLoaded() && map.getLayer(id)) {
+          map.removeLayer(id);
+        }
+      } catch {
+        // Style not ready yet
       }
       layerRegistryRef.current.layers.delete(id);
       layerRegistryRef.current.order = layerRegistryRef.current.order.filter((l) => l !== id);
@@ -360,11 +390,11 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
       if (!map) return;
 
       try {
-        if (map.getLayer(layerId)) {
+        if (map.isStyleLoaded() && map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
         }
       } catch {
-        // Silently ignore if style is momentarily re-loading
+        // Style not ready yet
       }
 
       // Update registry

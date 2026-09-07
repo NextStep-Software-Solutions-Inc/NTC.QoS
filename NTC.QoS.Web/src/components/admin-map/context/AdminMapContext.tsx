@@ -34,8 +34,9 @@ const LAYER_URL_PARAMS: Record<string, string> = {
   cellular: "cellular",
   "cellular-radius": "cellular",
   "cellular-radius-stroke": "cellular",
-  "cellular-signal": ".cellular_coverage",
-  "cellular-heatmap": ".cellular_heatmap", // Separate param for heatmap
+  "cellular-signal": "cellular_coverage",
+  "signal-coverage-circles": "cellular_coverage",
+  "cellular-heatmap": "cellular_heatmap", // Separate param for heatmap
   naps: "naps",
   "NAPs-cluster": "naps",
   "NAPs-cluster-count": "naps",
@@ -54,6 +55,7 @@ const DEFAULT_LAYER_VISIBILITY: LayerVisibility = {
   "cellular-radius": false,
   "cellular-radius-stroke": false,
   "cellular-signal": false,
+  "signal-coverage-circles": false,
   "cellular-heatmap": false,
   naps: false,
   "NAPs-cluster": false,
@@ -151,10 +153,23 @@ export function AdminMapProvider({ children, initialFilters, initialLayerState }
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | undefined>();
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
-  // Sync layer state when URL params change
+  // Sync layer state when user navigates browser history (back/forward)
   useEffect(() => {
-    setLayerState((prev) => ({ ...prev, visibility: { ...prev.visibility, ...initialVisibilityFromURL } }));
-  }, [initialVisibilityFromURL]);
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const updatedVisibility: Record<string, boolean> = {};
+      Object.entries(LAYER_URL_PARAMS).forEach(([layerId, paramKey]) => {
+        updatedVisibility[layerId] = params.get(paramKey) === "true";
+      });
+      setLayerState((prev) => ({
+        ...prev,
+        visibility: { ...prev.visibility, ...updatedVisibility },
+      }));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Layer visibility handler - updates both state and URL
   const setLayerVisibility = useCallback((layerId: string, visible: boolean) => {
@@ -169,7 +184,8 @@ export function AdminMapProvider({ children, initialFilters, initialLayerState }
       } else {
         params.delete(urlParam);
       }
-      window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+      const qs = params.toString();
+      window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
     }
   }, []);
 
