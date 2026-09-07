@@ -17,7 +17,7 @@
 ## 🚀 Getting Started Locally
 
 ### Prerequisites
-Install [Bun 1.x](https://bun.sh/) on your machine:
+Install [Bun v1.4+](https://bun.sh/) (or run `bun upgrade` if you already have Bun installed):
 ```bash
 curl -fsSL https://bun.sh/install | bash  # macOS/Linux
 powershell -c "irm bun.sh/install.ps1 | iex" # Windows

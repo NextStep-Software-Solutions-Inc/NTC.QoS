@@ -79,7 +79,7 @@ function safeSetPaintProperty(map: ReturnType<typeof useMap>["map"], layerId: st
       map.setPaintProperty(layerId, property, value);
     }
   } catch (error) {
-    console.warn(`Failed to set ${property} on layer ${layerId}:`, error);
+    // Ignore when style is not ready yet
   }
 }
 
@@ -185,31 +185,31 @@ function AdminMapContent() {
     [layerState.visibility],
   );
 
-  const NAPsVisibilities = useMemo(
-    () => ({
-      "NAPs-cluster": layerState.visibility["NAPs-cluster"] ?? false,
-      "NAPs-cluster-count": layerState.visibility["NAPs-cluster-count"] ?? false,
-      "NAPs-unclustered": layerState.visibility["NAPs-unclustered"] ?? false,
-    }),
-    [layerState.visibility],
-  );
+  const NAPsVisibilities = useMemo(() => {
+    const napsActive = layerState.visibility.naps ?? false;
+    return {
+      "NAPs-cluster": napsActive && (layerState.visibility["NAPs-cluster"] ?? true),
+      "NAPs-cluster-count": napsActive && (layerState.visibility["NAPs-cluster-count"] ?? true),
+      "NAPs-unclustered": napsActive && (layerState.visibility["NAPs-unclustered"] ?? true),
+    };
+  }, [layerState.visibility]);
 
-  const fibersVisibilities = useMemo(
-    () => ({
-      fiber: layerState.visibility.fiber ?? false,
-      "fiber-line": layerState.visibility["fiber-line"] ?? false,
+  const fibersVisibilities = useMemo(() => {
+    const fiberActive = layerState.visibility.fiber ?? false;
+    return {
+      fiber: fiberActive,
+      "fiber-line": fiberActive && (layerState.visibility["fiber-line"] ?? true),
       "highlighted-fiber": layerState.visibility["highlighted-fiber"] ?? false,
-    }),
-    [layerState.visibility],
-  );
+    };
+  }, [layerState.visibility]);
 
-  const speedtestsVisibilities = useMemo(
-    () => ({
-      "speedtests-circles": layerState.visibility["speedtests-circles"] ?? false,
-      "speedtests-heatmap": layerState.visibility["speedtests-heatmap"] ?? false,
-    }),
-    [layerState.visibility],
-  );
+  const speedtestsVisibilities = useMemo(() => {
+    const speedtestsActive = layerState.visibility["speedtests-cellular"] ?? false;
+    return {
+      "speedtests-circles": speedtestsActive && (layerState.visibility["speedtests-circles"] ?? true),
+      "speedtests-heatmap": speedtestsActive && (layerState.visibility["speedtests-heatmap"] ?? true),
+    };
+  }, [layerState.visibility]);
 
   const { user } = useUser();
   const { data: authUser } = useAuthUser({

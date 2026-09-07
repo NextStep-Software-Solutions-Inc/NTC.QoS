@@ -34,8 +34,9 @@ const LAYER_URL_PARAMS: Record<string, string> = {
   cellular: "cellular",
   "cellular-radius": "cellular",
   "cellular-radius-stroke": "cellular",
-  "cellular-signal": ".cellular_coverage",
-  "cellular-heatmap": ".cellular_heatmap", // Separate param for heatmap
+  "cellular-signal": "cellular_coverage",
+  "signal-coverage-circles": "cellular_coverage",
+  "cellular-heatmap": "cellular_heatmap", // Separate param for heatmap
   naps: "naps",
   "NAPs-cluster": "naps",
   "NAPs-cluster-count": "naps",
@@ -48,12 +49,30 @@ const LAYER_URL_PARAMS: Record<string, string> = {
   "speedtests-heatmap": "speedtests-cellular",
 };
 
+// Sub-layer hierarchy mapping - maps parent layer IDs to their constituent map layers
+export const LAYER_SUB_LAYERS: Record<string, string[]> = {
+  cellular: ["cells-clusters", "cells-cluster-count", "cells-circles", "cells-symbols", "cellular-radius", "cellular-radius-stroke"],
+  "cellular-heatmap": ["cells-heatmap"],
+  "cellular-signal": ["signal-coverage-circles"],
+  naps: ["NAPs-cluster", "NAPs-cluster-count", "NAPs-unclustered"],
+  fiber: ["fiber-line", "highlighted-fiber"],
+  "speedtests-cellular": ["speedtests-circles", "speedtests-heatmap"],
+};
+
+const SUB_LAYER_TO_PARENT: Record<string, string> = {};
+Object.entries(LAYER_SUB_LAYERS).forEach(([parent, subs]) => {
+  subs.forEach((sub) => {
+    SUB_LAYER_TO_PARENT[sub] = parent;
+  });
+});
+
 // Default layer visibility (all false until URL params are checked)
 const DEFAULT_LAYER_VISIBILITY: LayerVisibility = {
   cellular: false,
   "cellular-radius": false,
   "cellular-radius-stroke": false,
   "cellular-signal": false,
+  "signal-coverage-circles": false,
   "cellular-heatmap": false,
   naps: false,
   "NAPs-cluster": false,
@@ -151,14 +170,54 @@ export function AdminMapProvider({ children, initialFilters, initialLayerState }
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | undefined>();
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
-  // Sync layer state when URL params change
+  // Sync layer state when user navigates browser history (back/forward)
   useEffect(() => {
-    setLayerState((prev) => ({ ...prev, visibility: { ...prev.visibility, ...initialVisibilityFromURL } }));
-  }, [initialVisibilityFromURL]);
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const updatedVisibility: Record<string, boolean> = {};
+      Object.entries(LAYER_URL_PARAMS).forEach(([layerId, paramKey]) => {
+        updatedVisibility[layerId] = params.get(paramKey) === "true";
+      });
+      setLayerState((prev) => ({
+        ...prev,
+        visibility: { ...prev.visibility, ...updatedVisibility },
+      }));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Layer visibility handler - updates both state and URL
   const setLayerVisibility = useCallback((layerId: string, visible: boolean) => {
-    setLayerState((prev) => ({ ...prev, visibility: { ...prev.visibility, [layerId]: visible } }));
+    setLayerState((prev) => {
+      const nextVisibility: LayerVisibility = { ...prev.visibility, [layerId]: visible };
+
+      // If toggling a parent layer, cascade visibility to all its sub-layers
+      const subLayers = LAYER_SUB_LAYERS[layerId];
+      if (subLayers) {
+        subLayers.forEach((subId) => {
+          nextVisibility[subId] = visible;
+        });
+      }
+
+      // If toggling a sub-layer, reflect in parent if needed
+      const parentId = SUB_LAYER_TO_PARENT[layerId];
+      if (parentId) {
+        const siblingSubLayers = LAYER_SUB_LAYERS[parentId] ?? [];
+        if (visible) {
+          nextVisibility[parentId] = true;
+        } else {
+          // If all sub-layers are turned off, parent becomes false
+          const hasAnySubActive = siblingSubLayers.some((sub) => sub !== layerId && nextVisibility[sub]);
+          if (!hasAnySubActive) {
+            nextVisibility[parentId] = false;
+          }
+        }
+      }
+
+      return { ...prev, visibility: nextVisibility };
+    });
 
     // Update URL params for persistence
     const urlParam = LAYER_URL_PARAMS[layerId];
@@ -169,7 +228,8 @@ export function AdminMapProvider({ children, initialFilters, initialLayerState }
       } else {
         params.delete(urlParam);
       }
-      window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+      const qs = params.toString();
+      window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
     }
   }, []);
 

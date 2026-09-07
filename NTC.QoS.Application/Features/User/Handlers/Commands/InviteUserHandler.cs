@@ -1,5 +1,6 @@
 using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -8,11 +9,13 @@ namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
 public class InviteUserHandler(IUserRepository userRepository,
                                IRepository<Domain.Entities.Role> roleRepository,
-                               IRepository<Domain.Entities.Organization> organizationRepository) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
+                               IRepository<Domain.Entities.Organization> organizationRepository,
+                               IUserRegionService userRegionService) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Organization> _organizationRepository = organizationRepository;
+    private readonly IUserRegionService _userRegionService = userRegionService;
 
     public async Task<ApiResponse<UserDto>> Handle(InviteUserRequest request, CancellationToken cancellationToken)
     {
@@ -104,6 +107,12 @@ public class InviteUserHandler(IUserRepository userRepository,
         _userRepository.Add(newUser);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
+        // Auto-assign active regions if user has SuperAdmin role
+        if (Roles.IsSuperAdmin(role))
+        {
+            await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
+        }
+
         return new ApiResponse<UserDto>
         {
             Data = new UserDto
@@ -130,3 +139,4 @@ public class InviteUserHandler(IUserRepository userRepository,
         };
     }
 }
+

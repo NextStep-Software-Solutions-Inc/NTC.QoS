@@ -1,5 +1,6 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -7,12 +8,14 @@ using NTC.QoS.Domain.Models.DTOs.User;
 namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
 public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
-                                   IRepository<Domain.Entities.Role> roleRepository,
-                                   IRepository<Domain.Entities.Organization> organizationRepository) : IRequestHandler<CreateUserRequest, ApiResponse<UserDto>>
+                               IRepository<Domain.Entities.Role> roleRepository,
+                               IRepository<Domain.Entities.Organization> organizationRepository,
+                               IUserRegionService userRegionService) : IRequestHandler<CreateUserRequest, ApiResponse<UserDto>>
 {
     private readonly IRepository<Domain.Entities.User> _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Organization> _organizationRepository = organizationRepository;
+    private readonly IUserRegionService _userRegionService = userRegionService;
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
@@ -73,9 +76,10 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         }
 
         // Step 4: Validate explicit role if provided
+        Domain.Entities.Role? providedRole = null;
         if (request.User.RoleId != Guid.Empty)
         {
-            var providedRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Id == request.User.RoleId), cancellationToken);
+            providedRole = await _roleRepository.FirstOrDefaultAsync(_roleRepository.Query(r => r.Id == request.User.RoleId), cancellationToken);
 
             if (providedRole == null)
             {
@@ -128,7 +132,14 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         _userRepository.Add(newUser);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
-        // Step 8: Return success response
+        // Step 8: Auto-assign active regions if user has SuperAdmin role
+        var effectiveRole = providedRole ?? defaultRole;
+        if (Roles.IsSuperAdmin(effectiveRole))
+        {
+            await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
+        }
+
+        // Step 9: Return success response
         return new ApiResponse<UserDto>
         {
             Data = new UserDto
@@ -157,3 +168,4 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         };
     }
 }
+

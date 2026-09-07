@@ -1,0 +1,147 @@
+name: Development VPS CI/CD (Backend API)
+
+on:
+  push:
+    branches: ["development"]
+  pull_request:
+    branches: ["development"]
+
+env:
+  CONTAINER_NAME: qos-api-dev
+  IMAGE_NAME: qos-api:dev
+  DOTNET_VERSION: "8.0.x"
+  BUILD_CONFIGURATION: "Release"
+  ASPNETCORE_ENVIRONMENT: "Development"
+
+jobs:
+  build-and-test:
+    name: 🧪 Build & Test (.NET 8)
+    runs-on: ubuntu-latest
+    environment: Development
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build Solution
+        run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal
+
+  build-and-package:
+    name: 🛠️ Build & Package Docker Image
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    environment: Development
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }} \
+            --build-arg ASPNETCORE_ENVIRONMENT=${{ env.ASPNETCORE_ENVIRONMENT }} \
+            -t ${{ env.IMAGE_NAME }} \
+            -f ./NTC.QoS.API/Dockerfile .
+          docker save ${{ env.IMAGE_NAME }} -o qos-api-dev.tar
+
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-api-dev-image
+          path: qos-api-dev.tar
+          retention-days: 1
+
+  deploy-vps:
+    name: 🚀 Deploy to Development VPS
+    needs: build-and-package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    environment: Development
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qos-api-dev-image
+
+      - name: Copy Files to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "qos-api-dev.tar,docker-compose.dev.yml"
+          target: "/tmp/"
+
+      - name: Execute Remote Development Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+          DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+          REDIS_CONNECTION_STRING: ${{ secrets.REDIS_CONNECTION_STRING }}
+          BLOB_STORAGE_CONNECTION_STRING: ${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+          DEFAULT_ADMIN_PASSWORD: ${{ secrets.DEFAULT_ADMIN_PASSWORD }}
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          envs: IMAGE_NAME,CONTAINER_NAME,DB_CONNECTION_STRING,REDIS_CONNECTION_STRING,BLOB_STORAGE_CONNECTION_STRING,CLERK_SECRET_KEY,CLERK_WEBHOOK_SECRET,GOOGLE_AI_API_KEY,DEFAULT_ADMIN_PASSWORD
+          script: |
+            DEPLOY_DIR="/opt/docker-stack/${CONTAINER_NAME}"
+            mkdir -p "$DEPLOY_DIR"
+            
+            # Load new image
+            docker load -i /tmp/qos-api-dev.tar
+            rm -f /tmp/qos-api-dev.tar
+
+            # Place compose file
+            mv /tmp/docker-compose.dev.yml "$DEPLOY_DIR/docker-compose.yml"
+            cd "$DEPLOY_DIR"
+
+            # Remove existing non-compose container if present
+            if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+              docker stop "${CONTAINER_NAME}" 2>/dev/null || true
+              docker rm "${CONTAINER_NAME}" 2>/dev/null || true
+            fi
+
+            # Deploy using Docker Compose
+            docker compose up -d --remove-orphans
+
+            # Clean up unused/dangling Docker images to free up disk space
+            docker image prune -f
+
+            # Verify development container status
+            sleep 3
+            if docker compose ps -q | grep -q .; then
+              echo "✅ Development container deployed successfully"
+              docker compose ps
+            else
+              echo "❌ Development container failed to start"
+              docker compose logs
+              exit 1
+            fi

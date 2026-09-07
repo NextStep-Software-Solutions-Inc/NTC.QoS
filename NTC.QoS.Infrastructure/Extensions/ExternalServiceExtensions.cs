@@ -23,6 +23,11 @@ internal static class ExternalServiceExtensions
         services.AddHttpClient<IClerkUserService, ClerkUserService>(client =>
         {
             client.BaseAddress = new Uri("https://api.clerk.com/v1/");
+            var clerkSecretKey = configuration["Clerk:SecretKey"];
+            if (!string.IsNullOrWhiteSpace(clerkSecretKey))
+            {
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", clerkSecretKey);
+            }
             // Add timeout configuration
             client.Timeout = TimeSpan.FromSeconds(30);
         });

@@ -1,3 +1,5 @@
+using NTC.QoS.Domain.Entities;
+
 namespace NTC.QoS.Domain.Authorization;
 
 /// <summary>
@@ -24,4 +26,25 @@ public static class Roles
     public const string TechnicalStaff = "technical-staff";
     [Obsolete("Use RegionalManager instead")]
     public const string RegionalManagerLegacy = "regional-manager";
+
+    /// <summary>
+    /// Determines whether the specified role key represents a SuperAdmin role.
+    /// Supports both standard snake_case ('super_admin') and legacy kebab-case ('super-admin').
+    /// </summary>
+    public static bool IsSuperAdmin(string? roleKey)
+    {
+        if (string.IsNullOrWhiteSpace(roleKey))
+            return false;
+
+#pragma warning disable CS0618 // Type or member is obsolete - used for backward compatibility
+        return string.Equals(roleKey, SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(roleKey, SuperAdminLegacy, StringComparison.OrdinalIgnoreCase);
+#pragma warning restore CS0618
+    }
+
+    /// <summary>
+    /// Determines whether the specified Role entity represents a SuperAdmin role.
+    /// </summary>
+    public static bool IsSuperAdmin(Role? role) => role != null && IsSuperAdmin(role.Key);
 }
+

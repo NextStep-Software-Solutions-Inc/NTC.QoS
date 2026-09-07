@@ -171,7 +171,6 @@ export async function sendChatMessageStream(
 
     // Check if the response is actually a stream
     const contentType = response.headers.get("content-type");
-    console.log({ contentType });
     if (!contentType?.includes("text/event-stream") && !contentType?.includes("application/x-ndjson")) {
       // Fallback to regular JSON response if not streaming
       const data = await response.json();

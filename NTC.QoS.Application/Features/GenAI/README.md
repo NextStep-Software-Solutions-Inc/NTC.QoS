@@ -144,7 +144,7 @@ implemented for the CMTS & Broadband Mapping Project AI Assistant.
 ## Configuration
 
 ### Environment Variables
-- `GoogleAI__ApiKey`: Google AI Studio API key (injected by k8s Helm)
+- `GoogleAI__ApiKey`: Google AI Studio API key (injected via Docker environment variables / CI/CD secrets)
 
 ### appsettings.json
 ```json
