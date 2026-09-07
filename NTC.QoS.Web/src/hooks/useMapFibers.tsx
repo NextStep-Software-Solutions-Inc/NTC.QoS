@@ -137,9 +137,12 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
             },
             fiberBeforeLayer,
           );
-        } else if (fiberBeforeLayer) {
+        } else if (fiberBeforeLayer && fiberBeforeLayer !== "fiber") {
           try {
             map.moveLayer("fiber", fiberBeforeLayer);
+            if (map.getLayer("fiber-line")) {
+              map.moveLayer("fiber-line", "fiber");
+            }
           } catch {}
         }
 
@@ -147,6 +150,7 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
           if (process.env.NODE_ENV === "development") {
             console.info("Adding fiber-line layer");
           }
+          const beforeFiber = map.getLayer("fiber") ? "fiber" : fiberBeforeLayer;
           map.addLayer(
             {
               id: "fiber-line",
@@ -156,9 +160,8 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
               paint: { "line-color": "#FF00FF", "line-opacity": 0.5, "line-width": 1.5, "line-dasharray": [2, 2] },
               layout: { visibility: visibleLayers["fiber-line"] ? "visible" : "none" },
             },
-            // Render fiber-line directly below the fiber fill to preserve the
-            // original visual stacking (fill on top of outline).
-            "fiber",
+            // Render fiber-line directly below the fiber fill to preserve visual stacking
+            beforeFiber,
           );
         }
 
@@ -214,43 +217,37 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
     // Ensure source and layers are initialized on mount
     addFiberSource();
 
-    const showFiberDetails = () => {
-      return (e: MapMouseEvent & { features?: MapGeoJSONFeature[] } & {}) => {
-        map.getCanvas().style.cursor = "pointer";
-        if (e.features && e.features.length > 0) {
-          const feature = e.features[0];
-          const properties = feature?.properties ?? {};
-          const coordinates = e.lngLat; // Get the clicked coordinates
+    const handleFiberClick = (e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => {
+      map.getCanvas().style.cursor = "pointer";
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0];
+        const properties = feature?.properties ?? {};
+        const coordinates = e.lngLat; // Get the clicked coordinates
 
-          const div = document.createElement("div");
-          createRoot(div).render(
-            <FiberInformation properties={properties as Record<string, unknown>} popup={popup} isAdmin={isAdmin} />,
-          );
-          popup.setLngLat([coordinates.lng, coordinates.lat]).setDOMContent(div).addTo(map);
-        }
-      };
+        const div = document.createElement("div");
+        createRoot(div).render(
+          <FiberInformation properties={properties as Record<string, unknown>} popup={popup} isAdmin={isAdmin} />,
+        );
+        popup.setLngLat([coordinates.lng, coordinates.lat]).setDOMContent(div).addTo(map);
+      }
     };
 
-    const glowFiber = (sourceLayerId: string) => {
-      return (e: MapMouseEvent & { features?: MapGeoJSONFeature[] } & {}) => {
-        map.getCanvas().style.cursor = "pointer";
-        if (e.features && e.features.length > 0) {
-          const feature = e.features[0] as unknown as {
-            id: string | number;
-            properties: { Address: string; Provider: string };
-          };
+    const handleFiberMouseMove = (e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => {
+      map.getCanvas().style.cursor = "pointer";
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0] as unknown as {
+          id: string | number;
+          properties: { Address: string; Provider: string };
+        };
 
-          map.removeFeatureState({ source: "map-tiles", sourceLayer: sourceLayerId });
-          map.setFeatureState({ id: feature.id, source: "map-tiles", sourceLayer: sourceLayerId }, { hover: true });
-        }
-      };
+        map.removeFeatureState({ source: "map-tiles", sourceLayer: MAPTILER_FIBER_SOURCE_LAYER_ID });
+        map.setFeatureState({ id: feature.id, source: "map-tiles", sourceLayer: MAPTILER_FIBER_SOURCE_LAYER_ID }, { hover: true });
+      }
     };
 
-    const removeFiberGlow = (sourceLayerId: string) => {
-      return () => {
-        map.getCanvas().style.cursor = "";
-        map.removeFeatureState({ source: "map-tiles", sourceLayer: sourceLayerId });
-      };
+    const handleFiberMouseLeave = () => {
+      map.getCanvas().style.cursor = "";
+      map.removeFeatureState({ source: "map-tiles", sourceLayer: MAPTILER_FIBER_SOURCE_LAYER_ID });
     };
 
     const highlighFiber = (e: MapMouseEvent & { features?: MapGeoJSONFeature[] } & object) => {
@@ -273,20 +270,18 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
 
     map.on("styledata", addFiberSource);
     map.on("sourcedata", addSourceLayers);
-    map.on("click", "fiber", showFiberDetails());
-    // map.on("mouseleave", "fiber", removeFiberDetails);
-    map.on("mousemove", "fiber", glowFiber(MAPTILER_FIBER_SOURCE_LAYER_ID));
-    map.on("mouseleave", "fiber", removeFiberGlow(MAPTILER_FIBER_SOURCE_LAYER_ID));
+    map.on("click", "fiber", handleFiberClick);
     map.on("click", "fiber", highlighFiber);
+    map.on("mousemove", "fiber", handleFiberMouseMove);
+    map.on("mouseleave", "fiber", handleFiberMouseLeave);
 
     return () => {
       map.off("styledata", addFiberSource);
       map.off("sourcedata", addSourceLayers);
-      map.off("click", "fiber", showFiberDetails());
-      // map.off("mouseleave", "fiber", removeFiberDetails);
-      map.off("mousemove", "fiber", glowFiber(MAPTILER_FIBER_SOURCE_LAYER_ID));
-      map.off("mouseleave", "fiber", removeFiberGlow(MAPTILER_FIBER_SOURCE_LAYER_ID));
+      map.off("click", "fiber", handleFiberClick);
       map.off("click", "fiber", highlighFiber);
+      map.off("mousemove", "fiber", handleFiberMouseMove);
+      map.off("mouseleave", "fiber", handleFiberMouseLeave);
     };
   }, [map, popup, visibleLayers, isMapLoaded, isAdmin]);
 
