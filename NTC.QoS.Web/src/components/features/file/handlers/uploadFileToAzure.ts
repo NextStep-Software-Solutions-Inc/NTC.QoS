@@ -14,10 +14,12 @@ export async function uploadFileToAzure(presignedUrl: string, file: File): Promi
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`Azure Storage upload failed (${response.status}):`, errorText);
-
     const codeMatch = errorText.match(/<Code>(.*?)<\/Code>/i);
     const detail = codeMatch?.[1] ? ` (${codeMatch[1]})` : "";
+
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`Azure Storage upload failed: HTTP ${response.status}${detail}`);
+    }
 
     if (response.status === 403) {
       throw new Error(`Upload failed: Access permission expired or denied${detail}. Please refresh the page and try again.`);
