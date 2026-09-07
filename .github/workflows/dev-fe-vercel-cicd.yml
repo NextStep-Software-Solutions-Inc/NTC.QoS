@@ -1,4 +1,4 @@
-﻿name: Development Vercel CI/CD (Frontend Web)
+name: Development Vercel CI/CD (Frontend Web)
 
 on:
   push:
@@ -13,10 +13,6 @@ on:
       - ".github/workflows/dev-fe-vercel-cicd.yml"
   workflow_dispatch:
 
-env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
 jobs:
   deploy-development:
     name: 🚀 Deploy Frontend to Vercel (Development)
@@ -25,6 +21,9 @@ jobs:
     defaults:
       run:
         working-directory: ./NTC.QoS.Web
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
 
     steps:
       - name: Check out code
@@ -33,7 +32,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.2
 
       - name: Cache Bun dependencies
         uses: actions/cache@v4
@@ -53,11 +52,22 @@ jobs:
         run: bun install -g vercel@latest
 
       - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          rm -rf .vercel
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
 
       - name: Build Project Artifacts
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
 
       - name: Deploy Project Artifacts to Vercel
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
