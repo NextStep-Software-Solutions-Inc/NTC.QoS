@@ -236,12 +236,16 @@ export const useMapViewport = (options: UseMapViewportOptions = {}) => {
               map.removeSource(sourceId);
             }
           }
-        } catch {
-          // Style not ready
+        } catch (err) {
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[useMapViewport] cleanup error:", err);
+          }
         }
       };
-    } catch {
-      // Style not ready
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapViewport] debugBox error:", err);
+      }
     }
   }, [map, isMapLoaded, showDebugBox, bounds]);
 

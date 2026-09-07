@@ -302,8 +302,10 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
         if (!map.getSource(SOURCE_ID)) {
           map.addSource(SOURCE_ID, { type: "vector", url: sourceUrl });
         }
-      } catch {
-        // Source may already exist or style not ready; styledata will retry
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[PublicViewMap] addQoSSource error:", err);
+        }
       }
     };
 
@@ -335,7 +337,10 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
         }
 
         return undefined; // Render on top if no label layer is found
-      } catch {
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[PublicViewMap] findFirstLabelLayer error:", err);
+        }
         return undefined;
       }
     };
@@ -391,8 +396,10 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
             FILL_LAYER_ID,
           );
         }
-      } catch {
-        // Layer add may fail if beforeId layer doesn't exist; sourcedata will retry
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[PublicViewMap] addQoSLayers error:", err);
+        }
       }
     };
 

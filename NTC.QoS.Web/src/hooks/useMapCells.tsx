@@ -129,7 +129,10 @@ function findCellAnchorLayer(map: any): string | undefined {
     }
 
     return undefined;
-  } catch {
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[useMapCells] findCellAnchorLayer error:", err);
+    }
     return undefined;
   }
 }
@@ -462,8 +465,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         if (map && map.isStyleLoaded() && map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
         }
-      } catch {
-        // Ignore errors when style is not ready
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapCells] setLayerVisible error:", err);
+        }
       }
     },
     [map],
@@ -501,8 +506,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
           }
         }
       }
-    } catch {
-      // Style not ready
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapCells] enforceCellLayerOrder error:", err);
+      }
     }
   }, [map]);
 
@@ -548,8 +555,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
               cluster: false,
             });
           }
-        } catch {
-          // Style not done loading yet
+        } catch (err) {
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[useMapCells] addCellsHeatmapSource error:", err);
+          }
         }
       }
     };
@@ -580,8 +589,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
             }
           }
         }
-      } catch {
-        // Style not done loading yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapCells] addSignalCoverageSource error:", err);
+        }
       }
     };
 
@@ -745,8 +756,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
           map.addLayer(coverageLayerSpec, signalBeforeId);
         }
-      } catch {
-        // Style not done loading yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapCells] addAdminLayers error:", err);
+        }
       }
     };
 

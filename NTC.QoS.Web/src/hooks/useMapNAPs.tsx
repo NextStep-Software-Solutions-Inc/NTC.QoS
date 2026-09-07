@@ -289,8 +289,10 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
           generateId: true,
         });
       }
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] addNAPSourceToMap error:", err);
+      }
     }
   }, [map, isMapLoaded]);
 
@@ -323,7 +325,10 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
       }
 
       return undefined;
-    } catch {
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] findBeforeLayer error:", err);
+      }
       return undefined;
     }
   }, [map]);
@@ -387,8 +392,10 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
           map.addLayer(config, beforeId);
         }
       });
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] ensureNAPSLayers error:", err);
+      }
     }
   }, [map, isMapLoaded, addNAPSourceToMap, findBeforeLayer, visibleLayers]);
 
@@ -403,8 +410,10 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
             map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
           }
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapNAPs] setLayerVisible error:", err);
+        }
       }
     },
     [map, ensureNAPSLayers],
@@ -472,8 +481,10 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
         }
         source.setData(accumulatedGeoJSON);
       }
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] updateSourceData error:", err);
+      }
     }
   }, [map, isMapLoaded, accumulatedGeoJSON]);
 

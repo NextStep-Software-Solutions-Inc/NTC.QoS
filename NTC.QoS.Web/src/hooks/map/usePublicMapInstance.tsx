@@ -171,8 +171,10 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
           mapInstance.addLayer(layerSpec, config.beforeId);
         }
       });
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[usePublicMapInstance] restoreLayers error:", err);
+      }
     } finally {
       isRestoringLayersRef.current = false;
     }
@@ -282,8 +284,10 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
             map.addSource(config.id, { type: "vector", url: config.url });
           }
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[usePublicMapInstance] addSource error:", err);
+        }
       }
     },
     [map, isMapReady],
@@ -300,8 +304,10 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
         if (source) {
           source.setData(data);
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[usePublicMapInstance] updateSource error:", err);
+        }
       }
 
       // Update registry
@@ -322,8 +328,10 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
         if (map.isStyleLoaded() && map.getSource(id)) {
           map.removeSource(id);
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[usePublicMapInstance] removeSource error:", err);
+        }
       }
       layerRegistryRef.current.sources.delete(id);
     },
@@ -359,8 +367,10 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
 
           map.addLayer(layerSpec, config.beforeId);
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[usePublicMapInstance] addLayer error:", err);
+        }
       }
     },
     [map, isMapReady],
@@ -375,8 +385,10 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
         if (map.isStyleLoaded() && map.getLayer(id)) {
           map.removeLayer(id);
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[usePublicMapInstance] removeLayer error:", err);
+        }
       }
       layerRegistryRef.current.layers.delete(id);
       layerRegistryRef.current.order = layerRegistryRef.current.order.filter((l) => l !== id);
@@ -393,8 +405,10 @@ export function PublicMapProvider({ children, apiKey }: PublicMapProviderProps) 
         if (map.isStyleLoaded() && map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[usePublicMapInstance] setLayerVisibility error:", err);
+        }
       }
 
       // Update registry

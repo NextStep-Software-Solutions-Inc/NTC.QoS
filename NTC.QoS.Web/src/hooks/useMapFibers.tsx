@@ -41,8 +41,10 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
         if (map && map.isStyleLoaded() && map.getLayer(layer)) {
           map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapFibers] setLayerVisible error:", err);
+        }
       }
     },
     [map],
@@ -106,7 +108,10 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
         }
 
         return undefined; // Render on top if no label layer is found
-      } catch {
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapFibers] findFiberBeforeLayer error:", err);
+        }
         return undefined;
       }
     };
@@ -143,7 +148,11 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
             if (map.getLayer("fiber-line")) {
               map.moveLayer("fiber-line", "fiber");
             }
-          } catch {}
+          } catch (err) {
+            if (process.env.NODE_ENV === "development") {
+              console.debug("[useMapFibers] moveLayer error:", err);
+            }
+          }
         }
 
         if (!map.getLayer("fiber-line")) {
@@ -177,8 +186,10 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
             layout: { visibility: visibleLayers["highlighted-fiber"] ? "visible" : "none" },
           });
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapFibers] ensureFiberLayers error:", err);
+        }
       }
     };
 

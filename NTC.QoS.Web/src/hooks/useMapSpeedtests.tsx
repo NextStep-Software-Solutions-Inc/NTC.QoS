@@ -398,8 +398,10 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
           }
         }
       }
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] enforceSpeedtestLayerOrder error:", err);
+      }
     }
   }, [map]);
 
@@ -411,8 +413,10 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
         // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
         map.addSource("speedtests", { type: "geojson", data: accumulatedGeoJSONRef.current });
       }
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] addSpeedtestSourceToMap error:", err);
+      }
     }
   }, [map]);
 
@@ -457,7 +461,10 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
         }
       }
       return undefined;
-    } catch {
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] findBeforeLayer error:", err);
+      }
       return undefined;
     }
   }, [map]);
@@ -546,8 +553,10 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
       // After adding layers, schedule deferred enforcement so any concurrent
       // addLayer calls (fiber, cells, NAPs) finish before we re-order.
       setTimeout(enforceSpeedtestLayerOrder, 0);
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] ensureSpeedtestLayers error:", err);
+      }
     }
   }, [map, addSpeedtestSourceToMap, findBeforeLayer, visibleLayers, enforceSpeedtestLayerOrder]);
 
@@ -604,8 +613,10 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
       if (source) {
         source.setData(accumulatedGeoJSON);
       }
-    } catch {
-      // Style not ready yet
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] updateSourceData error:", err);
+      }
     }
   }, [map, isMapLoaded, accumulatedGeoJSON]);
 
@@ -664,8 +675,10 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
             map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
           }
         }
-      } catch {
-        // Style not ready yet
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapSpeedtests] setLayerVisible error:", err);
+        }
       }
     },
     [map, ensureSpeedtestLayers],
