@@ -22,6 +22,7 @@ jobs:
       run:
         working-directory: ./NTC.QoS.Web
     env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
 
@@ -51,23 +52,31 @@ jobs:
       - name: Install Vercel CLI
         run: bun install -g vercel@latest
 
+      - name: Validate Vercel Credentials
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is missing or empty! Please check GitHub repository secrets or the 'Development' environment secrets."
+            exit 1
+          fi
+          echo "VERCEL_TOKEN is present."
+
       - name: Pull Vercel Environment Information
         run: |
           rm -rf .vercel
-          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN" --debug
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
 
       - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --token="$VERCEL_TOKEN"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
 
       - name: Deploy Project Artifacts to Vercel
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --token="$VERCEL_TOKEN"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID || 'team_lkxYMT5MN4b7hGEiTCSBiMAR' }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID || 'prj_ZMl4QNZwjjp8p2lYN18CXiykjKvD' }}
