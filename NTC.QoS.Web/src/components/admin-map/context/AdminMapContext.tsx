@@ -49,6 +49,23 @@ const LAYER_URL_PARAMS: Record<string, string> = {
   "speedtests-heatmap": "speedtests-cellular",
 };
 
+// Sub-layer hierarchy mapping - maps parent layer IDs to their constituent map layers
+export const LAYER_SUB_LAYERS: Record<string, string[]> = {
+  cellular: ["cells-clusters", "cells-cluster-count", "cells-circles", "cells-symbols", "cellular-radius", "cellular-radius-stroke"],
+  "cellular-heatmap": ["cells-heatmap"],
+  "cellular-signal": ["signal-coverage-circles"],
+  naps: ["NAPs-cluster", "NAPs-cluster-count", "NAPs-unclustered"],
+  fiber: ["fiber-line", "highlighted-fiber"],
+  "speedtests-cellular": ["speedtests-circles", "speedtests-heatmap"],
+};
+
+const SUB_LAYER_TO_PARENT: Record<string, string> = {};
+Object.entries(LAYER_SUB_LAYERS).forEach(([parent, subs]) => {
+  subs.forEach((sub) => {
+    SUB_LAYER_TO_PARENT[sub] = parent;
+  });
+});
+
 // Default layer visibility (all false until URL params are checked)
 const DEFAULT_LAYER_VISIBILITY: LayerVisibility = {
   cellular: false,
@@ -173,7 +190,34 @@ export function AdminMapProvider({ children, initialFilters, initialLayerState }
 
   // Layer visibility handler - updates both state and URL
   const setLayerVisibility = useCallback((layerId: string, visible: boolean) => {
-    setLayerState((prev) => ({ ...prev, visibility: { ...prev.visibility, [layerId]: visible } }));
+    setLayerState((prev) => {
+      const nextVisibility: LayerVisibility = { ...prev.visibility, [layerId]: visible };
+
+      // If toggling a parent layer, cascade visibility to all its sub-layers
+      const subLayers = LAYER_SUB_LAYERS[layerId];
+      if (subLayers) {
+        subLayers.forEach((subId) => {
+          nextVisibility[subId] = visible;
+        });
+      }
+
+      // If toggling a sub-layer, reflect in parent if needed
+      const parentId = SUB_LAYER_TO_PARENT[layerId];
+      if (parentId) {
+        const siblingSubLayers = LAYER_SUB_LAYERS[parentId] ?? [];
+        if (visible) {
+          nextVisibility[parentId] = true;
+        } else {
+          // If all sub-layers are turned off, parent becomes false
+          const hasAnySubActive = siblingSubLayers.some((sub) => sub !== layerId && nextVisibility[sub]);
+          if (!hasAnySubActive) {
+            nextVisibility[parentId] = false;
+          }
+        }
+      }
+
+      return { ...prev, visibility: nextVisibility };
+    });
 
     // Update URL params for persistence
     const urlParam = LAYER_URL_PARAMS[layerId];

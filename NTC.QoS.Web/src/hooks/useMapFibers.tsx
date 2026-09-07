@@ -120,7 +120,9 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
         const fiberBeforeLayer = findFiberBeforeLayer();
 
         if (!map.getLayer("fiber")) {
-          console.info("Adding fiber layer");
+          if (process.env.NODE_ENV === "development") {
+            console.info("Adding fiber layer");
+          }
           map.addLayer(
             {
               id: "fiber",
@@ -142,7 +144,9 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
         }
 
         if (!map.getLayer("fiber-line")) {
-          console.info("Adding fiber-line layer");
+          if (process.env.NODE_ENV === "development") {
+            console.info("Adding fiber-line layer");
+          }
           map.addLayer(
             {
               id: "fiber-line",
@@ -159,7 +163,9 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
         }
 
         if (!map.getLayer("highlighted-fiber")) {
-          console.info("Adding highlighted-fiber layer");
+          if (process.env.NODE_ENV === "development") {
+            console.info("Adding highlighted-fiber layer");
+          }
           map.addLayer({
             id: "highlighted-fiber",
             type: "line",
@@ -176,7 +182,9 @@ export const useMapFibers = (visibleLayers: Record<LayerId, boolean>, isAdmin = 
     const addFiberSource = () => {
       if (!map || !map.isStyleLoaded()) return;
       if (!map.getSource("map-tiles")) {
-        console.info("Adding map-tiles source");
+        if (process.env.NODE_ENV === "development") {
+          console.info("Adding map-tiles source");
+        }
         map.addSource("map-tiles", { type: "vector", url: process.env.NEXT_PUBLIC_MAPTILER_URL });
       }
       if (!map.getSource("highlighted-fiber")) {

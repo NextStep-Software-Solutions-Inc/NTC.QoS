@@ -534,6 +534,10 @@ function useQoSLayer(options?: { onFeatureSelect?: (props: Record<string, unknow
       map.off("mouseleave", FILL_LAYER_ID, handleMouseLeave);
       map.off("click", FILL_LAYER_ID, handleClick);
       popupRef.current?.remove();
+      if (popupRootRef.current) {
+        popupRootRef.current.unmount();
+        popupRootRef.current = null;
+      }
     };
   }, [map, isMapLoaded, qosEnabled, qosOpacity, createPopupContent]);
 

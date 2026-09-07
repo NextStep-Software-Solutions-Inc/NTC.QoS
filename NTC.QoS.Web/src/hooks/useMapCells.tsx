@@ -33,6 +33,7 @@ import {
   getCellSiteHeatmapPaint,
   getClusterLayerPaint,
   getPointViewCirclePaint,
+  getProviderIconId,
   getSignalCoverageCirclePaint,
   loadProviderIcons,
 } from "./map-cells-utils";
@@ -180,8 +181,23 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
   const lastToastUpdateRef = useRef(0);
   const lastProgressPercentRef = useRef(0);
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enforceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousViewportRef = useRef<typeof viewportBounds>(null);
   const previousOptionsRef = useRef<string>("");
+
+  // Clean up all pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+      if (enforceTimeoutRef.current) {
+        clearTimeout(enforceTimeoutRef.current);
+        enforceTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Keep a ref to the latest accumulated GeoJSON so the main layer setup effect can access it
   // without needing it as a dependency (avoids layer teardown on every data update)
@@ -852,7 +868,8 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       addCellLayers();
       addAdminLayers();
       applyInitialVisibility();
-      setTimeout(() => enforceCellLayerOrder(), 0);
+      if (enforceTimeoutRef.current) clearTimeout(enforceTimeoutRef.current);
+      enforceTimeoutRef.current = setTimeout(() => enforceCellLayerOrder(), 0);
     };
 
     // Initialize once style is ready
@@ -908,7 +925,8 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       addAdminLayers();
       if (layersWereMissing && map.getLayer("cells-clusters")) {
         applyInitialVisibility();
-        setTimeout(() => enforceCellLayerOrder(), 0);
+        if (enforceTimeoutRef.current) clearTimeout(enforceTimeoutRef.current);
+        enforceTimeoutRef.current = setTimeout(() => enforceCellLayerOrder(), 0);
       }
     };
 
@@ -921,6 +939,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
     return () => {
       cleanupStyleListener?.();
+      if (enforceTimeoutRef.current) {
+        clearTimeout(enforceTimeoutRef.current);
+        enforceTimeoutRef.current = null;
+      }
       // Prevent handlers from running during teardown
       isCleaningUpRef.current = true;
 

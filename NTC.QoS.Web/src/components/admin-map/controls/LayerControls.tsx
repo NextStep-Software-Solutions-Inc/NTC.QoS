@@ -150,14 +150,10 @@ export const LayerControls = memo(function LayerControls({
     return LAYER_CONFIGS.filter((layer) => layerState.visibility[layer.id]).length;
   }, [layerState.visibility]);
 
-  // Handle visibility change for a layer and its sub-layers
+  // Handle visibility change for a layer (context handles sub-layers automatically)
   const handleVisibilityChange = useCallback(
     (layer: LayerConfig, visible: boolean) => {
       setLayerVisibility(layer.id, visible);
-      // Also toggle sub-layers
-      layer.subLayers?.forEach((subLayerId) => {
-        setLayerVisibility(subLayerId, visible);
-      });
     },
     [setLayerVisibility],
   );
