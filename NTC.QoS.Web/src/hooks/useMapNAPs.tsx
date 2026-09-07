@@ -187,7 +187,33 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
   const toastUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProgressRef = useRef<number>(0);
 
+  // Clean up all pending timeouts on unmount to prevent memory leaks
   useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+      if (toastUpdateTimeoutRef.current) {
+        clearTimeout(toastUpdateTimeoutRef.current);
+        toastUpdateTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const isAnyNAPLayerVisible = Object.values(visibleLayers).some(Boolean);
+
+  useEffect(() => {
+    // If layer is toggled off, immediately dismiss any active loading toast and cancel pending updates
+    if (!isAnyNAPLayerVisible) {
+      if (toastUpdateTimeoutRef.current) {
+        clearTimeout(toastUpdateTimeoutRef.current);
+        toastUpdateTimeoutRef.current = null;
+      }
+      toast.dismiss("loading-NAPs");
+      return;
+    }
+
     const now = Date.now();
     const timeSinceLastUpdate = now - lastToastUpdateRef.current;
     const progress = totalExpectedCount > 0 ? Math.round((totalLoadedCount / totalExpectedCount) * 100) : 0;
@@ -234,91 +260,87 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
     return () => {
       if (toastUpdateTimeoutRef.current) {
         clearTimeout(toastUpdateTimeoutRef.current);
+        toastUpdateTimeoutRef.current = null;
       }
     };
-  }, [isLoading, isFetchingNextPage, hasNextPage, totalLoadedCount, totalExpectedCount, isInitialLoad]);
-
-  const setLayerVisible = useCallback(
-    (layer: LayerId, visible: boolean) => {
-      try {
-        if (map && map.getLayer(layer)) {
-          map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
-        }
-      } catch {
-        // Style may be reloading, silently ignore
-      }
-    },
-    [map],
-  );
-
-  useEffect(() => {
-    Object.entries(visibleLayers).forEach(([layer, visible]) => {
-      setLayerVisible(layer as LayerId, visible);
-    });
-  }, [map, setLayerVisible, visibleLayers]);
+  }, [isLoading, isFetchingNextPage, hasNextPage, totalLoadedCount, totalExpectedCount, isInitialLoad, isAnyNAPLayerVisible]);
 
   const addNAPSourceToMap = useCallback(() => {
     if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
 
-    if (!map.getSource("NAPs")) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("🗺️ [NAPs Debug] Adding NAPs source with", accumulatedGeoJSONRef.current.features.length, "features");
-      }
+    try {
+      if (!map.isStyleLoaded()) return;
 
-      map.addSource("NAPs", {
-        type: "geojson",
-        // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
-        data: accumulatedGeoJSONRef.current,
-        cluster: true,
-        clusterMaxZoom: 16,
-        clusterRadius: 30,
-        clusterProperties: {
-          clusterColor: ["coalesce", ["get", "ispColor"], "#808080"], // Default to gray
-        },
-        generateId: true,
-      });
-    }
-    // Data updates are handled by a dedicated effect to avoid listener re-registration
-  }, [map, isMapLoaded]);
-
-  const addNAPsLayers = useCallback(
-    (e: MapLibreEvent<unknown> & { sourceId: string; isSourceLoaded: boolean }) => {
-      if (!map || !map.isStyleLoaded() || e.sourceId !== "NAPs" || !e.isSourceLoaded) return;
-
-      // Find the appropriate layer to insert custom layers before it
-      // We want custom layers ABOVE roads/buildings but BELOW place labels
-      // Strategy: Look for the first symbol layer that contains "place" or is a place name label
-      const findBeforeLayer = () => {
-        const layers = map.getStyle().layers;
-        if (!layers) return undefined;
-
-        // First, try to find a place name or settlement label layer
-        // These typically come after roads/buildings in MapTiler styles
-        for (const layer of layers) {
-          if (layer.type === "symbol") {
-            const layerId = layer.id.toLowerCase();
-            // Look for place labels specifically (not road labels)
-            if (layerId.includes("place") || layerId.includes("settlement") || layerId.includes("city") || layerId.includes("town")) {
-              return layer.id;
-            }
-          }
+      if (!map.getSource("NAPs")) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("🗺️ [NAPs Debug] Adding NAPs source with", accumulatedGeoJSONRef.current.features.length, "features");
         }
 
-        // Fallback: find any label layer
-        for (const layer of layers) {
-          if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
+        map.addSource("NAPs", {
+          type: "geojson",
+          // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
+          data: accumulatedGeoJSONRef.current,
+          cluster: true,
+          clusterMaxZoom: 16,
+          clusterRadius: 30,
+          clusterProperties: {
+            clusterColor: ["coalesce", ["get", "ispColor"], "#808080"], // Default to gray
+          },
+          generateId: true,
+        });
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] addNAPSourceToMap error:", err);
+      }
+    }
+  }, [map, isMapLoaded]);
+
+  const findBeforeLayer = useCallback(() => {
+    try {
+      if (!map || !map.isStyleLoaded()) return undefined;
+      const layers = map.getStyle()?.layers;
+      if (!layers) return undefined;
+
+      // Look for place labels specifically (not road labels)
+      for (const layer of layers) {
+        if (layer.type === "symbol") {
+          const layerId = layer.id.toLowerCase();
+          if (
+            layerId.includes("place") ||
+            layerId.includes("settlement") ||
+            layerId.includes("city") ||
+            layerId.includes("town")
+          ) {
             return layer.id;
           }
         }
+      }
 
-        return undefined; // Will render on top if no suitable layer found
-      };
+      // Fallback: find any label layer
+      for (const layer of layers) {
+        if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
+          return layer.id;
+        }
+      }
+
+      return undefined;
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] findBeforeLayer error:", err);
+      }
+      return undefined;
+    }
+  }, [map]);
+
+  const ensureNAPSLayers = useCallback(() => {
+    if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
+
+    try {
+      addNAPSourceToMap();
+      if (!map.getSource("NAPs")) return;
 
       const beforeId = findBeforeLayer();
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("🗺️ [NAPs] Adding layers", beforeId ? `before "${beforeId}"` : "on top");
-      }
 
       const layers: Array<{ id: LayerId; config: maptilersdk.LayerSpecification }> = [
         {
@@ -367,25 +389,82 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
 
       layers.forEach(({ id, config }) => {
         if (!map.getLayer(id)) {
-          // If beforeId is undefined, layer will be added on top (still renders)
           map.addLayer(config, beforeId);
         }
       });
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] ensureNAPSLayers error:", err);
+      }
+    }
+  }, [map, isMapLoaded, addNAPSourceToMap, findBeforeLayer, visibleLayers]);
+
+  const setLayerVisible = useCallback(
+    (layer: LayerId, visible: boolean) => {
+      try {
+        if (map && map.isStyleLoaded()) {
+          if (!map.getLayer(layer)) {
+            ensureNAPSLayers();
+          }
+          if (map.getLayer(layer)) {
+            map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
+          }
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapNAPs] setLayerVisible error:", err);
+        }
+      }
     },
-    [map, visibleLayers],
+    [map, ensureNAPSLayers],
   );
 
   useEffect(() => {
+    Object.entries(visibleLayers).forEach(([layer, visible]) => {
+      setLayerVisible(layer as LayerId, visible);
+    });
+  }, [map, setLayerVisible, visibleLayers]);
+
+  useEffect(() => {
     if (!map || !isMapLoaded) return;
-    addNAPSourceToMap();
-    map.on("styledata", addNAPSourceToMap);
-    map.on("sourcedata", addNAPsLayers);
-    return () => {
-      map.off("load", addNAPSourceToMap);
-      map.off("sourcedata", addNAPsLayers);
-      map.off("styledata", addNAPSourceToMap);
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const setupLayers = () => {
+      if (map.isStyleLoaded()) {
+        ensureNAPSLayers();
+      }
     };
-  }, [addNAPSourceToMap, addNAPsLayers, isMapLoaded, map]);
+
+    if (map.isStyleLoaded()) {
+      setupLayers();
+    } else {
+      map.once("styledata", setupLayers);
+      map.once("idle", setupLayers);
+      timer = setTimeout(setupLayers, 100);
+    }
+
+    const handleStyleData = () => {
+      setupLayers();
+    };
+
+    const handleSourceData = (e: { sourceId?: string }) => {
+      if (e?.sourceId === "NAPs") {
+        setupLayers();
+      }
+    };
+
+    map.on("styledata", handleStyleData);
+    map.on("sourcedata", handleSourceData);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      map.off("styledata", setupLayers);
+      map.off("idle", setupLayers);
+      map.off("styledata", handleStyleData);
+      map.off("sourcedata", handleSourceData);
+    };
+  }, [ensureNAPSLayers, isMapLoaded, map]);
 
   // Dedicated effect to update NAPs source data whenever accumulatedGeoJSON changes.
   // Calls source.setData() directly without re-registering event listeners, keeping
@@ -393,12 +472,19 @@ export const useMapNAPs = (visibleLayers: Record<LayerId, boolean>, options?: NA
   useEffect(() => {
     if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
 
-    const source = map.getSource<GeoJSONSource>("NAPs");
-    if (source) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("🗺️ [NAPs Debug] Updating NAPs source with", accumulatedGeoJSON.features.length, "total features");
+    try {
+      if (!map.isStyleLoaded()) return;
+      const source = map.getSource<GeoJSONSource>("NAPs");
+      if (source) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("🗺️ [NAPs Debug] Updating NAPs source with", accumulatedGeoJSON.features.length, "total features");
+        }
+        source.setData(accumulatedGeoJSON);
       }
-      source.setData(accumulatedGeoJSON);
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapNAPs] updateSourceData error:", err);
+      }
     }
   }, [map, isMapLoaded, accumulatedGeoJSON]);
 

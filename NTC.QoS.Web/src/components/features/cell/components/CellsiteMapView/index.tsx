@@ -250,23 +250,33 @@ export default function CellsiteMapView({
   // Load signal coverage data
   useEffect(() => {
     if (layerConfig.signalCoverage && !signalCoverageData) {
-      fetch(SIGNAL_COVERAGE_DATA_PATH)
-        .then((res) => res.json())
-        .then((data: Array<{ lat: number; lng: number; strength: number; barangay?: string; azimuth?: string }>) => {
-          // Convert to GeoJSON
-          const geojson: GeoJSON.FeatureCollection = {
-            type: "FeatureCollection",
-            features: data.map((point) => ({
-              type: "Feature" as const,
-              geometry: { type: "Point" as const, coordinates: [point.lng, point.lat] },
-              properties: { strength: point.strength, barangay: point.barangay, azimuth: point.azimuth },
-            })),
-          };
-          setSignalCoverageData(geojson);
-        })
-        .catch((err) => {
-          console.error("Failed to load signal coverage data:", err);
-        });
+      const loadCoverage = async () => {
+        const paths = [SIGNAL_COVERAGE_DATA_PATH, "/data/cell-signal.json"];
+        for (const path of paths) {
+          try {
+            const res = await fetch(path);
+            if (!res.ok) continue;
+            const data: Array<{ lat: number; lng: number; strength: number; barangay?: string; azimuth?: string }> =
+              await res.json();
+            if (!Array.isArray(data) || data.length === 0) continue;
+
+            const geojson: GeoJSON.FeatureCollection = {
+              type: "FeatureCollection",
+              features: data.map((point) => ({
+                type: "Feature" as const,
+                geometry: { type: "Point" as const, coordinates: [point.lng, point.lat] },
+                properties: { strength: point.strength, barangay: point.barangay, azimuth: point.azimuth },
+              })),
+            };
+            setSignalCoverageData(geojson);
+            return;
+          } catch {
+            // Try next fallback path
+          }
+        }
+      };
+
+      void loadCoverage();
     }
   }, [layerConfig.signalCoverage, signalCoverageData]);
 
@@ -719,86 +729,92 @@ export default function CellsiteMapView({
     if (!mapRef.current || !mapLoaded) return;
     const map = mapRef.current;
 
-    const filteredData = filteredSignalCoverageData();
+    try {
+      if (!map.isStyleLoaded()) return;
 
-    if (layerConfig.signalCoverage && filteredData) {
-      // Add source if not exists
-      if (!map.getSource("signal-coverage-source")) {
-        map.addSource("signal-coverage-source", { type: "geojson", data: filteredData });
-      } else {
-        (map.getSource("signal-coverage-source") as maptilersdk.GeoJSONSource).setData(filteredData);
-      }
+      const filteredData = filteredSignalCoverageData();
 
-      // Find the first symbol layer to place coverage circles before it (after base layers like water)
-      const layers = map.getStyle()?.layers;
-      let beforeLayer: string | undefined;
-      if (layers) {
-        for (const layer of layers) {
-          if (layer.type === "symbol" && layer.id === "Aerialway labels") {
-            beforeLayer = layer.id;
-            break;
+      if (layerConfig.signalCoverage && filteredData) {
+        // Add source if not exists
+        if (!map.getSource("signal-coverage-source")) {
+          map.addSource("signal-coverage-source", { type: "geojson", data: filteredData });
+        } else {
+          (map.getSource("signal-coverage-source") as maptilersdk.GeoJSONSource).setData(filteredData);
+        }
+
+        // Find the first symbol layer to place coverage circles before it (after base layers like water)
+        const layers = map.getStyle()?.layers;
+        let beforeLayer: string | undefined;
+        if (layers) {
+          for (const layer of layers) {
+            if (layer.type === "symbol" && layer.id === "Aerialway labels") {
+              beforeLayer = layer.id;
+              break;
+            }
           }
         }
-      }
 
-      // Add circle layer if not exists (color-coded by signal strength)
-      // Place it before symbol layers so it appears above base layers but below labels
-      if (!map.getLayer("signal-coverage-circles")) {
-        map.addLayer(
-          {
-            id: "signal-coverage-circles",
-            type: "circle",
-            source: "signal-coverage-source",
-            paint: getSignalCoverageCirclePaint(layerOpacity.signalCoverage),
-          },
-          beforeLayer,
-        );
+        // Add circle layer if not exists (color-coded by signal strength)
+        // Place it before symbol layers so it appears above base layers but below labels
+        if (!map.getLayer("signal-coverage-circles")) {
+          map.addLayer(
+            {
+              id: "signal-coverage-circles",
+              type: "circle",
+              source: "signal-coverage-source",
+              paint: getSignalCoverageCirclePaint(layerOpacity.signalCoverage),
+            },
+            beforeLayer,
+          );
 
-        // Add click handler for signal coverage popup
-        map.on("click", "signal-coverage-circles", (e: any) => {
-          const features = map.queryRenderedFeatures(e.point, { layers: ["signal-coverage-circles"] });
-          if (!features || features.length === 0) return;
-          const feature = features[0];
-          if (!feature || !feature.geometry || feature.geometry.type !== "Point") return;
+          // Add click handler for signal coverage popup
+          map.on("click", "signal-coverage-circles", (e: any) => {
+            const features = map.queryRenderedFeatures(e.point, { layers: ["signal-coverage-circles"] });
+            if (!features || features.length === 0) return;
+            const feature = features[0];
+            if (!feature || !feature.geometry || feature.geometry.type !== "Point") return;
 
-          const geometry = feature.geometry as GeoJSON.Point;
-          const coordinates = geometry.coordinates.slice() as [number, number];
-          const properties = (feature.properties ?? {}) as { strength?: number; barangay?: string; azimuth?: string };
+            const geometry = feature.geometry as GeoJSON.Point;
+            const coordinates = geometry.coordinates.slice() as [number, number];
+            const properties = (feature.properties ?? {}) as { strength?: number; barangay?: string; azimuth?: string };
 
-          // Close existing popup
-          if (popupRef.current) {
-            popupRef.current.remove();
-          }
+            // Close existing popup
+            if (popupRef.current) {
+              popupRef.current.remove();
+            }
 
-          // Create new popup
-          const popup = new maptilersdk.Popup({
-            closeButton: true,
-            closeOnClick: true,
-            maxWidth: POPUP_MAX_WIDTH,
-            className: "signal-popup",
-          })
-            .setLngLat(coordinates)
-            .setHTML(createSignalCoveragePopupHTML(properties as any))
-            .addTo(map);
+            // Create new popup
+            const popup = new maptilersdk.Popup({
+              closeButton: true,
+              closeOnClick: true,
+              maxWidth: POPUP_MAX_WIDTH,
+              className: "signal-popup",
+            })
+              .setLngLat(coordinates)
+              .setHTML(createSignalCoveragePopupHTML(properties as any))
+              .addTo(map);
 
-          popupRef.current = popup;
-        });
+            popupRef.current = popup;
+          });
 
-        // Cursor change for signal coverage
-        map.on("mouseenter", "signal-coverage-circles", () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-        map.on("mouseleave", "signal-coverage-circles", () => {
-          map.getCanvas().style.cursor = MODE_CONFIG[interactionModeRef.current].cursor;
-        });
+          // Cursor change for signal coverage
+          map.on("mouseenter", "signal-coverage-circles", () => {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", "signal-coverage-circles", () => {
+            map.getCanvas().style.cursor = MODE_CONFIG[interactionModeRef.current].cursor;
+          });
+        } else {
+          map.setPaintProperty("signal-coverage-circles", "circle-opacity", layerOpacity.signalCoverage);
+        }
       } else {
-        map.setPaintProperty("signal-coverage-circles", "circle-opacity", layerOpacity.signalCoverage);
+        // Remove layer if exists
+        if (map.getLayer("signal-coverage-circles")) {
+          map.removeLayer("signal-coverage-circles");
+        }
       }
-    } else {
-      // Remove layer if exists
-      if (map.getLayer("signal-coverage-circles")) {
-        map.removeLayer("signal-coverage-circles");
-      }
+    } catch {
+      // Style not ready yet
     }
   }, [
     layerConfig.signalCoverage,
@@ -813,52 +829,58 @@ export default function CellsiteMapView({
     if (!mapRef.current || !mapLoaded) return;
     const map = mapRef.current;
 
-    if (layerConfig.pointView) {
-      // Add point view layer if not exists
-      if (!map.getLayer("cells-point-view")) {
-        map.addLayer({
-          id: "cells-point-view",
-          type: "circle",
-          source: "cells-heatmap-source",
-          paint: getPointViewCirclePaint(),
-        });
-      }
-      // Set opacity
-      map.setPaintProperty("cells-point-view", "circle-opacity", layerOpacity.pointView);
+    try {
+      if (!map.isStyleLoaded()) return;
 
-      // Hide cluster layers when point view is active
-      if (map.getLayer("cells-clusters")) {
-        map.setLayoutProperty("cells-clusters", "visibility", "none");
-      }
-      if (map.getLayer("cells-cluster-count")) {
-        map.setLayoutProperty("cells-cluster-count", "visibility", "none");
-      }
-      if (map.getLayer("cells-circles")) {
-        map.setLayoutProperty("cells-circles", "visibility", "none");
-      }
-      if (map.getLayer("cells-symbols")) {
-        map.setLayoutProperty("cells-symbols", "visibility", "none");
-      }
-    } else {
-      // Remove point view layer if exists
-      if (map.getLayer("cells-point-view")) {
-        map.removeLayer("cells-point-view");
-      }
-      // Show cluster layers (unless heatmap is hiding them or cellSites is off)
-      if (layerConfig.cellSites && !layerConfig.cellSiteHeatmap) {
+      if (layerConfig.pointView) {
+        // Add point view layer if not exists
+        if (!map.getLayer("cells-point-view")) {
+          map.addLayer({
+            id: "cells-point-view",
+            type: "circle",
+            source: "cells-heatmap-source",
+            paint: getPointViewCirclePaint(),
+          });
+        }
+        // Set opacity
+        map.setPaintProperty("cells-point-view", "circle-opacity", layerOpacity.pointView);
+
+        // Hide cluster layers when point view is active
         if (map.getLayer("cells-clusters")) {
-          map.setLayoutProperty("cells-clusters", "visibility", "visible");
+          map.setLayoutProperty("cells-clusters", "visibility", "none");
         }
         if (map.getLayer("cells-cluster-count")) {
-          map.setLayoutProperty("cells-cluster-count", "visibility", "visible");
+          map.setLayoutProperty("cells-cluster-count", "visibility", "none");
         }
         if (map.getLayer("cells-circles")) {
-          map.setLayoutProperty("cells-circles", "visibility", "visible");
+          map.setLayoutProperty("cells-circles", "visibility", "none");
         }
         if (map.getLayer("cells-symbols")) {
-          map.setLayoutProperty("cells-symbols", "visibility", "visible");
+          map.setLayoutProperty("cells-symbols", "visibility", "none");
+        }
+      } else {
+        // Remove point view layer if exists
+        if (map.getLayer("cells-point-view")) {
+          map.removeLayer("cells-point-view");
+        }
+        // Show cluster layers (unless heatmap is hiding them or cellSites is off)
+        if (layerConfig.cellSites && !layerConfig.cellSiteHeatmap) {
+          if (map.getLayer("cells-clusters")) {
+            map.setLayoutProperty("cells-clusters", "visibility", "visible");
+          }
+          if (map.getLayer("cells-cluster-count")) {
+            map.setLayoutProperty("cells-cluster-count", "visibility", "visible");
+          }
+          if (map.getLayer("cells-circles")) {
+            map.setLayoutProperty("cells-circles", "visibility", "visible");
+          }
+          if (map.getLayer("cells-symbols")) {
+            map.setLayoutProperty("cells-symbols", "visibility", "visible");
+          }
         }
       }
+    } catch {
+      // Style not ready yet
     }
   }, [layerConfig.pointView, layerConfig.cellSites, layerConfig.cellSiteHeatmap, layerOpacity.pointView, mapLoaded]);
 

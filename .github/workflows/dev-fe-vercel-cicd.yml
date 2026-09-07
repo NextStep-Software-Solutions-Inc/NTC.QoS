@@ -1,4 +1,4 @@
-﻿name: Development Vercel CI/CD (Frontend Web)
+name: Development Vercel CI/CD (Frontend Web)
 
 on:
   push:
@@ -13,18 +13,15 @@ on:
       - ".github/workflows/dev-fe-vercel-cicd.yml"
   workflow_dispatch:
 
-env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
 jobs:
   deploy-development:
     name: 🚀 Deploy Frontend to Vercel (Development)
     runs-on: ubuntu-latest
     environment: Development
-    defaults:
-      run:
-        working-directory: ./NTC.QoS.Web
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
     steps:
       - name: Check out code
@@ -33,7 +30,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.2
 
       - name: Cache Bun dependencies
         uses: actions/cache@v4
@@ -44,20 +41,41 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
+        working-directory: ./NTC.QoS.Web
         run: bun install --frozen-lockfile
 
       - name: Run Typecheck
+        working-directory: ./NTC.QoS.Web
         run: bun run typecheck
 
       - name: Install Vercel CLI
         run: bun install -g vercel@latest
 
+      - name: Validate Vercel Credentials
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is missing or empty! Please check GitHub repository secrets or the 'Development' environment secrets."
+            exit 1
+          fi
+          echo "VERCEL_TOKEN is present."
+
       - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          rm -rf .vercel
+          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN" --debug
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy Project Artifacts to Vercel
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

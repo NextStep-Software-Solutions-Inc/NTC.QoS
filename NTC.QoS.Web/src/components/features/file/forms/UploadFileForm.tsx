@@ -39,9 +39,7 @@ interface UploadFileFormProps {
   type: "Speedtest" | "NAP" | "Cell" | "Cellular" | "CellularCoverage" | "WirelessValidation";
 }
 
-import { getBackendUrl } from "@/lib/api-utils";
-
-const QOS_BACKEND_URL = getBackendUrl();
+const QOS_BACKEND_URL = process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "";
 export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileFormProps) {
   const { region } = useParams<{ region: string }>();
   const [files, setFiles] = useState<File[]>([]);
@@ -93,19 +91,26 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     for (const file of files) {
       toast.promise(
         (async () => {
-          // Step 1: Request 1-minute Pre-Signed Upload SAS URL from backend
-          const presignedRes = await request.get<APIResponse<PreSignedUrl>>(
-            `/files/presigned-upload-url?fileName=${encodeURIComponent(file.name)}&fileType=${encodeURIComponent(values.type)}&regionId=${encodeURIComponent(values.regionId)}`
-          );
+          // Step 1 & 2: Attempt direct Pre-Signed Upload SAS URL to Azure Storage
+          try {
+            const presignedRes = await request.get<APIResponse<PreSignedUrl>>(
+              `/files/presigned-upload-url?fileName=${encodeURIComponent(file.name)}&fileType=${encodeURIComponent(values.type)}&regionId=${encodeURIComponent(values.regionId)}`
+            );
 
-          if (!presignedRes.succeeded || !presignedRes.data?.url) {
-            throw new Error(presignedRes.message || "Failed to generate pre-signed upload URL from backend.");
+            if (presignedRes.succeeded && presignedRes.data?.url) {
+              await uploadFileToAzure(presignedRes.data.url, file);
+            }
+          } catch (azureErr) {
+            // Safely extract error message without exposing SAS tokens or query parameters
+            const rawMessage = azureErr instanceof Error ? azureErr.message : "Direct upload failed";
+            const sanitizedMessage = rawMessage.replace(/([?&][\w-]+)=([^&\s"']+)/g, "$1=[REDACTED]");
+
+            if (process.env.NODE_ENV === "development") {
+              console.warn("Direct blob upload fallback triggered:", sanitizedMessage);
+            }
           }
 
-          // Step 2: Upload file binary directly to Azure Storage via PUT with x-ms-blob-type: BlockBlob
-          await uploadFileToAzure(presignedRes.data.url, file);
-
-          // Step 3: Send metadata to backend to register file record
+          // Step 3: Send file to backend to ensure persistence and queue processing job
           const formData = new FormData();
           formData.append("type", values.type);
           formData.append("file", file);
@@ -142,17 +147,19 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   const provinces = provincesData?.data ?? [];
   const municipalities = municipalitiesData?.data ?? [];
 
-  console.log("Province & Municipality data:", {
-    provinces: provinces.length,
-    municipalities: municipalities.length,
-    isLoadingProvinces,
-    isLoadingMunicipalities,
-    hasProvinceError: !!provincesError,
-    hasMunicipalityError: !!municipalitiesError,
-    regionId: region,
-    selectedProvinceId,
-    type,
-  });
+  if (process.env.NODE_ENV === "development") {
+    console.log("Province & Municipality data:", {
+      provinces: provinces.length,
+      municipalities: municipalities.length,
+      isLoadingProvinces,
+      isLoadingMunicipalities,
+      hasProvinceError: !!provincesError,
+      hasMunicipalityError: !!municipalitiesError,
+      regionId: region,
+      selectedProvinceId,
+      type,
+    });
+  }
 
   // Generate download URL based on type
   const getDownloadUrl = () => {

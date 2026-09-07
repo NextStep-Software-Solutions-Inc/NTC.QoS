@@ -330,7 +330,6 @@ export function SpeedtestDashboard({
 
   const handleExportPDF = useCallback(() => {
     // TODO: Implement PDF export with a library like jspdf
-    console.log("PDF export not yet implemented");
     alert("PDF export coming soon!");
   }, []);
 

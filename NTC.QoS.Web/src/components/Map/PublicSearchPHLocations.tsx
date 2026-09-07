@@ -97,7 +97,9 @@ const PublicSearchPHLocations = () => {
     if (!map || !isMapLoaded) return;
     const addSourceAndLayers = () => {
       if (!map.getSource("highlighted-feature")) {
-        console.info("Adding highlighted-feature source");
+        if (process.env.NODE_ENV === "development") {
+          console.info("Adding highlighted-feature source");
+        }
         map.addSource("highlighted-feature", {
           type: "geojson",
           data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[]] } },
@@ -105,7 +107,9 @@ const PublicSearchPHLocations = () => {
       }
 
       if (!map.getLayer("highlighted-feature")) {
-        console.info("Adding highlighted-feature layer");
+        if (process.env.NODE_ENV === "development") {
+          console.info("Adding highlighted-feature layer");
+        }
         map.addLayer({
           id: "highlighted-feature",
           type: "line",
@@ -114,7 +118,9 @@ const PublicSearchPHLocations = () => {
         });
       }
       if (!map.getLayer("dimmed-area")) {
-        console.info("Adding dimmed-area layer");
+        if (process.env.NODE_ENV === "development") {
+          console.info("Adding dimmed-area layer");
+        }
         map.addLayer({
           id: "dimmed-area",
           type: "fill",

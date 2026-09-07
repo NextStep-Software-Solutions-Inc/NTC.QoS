@@ -46,7 +46,7 @@ export default function AuthButtons() {
       </SignedOut>
       <SignedIn>
         <div className="flex items-center justify-center gap-4 flex-wrap my-2 flex-col md:flex-row">
-          <div className="text-white truncate max-w-[200px] text-center">
+          <div className="text-[#333333] truncate max-w-[200px] text-center">
             <Link href="/select-region" className="">
               Dashboard
             </Link>

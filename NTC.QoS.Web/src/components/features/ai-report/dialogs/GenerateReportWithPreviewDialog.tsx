@@ -223,41 +223,55 @@ export default function GenerateReportWithPreviewDialog({
                                 if (jsonData && jsonData !== "[DONE]") {
                                     try {
                                         const parsed = JSON.parse(jsonData);
-                                        console.log("SSE event received:", parsed);
+                                        if (process.env.NODE_ENV === "development") {
+                                            console.log("SSE event received:", parsed);
+                                        }
 
                                         // Handle plain string chunks (backend sends raw strings as SSE data)
                                         if (typeof parsed === "string") {
                                             accumulatedContent += parsed;
                                             setStreamingContent(accumulatedContent);
-                                            console.log("String chunk added, total length:", accumulatedContent.length);
+                                            if (process.env.NODE_ENV === "development") {
+                                                console.log("String chunk added, total length:", accumulatedContent.length);
+                                            }
                                         }
                                         // Handle different SSE event object types
                                         else if (parsed.type === "content" && parsed.content) {
                                             // Streaming content chunk
                                             accumulatedContent += parsed.content;
                                             setStreamingContent(accumulatedContent);
-                                            console.log("Content chunk added, total length:", accumulatedContent.length);
+                                            if (process.env.NODE_ENV === "development") {
+                                                console.log("Content chunk added, total length:", accumulatedContent.length);
+                                            }
                                         } else if (parsed.type === "complete" && parsed.data) {
                                             // Final report data
                                             finalReport = parsed.data as GeneratedReportDto;
-                                            console.log("Complete event received with report:", finalReport);
+                                            if (process.env.NODE_ENV === "development") {
+                                                console.log("Complete event received with report:", finalReport);
+                                            }
                                         } else if (parsed.content) {
                                             // Direct content (alternative format)
                                             accumulatedContent += parsed.content;
                                             setStreamingContent(accumulatedContent);
-                                            console.log("Direct content added, total length:", accumulatedContent.length);
+                                            if (process.env.NODE_ENV === "development") {
+                                                console.log("Direct content added, total length:", accumulatedContent.length);
+                                            }
                                         } else if (parsed.data?.content) {
                                             // Nested content
                                             accumulatedContent = parsed.data.content;
                                             setStreamingContent(accumulatedContent);
-                                            console.log("Nested content set, length:", accumulatedContent.length);
+                                            if (process.env.NODE_ENV === "development") {
+                                                console.log("Nested content set, length:", accumulatedContent.length);
+                                            }
                                             finalReport = parsed.data as GeneratedReportDto;
                                         } else if (parsed.succeeded && parsed.data) {
                                             // Full response object
                                             finalReport = parsed.data as GeneratedReportDto;
                                             if (finalReport.content) {
                                                 setStreamingContent(finalReport.content);
-                                                console.log("Final report content set, length:", finalReport.content.length);
+                                                if (process.env.NODE_ENV === "development") {
+                                                    console.log("Final report content set, length:", finalReport.content.length);
+                                                }
                                             }
                                         }
                                     } catch (parseError) {
