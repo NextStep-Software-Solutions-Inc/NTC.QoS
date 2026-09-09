@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Application.Helpers;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -56,10 +57,10 @@ public class UploadFileHandler(
             }
 
             // Determine container name based on environment
-            string containerName = GetContainerName();
+            string containerName = BlobStoragePathHelper.GetContainerName(_configuration["ASPNETCORE_ENVIRONMENT"]);
 
             // Create blob path with region-based folder structure
-            string blobPath = GetBlobPathWithRegion(fileType, regionCode, newFileName);
+            string blobPath = BlobStoragePathHelper.GetBlobPathWithRegion(fileType, regionCode, newFileName);
 
             _logger.LogInformation("Uploading file {OriginalFileName} as {BlobPath} to container {ContainerName} for region {RegionCode}",
                 originalFileName, blobPath, containerName, regionCode);
@@ -152,43 +153,6 @@ public class UploadFileHandler(
     }
 
     /// <summary>
-    /// Gets the appropriate container name based on environment
-    /// </summary>
-    private string GetContainerName()
-    {
-        var environment = _configuration["ASPNETCORE_ENVIRONMENT"];
-        return environment?.ToLowerInvariant() switch
-        {
-            "production" => "production",
-            "staging" => "production", // Use production container for staging
-            _ => "development" // Default to development for dev, test, etc.
-        };
-    }
-
-    /// <summary>
-    /// Creates the blob path with region-based folder structure
-    /// Format: region-XX/file-type/filename
-    /// Example: region-01/cells/filename_20231010120000.xlsx
-    /// </summary>
-    private static string GetBlobPathWithRegion(FileTypeEnum fileType, string regionCode, string fileName)
-    {
-        // Create subdirectory based on file type
-        var fileTypePrefix = fileType switch
-        {
-            FileTypeEnum.Cell => "cells",
-            FileTypeEnum.NAP => "naps",
-            FileTypeEnum.Speedtest => "speedtests",
-            FileTypeEnum.Cellular => "cellulars",
-            FileTypeEnum.CellularCoverage => "cellular-coverages",
-            FileTypeEnum.WirelessValidation => "wireless-validations",
-            _ => "uploads" // Default folder for unknown types
-        };
-
-        // Format: region-XX/file-type/filename
-        return $"{regionCode}/{fileTypePrefix}/{fileName}";
-    }
-
-    /// <summary>
     /// Gets the region code for the specified region ID and validates user access
     /// </summary>
     private async Task<string?> GetRegionCodeAsync(Guid regionId, CancellationToken cancellationToken)
@@ -205,9 +169,12 @@ public class UploadFileHandler(
         var regionQuery = _regionRepository.Query(r => r.Id == regionId).Select(r => new { r.Id, r.Code });
         var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
-        if (region is null) _logger.LogWarning("Region not found: {RegionId}", regionId);
+        if (region is null)
+        {
+            _logger.LogWarning("Region not found: {RegionId}", regionId);
+            return null;
+        }
 
-        // Return region code in the format "regionXX" where XX is the region code
-        return !string.IsNullOrWhiteSpace(region?.Code) ? $"region-{region.Code:D2}" : null;
+        return BlobStoragePathHelper.SanitizeRegionCode(region.Code);
     }
 }
