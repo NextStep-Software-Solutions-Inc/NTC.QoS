@@ -39,9 +39,7 @@ interface UploadFileFormProps {
   type: "Speedtest" | "NAP" | "Cell" | "Cellular" | "CellularCoverage" | "WirelessValidation";
 }
 
-import { getBackendUrl } from "@/lib/api-utils";
-
-const QOS_BACKEND_URL = getBackendUrl();
+const QOS_BACKEND_URL = process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "";
 export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileFormProps) {
   const { region } = useParams<{ region: string }>();
   const [files, setFiles] = useState<File[]>([]);
@@ -103,7 +101,13 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
               await uploadFileToAzure(presignedRes.data.url, file);
             }
           } catch (azureErr) {
-            console.warn("Direct blob upload fallback triggered:", azureErr);
+            // Safely extract error message without exposing SAS tokens or query parameters
+            const rawMessage = azureErr instanceof Error ? azureErr.message : "Direct upload failed";
+            const sanitizedMessage = rawMessage.replace(/([?&][\w-]+)=([^&\s"']+)/g, "$1=[REDACTED]");
+
+            if (process.env.NODE_ENV === "development") {
+              console.warn("Direct blob upload fallback triggered:", sanitizedMessage);
+            }
           }
 
           // Step 3: Send file to backend to ensure persistence and queue processing job
@@ -143,17 +147,19 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   const provinces = provincesData?.data ?? [];
   const municipalities = municipalitiesData?.data ?? [];
 
-  console.log("Province & Municipality data:", {
-    provinces: provinces.length,
-    municipalities: municipalities.length,
-    isLoadingProvinces,
-    isLoadingMunicipalities,
-    hasProvinceError: !!provincesError,
-    hasMunicipalityError: !!municipalitiesError,
-    regionId: region,
-    selectedProvinceId,
-    type,
-  });
+  if (process.env.NODE_ENV === "development") {
+    console.log("Province & Municipality data:", {
+      provinces: provinces.length,
+      municipalities: municipalities.length,
+      isLoadingProvinces,
+      isLoadingMunicipalities,
+      hasProvinceError: !!provincesError,
+      hasMunicipalityError: !!municipalitiesError,
+      regionId: region,
+      selectedProvinceId,
+      type,
+    });
+  }
 
   // Generate download URL based on type
   const getDownloadUrl = () => {

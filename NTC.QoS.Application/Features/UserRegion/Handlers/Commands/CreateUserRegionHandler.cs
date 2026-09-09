@@ -24,6 +24,50 @@ public class CreateUserRegionHandler(
 
         if (existingUserRegion is not null)
         {
+            if (existingUserRegion.Status != Domain.Enums.UserRegionStatus.Active.ToString())
+            {
+                existingUserRegion.Status = Domain.Enums.UserRegionStatus.Active.ToString();
+                _userRegionRepository.Update(existingUserRegion);
+                await _userRegionRepository.SaveChangesAsync(cancellationToken);
+
+                return new ApiResponse<UserRegionDto>
+                {
+                    Data = new UserRegionDto
+                    {
+                        Id = existingUserRegion.Id,
+                        Status = existingUserRegion.Status,
+                        User = new()
+                        {
+                            Id = existingUserRegion.User.Id,
+                            AuthUserId = existingUserRegion.User.AuthUserId,
+                            Email = existingUserRegion.User.Email,
+                            Role = new()
+                            {
+                                Id = existingUserRegion.User.RoleId,
+                                Name = existingUserRegion.User.Role?.Name ?? string.Empty,
+                                Key = existingUserRegion.User.Role?.Key ?? string.Empty,
+                                Description = existingUserRegion.User.Role?.Description ?? string.Empty
+                            },
+                            Organization = new()
+                            {
+                                Id = existingUserRegion.User.OrganizationId,
+                                Name = existingUserRegion.User.Organization?.Name ?? string.Empty,
+                                Description = existingUserRegion.User.Organization?.Description ?? string.Empty
+                            },
+                        },
+                        Region = new()
+                        {
+                            Id = existingUserRegion.Region.Id,
+                            Name = existingUserRegion.Region.Name,
+                            Code = existingUserRegion.Region.Code,
+                            Description = existingUserRegion.Region.Description
+                        }
+                    },
+                    Succeeded = true,
+                    Message = "User region assigned successfully."
+                };
+            }
+
             return new ApiResponse<UserRegionDto>("User region already exists for the specified user and region.");
         }
 

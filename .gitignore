@@ -356,15 +356,15 @@ k8s/secret.yaml
 .vscode/tasks.json
 
 # ==========================================
-# Frontend (Next.js / Node / Bun) Monorepo ignores
+# Frontend (Next.js / Bun) Monorepo ignores
 # ==========================================
 **/node_modules/
 **/.next/
 **/out/
 **/dist/
 **/.turbo/
-**/.pnpm-debug.log*
-**/.yarn/
+**/.bun/
+*.tsbuildinfo
 **/*.tar
 **/*.tar.gz
 

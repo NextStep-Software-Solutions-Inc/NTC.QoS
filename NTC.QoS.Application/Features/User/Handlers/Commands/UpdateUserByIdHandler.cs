@@ -1,5 +1,6 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -8,11 +9,13 @@ namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
 public class UpdateUserByIdHandler(IUserRepository userRepository,
                                    IRepository<Domain.Entities.Role> roleRepository,
-                                   IRepository<Domain.Entities.Organization> organizationRepository) : IRequestHandler<UpdateUserByIdRequest, ApiResponse<UserDto>>
+                                   IRepository<Domain.Entities.Organization> organizationRepository,
+                                   IUserRegionService userRegionService) : IRequestHandler<UpdateUserByIdRequest, ApiResponse<UserDto>>
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Organization> _organizationRepository = organizationRepository;
+    private readonly IUserRegionService _userRegionService = userRegionService;
 
     public async Task<ApiResponse<UserDto>> Handle(UpdateUserByIdRequest request, CancellationToken cancellationToken)
     {
@@ -33,10 +36,11 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
             };
         }
 
+        Domain.Entities.Role? role = null;
         if (request.User.RoleId.HasValue)
         {
             var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId.Value);
-            var role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
+            role = await _roleRepository.FirstOrDefaultAsync(roleQuery, cancellationToken);
             if (role is null)
             {
                 return new ApiResponse<UserDto>
@@ -101,6 +105,19 @@ public class UpdateUserByIdHandler(IUserRepository userRepository,
         user.LastName = request.User.LastName ?? user.LastName;
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
+
+        // Handle user region status changes when role is updated
+        if (role != null)
+        {
+            if (Roles.IsSuperAdmin(role))
+            {
+                await _userRegionService.AssignAllRegionsToUserAsync(user.Id, cancellationToken);
+            }
+            else
+            {
+                await _userRegionService.DeleteAllRegionsForUserAsync(user.Id, cancellationToken);
+            }
+        }
 
         var result = new UserDto
         {

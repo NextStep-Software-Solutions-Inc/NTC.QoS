@@ -295,16 +295,9 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
     [pendingFilters.dateRange.startDate, updatePending],
   );
 
-  // Toggle layer visibility via URL params
+  // Toggle layer visibility via AdminMapContext
   const handleLayerToggle = useCallback(
     (layerId: string, checked: boolean) => {
-      const searchParams = new URLSearchParams(window.location.search);
-      if (checked) {
-        searchParams.set(layerId, "true");
-      } else {
-        searchParams.delete(layerId);
-      }
-      window.history.replaceState({}, "", `${window.location.pathname}?${searchParams}`);
       setLayerVisibility(layerId, checked);
     },
     [setLayerVisibility],
@@ -451,7 +444,7 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
                                 </Label>
                                 <Switch
                                   checked={layerState.visibility["cellular-heatmap"] ?? false}
-                                  onCheckedChange={(checked) => handleLayerToggle(".cellular_heatmap", checked)}
+                                  onCheckedChange={(checked) => handleLayerToggle("cellular-heatmap", checked)}
                                 />
                               </div>
                               <div className="flex items-center justify-between">
@@ -461,7 +454,7 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
                                 </Label>
                                 <Switch
                                   checked={layerState.visibility["cellular-signal"] ?? false}
-                                  onCheckedChange={(checked) => handleLayerToggle(".cellular_coverage", checked)}
+                                  onCheckedChange={(checked) => handleLayerToggle("cellular-signal", checked)}
                                 />
                               </div>
                             </div>

@@ -28,17 +28,8 @@ public class UserSeeder(
 
         if (existingUser != null)
         {
-            logger.LogInformation("Default admin user already exists in database with email: {Email}", existingUser.Email);
-
-            if (existingUser.AuthUserId.StartsWith("clerk_placeholder_"))
-            {
-                logger.LogInformation("Existing user has placeholder AuthUserId. Updating with Clerk integration...");
-                await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
-            }
-            else
-            {
-                logger.LogInformation("Default admin user is properly configured with Clerk AuthUserId: {AuthUserId}", existingUser.AuthUserId);
-            }
+            logger.LogInformation("Default admin user exists in database with email: {Email}. Synchronizing role, organization, Clerk metadata, and user regions...", existingUser.Email);
+            await userUpdater.UpdateExistingUserAsync(existingUser, config, config.Password);
         }
         else
         {
@@ -50,7 +41,8 @@ public class UserSeeder(
 
     private async Task<User?> GetExistingUserAsync(string email)
     {
+        var normalizedEmail = email.ToLower();
         return await context.Users.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email == email || u.Role.Key == "super_admin");
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
     }
 }

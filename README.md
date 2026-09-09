@@ -23,8 +23,10 @@
 NTC.QoS/                             <-- Monorepo Root
 ├── .github/
 │   └── workflows/
-│       ├── prod-vps-cicd.yml       <-- Backend (.NET API) CI/CD Workflow
-│       └── prod-fe-vps-cicd.yml    <-- Frontend (Next.js Bun) CI/CD Workflow
+│       ├── development-cicd.yml    <-- Backend (.NET API) Dev VPS CI/CD Workflow
+│       ├── prod-vps-cicd.yml       <-- Backend (.NET API) Prod VPS CI/CD Workflow
+│       ├── prod-fe-vps-cicd.yml    <-- Frontend (Next.js Bun) Prod VPS CI/CD Workflow
+│       └── pr-gemini-reviewer.yml  <-- Automated PR Review Workflow
 │
 ├── NTC.QoS.API/                     <-- Backend API (.NET 8 Core)
 ├── NTC.QoS.Application/             <-- Business Logic, CQRS Handlers, DTOs
@@ -76,16 +78,25 @@ Frontend will be live at `http://localhost:3000`.
 
 ---
 
-## 🚀 CI/CD & Production Deployment (LightNode VPS)
+## 🚀 CI/CD & VPS Deployment
 
-Deployments are automated via **GitHub Actions** using Environment Scoping (`Production`):
+Deployments are automated via **GitHub Actions** using GitHub Environment Scoping over SSH / SCP:
 
-1. **Backend API Workflow (`prod-vps-cicd.yml`):**
-   - Triggers on published release or tag (`v*`).
-   - Builds `.NET 8` Docker image (`qos-api:prod`).
-   - Deploys container **`qos-api`** to server IP `38.54.81.51` on network `ntcqos_db_net`.
+### 1. Development Deployment (`Development` Environment)
+* **Backend API Workflow (`development-cicd.yml`):**
+  - Triggers on push or pull request targeting the `development` branch.
+  - Builds & tests .NET 8 solution (`dotnet test`).
+  - Packages Docker image `qos-api:dev`.
+  - Deploys container **`qos-api-dev`** to the Development VPS over SSH on network `ntcqos_db_net` and connects to `npm_proxy_net`.
 
-2. **Frontend Workflow (`prod-fe-vps-cicd.yml`):**
-   - Triggers on published release or tag (`v*`).
-   - Builds `Next.js 16` Docker image using Bun (`oven/bun:1-alpine`).
-   - Deploys container **`qos-fe`** to server on network `npm_proxy_net`.
+### 2. Production Deployment (`Production` Environment)
+* **Backend API Workflow (`prod-vps-cicd.yml`):**
+  - Triggers on published release or tag (`v*`, `api-v*`).
+  - Builds `.NET 8` Docker image (`qos-api:prod`).
+  - Deploys container **`qos-api`** to Production VPS on networks `ntcqos_db_net` and `npm_proxy_net`.
+
+* **Frontend Workflow (`prod-fe-vps-cicd.yml`):**
+  - Triggers on published release or tag (`v*`, `web-v*`, `fe-v*`).
+  - Builds `Next.js 16` Docker image using Bun (`oven/bun:1-alpine`).
+  - Deploys container **`qos-fe`** to Production VPS on network `npm_proxy_net`.
+

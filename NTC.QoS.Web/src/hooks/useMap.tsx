@@ -81,6 +81,9 @@ export const MapProvider = ({ children, apiKey }: MapProviderProps) => {
     });
 
     newMap.on("load", () => {
+      if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+        (window as any).__map = newMap;
+      }
       setMap(newMap);
       setIsMapLoaded(true);
     });

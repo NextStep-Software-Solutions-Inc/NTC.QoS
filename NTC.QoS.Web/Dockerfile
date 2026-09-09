@@ -5,7 +5,7 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json bun.lock* pnpm-lock.yaml* yarn.lock* package-lock.json* ./
+COPY package.json bun.lock* bun.lockb* ./
 RUN bun install --frozen-lockfile || bun install
 
 # 2. Build Next.js application using Bun

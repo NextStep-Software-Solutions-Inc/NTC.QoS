@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 import "./src/env.js";
 
 const config: NextConfig = {
-  output: "standalone",
+  output: process.env.VERCEL ? undefined : "standalone",
   allowedDevOrigins: ["http://localhost:3000"],
   crossOrigin: "anonymous",
 

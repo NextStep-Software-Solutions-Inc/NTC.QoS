@@ -84,6 +84,7 @@ const ORDERING_RELEVANT_SOURCES = new Set([
  */
 type SpeedtestOptions = {
   serviceProviderIds?: string[]; // Provider IDs for filtering
+  regionIds?: string[]; // Region IDs for filtering
   minDownloadSpeed?: number;
   maxDownloadSpeed?: number;
   minUploadSpeed?: number;
@@ -113,6 +114,16 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
   const lastProgressPercentRef = useRef(0);
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Clean up all pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Keep a ref to the latest accumulated GeoJSON so the setup effect stays stable
   // without needing accumulatedGeoJSON as a dependency on every data update
   const accumulatedGeoJSONRef = useRef(accumulatedGeoJSON);
@@ -133,6 +144,7 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
     queryParams: {
       pageSize: PAGE_SIZE,
       serviceProviderIds: options?.serviceProviderIds, // Provider filtering
+      regionIds: options?.regionIds, // Region filtering
       minDownloadSpeed: options?.minDownloadSpeed,
       maxDownloadSpeed: options?.maxDownloadSpeed,
       minUploadSpeed: options?.minUploadSpeed,
@@ -234,6 +246,7 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
       startDate: options?.startDate,
       endDate: options?.endDate,
       serviceProviderIds: options?.serviceProviderIds,
+      regionIds: options?.regionIds,
     });
 
     const previousSerialized = previousOptionsRef.current;
@@ -268,8 +281,15 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, isMapLoaded, isViewportStable, loadedPageCount, maxAutoPages]);
 
+  const isAnySpeedtestLayerVisible = Object.values(visibleLayers).some(Boolean);
+
   // Show loading toast with progress
   useEffect(() => {
+    if (!isAnySpeedtestLayerVisible) {
+      toast.dismiss("loading-speedtests");
+      return;
+    }
+
     const now = Date.now();
     const { current, total } = loadingProgress;
 
@@ -294,7 +314,7 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
         description: `${current.toLocaleString()} speedtests loaded`,
       });
     }
-  }, [isLoading, isFetchingNextPage, loadingProgress]);
+  }, [isLoading, isFetchingNextPage, loadingProgress, isAnySpeedtestLayerVisible]);
 
   /**
    * Ensures speedtest layers render above all custom data layers (fiber, cells, NAPs)
@@ -319,81 +339,95 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
   const enforceSpeedtestLayerOrder = useCallback(() => {
     if (!map || !map.isStyleLoaded()) return;
 
-    const style = map.getStyle();
-    if (!style?.layers) return;
+    try {
+      if (!map.isStyleLoaded()) return;
 
-    // Skip if neither speedtest layer exists yet
-    if (!map.getLayer("speedtests-circles") && !map.getLayer("speedtests-heatmap")) return;
+      const style = map.getStyle();
+      if (!style?.layers) return;
 
-    const layerIds = style.layers.map((l) => l.id);
+      // Skip if neither speedtest layer exists yet
+      if (!map.getLayer("speedtests-circles") && !map.getLayer("speedtests-heatmap")) return;
 
-    // Phase 1: find the highest-z layer from LAYERS_BELOW_SPEEDTEST.
-    let floorIdx = -1;
-    for (const id of LAYERS_BELOW_SPEEDTEST) {
-      const idx = layerIds.indexOf(id);
-      if (idx > floorIdx) floorIdx = idx;
-    }
+      const layerIds = style.layers.map((l) => l.id);
 
-    let anchorId: string | undefined;
+      // Phase 1: find the highest-z layer from LAYERS_BELOW_SPEEDTEST.
+      let floorIdx = -1;
+      for (const id of LAYERS_BELOW_SPEEDTEST) {
+        const idx = layerIds.indexOf(id);
+        if (idx > floorIdx) floorIdx = idx;
+      }
 
-    if (floorIdx !== -1) {
-      // Walk forward from just above the floor layer to find the first non-speedtest
-      // layer.  This is the slot where speedtest layers will be inserted.
-      for (let i = floorIdx + 1; i < layerIds.length; i++) {
-        const id = layerIds[i];
-        if (id !== "speedtests-heatmap" && id !== "speedtests-circles") {
-          anchorId = id;
-          break;
+      let anchorId: string | undefined;
+
+      if (floorIdx !== -1) {
+        // Walk forward from just above the floor layer to find the first non-speedtest
+        // layer.  This is the slot where speedtest layers will be inserted.
+        for (let i = floorIdx + 1; i < layerIds.length; i++) {
+          const id = layerIds[i];
+          if (id !== "speedtests-heatmap" && id !== "speedtests-circles") {
+            anchorId = id;
+            break;
+          }
         }
       }
-    }
 
-    // Phase 2 fallback: topmost non-custom base-map symbol layer.
-    if (!anchorId) {
-      for (let i = style.layers.length - 1; i >= 0; i--) {
-        const layer = style.layers[i];
-        if (layer && layer.type === "symbol" && !CUSTOM_SYMBOL_LAYER_IDS.has(layer.id)) {
-          anchorId = layer.id;
-          break;
+      // Phase 2 fallback: topmost non-custom base-map symbol layer.
+      if (!anchorId) {
+        for (let i = style.layers.length - 1; i >= 0; i--) {
+          const layer = style.layers[i];
+          if (layer && layer.type === "symbol" && !CUSTOM_SYMBOL_LAYER_IDS.has(layer.id)) {
+            anchorId = layer.id;
+            break;
+          }
         }
       }
-    }
 
-    if (!anchorId) return;
+      if (!anchorId) return;
 
-    // Move heatmap first (renders below circles), then circles.
-    // Both are moved before the same anchor, so the final order is:
-    //   [..., speedtests-heatmap, speedtests-circles, <anchorId>, ...]
-    for (const id of ["speedtests-heatmap", "speedtests-circles"] as LayerId[]) {
-      if (!map.getLayer(id)) continue;
-      try {
-        map.moveLayer(id, anchorId);
-      } catch (err) {
-        // Layer may not be ready yet; will be retried on the next scheduled call
-        if (process.env.NODE_ENV === "development") {
-          console.debug(`[useMapSpeedtests] moveLayer(${id}) failed, will retry:`, err);
+      // Move heatmap first (renders below circles), then circles.
+      // Both are moved before the same anchor, so the final order is:
+      //   [..., speedtests-heatmap, speedtests-circles, <anchorId>, ...]
+      for (const id of ["speedtests-heatmap", "speedtests-circles"] as LayerId[]) {
+        if (!map.getLayer(id)) continue;
+        try {
+          map.moveLayer(id, anchorId);
+        } catch (err) {
+          // Layer may not be ready yet; will be retried on the next scheduled call
+          if (process.env.NODE_ENV === "development") {
+            console.debug(`[useMapSpeedtests] moveLayer(${id}) failed, will retry:`, err);
+          }
         }
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] enforceSpeedtestLayerOrder error:", err);
       }
     }
   }, [map]);
 
-  useEffect(() => {
-    if (!map || !isMapLoaded) return;
-
-    const addSpeedtestSourceToMap = () => {
+  const addSpeedtestSourceToMap = useCallback(() => {
+    try {
       if (!map || !map.isStyleLoaded()) return;
+
       if (!map.getSource("speedtests")) {
         // Use ref so the handler stays stable without accumulatedGeoJSON as a dep
         map.addSource("speedtests", { type: "geojson", data: accumulatedGeoJSONRef.current });
       }
-      // Data updates are handled by a dedicated effect to avoid listener re-registration
-    };
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] addSpeedtestSourceToMap error:", err);
+      }
+    }
+  }, [map]);
 
-    // Find the best insertion point for speedtest layers.
-    // Uses LAYERS_BELOW_SPEEDTEST to find the highest custom data layer and inserts
-    // speedtest just above it. Falls back to the topmost base-map symbol if no
-    // reference layers exist yet (e.g. first load before other hooks have run).
-    const findBeforeLayer = () => {
+  // Find the best insertion point for speedtest layers.
+  // Uses LAYERS_BELOW_SPEEDTEST to find the highest custom data layer and inserts
+  // speedtest just above it. Falls back to the topmost base-map symbol if no
+  // reference layers exist yet (e.g. first load before other hooks have run).
+  const findBeforeLayer = useCallback(() => {
+    try {
+      if (!map || !map.isStyleLoaded()) return undefined;
+
       const layers = map.getStyle()?.layers;
       if (!layers) return undefined;
 
@@ -427,25 +461,27 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
         }
       }
       return undefined;
-    };
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] findBeforeLayer error:", err);
+      }
+      return undefined;
+    }
+  }, [map]);
 
-    const addSpeedtestsLayers = (
-      e: MapLibreEvent<unknown> & {
-        dataType: "source";
-        isSourceLoaded: boolean;
-        source: SourceSpecification;
-        sourceId: string;
-        sourceDataType: MapSourceDataType;
-        sourceDataChanged?: boolean;
-        tile: unknown;
-      } & {},
-    ) => {
-      if (e.sourceId !== "speedtests" || !e.isSourceLoaded) return;
+  const ensureSpeedtestLayers = useCallback(() => {
+    if (!map || !map.isStyleLoaded()) return;
+
+    try {
+      addSpeedtestSourceToMap();
+      if (!map.getSource("speedtests")) return;
 
       const beforeId = findBeforeLayer();
 
       if (!map.getLayer("speedtests-circles")) {
-        console.info("Adding speedtests circles layer to map");
+        if (process.env.NODE_ENV === "development") {
+          console.info("Adding speedtests circles layer to map");
+        }
         map.addLayer(
           {
             id: "speedtests-circles",
@@ -476,7 +512,9 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
       }
 
       if (!map.getLayer("speedtests-heatmap")) {
-        console.info("Adding speedtests heatmap layer to map");
+        if (process.env.NODE_ENV === "development") {
+          console.info("Adding speedtests heatmap layer to map");
+        }
         map.addLayer(
           {
             id: "speedtests-heatmap",
@@ -515,16 +553,53 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
       // After adding layers, schedule deferred enforcement so any concurrent
       // addLayer calls (fiber, cells, NAPs) finish before we re-order.
       setTimeout(enforceSpeedtestLayerOrder, 0);
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] ensureSpeedtestLayers error:", err);
+      }
+    }
+  }, [map, addSpeedtestSourceToMap, findBeforeLayer, visibleLayers, enforceSpeedtestLayerOrder]);
+
+  useEffect(() => {
+    if (!map || !isMapLoaded) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const setupLayers = () => {
+      if (map.isStyleLoaded()) {
+        ensureSpeedtestLayers();
+      }
     };
-    addSpeedtestSourceToMap();
-    map.on("styledata", addSpeedtestSourceToMap);
-    map.on("sourcedata", addSpeedtestsLayers);
+
+    if (map.isStyleLoaded()) {
+      setupLayers();
+    } else {
+      map.once("styledata", setupLayers);
+      map.once("idle", setupLayers);
+      timer = setTimeout(setupLayers, 100);
+    }
+
+    const handleStyleData = () => {
+      setupLayers();
+    };
+
+    const handleSourceData = (e: { sourceId?: string }) => {
+      if (e?.sourceId === "speedtests") {
+        setupLayers();
+      }
+    };
+
+    map.on("styledata", handleStyleData);
+    map.on("sourcedata", handleSourceData);
 
     return () => {
-      map.off("styledata", addSpeedtestSourceToMap);
-      map.off("sourcedata", addSpeedtestsLayers);
+      if (timer) clearTimeout(timer);
+      map.off("styledata", setupLayers);
+      map.off("idle", setupLayers);
+      map.off("styledata", handleStyleData);
+      map.off("sourcedata", handleSourceData);
     };
-  }, [map, isMapLoaded, visibleLayers, enforceSpeedtestLayerOrder]);
+  }, [ensureSpeedtestLayers, isMapLoaded, map]);
 
   // Dedicated effect to update speedtests source data whenever accumulatedGeoJSON changes.
   // Calls source.setData() directly without re-registering event listeners, keeping
@@ -532,9 +607,16 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
   useEffect(() => {
     if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
 
-    const source = map.getSource<GeoJSONSource>("speedtests");
-    if (source) {
-      source.setData(accumulatedGeoJSON);
+    try {
+      if (!map.isStyleLoaded()) return;
+      const source = map.getSource<GeoJSONSource>("speedtests");
+      if (source) {
+        source.setData(accumulatedGeoJSON);
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[useMapSpeedtests] updateSourceData error:", err);
+      }
     }
   }, [map, isMapLoaded, accumulatedGeoJSON]);
 
@@ -585,14 +667,21 @@ export const useMapSpeedtests = (visibleLayers: Record<LayerId, boolean>, option
   const setLayerVisible = useCallback(
     (layer: LayerId, visible: boolean) => {
       try {
-        if (map && map.getLayer(layer)) {
-          map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
+        if (map && map.isStyleLoaded()) {
+          if (!map.getLayer(layer)) {
+            ensureSpeedtestLayers();
+          }
+          if (map.getLayer(layer)) {
+            map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
+          }
         }
-      } catch {
-        // Style may be reloading, silently ignore
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapSpeedtests] setLayerVisible error:", err);
+        }
       }
     },
-    [map],
+    [map, ensureSpeedtestLayers],
   );
 
   useEffect(() => {

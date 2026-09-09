@@ -1,4 +1,5 @@
 import { getBackendUrl } from "@/lib/api-utils";
+import { extractErrorMessage } from "@/lib/extract-error-message";
 
 export type RequestConfig = {
   headers?: Record<string, string>;
@@ -9,45 +10,80 @@ export type RequestConfig = {
 export type ApiErrorResponse = {
   message?: string;
   error?: string;
+  title?: string;
+  detail?: string;
   statusCode?: number;
+  status?: number;
+  type?: string;
+  traceId?: string;
+  errors?: Record<string, string[] | string> | string[];
+  data?: unknown;
+  succeeded?: boolean;
+  [key: string]: unknown;
 };
 
 export class ApiError extends Error {
   statusCode: number;
   data: ApiErrorResponse;
+  response?: {
+    data?: ApiErrorResponse;
+    status?: number;
+    statusText?: string;
+    message?: string;
+    errors?: Record<string, string[] | string> | string[];
+  };
 
   constructor(message: string, statusCode: number, data: ApiErrorResponse = {}) {
     super(message);
     this.name = "ApiError";
     this.statusCode = statusCode;
     this.data = data;
+    this.response = {
+      data,
+      status: statusCode,
+      message: (typeof data.message === "string" && data.message) || message,
+      errors: data.errors,
+    };
   }
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
-  const contentType = response.headers.get("content-type");
-  const isJson = contentType?.includes("application/json");
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  const isJson = contentType.includes("json");
 
   if (!response.ok) {
     let errorData: ApiErrorResponse = {};
-    let errorMessage = `HTTP error! status: ${response.status}`;
+    let rawText = "";
 
     try {
       if (isJson) {
-        errorData = await response.json();
-        errorMessage = errorData.message || errorData.error || errorMessage;
+        errorData = (await response.json()) as ApiErrorResponse;
       } else {
-        const text = await response.text();
-        if (text) errorMessage = text;
+        rawText = await response.text();
+        const trimmed = rawText.trim();
+        if (
+          (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+          (trimmed.startsWith("[") && trimmed.endsWith("]"))
+        ) {
+          try {
+            errorData = JSON.parse(trimmed) as ApiErrorResponse;
+          } catch {
+            // Non-JSON text
+          }
+        }
       }
     } catch {
       // Failed to parse error response
     }
 
+    const errorMessage =
+      extractErrorMessage(Object.keys(errorData).length > 0 ? errorData : rawText, "") ||
+      `HTTP error! status: ${response.status}`;
+
     throw new ApiError(errorMessage, response.status, errorData);
   }
 
-  if (response.status === 24) {
+  if (response.status === 204) {
     return {} as T;
   }
 
@@ -57,6 +93,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
   return response.text() as unknown as T;
 }
+
+const isFormData = (val: unknown): val is FormData => {
+  return typeof FormData !== "undefined" && val instanceof FormData;
+};
 
 export function createRequest(baseUrl: string, defaultConfig: RequestConfig = {}) {
   const getFullUrl = (url: string): string => {
@@ -100,6 +140,11 @@ export function createRequest(baseUrl: string, defaultConfig: RequestConfig = {}
     const fullUrl = getFullUrl(url);
     const headers = await getHeaders(init?.headers as Record<string, string>);
 
+    const hasFormData = isFormData(payload) || isFormData(init?.body);
+    if (hasFormData) {
+      delete headers["Content-Type"];
+    }
+
     const config: RequestInit = {
       method,
       headers,
@@ -108,7 +153,13 @@ export function createRequest(baseUrl: string, defaultConfig: RequestConfig = {}
     };
 
     if (payload !== undefined && payload !== null) {
-      config.body = JSON.stringify(payload);
+      if (isFormData(payload)) {
+        config.body = payload;
+      } else if (typeof payload === "string" || payload instanceof Blob || payload instanceof URLSearchParams) {
+        config.body = payload;
+      } else {
+        config.body = JSON.stringify(payload);
+      }
     }
 
     const response = await fetch(fullUrl, config);
@@ -128,3 +179,4 @@ export function createRequest(baseUrl: string, defaultConfig: RequestConfig = {}
 }
 
 export const request = createRequest(getBackendUrl(), { headers: { Accept: "application/json" } });
+

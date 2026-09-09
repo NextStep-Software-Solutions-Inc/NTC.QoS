@@ -6,5 +6,7 @@
     <WarningLevel>5</WarningLevel>
     <!-- Fail the build on analyzer warnings too -->
     <WarningsNotAsErrors></WarningsNotAsErrors>
+    <!-- Roll forward to newer major runtimes if requested runtime is not installed -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 </Project>
