@@ -1,4 +1,3 @@
-using Azure.Storage.Blobs;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Enums;
@@ -13,48 +12,28 @@ namespace NTC.QoS.Infrastructure.Helper;
 public static class ProcessingJobHelper
 {
     /// <summary>
-    /// Extracts container name and blob name from a blob storage URL (supports both cloud Azure URLs and local Azurite emulator URLs)
+    /// Extracts container name and blob name from a blob storage URL
     /// </summary>
     /// <param name="blobUri">The blob storage URI</param>
     /// <returns>Tuple containing container name and blob name</returns>
     /// <exception cref="ArgumentException">Thrown when blob URL format is invalid</exception>
     public static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
     {
-        try
+        // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
+        var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
+
+        if (segments.Length < 2)
         {
-            var blobUriBuilder = new BlobUriBuilder(blobUri);
-            var containerName = blobUriBuilder.BlobContainerName;
-            var blobName = blobUriBuilder.BlobName;
-
-            if (string.IsNullOrEmpty(containerName) || string.IsNullOrEmpty(blobName))
-            {
-                throw new ArgumentException($"Could not extract container or blob name from URI: {blobUri}");
-            }
-
-            return (containerName, HttpUtility.UrlDecode(blobName));
+            throw new ArgumentException($"Invalid blob URL format: {blobUri}");
         }
-        catch (Exception)
-        {
-            // Fallback parsing for non-standard local paths
-            var isLocalOrIp = blobUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-                || blobUri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-                || blobUri.HostNameType == UriHostNameType.IPv4
-                || blobUri.HostNameType == UriHostNameType.IPv6;
 
-            var segments = blobUri.Segments.Skip(1).ToArray(); // Skip leading '/'
-            var startIndex = isLocalOrIp && segments.Length > 2 ? 1 : 0;
+        var containerName = segments[0].TrimEnd('/');
+        var blobName = string.Join("", segments.Skip(1));
 
-            if (segments.Length <= startIndex + 1)
-            {
-                throw new ArgumentException($"Invalid blob URL format: {blobUri}");
-            }
+        // URL decode the blob name to handle special characters like parentheses
+        blobName = HttpUtility.UrlDecode(blobName);
 
-            var containerName = segments[startIndex].TrimEnd('/');
-            var blobName = string.Join("", segments.Skip(startIndex + 1));
-            blobName = HttpUtility.UrlDecode(blobName);
-
-            return (containerName, blobName);
-        }
+        return (containerName, blobName);
     }
 
     /// <summary>
