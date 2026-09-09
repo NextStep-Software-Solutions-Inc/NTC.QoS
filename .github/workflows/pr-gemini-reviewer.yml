@@ -30,6 +30,7 @@ jobs:
           pip install google-genai
 
       - name: Generate PR Diff & Run Gemini Review
+        continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,18 +97,29 @@ jobs:
           - State clearly if this PR is **Approved**, **Needs Minor Adjustments**, or **Requires Changes**.
           '''
 
-          client = genai.Client(api_key=api_key)
-          response = client.models.generate_content(
-              model='gemini-2.5-flash',
-              contents=prompt,
-          )
+          try:
+              client = genai.Client(api_key=api_key)
+              try:
+                  response = client.models.generate_content(
+                      model='gemini-2.0-flash',
+                      contents=prompt,
+                  )
+              except Exception as model_err:
+                  print(f'Failed with gemini-2.0-flash ({model_err}), falling back to gemini-1.5-flash...')
+                  response = client.models.generate_content(
+                      model='gemini-1.5-flash',
+                      contents=prompt,
+                  )
 
-          review_comment = response.text if response and response.text else 'Gemini review was unable to generate a response.'
+              review_comment = response.text if response and response.text else 'Gemini review was unable to generate a response.'
 
-          with open('review_comment.md', 'w', encoding='utf-8') as f:
-              f.write(review_comment)
+              with open('review_comment.md', 'w', encoding='utf-8') as f:
+                  f.write(review_comment)
 
-          print('Gemini Review Generated Successfully.')
+              print('Gemini Review Generated Successfully.')
+          except Exception as e:
+              print(f'Warning: Gemini review encountered an error: {e}')
+              sys.exit(0)
           "
 
       - name: Post Comment to Pull Request
