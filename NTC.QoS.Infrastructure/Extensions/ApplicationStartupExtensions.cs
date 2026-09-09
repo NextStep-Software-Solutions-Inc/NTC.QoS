@@ -112,7 +112,8 @@ public static class ApplicationStartupExtensions
             if (blobServiceClient == null) return;
 
             var logger = serviceProvider.GetRequiredService<ILogger<BlobServiceClient>>();
-            var containerName = environment.IsProduction() ? "production" : "development";
+            var isProdOrStaging = environment.IsProduction() || environment.IsEnvironment("Staging");
+            var containerName = isProdOrStaging ? "production" : "development";
 
             await blobServiceClient.GetBlobContainerClient(containerName).CreateIfNotExistsAsync(cancellationToken: cancellationToken);
             await blobServiceClient.GetBlobContainerClient("seeds").CreateIfNotExistsAsync(cancellationToken: cancellationToken);
@@ -121,7 +122,7 @@ public static class ApplicationStartupExtensions
         catch (Exception ex)
         {
             var logger = serviceProvider.GetRequiredService<ILogger<BlobServiceClient>>();
-            logger.LogWarning(ex, "Failed to ensure Blob Storage containers exist on startup.");
+            logger.LogWarning(ex, "Failed to ensure Blob Storage containers exist on startup. Ensure the application identity has sufficient Azure RBAC permissions (e.g., 'Storage Blob Data Contributor') or containers are pre-created.");
         }
     }
 }
