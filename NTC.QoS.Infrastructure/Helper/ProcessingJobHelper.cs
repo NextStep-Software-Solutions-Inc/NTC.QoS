@@ -26,6 +26,17 @@ public static class ProcessingJobHelper
             var containerName = blobUriBuilder.BlobContainerName;
             var blobName = blobUriBuilder.BlobName;
 
+            // Handle emulator URLs where dev_storage_node is treated as the container by non-localhost hostnames (e.g. azurite:10000)
+            if (string.Equals(containerName, "dev_storage_node", StringComparison.OrdinalIgnoreCase))
+            {
+                var blobSegments = blobName.Split('/', 2);
+                if (blobSegments.Length >= 1)
+                {
+                    containerName = blobSegments[0];
+                    blobName = blobSegments.Length > 1 ? blobSegments[1] : string.Empty;
+                }
+            }
+
             if (string.IsNullOrEmpty(containerName) || string.IsNullOrEmpty(blobName))
             {
                 throw new ArgumentException($"Could not extract container or blob name from URI: {blobUri}");
@@ -36,21 +47,18 @@ public static class ProcessingJobHelper
         catch (Exception)
         {
             // Fallback parsing for non-standard local paths
-            var isLocalOrIp = blobUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-                || blobUri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-                || blobUri.HostNameType == UriHostNameType.IPv4
-                || blobUri.HostNameType == UriHostNameType.IPv6;
+            var segments = blobUri.Segments.Skip(1).Select(s => s.TrimEnd('/')).ToArray(); // Skip leading '/'
 
-            var segments = blobUri.Segments.Skip(1).ToArray(); // Skip leading '/'
-            var startIndex = isLocalOrIp && segments.Length > 2 ? 1 : 0;
-
-            if (segments.Length <= startIndex + 1)
+            if (segments.Length < 2)
             {
                 throw new ArgumentException($"Invalid blob URL format: {blobUri}");
             }
 
-            var containerName = segments[startIndex].TrimEnd('/');
-            var blobName = string.Join("", segments.Skip(startIndex + 1));
+            // Check if first segment is the Azurite account name 'dev_storage_node'
+            var startIndex = string.Equals(segments[0], "dev_storage_node", StringComparison.OrdinalIgnoreCase) && segments.Length > 2 ? 1 : 0;
+
+            var containerName = segments[startIndex];
+            var blobName = string.Join("/", segments.Skip(startIndex + 1));
             blobName = HttpUtility.UrlDecode(blobName);
 
             return (containerName, blobName);
