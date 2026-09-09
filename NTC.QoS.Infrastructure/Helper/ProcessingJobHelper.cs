@@ -1,3 +1,4 @@
+using Azure.Storage.Blobs;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Enums;
@@ -12,28 +13,56 @@ namespace NTC.QoS.Infrastructure.Helper;
 public static class ProcessingJobHelper
 {
     /// <summary>
-    /// Extracts container name and blob name from a blob storage URL
+    /// Extracts container name and blob name from a blob storage URL (supports both cloud Azure URLs and local Azurite emulator URLs)
     /// </summary>
     /// <param name="blobUri">The blob storage URI</param>
     /// <returns>Tuple containing container name and blob name</returns>
     /// <exception cref="ArgumentException">Thrown when blob URL format is invalid</exception>
     public static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
     {
-        // Azure blob URLs typically follow the pattern: https://{account}.blob.core.windows.net/{container}/{blob}
-        var segments = blobUri.Segments.Skip(1).ToArray(); // Skip the first '/' segment
-
-        if (segments.Length < 2)
+        try
         {
-            throw new ArgumentException($"Invalid blob URL format: {blobUri}");
+            var blobUriBuilder = new BlobUriBuilder(blobUri);
+            var containerName = blobUriBuilder.BlobContainerName;
+            var blobName = blobUriBuilder.BlobName;
+
+            // Handle emulator URLs where dev_storage_node is treated as the container by non-localhost hostnames (e.g. azurite:10000)
+            if (string.Equals(containerName, "dev_storage_node", StringComparison.OrdinalIgnoreCase))
+            {
+                var blobSegments = blobName.Split('/', 2);
+                if (blobSegments.Length >= 1)
+                {
+                    containerName = blobSegments[0];
+                    blobName = blobSegments.Length > 1 ? blobSegments[1] : string.Empty;
+                }
+            }
+
+            if (string.IsNullOrEmpty(containerName) || string.IsNullOrEmpty(blobName))
+            {
+                throw new ArgumentException($"Could not extract container or blob name from URI: {blobUri}");
+            }
+
+            return (containerName, HttpUtility.UrlDecode(blobName));
         }
+        catch (Exception)
+        {
+            // Fallback parsing for non-standard local paths
+            var segments = blobUri.Segments.Skip(1).Select(s => s.TrimEnd('/')).ToArray(); // Skip leading '/'
 
-        var containerName = segments[0].TrimEnd('/');
-        var blobName = string.Join("", segments.Skip(1));
+            if (segments.Length < 2)
+            {
+                throw new ArgumentException($"Invalid blob URL format: {blobUri}");
+            }
 
-        // URL decode the blob name to handle special characters like parentheses
-        blobName = HttpUtility.UrlDecode(blobName);
+            // Check if first segment is the Azurite account name 'dev_storage_node'
+            var startIndex = string.Equals(segments[0], "dev_storage_node", StringComparison.OrdinalIgnoreCase) && segments.Length > 2 ? 1 : 0;
 
-        return (containerName, blobName);
+            var containerName = segments[startIndex];
+            var blobName = string.Join("/", segments.Skip(startIndex + 1));
+            blobName = HttpUtility.UrlDecode(blobName);
+
+            return (containerName, blobName);
+        }
     }
 
     /// <summary>
