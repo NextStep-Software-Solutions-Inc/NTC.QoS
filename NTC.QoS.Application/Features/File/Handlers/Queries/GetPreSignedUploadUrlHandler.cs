@@ -8,6 +8,7 @@ using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.File.Requests;
+using NTC.QoS.Application.Helpers;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -53,8 +54,8 @@ public class GetPreSignedUploadUrlHandler(
                 };
             }
 
-            string containerName = GetContainerName();
-            string blobPath = GetBlobPathWithRegion(fileType, regionCode, newFileName);
+            string containerName = BlobStoragePathHelper.GetContainerName(_configuration["ASPNETCORE_ENVIRONMENT"]);
+            string blobPath = BlobStoragePathHelper.GetBlobPathWithRegion(fileType, regionCode, newFileName);
 
             TimeSpan expiry = TimeSpan.FromMinutes(1);
             string sasUrl = _blobStorageService.GeneratePreSignedUploadUrl(containerName, blobPath, expiry);
@@ -82,33 +83,6 @@ public class GetPreSignedUploadUrlHandler(
         }
     }
 
-    private string GetContainerName()
-    {
-        var environment = _configuration["ASPNETCORE_ENVIRONMENT"];
-        return environment?.ToLowerInvariant() switch
-        {
-            "production" => "production",
-            "staging" => "production",
-            _ => "development"
-        };
-    }
-
-    private static string GetBlobPathWithRegion(FileTypeEnum fileType, string regionCode, string fileName)
-    {
-        var fileTypePrefix = fileType switch
-        {
-            FileTypeEnum.Cell => "cells",
-            FileTypeEnum.NAP => "naps",
-            FileTypeEnum.Speedtest => "speedtests",
-            FileTypeEnum.Cellular => "cellulars",
-            FileTypeEnum.CellularCoverage => "cellular-coverages",
-            FileTypeEnum.WirelessValidation => "wireless-validations",
-            _ => "uploads"
-        };
-
-        return $"{regionCode}/{fileTypePrefix}/{fileName}";
-    }
-
     private async Task<string?> GetRegionCodeAsync(Guid regionId, CancellationToken cancellationToken)
     {
         var hasAccess = await _userAuthorizationService.HasRegionAccessAsync(regionId, cancellationToken);
@@ -121,8 +95,12 @@ public class GetPreSignedUploadUrlHandler(
         var regionQuery = _regionRepository.Query(r => r.Id == regionId).Select(r => new { r.Id, r.Code });
         var region = await _regionRepository.FirstOrDefaultAsync(regionQuery, cancellationToken);
 
-        if (region is null) _logger.LogWarning("Region not found: {RegionId}", regionId);
+        if (region is null)
+        {
+            _logger.LogWarning("Region not found: {RegionId}", regionId);
+            return null;
+        }
 
-        return !string.IsNullOrWhiteSpace(region?.Code) ? $"region-{region.Code:D2}" : null;
+        return BlobStoragePathHelper.SanitizeRegionCode(region.Code);
     }
 }

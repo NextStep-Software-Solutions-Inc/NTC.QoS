@@ -31,6 +31,7 @@ public static class ApplicationStartupExtensions
 
         // Configure Blob Storage CORS rules (for Azurite emulator & Azure Blob direct browser uploads)
         await serviceProvider.ConfigureBlobStorageCorsAsync(configuration, environment, cancellationToken);
+        await serviceProvider.EnsureBlobContainersExistAsync(environment, cancellationToken);
 
         // Conditional migrations & seeding
         var runMigrations = configuration.GetValue<bool?>("Database:RunMigrationsOnStartup") ?? environment.IsDevelopment();
@@ -94,6 +95,33 @@ public static class ApplicationStartupExtensions
         {
             var logger = serviceProvider.GetRequiredService<ILogger<BlobServiceClient>>();
             logger.LogWarning(ex, "Failed to configure Blob Storage CORS rules. Pre-signed uploads might fail if CORS is not configured on the storage account.");
+        }
+    }
+
+    /// <summary>
+    /// Ensures standard blob containers exist on application startup
+    /// </summary>
+    public static async Task EnsureBlobContainersExistAsync(
+        this IServiceProvider serviceProvider,
+        IHostEnvironment environment,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var blobServiceClient = serviceProvider.GetService<BlobServiceClient>();
+            if (blobServiceClient == null) return;
+
+            var logger = serviceProvider.GetRequiredService<ILogger<BlobServiceClient>>();
+            var containerName = environment.IsProduction() ? "production" : "development";
+
+            await blobServiceClient.GetBlobContainerClient(containerName).CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            await blobServiceClient.GetBlobContainerClient("seeds").CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            logger.LogInformation("Ensured blob containers '{ContainerName}' and 'seeds' exist", containerName);
+        }
+        catch (Exception ex)
+        {
+            var logger = serviceProvider.GetRequiredService<ILogger<BlobServiceClient>>();
+            logger.LogWarning(ex, "Failed to ensure Blob Storage containers exist on startup.");
         }
     }
 }
