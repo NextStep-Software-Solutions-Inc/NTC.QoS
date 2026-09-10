@@ -18,7 +18,7 @@ public static class ProcessingJobHelper
     /// <param name="blobUri">The blob storage URI</param>
     /// <returns>Tuple containing container name and blob name</returns>
     /// <exception cref="ArgumentException">Thrown when blob URL format is invalid</exception>
-    public static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri)
+    public static (string containerName, string blobName) ExtractBlobInfo(Uri blobUri, string? storageAccountName = null)
     {
         try
         {
@@ -26,9 +26,11 @@ public static class ProcessingJobHelper
             var containerName = blobUriBuilder.BlobContainerName;
             var blobName = blobUriBuilder.BlobName;
 
-            // Handle emulator URLs where dev_storage_node or devstoreaccount1 is treated as the container by non-localhost hostnames (e.g. azurite:10000 or blob.qos.ntc.gov.ph)
-            if (string.Equals(containerName, "dev_storage_node", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(containerName, "devstoreaccount1", StringComparison.OrdinalIgnoreCase))
+            // For a path-style endpoint on a custom hostname, BlobUriBuilder can
+            // treat the account path prefix as the container. Strip only the
+            // account configured for this client; application code must not know
+            // emulator-specific account names.
+            if (IsStorageAccount(containerName, storageAccountName))
             {
                 var blobSegments = blobName.Split('/', 2);
                 if (blobSegments.Length >= 1)
@@ -55,9 +57,7 @@ public static class ProcessingJobHelper
                 throw new ArgumentException($"Invalid blob URL format: {blobUri}");
             }
 
-            // Check if first segment is an Azurite account name 'dev_storage_node' or 'devstoreaccount1'
-            var isEmulatorAccount = string.Equals(segments[0], "dev_storage_node", StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(segments[0], "devstoreaccount1", StringComparison.OrdinalIgnoreCase);
+            var isEmulatorAccount = IsStorageAccount(segments[0], storageAccountName);
             var startIndex = isEmulatorAccount && segments.Length > 2 ? 1 : 0;
 
             var containerName = segments[startIndex];
@@ -67,6 +67,10 @@ public static class ProcessingJobHelper
             return (containerName, blobName);
         }
     }
+
+    private static bool IsStorageAccount(string value, string? storageAccountName) =>
+        !string.IsNullOrWhiteSpace(storageAccountName) &&
+        string.Equals(value, storageAccountName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Downloads file from blob storage or accesses local file system as fallback
@@ -89,7 +93,7 @@ public static class ProcessingJobHelper
             if (Uri.TryCreate(filePath, UriKind.Absolute, out var blobUri))
             {
                 // Extract container and blob name from the blob URL
-                var (containerName, blobName) = ExtractBlobInfo(blobUri);
+                var (containerName, blobName) = ExtractBlobInfo(blobUri, blobStorageService.StorageAccountName);
 
                 logger.LogInformation("Checking if {FileType} file exists in blob storage: container={ContainerName}, blob={BlobName}",
                     fileType, containerName, blobName);

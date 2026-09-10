@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Azure.Storage;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
@@ -20,11 +21,16 @@ namespace NTC.QoS.Infrastructure.Services;
 public class BlobStorageService(
     BlobServiceClient blobServiceClient,
     IOptions<BlobStorageOptions> blobStorageOptions,
-    ILogger<BlobStorageService> logger) : IBlobStorageService
+    ILogger<BlobStorageService> logger,
+    StorageSharedKeyCredential? sharedKeyCredential = null) : IBlobStorageService
 {
     private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
     private readonly BlobStorageOptions _blobStorageOptions = blobStorageOptions.Value;
     private readonly ILogger<BlobStorageService> _logger = logger;
+    private readonly StorageSharedKeyCredential? _sharedKeyCredential = sharedKeyCredential;
+
+    /// <inheritdoc />
+    public string? StorageAccountName => _blobServiceClient.AccountName;
 
     /// <inheritdoc />
     public async Task<string> UploadAsync(string containerName, string fileName, Stream fileStream, string contentType, CancellationToken cancellationToken = default)
@@ -328,7 +334,7 @@ public class BlobStorageService(
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         var blobClient = GetBlobClient(containerClient, containerName, fileName);
 
-        if (!blobClient.CanGenerateSasUri)
+        if (_sharedKeyCredential == null && !blobClient.CanGenerateSasUri)
         {
             _logger.LogError("BlobClient cannot generate SAS URI for container {ContainerName}, blob {FileName}", containerName, fileName);
             throw new InvalidOperationException("BlobClient cannot generate SAS URI with the configured Azure credentials.");
@@ -336,8 +342,12 @@ public class BlobStorageService(
 
         var sasBuilder = new BlobSasBuilder
         {
-            BlobContainerName = blobClient.BlobContainerName,
-            BlobName = blobClient.Name,
+            // Keep the SAS resource tied to the caller's logical storage model.
+            // GetBlobClient can adapt an endpoint whose path is parsed ambiguously
+            // by the SDK, but that URI adaptation must not change the container
+            // and blob values used to sign the SAS resource.
+            BlobContainerName = containerName,
+            BlobName = fileName,
             Resource = "b",
             StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
             ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
@@ -345,7 +355,7 @@ public class BlobStorageService(
 
         sasBuilder.SetPermissions(BlobSasPermissions.Write | BlobSasPermissions.Create);
 
-        var sasUri = blobClient.GenerateSasUri(sasBuilder);
+        var sasUri = GenerateSasUri(blobClient, sasBuilder);
         _logger.LogInformation("Generated pre-signed upload SAS URL for blob {FileName} in container {ContainerName} (expires in {Expiry})", fileName, containerName, expiry);
         return sasUri.ToString();
     }
@@ -357,7 +367,7 @@ public class BlobStorageService(
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         var blobClient = GetBlobClient(containerClient, containerName, fileName);
 
-        if (!blobClient.CanGenerateSasUri)
+        if (_sharedKeyCredential == null && !blobClient.CanGenerateSasUri)
         {
             _logger.LogError("BlobClient cannot generate SAS URI for container {ContainerName}, blob {FileName}", containerName, fileName);
             throw new InvalidOperationException("BlobClient cannot generate SAS URI with the configured Azure credentials.");
@@ -365,8 +375,10 @@ public class BlobStorageService(
 
         var sasBuilder = new BlobSasBuilder
         {
-            BlobContainerName = blobClient.BlobContainerName,
-            BlobName = blobClient.Name,
+            // See GeneratePreSignedUploadUrl: do not derive the signed resource
+            // from BlobClient properties after endpoint-specific URI adaptation.
+            BlobContainerName = containerName,
+            BlobName = fileName,
             Resource = "b",
             StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
             ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
@@ -374,9 +386,27 @@ public class BlobStorageService(
 
         sasBuilder.SetPermissions(BlobSasPermissions.Read);
 
-        var sasUri = blobClient.GenerateSasUri(sasBuilder);
+        var sasUri = GenerateSasUri(blobClient, sasBuilder);
         _logger.LogInformation("Generated pre-signed download SAS URL for blob {FileName} in container {ContainerName} (expires in {Expiry})", fileName, containerName, expiry);
         return sasUri.ToString();
+    }
+
+    private Uri GenerateSasUri(BlobClient blobClient, BlobSasBuilder sasBuilder)
+    {
+        if (_sharedKeyCredential == null)
+        {
+            return blobClient.GenerateSasUri(sasBuilder);
+        }
+
+        // Generate the signature directly from the logical resource. This avoids
+        // BlobClient.GenerateSasUri validating against an endpoint-specific URI
+        // parse that can misidentify the account path prefix as a container.
+        var uriBuilder = new UriBuilder(blobClient.Uri)
+        {
+            Query = sasBuilder.ToSasQueryParameters(_sharedKeyCredential).ToString()
+        };
+
+        return uriBuilder.Uri;
     }
 
     /// <summary>
@@ -393,4 +423,4 @@ public class BlobStorageService(
 
         return containerClient.GetBlobClient(fileName);
     }
-}
+}

@@ -1,4 +1,5 @@
 using System;
+using Azure.Storage;
 using NTC.QoS.Infrastructure.Helper;
 using Xunit;
 
@@ -6,17 +7,20 @@ namespace NTC.QoS.Tests.Infrastructure.Helper;
 
 public class ProcessingJobHelperTests
 {
+    private const string TestAccountKey = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
+
     [Theory]
-    [InlineData("http://localhost:10000/dev_storage_node/development/region-ph06/speedtests/test.xlsx", "development", "region-ph06/speedtests/test.xlsx")]
-    [InlineData("http://127.0.0.1:10000/dev_storage_node/development/region-ph06/speedtests/test.xlsx", "development", "region-ph06/speedtests/test.xlsx")]
-    [InlineData("http://azurite:10000/dev_storage_node/development/region-ph06/speedtests/test.xlsx", "development", "region-ph06/speedtests/test.xlsx")]
-    [InlineData("https://blob.qos.ntc.gov.ph/devstoreaccount1/production/region-ph06/speedtests/test.xlsx", "production", "region-ph06/speedtests/test.xlsx")]
-    [InlineData("https://myaccount.blob.core.windows.net/production/region-01/cells/test.xlsx", "production", "region-01/cells/test.xlsx")]
-    [InlineData("https://myaccount.blob.core.windows.net/development/region-01/speedtests/Speedtest%20(1).xlsx", "development", "region-01/speedtests/Speedtest (1).xlsx")]
-    public void ExtractBlobInfo_ParsesValidUrlsCorrectly(string url, string expectedContainer, string expectedBlob)
+    [InlineData("http://localhost:10000/dev_storage_node/development/region-ph06/speedtests/test.xlsx", "dev_storage_node", "development", "region-ph06/speedtests/test.xlsx")]
+    [InlineData("http://127.0.0.1:10000/dev_storage_node/development/region-ph06/speedtests/test.xlsx", "dev_storage_node", "development", "region-ph06/speedtests/test.xlsx")]
+    [InlineData("http://azurite:10000/dev_storage_node/development/region-ph06/speedtests/test.xlsx", "dev_storage_node", "development", "region-ph06/speedtests/test.xlsx")]
+    [InlineData("https://blob.qos.ntc.gov.ph/devstoreaccount1/production/region-ph06/speedtests/test.xlsx", "devstoreaccount1", "production", "region-ph06/speedtests/test.xlsx")]
+    [InlineData("https://blob.qos.ntc.gov.ph/qosstorage/production/region-ph06/speedtests/test.xlsx", "qosstorage", "production", "region-ph06/speedtests/test.xlsx")]
+    [InlineData("https://myaccount.blob.core.windows.net/production/region-01/cells/test.xlsx", null, "production", "region-01/cells/test.xlsx")]
+    [InlineData("https://myaccount.blob.core.windows.net/development/region-01/speedtests/Speedtest%20(1).xlsx", null, "development", "region-01/speedtests/Speedtest (1).xlsx")]
+    public void ExtractBlobInfo_ParsesValidUrlsCorrectly(string url, string? storageAccountName, string expectedContainer, string expectedBlob)
     {
         var uri = new Uri(url);
-        var (container, blob) = ProcessingJobHelper.ExtractBlobInfo(uri);
+        var (container, blob) = ProcessingJobHelper.ExtractBlobInfo(uri, storageAccountName);
 
         Assert.Equal(expectedContainer, container);
         Assert.Equal(expectedBlob, blob);
@@ -45,7 +49,8 @@ public class ProcessingJobHelperTests
         var client = new Azure.Storage.Blobs.BlobServiceClient(connStr);
         var options = Microsoft.Extensions.Options.Options.Create(new NTC.QoS.Infrastructure.Configuration.BlobStorageOptions());
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<NTC.QoS.Infrastructure.Services.BlobStorageService>.Instance;
-        var service = new NTC.QoS.Infrastructure.Services.BlobStorageService(client, options, logger);
+        var credential = new StorageSharedKeyCredential(client.AccountName, TestAccountKey);
+        var service = new NTC.QoS.Infrastructure.Services.BlobStorageService(client, options, logger, credential);
 
         var url = service.GetBlobUrl("production", "region-ph06/speedtests/file.xlsx");
         Assert.Equal(expectedBlobUri, url);
