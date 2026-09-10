@@ -26,8 +26,9 @@ public static class ProcessingJobHelper
             var containerName = blobUriBuilder.BlobContainerName;
             var blobName = blobUriBuilder.BlobName;
 
-            // Handle emulator URLs where dev_storage_node is treated as the container by non-localhost hostnames (e.g. azurite:10000)
-            if (string.Equals(containerName, "dev_storage_node", StringComparison.OrdinalIgnoreCase))
+            // Handle emulator URLs where dev_storage_node or devstoreaccount1 is treated as the container by non-localhost hostnames (e.g. azurite:10000 or blob.qos.ntc.gov.ph)
+            if (string.Equals(containerName, "dev_storage_node", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(containerName, "devstoreaccount1", StringComparison.OrdinalIgnoreCase))
             {
                 var blobSegments = blobName.Split('/', 2);
                 if (blobSegments.Length >= 1)
@@ -54,8 +55,10 @@ public static class ProcessingJobHelper
                 throw new ArgumentException($"Invalid blob URL format: {blobUri}");
             }
 
-            // Check if first segment is the Azurite account name 'dev_storage_node'
-            var startIndex = string.Equals(segments[0], "dev_storage_node", StringComparison.OrdinalIgnoreCase) && segments.Length > 2 ? 1 : 0;
+            // Check if first segment is an Azurite account name 'dev_storage_node' or 'devstoreaccount1'
+            var isEmulatorAccount = string.Equals(segments[0], "dev_storage_node", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(segments[0], "devstoreaccount1", StringComparison.OrdinalIgnoreCase);
+            var startIndex = isEmulatorAccount && segments.Length > 2 ? 1 : 0;
 
             var containerName = segments[startIndex];
             var blobName = string.Join("/", segments.Skip(startIndex + 1));
