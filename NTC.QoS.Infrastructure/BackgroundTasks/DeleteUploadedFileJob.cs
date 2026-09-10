@@ -40,7 +40,7 @@ internal class DeleteUploadedFileJob : IDeleteUploadedFileJob
             if (Uri.TryCreate(file.Path, UriKind.Absolute, out var blobUri))
             {
                 // Use shared helper to extract container and blob name from the blob URL
-                var (containerName, blobName) = ProcessingJobHelper.ExtractBlobInfo(blobUri);
+                var (containerName, blobName) = ProcessingJobHelper.ExtractBlobInfo(blobUri, _blobStorageService.StorageAccountName);
 
                 _logger.LogInformation("Deleting file from blob storage: container={ContainerName}, blob={BlobName}",
                     containerName, blobName);

@@ -12,6 +12,13 @@ namespace NTC.QoS.Domain.Interfaces;
 public interface IBlobStorageService
 {
     /// <summary>
+    /// Gets the configured storage account name when it is available.
+    /// This is used only to distinguish a path-style account prefix from a
+    /// logical container name when parsing previously stored blob URLs.
+    /// </summary>
+    string? StorageAccountName => null;
+
+    /// <summary>
     /// Uploads a file to Azure Blob Storage
     /// </summary>
     /// <param name="containerName">The blob container name</param>

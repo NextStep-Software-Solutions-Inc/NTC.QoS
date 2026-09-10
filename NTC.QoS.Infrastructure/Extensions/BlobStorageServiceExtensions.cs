@@ -1,4 +1,6 @@
 using Azure.Storage.Blobs;
+using Azure.Storage;
+using System.Data.Common;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Domain.Interfaces;
@@ -28,7 +30,20 @@ public static class BlobStorageServiceExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton(provider => new BlobServiceClient(blobConnectionString));
+        services.AddSingleton(new BlobServiceClient(blobConnectionString));
+
+        var connectionStringBuilder = new DbConnectionStringBuilder
+        {
+            ConnectionString = blobConnectionString
+        };
+        if (connectionStringBuilder.TryGetValue("AccountName", out var accountName) &&
+            connectionStringBuilder.TryGetValue("AccountKey", out var accountKey) &&
+            accountName is string accountNameValue &&
+            accountKey is string accountKeyValue)
+        {
+            services.AddSingleton(new StorageSharedKeyCredential(accountNameValue, accountKeyValue));
+        }
+
         services.AddScoped<IBlobStorageService, BlobStorageService>();
 
         return services;
