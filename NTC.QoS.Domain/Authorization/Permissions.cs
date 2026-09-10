@@ -208,4 +208,9 @@ public static class Permissions
     // GenAI permissions
     public const string ChatWithAI = "genai.chat";
     public const string GenerateReports = "genai.generate_reports";
+
+    // Notification permissions
+    public const string ViewNotifications = "notifications.view";
+    public const string UpdateNotifications = "notifications.update";
+    public const string DeleteNotifications = "notifications.delete";
 }
